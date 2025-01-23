@@ -70,6 +70,9 @@ private:
         LUISA_ASSERT(type != nullptr, "Type must not be null.");
         // custom
         if (type->is_custom()) {
+            if (auto iter = _struct_uid_map.find(type); iter != _struct_uid_map.end()) {
+                return iter->second;
+            }
             auto next_uid = static_cast<uint>(_struct_uid_map.size());
             _prelude << "type T" << next_uid << " = opaque \"" << type->description() << "\";\n\n";
             _struct_uid_map.emplace(type, next_uid);

@@ -108,22 +108,22 @@ const BasicBlock *RayQueryDispatchInst::on_procedural_candidate_block() const no
     return const_cast<RayQueryDispatchInst *>(this)->on_procedural_candidate_block();
 }
 
-RayQueryPipelineInst::RayQueryPipelineInst(Value *query_object, Value *query_context,
-                                           Function *on_surface, Function *on_procedural) noexcept {
-    std::array operands{query_object, query_context, static_cast<Value *>(on_surface), static_cast<Value *>(on_procedural)};
+RayQueryPipelineInst::RayQueryPipelineInst(const Type *type, Value *query_object,
+                                           Function *on_surface, Function *on_procedural,
+                                           luisa::span<Value *const> captured_args) noexcept
+    : DerivedInstruction{type} {
+    std::array operands{query_object, static_cast<Value *>(on_surface), static_cast<Value *>(on_procedural)};
     LUISA_DEBUG_ASSERT(operands[operand_index_query_object] == query_object, "Invalid query object operand.");
-    LUISA_DEBUG_ASSERT(operands[operand_index_query_context] == query_context, "Invalid query context operand.");
     LUISA_DEBUG_ASSERT(operands[operand_index_on_surface_function] == on_surface, "Invalid on surface function operand.");
     LUISA_DEBUG_ASSERT(operands[operand_index_on_procedural_function] == on_procedural, "Invalid on procedural function operand.");
     set_operands(operands);
+    if (!captured_args.empty()) {
+        set_captured_args(captured_args);
+    }
 }
 
 void RayQueryPipelineInst::set_query_object(Value *query_object) noexcept {
     set_operand(operand_index_query_object, query_object);
-}
-
-void RayQueryPipelineInst::set_query_context(Value *query_context) noexcept {
-    set_operand(operand_index_query_context, query_context);
 }
 
 void RayQueryPipelineInst::set_on_surface_function(Function *on_surface) noexcept {
@@ -134,20 +134,55 @@ void RayQueryPipelineInst::set_on_procedural_function(Function *on_procedural) n
     set_operand(operand_index_on_procedural_function, on_procedural);
 }
 
+void RayQueryPipelineInst::set_captured_arg(size_t index, Value *arg) noexcept {
+    set_operand(operand_index_offset_captured_args + index, arg);
+}
+
+void RayQueryPipelineInst::add_captured_arg(Value *arg) noexcept {
+    add_operand(arg);
+}
+
+void RayQueryPipelineInst::set_captured_args(luisa::span<Value *const> args) noexcept {
+    set_captured_arg_count(args.size());
+    for (auto i = 0u; i < args.size(); i++) {
+        set_captured_arg(i, args[i]);
+    }
+}
+
+void RayQueryPipelineInst::set_captured_arg_count(size_t count) noexcept {
+    set_operand_count(operand_index_offset_captured_args + count);
+}
+
+luisa::span<Use *const> RayQueryPipelineInst::captured_arg_uses() noexcept {
+    return operand_uses().subspan(operand_index_offset_captured_args);
+}
+
+luisa::span<const Use *const> RayQueryPipelineInst::captured_arg_uses() const noexcept {
+    return const_cast<RayQueryPipelineInst *>(this)->captured_arg_uses();
+}
+
+Use *RayQueryPipelineInst::captured_arg_use(size_t index) noexcept {
+    return operand_use(operand_index_offset_captured_args + index);
+}
+
+const Use *RayQueryPipelineInst::captured_arg_use(size_t index) const noexcept {
+    return const_cast<RayQueryPipelineInst *>(this)->captured_arg_use(index);
+}
+
+Value *RayQueryPipelineInst::captured_arg(size_t index) noexcept {
+    return operand(operand_index_offset_captured_args + index);
+}
+
+const Value *RayQueryPipelineInst::captured_arg(size_t index) const noexcept {
+    return const_cast<RayQueryPipelineInst *>(this)->captured_arg(index);
+}
+
 Value *RayQueryPipelineInst::query_object() noexcept {
     return operand(operand_index_query_object);
 }
 
 const Value *RayQueryPipelineInst::query_object() const noexcept {
     return operand(operand_index_query_object);
-}
-
-Value *RayQueryPipelineInst::query_context() noexcept {
-    return operand(operand_index_query_context);
-}
-
-const Value *RayQueryPipelineInst::query_context() const noexcept {
-    return operand(operand_index_query_context);
 }
 
 Function *RayQueryPipelineInst::on_surface_function() noexcept {

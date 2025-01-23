@@ -109,38 +109,49 @@ public:
 };
 
 // Ray query pipeline instruction:
-// RayQueryPipeline(query_object, query_context, on_surface_func, on_procedural_func)
-// The signature of on_*_func: (query_object, query_context) -> void
+// RayQueryPipeline(query_object, on_surface_func, on_procedural_func, captured_args...)
+// The signature of on_*_func: (query_object, captured_args...) -> live_out
 class LC_XIR_API RayQueryPipelineInst final : public DerivedInstruction<DerivedInstructionTag::RAY_QUERY_PIPELINE> {
 
 public:
     static constexpr size_t operand_index_query_object = 0u;
-    static constexpr size_t operand_index_query_context = 1u;
-    static constexpr size_t operand_index_on_surface_function = 2u;
-    static constexpr size_t operand_index_on_procedural_function = 3u;
+    static constexpr size_t operand_index_on_surface_function = 1u;
+    static constexpr size_t operand_index_on_procedural_function = 2u;
+    static constexpr size_t operand_index_offset_captured_args = 3u;
 
 public:
-    explicit RayQueryPipelineInst(Value *query_object = nullptr,
-                                  Value *query_context = nullptr,
+    explicit RayQueryPipelineInst(const Type *type = nullptr,
+                                  Value *query_object = nullptr,
                                   Function *on_surface = nullptr,
-                                  Function *on_procedural = nullptr) noexcept;
+                                  Function *on_procedural = nullptr,
+                                  luisa::span<Value *const> captured_args = {}) noexcept;
 
     void set_query_object(Value *query_object) noexcept;
-    void set_query_context(Value *query_context) noexcept;
     void set_on_surface_function(Function *on_surface) noexcept;
     void set_on_procedural_function(Function *on_procedural) noexcept;
 
+    void set_captured_arg(size_t index, Value *arg) noexcept;
+    void add_captured_arg(Value *arg) noexcept;
+    void set_captured_args(luisa::span<Value *const> args) noexcept;
+    void set_captured_arg_count(size_t count) noexcept;
+
     [[nodiscard]] Value *query_object() noexcept;
     [[nodiscard]] const Value *query_object() const noexcept;
-
-    [[nodiscard]] Value *query_context() noexcept;
-    [[nodiscard]] const Value *query_context() const noexcept;
 
     [[nodiscard]] Function *on_surface_function() noexcept;
     [[nodiscard]] const Function *on_surface_function() const noexcept;
 
     [[nodiscard]] Function *on_procedural_function() noexcept;
     [[nodiscard]] const Function *on_procedural_function() const noexcept;
+
+    [[nodiscard]] luisa::span<Use *const> captured_arg_uses() noexcept;
+    [[nodiscard]] luisa::span<const Use *const> captured_arg_uses() const noexcept;
+
+    [[nodiscard]] Use *captured_arg_use(size_t index) noexcept;
+    [[nodiscard]] const Use *captured_arg_use(size_t index) const noexcept;
+
+    [[nodiscard]] Value *captured_arg(size_t index) noexcept;
+    [[nodiscard]] const Value *captured_arg(size_t index) const noexcept;
 };
 
 }// namespace luisa::compute::xir
