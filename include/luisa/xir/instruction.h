@@ -5,6 +5,7 @@
 namespace luisa::compute::xir {
 
 class BasicBlock;
+class Function;
 
 enum struct DerivedInstructionTag {
 
@@ -52,6 +53,7 @@ enum struct DerivedInstructionTag {
     RAY_QUERY_DISPATCH,    // basic block terminator: ray query switch branches
     RAY_QUERY_OBJECT_READ, // read from ray query objects
     RAY_QUERY_OBJECT_WRITE,// write to ray query objects
+    RAY_QUERY_PIPELINE,
 
     /* other instructions */
     CALL, // user or external function calls
@@ -98,6 +100,7 @@ enum struct DerivedInstructionTag {
         case DerivedInstructionTag::RAY_QUERY_DISPATCH: return "ray_query_dispatch"sv;
         case DerivedInstructionTag::RAY_QUERY_OBJECT_READ: return "ray_query_object_read"sv;
         case DerivedInstructionTag::RAY_QUERY_OBJECT_WRITE: return "ray_query_object_write"sv;
+        case DerivedInstructionTag::RAY_QUERY_PIPELINE: return "ray_query_pipeline"sv;
         case DerivedInstructionTag::CALL: return "call"sv;
         case DerivedInstructionTag::CAST: return "cast"sv;
         case DerivedInstructionTag::PRINT: return "print"sv;

@@ -134,10 +134,16 @@ public:
 
     RayQueryLoopInst *ray_query_loop() noexcept;
     RayQueryDispatchInst *ray_query_dispatch(Value *query_object) noexcept;
+
     RayQueryObjectReadInst *call(const Type *type, RayQueryObjectReadOp op, luisa::span<Value *const> operands) noexcept;
     RayQueryObjectReadInst *call(const Type *type, RayQueryObjectReadOp op, std::initializer_list<Value *> operands) noexcept;
     RayQueryObjectWriteInst *call(RayQueryObjectWriteOp op, luisa::span<Value *const> operands) noexcept;
     RayQueryObjectWriteInst *call(RayQueryObjectWriteOp op, std::initializer_list<Value *> operands) noexcept;
+
+    RayQueryPipelineInst *ray_query_pipeline(Value *query_object = nullptr,
+                                             Value *query_context = nullptr,
+                                             Function *on_surface = nullptr,
+                                             Function *on_procedural = nullptr) noexcept;
 
     AtomicInst *atomic_fetch_add(const Type *type, Value *base, luisa::span<Value *const> indices, Value *value) noexcept;
     AtomicInst *atomic_fetch_sub(const Type *type, Value *base, luisa::span<Value *const> indices, Value *value) noexcept;

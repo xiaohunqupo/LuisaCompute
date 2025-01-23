@@ -108,4 +108,39 @@ public:
     [[nodiscard]] const BasicBlock *on_procedural_candidate_block() const noexcept;
 };
 
+// Ray query pipeline instruction:
+// RayQueryPipeline(query_object, query_context, on_surface_func, on_procedural_func)
+// The signature of on_*_func: (query_object, query_context) -> void
+class LC_XIR_API RayQueryPipelineInst final : public DerivedInstruction<DerivedInstructionTag::RAY_QUERY_PIPELINE> {
+
+public:
+    static constexpr size_t operand_index_query_object = 0u;
+    static constexpr size_t operand_index_query_context = 1u;
+    static constexpr size_t operand_index_on_surface_function = 2u;
+    static constexpr size_t operand_index_on_procedural_function = 3u;
+
+public:
+    explicit RayQueryPipelineInst(Value *query_object = nullptr,
+                                  Value *query_context = nullptr,
+                                  Function *on_surface = nullptr,
+                                  Function *on_procedural = nullptr) noexcept;
+
+    void set_query_object(Value *query_object) noexcept;
+    void set_query_context(Value *query_context) noexcept;
+    void set_on_surface_function(Function *on_surface) noexcept;
+    void set_on_procedural_function(Function *on_procedural) noexcept;
+
+    [[nodiscard]] Value *query_object() noexcept;
+    [[nodiscard]] const Value *query_object() const noexcept;
+
+    [[nodiscard]] Value *query_context() noexcept;
+    [[nodiscard]] const Value *query_context() const noexcept;
+
+    [[nodiscard]] Function *on_surface_function() noexcept;
+    [[nodiscard]] const Function *on_surface_function() const noexcept;
+
+    [[nodiscard]] Function *on_procedural_function() noexcept;
+    [[nodiscard]] const Function *on_procedural_function() const noexcept;
+};
+
 }// namespace luisa::compute::xir

@@ -61,6 +61,8 @@ set(LUISA_COMPUTE_XIR_SOURCES
         passes/pointer_usage.cpp
         passes/local_store_forward.cpp
         passes/local_load_elimination.cpp
+        passes/lower_ray_query_loop.cpp
+        passes/mem2reg.cpp
 )
 
 add_library(luisa-compute-xir SHARED ${LUISA_COMPUTE_XIR_SOURCES})

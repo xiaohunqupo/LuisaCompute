@@ -196,6 +196,10 @@ RayQueryObjectWriteInst *Builder::call(RayQueryObjectWriteOp op, std::initialize
     return this->call(op, luisa::span{operands.begin(), operands.end()});
 }
 
+RayQueryPipelineInst *Builder::ray_query_pipeline(Value *query_object, Value *query_context, Function *on_surface, Function *on_procedural) noexcept {
+    return _create_and_append_instruction<RayQueryPipelineInst>(query_object, query_context, on_surface, on_procedural);
+}
+
 ThreadGroupInst *Builder::call(const Type *type, ThreadGroupOp op, luisa::span<Value *const> operands) noexcept {
     return _create_and_append_instruction<ThreadGroupInst>(type, op, operands);
 }

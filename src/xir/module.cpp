@@ -8,19 +8,19 @@ namespace luisa::compute::xir {
 Module::Module() noexcept = default;
 
 KernelFunction *Module::create_kernel() noexcept {
-    auto f = Pool::current()->create<KernelFunction>();
+    auto f = Pool::current()->create<KernelFunction>(this);
     add_function(f);
     return f;
 }
 
 CallableFunction *Module::create_callable(const Type *ret_type) noexcept {
-    auto f = Pool::current()->create<CallableFunction>(ret_type);
+    auto f = Pool::current()->create<CallableFunction>(this, ret_type);
     add_function(f);
     return f;
 }
 
 ExternalFunction *Module::create_external_function(const Type *ret_type) noexcept {
-    auto f = Pool::current()->create<ExternalFunction>(ret_type);
+    auto f = Pool::current()->create<ExternalFunction>(this, ret_type);
     add_function(f);
     return f;
 }
@@ -50,6 +50,7 @@ Constant *Module::create_constant_one(const Type *type) noexcept {
 
 void Module::add_function(Function *function) noexcept {
     LUISA_DEBUG_ASSERT(!function->is_linked(), "Function is already linked.");
+    LUISA_DEBUG_ASSERT(function->module() == this, "Function belongs to another module.");
     _functions.insert_front(function);
 }
 

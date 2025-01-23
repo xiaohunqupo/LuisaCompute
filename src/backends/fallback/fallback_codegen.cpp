@@ -2796,12 +2796,20 @@ private:
                 }
                 LUISA_ERROR_WITH_LOCATION("Invalid atomic operation.");
             }
-            case xir::DerivedInstructionTag::RAY_QUERY_LOOP: LUISA_NOT_IMPLEMENTED();
-            case xir::DerivedInstructionTag::RAY_QUERY_DISPATCH: LUISA_NOT_IMPLEMENTED();
-            case xir::DerivedInstructionTag::RAY_QUERY_OBJECT_READ: LUISA_NOT_IMPLEMENTED();
-            case xir::DerivedInstructionTag::RAY_QUERY_OBJECT_WRITE: LUISA_NOT_IMPLEMENTED();
+            case xir::DerivedInstructionTag::RAY_QUERY_LOOP: LUISA_ERROR_WITH_LOCATION("Unexpected RayQueryLoop instruction. Run lower_ray_query_loop pass first.");
+            case xir::DerivedInstructionTag::RAY_QUERY_DISPATCH: LUISA_ERROR_WITH_LOCATION("Unexpected RayQueryDispatch instruction. Run lower_ray_query_loop pass first.");
+            case xir::DerivedInstructionTag::RAY_QUERY_OBJECT_READ: LUISA_ERROR_WITH_LOCATION("Unexpected RayQueryObjectRead instruction. Run lower_ray_query_loop pass first.");
+            case xir::DerivedInstructionTag::RAY_QUERY_OBJECT_WRITE: LUISA_ERROR_WITH_LOCATION("Unexpected RayQueryObjectWrite instruction. Run lower_ray_query_loop pass first.");
+            case xir::DerivedInstructionTag::RAY_QUERY_PIPELINE: {
+                auto pipeline_inst = static_cast<const xir::RayQueryPipelineInst *>(inst);
+                return _translate_ray_query_pipeline_inst(current, b, pipeline_inst);
+            }
         }
         LUISA_ERROR_WITH_LOCATION("Invalid instruction.");
+    }
+
+    [[nodiscard]] llvm::Value *_translate_ray_query_pipeline_inst(CurrentFunction &current, IRBuilder &b, const xir::RayQueryPipelineInst *inst) noexcept {
+        LUISA_NOT_IMPLEMENTED();// TODO: implement ray query pipeline
     }
 
     [[nodiscard]] llvm::BasicBlock *_find_or_create_basic_block(CurrentFunction &current, const xir::BasicBlock *bb) noexcept {

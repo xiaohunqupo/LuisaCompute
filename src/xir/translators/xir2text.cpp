@@ -346,6 +346,11 @@ private:
         _emit_operands(inst);
     }
 
+    void _emit_ray_query_pipeline_inst(const RayQueryPipelineInst *inst) noexcept {
+        _main << "ray_query_pipeline ";
+        _emit_operands(inst);
+    }
+
     void _emit_return_inst(const ReturnInst *inst) noexcept {
         if (auto ret = inst->return_value()) {
             _main << "return " << _value_ident(ret);
@@ -541,6 +546,9 @@ private:
                 break;
             case DerivedInstructionTag::RAY_QUERY_OBJECT_WRITE:
                 _emit_ray_query_object_write_inst(static_cast<const RayQueryObjectWriteInst *>(inst));
+                break;
+            case DerivedInstructionTag::RAY_QUERY_PIPELINE:
+                _emit_ray_query_pipeline_inst(static_cast<const RayQueryPipelineInst *>(inst));
                 break;
             case DerivedInstructionTag::BRANCH:
                 _emit_branch_inst(static_cast<const BranchInst *>(inst));
