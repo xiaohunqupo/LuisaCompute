@@ -140,8 +140,7 @@ public:
     RayQueryObjectWriteInst *call(RayQueryObjectWriteOp op, luisa::span<Value *const> operands) noexcept;
     RayQueryObjectWriteInst *call(RayQueryObjectWriteOp op, std::initializer_list<Value *> operands) noexcept;
 
-    RayQueryPipelineInst *ray_query_pipeline(const Type *type = nullptr,
-                                             Value *query_object = nullptr,
+    RayQueryPipelineInst *ray_query_pipeline(Value *query_object = nullptr,
                                              Function *on_surface = nullptr,
                                              Function *on_procedural = nullptr,
                                              luisa::span<Value *const> captured_args = {}) noexcept;

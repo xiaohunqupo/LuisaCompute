@@ -110,7 +110,7 @@ public:
 
 // Ray query pipeline instruction:
 // RayQueryPipeline(query_object, on_surface_func, on_procedural_func, captured_args...)
-// The signature of on_*_func: (query_object, captured_args...) -> live_out
+// The signature of on_*_func: (query_object, captured_args...) -> void
 class LC_XIR_API RayQueryPipelineInst final : public DerivedInstruction<DerivedInstructionTag::RAY_QUERY_PIPELINE> {
 
 public:
@@ -120,8 +120,7 @@ public:
     static constexpr size_t operand_index_offset_captured_args = 3u;
 
 public:
-    explicit RayQueryPipelineInst(const Type *type = nullptr,
-                                  Value *query_object = nullptr,
+    explicit RayQueryPipelineInst(Value *query_object = nullptr,
                                   Function *on_surface = nullptr,
                                   Function *on_procedural = nullptr,
                                   luisa::span<Value *const> captured_args = {}) noexcept;

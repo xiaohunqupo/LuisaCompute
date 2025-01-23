@@ -108,10 +108,10 @@ const BasicBlock *RayQueryDispatchInst::on_procedural_candidate_block() const no
     return const_cast<RayQueryDispatchInst *>(this)->on_procedural_candidate_block();
 }
 
-RayQueryPipelineInst::RayQueryPipelineInst(const Type *type, Value *query_object,
-                                           Function *on_surface, Function *on_procedural,
-                                           luisa::span<Value *const> captured_args) noexcept
-    : DerivedInstruction{type} {
+RayQueryPipelineInst::RayQueryPipelineInst(Value *query_object,
+                                           Function *on_surface,
+                                           Function *on_procedural,
+                                           luisa::span<Value *const> captured_args) noexcept {
     std::array operands{query_object, static_cast<Value *>(on_surface), static_cast<Value *>(on_procedural)};
     LUISA_DEBUG_ASSERT(operands[operand_index_query_object] == query_object, "Invalid query object operand.");
     LUISA_DEBUG_ASSERT(operands[operand_index_on_surface_function] == on_surface, "Invalid on surface function operand.");
