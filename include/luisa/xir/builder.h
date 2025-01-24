@@ -46,8 +46,7 @@ private:
     template<typename T, typename... Args>
     [[nodiscard]] auto _create_and_append_instruction(Args &&...args) noexcept {
         auto inst = Pool::current()->create<T>(std::forward<Args>(args)...);
-        _insertion_point->insert_after_self(inst);
-        set_insertion_point(inst);
+        append(inst);
         return inst;
     }
 
@@ -64,6 +63,8 @@ public:
     }
 
 public:
+    void append(Instruction *inst) noexcept;
+
     IfInst *if_(Value *cond) noexcept;
     SwitchInst *switch_(Value *value) noexcept;
     LoopInst *loop() noexcept;

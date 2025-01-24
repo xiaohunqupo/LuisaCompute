@@ -10,6 +10,11 @@ void Builder::_check_valid_insertion_point() const noexcept {
 
 Builder::Builder() noexcept = default;
 
+void Builder::append(Instruction *inst) noexcept {
+    _insertion_point->insert_after_self(inst);
+    set_insertion_point(inst);
+}
+
 IfInst *Builder::if_(Value *cond) noexcept {
     LUISA_ASSERT(cond != nullptr && cond->type() == Type::of<bool>(), "Invalid condition.");
     return _create_and_append_instruction<IfInst>(cond);

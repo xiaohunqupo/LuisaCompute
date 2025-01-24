@@ -42,7 +42,7 @@ class RayQueryPipelineInst;
 // 3. Create a ray query pipeline instruction to replace the ray query loop.
 //
 // Note: to minimize the number of captured arguments, this pass should be run
-// after other optimization passes.
+// after other optimization passes. A DCE pass is also recommended after this pass.
 
 struct RayQueryLoopLowerInfo {
     luisa::unordered_map<RayQueryLoopInst *, RayQueryPipelineInst *> lowered_loops;
