@@ -11,6 +11,39 @@ class Function;
 class RayQueryLoopInst;
 class RayQueryPipelineInst;
 
+// This pass lowers ray query loops into ray query pipelines.
+//
+// A ray query loop is a control flow structure:
+// RayQueryLoop {
+//   /* dispatch_block */
+//   RayQueryDispatch(object)
+//     -> merge_block
+//     -> on_surface_candidate_block {
+//       /* on surface candidate block */
+//       br dispatch_block
+//     }
+//     -> on_procedural_candidate_block {
+//       /* on procedural candidate block */
+//       br dispatch_block
+//     }
+// }
+// /* merge_block */
+// { ... }
+//
+// A ray query pipeline is a high-level instruction that takes a
+// query object, an on-surface function, an on-procedural function,
+// and a list of captured arguments (the context):
+// RayQueryPipeline(query_object, on_surface_func, on_procedural_func, captured_args...),
+// where the signature of on_*_func is (query_object, captured_args...) -> void.
+//
+// This pass lowers ray query loops into ray query pipelines in three steps:
+// 1. Compute the context of the ray query loop, i.e., the captured arguments.
+// 2. Outline the on-surface and on-procedural candidate blocks into functions.
+// 3. Create a ray query pipeline instruction to replace the ray query loop.
+//
+// Note: to minimize the number of captured arguments, this pass should be run
+// after other optimization passes.
+
 struct RayQueryLoopLowerInfo {
     luisa::unordered_map<RayQueryLoopInst *, RayQueryPipelineInst *> lowered_loops;
 };
