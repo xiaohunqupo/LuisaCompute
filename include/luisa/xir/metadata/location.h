@@ -18,6 +18,7 @@ public:
     void set_line(int line) noexcept { _line = line; }
     [[nodiscard]] auto &file() const noexcept { return _file; }
     [[nodiscard]] auto line() const noexcept { return _line; }
+    [[nodiscard]] LocationMD *clone() const noexcept override;
 };
 
 }// namespace luisa::compute::xir

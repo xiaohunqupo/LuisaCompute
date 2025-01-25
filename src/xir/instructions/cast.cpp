@@ -21,4 +21,9 @@ void CastInst::set_value(Value *value) noexcept {
     set_operand(0, value);
 }
 
+CastInst *CastInst::clone(InstructionCloneValueResolver &resolver) const noexcept {
+    auto resolved_value = resolver.resolve(value());
+    return Pool::current()->create<CastInst>(type(), op(), resolved_value);
+}
+
 }// namespace luisa::compute::xir

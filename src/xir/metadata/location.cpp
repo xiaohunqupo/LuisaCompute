@@ -10,4 +10,8 @@ void LocationMD::set_location(luisa::filesystem::path file, int line) noexcept {
     set_line(line);
 }
 
+LocationMD *LocationMD::clone() const noexcept {
+    return Pool::current()->create<LocationMD>(file(), line());
+}
+
 }// namespace luisa::compute::xir

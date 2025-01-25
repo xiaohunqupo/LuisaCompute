@@ -2577,9 +2577,6 @@ private:
     [[nodiscard]] llvm::Value *_translate_instruction(CurrentFunction &current, IRBuilder &b,
                                                       const xir::Instruction *inst) noexcept {
         switch (inst->derived_instruction_tag()) {
-            case xir::DerivedInstructionTag::SENTINEL: {
-                LUISA_ERROR_WITH_LOCATION("Invalid instruction.");
-            }
             case xir::DerivedInstructionTag::IF: {
                 auto if_inst = static_cast<const xir::IfInst *>(inst);
                 auto llvm_condition = _lookup_value(current, b, if_inst->condition());

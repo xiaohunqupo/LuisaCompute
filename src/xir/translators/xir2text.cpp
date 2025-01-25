@@ -478,8 +478,6 @@ private:
         _emit_indent(indent);
         _main << _value_ident(inst) << ": " << _type_ident(inst->type()) << " = ";
         switch (inst->derived_instruction_tag()) {
-            case DerivedInstructionTag::SENTINEL:
-                LUISA_ERROR_WITH_LOCATION("Unexpected sentinel instruction.");
             case DerivedInstructionTag::UNREACHABLE:
                 _emit_unreachable_inst(static_cast<const UnreachableInst *>(inst));
                 break;

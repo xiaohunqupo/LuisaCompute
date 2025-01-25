@@ -15,6 +15,7 @@ public:
     [[nodiscard]] auto &comment() noexcept { return _comment; }
     [[nodiscard]] auto &comment() const noexcept { return _comment; }
     void set_comment(luisa::string_view comment) noexcept;
+    [[nodiscard]] CommentMD *clone() const noexcept override;
 };
 
 }// namespace luisa::compute::xir

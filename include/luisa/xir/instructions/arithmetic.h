@@ -135,6 +135,7 @@ class LC_XIR_API ArithmeticInst final : public DerivedInstruction<DerivedInstruc
 public:
     explicit ArithmeticInst(const Type *type = nullptr, ArithmeticOp op = {},
                             luisa::span<Value *const> operands = {}) noexcept;
+    [[nodiscard]] ArithmeticInst *clone(InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 }// namespace luisa::compute::xir

@@ -13,4 +13,8 @@ luisa::string_view UnreachableInst::message() const noexcept {
     return _message;
 }
 
+UnreachableInst *UnreachableInst::clone(InstructionCloneValueResolver &resolver) const noexcept {
+    return Pool::current()->create<UnreachableInst>(_message);
+}
+
 }// namespace luisa::compute::xir

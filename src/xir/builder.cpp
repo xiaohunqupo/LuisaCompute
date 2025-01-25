@@ -83,11 +83,11 @@ RasterDiscardInst *Builder::raster_discard() noexcept {
     return _create_and_append_instruction<RasterDiscardInst>();
 }
 
-CallInst *Builder::call(const Type *type, Value *callee, luisa::span<Value *const> arguments) noexcept {
+CallInst *Builder::call(const Type *type, Function *callee, luisa::span<Value *const> arguments) noexcept {
     return _create_and_append_instruction<CallInst>(type, callee, arguments);
 }
 
-CallInst *Builder::call(const Type *type, Value *callee, std::initializer_list<Value *> arguments) noexcept {
+CallInst *Builder::call(const Type *type, Function *callee, std::initializer_list<Value *> arguments) noexcept {
     return _create_and_append_instruction<CallInst>(type, callee, luisa::span{arguments.begin(), arguments.end()});
 }
 

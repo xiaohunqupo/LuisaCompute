@@ -31,4 +31,8 @@ void NameMD::set_name(luisa::string_view name) noexcept {
     _name = name;
 }
 
+NameMD *NameMD::clone() const noexcept {
+    return Pool::current()->create<NameMD>(name());
+}
+
 }// namespace luisa::compute::xir

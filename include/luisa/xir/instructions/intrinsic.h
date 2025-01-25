@@ -27,6 +27,7 @@ public:
     explicit IntrinsicInst(const Type *type = nullptr,
                            IntrinsicOp op = IntrinsicOp::NOP,
                            luisa::span<Value *const> operands = {}) noexcept;
+    [[nodiscard]] IntrinsicInst *clone(InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 }// namespace luisa::compute::xir

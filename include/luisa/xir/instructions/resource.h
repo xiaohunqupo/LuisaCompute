@@ -137,6 +137,7 @@ class LC_XIR_API ResourceQueryInst final : public DerivedInstruction<DerivedInst
 public:
     explicit ResourceQueryInst(const Type *type = nullptr, ResourceQueryOp op = {},
                                luisa::span<Value *const> operands = {}) noexcept;
+    [[nodiscard]] ResourceQueryInst *clone(InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 class LC_XIR_API ResourceReadInst final : public DerivedInstruction<DerivedInstructionTag::RESOURCE_READ>,
@@ -144,6 +145,7 @@ class LC_XIR_API ResourceReadInst final : public DerivedInstruction<DerivedInstr
 public:
     explicit ResourceReadInst(const Type *type = nullptr, ResourceReadOp op = {},
                               luisa::span<Value *const> operands = {}) noexcept;
+    [[nodiscard]] ResourceReadInst *clone(InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 class LC_XIR_API ResourceWriteInst final : public DerivedInstruction<DerivedInstructionTag::RESOURCE_WRITE>,
@@ -151,6 +153,7 @@ class LC_XIR_API ResourceWriteInst final : public DerivedInstruction<DerivedInst
 public:
     explicit ResourceWriteInst(ResourceWriteOp op = {},
                                luisa::span<Value *const> operands = {}) noexcept;
+    [[nodiscard]] ResourceWriteInst *clone(InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 }// namespace luisa::compute::xir

@@ -45,6 +45,7 @@ class LC_XIR_API ThreadGroupInst final : public DerivedInstruction<DerivedInstru
 public:
     explicit ThreadGroupInst(const Type *type = nullptr, ThreadGroupOp op = {},
                              luisa::span<Value *const> operands = {}) noexcept;
+    [[nodiscard]] ThreadGroupInst *clone(InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 }// namespace luisa::compute::xir

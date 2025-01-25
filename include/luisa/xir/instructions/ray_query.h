@@ -37,6 +37,7 @@ class LC_XIR_API RayQueryObjectReadInst final : public DerivedInstruction<Derive
 public:
     explicit RayQueryObjectReadInst(const Type *type = nullptr, RayQueryObjectReadOp op = {},
                                     luisa::span<Value *const> operands = {}) noexcept;
+    [[nodiscard]] RayQueryObjectReadInst *clone(InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 class LC_XIR_API RayQueryObjectWriteInst final : public DerivedInstruction<DerivedInstructionTag::RAY_QUERY_OBJECT_WRITE>,
@@ -44,6 +45,7 @@ class LC_XIR_API RayQueryObjectWriteInst final : public DerivedInstruction<Deriv
 public:
     explicit RayQueryObjectWriteInst(RayQueryObjectWriteOp op = {},
                                      luisa::span<Value *const> operands = {}) noexcept;
+    [[nodiscard]] RayQueryObjectWriteInst *clone(InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 // Ray query control flow instructions:
@@ -73,6 +75,7 @@ public:
     BasicBlock *create_dispatch_block() noexcept;
     [[nodiscard]] BasicBlock *dispatch_block() noexcept;
     [[nodiscard]] const BasicBlock *dispatch_block() const noexcept;
+    [[nodiscard]] RayQueryLoopInst *clone(InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 class LC_XIR_API RayQueryDispatchInst final : public DerivedTerminatorInstruction<DerivedInstructionTag::RAY_QUERY_DISPATCH> {
@@ -106,6 +109,8 @@ public:
 
     [[nodiscard]] BasicBlock *on_procedural_candidate_block() noexcept;
     [[nodiscard]] const BasicBlock *on_procedural_candidate_block() const noexcept;
+
+    [[nodiscard]] RayQueryDispatchInst *clone(InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 // Ray query pipeline instruction:
@@ -117,7 +122,7 @@ public:
     static constexpr size_t operand_index_query_object = 0u;
     static constexpr size_t operand_index_on_surface_function = 1u;
     static constexpr size_t operand_index_on_procedural_function = 2u;
-    static constexpr size_t operand_index_offset_captured_args = 3u;
+    static constexpr size_t operand_index_offset_captured_arguments = 3u;
 
 public:
     explicit RayQueryPipelineInst(Value *query_object = nullptr,
@@ -129,10 +134,10 @@ public:
     void set_on_surface_function(Function *on_surface) noexcept;
     void set_on_procedural_function(Function *on_procedural) noexcept;
 
-    void set_captured_arg(size_t index, Value *arg) noexcept;
-    void add_captured_arg(Value *arg) noexcept;
-    void set_captured_args(luisa::span<Value *const> args) noexcept;
-    void set_captured_arg_count(size_t count) noexcept;
+    void set_captured_argument(size_t index, Value *arg) noexcept;
+    void add_captured_argument(Value *arg) noexcept;
+    void set_captured_arguments(luisa::span<Value *const> args) noexcept;
+    void set_captured_argument_count(size_t count) noexcept;
 
     [[nodiscard]] Value *query_object() noexcept;
     [[nodiscard]] const Value *query_object() const noexcept;
@@ -143,14 +148,18 @@ public:
     [[nodiscard]] Function *on_procedural_function() noexcept;
     [[nodiscard]] const Function *on_procedural_function() const noexcept;
 
-    [[nodiscard]] luisa::span<Use *const> captured_arg_uses() noexcept;
-    [[nodiscard]] luisa::span<const Use *const> captured_arg_uses() const noexcept;
+    [[nodiscard]] luisa::span<Use *const> captured_argument_uses() noexcept;
+    [[nodiscard]] luisa::span<const Use *const> captured_argument_uses() const noexcept;
 
-    [[nodiscard]] Use *captured_arg_use(size_t index) noexcept;
-    [[nodiscard]] const Use *captured_arg_use(size_t index) const noexcept;
+    [[nodiscard]] Use *captured_argument_use(size_t index) noexcept;
+    [[nodiscard]] const Use *captured_argument_use(size_t index) const noexcept;
 
-    [[nodiscard]] Value *captured_arg(size_t index) noexcept;
-    [[nodiscard]] const Value *captured_arg(size_t index) const noexcept;
+    [[nodiscard]] Value *captured_argument(size_t index) noexcept;
+    [[nodiscard]] const Value *captured_argument(size_t index) const noexcept;
+
+    [[nodiscard]] size_t captured_argument_count() const noexcept;
+
+    [[nodiscard]] RayQueryPipelineInst *clone(InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 }// namespace luisa::compute::xir

@@ -23,4 +23,9 @@ const Type *ReturnInst::return_type() const noexcept {
     return ret_value == nullptr ? nullptr : ret_value->type();
 }
 
+ReturnInst *ReturnInst::clone(InstructionCloneValueResolver &resolver) const noexcept {
+    auto resolved_value = resolver.resolve(return_value());
+    return Pool::current()->create<ReturnInst>(resolved_value);
+}
+
 }// namespace luisa::compute::xir

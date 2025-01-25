@@ -22,6 +22,8 @@ public:
     [[nodiscard]] Value *value() noexcept;
     [[nodiscard]] const Value *value() const noexcept;
     void set_value(Value *value) noexcept;
+
+    [[nodiscard]] CastInst *clone(InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 }// namespace luisa::compute::xir

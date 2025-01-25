@@ -118,7 +118,7 @@ static void collect_ray_query_loop_capture_list_in_inst(Instruction *inst, const
     return capture_list;
 }
 
-class RayQueryLowerPassValueResolver final : public InstructionDuplicatorValueResolver {
+class RayQueryLowerPassValueResolver final : public InstructionCloneValueResolver {
 
 private:
     luisa::unordered_map<const Value *, Value *> value_map;
@@ -127,9 +127,16 @@ public:
     bool emplace(const Value *original, Value *duplicate) noexcept {
         return value_map.emplace(original, duplicate).second;
     }
-    [[nodiscard]] Value *resolve(const Value *value) noexcept override {
+    [[nodiscard]] Value *resolve_or_null(const Value *value) noexcept {
+        if (value == nullptr) { return nullptr; }
         auto iter = value_map.find(value);
         return iter == value_map.end() ? nullptr : iter->second;
+    }
+    [[nodiscard]] Value *resolve(const Value *value) noexcept override {
+        if (value == nullptr) { return nullptr; }
+        auto resolved = resolve_or_null(value);
+        LUISA_DEBUG_ASSERT(resolved != nullptr, "Value not found in the resolver.");
+        return resolved;
     }
 };
 
@@ -203,7 +210,7 @@ static BasicBlock *duplicate_basic_block_for_ray_query_loop_dispatch_branch(cons
             b.set_insertion_point(bb->terminator()->prev());
             for (auto out_value : capture_list.out_values) {
                 auto out_arg = function->create_reference_argument(out_value->type());
-                if (auto resolved = resolver.resolve(out_value)) {
+                if (auto resolved = resolver.resolve_or_null(out_value)) {
                     b.store(out_arg, resolved);
                 }
             }

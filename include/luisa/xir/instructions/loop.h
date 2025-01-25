@@ -33,6 +33,8 @@ public:
 
     [[nodiscard]] BasicBlock *update_block() noexcept;
     [[nodiscard]] const BasicBlock *update_block() const noexcept;
+
+    [[nodiscard]] LoopInst *clone(InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 class LC_XIR_API SimpleLoopInst final : public ControlFlowMergeMixin<DerivedTerminatorInstruction<DerivedInstructionTag::SIMPLE_LOOP>> {
@@ -45,6 +47,7 @@ public:
     BasicBlock *create_body_block(bool overwrite_existing = false) noexcept;
     [[nodiscard]] BasicBlock *body_block() noexcept;
     [[nodiscard]] const BasicBlock *body_block() const noexcept;
+    [[nodiscard]] SimpleLoopInst *clone(InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 }// namespace luisa::compute::xir

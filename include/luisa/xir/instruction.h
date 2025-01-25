@@ -9,9 +9,6 @@ class Function;
 
 enum struct DerivedInstructionTag {
 
-    /* utility instructions */
-    SENTINEL,// sentinels in instruction list
-
     /* control flow instructions */
     IF,                // basic block terminator: conditional branches
     SWITCH,            // basic block terminator: switch branches
@@ -73,7 +70,6 @@ enum struct DerivedInstructionTag {
 [[nodiscard]] constexpr luisa::string_view to_string(DerivedInstructionTag tag) noexcept {
     using namespace std::string_view_literals;
     switch (tag) {
-        case DerivedInstructionTag::SENTINEL: return "sentinel"sv;
         case DerivedInstructionTag::IF: return "if"sv;
         case DerivedInstructionTag::SWITCH: return "switch"sv;
         case DerivedInstructionTag::LOOP: return "loop"sv;
@@ -116,6 +112,11 @@ enum struct DerivedInstructionTag {
 
 class ControlFlowMerge;
 
+struct InstructionCloneValueResolver {
+    virtual ~InstructionCloneValueResolver() noexcept = default;
+    [[nodiscard]] virtual Value *resolve(const Value *value) noexcept = 0;
+};
+
 class LC_XIR_API Instruction : public IntrusiveNode<Instruction, DerivedValue<DerivedValueTag::INSTRUCTION, User>> {
 
 private:
@@ -130,9 +131,8 @@ protected:
 
 public:
     explicit Instruction(const Type *type = nullptr) noexcept;
-    [[nodiscard]] virtual DerivedInstructionTag derived_instruction_tag() const noexcept {
-        return DerivedInstructionTag::SENTINEL;
-    }
+    [[nodiscard]] virtual DerivedInstructionTag derived_instruction_tag() const noexcept = 0;
+    [[nodiscard]] virtual Instruction *clone(InstructionCloneValueResolver &resolver) const noexcept = 0;
 
     void remove_self() noexcept override;
     void insert_before_self(Instruction *node) noexcept override;
@@ -147,7 +147,14 @@ public:
     [[nodiscard]] const ControlFlowMerge *control_flow_merge() const noexcept;
 };
 
-using InstructionList = InlineIntrusiveList<Instruction>;
+class LC_XIR_API SentinelInst : public Instruction {
+public:
+    SentinelInst() noexcept = default;
+    [[nodiscard]] DerivedInstructionTag derived_instruction_tag() const noexcept override;
+    [[nodiscard]] Instruction *clone(InstructionCloneValueResolver &resolver) const noexcept override;
+};
+
+using InstructionList = InlineIntrusiveList<Instruction, SentinelInst>;
 
 class LC_XIR_API TerminatorInstruction : public Instruction {
 public:

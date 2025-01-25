@@ -83,8 +83,8 @@ public:
     AssertInst *assert_(Value *condition, luisa::string_view message = {}) noexcept;
     AssumeInst *assume_(Value *condition, luisa::string_view message = {}) noexcept;
 
-    CallInst *call(const Type *type, Value *callee, luisa::span<Value *const> arguments) noexcept;
-    CallInst *call(const Type *type, Value *callee, std::initializer_list<Value *> arguments) noexcept;
+    CallInst *call(const Type *type, Function *callee, luisa::span<Value *const> arguments) noexcept;
+    CallInst *call(const Type *type, Function *callee, std::initializer_list<Value *> arguments) noexcept;
 
     IntrinsicInst *call(const Type *type, IntrinsicOp op, luisa::span<Value *const> arguments) noexcept;
     IntrinsicInst *call(const Type *type, IntrinsicOp op, std::initializer_list<Value *> arguments) noexcept;

@@ -20,4 +20,9 @@ void LoadInst::set_variable(Value *variable) noexcept {
     return set_operand(0, variable);
 }
 
+LoadInst *LoadInst::clone(InstructionCloneValueResolver &resolver) const noexcept {
+    auto resolved_variable = resolver.resolve(variable());
+    return Pool::current()->create<LoadInst>(type(), resolved_variable);
+}
+
 }// namespace luisa::compute::xir

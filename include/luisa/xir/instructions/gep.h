@@ -30,6 +30,8 @@ public:
     void add_index(Value *index) noexcept;
     void insert_index(size_t i, Value *index) noexcept;
     void remove_index(size_t i) noexcept;
+
+    [[nodiscard]] GEPInst *clone(InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 }// namespace luisa::compute::xir
