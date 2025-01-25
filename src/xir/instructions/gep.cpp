@@ -39,4 +39,14 @@ void GEPInst::remove_index(size_t i) noexcept {
     remove_operand(operand_index_index_offset + i);
 }
 
+GEPInst *GEPInst::clone(InstructionCloneValueResolver &resolver) const noexcept {
+    auto resolved_base = resolver.resolve(base());
+    luisa::fixed_vector<Value *, 16u> resolved_indices;
+    resolved_indices.reserve(index_count());
+    for (auto index_use : index_uses()) {
+        resolved_indices.emplace_back(resolver.resolve(index_use->value()));
+    }
+    return Pool::current()->create<GEPInst>(type(), resolved_base, resolved_indices);
+}
+
 }// namespace luisa::compute::xir

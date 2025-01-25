@@ -6,7 +6,10 @@
 
 namespace luisa::compute::xir {
 
-Function::Function(const Type *type) noexcept : Super{type} {}
+Function::Function(Module *module, const Type *type) noexcept
+    : Super{type}, _module{module} {
+    LUISA_DEBUG_ASSERT(module != nullptr, "Module must not be null.");
+}
 
 void Function::add_argument(Argument *argument) noexcept {
     argument->_set_parent_function(this);
@@ -160,9 +163,8 @@ void FunctionDefinition::_traverse_basic_block_reverse_post_order(BasicBlock *bl
     }
 }
 
-KernelFunction::KernelFunction(luisa::uint3 block_size) noexcept {
-    set_block_size(block_size);
-}
+KernelFunction::KernelFunction(Module *module, luisa::uint3 block_size) noexcept
+    : DerivedFunction{module}, _block_size{} { set_block_size(block_size); }
 
 void KernelFunction::set_block_size(luisa::uint3 size) noexcept {
     auto thread_count = size.x * size.y * size.z;
@@ -170,7 +172,11 @@ void KernelFunction::set_block_size(luisa::uint3 size) noexcept {
                      thread_count <= 1024u &&
                      thread_count % 32u == 0u,
                  "Invalid block size: {}.", size);
-    _block_size = size;
+    _block_size = {size.x, size.y, size.z};
+}
+
+luisa::uint3 KernelFunction::block_size() const noexcept {
+    return luisa::make_uint3(_block_size[0], _block_size[1], _block_size[2]);
 }
 
 }// namespace luisa::compute::xir

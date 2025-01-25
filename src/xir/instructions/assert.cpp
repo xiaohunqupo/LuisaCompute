@@ -27,4 +27,9 @@ luisa::string_view AssertInst::message() const noexcept {
     return _message;
 }
 
+AssertInst *AssertInst::clone(InstructionCloneValueResolver &resolver) const noexcept {
+    auto resolved_cond = resolver.resolve(condition());
+    return Pool::current()->create<AssertInst>(resolved_cond, _message);
+}
+
 }// namespace luisa::compute::xir

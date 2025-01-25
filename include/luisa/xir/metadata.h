@@ -15,19 +15,17 @@ class Metadata : public IntrusiveForwardNode<Metadata> {
 public:
     using Super::Super;
     [[nodiscard]] virtual DerivedMetadataTag derived_metadata_tag() const noexcept = 0;
+    [[nodiscard]] virtual Metadata *clone() const noexcept = 0;
 };
 
 template<DerivedMetadataTag tag, typename Base = Metadata>
 class LC_XIR_API DerivedMetadata : public Base {
-
 public:
     using Base::Base;
-
     [[nodiscard]] static constexpr auto
     static_derived_metadata_tag() noexcept {
         return tag;
     }
-
     [[nodiscard]] DerivedMetadataTag
     derived_metadata_tag() const noexcept final {
         return static_derived_metadata_tag();

@@ -20,16 +20,22 @@ set(LUISA_COMPUTE_XIR_SOURCES
         instructions/assert.cpp
         instructions/assume.cpp
         instructions/atomic.cpp
+        instructions/branch.cpp
+        instructions/break.cpp
         instructions/call.cpp
         instructions/cast.cpp
         instructions/clock.cpp
+        instructions/continue.cpp
         instructions/gep.cpp
+        instructions/if.cpp
         instructions/intrinsic.cpp
         instructions/load.cpp
         instructions/loop.cpp
         instructions/op_name_map.cpp
+        instructions/outline.cpp
         instructions/phi.cpp
         instructions/print.cpp
+        instructions/raster_discard.cpp
         instructions/ray_query.cpp
         instructions/resource.cpp
         instructions/return.cpp
@@ -61,6 +67,8 @@ set(LUISA_COMPUTE_XIR_SOURCES
         passes/pointer_usage.cpp
         passes/local_store_forward.cpp
         passes/local_load_elimination.cpp
+        passes/lower_ray_query_loop.cpp
+        passes/mem2reg.cpp
 )
 
 add_library(luisa-compute-xir SHARED ${LUISA_COMPUTE_XIR_SOURCES})

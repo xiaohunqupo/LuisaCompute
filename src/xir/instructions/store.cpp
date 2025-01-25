@@ -19,4 +19,10 @@ void StoreInst::set_value(Value *value) noexcept {
     set_operand(operand_index_value, value);
 }
 
+StoreInst *StoreInst::clone(InstructionCloneValueResolver &resolver) const noexcept {
+    auto resolved_variable = resolver.resolve(variable());
+    auto resolved_value = resolver.resolve(value());
+    return Pool::current()->create<StoreInst>(resolved_variable, resolved_value);
+}
+
 }// namespace luisa::compute::xir

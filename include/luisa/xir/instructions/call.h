@@ -11,22 +11,24 @@ public:
     static constexpr size_t operand_index_argument_offset = 1u;
 
 public:
-    explicit CallInst(const Type *type = nullptr, Value *callee = nullptr,
+    explicit CallInst(const Type *type = nullptr, Function *callee = nullptr,
                       luisa::span<Value *const> arguments = {}) noexcept;
-    [[nodiscard]] auto callee() noexcept { return operand(operand_index_callee); }
-    [[nodiscard]] auto callee() const noexcept { return operand(operand_index_callee); }
+    [[nodiscard]] Function *callee() noexcept;
+    [[nodiscard]] const Function *callee() const noexcept;
     [[nodiscard]] auto argument(size_t index) noexcept { return operand(operand_index_argument_offset + index); }
     [[nodiscard]] auto argument(size_t index) const noexcept { return operand(operand_index_argument_offset + index); }
     [[nodiscard]] auto argument_uses() noexcept { return operand_uses().subspan(operand_index_argument_offset); }
     [[nodiscard]] auto argument_uses() const noexcept { return operand_uses().subspan(operand_index_argument_offset); }
     [[nodiscard]] auto argument_count() const noexcept { return argument_uses().size(); }
 
-    void set_callee(Value *callee) noexcept;
+    void set_callee(Function *callee) noexcept;
     void set_arguments(luisa::span<Value *const> arguments) noexcept;
     void set_argument(size_t index, Value *argument) noexcept;
     void add_argument(Value *argument) noexcept;
     void insert_argument(size_t index, Value *argument) noexcept;
     void remove_argument(size_t index) noexcept;
+
+    [[nodiscard]] CallInst *clone(InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 }// namespace luisa::compute::xir

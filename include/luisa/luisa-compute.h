@@ -242,6 +242,8 @@
 #include <luisa/xir/passes/dom_tree.h>
 #include <luisa/xir/passes/local_load_elimination.h>
 #include <luisa/xir/passes/local_store_forward.h>
+#include <luisa/xir/passes/lower_ray_query_loop.h>
+#include <luisa/xir/passes/mem2reg.h>
 #include <luisa/xir/passes/outline.h>
 #include <luisa/xir/passes/pointer_usage.h>
 #include <luisa/xir/passes/sink_alloca.h>

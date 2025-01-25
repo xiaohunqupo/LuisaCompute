@@ -15,6 +15,7 @@ public:
                        luisa::span<Value *const> operands = {}) noexcept;
     [[nodiscard]] auto format() const noexcept { return luisa::string_view{_format}; }
     void set_format(luisa::string_view format) noexcept { _format = format; }
+    [[nodiscard]] PrintInst *clone(InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 }// namespace luisa::compute::xir

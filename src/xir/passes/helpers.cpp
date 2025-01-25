@@ -1,5 +1,6 @@
-#include <luisa/xir/instructions/alloca.h>
-#include <luisa/xir/instructions/gep.h>
+#include <luisa/core/logging.h>
+#include <luisa/xir/builder.h>
+
 #include "helpers.h"
 
 namespace luisa::compute::xir {
@@ -22,6 +23,14 @@ AllocaInst *trace_pointer_base_local_alloca_inst(Value *pointer) noexcept {
         default: break;
     }
     return nullptr;
+}
+
+Instruction *duplicate_instruction(Builder &b, const Instruction *inst,
+                                   InstructionCloneValueResolver &resolver) noexcept {
+    auto cloned = inst->clone(resolver);
+    LUISA_DEBUG_ASSERT(cloned != nullptr, "Failed to clone instruction.");
+    b.append(cloned);
+    return cloned;
 }
 
 }// namespace luisa::compute::xir

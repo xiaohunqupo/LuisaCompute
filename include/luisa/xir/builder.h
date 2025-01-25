@@ -46,8 +46,7 @@ private:
     template<typename T, typename... Args>
     [[nodiscard]] auto _create_and_append_instruction(Args &&...args) noexcept {
         auto inst = Pool::current()->create<T>(std::forward<Args>(args)...);
-        _insertion_point->insert_after_self(inst);
-        set_insertion_point(inst);
+        append(inst);
         return inst;
     }
 
@@ -64,6 +63,8 @@ public:
     }
 
 public:
+    void append(Instruction *inst) noexcept;
+
     IfInst *if_(Value *cond) noexcept;
     SwitchInst *switch_(Value *value) noexcept;
     LoopInst *loop() noexcept;
@@ -82,8 +83,8 @@ public:
     AssertInst *assert_(Value *condition, luisa::string_view message = {}) noexcept;
     AssumeInst *assume_(Value *condition, luisa::string_view message = {}) noexcept;
 
-    CallInst *call(const Type *type, Value *callee, luisa::span<Value *const> arguments) noexcept;
-    CallInst *call(const Type *type, Value *callee, std::initializer_list<Value *> arguments) noexcept;
+    CallInst *call(const Type *type, Function *callee, luisa::span<Value *const> arguments) noexcept;
+    CallInst *call(const Type *type, Function *callee, std::initializer_list<Value *> arguments) noexcept;
 
     IntrinsicInst *call(const Type *type, IntrinsicOp op, luisa::span<Value *const> arguments) noexcept;
     IntrinsicInst *call(const Type *type, IntrinsicOp op, std::initializer_list<Value *> arguments) noexcept;
@@ -134,10 +135,16 @@ public:
 
     RayQueryLoopInst *ray_query_loop() noexcept;
     RayQueryDispatchInst *ray_query_dispatch(Value *query_object) noexcept;
+
     RayQueryObjectReadInst *call(const Type *type, RayQueryObjectReadOp op, luisa::span<Value *const> operands) noexcept;
     RayQueryObjectReadInst *call(const Type *type, RayQueryObjectReadOp op, std::initializer_list<Value *> operands) noexcept;
     RayQueryObjectWriteInst *call(RayQueryObjectWriteOp op, luisa::span<Value *const> operands) noexcept;
     RayQueryObjectWriteInst *call(RayQueryObjectWriteOp op, std::initializer_list<Value *> operands) noexcept;
+
+    RayQueryPipelineInst *ray_query_pipeline(Value *query_object = nullptr,
+                                             Function *on_surface = nullptr,
+                                             Function *on_procedural = nullptr,
+                                             luisa::span<Value *const> captured_args = {}) noexcept;
 
     AtomicInst *atomic_fetch_add(const Type *type, Value *base, luisa::span<Value *const> indices, Value *value) noexcept;
     AtomicInst *atomic_fetch_sub(const Type *type, Value *base, luisa::span<Value *const> indices, Value *value) noexcept;

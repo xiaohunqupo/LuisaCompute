@@ -162,6 +162,14 @@ struct alignas(16) AccelView {
 void luisa_fallback_accel_trace_closest(void *handle, EmbreeRayHit *ray_hit) noexcept;
 void luisa_fallback_accel_trace_any(void *handle, EmbreeRay *ray) noexcept;
 
+struct alignas(16) RayQueryObject;
+struct alignas(16) RayQueryCapturedArgs;
+
+using RayQueryOnSurfaceFunc = void(RayQueryObject *, const RayQueryCapturedArgs *) noexcept;
+using RayQueryOnProceduralFunc = void(RayQueryObject *, const RayQueryCapturedArgs *) noexcept;
+
+void luisa_fallback_accel_ray_traverse_pipeline(void *handle, EmbreeRayHit *ray_hit, RayQueryObject *query_object, const RayQueryCapturedArgs *captured_args, RayQueryOnSurfaceFunc *on_surface, RayQueryOnProceduralFunc *on_procedural) noexcept;
+void luisa_fallback_accel_ray_traverse_any_pipeline(void *handle, EmbreeRay *ray, RayQueryObject *query_object, const RayQueryCapturedArgs *captured_args, RayQueryOnSurfaceFunc *on_surface, RayQueryOnProceduralFunc *on_procedural) noexcept;
 }
 
 #ifndef LUISA_COMPUTE_FALLBACK_DEVICE_LIB

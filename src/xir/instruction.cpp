@@ -59,6 +59,14 @@ const ControlFlowMerge *Instruction::control_flow_merge() const noexcept {
     return const_cast<Instruction *>(this)->control_flow_merge();
 }
 
+DerivedInstructionTag SentinelInst::derived_instruction_tag() const noexcept {
+    LUISA_ERROR_WITH_LOCATION("Calling SentinelInst::derived_instruction_tag()");
+}
+
+Instruction *SentinelInst::clone(InstructionCloneValueResolver &resolver) const noexcept {
+    LUISA_ERROR_WITH_LOCATION("Calling SentinelInst::clone()");
+}
+
 TerminatorInstruction::TerminatorInstruction() noexcept
     : Instruction{nullptr} {}
 

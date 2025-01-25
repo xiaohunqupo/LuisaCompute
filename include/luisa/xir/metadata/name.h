@@ -15,6 +15,7 @@ public:
     void set_name(luisa::string_view name) noexcept;
     [[nodiscard]] auto &name() noexcept { return _name; }
     [[nodiscard]] auto &name() const noexcept { return _name; }
+    [[nodiscard]] NameMD *clone() const noexcept override;
 };
 
 }// namespace luisa::compute::xir

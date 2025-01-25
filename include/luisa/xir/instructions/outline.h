@@ -6,9 +6,10 @@ namespace luisa::compute::xir {
 
 class BasicBlock;
 
-class OutlineInst final : public ControlFlowMergeMixin<DerivedBranchInstruction<DerivedInstructionTag::OUTLINE>> {
+class LC_XIR_API OutlineInst final : public ControlFlowMergeMixin<DerivedBranchInstruction<DerivedInstructionTag::OUTLINE>> {
 public:
     using ControlFlowMergeMixin::ControlFlowMergeMixin;
+    [[nodiscard]] OutlineInst *clone(InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 }// namespace luisa::compute::xir

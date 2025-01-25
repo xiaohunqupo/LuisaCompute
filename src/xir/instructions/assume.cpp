@@ -27,4 +27,9 @@ luisa::string_view AssumeInst::message() const noexcept {
     return _message;
 }
 
+AssumeInst *AssumeInst::clone(InstructionCloneValueResolver &resolver) const noexcept {
+    auto resolved_cond = resolver.resolve(condition());
+    return Pool::current()->create<AssumeInst>(resolved_cond, _message);
+}
+
 }// namespace luisa::compute::xir

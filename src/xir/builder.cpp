@@ -10,6 +10,11 @@ void Builder::_check_valid_insertion_point() const noexcept {
 
 Builder::Builder() noexcept = default;
 
+void Builder::append(Instruction *inst) noexcept {
+    _insertion_point->insert_after_self(inst);
+    set_insertion_point(inst);
+}
+
 IfInst *Builder::if_(Value *cond) noexcept {
     LUISA_ASSERT(cond != nullptr && cond->type() == Type::of<bool>(), "Invalid condition.");
     return _create_and_append_instruction<IfInst>(cond);
@@ -78,11 +83,11 @@ RasterDiscardInst *Builder::raster_discard() noexcept {
     return _create_and_append_instruction<RasterDiscardInst>();
 }
 
-CallInst *Builder::call(const Type *type, Value *callee, luisa::span<Value *const> arguments) noexcept {
+CallInst *Builder::call(const Type *type, Function *callee, luisa::span<Value *const> arguments) noexcept {
     return _create_and_append_instruction<CallInst>(type, callee, arguments);
 }
 
-CallInst *Builder::call(const Type *type, Value *callee, std::initializer_list<Value *> arguments) noexcept {
+CallInst *Builder::call(const Type *type, Function *callee, std::initializer_list<Value *> arguments) noexcept {
     return _create_and_append_instruction<CallInst>(type, callee, luisa::span{arguments.begin(), arguments.end()});
 }
 
@@ -194,6 +199,11 @@ RayQueryObjectWriteInst *Builder::call(RayQueryObjectWriteOp op, luisa::span<Val
 
 RayQueryObjectWriteInst *Builder::call(RayQueryObjectWriteOp op, std::initializer_list<Value *> operands) noexcept {
     return this->call(op, luisa::span{operands.begin(), operands.end()});
+}
+
+RayQueryPipelineInst *Builder::ray_query_pipeline(Value *query_object, Function *on_surface, Function *on_procedural,
+                                                  luisa::span<Value *const> captured_args) noexcept {
+    return _create_and_append_instruction<RayQueryPipelineInst>(query_object, on_surface, on_procedural, captured_args);
 }
 
 ThreadGroupInst *Builder::call(const Type *type, ThreadGroupOp op, luisa::span<Value *const> operands) noexcept {

@@ -20,6 +20,8 @@ public:
 
     void set_variable(Value *variable) noexcept;
     void set_value(Value *value) noexcept;
+
+    [[nodiscard]] StoreInst *clone(InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 }// namespace luisa::compute::xir

@@ -63,4 +63,16 @@ ConstPhiIncomingUse PhiInst::incoming_use(size_t index) const noexcept {
     return {incoming.value, incoming.block};
 }
 
+PhiInst *PhiInst::clone(InstructionCloneValueResolver &resolver) const noexcept {
+    auto cloned = Pool::current()->create<PhiInst>(type());
+    for (auto i = 0u; i < incoming_count(); i++) {
+        auto incoming = this->incoming(i);
+        auto resolved_value = resolver.resolve(incoming.value);
+        auto resolved_block = resolver.resolve(incoming.block);
+        LUISA_DEBUG_ASSERT(resolved_block == nullptr || resolved_block->derived_value_tag() == DerivedValueTag::BASIC_BLOCK, "Invalid incoming block.");
+        cloned->add_incoming(resolved_value, static_cast<BasicBlock *>(resolved_block));
+    }
+    return cloned;
+}
+
 }// namespace luisa::compute::xir

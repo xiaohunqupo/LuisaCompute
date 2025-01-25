@@ -70,6 +70,9 @@ private:
         LUISA_ASSERT(type != nullptr, "Type must not be null.");
         // custom
         if (type->is_custom()) {
+            if (auto iter = _struct_uid_map.find(type); iter != _struct_uid_map.end()) {
+                return iter->second;
+            }
             auto next_uid = static_cast<uint>(_struct_uid_map.size());
             _prelude << "type T" << next_uid << " = opaque \"" << type->description() << "\";\n\n";
             _struct_uid_map.emplace(type, next_uid);
@@ -346,6 +349,11 @@ private:
         _emit_operands(inst);
     }
 
+    void _emit_ray_query_pipeline_inst(const RayQueryPipelineInst *inst) noexcept {
+        _main << "ray_query_pipeline ";
+        _emit_operands(inst);
+    }
+
     void _emit_return_inst(const ReturnInst *inst) noexcept {
         if (auto ret = inst->return_value()) {
             _main << "return " << _value_ident(ret);
@@ -470,8 +478,6 @@ private:
         _emit_indent(indent);
         _main << _value_ident(inst) << ": " << _type_ident(inst->type()) << " = ";
         switch (inst->derived_instruction_tag()) {
-            case DerivedInstructionTag::SENTINEL:
-                LUISA_ERROR_WITH_LOCATION("Unexpected sentinel instruction.");
             case DerivedInstructionTag::UNREACHABLE:
                 _emit_unreachable_inst(static_cast<const UnreachableInst *>(inst));
                 break;
@@ -541,6 +547,9 @@ private:
                 break;
             case DerivedInstructionTag::RAY_QUERY_OBJECT_WRITE:
                 _emit_ray_query_object_write_inst(static_cast<const RayQueryObjectWriteInst *>(inst));
+                break;
+            case DerivedInstructionTag::RAY_QUERY_PIPELINE:
+                _emit_ray_query_pipeline_inst(static_cast<const RayQueryPipelineInst *>(inst));
                 break;
             case DerivedInstructionTag::BRANCH:
                 _emit_branch_inst(static_cast<const BranchInst *>(inst));

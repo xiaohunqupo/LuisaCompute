@@ -11,16 +11,21 @@ enum struct DerivedFunctionTag {
     EXTERNAL,
 };
 
+class Module;
 class FunctionDefinition;
 
 class LC_XIR_API Function : public IntrusiveForwardNode<Function, DerivedValue<DerivedValueTag::FUNCTION>> {
 
 private:
+    Module *_module;
     luisa::vector<Argument *> _arguments;
 
 public:
-    explicit Function(const Type *type = nullptr) noexcept;
+    explicit Function(Module *module, const Type *type = nullptr) noexcept;
     [[nodiscard]] virtual DerivedFunctionTag derived_function_tag() const noexcept = 0;
+
+    [[nodiscard]] Module *module() noexcept { return _module; }
+    [[nodiscard]] const Module *module() const noexcept { return _module; }
 
     void add_argument(Argument *argument) noexcept;
     void insert_argument(size_t index, Argument *argument) noexcept;
@@ -165,12 +170,12 @@ public:
     static constexpr auto default_block_size = luisa::make_uint3(64u, 1u, 1u);
 
 private:
-    luisa::uint3 _block_size{default_block_size};
+    std::array<uint, 3> _block_size;
 
 public:
-    explicit KernelFunction(luisa::uint3 block_size = default_block_size) noexcept;
+    explicit KernelFunction(Module *module, luisa::uint3 block_size = default_block_size) noexcept;
     void set_block_size(luisa::uint3 size) noexcept;
-    [[nodiscard]] luisa::uint3 block_size() const noexcept { return _block_size; }
+    [[nodiscard]] luisa::uint3 block_size() const noexcept;
 };
 
 class LC_XIR_API ExternalFunction final : public DerivedFunction<DerivedFunctionTag::EXTERNAL> {
