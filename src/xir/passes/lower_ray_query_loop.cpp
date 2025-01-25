@@ -129,6 +129,12 @@ public:
     }
     [[nodiscard]] Value *resolve_or_null(const Value *value) noexcept {
         if (value == nullptr) { return nullptr; }
+        switch (value->derived_value_tag()) {
+            case DerivedValueTag::FUNCTION: [[fallthrough]];
+            case DerivedValueTag::CONSTANT: [[fallthrough]];
+            case DerivedValueTag::SPECIAL_REGISTER: return const_cast<Value *>(value);
+            default: break;
+        }
         auto iter = value_map.find(value);
         return iter == value_map.end() ? nullptr : iter->second;
     }
