@@ -24,4 +24,9 @@ AllocaInst *trace_pointer_base_local_alloca_inst(Value *pointer) noexcept {
     return nullptr;
 }
 
+Instruction *duplicate_instruction(Builder &b, const Instruction *inst,
+                                   InstructionDuplicatorValueResolver &resolver) noexcept {
+    return nullptr;
+}
+
 }// namespace luisa::compute::xir

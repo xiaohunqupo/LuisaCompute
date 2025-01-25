@@ -5,6 +5,8 @@
 #include <luisa/xir/passes/dce.h>
 #include <luisa/xir/passes/lower_ray_query_loop.h>
 
+#include "helpers.h"
+
 namespace luisa::compute::xir {
 
 namespace detail {
@@ -116,31 +118,97 @@ static void collect_ray_query_loop_capture_list_in_inst(Instruction *inst, const
     return capture_list;
 }
 
-[[nodiscard]] static auto outline_ray_query_loop_dispatch_branch(Module *module, BasicBlock *branch, const BasicBlock *merge,
-                                                                 const RayQueryLoopCaptureList &capture_list,
-                                                                 luisa::string_view comment) noexcept {
-    auto function = module->create_callable(nullptr);
-    function->add_comment(comment);
-    luisa::unordered_map<Value *, Value *> value_map;
-    for (auto in_value : capture_list.in_values) {
-        auto in_arg = function->create_argument(in_value->type(), in_value->is_lvalue());
-        value_map.emplace(in_value, in_arg);
-    }
-    // translate the branch block
-    auto body = function->create_body_block();
-    Builder b;
-    b.set_insertion_point(body);
-    // TODO: implement translation
+class RayQueryLowerPassValueResolver final : public InstructionDuplicatorValueResolver {
 
-    // store out values to out arguments
-    for (auto out_value : capture_list.out_values) {
-        auto out_arg = function->create_reference_argument(out_value->type());
-        if (auto iter = value_map.find(out_value); iter != value_map.end()) {
-            b.store(out_arg, iter->second);
+private:
+    luisa::unordered_map<const Value *, Value *> value_map;
+
+public:
+    bool emplace(const Value *original, Value *duplicate) noexcept {
+        return value_map.emplace(original, duplicate).second;
+    }
+    [[nodiscard]] Value *resolve(const Value *value) noexcept override {
+        auto iter = value_map.find(value);
+        return iter == value_map.end() ? nullptr : iter->second;
+    }
+};
+
+static BasicBlock *duplicate_basic_block_for_ray_query_loop_dispatch_branch(const BasicBlock *original, const BasicBlock *merge,
+                                                                            RayQueryLowerPassValueResolver &resolver) noexcept {
+    auto bb = static_cast<BasicBlock *>(resolver.resolve(original));
+    Builder b;
+    b.set_insertion_point(bb);
+    for (auto &&inst : original->instructions()) {
+        // special case: branch to the merge block
+        if (inst.is_terminator() && inst.derived_instruction_tag() == DerivedInstructionTag::BRANCH &&
+            static_cast<const BranchInst *>(&inst)->target_block() == merge) {
+            b.return_void();
+        } else {
+            auto dup_inst = duplicate_instruction(b, &inst, resolver);
+            LUISA_DEBUG_ASSERT(dup_inst != nullptr, "Failed to duplicate instruction.");
+            resolver.emplace(&inst, dup_inst);
         }
     }
-    // return
-    b.return_void();
+    return bb;
+}
+
+[[nodiscard]] static Function *outline_ray_query_loop_dispatch_branch(Module *module, BasicBlock *branch,
+                                                                      Value *query_object, const BasicBlock *dispatch,
+                                                                      const RayQueryLoopCaptureList &capture_list,
+                                                                      luisa::string_view comment) noexcept {
+    // check if the branch is nullptr
+    if (branch == nullptr) { return nullptr; }
+    // create the function
+    auto function = module->create_callable(nullptr);
+    function->add_comment(comment);
+    // compute the subgraph for the branch block
+    RayQueryLoopSubgraph subgraph{.query_object = query_object};
+    collect_ray_query_loop_basic_blocks_post_order(branch, dispatch, subgraph);
+    std::reverse(subgraph.reverse_post_order.begin(), subgraph.reverse_post_order.end());
+    // check that the first block is the branch and the last block branches to the merge block
+    {
+        LUISA_DEBUG_ASSERT(subgraph.reverse_post_order.front() == branch, "Invalid branch block.");
+        auto terminator = subgraph.reverse_post_order.back()->terminator();
+        LUISA_DEBUG_ASSERT(terminator->derived_instruction_tag() == DerivedInstructionTag::BRANCH &&
+                               static_cast<BranchInst *>(terminator)->target_block() == dispatch,
+                           "Invalid branch terminator.");
+    }
+    // value map for renaming
+    RayQueryLowerPassValueResolver resolver;
+    // create an argument for the query object
+    LUISA_DEBUG_ASSERT(query_object != nullptr && query_object->is_lvalue(), "Invalid query object.");
+    auto query_arg = function->create_reference_argument(query_object->type());
+    resolver.emplace(query_object, query_arg);
+    // create arguments for in values
+    for (auto in_value : capture_list.in_values) {
+        auto in_arg = function->create_argument(in_value->type(), in_value->is_lvalue());
+        resolver.emplace(in_value, in_arg);
+    }
+    // create blocks for the function
+    for (auto block : subgraph.reverse_post_order) {
+        auto local_block = Pool::current()->create<BasicBlock>();
+        resolver.emplace(block, local_block);
+    }
+    // set function body
+    function->set_body_block(static_cast<BasicBlock *>(resolver.resolve(branch)));
+    // duplicate the blocks
+    auto already_returned = false;
+    for (auto block : subgraph.reverse_post_order) {
+        if (auto bb = duplicate_basic_block_for_ray_query_loop_dispatch_branch(block, dispatch, resolver);
+            bb->terminator()->derived_instruction_tag() == DerivedInstructionTag::RETURN) {
+            LUISA_ASSERT(!already_returned, "Multiple return instructions in the branch block.");
+            already_returned = true;
+            // generate store instructions for out values
+            Builder b;
+            b.set_insertion_point(bb->terminator()->prev());
+            for (auto out_value : capture_list.out_values) {
+                auto out_arg = function->create_reference_argument(out_value->type());
+                if (auto resolved = resolver.resolve(out_value)) {
+                    b.store(out_arg, resolved);
+                }
+            }
+        }
+    }
     return function;
 }
 
@@ -149,13 +217,16 @@ static void lower_ray_query_loop(Function *function, RayQueryLoopInst *loop, Ray
     auto capture_list = collect_ray_query_loop_capture_list(subgraph);
     auto dispatch = static_cast<RayQueryDispatchInst *>(subgraph.reverse_post_order.front()->terminator());
     auto merge_block = loop->control_flow_merge()->merge_block();
+    LUISA_DEBUG_ASSERT(dispatch->exit_block() == merge_block, "Invalid ray query loop exit block.");
     LUISA_DEBUG_ASSERT(function->module() != nullptr, "Invalid function module.");
     auto on_surface = outline_ray_query_loop_dispatch_branch(
-        function->module(), dispatch->on_surface_candidate_block(),
-        merge_block, capture_list, "on_surface function outlined from ray query loop");
+        function->module(), dispatch->on_surface_candidate_block(), subgraph.query_object,
+        subgraph.reverse_post_order.front(), capture_list,
+        "on_surface function outlined from ray query loop");
     auto on_procedural = outline_ray_query_loop_dispatch_branch(
-        function->module(), dispatch->on_procedural_candidate_block(),
-        merge_block, capture_list, "on_procedural function outlined from ray query loop");
+        function->module(), dispatch->on_procedural_candidate_block(), subgraph.query_object,
+        subgraph.reverse_post_order.front(), capture_list,
+        "on_procedural function outlined from ray query loop");
     // prepare captured arguments
     luisa::vector<Value *> captured_args;
     captured_args.reserve(capture_list.in_values.size() + capture_list.out_values.size());
