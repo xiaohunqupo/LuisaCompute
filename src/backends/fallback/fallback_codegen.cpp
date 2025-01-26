@@ -1847,8 +1847,9 @@ private:
         // void wrapper(ptr query_object, ptr captured_args) {
         //   impl(query_object, captured_args.member(inv(member_to_arg)[0])...);
         // }
-        auto llvm_void_type = llvm::Type::getVoidTy(_llvm_context);
         auto llvm_ptr_type = llvm::PointerType::get(_llvm_context, 0);
+        if (llvm_func == nullptr) { return llvm::Constant::getNullValue(llvm_ptr_type); }
+        auto llvm_void_type = llvm::Type::getVoidTy(_llvm_context);
         auto llvm_wrapper_func_type = llvm::FunctionType::get(llvm_void_type, {llvm_ptr_type, llvm_ptr_type}, false);
         auto llvm_wrapper_func = llvm::Function::Create(llvm_wrapper_func_type, llvm::Function::InternalLinkage, name, _llvm_module);
         auto entry = llvm::BasicBlock::Create(_llvm_context, "entry", llvm_wrapper_func);
@@ -1949,17 +1950,27 @@ private:
             return std::make_pair(llvm_struct_type, llvm_struct_alloca);
         }();
         // create the wrapper functions
-        auto llvm_on_surface_func = inst->on_surface_function() ? _lookup_value(current, b, inst->on_surface_function()) : nullptr;
-        auto llvm_on_procedural_func = inst->on_procedural_function() ? _lookup_value(current, b, inst->on_procedural_function()) : nullptr;
-        LUISA_DEBUG_ASSERT(llvm_on_surface_func == nullptr || llvm::isa<llvm::Function>(llvm_on_surface_func), "Invalid on_surface function.");
-        LUISA_DEBUG_ASSERT(llvm_on_procedural_func == nullptr || llvm::isa<llvm::Function>(llvm_on_procedural_func), "Invalid on_procedural function.");
+        auto non_empty_or_null = [&](const xir::Function *f) noexcept -> llvm::Function * {
+            if (!f) { return nullptr; }
+            if (auto def = f->definition()) {
+                if (auto t = def->body_block()->terminator();
+                    t == &def->body_block()->instructions().front() &&
+                    (t->derived_instruction_tag() == xir::DerivedInstructionTag::RETURN ||
+                     t->derived_instruction_tag() == xir::DerivedInstructionTag::UNREACHABLE)) {
+                    return nullptr;
+                }
+            }
+            auto llvm_f = _lookup_value(current, b, f);
+            LUISA_DEBUG_ASSERT(llvm_f == nullptr || llvm::isa<llvm::Function>(llvm_f), "Invalid function.");
+            return llvm::cast<llvm::Function>(llvm_f);
+        };
+        auto llvm_on_surface_func = non_empty_or_null(inst->on_surface_function());
+        auto llvm_on_procedural_func = non_empty_or_null(inst->on_procedural_function());
         auto llvm_on_surface_func_wrapper = _generate_ray_query_pipeline_function_wrapper(
-            "ray.query.pipeline.on.surface.wrapper",
-            llvm::cast<llvm::Function>(llvm_on_surface_func),
+            "ray.query.pipeline.on.surface.wrapper", llvm_on_surface_func,
             llvm_capture.first, member_to_captured_arg);
         auto llvm_on_procedural_func_wrapper = _generate_ray_query_pipeline_function_wrapper(
-            "ray.query.pipeline.on.procedural.wrapper",
-            llvm::cast<llvm::Function>(llvm_on_procedural_func),
+            "ray.query.pipeline.on.procedural.wrapper", llvm_on_procedural_func,
             llvm_capture.first, member_to_captured_arg);
         return b.CreateCall(llvm_func, {llvm_query_object, llvm_capture.second, llvm_on_surface_func_wrapper, llvm_on_procedural_func_wrapper});
     }
