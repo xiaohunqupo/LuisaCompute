@@ -36,6 +36,7 @@
 namespace luisa::compute::fallback {
 
 class FallbackCodegen {
+
 private:
     struct LLVMStruct {
         llvm::StructType *type = nullptr;
@@ -61,6 +62,48 @@ private:
         static constexpr size_t builtin_variable_count = 5;
         llvm::Value *builtin_variables[builtin_variable_count] = {};
     };
+
+private:
+    luisa::unordered_map<const xir::Function *, uint> _special_register_usages;
+    [[nodiscard]] uint _analyze_special_register_usage(const xir::Function *f) noexcept {
+        if (auto iter = _special_register_usages.find(f); iter != _special_register_usages.end()) {
+            return iter->second;
+        }
+        auto usage = 0u;
+        if (auto def = f->definition()) {
+            def->traverse_instructions([&](const xir::Instruction *inst) noexcept {
+                for (auto op_use : inst->operand_uses()) {
+                    if (auto op = op_use->value()) {
+                        switch (op->derived_value_tag()) {
+                            case xir::DerivedValueTag::FUNCTION: {
+                                auto callee = static_cast<const xir::Function *>(op);
+                                usage |= _analyze_special_register_usage(callee);
+                                break;
+                            }
+                            case xir::DerivedValueTag::SPECIAL_REGISTER: {
+                                auto sreg = static_cast<const xir::SpecialRegister *>(op);
+                                switch (sreg->derived_special_register_tag()) {
+                                    case xir::DerivedSpecialRegisterTag::THREAD_ID: usage |= (1u << CurrentFunction::builtin_variable_index_thread_id); break;
+                                    case xir::DerivedSpecialRegisterTag::BLOCK_ID: usage |= (1u << CurrentFunction::builtin_variable_index_block_id); break;
+                                    case xir::DerivedSpecialRegisterTag::WARP_LANE_ID: break;
+                                    case xir::DerivedSpecialRegisterTag::DISPATCH_ID: usage |= (1u << CurrentFunction::builtin_variable_index_dispatch_id); break;
+                                    case xir::DerivedSpecialRegisterTag::KERNEL_ID: LUISA_NOT_IMPLEMENTED();
+                                    case xir::DerivedSpecialRegisterTag::OBJECT_ID: LUISA_NOT_IMPLEMENTED();
+                                    case xir::DerivedSpecialRegisterTag::BLOCK_SIZE: usage |= (1u << CurrentFunction::builtin_variable_index_block_size); break;
+                                    case xir::DerivedSpecialRegisterTag::WARP_SIZE: break;
+                                    case xir::DerivedSpecialRegisterTag::DISPATCH_SIZE: usage |= (1u << CurrentFunction::builtin_variable_index_dispatch_size); break;
+                                }
+                                break;
+                            }
+                            default: break;
+                        }
+                    }
+                }
+            });
+        }
+        _special_register_usages.emplace(f, usage);
+        return usage;
+    }
 
 private:
     llvm::LLVMContext &_llvm_context;
@@ -1840,8 +1883,8 @@ private:
         return b.CreateCall(llvm_func, llvm_args);
     }
 
-    [[nodiscard]] llvm::Constant *_generate_ray_query_pipeline_function_wrapper(llvm::StringRef name,
-                                                                                llvm::Function *llvm_func,
+    [[nodiscard]] llvm::Constant *_generate_ray_query_pipeline_function_wrapper(llvm::StringRef name, size_t capture_count,
+                                                                                llvm::Function *llvm_func, uint sreg_usage,
                                                                                 llvm::StructType *llvm_capture_struct,
                                                                                 llvm::ArrayRef<uint> member_to_arg) noexcept {
         // void wrapper(ptr query_object, ptr captured_args) {
@@ -1855,9 +1898,15 @@ private:
         auto entry = llvm::BasicBlock::Create(_llvm_context, "entry", llvm_wrapper_func);
         IRBuilder b{entry};
         llvm::SmallVector<llvm::Value *> llvm_args;
-        llvm_args.resize(1u + member_to_arg.size());
+        llvm_args.resize(llvm_func->arg_size());
         auto llvm_wrapper_query_object = llvm_wrapper_func->getArg(0);
         llvm_args[0] = llvm_wrapper_query_object;
+        for (auto i = 0u; i < CurrentFunction::builtin_variable_count; i++) {
+            if ((sreg_usage & (1u << i)) == 0u) {
+                auto arg_index = 1u + capture_count + i;
+                llvm_args[arg_index] = llvm::Constant::getNullValue(llvm_func->getArg(arg_index)->getType());
+            }
+        }
         if (!member_to_arg.empty()) {
             auto llvm_wrapper_captured_struct = b.CreateLoad(llvm_capture_struct, llvm_wrapper_func->getArg(1));
             for (auto member_index = 0; member_index < member_to_arg.size(); member_index++) {
@@ -1892,11 +1941,36 @@ private:
                                   "luisa.ray.query.pipeline.any"sv;
         auto llvm_func = _llvm_module->getFunction(llvm_func_name);
         LUISA_ASSERT(llvm_func != nullptr, "Function not found.");
+        // on_surface and on_procedural callbacks
+        auto non_empty_or_null_with_sreg_usage = [&](const xir::Function *f) noexcept -> std::pair<llvm::Function *, uint> {
+            if (!f) { return std::make_pair(nullptr, 0u); }
+            if (auto def = f->definition()) {
+                if (auto t = def->body_block()->terminator();
+                    t == &def->body_block()->instructions().front() &&
+                    (t->derived_instruction_tag() == xir::DerivedInstructionTag::RETURN ||
+                     t->derived_instruction_tag() == xir::DerivedInstructionTag::UNREACHABLE)) {
+                    return std::make_pair(nullptr, 0u);
+                }
+            }
+            auto llvm_f = _lookup_value(current, b, f);
+            LUISA_DEBUG_ASSERT(llvm_f == nullptr || llvm::isa<llvm::Function>(llvm_f), "Invalid function.");
+            auto usage = _analyze_special_register_usage(f);
+            return std::make_pair(llvm::cast<llvm::Function>(llvm_f), usage);
+        };
+        auto [llvm_on_surface_func, on_surface_func_sreg_usage] = non_empty_or_null_with_sreg_usage(inst->on_surface_function());
+        auto [llvm_on_procedural_func, on_procedural_func_sreg_usage] = non_empty_or_null_with_sreg_usage(inst->on_procedural_function());
+        auto sreg_usage = on_surface_func_sreg_usage | on_procedural_func_sreg_usage;
         // create capture argument struct
         auto captured_arg_uses = inst->captured_argument_uses();
         llvm::SmallVector<uint> member_to_captured_arg;
         member_to_captured_arg.reserve(captured_arg_uses.size() + CurrentFunction::builtin_variable_count);
         auto llvm_capture = [&]() noexcept -> std::pair<llvm::StructType *, llvm::Value *> {
+            auto llvm_ptr_type = llvm::PointerType::get(_llvm_context, 0);
+            // degenerate case: no capture needed
+            if (captured_arg_uses.empty() && sreg_usage == 0u) {
+                return std::make_pair(nullptr, llvm::Constant::getNullValue(llvm_ptr_type));
+            }
+            // general case
             llvm::SmallVector<size_t> captured_arg_ranks;
             captured_arg_ranks.reserve(captured_arg_uses.size() + CurrentFunction::builtin_variable_count);
             for (auto arg_use : captured_arg_uses) {
@@ -1913,18 +1987,19 @@ private:
             }
             // built-in variables
             for (auto i = 0u; i < CurrentFunction::builtin_variable_count; i++) {
-                auto arg_rank = ~0u;
-                auto arg_index = captured_arg_ranks.size();
-                captured_arg_ranks.emplace_back(arg_rank);
-                member_to_captured_arg.emplace_back(arg_index);
+                if (sreg_usage & (1u << i)) {
+                    auto arg_rank = ~0u;
+                    auto arg_index = captured_arg_uses.size() + i;
+                    captured_arg_ranks.emplace_back(arg_rank);
+                    member_to_captured_arg.emplace_back(arg_index);
+                }
             }
             // sort the captured args in descending order of ranks
             std::stable_sort(member_to_captured_arg.begin(), member_to_captured_arg.end(), [&](auto lhs, auto rhs) noexcept {
                 return captured_arg_ranks[lhs] > captured_arg_ranks[rhs];
             });
             llvm::SmallVector<llvm::Type *> llvm_member_types;
-            llvm_member_types.reserve(captured_arg_uses.size() + CurrentFunction::builtin_variable_count);
-            auto llvm_ptr_type = llvm::PointerType::get(_llvm_context, 0);
+            llvm_member_types.reserve(member_to_captured_arg.size());
             for (auto arg_index : member_to_captured_arg) {
                 if (arg_index < captured_arg_uses.size()) {
                     auto arg = captured_arg_uses[arg_index]->value();
@@ -1950,27 +2025,13 @@ private:
             return std::make_pair(llvm_struct_type, llvm_struct_alloca);
         }();
         // create the wrapper functions
-        auto non_empty_or_null = [&](const xir::Function *f) noexcept -> llvm::Function * {
-            if (!f) { return nullptr; }
-            if (auto def = f->definition()) {
-                if (auto t = def->body_block()->terminator();
-                    t == &def->body_block()->instructions().front() &&
-                    (t->derived_instruction_tag() == xir::DerivedInstructionTag::RETURN ||
-                     t->derived_instruction_tag() == xir::DerivedInstructionTag::UNREACHABLE)) {
-                    return nullptr;
-                }
-            }
-            auto llvm_f = _lookup_value(current, b, f);
-            LUISA_DEBUG_ASSERT(llvm_f == nullptr || llvm::isa<llvm::Function>(llvm_f), "Invalid function.");
-            return llvm::cast<llvm::Function>(llvm_f);
-        };
-        auto llvm_on_surface_func = non_empty_or_null(inst->on_surface_function());
-        auto llvm_on_procedural_func = non_empty_or_null(inst->on_procedural_function());
         auto llvm_on_surface_func_wrapper = _generate_ray_query_pipeline_function_wrapper(
-            "ray.query.pipeline.on.surface.wrapper", llvm_on_surface_func,
+            "ray.query.pipeline.on.surface.wrapper", captured_arg_uses.size(),
+            llvm_on_surface_func, on_surface_func_sreg_usage,
             llvm_capture.first, member_to_captured_arg);
         auto llvm_on_procedural_func_wrapper = _generate_ray_query_pipeline_function_wrapper(
-            "ray.query.pipeline.on.procedural.wrapper", llvm_on_procedural_func,
+            "ray.query.pipeline.on.procedural.wrapper", captured_arg_uses.size(),
+            llvm_on_procedural_func, on_procedural_func_sreg_usage,
             llvm_capture.first, member_to_captured_arg);
         return b.CreateCall(llvm_func, {llvm_query_object, llvm_capture.second, llvm_on_surface_func_wrapper, llvm_on_procedural_func_wrapper});
     }

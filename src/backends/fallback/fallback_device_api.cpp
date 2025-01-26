@@ -457,7 +457,7 @@ void luisa_fallback_ray_query_pipeline_any(LC_RayQueryObject *query_object, cons
             q->ray_hit.hit.geomID = hit->geomID;
             q->ray_hit.hit.instID[0] = hit->instID[0];
         };
-        if (args->geometryUserPtr) {
+        if (args->geometryUserPtr) {// opaque
             record_hit_data(ctx->q, ray, hit);
         } else if (auto on_surface = ctx->on_surface) {
             auto candidate = &ctx->q->candidate;
