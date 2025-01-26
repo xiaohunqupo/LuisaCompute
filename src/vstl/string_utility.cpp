@@ -109,7 +109,9 @@ bool StrVSplitIterator::operator==(IteEndTag) const {
     return result.size() == 0;
 }
 namespace strutil_detail {
-static char constexpr tab[] = {
+
+// constexpr causes error on ubuntu-24.04-arm
+static const char tab[] = {
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,//   0-15
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,//  16-31
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 62, -1, -1, -1, 63,//  32-47
@@ -127,16 +129,19 @@ static char constexpr tab[] = {
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,// 224-239
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 // 240-255
 };
-static char constexpr tab1[] = {
+
+// constexpr causes error on ubuntu-24.04-arm
+static const char tab1[] = {
     "ABCDEFGHIJKLMNOP"
     "QRSTUVWXYZabcdef"
     "ghijklmnopqrstuv"
     "wxyz0123456789+/"};
+
 char const *get_inverse() {
     return &tab[0];
 }
-char const *get_alphabet() {
 
+char const *get_alphabet() {
     return &tab1[0];
 }
 

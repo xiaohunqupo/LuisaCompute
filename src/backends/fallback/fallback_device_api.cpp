@@ -422,7 +422,7 @@ void luisa_fallback_ray_query_pipeline_all(LC_RayQueryObject *query_object, cons
                 auto candidate = &ctx->q->candidate;
                 ray_query_decode_procedural_candidate(candidate, &ctx->rtc_ctx, &ray_hit->ray, args->primID);
                 on_procedural(reinterpret_cast<LC_RayQueryObject *>(ctx->q), ctx->capture);
-                if (candidate->committed && candidate->t >= ray_hit->ray.tnear && candidate->t < ray_hit->ray.tfar) {
+                if (candidate->committed && candidate->t >= ray_hit->ray.tnear && candidate->t <= ray_hit->ray.tfar) {
                     args->valid[0] = -1;
                     ray_hit->ray.tfar = candidate->t;
                     ray_query_update_current_t(ctx, candidate->t);
@@ -505,7 +505,7 @@ void luisa_fallback_ray_query_pipeline_any(LC_RayQueryObject *query_object, cons
                 auto candidate = &ctx->q->candidate;
                 ray_query_decode_procedural_candidate(candidate, &ctx->rtc_ctx, ray, args->primID);
                 on_procedural(reinterpret_cast<LC_RayQueryObject *>(ctx->q), ctx->capture);
-                if (candidate->committed && candidate->t >= ray->tnear && candidate->t < ray->tfar) {
+                if (candidate->committed && candidate->t >= ray->tnear && candidate->t <= ray->tfar) {
                     args->valid[0] = -1;
                     ray->tfar = candidate->t;
                     ctx->q->ray_hit.hit = {

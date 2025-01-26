@@ -982,7 +982,11 @@ inline void ray_query_commit_triangle(LCRayQuery q) {
 }
 
 inline void ray_query_commit_procedural(LCRayQuery q, float t) {
-    q.i->commit_bounding_box_intersection(t);
+    auto current_min = q.i->get_ray_min_distance();
+    auto current_max = q.i->get_committed_distance();
+    if (t >= current_min && t <= current_max) {
+        q.i->commit_bounding_box_intersection(t);
+    }
 }
 
 inline void ray_query_terminate(LCRayQuery q) {
