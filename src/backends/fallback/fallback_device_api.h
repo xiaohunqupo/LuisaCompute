@@ -194,8 +194,9 @@ struct alignas(16) RayQueryCandidate {
     uint prim;
     float2 bary;
     float t;
-    bool committed;
-    bool terminated;
+    float pad;
+    int committed;
+    int terminated;
 };
 
 using RayQueryOnSurfaceFunc = void(LC_RayQueryObject *, const void *capture) noexcept;

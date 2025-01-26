@@ -451,14 +451,15 @@ struct alignas(16) EmbreeRay {
 
 /* Hit structure for a single ray */
 struct alignas(16) EmbreeHit {
-    float Ng_x;          // x coordinate of geometry normal
-    float Ng_y;          // y coordinate of geometry normal
-    float Ng_z;          // z coordinate of geometry normal
-    float u;             // barycentric u coordinate of hit
-    float v;             // barycentric v coordinate of hit
-    uint primID; // primitive ID
-    uint geomID; // geometry ID
-    uint instID[1]; // instance ID
+    float Ng_x;        // x coordinate of geometry normal
+    float Ng_y;        // y coordinate of geometry normal
+    float Ng_z;        // z coordinate of geometry normal
+    float u;           // barycentric u coordinate of hit
+    float v;           // barycentric v coordinate of hit
+    uint primID;       // primitive ID
+    uint geomID;       // geometry ID
+    uint instID[1];    // instance ID
+    uint instPrimID[1];// primitive ID of instance
 };
 
 /* Combined ray/hit structure for a single ray */
@@ -542,7 +543,11 @@ LUISA_FALLBACK_WRAPPER void luisa_fallback_wrapper_ray_query_object_committed_hi
     luisa_fallback_decode_committed_hit(out, &q->ray_hit);
 }
 
-LUISA_FALLBACK_WRAPPER void luisa_fallback_wrapper_ray_query_object_commit_hit(LC_RayQueryObject *q, float t) noexcept {
+LUISA_FALLBACK_WRAPPER void luisa_fallback_wrapper_ray_query_object_commit_surface_hit(LC_RayQueryObject *q) noexcept {
+    q->candidate.committed = true;
+}
+
+LUISA_FALLBACK_WRAPPER void luisa_fallback_wrapper_ray_query_object_commit_procedural_hit(LC_RayQueryObject *q, float t) noexcept {
     q->candidate.t = t;
     q->candidate.committed = true;
 }
