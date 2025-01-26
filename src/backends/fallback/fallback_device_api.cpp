@@ -422,7 +422,7 @@ void luisa_fallback_ray_query_pipeline_all(LC_RayQueryObject *query_object, cons
                 auto candidate = &ctx->q->candidate;
                 ray_query_decode_procedural_candidate(candidate, &ctx->rtc_ctx, &ray_hit->ray, args->primID);
                 on_procedural(reinterpret_cast<LC_RayQueryObject *>(ctx->q), ctx->capture);
-                if (candidate->committed && candidate->t >= ray_hit->ray.tnear && candidate->t <= ray_hit->ray.tfar) {
+                if (candidate->committed && candidate->t >= ray_hit->ray.tnear && candidate->t < ray_hit->ray.tfar) {
                     args->valid[0] = -1;
                     ray_hit->ray.tfar = candidate->t;
                     ray_query_update_current_t(ctx, candidate->t);
@@ -444,7 +444,7 @@ void luisa_fallback_ray_query_pipeline_all(LC_RayQueryObject *query_object, cons
         };
     }
     rtcIntersect1(scene, &q->ray_hit, &args);
-    q->ray_hit.ray.tfar = ctx.current_t;
+    q->ray_hit.hit.Ng_z = ctx.current_t;
 }
 
 void luisa_fallback_ray_query_pipeline_any(LC_RayQueryObject *query_object, const void *capture, RayQueryOnSurfaceFunc *on_surface, RayQueryOnProceduralFunc *on_procedural) noexcept {
@@ -455,7 +455,6 @@ void luisa_fallback_ray_query_pipeline_any(LC_RayQueryObject *query_object, cons
     RayQueryContext ctx;
     rtcInitRayQueryContext(&ctx.rtc_ctx);
     ctx.q = q;
-    ctx.current_t = std::numeric_limits<float>::max();
     ctx.capture = capture;
     ctx.on_surface = on_surface;
     ctx.on_procedural = on_procedural;
@@ -465,9 +464,9 @@ void luisa_fallback_ray_query_pipeline_any(LC_RayQueryObject *query_object, cons
 
     args.context = &ctx.rtc_ctx;
     static constexpr auto record_hit_data = [](RayQueryObject *q, const RTCRay *ray, const RTCHit *hit) noexcept {
-        q->ray_hit.hit.Ng_x = ray->tfar;
+        q->ray_hit.hit.Ng_x = 0.f;
         q->ray_hit.hit.Ng_y = 0.f;
-        q->ray_hit.hit.Ng_z = 0.f;
+        q->ray_hit.hit.Ng_z = ray->tfar;
         q->ray_hit.hit.u = hit->u;
         q->ray_hit.hit.v = hit->v;
         q->ray_hit.hit.primID = hit->primID;
@@ -506,11 +505,11 @@ void luisa_fallback_ray_query_pipeline_any(LC_RayQueryObject *query_object, cons
                 auto candidate = &ctx->q->candidate;
                 ray_query_decode_procedural_candidate(candidate, &ctx->rtc_ctx, ray, args->primID);
                 on_procedural(reinterpret_cast<LC_RayQueryObject *>(ctx->q), ctx->capture);
-                if (candidate->committed && candidate->t >= ray->tnear && candidate->t <= ray->tfar) {
+                if (candidate->committed && candidate->t >= ray->tnear && candidate->t < ray->tfar) {
                     args->valid[0] = -1;
                     ray->tfar = candidate->t;
                     ctx->q->ray_hit.hit = {
-                        .Ng_x = candidate->t,
+                        .Ng_z = candidate->t,
                         .u = -1.f,
                         .v = -1.f,
                         .primID = candidate->prim,
@@ -524,9 +523,6 @@ void luisa_fallback_ray_query_pipeline_any(LC_RayQueryObject *query_object, cons
         };
     }
     rtcOccluded1(scene, &q->ray_hit.ray, &args);
-    if (q->ray_hit.ray.tfar < 0.f) {              // found hit
-        q->ray_hit.ray.tfar = q->ray_hit.hit.Ng_x;// update tfar to keep the same semantic as intersect
-    }
 }
 
 }// namespace luisa::compute::fallback::api

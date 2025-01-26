@@ -46,8 +46,10 @@ FallbackDevice::FallbackDevice(Context &&ctx) noexcept
     rtcSetDeviceErrorFunction(
         _rtc_device,
         [](void *, RTCError code, const char *message) {
-            LUISA_WARNING_WITH_LOCATION("Embree error (code = {}): {}",
-                                        luisa::to_underlying(code), message);
+            if (code != RTC_ERROR_NONE) {
+                LUISA_ERROR_WITH_LOCATION("Embree error (code = {}): {}",
+                                          luisa::to_underlying(code), message);
+            }
         },
         nullptr);
 

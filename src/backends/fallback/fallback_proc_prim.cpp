@@ -12,12 +12,11 @@ void FallbackProceduralPrim::build(luisa::unique_ptr<ProceduralPrimitiveBuildCom
     auto aabb_buffer = reinterpret_cast<FallbackBuffer *>(cmd->aabb_buffer())->data();
     LUISA_DEBUG_ASSERT(cmd->aabb_buffer_size() % sizeof(AABB) == 0u, "Invalid AABB buffer size.");
     auto aabb_count = cmd->aabb_buffer_size() / sizeof(AABB);
-    static_assert(sizeof(AABB) == 6u * sizeof(float), "Invalid AABB size.");
-    rtcSetSharedGeometryBuffer(geometry(), RTC_BUFFER_TYPE_VERTEX, 0u, RTC_FORMAT_FLOAT6,
-                               aabb_buffer, cmd->aabb_buffer_offset(), sizeof(AABB), aabb_count);
+    rtcSetGeometryUserPrimitiveCount(geometry(), aabb_count);
+    rtcSetGeometryUserData(geometry(), aabb_buffer + cmd->aabb_buffer_offset());
     rtcSetGeometryBoundsFunction(
         geometry(), [](const RTCBoundsFunctionArguments *args) noexcept {
-            auto aabb_buffer = reinterpret_cast<const AABB *>(args->geometryUserPtr);
+            auto aabb_buffer = static_cast<const AABB *>(args->geometryUserPtr);
             auto aabb = aabb_buffer[args->primID];
             *args->bounds_o = {
                 .lower_x = aabb.packed_min[0],
@@ -31,7 +30,7 @@ void FallbackProceduralPrim::build(luisa::unique_ptr<ProceduralPrimitiveBuildCom
             };
             // TODO: support motion
         },
-        aabb_buffer + cmd->aabb_buffer_offset());
+        nullptr);
     rtcCommitGeometry(geometry());
     rtcCommitScene(handle());
 }
