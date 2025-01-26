@@ -385,6 +385,7 @@ static void ray_query_decode_candidate(RayQueryCandidate *out, const RTCRay *ray
 }
 
 void luisa_fallback_ray_query_pipeline_all(LC_RayQueryObject *query_object, const void *capture, RayQueryOnSurfaceFunc *on_surface, RayQueryOnProceduralFunc *on_procedural) noexcept {
+
     auto q = reinterpret_cast<RayQueryObject *>(query_object);
     auto scene = static_cast<RTCScene>(q->accel.embree_scene);
 
