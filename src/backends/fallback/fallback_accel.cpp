@@ -62,6 +62,7 @@ void FallbackAccel::build(luisa::unique_ptr<AccelBuildCommand> cmd) noexcept {
             auto geometry = instance.geometry;
             rtcSetGeometryTransform(geometry, 0u, RTC_FORMAT_FLOAT3X4_ROW_MAJOR, instance.affine);
             rtcSetGeometryMask(geometry, instance.mask);
+            rtcSetGeometryUserData(geometry, instance.opaque ? reinterpret_cast<void *>(1ull) : nullptr);
             rtcCommitGeometry(geometry);
             instance.dirty = false;
         }

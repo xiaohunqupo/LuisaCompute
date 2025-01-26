@@ -402,7 +402,7 @@ void luisa_fallback_ray_query_pipeline_all(LC_RayQueryObject *query_object, cons
         auto ctx = reinterpret_cast<RayQueryContext *>(args->context);
         auto ray = reinterpret_cast<RTCRay *>(args->ray);
         auto hit = reinterpret_cast<RTCHit *>(args->hit);
-        if (!ctx->q->accel.instances[hit->instID[0]].opaque) {
+        if (!args->geometryUserPtr) {
             if (auto on_surface = ctx->on_surface) {
                 auto candidate = &ctx->q->candidate;
                 ray_query_decode_candidate(candidate, ray, hit);
@@ -457,14 +457,14 @@ void luisa_fallback_ray_query_pipeline_any(LC_RayQueryObject *query_object, cons
             q->ray_hit.hit.geomID = hit->geomID;
             q->ray_hit.hit.instID[0] = hit->instID[0];
         };
-        if (auto q = ctx->q; q->accel.instances[hit->instID[0]].opaque) {
-            record_hit_data(q, ray, hit);
+        if (args->geometryUserPtr) {
+            record_hit_data(ctx->q, ray, hit);
         } else if (auto on_surface = ctx->on_surface) {
-            auto candidate = &q->candidate;
+            auto candidate = &ctx->q->candidate;
             ray_query_decode_candidate(candidate, ray, hit);
-            on_surface(reinterpret_cast<LC_RayQueryObject *>(q), ctx->capture);
+            on_surface(reinterpret_cast<LC_RayQueryObject *>(ctx->q), ctx->capture);
             if (candidate->committed) {
-                record_hit_data(q, ray, hit);
+                record_hit_data(ctx->q, ray, hit);
             } else {
                 args->valid[0] = false;
             }
