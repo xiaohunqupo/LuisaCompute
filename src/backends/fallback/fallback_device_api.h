@@ -189,6 +189,15 @@ void luisa_fallback_accel_trace_any(void *handle, EmbreeRay *ray) noexcept;
 
 struct alignas(16) LC_RayQueryObject;
 
+struct alignas(16) RayQueryCandidate {
+    uint inst;
+    uint prim;
+    float2 bary;
+    float t;
+    bool committed;
+    bool terminated;
+};
+
 using RayQueryOnSurfaceFunc = void(LC_RayQueryObject *, const void *capture) noexcept;
 using RayQueryOnProceduralFunc = void(LC_RayQueryObject *, const void *capture) noexcept;
 

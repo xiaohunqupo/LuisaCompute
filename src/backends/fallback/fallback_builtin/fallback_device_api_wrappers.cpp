@@ -469,13 +469,8 @@ struct alignas(16) EmbreeRayHit {
 
 struct alignas(16) LC_RayQueryObject {
     AccelView accel;
+    RayQueryCandidate candidate;
     EmbreeRayHit ray_hit;
-    uint candidate_inst;
-    uint candidate_prim;
-    float2 candidate_bary;
-    float candidate_t;
-    bool committed;
-    bool terminated;
 };
 
 LUISA_FALLBACK_INTERNAL void luisa_fallback_create_embree_ray(EmbreeRay *embree_ray, const Ray *ray, float time, uint mask) noexcept {
@@ -532,15 +527,15 @@ LUISA_FALLBACK_WRAPPER void luisa_fallback_wrapper_ray_query_object_world_space_
 }
 
 LUISA_FALLBACK_WRAPPER void luisa_fallback_wrapper_ray_query_object_procedural_candidate_hit(const LC_RayQueryObject *q, AABBHit *out) noexcept {
-    *out = {.inst = q->candidate_inst,
-            .prim = q->candidate_prim};
+    *out = {.inst = q->candidate.inst,
+            .prim = q->candidate.prim};
 }
 
 LUISA_FALLBACK_WRAPPER void luisa_fallback_wrapper_ray_query_object_surface_candidate_hit(const LC_RayQueryObject *q, SurfaceHit *out) noexcept {
-    *out = {.inst = q->candidate_inst,
-            .prim = q->candidate_prim,
-            .bary = q->candidate_bary,
-            .committed_ray_t = q->candidate_t};
+    *out = {.inst = q->candidate.inst,
+            .prim = q->candidate.prim,
+            .bary = q->candidate.bary,
+            .committed_ray_t = q->candidate.t};
 }
 
 LUISA_FALLBACK_WRAPPER void luisa_fallback_wrapper_ray_query_object_committed_hit(const LC_RayQueryObject *q, CommittedHit *out) noexcept {
@@ -548,12 +543,12 @@ LUISA_FALLBACK_WRAPPER void luisa_fallback_wrapper_ray_query_object_committed_hi
 }
 
 LUISA_FALLBACK_WRAPPER void luisa_fallback_wrapper_ray_query_object_commit_hit(LC_RayQueryObject *q, float t) noexcept {
-    q->candidate_t = t;
-    q->committed = true;
+    q->candidate.t = t;
+    q->candidate.committed = true;
 }
 
 LUISA_FALLBACK_WRAPPER void luisa_fallback_wrapper_ray_query_object_terminate(LC_RayQueryObject *q) noexcept {
-    q->terminated = true;
+    q->candidate.terminated = true;
 }
 
 LUISA_FALLBACK_WRAPPER void luisa_fallback_wrapper_ray_query_pipeline_all(LC_RayQueryObject *q, const void *capture, RayQueryOnSurfaceFunc *on_surface, RayQueryOnProceduralFunc *on_procedural) noexcept {

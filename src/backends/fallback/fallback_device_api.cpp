@@ -352,6 +352,12 @@ void luisa_fallback_accel_trace_any(void *handle, EmbreeRay *ray) noexcept {
 #endif
 }
 
+struct alignas(16) RayQueryObject {
+    AccelView accel;
+    RayQueryCandidate candidate;
+    RTCRayHit ray_hit;
+};
+
 void luisa_fallback_ray_query_pipeline_all(LC_RayQueryObject *query_object, const void *capture, RayQueryOnSurfaceFunc *on_surface, RayQueryOnProceduralFunc *on_procedural) noexcept {
 }
 
