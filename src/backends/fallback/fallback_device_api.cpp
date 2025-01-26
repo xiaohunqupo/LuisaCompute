@@ -445,22 +445,27 @@ void luisa_fallback_ray_query_pipeline_any(LC_RayQueryObject *query_object, cons
             auto ctx = reinterpret_cast<RayQueryContext *>(args->context);
             auto ray = reinterpret_cast<RTCRay *>(args->ray);
             auto hit = reinterpret_cast<RTCHit *>(args->hit);
-            if (ctx->q->accel.instances[hit->instID[0]].opaque) {
-                ray->tfar = -1.f;
+            if (auto q = ctx->q; q->accel.instances[hit->instID[0]].opaque) {
+                // record current hit for later use
+                q->ray_hit.hit.Ng_x = ray->tfar;
+                q->ray_hit.hit = *hit;
             } else {
-                auto candidate = &ctx->q->candidate;
+                auto candidate = &q->candidate;
                 ray_query_decode_candidate(candidate, ray, hit);
-                ctx->on_surface(reinterpret_cast<LC_RayQueryObject *>(ctx->q), ctx->capture);
-                if (!candidate->committed) {
+                ctx->on_surface(reinterpret_cast<LC_RayQueryObject *>(q), ctx->capture);
+                if (candidate->committed) {
+                    q->ray_hit.hit.Ng_x = ray->tfar;
+                    q->ray_hit.hit = *hit;
+                } else {
                     args->valid[0] = 0;
-                }
-                if (candidate->terminated) {
-                    ray->tfar = -1.f;
                 }
             }
         };
     }
     rtcOccluded1(scene, &q->ray_hit.ray, &args);
+    if (q->ray_hit.ray.tfar < 0.f) {// found hit
+        q->ray_hit.ray.tfar = q->ray_hit.hit.Ng_x;// update tfar to keep the same semantic as intersect
+    }
 }
 
 }// namespace luisa::compute::fallback::api
