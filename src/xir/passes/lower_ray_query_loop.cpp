@@ -133,7 +133,10 @@ public:
             case DerivedValueTag::FUNCTION: [[fallthrough]];
             case DerivedValueTag::CONSTANT: [[fallthrough]];
             case DerivedValueTag::SPECIAL_REGISTER: return const_cast<Value *>(value);
-            default: break;
+            case DerivedValueTag::BASIC_BLOCK: break;
+            case DerivedValueTag::INSTRUCTION: break;
+            case DerivedValueTag::ARGUMENT: break;
+            default: LUISA_ERROR_WITH_LOCATION("Invalid value.");
         }
         auto iter = value_map.find(value);
         return iter == value_map.end() ? nullptr : iter->second;

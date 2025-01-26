@@ -4,6 +4,7 @@
 extern "C" {// wrappers
 
 #define LUISA_FALLBACK_WRAPPER __attribute__((visibility("hidden"))) __attribute__((used)) __attribute__((always_inline))
+#define LUISA_FALLBACK_INTERNAL __attribute__((visibility("hidden"))) __attribute__((always_inline)) inline
 
 using llvm_float2 = float __attribute__((ext_vector_type(2)));
 using llvm_float3 = float __attribute__((ext_vector_type(3)));
@@ -466,30 +467,114 @@ struct alignas(16) EmbreeRayHit {
     EmbreeHit hit;
 };
 
-LUISA_FALLBACK_WRAPPER void luisa_fallback_wrapper_accel_trace_closest_motion(const AccelView *handle, const Ray *ray, float time, uint mask, SurfaceHit *out) noexcept {
+struct alignas(16) LC_RayQueryObject {
+    AccelView accel;
     EmbreeRayHit ray_hit;
+    uint candidate_inst;
+    uint candidate_prim;
+    float2 candidate_bary;
+    float candidate_t;
+    bool committed;
+    bool terminated;
+};
+
+LUISA_FALLBACK_INTERNAL void luisa_fallback_create_embree_ray(EmbreeRay *embree_ray, const Ray *ray, float time, uint mask) noexcept {
     auto org_tnear = reinterpret_cast<const llvm_float4 *>(&ray->origin);
     auto dir_tfar = reinterpret_cast<const llvm_float4 *>(&ray->direction);
-    ray_hit.ray.org_tnear = *org_tnear;
-    ray_hit.ray.dir_time = {dir_tfar->x, dir_tfar->y, dir_tfar->z, time};
-    ray_hit.ray.extra = {ray->t_max, mask, 0u, 0u};
-    ray_hit.hit.primID = -1;
-    ray_hit.hit.geomID = -1;
-    ray_hit.hit.instID[0] = -1;
+    embree_ray->org_tnear = *org_tnear;
+    embree_ray->dir_time = {dir_tfar->x, dir_tfar->y, dir_tfar->z, time};
+    embree_ray->extra = {ray->t_max, mask, 0u, 0u};
+}
+
+LUISA_FALLBACK_INTERNAL void luisa_fallback_create_embree_hit(EmbreeHit *embree_hit) noexcept {
+    *embree_hit = {.Ng_x = 0.f,
+                   .Ng_y = 0.f,
+                   .Ng_z = 0.f,
+                   .u = -1.f,
+                   .v = -1.f,
+                   .primID = ~0u,
+                   .geomID = ~0u,
+                   .instID = {~0u}};
+}
+
+LUISA_FALLBACK_INTERNAL void luisa_fallback_decode_surface_hit(SurfaceHit *surface_hit, const EmbreeRayHit *ray_hit) noexcept {
+    *surface_hit = {.inst = ray_hit->hit.instID[0],
+                    .prim = ray_hit->hit.primID,
+                    .bary = {ray_hit->hit.u, ray_hit->hit.v},
+                    .committed_ray_t = ray_hit->ray.extra.tfar};
+}
+
+LUISA_FALLBACK_INTERNAL void luisa_fallback_decode_committed_hit(CommittedHit *committed_hit, const EmbreeRayHit *ray_hit) noexcept {
+    *committed_hit = {.inst = ray_hit->hit.instID[0],
+                      .prim = ray_hit->hit.primID,
+                      .bary = {ray_hit->hit.u, ray_hit->hit.v},
+                      .hit_type = ray_hit->hit.instID[0] == ~0u ? HitType::Miss :
+                                  ray_hit->hit.u < 0.f          ? HitType::Procedural :
+                                                                  HitType::Surface,
+                      .committed_ray_t = ray_hit->ray.extra.tfar};
+}
+
+LUISA_FALLBACK_WRAPPER void luisa_fallback_wrapper_accel_traverse_motion(const AccelView *handle, const Ray *ray, float time, uint mask, LC_RayQueryObject *out) noexcept {
+    out->accel = *handle;
+    luisa_fallback_create_embree_ray(&out->ray_hit.ray, ray, time, mask);
+    luisa_fallback_create_embree_hit(&out->ray_hit.hit);
+}
+
+LUISA_FALLBACK_WRAPPER void luisa_fallback_wrapper_accel_traverse(const AccelView *handle, const Ray *ray, uint mask, LC_RayQueryObject *out) noexcept {
+    luisa_fallback_wrapper_accel_traverse_motion(handle, ray, 0.f, mask, out);
+}
+
+LUISA_FALLBACK_WRAPPER void luisa_fallback_wrapper_ray_query_object_world_space_ray(const LC_RayQueryObject *q, Ray *out) noexcept {
+    auto v = reinterpret_cast<llvm_float4 *>(out);
+    v[0] = q->ray_hit.ray.org_tnear;
+    v[1] = q->ray_hit.ray.dir_time;
+    v[1].w = q->ray_hit.ray.extra.tfar;
+}
+
+LUISA_FALLBACK_WRAPPER void luisa_fallback_wrapper_ray_query_object_procedural_candidate_hit(const LC_RayQueryObject *q, AABBHit *out) noexcept {
+    *out = {.inst = q->candidate_inst,
+            .prim = q->candidate_prim};
+}
+
+LUISA_FALLBACK_WRAPPER void luisa_fallback_wrapper_ray_query_object_surface_candidate_hit(const LC_RayQueryObject *q, SurfaceHit *out) noexcept {
+    *out = {.inst = q->candidate_inst,
+            .prim = q->candidate_prim,
+            .bary = q->candidate_bary,
+            .committed_ray_t = q->candidate_t};
+}
+
+LUISA_FALLBACK_WRAPPER void luisa_fallback_wrapper_ray_query_object_committed_hit(const LC_RayQueryObject *q, CommittedHit *out) noexcept {
+    luisa_fallback_decode_committed_hit(out, &q->ray_hit);
+}
+
+LUISA_FALLBACK_WRAPPER void luisa_fallback_wrapper_ray_query_object_commit_hit(LC_RayQueryObject *q, float t) noexcept {
+    q->candidate_t = t;
+    q->committed = true;
+}
+
+LUISA_FALLBACK_WRAPPER void luisa_fallback_wrapper_ray_query_object_terminate(LC_RayQueryObject *q) noexcept {
+    q->terminated = true;
+}
+
+LUISA_FALLBACK_WRAPPER void luisa_fallback_wrapper_ray_query_pipeline_all(LC_RayQueryObject *q, const void *capture, RayQueryOnSurfaceFunc *on_surface, RayQueryOnProceduralFunc *on_procedural) noexcept {
+    luisa_fallback_ray_query_pipeline_all(q, capture, on_surface, on_procedural);
+}
+
+LUISA_FALLBACK_WRAPPER void luisa_fallback_wrapper_ray_query_pipeline_any(LC_RayQueryObject *q, const void *capture, RayQueryOnSurfaceFunc *on_surface, RayQueryOnProceduralFunc *on_procedural) noexcept {
+    luisa_fallback_ray_query_pipeline_any(q, capture, on_surface, on_procedural);
+}
+
+LUISA_FALLBACK_WRAPPER void luisa_fallback_wrapper_accel_trace_closest_motion(const AccelView *handle, const Ray *ray, float time, uint mask, SurfaceHit *out) noexcept {
+    EmbreeRayHit ray_hit;
+    luisa_fallback_create_embree_ray(&ray_hit.ray, ray, time, mask);
+    luisa_fallback_create_embree_hit(&ray_hit.hit);
     luisa_fallback_accel_trace_closest(handle->embree_scene, &ray_hit);
-    *out = {.inst = ray_hit.hit.instID[0],
-            .prim = ray_hit.hit.primID,
-            .bary = {ray_hit.hit.u, ray_hit.hit.v},
-            .committed_ray_t = ray_hit.ray.extra.tfar};
+    luisa_fallback_decode_surface_hit(out, &ray_hit);
 }
 
 LUISA_FALLBACK_WRAPPER void luisa_fallback_wrapper_accel_trace_any_motion(const AccelView *handle, const Ray *ray, float time, uint mask, bool *out) noexcept {
     EmbreeRay ray_;
-    auto org_tnear = reinterpret_cast<const llvm_float4 *>(&ray->origin);
-    auto dir_tfar = reinterpret_cast<const llvm_float4 *>(&ray->direction);
-    ray_.org_tnear = *org_tnear;
-    ray_.dir_time = {dir_tfar->x, dir_tfar->y, dir_tfar->z, time};
-    ray_.extra = {ray->t_max, mask, 0u, 0u};
+    luisa_fallback_create_embree_ray(&ray_, ray, time, mask);
     luisa_fallback_accel_trace_any(handle->embree_scene, &ray_);
     *out = ray_.extra.tfar < 0.f;
 }
@@ -544,7 +629,6 @@ LUISA_FALLBACK_WRAPPER void luisa_fallback_wrapper_accel_set_instance_user_id(Ac
     instance.dirty = true;
 }
 
-// opaque
 LUISA_FALLBACK_WRAPPER void luisa_fallback_wrapper_accel_set_instance_opacity(AccelView *handle, uint instance_id, bool opacity) noexcept {
     auto &instance = handle->instances[instance_id];
     instance.opaque = opacity;
