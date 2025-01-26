@@ -19,18 +19,19 @@
 #include <luisa/core/stl/unordered_map.h>
 #include <luisa/core/logging.h>
 #include <luisa/runtime/rtx/hit.h>
+#include <luisa/dsl/rtx/ray_query.h>
 #include <luisa/xir/module.h>
 #include <luisa/xir/builder.h>
 #include <luisa/xir/special_register.h>
 #include <luisa/xir/metadata/name.h>
 #include <luisa/xir/metadata/location.h>
 
-#include "fallback_codegen.h"
-
 #include "fallback_accel.h"
 #include "fallback_bindless_array.h"
 #include "fallback_buffer.h"
 #include "fallback_texture.h"
+#include "fallback_device_api.h"
+#include "fallback_codegen.h"
 
 namespace luisa::compute::fallback {
 
@@ -93,7 +94,12 @@ private:
             case Type::Tag::TEXTURE: return sizeof(FallbackTextureView);
             case Type::Tag::BINDLESS_ARRAY: return sizeof(FallbackBindlessArrayView);
             case Type::Tag::ACCEL: return sizeof(FallbackAccelView);
-            case Type::Tag::CUSTOM: LUISA_NOT_IMPLEMENTED();
+            case Type::Tag::CUSTOM: {
+                if (t == Type::of<RayQueryAll>() || t == Type::of<RayQueryAny>()) {
+                    return api::luisa_fallback_ray_query_object_size();
+                }
+                break;
+            }
             default: break;
         }
         LUISA_ERROR_WITH_LOCATION("Invalid type: {}.", t->description());
@@ -109,7 +115,12 @@ private:
             case Type::Tag::TEXTURE: return alignof(FallbackTextureView);
             case Type::Tag::BINDLESS_ARRAY: return alignof(FallbackBindlessArrayView);
             case Type::Tag::ACCEL: return alignof(FallbackAccelView);
-            case Type::Tag::CUSTOM: LUISA_NOT_IMPLEMENTED();
+            case Type::Tag::CUSTOM: {
+                if (t == Type::of<RayQueryAll>() || t == Type::of<RayQueryAny>()) {
+                    return api::luisa_fallback_ray_query_object_alignment();
+                }
+                break;
+            }
             default: break;
         }
         LUISA_ERROR_WITH_LOCATION("Invalid type: {}.", t->description());
@@ -197,7 +208,14 @@ private:
                 auto llvm_ptr_type = llvm::PointerType::get(_llvm_context, 0);
                 return llvm::StructType::get(_llvm_context, {llvm_ptr_type, llvm_ptr_type});
             }
-            case Type::Tag::CUSTOM: LUISA_NOT_IMPLEMENTED();
+            case Type::Tag::CUSTOM: {
+                if (t == Type::of<RayQueryAll>() || t == Type::of<RayQueryAny>()) {
+                    auto size = api::luisa_fallback_ray_query_object_size();
+                    auto llvm_array_type = llvm::ArrayType::get(llvm::Type::getInt8Ty(_llvm_context), size);
+                    return llvm::StructType::get(llvm_array_type);
+                }
+                break;
+            }
         }
         LUISA_ERROR_WITH_LOCATION("Invalid type: {}.", t->description());
     }
@@ -1774,6 +1792,178 @@ private:
         return b.CreateCall(llvm_func, llvm_args);
     }
 
+    [[nodiscard]] llvm::Value *_translate_ray_query_object_read_inst(CurrentFunction &current, IRBuilder &b, const xir::RayQueryObjectReadInst *inst) noexcept {
+        LUISA_DEBUG_ASSERT(inst->operand_count() == 1u, "Invalid ray query object read instruction.");
+        auto llvm_func_name = [op = inst->op()] {
+            using namespace std::string_view_literals;
+            switch (op) {
+                case xir::RayQueryObjectReadOp::RAY_QUERY_OBJECT_WORLD_SPACE_RAY: return "luisa.ray.query.object.world.space.ray"sv;
+                case xir::RayQueryObjectReadOp::RAY_QUERY_OBJECT_PROCEDURAL_CANDIDATE_HIT: return "luisa.ray.query.object.procedural.candidate.hit"sv;
+                case xir::RayQueryObjectReadOp::RAY_QUERY_OBJECT_TRIANGLE_CANDIDATE_HIT: return "luisa.ray.query.object.surface.candidate.hit"sv;
+                case xir::RayQueryObjectReadOp::RAY_QUERY_OBJECT_COMMITTED_HIT: return "luisa.ray.query.object.committed.hit"sv;
+                case xir::RayQueryObjectReadOp::RAY_QUERY_OBJECT_IS_TRIANGLE_CANDIDATE: LUISA_NOT_IMPLEMENTED();
+                case xir::RayQueryObjectReadOp::RAY_QUERY_OBJECT_IS_PROCEDURAL_CANDIDATE: LUISA_NOT_IMPLEMENTED();
+                case xir::RayQueryObjectReadOp::RAY_QUERY_OBJECT_IS_TERMINATED: LUISA_NOT_IMPLEMENTED();
+                default: break;
+            }
+            LUISA_ERROR_WITH_LOCATION("Invalid ray query object read operation.");
+        }();
+        auto llvm_func = _llvm_module->getFunction(llvm_func_name);
+        LUISA_ASSERT(llvm_func != nullptr, "Function not found.");
+        auto llvm_object = _lookup_value(current, b, inst->operand(0));
+        auto llvm_out_type = _translate_type(inst->type(), true);
+        auto llvm_out_alloca = b.CreateAlloca(llvm_out_type);
+        b.CreateCall(llvm_func, {llvm_object, llvm_out_alloca});
+        return b.CreateLoad(llvm_out_type, llvm_out_alloca);
+    }
+
+    [[nodiscard]] llvm::Value *_translate_ray_query_object_write_inst(CurrentFunction &current, IRBuilder &b, const xir::RayQueryObjectWriteInst *inst) noexcept {
+        LUISA_DEBUG_ASSERT(inst->operand_count() >= 1u, "Invalid ray query object write instruction.");
+        auto llvm_func_name = [op = inst->op()] {
+            using namespace std::string_view_literals;
+            switch (op) {
+                case xir::RayQueryObjectWriteOp::RAY_QUERY_OBJECT_COMMIT_TRIANGLE: return "luisa.ray.query.object.commit.surface.hit"sv;
+                case xir::RayQueryObjectWriteOp::RAY_QUERY_OBJECT_COMMIT_PROCEDURAL: return "luisa.ray.query.object.commit.procedural.hit"sv;
+                case xir::RayQueryObjectWriteOp::RAY_QUERY_OBJECT_TERMINATE: return "luisa.ray.query.object.terminate"sv;
+                case xir::RayQueryObjectWriteOp::RAY_QUERY_OBJECT_PROCEED: LUISA_NOT_IMPLEMENTED();
+                default: break;
+            }
+            LUISA_ERROR_WITH_LOCATION("Invalid ray query object write operation.");
+        }();
+        auto llvm_func = _llvm_module->getFunction(llvm_func_name);
+        LUISA_ASSERT(llvm_func != nullptr, "Function not found.");
+        llvm::SmallVector<llvm::Value *, 4u> llvm_args;
+        llvm_args.reserve(inst->operand_count());
+        for (auto op_use : inst->operand_uses()) {
+            llvm_args.emplace_back(_lookup_value(current, b, op_use->value()));
+        }
+        return b.CreateCall(llvm_func, llvm_args);
+    }
+
+    [[nodiscard]] llvm::Constant *_generate_ray_query_pipeline_function_wrapper(llvm::StringRef name,
+                                                                                llvm::Function *llvm_func,
+                                                                                llvm::StructType *llvm_capture_struct,
+                                                                                llvm::ArrayRef<uint> member_to_arg) noexcept {
+        // void wrapper(ptr query_object, ptr captured_args) {
+        //   impl(query_object, captured_args.member(inv(member_to_arg)[0])...);
+        // }
+        auto llvm_void_type = llvm::Type::getVoidTy(_llvm_context);
+        auto llvm_ptr_type = llvm::PointerType::get(_llvm_context, 0);
+        auto llvm_wrapper_func_type = llvm::FunctionType::get(llvm_void_type, {llvm_ptr_type, llvm_ptr_type}, false);
+        auto llvm_wrapper_func = llvm::Function::Create(llvm_wrapper_func_type, llvm::Function::InternalLinkage, name, _llvm_module);
+        auto entry = llvm::BasicBlock::Create(_llvm_context, "entry", llvm_wrapper_func);
+        IRBuilder b{entry};
+        llvm::SmallVector<llvm::Value *> llvm_args;
+        llvm_args.resize(1u + member_to_arg.size());
+        auto llvm_wrapper_query_object = llvm_wrapper_func->getArg(0);
+        llvm_args[0] = llvm_wrapper_query_object;
+        if (!member_to_arg.empty()) {
+            auto llvm_wrapper_captured_struct = b.CreateLoad(llvm_capture_struct, llvm_wrapper_func->getArg(1));
+            for (auto member_index = 0; member_index < member_to_arg.size(); member_index++) {
+                auto arg_index = member_to_arg[member_index];
+                auto llvm_member = b.CreateExtractValue(llvm_wrapper_captured_struct, member_index);
+                llvm_args[1u + arg_index] = llvm_member;
+            }
+#ifndef NDEBUG
+            for (auto llvm_arg : llvm_args) {
+                LUISA_ASSERT(llvm_arg != nullptr, "Invalid argument.");
+            }
+#endif
+        }
+        LUISA_DEBUG_ASSERT(llvm_func != nullptr, "Invalid ray query pipeline function.");
+        auto llvm_call = b.CreateCall(llvm_func, llvm_args);
+        llvm_call->setCallingConv(llvm::CallingConv::Fast);
+        b.CreateRetVoid();
+        return llvm_wrapper_func;
+    }
+
+    [[nodiscard]] llvm::Value *_translate_ray_query_pipeline_inst(CurrentFunction &current, IRBuilder &b, const xir::RayQueryPipelineInst *inst) noexcept {
+        // find the built-in function
+        auto query_object = inst->query_object();
+        LUISA_DEBUG_ASSERT(query_object != nullptr &&
+                               (query_object->type() == Type::of<RayQueryAll>() ||
+                                query_object->type() == Type::of<RayQueryAny>()),
+                           "Invalid ray query object type.");
+        auto llvm_query_object = _lookup_value(current, b, query_object);
+        using namespace std::string_view_literals;
+        auto llvm_func_name = query_object->type() == Type::of<RayQueryAll>() ?
+                                  "luisa.ray.query.pipeline.all"sv :
+                                  "luisa.ray.query.pipeline.any"sv;
+        auto llvm_func = _llvm_module->getFunction(llvm_func_name);
+        LUISA_ASSERT(llvm_func != nullptr, "Function not found.");
+        // create capture argument struct
+        auto captured_arg_uses = inst->captured_argument_uses();
+        llvm::SmallVector<uint> member_to_captured_arg;
+        member_to_captured_arg.reserve(captured_arg_uses.size() + CurrentFunction::builtin_variable_count);
+        auto llvm_capture = [&]() noexcept -> std::pair<llvm::StructType *, llvm::Value *> {
+            llvm::SmallVector<size_t> captured_arg_ranks;
+            captured_arg_ranks.reserve(captured_arg_uses.size() + CurrentFunction::builtin_variable_count);
+            for (auto arg_use : captured_arg_uses) {
+                auto arg = arg_use->value();
+                LUISA_DEBUG_ASSERT(arg != nullptr && arg->type() != nullptr, "Invalid null captured arg.");
+                auto arg_rank = [&] {
+                    auto size = arg->is_lvalue() ? 8u : _get_type_size(arg->type());
+                    auto alignment = arg->is_lvalue() ? 8u : _get_type_alignment(arg->type());
+                    return (alignment << 32u) | size;
+                }();
+                auto arg_index = captured_arg_ranks.size();
+                captured_arg_ranks.emplace_back(arg_rank);
+                member_to_captured_arg.emplace_back(arg_index);
+            }
+            // built-in variables
+            for (auto i = 0u; i < CurrentFunction::builtin_variable_count; i++) {
+                auto arg_rank = ~0u;
+                auto arg_index = captured_arg_ranks.size();
+                captured_arg_ranks.emplace_back(arg_rank);
+                member_to_captured_arg.emplace_back(arg_index);
+            }
+            // sort the captured args in descending order of ranks
+            std::stable_sort(member_to_captured_arg.begin(), member_to_captured_arg.end(), [&](auto lhs, auto rhs) noexcept {
+                return captured_arg_ranks[lhs] > captured_arg_ranks[rhs];
+            });
+            llvm::SmallVector<llvm::Type *> llvm_member_types;
+            llvm_member_types.reserve(captured_arg_uses.size() + CurrentFunction::builtin_variable_count);
+            auto llvm_ptr_type = llvm::PointerType::get(_llvm_context, 0);
+            for (auto arg_index : member_to_captured_arg) {
+                if (arg_index < captured_arg_uses.size()) {
+                    auto arg = captured_arg_uses[arg_index]->value();
+                    llvm_member_types.emplace_back(arg->is_lvalue() ? llvm_ptr_type : _translate_type(arg->type(), true));
+                } else {
+                    auto builtin_index = arg_index - captured_arg_uses.size();
+                    llvm_member_types.emplace_back(current.builtin_variables[builtin_index]->getType());
+                }
+            }
+            // create the struct type
+            auto llvm_struct_type = llvm::StructType::get(_llvm_context, llvm_member_types);
+            // alloca
+            auto llvm_struct_alloca = b.CreateAlloca(llvm_struct_type);
+            // store captured args
+            for (auto member_index = 0u; member_index < member_to_captured_arg.size(); member_index++) {
+                auto arg_index = member_to_captured_arg[member_index];
+                auto llvm_arg = arg_index < captured_arg_uses.size() ?
+                                    _lookup_value(current, b, captured_arg_uses[arg_index]->value()) :
+                                    current.builtin_variables[arg_index - captured_arg_uses.size()];
+                auto llvm_member = b.CreateStructGEP(llvm_struct_type, llvm_struct_alloca, member_index);
+                b.CreateStore(llvm_arg, llvm_member);
+            }
+            return std::make_pair(llvm_struct_type, llvm_struct_alloca);
+        }();
+        // create the wrapper functions
+        auto llvm_on_surface_func = inst->on_surface_function() ? _lookup_value(current, b, inst->on_surface_function()) : nullptr;
+        auto llvm_on_procedural_func = inst->on_procedural_function() ? _lookup_value(current, b, inst->on_procedural_function()) : nullptr;
+        LUISA_DEBUG_ASSERT(llvm_on_surface_func == nullptr || llvm::isa<llvm::Function>(llvm_on_surface_func), "Invalid on_surface function.");
+        LUISA_DEBUG_ASSERT(llvm_on_procedural_func == nullptr || llvm::isa<llvm::Function>(llvm_on_procedural_func), "Invalid on_procedural function.");
+        auto llvm_on_surface_func_wrapper = _generate_ray_query_pipeline_function_wrapper(
+            "ray.query.pipeline.on.surface.wrapper",
+            llvm::cast<llvm::Function>(llvm_on_surface_func),
+            llvm_capture.first, member_to_captured_arg);
+        auto llvm_on_procedural_func_wrapper = _generate_ray_query_pipeline_function_wrapper(
+            "ray.query.pipeline.on.procedural.wrapper",
+            llvm::cast<llvm::Function>(llvm_on_procedural_func),
+            llvm_capture.first, member_to_captured_arg);
+        return b.CreateCall(llvm_func, {llvm_query_object, llvm_capture.second, llvm_on_surface_func_wrapper, llvm_on_procedural_func_wrapper});
+    }
+
     [[nodiscard]] llvm::Value *_translate_atomic_op(CurrentFunction &current, IRBuilder &b,
                                                     const char *op_name, const xir::AtomicInst *inst,
                                                     bool byte_address = false) noexcept {
@@ -2378,10 +2568,10 @@ private:
             case xir::ResourceQueryOp::RAY_TRACING_INSTANCE_MOTION_SRT: return _translate_accel_access(current, b, "luisa.accel.instance.motion.srt", inst);
             case xir::ResourceQueryOp::RAY_TRACING_TRACE_CLOSEST_MOTION_BLUR: return _translate_accel_access(current, b, "luisa.accel.trace.closest.motion", inst);
             case xir::ResourceQueryOp::RAY_TRACING_TRACE_ANY_MOTION_BLUR: return _translate_accel_access(current, b, "luisa.accel.trace.any.motion", inst);
-            case xir::ResourceQueryOp::RAY_TRACING_QUERY_ALL: break;
-            case xir::ResourceQueryOp::RAY_TRACING_QUERY_ANY: break;
-            case xir::ResourceQueryOp::RAY_TRACING_QUERY_ALL_MOTION_BLUR: break;
-            case xir::ResourceQueryOp::RAY_TRACING_QUERY_ANY_MOTION_BLUR: break;
+            case xir::ResourceQueryOp::RAY_TRACING_QUERY_ALL: return _translate_accel_access(current, b, "luisa.accel.traverse", inst);
+            case xir::ResourceQueryOp::RAY_TRACING_QUERY_ANY: return _translate_accel_access(current, b, "luisa.accel.traverse", inst);
+            case xir::ResourceQueryOp::RAY_TRACING_QUERY_ALL_MOTION_BLUR: return _translate_accel_access(current, b, "luisa.accel.traverse.motion", inst);
+            case xir::ResourceQueryOp::RAY_TRACING_QUERY_ANY_MOTION_BLUR: return _translate_accel_access(current, b, "luisa.accel.traverse.motion", inst);
         }
         LUISA_ERROR_WITH_LOCATION("Unexpected resource query operation: {}.", xir::to_string(inst->op()));
     }
@@ -2700,7 +2890,7 @@ private:
             case xir::DerivedInstructionTag::CALL: {
                 auto call_inst = static_cast<const xir::CallInst *>(inst);
                 auto llvm_func = llvm::cast<llvm::Function>(_lookup_value(current, b, call_inst->callee()));
-                llvm::SmallVector<llvm::Value *, 64u> llvm_args;
+                llvm::SmallVector<llvm::Value *> llvm_args;
                 llvm_args.reserve(call_inst->argument_count());
                 for (auto i = 0u; i < call_inst->argument_count(); i++) {
                     auto llvm_arg = _lookup_value(current, b, call_inst->argument(i));
@@ -2809,18 +2999,6 @@ private:
             }
         }
         LUISA_ERROR_WITH_LOCATION("Invalid instruction.");
-    }
-
-    [[nodiscard]] llvm::Value *_translate_ray_query_object_read_inst(CurrentFunction &current, IRBuilder &b, const xir::RayQueryObjectReadInst *inst) noexcept {
-        LUISA_NOT_IMPLEMENTED();
-    }
-
-    [[nodiscard]] llvm::Value *_translate_ray_query_object_write_inst(CurrentFunction &current, IRBuilder &b, const xir::RayQueryObjectWriteInst *inst) noexcept {
-        LUISA_NOT_IMPLEMENTED();
-    }
-
-    [[nodiscard]] llvm::Value *_translate_ray_query_pipeline_inst(CurrentFunction &current, IRBuilder &b, const xir::RayQueryPipelineInst *inst) noexcept {
-        LUISA_NOT_IMPLEMENTED();// TODO: implement ray query pipeline
     }
 
     [[nodiscard]] llvm::BasicBlock *_find_or_create_basic_block(CurrentFunction &current, const xir::BasicBlock *bb) noexcept {

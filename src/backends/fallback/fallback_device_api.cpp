@@ -358,10 +358,109 @@ struct alignas(16) RayQueryObject {
     RTCRayHit ray_hit;
 };
 
+size_t luisa_fallback_ray_query_object_size() noexcept {
+    return sizeof(RayQueryObject);
+}
+
+size_t luisa_fallback_ray_query_object_alignment() noexcept {
+    return alignof(RayQueryObject);
+}
+
+struct RayQueryContext {
+    RTCRayQueryContext rtc_ctx;
+    RayQueryObject *q;
+    const void *capture;
+    RayQueryOnSurfaceFunc *on_surface;
+    RayQueryOnProceduralFunc *on_procedural;
+};
+
+static void ray_query_decode_candidate(RayQueryCandidate *out, const RTCRay *ray, const RTCHit *hit) noexcept {
+    out->inst = hit->instID[0];
+    out->prim = hit->primID;
+    out->bary = {hit->u, hit->v};
+    out->t = ray->tfar;
+    out->pad = 0.f;
+    out->committed = false;
+    out->terminated = false;
+}
+
 void luisa_fallback_ray_query_pipeline_all(LC_RayQueryObject *query_object, const void *capture, RayQueryOnSurfaceFunc *on_surface, RayQueryOnProceduralFunc *on_procedural) noexcept {
+    auto q = reinterpret_cast<RayQueryObject *>(query_object);
+    auto scene = static_cast<RTCScene>(q->accel.embree_scene);
+
+    RayQueryContext ctx;
+    rtcInitRayQueryContext(&ctx.rtc_ctx);
+    ctx.q = q;
+    ctx.capture = capture;
+    ctx.on_surface = on_surface;
+    ctx.on_procedural = on_procedural;
+
+    RTCIntersectArguments args;
+    rtcInitIntersectArguments(&args);
+
+    args.context = &ctx.rtc_ctx;
+    args.flags = RTC_RAY_QUERY_FLAG_INVOKE_ARGUMENT_FILTER;
+    if (on_surface != nullptr) {
+        args.filter = [](const RTCFilterFunctionNArguments *args) noexcept {
+            auto ctx = reinterpret_cast<RayQueryContext *>(args->context);
+            auto ray = reinterpret_cast<RTCRay *>(args->ray);
+            auto hit = reinterpret_cast<RTCHit *>(args->hit);
+            if (ctx->q->accel.instances[hit->instID[0]].opaque) {
+                ray->tfar = -1.f;
+            } else {
+                auto candidate = &ctx->q->candidate;
+                ray_query_decode_candidate(candidate, ray, hit);
+                ctx->on_surface(reinterpret_cast<LC_RayQueryObject *>(ctx->q), ctx->capture);
+                if (!candidate->committed) {
+                    args->valid[0] = 0;
+                }
+                if (candidate->terminated) {
+                    ray->tfar = -1.f;
+                }
+            }
+        };
+    }
+    rtcIntersect1(scene, &q->ray_hit, &args);
 }
 
 void luisa_fallback_ray_query_pipeline_any(LC_RayQueryObject *query_object, const void *capture, RayQueryOnSurfaceFunc *on_surface, RayQueryOnProceduralFunc *on_procedural) noexcept {
+
+    auto q = reinterpret_cast<RayQueryObject *>(query_object);
+    auto scene = static_cast<RTCScene>(q->accel.embree_scene);
+
+    RayQueryContext ctx;
+    rtcInitRayQueryContext(&ctx.rtc_ctx);
+    ctx.q = q;
+    ctx.capture = capture;
+    ctx.on_surface = on_surface;
+    ctx.on_procedural = on_procedural;
+
+    RTCOccludedArguments args;
+    rtcInitOccludedArguments(&args);
+
+    args.context = &ctx.rtc_ctx;
+    args.flags = RTC_RAY_QUERY_FLAG_INVOKE_ARGUMENT_FILTER;
+    if (on_surface != nullptr) {
+        args.filter = [](const RTCFilterFunctionNArguments *args) noexcept {
+            auto ctx = reinterpret_cast<RayQueryContext *>(args->context);
+            auto ray = reinterpret_cast<RTCRay *>(args->ray);
+            auto hit = reinterpret_cast<RTCHit *>(args->hit);
+            if (ctx->q->accel.instances[hit->instID[0]].opaque) {
+                ray->tfar = -1.f;
+            } else {
+                auto candidate = &ctx->q->candidate;
+                ray_query_decode_candidate(candidate, ray, hit);
+                ctx->on_surface(reinterpret_cast<LC_RayQueryObject *>(ctx->q), ctx->capture);
+                if (!candidate->committed) {
+                    args->valid[0] = 0;
+                }
+                if (candidate->terminated) {
+                    ray->tfar = -1.f;
+                }
+            }
+        };
+    }
+    rtcOccluded1(scene, &q->ray_hit.ray, &args);
 }
 
 }// namespace luisa::compute::fallback::api

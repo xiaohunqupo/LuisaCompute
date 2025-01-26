@@ -189,6 +189,9 @@ void luisa_fallback_accel_trace_any(void *handle, EmbreeRay *ray) noexcept;
 
 struct alignas(16) LC_RayQueryObject;
 
+[[nodiscard]] size_t luisa_fallback_ray_query_object_size() noexcept;
+[[nodiscard]] size_t luisa_fallback_ray_query_object_alignment() noexcept;
+
 struct alignas(16) RayQueryCandidate {
     uint inst;
     uint prim;

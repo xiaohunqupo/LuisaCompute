@@ -232,7 +232,14 @@ FallbackShader::FallbackShader(FallbackDevice *device, const ShaderOption &optio
     }
     auto codegen_feedback = luisa_fallback_backend_codegen(*llvm_ctx, llvm_module.get(), xir_module);
     if (llvm::verifyModule(*llvm_module, &llvm::errs())) {
-        LUISA_ERROR_WITH_LOCATION("LLVM module verification failed.");
+        auto filename = luisa::format("kernel.{:016x}.err.ll", kernel.hash());
+        std::error_code ec;
+        llvm::raw_fd_ostream ofs{llvm::StringRef{filename}, ec};
+        if (ec) {
+            LUISA_ERROR_WITH_LOCATION("LLVM module verification failed. Failed to open file for dumping LLVM IR: {}.", ec.message());
+        }
+        llvm_module->print(ofs, nullptr, false, true);
+        LUISA_ERROR_WITH_LOCATION("LLVM module verification failed. IR dumped to '{}'.", filename);
     }
 
     // map symbols
