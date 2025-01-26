@@ -328,9 +328,7 @@ void luisa_fallback_accel_trace_closest(void *handle, EmbreeRayHit *ray_hit) noe
 #if LUISA_COMPUTE_EMBREE_VERSION == 3
     rtcIntersect1(scene, &ctx, rh);
 #else
-    RTCIntersectArguments args;
-    rtcInitIntersectArguments(&args);
-    rtcIntersect1(scene, rh, &args);
+    rtcIntersect1(scene, rh);
 #endif
 }
 
@@ -346,9 +344,7 @@ void luisa_fallback_accel_trace_any(void *handle, EmbreeRay *ray) noexcept {
 #if LUISA_COMPUTE_EMBREE_VERSION == 3
     rtcOccluded1(scene, &ctx, r);
 #else
-    RTCOccludedArguments args;
-    rtcInitOccludedArguments(&args);
-    rtcOccluded1(scene, r, &args);
+    rtcOccluded1(scene, r);
 #endif
 }
 
@@ -406,20 +402,20 @@ void luisa_fallback_ray_query_pipeline_all(LC_RayQueryObject *query_object, cons
         auto ctx = reinterpret_cast<RayQueryContext *>(args->context);
         auto ray = reinterpret_cast<RTCRay *>(args->ray);
         auto hit = reinterpret_cast<RTCHit *>(args->hit);
-        if (ctx->q->accel.instances[hit->instID[0]].opaque) {
-            ray->tfar = -1.f;
-        } else if (auto on_surface = ctx->on_surface) {
-            auto candidate = &ctx->q->candidate;
-            ray_query_decode_candidate(candidate, ray, hit);
-            on_surface(reinterpret_cast<LC_RayQueryObject *>(ctx->q), ctx->capture);
-            if (!candidate->committed) {
+        if (!ctx->q->accel.instances[hit->instID[0]].opaque) {
+            if (auto on_surface = ctx->on_surface) {
+                auto candidate = &ctx->q->candidate;
+                ray_query_decode_candidate(candidate, ray, hit);
+                on_surface(reinterpret_cast<LC_RayQueryObject *>(ctx->q), ctx->capture);
+                if (!candidate->committed) {
+                    args->valid[0] = false;
+                }
+                if (candidate->terminated) {
+                    ray->tfar = -1.f;
+                }
+            } else {
                 args->valid[0] = false;
             }
-            if (candidate->terminated) {
-                ray->tfar = -1.f;
-            }
-        } else {
-            args->valid[0] = false;
         }
     };
     // procedural hit
