@@ -5,7 +5,7 @@
 #include <luisa/core/stl.h>
 #include <luisa/core/logging.h>
 
-#include "fallback_mesh.h"
+#include "fallback_prim.h"
 #include "fallback_accel.h"
 #include "fallback_command_queue.h"
 
@@ -40,8 +40,8 @@ void FallbackAccel::build(luisa::unique_ptr<AccelBuildCommand> cmd) noexcept {
         using Mod = AccelBuildCommand::Modification;
         if (m.flags & Mod::flag_primitive) {
             auto geometry = _instances[m.index].geometry;
-            auto mesh = reinterpret_cast<const FallbackMesh *>(m.primitive);
-            rtcSetGeometryInstancedScene(geometry, mesh->handle());
+            auto prim = reinterpret_cast<const FallbackPrim *>(m.primitive);
+            rtcSetGeometryInstancedScene(geometry, prim->handle());
         }
         if (m.flags & Mod::flag_transform) {
             std::memcpy(_instances[m.index].affine, m.affine, sizeof(m.affine));

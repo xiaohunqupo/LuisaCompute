@@ -23,6 +23,7 @@
 #include "fallback_device.h"
 #include "fallback_texture.h"
 #include "fallback_mesh.h"
+#include "fallback_proc_prim.h"
 #include "fallback_accel.h"
 #include "fallback_bindless_array.h"
 #include "fallback_shader.h"
@@ -233,10 +234,14 @@ ResourceCreationInfo FallbackDevice::create_mesh(const AccelOption &option) noex
 }
 
 ResourceCreationInfo FallbackDevice::create_procedural_primitive(const AccelOption &option) noexcept {
-    return ResourceCreationInfo();
+    auto prim = luisa::new_with_allocator<FallbackProceduralPrim>(_rtc_device, option);
+    return {.handle = reinterpret_cast<uint64_t>(prim),
+            .native_handle = prim->handle()};
 }
 
 void FallbackDevice::destroy_procedural_primitive(uint64_t handle) noexcept {
+    auto prim = reinterpret_cast<FallbackProceduralPrim *>(handle);
+    luisa::delete_with_allocator(prim);
 }
 
 ResourceCreationInfo FallbackDevice::create_curve(const AccelOption &option) noexcept {
