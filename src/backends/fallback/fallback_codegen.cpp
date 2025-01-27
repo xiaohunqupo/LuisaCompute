@@ -1899,7 +1899,7 @@ private:
         if (llvm_func == nullptr) { return llvm::Constant::getNullValue(llvm_ptr_type); }
         auto llvm_void_type = llvm::Type::getVoidTy(_llvm_context);
         auto llvm_wrapper_func_type = llvm::FunctionType::get(llvm_void_type, {llvm_ptr_type, llvm_ptr_type}, false);
-        auto llvm_wrapper_func = llvm::Function::Create(llvm_wrapper_func_type, llvm::Function::InternalLinkage, name, _llvm_module);
+        auto llvm_wrapper_func = llvm::Function::Create(llvm_wrapper_func_type, llvm::Function::PrivateLinkage, name, _llvm_module);
         auto entry = llvm::BasicBlock::Create(_llvm_context, "entry", llvm_wrapper_func);
         IRBuilder b{entry};
         llvm::SmallVector<llvm::Value *> llvm_args;
