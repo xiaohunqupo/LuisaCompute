@@ -36,9 +36,13 @@ namespace luisa::compute::fallback {
 FallbackDevice::FallbackDevice(Context &&ctx) noexcept
     : DeviceInterface{std::move(ctx)} {
 
-#ifdef LUISA_ARCH_X86_64
+#if defined(LUISA_ARCH_X86_64)
     _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
     _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+#elif defined(LUISA_ARCH_ARM64)
+    uint64_t fpcr;
+    asm volatile("mrs %0, FPCR" : "=r"(fpcr));                  /* read */
+    asm volatile("msr FPCR, %0" ::"r"(fpcr | (1ull << 24ull))); /* write */
 #endif
 
     // embree
