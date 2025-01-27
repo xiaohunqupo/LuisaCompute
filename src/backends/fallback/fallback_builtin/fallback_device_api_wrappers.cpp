@@ -463,13 +463,15 @@ struct alignas(16) EmbreeHit {
     uint primID;       // primitive ID
     uint geomID;       // geometry ID
     uint instID[1];    // instance ID
-    uint instPrimID[1];// primitive ID of instance
 };
 
-/* Combined ray/hit structure for a single ray */
+// Combined ray/hit structure for a single ray
+// Note: embree 3 and 4 might have different size of EmbreeHit, so we add
+//       the padding field to make sure out-of-bound access is safe.
 struct alignas(16) EmbreeRayHit {
     EmbreeRay ray;
     EmbreeHit hit;
+    llvm_uint4 padding;
 };
 
 struct alignas(16) LC_RayQueryObject {

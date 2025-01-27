@@ -333,9 +333,9 @@ struct alignas(16) RayQueryContext {
 
 struct RayQueryContextEx {
     RayQueryContext base;
+    const void *capture;
     float current_t;
     float pad;
-    const void *capture;
     RayQueryOnSurfaceFunc *on_surface;
     RayQueryOnProceduralFunc *on_procedural;
 };
@@ -556,8 +556,8 @@ void luisa_fallback_ray_query_pipeline_all(LC_RayQueryObject *query_object, cons
     rtcInitRayQueryContext(&ctx.base.rtc_ctx);
 #endif
     ctx.base.q = q;
-    ctx.current_t = std::numeric_limits<float>::max();
     ctx.capture = capture;
+    ctx.current_t = std::numeric_limits<float>::max();
     ctx.on_surface = on_surface;
     ctx.on_procedural = on_procedural;
 
