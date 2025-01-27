@@ -254,7 +254,10 @@ private:
             case Type::Tag::CUSTOM: {
                 if (t == Type::of<RayQueryAll>() || t == Type::of<RayQueryAny>()) {
                     auto size = api::luisa_fallback_ray_query_object_size();
-                    auto llvm_array_type = llvm::ArrayType::get(llvm::Type::getInt8Ty(_llvm_context), size);
+                    LUISA_ASSERT(size % 16 == 0, "Ray query object size should be 16-byte aligned.");
+                    auto llvm_i32_type = llvm::Type::getInt32Ty(_llvm_context);
+                    auto llvm_i32x4_type = llvm::VectorType::get(llvm_i32_type, 4, false);
+                    auto llvm_array_type = llvm::ArrayType::get(llvm_i32x4_type, size / 16);
                     return llvm::StructType::get(llvm_array_type);
                 }
                 break;
@@ -1818,6 +1821,8 @@ private:
                 llvm_args.emplace_back(llvm_arg);
             } else {
                 auto llvm_arg_alloca = b.CreateAlloca(llvm_arg->getType());
+                auto alignment = std::max<size_t>(_get_type_alignment(arg->type()), llvm_arg_alloca->getAlign().value());
+                llvm_arg_alloca->setAlignment(llvm::Align{alignment});
                 b.CreateStore(llvm_arg, llvm_arg_alloca);
                 llvm_args.emplace_back(llvm_arg_alloca);
             }

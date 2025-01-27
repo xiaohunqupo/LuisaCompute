@@ -6,6 +6,10 @@ extern "C" {// wrappers
 #define LUISA_FALLBACK_WRAPPER __attribute__((visibility("hidden"))) __attribute__((used)) __attribute__((always_inline))
 #define LUISA_FALLBACK_INTERNAL __attribute__((visibility("hidden"))) __attribute__((always_inline)) inline
 
+using llvm_uint2 = uint __attribute__((ext_vector_type(2)));
+using llvm_uint3 = uint __attribute__((ext_vector_type(3)));
+using llvm_uint4 = uint __attribute__((ext_vector_type(4)));
+
 using llvm_float2 = float __attribute__((ext_vector_type(2)));
 using llvm_float3 = float __attribute__((ext_vector_type(3)));
 using llvm_float4 = float __attribute__((ext_vector_type(4)));
@@ -483,14 +487,9 @@ LUISA_FALLBACK_INTERNAL void luisa_fallback_create_embree_ray(EmbreeRay *embree_
 }
 
 LUISA_FALLBACK_INTERNAL void luisa_fallback_create_embree_hit(EmbreeHit *embree_hit) noexcept {
-    *embree_hit = {.Ng_x = 0.f,
-                   .Ng_y = 0.f,
-                   .Ng_z = 0.f,
-                   .u = -1.f,
-                   .v = -1.f,
-                   .primID = ~0u,
-                   .geomID = ~0u,
-                   .instID = {~0u}};
+    auto v = reinterpret_cast<llvm_uint4 *>(embree_hit);
+    v[0] = {0u, 0u, 0u, 0u};
+    v[1] = {~0u, ~0u, ~0u, ~0u};
 }
 
 LUISA_FALLBACK_INTERNAL void luisa_fallback_decode_surface_hit(SurfaceHit *surface_hit, const EmbreeRayHit *ray_hit) noexcept {
