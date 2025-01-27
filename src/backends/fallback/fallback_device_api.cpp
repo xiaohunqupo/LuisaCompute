@@ -414,8 +414,13 @@ static void ray_query_decode_procedural_candidate(RayQueryCandidate *out, const 
     out->terminated = false;
 }
 
+void luisa_fallback_ray_query_terminate_ray(RTCRay *ray) noexcept {
+    ray->tfar = -std::numeric_limits<float>::infinity();
+}
+
 void luisa_fallback_ray_query_procedural_intersect_function(const RayQueryIntersectFunctionArguments *args_in) noexcept {
     auto args = reinterpret_cast<const RTCIntersectFunctionNArguments *>(args_in);
+    LUISA_DEBUG_ASSERT(args->N == 1u, "Only single ray is support.");
     args->valid[0] = 0;
     auto ctx = reinterpret_cast<RayQueryContextEx *>(args->context);
     if (auto q = ctx->base.q) {
@@ -440,7 +445,7 @@ void luisa_fallback_ray_query_procedural_intersect_function(const RayQueryInters
                 };
             }
             if (candidate->terminated) {
-                ray_hit->ray.tfar = -std::numeric_limits<float>::infinity();
+                luisa_fallback_ray_query_terminate_ray(&ray_hit->ray);
             }
         }
     }
@@ -448,6 +453,7 @@ void luisa_fallback_ray_query_procedural_intersect_function(const RayQueryInters
 
 void luisa_fallback_ray_query_procedural_occluded_function(const RayQueryOccludedFunctionArguments *args_in) noexcept {
     auto args = reinterpret_cast<const RTCOccludedFunctionNArguments *>(args_in);
+    LUISA_DEBUG_ASSERT(args->N == 1u, "Only single ray is support.");
     args->valid[0] = 0;
     auto ctx = reinterpret_cast<RayQueryContextEx *>(args->context);
     if (auto q = ctx->base.q) {
@@ -468,13 +474,14 @@ void luisa_fallback_ray_query_procedural_occluded_function(const RayQueryOcclude
                 };
             }
             if (candidate->terminated) {
-                ray->tfar = -std::numeric_limits<float>::infinity();
+                luisa_fallback_ray_query_terminate_ray(ray);
             }
         }
     }
 }
 
 static void luisa_fallback_ray_query_surface_intersect_filter_function(const RTCFilterFunctionNArguments *args) noexcept {
+    LUISA_DEBUG_ASSERT(args->N == 1u, "Only single ray is support.");
     auto ctx = reinterpret_cast<RayQueryContextEx *>(args->context);
     auto ray = reinterpret_cast<RTCRay *>(args->ray);
     if (args->geometryUserPtr) {// opaque, always commit
@@ -491,7 +498,7 @@ static void luisa_fallback_ray_query_surface_intersect_filter_function(const RTC
             args->valid[0] = 0;
         }
         if (candidate->terminated) {
-            ray->tfar = -std::numeric_limits<float>::infinity();
+            luisa_fallback_ray_query_terminate_ray(ray);
         }
     } else {
         args->valid[0] = 0;
@@ -499,6 +506,7 @@ static void luisa_fallback_ray_query_surface_intersect_filter_function(const RTC
 }
 
 static void luisa_fallback_ray_query_surface_occluded_filter_function(const RTCFilterFunctionNArguments *args) noexcept {
+    LUISA_DEBUG_ASSERT(args->N == 1u, "Only single ray is support.");
     static constexpr auto record_hit_data = [](RayQueryObject *q, const RTCRay *ray, const RTCHit *hit) noexcept {
         q->ray_hit.hit.Ng_x = 0.f;
         q->ray_hit.hit.Ng_y = 0.f;
@@ -523,6 +531,9 @@ static void luisa_fallback_ray_query_surface_occluded_filter_function(const RTCF
             record_hit_data(q, ray, hit);
         } else {
             args->valid[0] = 0;
+        }
+        if (candidate->terminated) {
+            luisa_fallback_ray_query_terminate_ray(ray);
         }
     } else {
         args->valid[0] = 0;
@@ -579,6 +590,7 @@ void luisa_fallback_ray_query_pipeline_any(LC_RayQueryObject *query_object, cons
 #if LUISA_COMPUTE_FALLBACK_EMBREE_VERSION == 3
     ctx.base.rtc_ctx.filter = luisa_fallback_ray_query_surface_occluded_filter_function;
     rtcOccluded1(scene, &ctx.base.rtc_ctx, &q->ray_hit.ray);
+    if (q->ray_hit.ray.tfar >= 0.f) { q->ray_hit.hit.instID[0] = ~0u; }
 #else
     RTCOccludedArguments args;
     rtcInitOccludedArguments(&args);
