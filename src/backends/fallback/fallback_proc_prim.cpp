@@ -1,5 +1,6 @@
 #include <luisa/core/logging.h>
 
+#include "fallback_device_api.h"
 #include "fallback_buffer.h"
 #include "fallback_proc_prim.h"
 
@@ -31,6 +32,8 @@ void FallbackProceduralPrim::build(luisa::unique_ptr<ProceduralPrimitiveBuildCom
             // TODO: support motion
         },
         nullptr);
+    rtcSetGeometryIntersectFunction(geometry(), reinterpret_cast<RTCIntersectFunctionN>(api::luisa_fallback_ray_query_procedural_intersect_function));
+    rtcSetGeometryOccludedFunction(geometry(), reinterpret_cast<RTCOccludedFunctionN>(api::luisa_fallback_ray_query_procedural_occluded_function));
     rtcCommitGeometry(geometry());
     rtcCommitScene(handle());
 }

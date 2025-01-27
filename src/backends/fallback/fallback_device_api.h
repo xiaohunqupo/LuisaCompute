@@ -205,6 +205,12 @@ struct alignas(16) RayQueryCandidate {
 using RayQueryOnSurfaceFunc = void(LC_RayQueryObject *, const void *capture) noexcept;
 using RayQueryOnProceduralFunc = void(LC_RayQueryObject *, const void *capture) noexcept;
 
+struct RayQueryIntersectFunctionArguments;
+struct RayQueryOccludedFunctionArguments;
+
+void luisa_fallback_ray_query_procedural_intersect_function(const RayQueryIntersectFunctionArguments *args) noexcept;
+void luisa_fallback_ray_query_procedural_occluded_function(const RayQueryOccludedFunctionArguments *args) noexcept;
+
 void luisa_fallback_ray_query_pipeline_all(LC_RayQueryObject *query_object, const void *capture, RayQueryOnSurfaceFunc *on_surface, RayQueryOnProceduralFunc *on_procedural) noexcept;
 void luisa_fallback_ray_query_pipeline_any(LC_RayQueryObject *query_object, const void *capture, RayQueryOnSurfaceFunc *on_surface, RayQueryOnProceduralFunc *on_procedural) noexcept;
 }
