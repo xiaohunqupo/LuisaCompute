@@ -108,6 +108,8 @@ struct FallbackShaderLaunchConfig {
 
 FallbackShader::FallbackShader(FallbackDevice *device, const ShaderOption &option, Function kernel) noexcept {
 
+    LUISA_VERBOSE("======= Fallback Backend JIT Shader Compilation =======");
+
     // build JIT engine
     ::llvm::orc::LLJITBuilder jit_builder;
     if (auto host = ::llvm::orc::JITTargetMachineBuilder::detectHost()) {
@@ -179,11 +181,13 @@ FallbackShader::FallbackShader(FallbackDevice *device, const ShaderOption &optio
     _block_size = kernel.block_size();
     _build_bound_arguments(kernel.bound_arguments());
 
+    Clock translate_clk;
     xir::Pool pool;
     xir::PoolGuard guard{&pool};
     auto xir_module = xir::ast_to_xir_translate(kernel, {});
     xir_module->set_name(luisa::format("kernel_{:016x}", kernel.hash()));
     if (!option.name.empty()) { xir_module->set_location(option.name); }
+    LUISA_VERBOSE("AST to XIR translation done in {} ms.", translate_clk.toc());
 
     // dump for debugging
     if (LUISA_SHOULD_DUMP_XIR) {
@@ -200,20 +204,20 @@ FallbackShader::FallbackShader(FallbackDevice *device, const ShaderOption &optio
     auto load_elim_info = xir::local_load_elimination_pass_run_on_module(xir_module);
     auto dce2_info = xir::dce_pass_run_on_module(xir_module);
     auto rq_lower_info = xir::lower_ray_query_loop_pass_run_on_module(xir_module);
-    LUISA_INFO("XIR optimization done in {} ms: "
-               "traced {} GEP instruction(s), "
-               "forwarded {} store instruction(s), "
-               "eliminated {} load instruction(s), "
-               "removed {} + {} = {} dead instruction(s), "
-               "lowered {} ray query loop(s).",
-               opt_clk.toc(),
-               gep_trace_info.traced_geps.size(),
-               store_forward_info.forwarded_instructions.size(),
-               load_elim_info.eliminated_instructions.size(),
-               dce1_info.removed_instructions.size(),
-               dce2_info.removed_instructions.size(),
-               dce1_info.removed_instructions.size() + dce2_info.removed_instructions.size(),
-               rq_lower_info.lowered_loops.size());
+    LUISA_VERBOSE("XIR optimization done in {} ms: "
+                  "traced {} GEP instruction(s), "
+                  "forwarded {} store instruction(s), "
+                  "eliminated {} load instruction(s), "
+                  "removed {} + {} = {} dead instruction(s), "
+                  "lowered {} ray query loop(s).",
+                  opt_clk.toc(),
+                  gep_trace_info.traced_geps.size(),
+                  store_forward_info.forwarded_instructions.size(),
+                  load_elim_info.eliminated_instructions.size(),
+                  dce1_info.removed_instructions.size(),
+                  dce2_info.removed_instructions.size(),
+                  dce1_info.removed_instructions.size() + dce2_info.removed_instructions.size(),
+                  rq_lower_info.lowered_loops.size());
 
     // dump for debugging
     if (LUISA_SHOULD_DUMP_XIR) {
@@ -230,7 +234,11 @@ FallbackShader::FallbackShader(FallbackDevice *device, const ShaderOption &optio
         LUISA_ERROR_WITH_LOCATION("Failed to generate LLVM IR: {}.",
                                   luisa::string_view{parse_error.getMessage()});
     }
+
+    Clock codegen_clk;
     auto codegen_feedback = luisa_fallback_backend_codegen(*llvm_ctx, llvm_module.get(), xir_module);
+    LUISA_VERBOSE("XIR to LLVM IR code generation done in {} ms.", codegen_clk.toc());
+
     if (llvm::verifyModule(*llvm_module, &llvm::errs())) {
         auto filename = luisa::format("kernel.{:016x}.err.ll", kernel.hash());
         std::error_code ec;
@@ -349,7 +357,7 @@ FallbackShader::FallbackShader(FallbackDevice *device, const ShaderOption &optio
     auto MPM = PB.buildPerModuleDefaultPipeline(::llvm::OptimizationLevel::O3);
     MPM.run(*llvm_module, MAM);
 
-    LUISA_INFO("Optimized LLVM module in {} ms.", clk.toc());
+    LUISA_VERBOSE("Optimized LLVM module in {} ms.", clk.toc());
     if (::llvm::verifyModule(*llvm_module, &::llvm::errs())) {
         LUISA_ERROR_WITH_LOCATION("Failed to verify module.");
     }

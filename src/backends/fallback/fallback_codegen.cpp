@@ -2018,6 +2018,7 @@ private:
             auto llvm_struct_type = llvm::StructType::get(_llvm_context, llvm_member_types);
             // alloca
             auto llvm_struct_alloca = b.CreateAlloca(llvm_struct_type);
+            llvm_struct_alloca->setAlignment(llvm::Align{16});
             // store captured args
             for (auto member_index = 0u; member_index < member_to_captured_arg.size(); member_index++) {
                 auto arg_index = member_to_captured_arg[member_index];
