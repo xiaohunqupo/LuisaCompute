@@ -1,5 +1,5 @@
 find_package(LLVM CONFIG)
-find_package(embree 4 CONFIG)
+find_package(embree CONFIG)
 
 if (NOT embree_FOUND)
     message(WARNING "Embree not found. Fallback backend will not be built.")
@@ -43,6 +43,9 @@ if (LLVM_FOUND AND embree_FOUND)
             luisa-compute-xir
             luisa-compute-vulkan-swapchain
             embree)
+
+    target_compile_definitions(luisa-compute-backend-fallback PRIVATE
+            LUISA_COMPUTE_FALLBACK_EMBREE_VERSION=${embree_VERSION_MAJOR})
 
     # use libdispatch or TBB for parallel_for on non-Apple Unix systems if available
     if (UNIX AND NOT APPLE)
