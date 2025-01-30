@@ -81,31 +81,41 @@ struct AllocaAnalysis {
 struct PhiInsertionAndRenaming {
 
     luisa::unordered_map<const Type *, Undefined *> undefined_values;
-    luisa::unordered_set<BasicBlock *> blocks;
-
-    struct BlockAndAlloca {
-
-        BasicBlock *block;
-        AllocaInst *inst;
-
-        [[nodiscard]] uint64_t hash() const noexcept {
-            auto bh = luisa::pointer_hash<BasicBlock>{}(block);
-            auto ih = luisa::pointer_hash<AllocaInst>{}(inst);
-            return luisa::hash_combine({bh, ih});
-        }
-
-        [[nodiscard]] bool operator==(const BlockAndAlloca &rhs) const noexcept {
-            return block == rhs.block && inst == rhs.inst;
-        }
-    };
+    luisa::unordered_map<BasicBlock *, PhiInst *> block_to_phi;
 
     // the following fields are used across the processing of different alloca's
-    luisa::unordered_map<PhiInst *, AllocaInst *> phi_to_alloca;
-    luisa::unordered_map<BlockAndAlloca, Value *> out_values;
+    luisa::unordered_map<BasicBlock *, Value *> out_values;
 
-    void place_phi_nodes(AllocaInst *inst, AllocaAnalysis &analysis, Mem2RegInfo &info) noexcept {
-        // compute blocks to insert new phi nodes by traversing the closure of dominance frontiers of the def blocks
-        blocks.clear();
+    [[nodiscard]] Value *find_dom_value_for_load(BasicBlock *use_block, const AllocaAnalysis &analysis) const noexcept {
+        // the load has a phi node in the same block
+        if (auto iter = block_to_phi.find(use_block); iter != block_to_phi.end()) {
+            return iter->second;
+        }
+        // the load is dominated by a store or a phi node
+        if (auto node = analysis.dom.node_or_null(use_block)) {
+            while (node != analysis.dom.root()) {
+                auto parent = node->parent();
+                LUISA_DEBUG_ASSERT(parent != nullptr, "Invalid parent.");
+                if (auto iter = out_values.find(parent->block()); iter != out_values.end()) {
+                    return iter->second;
+                }
+                node = parent;
+            }
+        }
+        // not found
+        return nullptr;
+    }
+
+    [[nodiscard]] Undefined *get_undefined_value(const Type *type) noexcept {
+        auto iter = undefined_values.emplace(type, nullptr).first;
+        if (iter->second == nullptr) { iter->second = Undefined::create(type); }
+        return iter->second;
+    }
+
+    void place_phi_nodes(AllocaInst *inst, const AllocaAnalysis &analysis, Mem2RegInfo &info) noexcept {
+        // insert new phi nodes by traversing the closure of dominance frontiers of the def blocks
+        block_to_phi.clear();
+        auto type = inst->type();
         luisa::fixed_vector<BasicBlock *, 64u> work_list;
         work_list.reserve(analysis.def_blocks.size());
         for (auto [def_block, _] : analysis.def_blocks) { work_list.emplace_back(def_block); }
@@ -113,66 +123,39 @@ struct PhiInsertionAndRenaming {
             auto block = work_list.back();
             work_list.pop_back();
             for (auto frontier : analysis.dom.node(block)->frontiers()) {
-                if (auto fb = frontier->block();
-                    analysis.live_in_blocks.contains(fb) && blocks.emplace(fb).second) {
-                    work_list.emplace_back(fb);
-                }
-            }
-        }
-        // insert the phi nodes and replace the load in the same block if any
-        auto type = inst->type();
-        for (auto block : blocks) {
-            // insert the phi node
-            Builder b;
-            b.set_insertion_point(block->instructions().head_sentinel());
-            auto phi = b.phi(type);
-            phi_to_alloca.emplace(phi, inst);
-            info.inserted_phi_instructions.emplace(phi);
-            // update the block-out value (note: we will overwrite it later if the block contains a store)
-            out_values.emplace(BlockAndAlloca{block, inst}, phi);
-            // replace the load instructions in the same block
-            if (auto iter = analysis.use_blocks.find(block); iter != analysis.use_blocks.end()) {
-                // replace the load instruction
-                auto load = iter->second;
-                load->replace_all_uses_with(phi);
-                load->remove_self();
-                info.removed_load_instructions.emplace(load);
-                // update the analysis because this block no longer uses the alloca
-                analysis.use_blocks.erase(iter);
-            }
-        }
-        // each of the remaining use blocks must be dominated by some def block, or it must contain undefined value
-        for (auto [use_block, load_inst] : analysis.use_blocks) {
-            auto processed = false;
-            if (auto node = analysis.dom.node_or_null(use_block)) {
-                while (node != analysis.dom.root()) {
-                    auto parent = node->parent();
-                    LUISA_DEBUG_ASSERT(parent != nullptr, "Invalid parent.");
-                    if (auto iter = analysis.def_blocks.find(parent->block()); iter != analysis.def_blocks.end()) {
-                        auto store = iter->second;
-                        load_inst->replace_all_uses_with(store->value());
-                        load_inst->remove_self();
-                        info.removed_load_instructions.emplace(load_inst);
-                        work_list.emplace_back(use_block);// mark for later removal
-                        processed = true;
-                        break;
+                if (auto fb = frontier->block(); analysis.live_in_blocks.contains(fb)) {
+                    if (auto iter = block_to_phi.try_emplace(fb, nullptr).first; iter->second == nullptr) {
+                        // insert the phi node
+                        Builder b;
+                        b.set_insertion_point(fb->instructions().head_sentinel());
+                        auto phi = b.phi(type);
+                        iter->second = phi;
+                        info.inserted_phi_instructions.emplace(phi);
+                        // update the block-out value (note: we will overwrite it later if the block contains a store)
+                        out_values.emplace(block, phi);
+                        // add the block to the work list to compute the closure
+                        work_list.emplace_back(fb);
                     }
-                    node = parent;
                 }
             }
-            // replace the value with undefined value
-            if (!processed) {
+        }
+        // overwrite the block-out values with the store values
+        for (auto [def_block, store] : analysis.def_blocks) {
+            out_values.emplace(def_block, store->value());
+        }
+        // each of the use blocks must be dominated by some def/phi block, or it must contain undefined value
+        for (auto [use_block, load_inst] : analysis.use_blocks) {
+            auto dom_value = find_dom_value_for_load(use_block, analysis);
+            if (dom_value == nullptr) {
                 LUISA_WARNING_WITH_LOCATION("Detected load instruction from undefined local variables.");
-                auto iter = undefined_values.emplace(load_inst->type(), nullptr).first;
-                if (iter->second == nullptr) { iter->second = Undefined::create(load_inst->type()); }
-                load_inst->replace_all_uses_with(iter->second);
-                load_inst->remove_self();
-                info.removed_load_instructions.emplace(load_inst);
+                dom_value = get_undefined_value(type);
             }
+            load_inst->replace_all_uses_with(dom_value);
+            load_inst->remove_self();
+            info.removed_load_instructions.emplace(load_inst);
         }
         // remove the stores and update the block-out values, possibly overwriting previously recorded phi nodes
         for (auto [def_block, store_inst] : analysis.def_blocks) {
-            out_values.emplace(BlockAndAlloca{def_block, inst}, store_inst->value());
             store_inst->remove_self();
             info.removed_store_instructions.emplace(store_inst);
         }
