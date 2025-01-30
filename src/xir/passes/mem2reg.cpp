@@ -28,8 +28,8 @@ namespace detail {
 struct AllocaAnalysis {
 
     const DomTree &dom;
-    const luisa::unordered_map<Instruction *, size_t> inst_indices;
-    const luisa::unordered_map<BasicBlock *, size_t> block_indices;
+    const luisa::unordered_map<Instruction *, uint> inst_indices;
+    const luisa::unordered_map<BasicBlock *, uint> block_indices;
 
     luisa::unordered_map<BasicBlock *, StoreInst *> def_blocks;
     luisa::unordered_map<BasicBlock *, LoadInst *> use_blocks;
@@ -77,14 +77,31 @@ struct AllocaAnalysis {
     }
 };
 
-struct PhiInsertion {
+struct PhiInsertionAndRenaming {
 
     luisa::unordered_set<BasicBlock *> blocks;
 
+    struct BlockAndAlloca {
+
+        BasicBlock *block;
+        AllocaInst *inst;
+
+        [[nodiscard]] uint64_t hash() const noexcept {
+            auto bh = luisa::pointer_hash<BasicBlock>{}(block);
+            auto ih = luisa::pointer_hash<AllocaInst>{}(inst);
+            return luisa::hash_combine({bh, ih});
+        }
+
+        [[nodiscard]] bool operator==(const BlockAndAlloca &rhs) const noexcept {
+            return block == rhs.block && inst == rhs.inst;
+        }
+    };
+
     // the following fields are used across the processing of different alloca's
     luisa::unordered_map<PhiInst *, AllocaInst *> phi_to_alloca;
+    luisa::unordered_map<BlockAndAlloca, Value *> out_values;
 
-    void place(AllocaInst *inst, AllocaAnalysis &analysis, Mem2RegInfo &info) noexcept {
+    void place_phi_nodes(AllocaInst *inst, AllocaAnalysis &analysis, Mem2RegInfo &info) noexcept {
         // compute blocks to insert new phi nodes by traversing the closure of dominance frontiers of the def blocks
         blocks.clear();
         luisa::fixed_vector<BasicBlock *, 64u> work_list;
@@ -103,11 +120,15 @@ struct PhiInsertion {
         // insert the phi nodes and replace the load in the same block if any
         auto type = inst->type();
         for (auto block : blocks) {
+            // insert the phi node
             Builder b;
             b.set_insertion_point(block->instructions().head_sentinel());
             auto phi = b.phi(type);
             phi_to_alloca.emplace(phi, inst);
             info.inserted_phi_instructions.emplace(phi);
+            // update the block-out value (note: we will overwrite it later if the block contains a store)
+            out_values.emplace(BlockAndAlloca{block, inst}, phi);
+            // replace the load instructions in the same block
             if (auto iter = analysis.use_blocks.find(block); iter != analysis.use_blocks.end()) {
                 // replace the load instruction
                 auto load = iter->second;
@@ -145,15 +166,24 @@ struct PhiInsertion {
             LUISA_WARNING_WITH_LOCATION("Detected {} load instruction(s) from undefined local variables.",
                                         analysis.use_blocks.size());
         }
+        // remove the stores and update the block-out values, possibly overwriting previously recorded phi nodes
+        for (auto [def_block, store_inst] : analysis.def_blocks) {
+            out_values.emplace(BlockAndAlloca{def_block, inst}, store_inst->value());
+            store_inst->remove_self();
+            info.removed_store_instructions.emplace(store_inst);
+        }
+        // remove the local variable and record the promotion
+        inst->remove_self();
+        info.promoted_alloca_instructions.emplace(inst);
     }
 };
 
 using AllocaStoreLoadSequence = luisa::unordered_map<BasicBlock *, luisa::fixed_vector<Instruction *, 16u>>;
 
-// after this function, for each block, the must be at most one store and one load instruction for an alloca, and
-// the load instruction must precede the store instruction if both exist
+// after this function, for each block, the must be at most one store and one load instruction for an
+// alloca, and the load instruction must precede the store instruction if both exist
 static void simplify_single_block_store_load(AllocaInst *inst, AllocaStoreLoadSequence &seq,
-                                             const luisa::unordered_map<Instruction *, size_t> &inst_indices,
+                                             const luisa::unordered_map<Instruction *, uint> &inst_indices,
                                              Mem2RegInfo &info) noexcept {
     // collect load/store instructions concerning the alloca
     seq.clear();
@@ -174,24 +204,30 @@ static void simplify_single_block_store_load(AllocaInst *inst, AllocaStoreLoadSe
         });
         // eliminate redundant loads and overwritten stores
         auto last_store = static_cast<StoreInst *>(nullptr);
+        auto last_value = static_cast<Value *>(nullptr);
         for (auto store_or_load : instructions) {
             switch (store_or_load->derived_instruction_tag()) {
                 case DerivedInstructionTag::LOAD: {
                     auto load_inst = static_cast<LoadInst *>(store_or_load);
-                    if (last_store != nullptr) {// we can forward the last stored value to this load
-                        load_inst->replace_all_uses_with(last_store->value());
+                    if (last_value != nullptr) {// we can forward the last loaded/stored value to this load
+                        load_inst->replace_all_uses_with(last_value);
                         load_inst->remove_self();
                         info.removed_load_instructions.emplace(load_inst);
+                    } else {// otherwise, record this load
+                        last_value = inst;
                     }
                     break;
                 }
                 case DerivedInstructionTag::STORE: {
+                    auto store_inst = static_cast<StoreInst *>(store_or_load);
+                    LUISA_DEBUG_ASSERT(store_inst->value() != nullptr, "Invalid store.");
                     if (last_store != nullptr) {// we have overwritten the last store so remove it
                         last_store->remove_self();
                         info.removed_store_instructions.emplace(last_store);
                     }
-                    // update the last store
-                    last_store = static_cast<StoreInst *>(store_or_load);
+                    // update the last store and value
+                    last_store = store_inst;
+                    last_value = store_inst->value();
                     break;
                 }
                 default: LUISA_ERROR_WITH_LOCATION("Invalid instruction.");
@@ -210,6 +246,15 @@ static void simplify_single_block_store_load(AllocaInst *inst, AllocaStoreLoadSe
         }
     }
     if (all_store) {
+        // remove all users
+        for (auto &&use : inst->use_list()) {
+            if (auto user = use.user()) {
+                auto store_inst = static_cast<StoreInst *>(user);
+                store_inst->remove_self();
+                info.removed_store_instructions.emplace(store_inst);
+            }
+        }
+        // remove self
         inst->remove_self();
         info.promoted_alloca_instructions.emplace(inst);
     }
@@ -219,10 +264,10 @@ static void promote_alloca_instructions_in_function(Function *f, Mem2RegInfo &in
     if (auto def = f->definition()) {
         // collect local alloca instructions that can be promoted
         luisa::vector<AllocaInst *> promotable;
-        luisa::unordered_map<Instruction *, size_t> inst_indices;
-        luisa::unordered_map<BasicBlock *, size_t> block_indices;
+        luisa::unordered_map<Instruction *, uint> inst_indices;
+        luisa::unordered_map<BasicBlock *, uint> block_indices;
         def->traverse_basic_blocks(BasicBlockTraversalOrder::REVERSE_POST_ORDER, [&](BasicBlock *block) noexcept {
-            block_indices.emplace(block, block_indices.size());
+            block_indices.emplace(block, static_cast<uint>(block_indices.size()));
             block->traverse_instructions([&](Instruction *inst) noexcept {
                 switch (inst->derived_instruction_tag()) {
                     case DerivedInstructionTag::ALLOCA: {
@@ -233,7 +278,7 @@ static void promote_alloca_instructions_in_function(Function *f, Mem2RegInfo &in
                     }
                     case DerivedInstructionTag::LOAD: [[fallthrough]];
                     case DerivedInstructionTag::STORE: {
-                        inst_indices.emplace(inst, inst_indices.size());
+                        inst_indices.emplace(inst, static_cast<uint>(inst_indices.size()));
                         break;
                     }
                     default: break;
@@ -259,10 +304,11 @@ static void promote_alloca_instructions_in_function(Function *f, Mem2RegInfo &in
             AllocaAnalysis analysis{.dom = dom,
                                     .inst_indices = inst_indices,
                                     .block_indices = block_indices};
-            PhiInsertion insertion;
+            PhiInsertionAndRenaming insertion;
             for (auto inst : promotable) {
+                // analyze and insert phi nodes
                 analysis.analyze(inst);
-                insertion.place(inst, analysis, info);
+                insertion.place_phi_nodes(inst, analysis, info);
             }
         }
     }
