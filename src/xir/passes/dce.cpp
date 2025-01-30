@@ -8,7 +8,7 @@ namespace luisa::compute::xir {
 
 namespace detail {
 
-void eliminate_dead_code_in_function(Function *function, DCEInfo &info) noexcept {
+static void eliminate_dead_code_in_function(Function *function, DCEInfo &info) noexcept {
     if (auto definition = function->definition()) {
         luisa::unordered_set<Instruction *> dead;
         auto all_users_dead = [&](Instruction *inst) noexcept {
@@ -74,7 +74,7 @@ void eliminate_dead_code_in_function(Function *function, DCEInfo &info) noexcept
 }
 
 // if we find a pointer is only written to and never read, we can remove it
-[[nodiscard]] bool is_pointer_write_only(luisa::unordered_set<Instruction *> &known, Instruction *inst) noexcept {
+[[nodiscard]] static bool is_pointer_write_only(luisa::unordered_set<Instruction *> &known, Instruction *inst) noexcept {
     if (known.contains(inst)) { return true; }
     for (auto &&use : inst->use_list()) {
         if (auto user = use.user()) {
@@ -104,7 +104,7 @@ void eliminate_dead_code_in_function(Function *function, DCEInfo &info) noexcept
     return true;
 }
 
-void collect_inst_and_users_recursive(Instruction *inst, luisa::unordered_set<Instruction *> &collected) noexcept {
+static void collect_inst_and_users_recursive(Instruction *inst, luisa::unordered_set<Instruction *> &collected) noexcept {
     if (collected.emplace(inst).second) {
         for (auto &&use : inst->use_list()) {
             if (auto user = use.user()) {
@@ -116,7 +116,7 @@ void collect_inst_and_users_recursive(Instruction *inst, luisa::unordered_set<In
     }
 }
 
-void eliminate_dead_alloca_in_function(Function *function, DCEInfo &info) noexcept {
+static void eliminate_dead_alloca_in_function(Function *function, DCEInfo &info) noexcept {
     if (auto definition = function->definition()) {
         luisa::unordered_set<Instruction *> dead;
         luisa::unordered_set<Instruction *> known_write_only;
@@ -137,7 +137,7 @@ void eliminate_dead_alloca_in_function(Function *function, DCEInfo &info) noexce
     return block->terminator()->derived_instruction_tag() == DerivedInstructionTag::UNREACHABLE;
 }
 
-void eliminate_instructions_in_unreachable_blocks(const luisa::unordered_set<BasicBlock *> &blocks, DCEInfo &info) noexcept {
+static void eliminate_instructions_in_unreachable_blocks(const luisa::unordered_set<BasicBlock *> &blocks, DCEInfo &info) noexcept {
     luisa::vector<Instruction *> cache;
     for (auto b : blocks) {
         // replace the terminator with an unreachable instruction if it's not already
@@ -162,7 +162,7 @@ void eliminate_instructions_in_unreachable_blocks(const luisa::unordered_set<Bas
     }
 }
 
-void propagate_unreachable_marks_in_function(Function *function, DCEInfo &info) noexcept {
+static void propagate_unreachable_marks_in_function(Function *function, DCEInfo &info) noexcept {
     // run a backward dataflow analysis to propagate unreachable marks:
     // we should mark a block as unreachable if all its successors are marked as unreachable
     if (auto definition = function->definition()) {
@@ -228,7 +228,7 @@ void propagate_unreachable_marks_in_function(Function *function, DCEInfo &info) 
     }();
 }
 
-void eliminate_unreachable_blocks_in_function(Function *function, DCEInfo &info) noexcept {
+static void eliminate_unreachable_blocks_in_function(Function *function, DCEInfo &info) noexcept {
     if (auto definition = function->definition()) {
         luisa::unordered_set<BasicBlock *> reachable;
         definition->traverse_basic_blocks([&](BasicBlock *block) noexcept {
@@ -287,7 +287,7 @@ void eliminate_unreachable_blocks_in_function(Function *function, DCEInfo &info)
     }
 }
 
-void fix_phi_nodes_in_function(Function *function) noexcept {
+static void fix_phi_nodes_in_function(Function *function) noexcept {
     if (auto definition = function->definition()) {
         luisa::vector<PhiIncoming> valid_incomings;
         definition->traverse_basic_blocks([&](BasicBlock *block) noexcept {
@@ -326,7 +326,7 @@ void fix_phi_nodes_in_function(Function *function) noexcept {
     }
 }
 
-void fix_control_flow_merges_in_function(Function *function) noexcept {
+static void fix_control_flow_merges_in_function(Function *function) noexcept {
     if (auto definition = function->definition()) {
         definition->traverse_basic_blocks([&](BasicBlock *block) noexcept {
             if (auto merge = block->terminator()->control_flow_merge()) {
@@ -339,7 +339,7 @@ void fix_control_flow_merges_in_function(Function *function) noexcept {
     }
 }
 
-void run_dce_pass_on_function(Function *function, DCEInfo &info) noexcept {
+static void run_dce_pass_on_function(Function *function, DCEInfo &info) noexcept {
     propagate_unreachable_marks_in_function(function, info);
     eliminate_unreachable_blocks_in_function(function, info);
     fix_phi_nodes_in_function(function);

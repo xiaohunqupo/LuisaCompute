@@ -66,6 +66,11 @@ auto DomTree::node(BasicBlock *block) const noexcept -> const DomTreeNode * {
     return iter->second.get();
 }
 
+auto DomTree::node_or_null(BasicBlock *block) const noexcept -> const DomTreeNode * {
+    auto iter = _nodes.find(block);
+    return iter == _nodes.cend() ? nullptr : iter->second.get();
+}
+
 bool DomTree::contains(BasicBlock *block) const noexcept {
     return _nodes.contains(block);
 }

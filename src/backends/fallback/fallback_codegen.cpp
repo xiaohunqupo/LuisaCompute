@@ -49,6 +49,7 @@ private:
         llvm::Function *func = nullptr;
         luisa::unordered_map<const xir::Value *, llvm::Value *> value_map;
         luisa::unordered_set<const llvm::BasicBlock *> translated_basic_blocks;
+        luisa::vector<const xir::PhiInst *> phi_nodes;
 
         // builtin variables
 #define LUISA_FALLBACK_BACKEND_DECL_BUILTIN_VARIABLE(NAME, INDEX) \
@@ -2932,7 +2933,12 @@ private:
             }
             case xir::DerivedInstructionTag::RASTER_DISCARD: LUISA_NOT_IMPLEMENTED();
             case xir::DerivedInstructionTag::PHI: {
-                LUISA_ERROR_WITH_LOCATION("Unexpected phi instruction. Please run reg2mem pass first.");
+                // Phi nodes might reference values that are not translated yet. So we just create an empty
+                // phi and record it, which will be filled later when we are ready.
+                auto phi_inst = static_cast<const xir::PhiInst *>(inst);
+                current.phi_nodes.emplace_back(phi_inst);
+                auto llvm_type = _translate_type(phi_inst->type(), true);
+                return b.CreatePHI(llvm_type, phi_inst->incoming_count());
             }
             case xir::DerivedInstructionTag::ALLOCA: {
                 auto llvm_type = _translate_type(inst->type(), false);
@@ -3371,6 +3377,20 @@ private:
         }
         // translate body
         static_cast<void>(_translate_basic_block(current, f->body_block()));
+        // fill the phi nodes
+        {
+            IRBuilder b{_llvm_context};
+            for (auto phi : current.phi_nodes) {
+                auto llvm_phi = llvm::cast<llvm::PHINode>(current.value_map.at(phi));
+                b.SetInsertPoint(llvm_phi);
+                for (auto i = 0u; i < phi->incoming_count(); i++) {
+                    auto incoming = phi->incoming(i);
+                    auto llvm_incoming_block = _find_or_create_basic_block(current, incoming.block);
+                    auto llvm_incoming_value = _lookup_value(current, b, incoming.value);
+                    llvm_phi->addIncoming(llvm_incoming_value, llvm_incoming_block);
+                }
+            }
+        }
         // we should hoist all alloca instructions to the beginning of the function
         {
             luisa::vector<llvm::AllocaInst *> alloca_insts;

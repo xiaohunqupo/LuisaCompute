@@ -44,6 +44,7 @@ public:
     [[nodiscard]] auto root() const noexcept { return _root; }
     [[nodiscard]] auto &nodes() const noexcept { return _nodes; }
     [[nodiscard]] auto node(BasicBlock *block) const noexcept -> const DomTreeNode *;
+    [[nodiscard]] auto node_or_null(BasicBlock *block) const noexcept -> const DomTreeNode *;
     [[nodiscard]] bool contains(BasicBlock *block) const noexcept;
     [[nodiscard]] bool dominates(BasicBlock *src, BasicBlock *dst) const noexcept;
     [[nodiscard]] bool strictly_dominates(BasicBlock *src, BasicBlock *dst) const noexcept;

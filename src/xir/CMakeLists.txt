@@ -60,7 +60,6 @@ set(LUISA_COMPUTE_XIR_SOURCES
         passes/dce.cpp
         passes/dom_tree.cpp
         passes/outline.cpp
-        passes/sink_alloca.cpp
         passes/sroa.cpp
         passes/trace_gep.cpp
         passes/aggregate_field_bitmask.cpp
