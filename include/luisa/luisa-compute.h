@@ -254,6 +254,7 @@
 #include <luisa/xir/translators/json2xir.h>
 #include <luisa/xir/translators/xir2json.h>
 #include <luisa/xir/translators/xir2text.h>
+#include <luisa/xir/undefined.h>
 #include <luisa/xir/use.h>
 #include <luisa/xir/user.h>
 #include <luisa/xir/value.h>

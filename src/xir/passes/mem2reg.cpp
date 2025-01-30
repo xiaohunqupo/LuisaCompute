@@ -1,6 +1,7 @@
 #include <luisa/core/logging.h>
 #include <luisa/xir/module.h>
 #include <luisa/xir/builder.h>
+#include <luisa/xir/undefined.h>
 #include <luisa/xir/passes/dom_tree.h>
 #include <luisa/xir/passes/mem2reg.h>
 
@@ -79,6 +80,7 @@ struct AllocaAnalysis {
 
 struct PhiInsertionAndRenaming {
 
+    luisa::unordered_map<const Type *, Undefined *> undefined_values;
     luisa::unordered_set<BasicBlock *> blocks;
 
     struct BlockAndAlloca {
@@ -139,10 +141,9 @@ struct PhiInsertionAndRenaming {
                 analysis.use_blocks.erase(iter);
             }
         }
-        // each of the remaining use blocks must be dominated by some def block, or it must
-        // contain undefined value, which will be handled by the renaming pass later
-        work_list.clear();
+        // each of the remaining use blocks must be dominated by some def block, or it must contain undefined value
         for (auto [use_block, load_inst] : analysis.use_blocks) {
+            auto processed = false;
             if (auto node = analysis.dom.node_or_null(use_block)) {
                 while (node != analysis.dom.root()) {
                     auto parent = node->parent();
@@ -153,18 +154,21 @@ struct PhiInsertionAndRenaming {
                         load_inst->remove_self();
                         info.removed_load_instructions.emplace(load_inst);
                         work_list.emplace_back(use_block);// mark for later removal
+                        processed = true;
                         break;
                     }
                     node = parent;
                 }
             }
-        }
-        for (auto use_block : work_list) {
-            analysis.use_blocks.erase(use_block);
-        }
-        if (!analysis.use_blocks.empty()) {
-            LUISA_WARNING_WITH_LOCATION("Detected {} load instruction(s) from undefined local variables.",
-                                        analysis.use_blocks.size());
+            // replace the value with undefined value
+            if (!processed) {
+                LUISA_WARNING_WITH_LOCATION("Detected load instruction from undefined local variables.");
+                auto iter = undefined_values.emplace(load_inst->type(), nullptr).first;
+                if (iter->second == nullptr) { iter->second = Undefined::create(load_inst->type()); }
+                load_inst->replace_all_uses_with(iter->second);
+                load_inst->remove_self();
+                info.removed_load_instructions.emplace(load_inst);
+            }
         }
         // remove the stores and update the block-out values, possibly overwriting previously recorded phi nodes
         for (auto [def_block, store_inst] : analysis.def_blocks) {

@@ -78,6 +78,7 @@ static void collect_ray_query_loop_capture_list_in_inst(Instruction *inst, const
         if (value == nullptr || value == query_object) { return false; }
         // check value type
         switch (value->derived_value_tag()) {
+            case DerivedValueTag::UNDEFINED: [[fallthrough]];
             case DerivedValueTag::FUNCTION: [[fallthrough]];
             case DerivedValueTag::BASIC_BLOCK: [[fallthrough]];
             case DerivedValueTag::CONSTANT: [[fallthrough]];
@@ -130,6 +131,7 @@ public:
     [[nodiscard]] Value *resolve_or_null(const Value *value) noexcept {
         if (value == nullptr) { return nullptr; }
         switch (value->derived_value_tag()) {
+            case DerivedValueTag::UNDEFINED: [[fallthrough]];
             case DerivedValueTag::FUNCTION: [[fallthrough]];
             case DerivedValueTag::CONSTANT: [[fallthrough]];
             case DerivedValueTag::SPECIAL_REGISTER: return const_cast<Value *>(value);

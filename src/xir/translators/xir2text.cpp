@@ -5,6 +5,7 @@
 #include <luisa/ast/type.h>
 #include <luisa/xir/constant.h>
 #include <luisa/xir/special_register.h>
+#include <luisa/xir/undefined.h>
 #include <luisa/xir/instructions/alloca.h>
 #include <luisa/xir/instructions/arithmetic.h>
 #include <luisa/xir/instructions/assert.h>
@@ -62,6 +63,10 @@ private:
             auto r = static_cast<const SpecialRegister *>(value);
             auto name = xir::to_string(r->derived_special_register_tag());
             return luisa::format("%{}.{}", uid, name);
+        }
+        if (value->derived_value_tag() == DerivedValueTag::UNDEFINED) {
+            auto u = static_cast<const Undefined *>(value);
+            return luisa::format("%{}.undefined", uid);
         }
         return luisa::format("%{}", uid);
     }

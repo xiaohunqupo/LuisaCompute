@@ -10,6 +10,7 @@ set(LUISA_COMPUTE_XIR_SOURCES
         module.cpp
         pool.cpp
         special_register.cpp
+        undefined.cpp
         use.cpp
         user.cpp
         value.cpp

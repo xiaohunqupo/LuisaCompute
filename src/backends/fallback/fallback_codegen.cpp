@@ -434,6 +434,10 @@ private:
                 auto sreg = static_cast<const xir::SpecialRegister *>(v);
                 return _translate_special_register(current, b, sreg);
             }
+            case xir::DerivedValueTag::UNDEFINED: {
+                auto llvm_type = _translate_type(v->type(), true);
+                return llvm::UndefValue::get(llvm_type);
+            }
         }
         LUISA_ERROR_WITH_LOCATION("Invalid value.");
     }
