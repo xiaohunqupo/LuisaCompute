@@ -330,15 +330,6 @@ void fix_control_flow_merges_in_function(Function *function) noexcept {
     }
 }
 
-// returns true if the phi node is elimiated
-[[nodiscard]] static bool eliminate_redundant_phi_node(PhiInst *phi, DCEInfo &info) noexcept {
-    if (remove_redundant_phi_instruction(phi)) {
-        info.removed_instructions.emplace(phi);
-        return true;
-    }
-    return false;
-}
-
 static void eliminate_redundant_phi_nodes(luisa::vector<PhiInst *> &phi_nodes, DCEInfo &info) noexcept {
     phi_nodes.erase(
         std::remove_if(phi_nodes.begin(), phi_nodes.end(), [&](PhiInst *phi) noexcept {
