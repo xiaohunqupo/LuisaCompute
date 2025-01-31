@@ -33,4 +33,28 @@ Instruction *duplicate_instruction(Builder &b, const Instruction *inst,
     return cloned;
 }
 
+bool remove_redundant_phi_instruction(PhiInst *phi) noexcept {
+    auto all_same = true;
+    auto same_incoming = static_cast<Value *>(nullptr);
+    for (auto value_use : phi->incoming_value_uses()) {
+        auto value = value_use->value();
+        LUISA_DEBUG_ASSERT(value != nullptr, "Invalid incoming value.");
+        if (same_incoming == nullptr) { same_incoming = value; }
+        if (same_incoming != value) {
+            all_same = false;
+            break;
+        }
+    }
+    if (all_same) {
+        if (same_incoming != nullptr) {
+            phi->replace_all_uses_with(same_incoming);
+        } else {
+            LUISA_DEBUG_ASSERT(phi->use_list().empty(), "Invalid phi node.");
+        }
+        phi->remove_self();
+        return true;
+    }
+    return false;
+}
+
 }// namespace luisa::compute::xir

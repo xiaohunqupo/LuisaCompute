@@ -5,6 +5,7 @@
 namespace luisa::compute::xir {
 
 class AllocaInst;
+class PhiInst;
 class Value;
 class Instruction;
 class Builder;
@@ -12,6 +13,8 @@ class Builder;
 struct InstructionCloneValueResolver;
 
 [[nodiscard]] LC_XIR_API AllocaInst *trace_pointer_base_local_alloca_inst(Value *pointer) noexcept;
+
+[[nodiscard]] LC_XIR_API bool remove_redundant_phi_instruction(PhiInst *phi) noexcept;
 
 [[nodiscard]] LC_XIR_API Instruction *duplicate_instruction(Builder &b, const Instruction *inst,
                                                             InstructionCloneValueResolver &resolver) noexcept;

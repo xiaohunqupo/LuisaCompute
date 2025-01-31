@@ -5,6 +5,8 @@
 #include <luisa/xir/passes/dom_tree.h>
 #include <luisa/xir/passes/mem2reg.h>
 
+#include "helpers.h"
+
 namespace luisa::compute::xir {
 
 namespace detail {
@@ -195,21 +197,7 @@ struct PhiInsertionAndRenaming {
 
     void simplify_phi_nodes(Mem2RegInfo &info) noexcept {
         for (auto phi : inserted) {
-            // check if all incomings are containing the same value
-            auto all_same = true;
-            auto same_incoming = static_cast<Value *>(nullptr);
-            for (auto value_use : phi->incoming_value_uses()) {
-                auto value = value_use->value();
-                LUISA_DEBUG_ASSERT(value != nullptr, "Invalid incoming value.");
-                if (same_incoming == nullptr) { same_incoming = value; }
-                if (same_incoming != value) {
-                    all_same = false;
-                    break;
-                }
-            }
-            if (all_same) {
-                phi->replace_all_uses_with(same_incoming);
-                phi->remove_self();
+            if (remove_redundant_phi_instruction(phi)) {
                 info.inserted_phi_instructions.erase(phi);
             }
         }

@@ -4,6 +4,8 @@
 #include <luisa/xir/passes/dce.h>
 #include <luisa/xir/builder.h>
 
+#include "helpers.h"
+
 namespace luisa::compute::xir {
 
 namespace detail {
@@ -137,7 +139,7 @@ static void eliminate_dead_alloca_in_function(Function *function, DCEInfo &info)
     return block->terminator()->derived_instruction_tag() == DerivedInstructionTag::UNREACHABLE;
 }
 
-static void eliminate_instructions_in_unreachable_blocks(const luisa::unordered_set<BasicBlock *> &blocks, DCEInfo &info) noexcept {
+void eliminate_instructions_in_unreachable_blocks(const luisa::unordered_set<BasicBlock *> &blocks, DCEInfo &info) noexcept {
     luisa::vector<Instruction *> cache;
     for (auto b : blocks) {
         // replace the terminator with an unreachable instruction if it's not already
@@ -162,7 +164,7 @@ static void eliminate_instructions_in_unreachable_blocks(const luisa::unordered_
     }
 }
 
-static void propagate_unreachable_marks_in_function(Function *function, DCEInfo &info) noexcept {
+void propagate_unreachable_marks_in_function(Function *function, DCEInfo &info) noexcept {
     // run a backward dataflow analysis to propagate unreachable marks:
     // we should mark a block as unreachable if all its successors are marked as unreachable
     if (auto definition = function->definition()) {
@@ -228,7 +230,7 @@ static void propagate_unreachable_marks_in_function(Function *function, DCEInfo 
     }();
 }
 
-static void eliminate_unreachable_blocks_in_function(Function *function, DCEInfo &info) noexcept {
+void eliminate_unreachable_blocks_in_function(Function *function, DCEInfo &info) noexcept {
     if (auto definition = function->definition()) {
         luisa::unordered_set<BasicBlock *> reachable;
         definition->traverse_basic_blocks([&](BasicBlock *block) noexcept {
@@ -287,46 +289,35 @@ static void eliminate_unreachable_blocks_in_function(Function *function, DCEInfo
     }
 }
 
-static void fix_phi_nodes_in_function(Function *function) noexcept {
+void fix_phi_nodes_in_function(Function *function, luisa::vector<PhiInst *> &phi_nodes) noexcept {
     if (auto definition = function->definition()) {
         luisa::vector<PhiIncoming> valid_incomings;
-        definition->traverse_basic_blocks([&](BasicBlock *block) noexcept {
-            for (auto &&inst : block->instructions()) {
-                if (inst.derived_instruction_tag() == DerivedInstructionTag::PHI) {
-                    auto phi = static_cast<PhiInst *>(&inst);
-                    valid_incomings.clear();
-                    for (auto i = 0u; i < phi->incoming_count(); i++) {
-                        auto incoming = phi->incoming(i);
-                        if (incoming.block == nullptr || incoming.value == nullptr) { continue; }
-                        if (auto incoming_terminator = incoming.block->terminator()) {
-                            auto unreachable_from_incoming = true;
-                            for (auto op_use : incoming_terminator->operand_uses()) {
-                                if (op_use->value() == incoming.block) {
-                                    unreachable_from_incoming = false;
-                                    break;
-                                }
-                            }
-                            if (unreachable_from_incoming) { continue; }
-                        }
+        luisa::unordered_set<BasicBlock *> predecessors;
+        definition->traverse_instructions([&](Instruction *inst) noexcept {
+            if (inst->derived_instruction_tag() == DerivedInstructionTag::PHI) {
+                valid_incomings.clear();
+                predecessors.clear();
+                auto phi = static_cast<PhiInst *>(inst);
+                phi_nodes.emplace_back(phi);
+                phi->parent_block()->traverse_predecessors(false, [&](auto block) noexcept {
+                    predecessors.emplace(block);
+                });
+                for (auto i = 0u; i < phi->incoming_count(); i++) {
+                    if (auto incoming = phi->incoming(i); predecessors.contains(incoming.block)) {
                         valid_incomings.emplace_back(incoming);
                     }
-                    if (valid_incomings.size() != phi->incoming_count()) {
-                        phi->set_incoming_count(valid_incomings.size());
-                        for (auto i = 0u; i < valid_incomings.size(); i++) {
-                            if (auto old_incoming = phi->incoming(i), new_incoming = valid_incomings[i];
-                                old_incoming.value != new_incoming.value ||
-                                old_incoming.block != new_incoming.block) {
-                                phi->set_incoming(i, new_incoming.value, new_incoming.block);
-                            }
-                        }
-                    }
+                }
+                phi->set_incoming_count(valid_incomings.size());
+                for (auto i = 0u; i < valid_incomings.size(); i++) {
+                    auto incoming = valid_incomings[i];
+                    phi->set_incoming(i, incoming.value, incoming.block);
                 }
             }
         });
     }
 }
 
-static void fix_control_flow_merges_in_function(Function *function) noexcept {
+void fix_control_flow_merges_in_function(Function *function) noexcept {
     if (auto definition = function->definition()) {
         definition->traverse_basic_blocks([&](BasicBlock *block) noexcept {
             if (auto merge = block->terminator()->control_flow_merge()) {
@@ -339,15 +330,38 @@ static void fix_control_flow_merges_in_function(Function *function) noexcept {
     }
 }
 
-static void run_dce_pass_on_function(Function *function, DCEInfo &info) noexcept {
+// returns true if the phi node is elimiated
+[[nodiscard]] static bool eliminate_redundant_phi_node(PhiInst *phi, DCEInfo &info) noexcept {
+    if (remove_redundant_phi_instruction(phi)) {
+        info.removed_instructions.emplace(phi);
+        return true;
+    }
+    return false;
+}
+
+static void eliminate_redundant_phi_nodes(luisa::vector<PhiInst *> &phi_nodes, DCEInfo &info) noexcept {
+    phi_nodes.erase(
+        std::remove_if(phi_nodes.begin(), phi_nodes.end(), [&](PhiInst *phi) noexcept {
+            if (remove_redundant_phi_instruction(phi)) {
+                info.removed_instructions.emplace(phi);
+                return true;
+            }
+            return false;
+        }),
+        phi_nodes.end());
+}
+
+void run_dce_pass_on_function(Function *function, DCEInfo &info) noexcept {
     propagate_unreachable_marks_in_function(function, info);
     eliminate_unreachable_blocks_in_function(function, info);
-    fix_phi_nodes_in_function(function);
     fix_control_flow_merges_in_function(function);
+    luisa::vector<PhiInst *> phi_nodes;
+    fix_phi_nodes_in_function(function, phi_nodes);
     for (;;) {
         auto prev_count = info.removed_instructions.size();
         eliminate_dead_code_in_function(function, info);
         eliminate_dead_alloca_in_function(function, info);
+        eliminate_redundant_phi_nodes(phi_nodes, info);
         // if we didn't remove any instruction, we are done
         if (info.removed_instructions.size() == prev_count) { return; }
     }
