@@ -156,12 +156,16 @@ public:
 
 using InstructionList = InlineIntrusiveList<Instruction, SentinelInst>;
 
+
 class LC_XIR_API TerminatorInstruction : public Instruction {
 public:
     TerminatorInstruction() noexcept;
     [[nodiscard]] bool is_terminator() const noexcept final { return true; }
 };
-
+class LC_XIR_API AutodiffInstruction : public TerminatorInstruction {
+public:
+    AutodiffInstruction() noexcept;
+};
 // unconditional branch
 class LC_XIR_API BranchTerminatorInstruction : public TerminatorInstruction {
 
@@ -238,6 +242,11 @@ template<DerivedInstructionTag tag>
 class DerivedConditionalBranchInstruction : public DerivedInstruction<tag, ConditionalBranchTerminatorInstruction> {
 public:
     using DerivedInstruction<tag, ConditionalBranchTerminatorInstruction>::DerivedInstruction;
+};
+template<DerivedInstructionTag tag>
+class DerivedAutodiffInstruction : public DerivedInstruction<tag, AutodiffInstruction> {
+public:
+    using DerivedInstruction<tag, AutodiffInstruction>::DerivedInstruction;
 };
 
 class LC_XIR_API ControlFlowMerge {

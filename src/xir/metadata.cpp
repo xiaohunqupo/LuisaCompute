@@ -45,6 +45,11 @@ void MetadataMixin::set_name(std::string_view name) noexcept {
     m->set_name(name);
 }
 
+std::optional<luisa::string> MetadataMixin::name() const noexcept {
+    if (auto m = find_metadata<NameMD>(); m != nullptr) { return m->name(); }
+    return std::nullopt;
+}
+
 void MetadataMixin::set_location(const std::filesystem::path &file, int line) noexcept {
     auto m = find_or_create_metadata<LocationMD>();
     m->set_location(file, line);

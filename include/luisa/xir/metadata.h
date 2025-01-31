@@ -2,6 +2,7 @@
 
 #include <luisa/core/stl/filesystem.h>
 #include <luisa/xir/ilist.h>
+#include <optional>
 
 namespace luisa::compute::xir {
 
@@ -72,6 +73,8 @@ public:
     void set_name(std::string_view name) noexcept;
     void set_location(const std::filesystem::path &file, int line = -1) noexcept;
     void add_comment(std::string_view comment) noexcept;
+
+    std::optional<luisa::string> name() const noexcept;
 };
 
 }// namespace luisa::compute::xir
