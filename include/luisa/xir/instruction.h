@@ -164,7 +164,7 @@ public:
 
 class LC_XIR_API AutodiffInstruction : public TerminatorInstruction {
 public:
-    AutodiffInstruction() noexcept;
+    using TerminatorInstruction::TerminatorInstruction;
 };
 
 // unconditional branch
