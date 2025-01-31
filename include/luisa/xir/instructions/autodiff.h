@@ -15,4 +15,5 @@ public:
     [[nodiscard]] const BasicBlock* entry_block() const noexcept;
     [[nodiscard]] AutodiffScope* clone(InstructionCloneValueResolver& resolver) const noexcept override;
 };
+
 }// namespace luisa::compute::xir
