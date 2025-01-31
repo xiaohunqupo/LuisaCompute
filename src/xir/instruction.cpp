@@ -16,9 +16,7 @@ bool Instruction::_should_add_self_to_operand_use_lists() const noexcept {
 
 void Instruction::_remove_self_from_operand_use_lists() noexcept {
     for (auto use : operand_uses()) {
-        if (use->value() != nullptr) {
-            use->remove_self();
-        }
+        use->remove_self();
     }
 }
 

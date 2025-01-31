@@ -10,7 +10,6 @@ Use::Use(User *user, Value *value) noexcept : _user{user}, _value{value} {
 }
 
 void Use::set_value(Value *value) noexcept {
-    LUISA_DEBUG_ASSERT(value != user(), "User cannot use itself.");
     _value = value;
 }
 

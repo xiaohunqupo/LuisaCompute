@@ -45,12 +45,14 @@ struct AllocaAnalysis {
                 LUISA_DEBUG_ASSERT(user->derived_value_tag() == DerivedValueTag::INSTRUCTION, "Invalid user.");
                 switch (auto user_inst = static_cast<Instruction *>(user); user_inst->derived_instruction_tag()) {
                     case DerivedInstructionTag::LOAD: {
-                        auto [_, success] = use_blocks.emplace(user_inst->parent_block(), static_cast<LoadInst *>(user_inst));
+                        LUISA_DEBUG_ASSERT(user_inst->parent_block() != nullptr, "Invalid parent.");
+                        auto [_, success] = use_blocks.try_emplace(user_inst->parent_block(), static_cast<LoadInst *>(user_inst));
                         LUISA_DEBUG_ASSERT(success, "Invalid state.");
                         break;
                     }
                     case DerivedInstructionTag::STORE: {
-                        auto [_, success] = def_blocks.emplace(user_inst->parent_block(), static_cast<StoreInst *>(user_inst));
+                        LUISA_DEBUG_ASSERT(user_inst->parent_block() != nullptr, "Invalid parent.");
+                        auto [_, success] = def_blocks.try_emplace(user_inst->parent_block(), static_cast<StoreInst *>(user_inst));
                         LUISA_DEBUG_ASSERT(success, "Invalid state.");
                         break;
                     }
@@ -79,16 +81,19 @@ struct AllocaAnalysis {
 };
 
 struct PhiInsertionAndRenaming {
-
-    luisa::unordered_map<const Type *, Undefined *> undefined_values;
     luisa::unordered_map<BasicBlock *, PhiInst *> block_to_phi;
-
-    // the following fields are used across the processing of different alloca's
     luisa::unordered_map<BasicBlock *, Value *> out_values;
 
-    [[nodiscard]] Value *find_dom_value_for_load(BasicBlock *use_block, const AllocaAnalysis &analysis) const noexcept {
+    // the following fields are used across the processing of different alloca's
+    luisa::vector<PhiInst *> inserted;
+    luisa::unordered_map<const Type *, Undefined *> undefined_values;
+
+    template<typename T>
+    [[nodiscard]] Value *find_dom_value_for_use_block(BasicBlock *use_block, const Type *type,
+                                                      const luisa::unordered_map<BasicBlock *, T *> &defs_in_use_block,
+                                                      const AllocaAnalysis &analysis) noexcept {
         // the load has a phi node in the same block
-        if (auto iter = block_to_phi.find(use_block); iter != block_to_phi.end()) {
+        if (auto iter = defs_in_use_block.find(use_block); iter != defs_in_use_block.end()) {
             return iter->second;
         }
         // the load is dominated by a store or a phi node
@@ -102,8 +107,9 @@ struct PhiInsertionAndRenaming {
                 node = parent;
             }
         }
-        // not found
-        return nullptr;
+        // not found, get a undef value
+        LUISA_WARNING_WITH_LOCATION("Detected usage of undefined local variables.");
+        return get_undefined_value(type);
     }
 
     [[nodiscard]] Undefined *get_undefined_value(const Type *type) noexcept {
@@ -115,6 +121,7 @@ struct PhiInsertionAndRenaming {
     void place_phi_nodes(AllocaInst *inst, const AllocaAnalysis &analysis, Mem2RegInfo &info) noexcept {
         // insert new phi nodes by traversing the closure of dominance frontiers of the def blocks
         block_to_phi.clear();
+        out_values.clear();
         auto type = inst->type();
         luisa::fixed_vector<BasicBlock *, 64u> work_list;
         work_list.reserve(analysis.def_blocks.size());
@@ -130,6 +137,7 @@ struct PhiInsertionAndRenaming {
                         b.set_insertion_point(fb->instructions().head_sentinel());
                         auto phi = b.phi(type);
                         iter->second = phi;
+                        inserted.emplace_back(phi);
                         info.inserted_phi_instructions.emplace(phi);
                         // update the block-out value (note: we will overwrite it later if the block contains a store)
                         out_values.emplace(block, phi);
@@ -145,14 +153,17 @@ struct PhiInsertionAndRenaming {
         }
         // each of the use blocks must be dominated by some def/phi block, or it must contain undefined value
         for (auto [use_block, load_inst] : analysis.use_blocks) {
-            auto dom_value = find_dom_value_for_load(use_block, analysis);
-            if (dom_value == nullptr) {
-                LUISA_WARNING_WITH_LOCATION("Detected load instruction from undefined local variables.");
-                dom_value = get_undefined_value(type);
-            }
+            auto dom_value = find_dom_value_for_use_block(use_block, type, block_to_phi, analysis);
             load_inst->replace_all_uses_with(dom_value);
             load_inst->remove_self();
             info.removed_load_instructions.emplace(load_inst);
+        }
+        // fill incomings of the phi nodes
+        for (auto [phi_block, phi_inst] : block_to_phi) {
+            phi_block->traverse_predecessors(false, [&](BasicBlock *pred) noexcept {
+                auto dom_value = find_dom_value_for_use_block(pred, type, out_values, analysis);
+                phi_inst->add_incoming(dom_value, pred);
+            });
         }
         // remove the stores and update the block-out values, possibly overwriting previously recorded phi nodes
         for (auto [def_block, store_inst] : analysis.def_blocks) {
@@ -163,9 +174,31 @@ struct PhiInsertionAndRenaming {
         inst->remove_self();
         info.promoted_alloca_instructions.emplace(inst);
     }
+
+    void simplify_phi_nodes(Mem2RegInfo &info) noexcept {
+        for (auto phi : inserted) {
+            // check if all incomings are containing the same value
+            auto all_same = true;
+            auto same_incoming = static_cast<Value *>(nullptr);
+            for (auto value_use : phi->incoming_value_uses()) {
+                auto value = value_use->value();
+                LUISA_DEBUG_ASSERT(value != nullptr, "Invalid incoming value.");
+                if (same_incoming == nullptr) { same_incoming = value; }
+                if (same_incoming != value) {
+                    all_same = false;
+                    break;
+                }
+            }
+            if (all_same) {
+                phi->replace_all_uses_with(same_incoming);
+                phi->remove_self();
+                info.inserted_phi_instructions.erase(phi);
+            }
+        }
+    }
 };
 
-using AllocaStoreLoadSequence = luisa::unordered_map<BasicBlock *, luisa::fixed_vector<Instruction *, 16u>>;
+using AllocaStoreLoadSequence = luisa::unordered_map<BasicBlock *, std::vector<Instruction *>>;
 
 // after this function, for each block, the must be at most one store and one load instruction for an
 // alloca, and the load instruction must precede the store instruction if both exist
@@ -180,7 +213,9 @@ static void simplify_single_block_store_load(AllocaInst *inst, AllocaStoreLoadSe
             auto user_inst = static_cast<Instruction *>(user);
             if (auto tag = user_inst->derived_instruction_tag();
                 tag == DerivedInstructionTag::LOAD || tag == DerivedInstructionTag::STORE) {
-                seq[user_inst->parent_block()].emplace_back(user_inst);
+                auto parent_block = user_inst->parent_block();
+                LUISA_DEBUG_ASSERT(parent_block != nullptr, "Invalid parent.");
+                seq[parent_block].emplace_back(user_inst);
             }
         }
     }
@@ -201,7 +236,7 @@ static void simplify_single_block_store_load(AllocaInst *inst, AllocaStoreLoadSe
                         load_inst->remove_self();
                         info.removed_load_instructions.emplace(load_inst);
                     } else {// otherwise, record this load
-                        last_value = inst;
+                        last_value = load_inst;
                     }
                     break;
                 }
@@ -297,6 +332,7 @@ static void promote_alloca_instructions_in_function(Function *f, Mem2RegInfo &in
                 analysis.analyze(inst);
                 insertion.place_phi_nodes(inst, analysis, info);
             }
+            insertion.simplify_phi_nodes(info);
         }
     }
 }
