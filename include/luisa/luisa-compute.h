@@ -210,6 +210,7 @@
 #include <luisa/xir/instructions/assert.h>
 #include <luisa/xir/instructions/assume.h>
 #include <luisa/xir/instructions/atomic.h>
+#include <luisa/xir/instructions/autodiff.h>
 #include <luisa/xir/instructions/branch.h>
 #include <luisa/xir/instructions/break.h>
 #include <luisa/xir/instructions/call.h>
@@ -238,6 +239,7 @@
 #include <luisa/xir/metadata/name.h>
 #include <luisa/xir/module.h>
 #include <luisa/xir/passes/aggregate_field_bitmask.h>
+#include <luisa/xir/passes/autodiff.h>
 #include <luisa/xir/passes/dce.h>
 #include <luisa/xir/passes/dom_tree.h>
 #include <luisa/xir/passes/local_load_elimination.h>
