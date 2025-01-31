@@ -1,5 +1,4 @@
 set(LUISA_COMPUTE_XIR_SOURCES
-
         argument.cpp
         basic_block.cpp
         builder.cpp
@@ -69,6 +68,7 @@ set(LUISA_COMPUTE_XIR_SOURCES
         passes/local_load_elimination.cpp
         passes/lower_ray_query_loop.cpp
         passes/mem2reg.cpp
+        passes/autodiff.cpp
 )
 
 add_library(luisa-compute-xir SHARED ${LUISA_COMPUTE_XIR_SOURCES})
