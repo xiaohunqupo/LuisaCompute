@@ -180,7 +180,10 @@ struct PhiInsertionAndRenaming {
             }
         }
         // fill incomings of the phi nodes
-        for (auto [phi_block, phi_inst] : block_to_phi) {
+        for (auto mapping : block_to_phi) {
+            // earlier clang compilers have trouble with structural binding in lambda capture, so we manually unpack here
+            auto phi_block = mapping.first;
+            auto phi_inst = mapping.second;
             phi_block->traverse_predecessors(false, [&](BasicBlock *pred) noexcept {
                 auto dom_value = find_dom_value_for_use_block(pred, type, out_values, analysis);
                 phi_inst->add_incoming(dom_value, pred);
