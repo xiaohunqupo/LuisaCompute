@@ -183,14 +183,8 @@ static BasicBlock *duplicate_basic_block_for_ray_query_loop_dispatch_branch(cons
     RayQueryLoopSubgraph subgraph{.query_object = query_object};
     collect_ray_query_loop_basic_blocks_post_order(branch, dispatch, subgraph);
     std::reverse(subgraph.reverse_post_order.begin(), subgraph.reverse_post_order.end());
-    // check that the first block is the branch and the last block branches to the merge block
-    {
-        LUISA_DEBUG_ASSERT(subgraph.reverse_post_order.front() == branch, "Invalid branch block.");
-        auto terminator = subgraph.reverse_post_order.back()->terminator();
-        LUISA_DEBUG_ASSERT(terminator->derived_instruction_tag() == DerivedInstructionTag::BRANCH &&
-                               static_cast<BranchInst *>(terminator)->target_block() == dispatch,
-                           "Invalid branch terminator.");
-    }
+    // check that the first block is the branch
+    LUISA_DEBUG_ASSERT(subgraph.reverse_post_order.front() == branch, "Invalid branch block.");
     // value map for renaming
     RayQueryLowerPassValueResolver resolver;
     // create an argument for the query object

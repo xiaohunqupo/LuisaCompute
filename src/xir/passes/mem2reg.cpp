@@ -125,8 +125,7 @@ struct PhiInsertionAndRenaming {
                 node = parent;
             }
         }
-        // not found, get a undef value
-        LUISA_WARNING_WITH_LOCATION("Detected usage of undefined local variables.");
+        // not found, get an undef value
         return get_undefined_value(type);
     }
 

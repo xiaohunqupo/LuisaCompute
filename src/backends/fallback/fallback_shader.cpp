@@ -206,6 +206,11 @@ FallbackShader::FallbackShader(FallbackDevice *device, const ShaderOption &optio
     auto dce2_info = xir::dce_pass_run_on_module(xir_module);
     auto mem2reg_info = xir::mem2reg_pass_run_on_module(xir_module);
     auto dce3_info = xir::dce_pass_run_on_module(xir_module);
+    if (LUISA_SHOULD_DUMP_XIR) {
+        auto filename = luisa::format("kernel.{:016x}.opt.xir", kernel.hash());
+        std::ofstream f{filename.c_str()};
+        f << xir::xir_to_text_translate(xir_module, true);
+    }
     auto rq_lower_info = xir::lower_ray_query_loop_pass_run_on_module(xir_module);
     LUISA_VERBOSE("XIR optimization done in {} ms: "
                   "traced {} GEP instruction(s), "
@@ -225,7 +230,7 @@ FallbackShader::FallbackShader(FallbackDevice *device, const ShaderOption &optio
 
     // dump for debugging
     if (LUISA_SHOULD_DUMP_XIR) {
-        auto filename = luisa::format("kernel.{:016x}.opt.xir", kernel.hash());
+        auto filename = luisa::format("kernel.{:016x}.opt.rq.xir", kernel.hash());
         std::ofstream f{filename.c_str()};
         f << xir::xir_to_text_translate(xir_module, true);
     }
