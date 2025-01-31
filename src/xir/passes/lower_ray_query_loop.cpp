@@ -152,6 +152,7 @@ public:
 };
 
 static BasicBlock *duplicate_basic_block_for_ray_query_loop_dispatch_branch(const BasicBlock *original, const BasicBlock *merge,
+                                                                            luisa::vector<std::pair<const PhiInst *, PhiInst *>> &phi_nodes,
                                                                             RayQueryLowerPassValueResolver &resolver) noexcept {
     auto bb = static_cast<BasicBlock *>(resolver.resolve(original));
     Builder b;
@@ -161,6 +162,10 @@ static BasicBlock *duplicate_basic_block_for_ray_query_loop_dispatch_branch(cons
         if (inst.is_terminator() && inst.derived_instruction_tag() == DerivedInstructionTag::BRANCH &&
             static_cast<const BranchInst *>(&inst)->target_block() == merge) {
             b.return_void();
+        } else if (inst.derived_instruction_tag() == DerivedInstructionTag::PHI) {
+            auto dup_phi = b.phi(inst.type());
+            phi_nodes.emplace_back(static_cast<const PhiInst *>(&inst), dup_phi);
+            resolver.emplace(&inst, dup_phi);
         } else {
             auto dup_inst = duplicate_instruction(b, &inst, resolver);
             LUISA_DEBUG_ASSERT(dup_inst != nullptr, "Failed to duplicate instruction.");
@@ -205,8 +210,9 @@ static BasicBlock *duplicate_basic_block_for_ray_query_loop_dispatch_branch(cons
     function->set_body_block(static_cast<BasicBlock *>(resolver.resolve(branch)));
     // duplicate the blocks
     auto already_returned = false;
+    luisa::vector<std::pair<const PhiInst *, PhiInst *>> phi_nodes;
     for (auto block : subgraph.reverse_post_order) {
-        if (auto bb = duplicate_basic_block_for_ray_query_loop_dispatch_branch(block, dispatch, resolver);
+        if (auto bb = duplicate_basic_block_for_ray_query_loop_dispatch_branch(block, dispatch, phi_nodes, resolver);
             bb->terminator()->derived_instruction_tag() == DerivedInstructionTag::RETURN) {
             LUISA_ASSERT(!already_returned, "Multiple return instructions in the branch block.");
             already_returned = true;
@@ -219,6 +225,18 @@ static BasicBlock *duplicate_basic_block_for_ray_query_loop_dispatch_branch(cons
                     b.store(out_arg, resolved);
                 }
             }
+        }
+    }
+    // fix phi nodes
+    for (auto [original_phi, dup_phi] : phi_nodes) {
+        dup_phi->set_incoming_count(original_phi->incoming_count());
+        for (auto i = 0u; i < original_phi->incoming_count(); i++) {
+            auto incoming = original_phi->incoming(i);
+            auto resolved_value = resolver.resolve(incoming.value);
+            auto resolved_block = resolver.resolve(incoming.block);
+            LUISA_DEBUG_ASSERT(resolved_block->derived_value_tag() == DerivedValueTag::BASIC_BLOCK,
+                               "Invalid resolved block.");
+            dup_phi->set_incoming(i, resolved_value, static_cast<BasicBlock *>(resolved_block));
         }
     }
     return function;
