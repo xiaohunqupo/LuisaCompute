@@ -80,6 +80,22 @@ struct AllocaAnalysis {
     }
 };
 
+static void replace_load_with_value(LoadInst *load_inst, Value *value, Mem2RegInfo &info) noexcept {
+    load_inst->replace_all_uses_with(value);
+    load_inst->remove_self();
+    info.removed_load_instructions.emplace(load_inst);
+}
+
+static void remove_store(StoreInst *store_inst, Mem2RegInfo &info) noexcept {
+    store_inst->remove_self();
+    info.removed_store_instructions.emplace(store_inst);
+}
+
+static void remove_alloca(AllocaInst *alloca_inst, Mem2RegInfo &info) noexcept {
+    alloca_inst->remove_self();
+    info.promoted_alloca_instructions.emplace(alloca_inst);
+}
+
 struct PhiInsertionAndRenaming {
     luisa::unordered_map<BasicBlock *, PhiInst *> block_to_phi;
     luisa::unordered_map<BasicBlock *, Value *> out_values;
@@ -140,7 +156,11 @@ struct PhiInsertionAndRenaming {
                         inserted.emplace_back(phi);
                         info.inserted_phi_instructions.emplace(phi);
                         // update the block-out value (note: we will overwrite it later if the block contains a store)
-                        out_values.emplace(block, phi);
+                        out_values.emplace(fb, phi);
+                        // replace the load instructions in the same block with the new phi node
+                        if (auto use_iter = analysis.use_blocks.find(fb); use_iter != analysis.use_blocks.end()) {
+                            replace_load_with_value(use_iter->second, phi, info);
+                        }
                         // add the block to the work list to compute the closure
                         work_list.emplace_back(fb);
                     }
@@ -153,10 +173,10 @@ struct PhiInsertionAndRenaming {
         }
         // each of the use blocks must be dominated by some def/phi block, or it must contain undefined value
         for (auto [use_block, load_inst] : analysis.use_blocks) {
-            auto dom_value = find_dom_value_for_use_block(use_block, type, block_to_phi, analysis);
-            load_inst->replace_all_uses_with(dom_value);
-            load_inst->remove_self();
-            info.removed_load_instructions.emplace(load_inst);
+            if (!info.removed_load_instructions.contains(load_inst)) {
+                auto dom_value = find_dom_value_for_use_block(use_block, type, block_to_phi, analysis);
+                replace_load_with_value(load_inst, dom_value, info);
+            }
         }
         // fill incomings of the phi nodes
         for (auto [phi_block, phi_inst] : block_to_phi) {
@@ -167,12 +187,10 @@ struct PhiInsertionAndRenaming {
         }
         // remove the stores and update the block-out values, possibly overwriting previously recorded phi nodes
         for (auto [def_block, store_inst] : analysis.def_blocks) {
-            store_inst->remove_self();
-            info.removed_store_instructions.emplace(store_inst);
+            remove_store(store_inst, info);
         }
         // remove the local variable and record the promotion
-        inst->remove_self();
-        info.promoted_alloca_instructions.emplace(inst);
+        remove_alloca(inst, info);
     }
 
     void simplify_phi_nodes(Mem2RegInfo &info) noexcept {
@@ -230,26 +248,28 @@ static void simplify_single_block_store_load(AllocaInst *inst, AllocaStoreLoadSe
         for (auto store_or_load : instructions) {
             switch (store_or_load->derived_instruction_tag()) {
                 case DerivedInstructionTag::LOAD: {
-                    auto load_inst = static_cast<LoadInst *>(store_or_load);
                     if (last_value != nullptr) {// we can forward the last loaded/stored value to this load
-                        load_inst->replace_all_uses_with(last_value);
-                        load_inst->remove_self();
-                        info.removed_load_instructions.emplace(load_inst);
+                        replace_load_with_value(static_cast<LoadInst *>(store_or_load), last_value, info);
                     } else {// otherwise, record this load
-                        last_value = load_inst;
+                        last_value = store_or_load;
                     }
                     break;
                 }
                 case DerivedInstructionTag::STORE: {
                     auto store_inst = static_cast<StoreInst *>(store_or_load);
-                    LUISA_DEBUG_ASSERT(store_inst->value() != nullptr, "Invalid store.");
+                    auto stored_value = store_inst->value();
+                    LUISA_DEBUG_ASSERT(stored_value != nullptr, "Invalid store.");
                     if (last_store != nullptr) {// we have overwritten the last store so remove it
-                        last_store->remove_self();
-                        info.removed_store_instructions.emplace(last_store);
+                        remove_store(last_store, info);
                     }
-                    // update the last store and value
-                    last_store = store_inst;
-                    last_value = store_inst->value();
+                    // detect for redundant store where a previously loaded value is stored back
+                    if (stored_value == last_value) {
+                        remove_store(store_inst, info);
+                        last_store = nullptr;
+                    } else {// update the last store and value
+                        last_store = store_inst;
+                        last_value = store_inst->value();
+                    }
                     break;
                 }
                 default: LUISA_ERROR_WITH_LOCATION("Invalid instruction.");
@@ -270,15 +290,10 @@ static void simplify_single_block_store_load(AllocaInst *inst, AllocaStoreLoadSe
     if (all_store) {
         // remove all users
         for (auto &&use : inst->use_list()) {
-            if (auto user = use.user()) {
-                auto store_inst = static_cast<StoreInst *>(user);
-                store_inst->remove_self();
-                info.removed_store_instructions.emplace(store_inst);
-            }
+            remove_store(static_cast<StoreInst *>(use.user()), info);
         }
         // remove self
-        inst->remove_self();
-        info.promoted_alloca_instructions.emplace(inst);
+        remove_alloca(inst, info);
     }
 }
 
