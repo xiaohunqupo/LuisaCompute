@@ -374,10 +374,14 @@ static void lower_phi_nodes_in_loop_dispatch_block(FunctionDefinition *f, RayQue
             b.set_insertion_point(f->body_block()->instructions().head_sentinel());
             auto phi_alloca = b.alloca_local(phi->type());
             phi_alloca->add_comment("alloca to lower phi node in ray query loop");
+            static constexpr auto is_undef = [](Value *v) noexcept {
+                return v == nullptr || v->derived_value_tag() == DerivedValueTag::UNDEFINED;
+            };
             for (auto i = 0u; i < phi->incoming_count(); i++) {
-                auto incoming = phi->incoming(i);
-                b.set_insertion_point(incoming.block->terminator()->prev());
-                b.store(phi_alloca, incoming.value);
+                if (auto incoming = phi->incoming(i); !is_undef(incoming.value)) {
+                    b.set_insertion_point(incoming.block->terminator()->prev());
+                    b.store(phi_alloca, incoming.value);
+                }
             }
             replace_phi_uses_with_local_load_in_blocks(surface_block, phi, phi_alloca, surface_blocks);
             replace_phi_uses_with_local_load_in_blocks(procedural_block, phi, phi_alloca, procedural_blocks);
