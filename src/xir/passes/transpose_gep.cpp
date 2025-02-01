@@ -20,7 +20,7 @@ static void trace_gep_chain(Instruction *inst, luisa::fixed_vector<Value *, 16u>
         case DerivedInstructionTag::GEP: {
             auto gep_inst = static_cast<GEPInst *>(inst);
             auto index_uses = gep_inst->index_uses();
-            for (auto it = index_uses.crbegin(); it != index_uses.crend(); it++) {
+            for (auto it = index_uses.crbegin(); it != index_uses.crend(); ++it) {
                 LUISA_DEBUG_ASSERT((*it)->value() != nullptr, "Invalid GEP index.");
                 chain.emplace_back((*it)->value());
             }
