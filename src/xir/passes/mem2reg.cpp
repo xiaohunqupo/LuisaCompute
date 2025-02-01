@@ -3,6 +3,7 @@
 #include <luisa/xir/builder.h>
 #include <luisa/xir/undefined.h>
 #include <luisa/xir/passes/dom_tree.h>
+#include <luisa/xir/passes/transpose_gep.h>
 #include <luisa/xir/passes/mem2reg.h>
 
 #include "helpers.h"
@@ -279,8 +280,8 @@ static void simplify_single_block_store_load(AllocaInst *inst, AllocaStoreLoadSe
     }
     if (all_store) {
         // remove all users
-        for (auto &&use : inst->use_list()) {
-            remove_store(static_cast<StoreInst *>(use.user()), info);
+        while (!inst->use_list().empty()) {
+            remove_store(static_cast<StoreInst *>(inst->use_list().front().user()), info);
         }
         // remove self
         remove_alloca(inst, info);
@@ -289,6 +290,14 @@ static void simplify_single_block_store_load(AllocaInst *inst, AllocaStoreLoadSe
 
 static void promote_alloca_instructions_in_function(Function *f, Mem2RegInfo &info) noexcept {
     if (auto def = f->definition()) {
+        // run the transpose GEP pass first so we can possibly handle more aggregates
+        if (auto transpose_gep_info = transpose_gep_pass_run_on_function(def);
+            !transpose_gep_info.transposed_load_instructions.empty() ||
+            !transpose_gep_info.transposed_store_instructions.empty()) {
+            LUISA_VERBOSE("Transposed {} load instructions and {} store instructions in mem2reg pass.",
+                          transpose_gep_info.transposed_load_instructions.size(),
+                          transpose_gep_info.transposed_store_instructions.size());
+        }
         // collect local alloca instructions that can be promoted
         luisa::vector<AllocaInst *> promotable;
         luisa::unordered_map<Instruction *, uint> inst_indices;

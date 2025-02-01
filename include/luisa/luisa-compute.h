@@ -250,6 +250,7 @@
 #include <luisa/xir/passes/pointer_usage.h>
 #include <luisa/xir/passes/sroa.h>
 #include <luisa/xir/passes/trace_gep.h>
+#include <luisa/xir/passes/transpose_gep.h>
 #include <luisa/xir/pool.h>
 #include <luisa/xir/special_register.h>
 #include <luisa/xir/translators/ast2xir.h>

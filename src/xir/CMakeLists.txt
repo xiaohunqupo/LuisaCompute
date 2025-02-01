@@ -69,6 +69,7 @@ set(LUISA_COMPUTE_XIR_SOURCES
         passes/lower_ray_query_loop.cpp
         passes/mem2reg.cpp
         passes/autodiff.cpp
+        passes/transpose_gep.cpp
 )
 
 add_library(luisa-compute-xir SHARED ${LUISA_COMPUTE_XIR_SOURCES})

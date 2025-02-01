@@ -1,4 +1,4 @@
-#include <luisa/xir/function.h>
+#include <luisa/xir/module.h>
 #include <luisa/xir/instructions/gep.h>
 #include <luisa/xir/passes/trace_gep.h>
 
@@ -36,14 +36,21 @@ namespace detail {
 
 static void trace_gep_instructions_in_function(Function *function, TraceGEPInfo &info) noexcept {
     if (auto definition = function->definition()) {
+        luisa::vector<GEPInst *> geps;
         definition->traverse_instructions([&](Instruction *inst) noexcept {
             if (inst->derived_instruction_tag() == DerivedInstructionTag::GEP) {
-                auto gep_inst = static_cast<GEPInst *>(inst);
-                if (try_trace_gep_inst(gep_inst)) {
-                    info.traced_geps.emplace_back(gep_inst);
-                }
+                geps.emplace_back(static_cast<GEPInst *>(inst));
             }
         });
+        for (auto gep : geps) {
+            if (try_trace_gep_inst(gep)) {
+                info.traced_geps.emplace_back(gep);
+            }
+            if (gep->index_count() == 0u) {
+                gep->replace_all_uses_with(gep->base());
+                gep->remove_self();
+            }
+        }
     }
 }
 
