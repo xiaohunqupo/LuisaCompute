@@ -294,7 +294,7 @@ static void promote_alloca_instructions_in_function(Function *f, Mem2RegInfo &in
         if (auto transpose_gep_info = transpose_gep_pass_run_on_function(def);
             !transpose_gep_info.transposed_load_instructions.empty() ||
             !transpose_gep_info.transposed_store_instructions.empty()) {
-            LUISA_VERBOSE("Transposed {} load instructions and {} store instructions in mem2reg pass.",
+            LUISA_VERBOSE("Transposed {} load instruction(s) and {} store instruction(s) in mem2reg pass.",
                           transpose_gep_info.transposed_load_instructions.size(),
                           transpose_gep_info.transposed_store_instructions.size());
         }
