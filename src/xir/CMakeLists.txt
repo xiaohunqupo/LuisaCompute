@@ -70,6 +70,7 @@ set(LUISA_COMPUTE_XIR_SOURCES
         passes/mem2reg.cpp
         passes/autodiff.cpp
         passes/transpose_gep.cpp
+        passes/unused_callable_removal.cpp
 )
 
 add_library(luisa-compute-xir SHARED ${LUISA_COMPUTE_XIR_SOURCES})
