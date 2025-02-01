@@ -199,10 +199,17 @@ struct PhiInsertionAndRenaming {
     }
 
     void simplify_phi_nodes(Mem2RegInfo &info) noexcept {
-        for (auto phi : inserted) {
-            if (remove_redundant_phi_instruction(phi)) {
-                info.inserted_phi_instructions.erase(phi);
-            }
+        for (;;) {
+            auto prev_inserted_count = info.inserted_phi_instructions.size();
+            inserted.erase(std::remove_if(inserted.begin(), inserted.end(), [&](PhiInst *phi) noexcept {
+                               if (remove_redundant_phi_instruction(phi)) {
+                                   info.inserted_phi_instructions.erase(phi);
+                                   return true;
+                               }
+                               return false;
+                           }),
+                           inserted.end());
+            if (prev_inserted_count == info.inserted_phi_instructions.size()) { break; }
         }
     }
 };

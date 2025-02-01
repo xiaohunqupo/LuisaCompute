@@ -34,18 +34,39 @@ Instruction *duplicate_instruction(Builder &b, const Instruction *inst,
 }
 
 bool remove_redundant_phi_instruction(PhiInst *phi) noexcept {
+    if (phi->use_list().empty()) {
+        phi->remove_self();
+        return true;
+    }
+    static constexpr auto is_undef = [](Value *v) noexcept {
+        return v->derived_value_tag() == DerivedValueTag::UNDEFINED;
+    };
+    static constexpr auto is_invariant = [](Value *v) noexcept {
+        if (v == nullptr) { return true; }
+        switch (v->derived_value_tag()) {
+            case DerivedValueTag::UNDEFINED: [[fallthrough]];
+            case DerivedValueTag::CONSTANT: [[fallthrough]];
+            case DerivedValueTag::ARGUMENT: [[fallthrough]];
+            case DerivedValueTag::SPECIAL_REGISTER: return true;
+            default: break;
+        }
+        return false;
+    };
     auto all_same = true;
+    auto any_undef = false;
     auto same_incoming = static_cast<Value *>(nullptr);
     for (auto value_use : phi->incoming_value_uses()) {
         auto value = value_use->value();
         LUISA_DEBUG_ASSERT(value != nullptr, "Invalid incoming value.");
-        if (same_incoming == nullptr) { same_incoming = value; }
-        if (same_incoming != value) {
+        if (same_incoming == nullptr || is_undef(same_incoming)) { same_incoming = value; }
+        if (is_undef(value)) {
+            any_undef = true;
+        } else if (same_incoming != value) {
             all_same = false;
             break;
         }
     }
-    if (all_same) {
+    if (all_same && (!any_undef || is_invariant(same_incoming))) {
         if (same_incoming != nullptr) {
             phi->replace_all_uses_with(same_incoming);
         } else {

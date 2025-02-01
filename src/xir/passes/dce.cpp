@@ -331,15 +331,19 @@ void fix_control_flow_merges_in_function(Function *function) noexcept {
 }
 
 static void eliminate_redundant_phi_nodes(luisa::vector<PhiInst *> &phi_nodes, DCEInfo &info) noexcept {
-    phi_nodes.erase(
-        std::remove_if(phi_nodes.begin(), phi_nodes.end(), [&](PhiInst *phi) noexcept {
-            if (remove_redundant_phi_instruction(phi)) {
-                info.removed_instructions.emplace(phi);
-                return true;
-            }
-            return false;
-        }),
-        phi_nodes.end());
+    for (;;) {
+        auto prev_dce_count = info.removed_instructions.size();
+        phi_nodes.erase(
+            std::remove_if(phi_nodes.begin(), phi_nodes.end(), [&](PhiInst *phi) noexcept {
+                if (remove_redundant_phi_instruction(phi)) {
+                    info.removed_instructions.emplace(phi);
+                    return true;
+                }
+                return false;
+            }),
+            phi_nodes.end());
+        if (info.removed_instructions.size() == prev_dce_count) { break; }
+    }
 }
 
 void run_dce_pass_on_function(Function *function, DCEInfo &info) noexcept {
