@@ -69,13 +69,13 @@ const BasicBlock *LoopInst::update_block() const noexcept {
 LoopInst *LoopInst::clone(InstructionCloneValueResolver &resolver) const noexcept {
     auto cloned = Pool::current()->create<LoopInst>();
     auto resolved_prepare_block = resolver.resolve(prepare_block());
-    LUISA_DEBUG_ASSERT(resolved_prepare_block == nullptr || resolved_prepare_block->derived_value_tag() == DerivedValueTag::BASIC_BLOCK, "Invalid prepare block.");
+    LUISA_DEBUG_ASSERT(resolved_prepare_block == nullptr || resolved_prepare_block->isa<BasicBlock>(), "Invalid prepare block.");
     auto resolved_body_block = resolver.resolve(body_block());
-    LUISA_DEBUG_ASSERT(resolved_body_block == nullptr || resolved_body_block->derived_value_tag() == DerivedValueTag::BASIC_BLOCK, "Invalid body block.");
+    LUISA_DEBUG_ASSERT(resolved_body_block == nullptr || resolved_body_block->isa<BasicBlock>(), "Invalid body block.");
     auto resolved_update_block = resolver.resolve(update_block());
-    LUISA_DEBUG_ASSERT(resolved_update_block == nullptr || resolved_update_block->derived_value_tag() == DerivedValueTag::BASIC_BLOCK, "Invalid update block.");
+    LUISA_DEBUG_ASSERT(resolved_update_block == nullptr || resolved_update_block->isa<BasicBlock>(), "Invalid update block.");
     auto resolved_merge_block = resolver.resolve(merge_block());
-    LUISA_DEBUG_ASSERT(resolved_merge_block == nullptr || resolved_merge_block->derived_value_tag() == DerivedValueTag::BASIC_BLOCK, "Invalid merge block.");
+    LUISA_DEBUG_ASSERT(resolved_merge_block == nullptr || resolved_merge_block->isa<BasicBlock>(), "Invalid merge block.");
     cloned->set_prepare_block(static_cast<BasicBlock *>(resolved_prepare_block));
     cloned->set_body_block(static_cast<BasicBlock *>(resolved_body_block));
     cloned->set_update_block(static_cast<BasicBlock *>(resolved_update_block));
@@ -109,9 +109,9 @@ const BasicBlock *SimpleLoopInst::body_block() const noexcept {
 SimpleLoopInst *SimpleLoopInst::clone(InstructionCloneValueResolver &resolver) const noexcept {
     auto cloned = Pool::current()->create<SimpleLoopInst>();
     auto resolved_body_block = resolver.resolve(body_block());
-    LUISA_DEBUG_ASSERT(resolved_body_block == nullptr || resolved_body_block->derived_value_tag() == DerivedValueTag::BASIC_BLOCK, "Invalid body block.");
+    LUISA_DEBUG_ASSERT(resolved_body_block == nullptr || resolved_body_block->isa<BasicBlock>(), "Invalid body block.");
     auto resolved_merge_block = resolver.resolve(merge_block());
-    LUISA_DEBUG_ASSERT(resolved_merge_block == nullptr || resolved_merge_block->derived_value_tag() == DerivedValueTag::BASIC_BLOCK, "Invalid merge block.");
+    LUISA_DEBUG_ASSERT(resolved_merge_block == nullptr || resolved_merge_block->isa<BasicBlock>(), "Invalid merge block.");
     cloned->set_body_block(static_cast<BasicBlock *>(resolved_body_block));
     cloned->set_merge_block(static_cast<BasicBlock *>(resolved_merge_block));
     return cloned;

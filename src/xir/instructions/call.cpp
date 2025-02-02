@@ -16,7 +16,7 @@ CallInst::CallInst(const Type *type, Function *callee,
 
 Function *CallInst::callee() noexcept {
     auto callee = operand(operand_index_callee);
-    LUISA_DEBUG_ASSERT(callee->derived_value_tag() == DerivedValueTag::FUNCTION, "Invalid callee.");
+    LUISA_DEBUG_ASSERT(callee->isa<Function>(), "Invalid callee.");
     return static_cast<Function *>(callee);
 }
 
@@ -53,7 +53,7 @@ void CallInst::remove_argument(size_t index) noexcept {
 
 CallInst *CallInst::clone(InstructionCloneValueResolver &resolver) const noexcept {
     auto resolved_callee = resolver.resolve(callee());
-    LUISA_DEBUG_ASSERT(resolved_callee == nullptr || resolved_callee->derived_value_tag() == DerivedValueTag::FUNCTION, "Invalid callee.");
+    LUISA_DEBUG_ASSERT(resolved_callee == nullptr || resolved_callee->isa<Function>(), "Invalid callee.");
     luisa::fixed_vector<Value *, 16u> resolved_args;
     resolved_args.reserve(argument_count());
     for (auto arg_use : argument_uses()) {

@@ -60,9 +60,9 @@ const BasicBlock *RayQueryLoopInst::dispatch_block() const noexcept {
 RayQueryLoopInst *RayQueryLoopInst::clone(InstructionCloneValueResolver &resolver) const noexcept {
     auto cloned = Pool::current()->create<RayQueryLoopInst>();
     auto resolved_dispatch = resolver.resolve(dispatch_block());
-    LUISA_DEBUG_ASSERT(resolved_dispatch == nullptr || resolved_dispatch->derived_value_tag() == DerivedValueTag::BASIC_BLOCK, "Invalid dispatch block.");
+    LUISA_DEBUG_ASSERT(resolved_dispatch == nullptr || resolved_dispatch->isa<BasicBlock>(), "Invalid dispatch block.");
     auto resolved_merge = resolver.resolve(merge_block());
-    LUISA_DEBUG_ASSERT(resolved_merge == nullptr || resolved_merge->derived_value_tag() == DerivedValueTag::BASIC_BLOCK, "Invalid merge block.");
+    LUISA_DEBUG_ASSERT(resolved_merge == nullptr || resolved_merge->isa<BasicBlock>(), "Invalid merge block.");
     cloned->set_dispatch_block(static_cast<BasicBlock *>(resolved_dispatch));
     cloned->set_merge_block(static_cast<BasicBlock *>(resolved_merge));
     return cloned;
@@ -141,11 +141,11 @@ RayQueryDispatchInst *RayQueryDispatchInst::clone(InstructionCloneValueResolver 
     auto resolved_query_object = resolver.resolve(query_object());
     auto cloned = Pool::current()->create<RayQueryDispatchInst>(resolved_query_object);
     auto resolved_exit = resolver.resolve(exit_block());
-    LUISA_DEBUG_ASSERT(resolved_exit == nullptr || resolved_exit->derived_value_tag() == DerivedValueTag::BASIC_BLOCK, "Invalid exit block.");
+    LUISA_DEBUG_ASSERT(resolved_exit == nullptr || resolved_exit->isa<BasicBlock>(), "Invalid exit block.");
     auto resolved_on_surface = resolver.resolve(on_surface_candidate_block());
-    LUISA_DEBUG_ASSERT(resolved_on_surface == nullptr || resolved_on_surface->derived_value_tag() == DerivedValueTag::BASIC_BLOCK, "Invalid on surface candidate block.");
+    LUISA_DEBUG_ASSERT(resolved_on_surface == nullptr || resolved_on_surface->isa<BasicBlock>(), "Invalid on surface candidate block.");
     auto resolved_on_procedural = resolver.resolve(on_procedural_candidate_block());
-    LUISA_DEBUG_ASSERT(resolved_on_procedural == nullptr || resolved_on_procedural->derived_value_tag() == DerivedValueTag::BASIC_BLOCK, "Invalid on procedural candidate block.");
+    LUISA_DEBUG_ASSERT(resolved_on_procedural == nullptr || resolved_on_procedural->isa<BasicBlock>(), "Invalid on procedural candidate block.");
     cloned->set_exit_block(static_cast<BasicBlock *>(resolved_exit));
     cloned->set_on_surface_candidate_block(static_cast<BasicBlock *>(resolved_on_surface));
     cloned->set_on_procedural_candidate_block(static_cast<BasicBlock *>(resolved_on_procedural));
@@ -169,9 +169,9 @@ RayQueryPipelineInst::RayQueryPipelineInst(Value *query_object,
 RayQueryPipelineInst *RayQueryPipelineInst::clone(InstructionCloneValueResolver &resolver) const noexcept {
     auto resolved_query_object = resolver.resolve(query_object());
     auto resolved_on_surface = resolver.resolve(on_surface_function());
-    LUISA_DEBUG_ASSERT(resolved_on_surface == nullptr || resolved_on_surface->derived_value_tag() == DerivedValueTag::FUNCTION, "Invalid on surface function.");
+    LUISA_DEBUG_ASSERT(resolved_on_surface == nullptr || resolved_on_surface->isa<Function>(), "Invalid on surface function.");
     auto resolved_on_procedural = resolver.resolve(on_procedural_function());
-    LUISA_DEBUG_ASSERT(resolved_on_procedural == nullptr || resolved_on_procedural->derived_value_tag() == DerivedValueTag::FUNCTION, "Invalid on procedural function.");
+    LUISA_DEBUG_ASSERT(resolved_on_procedural == nullptr || resolved_on_procedural->isa<Function>(), "Invalid on procedural function.");
     luisa::fixed_vector<Value *, 16u> resolved_args;
     resolved_args.reserve(captured_argument_count());
     for (auto arg_use : captured_argument_uses()) {
@@ -255,7 +255,7 @@ const Value *RayQueryPipelineInst::query_object() const noexcept {
 
 Function *RayQueryPipelineInst::on_surface_function() noexcept {
     auto func = operand(operand_index_on_surface_function);
-    LUISA_DEBUG_ASSERT(func->derived_value_tag() == DerivedValueTag::FUNCTION, "Invalid on surface function operand.");
+    LUISA_DEBUG_ASSERT(func->isa<Function>(), "Invalid on surface function operand.");
     return static_cast<Function *>(func);
 }
 
@@ -265,7 +265,7 @@ const Function *RayQueryPipelineInst::on_surface_function() const noexcept {
 
 Function *RayQueryPipelineInst::on_procedural_function() noexcept {
     auto func = operand(operand_index_on_procedural_function);
-    LUISA_DEBUG_ASSERT(func->derived_value_tag() == DerivedValueTag::FUNCTION, "Invalid on procedural function operand.");
+    LUISA_DEBUG_ASSERT(func->isa<Function>(), "Invalid on procedural function operand.");
     return static_cast<Function *>(func);
 }
 

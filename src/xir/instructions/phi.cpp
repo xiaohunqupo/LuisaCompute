@@ -69,7 +69,7 @@ PhiInst *PhiInst::clone(InstructionCloneValueResolver &resolver) const noexcept 
         auto incoming = this->incoming(i);
         auto resolved_value = resolver.resolve(incoming.value);
         auto resolved_block = resolver.resolve(incoming.block);
-        LUISA_DEBUG_ASSERT(resolved_block == nullptr || resolved_block->derived_value_tag() == DerivedValueTag::BASIC_BLOCK, "Invalid incoming block.");
+        LUISA_DEBUG_ASSERT(resolved_block == nullptr || resolved_block->isa<BasicBlock>(), "Invalid incoming block.");
         cloned->add_incoming(resolved_value, static_cast<BasicBlock *>(resolved_block));
     }
     return cloned;
