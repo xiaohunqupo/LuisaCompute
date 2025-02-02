@@ -3034,7 +3034,7 @@ private:
                 _translate_instructions_in_basic_block(current, llvm_merge_block, outline_inst->merge_block());
                 return llvm_inst;
             }
-            case xir::DerivedInstructionTag::AUTO_DIFF: LUISA_NOT_IMPLEMENTED();
+            case xir::DerivedInstructionTag::AUTODIFF: LUISA_NOT_IMPLEMENTED();
             case xir::DerivedInstructionTag::CLOCK: {
                 auto call = b.CreateIntrinsic(llvm::Intrinsic::readcyclecounter, {}, {});
                 auto llvm_result_type = _translate_type(inst->type(), true);

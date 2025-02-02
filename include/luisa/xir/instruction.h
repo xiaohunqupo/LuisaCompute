@@ -62,7 +62,7 @@ enum struct DerivedInstructionTag {
     ASSUME,// assumption
 
     OUTLINE,  // mark that the body might be outlined (e.g., for faster compilation)
-    AUTO_DIFF,// automatic differentiation
+    AUTODIFF,// automatic differentiation
 
     INTRINSIC,// other intrinsics that are not yet promoted to dedicated instructions
 };
@@ -104,7 +104,7 @@ enum struct DerivedInstructionTag {
         case DerivedInstructionTag::ASSERT: return "assert"sv;
         case DerivedInstructionTag::ASSUME: return "assume"sv;
         case DerivedInstructionTag::OUTLINE: return "outline"sv;
-        case DerivedInstructionTag::AUTO_DIFF: return "auto_diff"sv;
+        case DerivedInstructionTag::AUTODIFF: return "autodiff"sv;
         case DerivedInstructionTag::INTRINSIC: return "intrinsic"sv;
     }
     return "unknown"sv;
@@ -162,11 +162,6 @@ class LC_XIR_API TerminatorInstruction : public Instruction {
 public:
     TerminatorInstruction() noexcept;
     [[nodiscard]] bool is_terminator() const noexcept final { return true; }
-};
-
-class LC_XIR_API AutodiffInstruction : public TerminatorInstruction {
-public:
-    using TerminatorInstruction::TerminatorInstruction;
 };
 
 // unconditional branch
@@ -246,12 +241,6 @@ template<typename Derived, DerivedInstructionTag tag>
 class DerivedConditionalBranchInstruction : public DerivedInstruction<Derived, tag, ConditionalBranchTerminatorInstruction> {
 public:
     using DerivedInstruction<Derived, tag, ConditionalBranchTerminatorInstruction>::DerivedInstruction;
-};
-
-template<typename Derived, DerivedInstructionTag tag>
-class DerivedAutodiffInstruction : public DerivedInstruction<Derived, tag, AutodiffInstruction> {
-public:
-    using DerivedInstruction<Derived, tag, AutodiffInstruction>::DerivedInstruction;
 };
 
 class LC_XIR_API ControlFlowMerge {

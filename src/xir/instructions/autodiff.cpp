@@ -1,0 +1,43 @@
+#include <luisa/core/logging.h>
+#include <luisa/xir/basic_block.h>
+#include <luisa/xir/instructions/autodiff.h>
+
+namespace luisa::compute::xir {
+
+AutodiffScopeInst::AutodiffScopeInst() noexcept {
+    set_operands(std::array{static_cast<Value *>(nullptr)});
+}
+
+void AutodiffScopeInst::set_entry_block(BasicBlock *block) noexcept {
+    set_operand(operand_index_entry_block, block);
+}
+
+BasicBlock *AutodiffScopeInst::create_entry_block(bool overwrite_existing) noexcept {
+    LUISA_ASSERT(entry_block() == nullptr || overwrite_existing, "Entry block already exists.");
+    auto new_block = Pool::current()->create<BasicBlock>();
+    set_entry_block(new_block);
+    return new_block;
+}
+
+BasicBlock *AutodiffScopeInst::entry_block() noexcept {
+    auto block = operand(operand_index_entry_block);
+    LUISA_DEBUG_ASSERT(block == nullptr || block->isa<BasicBlock>(), "Invalid autodiff entry block.");
+    return static_cast<BasicBlock *>(block);
+}
+
+const BasicBlock *AutodiffScopeInst::entry_block() const noexcept {
+    return const_cast<AutodiffScopeInst *>(this)->entry_block();
+}
+
+AutodiffScopeInst *AutodiffScopeInst::clone(InstructionCloneValueResolver &resolver) const noexcept {
+    auto cloned = Pool::current()->create<AutodiffScopeInst>();
+    auto resolved_entry_block = resolver.resolve(entry_block());
+    LUISA_DEBUG_ASSERT(resolved_entry_block == nullptr || resolved_entry_block->isa<BasicBlock>(), "Invalid entry block.");
+    cloned->set_entry_block(static_cast<BasicBlock *>(resolved_entry_block));
+    auto resolved_merge_block = resolver.resolve(merge_block());
+    LUISA_DEBUG_ASSERT(resolved_merge_block == nullptr || resolved_merge_block->isa<BasicBlock>(), "Invalid merge block.");
+    cloned->set_merge_block(static_cast<BasicBlock *>(resolved_merge_block));
+    return cloned;
+}
+
+}// namespace luisa::compute::xir

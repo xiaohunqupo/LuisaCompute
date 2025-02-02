@@ -20,6 +20,7 @@ set(LUISA_COMPUTE_XIR_SOURCES
         instructions/assert.cpp
         instructions/assume.cpp
         instructions/atomic.cpp
+        instructions/autodiff.cpp
         instructions/branch.cpp
         instructions/break.cpp
         instructions/call.cpp

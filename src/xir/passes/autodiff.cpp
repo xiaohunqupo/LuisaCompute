@@ -11,7 +11,7 @@ namespace luisa::compute::xir {
 
 struct TransformAdScope {
     Function *function{};
-    AutodiffScope *ad_scope{};
+    AutodiffScopeInst *ad_scope{};
     void run() {
     }
 };
@@ -22,11 +22,11 @@ struct AutodiffPass {
     auto locate_autodiff_scopes() {
         auto def = function->definition();
         auto dom = compute_dom_tree(def);
-        luisa::vector<AutodiffScope *> ad_scopes;
+        luisa::vector<AutodiffScopeInst *> ad_scopes;
 
         def->traverse_instructions([&](Instruction *inst) {
-            if (inst->isa<AutodiffScope>()) {
-                auto ad_scope = static_cast<AutodiffScope *>(inst);
+            if (inst->isa<AutodiffScopeInst>()) {
+                auto ad_scope = static_cast<AutodiffScopeInst *>(inst);
                 ad_scopes.emplace_back(ad_scope);
                 LUISA_INFO("Found autodiff scope: {}", ad_scope->name().value_or("unnamed"));
             }

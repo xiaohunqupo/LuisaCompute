@@ -540,7 +540,7 @@ private:
             case DerivedInstructionTag::OUTLINE:
                 _emit_outline_inst(static_cast<const OutlineInst *>(inst), indent);
                 break;
-            case DerivedInstructionTag::AUTO_DIFF: LUISA_NOT_IMPLEMENTED();
+            case DerivedInstructionTag::AUTODIFF: LUISA_NOT_IMPLEMENTED();
             case DerivedInstructionTag::RAY_QUERY_LOOP:
                 _emit_ray_query_loop_inst(static_cast<const RayQueryLoopInst *>(inst), indent);
                 break;
