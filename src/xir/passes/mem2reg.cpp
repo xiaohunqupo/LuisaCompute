@@ -18,7 +18,7 @@ namespace detail {
     // check if it's used as reference in other instructions than load/store
     for (auto &&use : inst->use_list()) {
         if (auto user = use.user()) {
-            LUISA_DEBUG_ASSERT(user->derived_value_tag() == DerivedValueTag::INSTRUCTION, "Invalid user.");
+            LUISA_DEBUG_ASSERT(user->isa<Instruction>(), "Invalid user.");
             switch (auto user_inst = static_cast<Instruction *>(user); user_inst->derived_instruction_tag()) {
                 case DerivedInstructionTag::LOAD: break;
                 case DerivedInstructionTag::STORE: break;
@@ -45,7 +45,7 @@ struct AllocaAnalysis {
         // find def and use blocks
         for (auto &&use : inst->use_list()) {
             if (auto user = use.user()) {
-                LUISA_DEBUG_ASSERT(user->derived_value_tag() == DerivedValueTag::INSTRUCTION, "Invalid user.");
+                LUISA_DEBUG_ASSERT(user->isa<Instruction>(), "Invalid user.");
                 switch (auto user_inst = static_cast<Instruction *>(user); user_inst->derived_instruction_tag()) {
                     case DerivedInstructionTag::LOAD: {
                         LUISA_DEBUG_ASSERT(user_inst->parent_block() != nullptr, "Invalid parent.");
@@ -225,10 +225,8 @@ static void simplify_single_block_store_load(AllocaInst *inst, AllocaStoreLoadSe
     seq.clear();
     for (auto &&use : inst->use_list()) {
         if (auto user = use.user()) {
-            LUISA_DEBUG_ASSERT(user->derived_value_tag() == DerivedValueTag::INSTRUCTION, "Invalid user.");
-            auto user_inst = static_cast<Instruction *>(user);
-            if (auto tag = user_inst->derived_instruction_tag();
-                tag == DerivedInstructionTag::LOAD || tag == DerivedInstructionTag::STORE) {
+            if (user->isa<LoadInst>() || user->isa<StoreInst>()) {
+                auto user_inst = static_cast<Instruction *>(user);
                 auto parent_block = user_inst->parent_block();
                 LUISA_DEBUG_ASSERT(parent_block != nullptr, "Invalid parent.");
                 seq[parent_block].emplace_back(user_inst);
@@ -277,10 +275,7 @@ static void simplify_single_block_store_load(AllocaInst *inst, AllocaStoreLoadSe
     // if we find the alloca now is stored to only, we can remove it
     auto all_store = true;
     for (auto &&use : inst->use_list()) {
-        if (auto user = use.user();
-            user != nullptr &&
-            static_cast<Instruction *>(user)->derived_instruction_tag() !=
-                DerivedInstructionTag::STORE) {
+        if (auto user = use.user(); user != nullptr && !user->isa<StoreInst>()) {
             all_store = false;
             break;
         }

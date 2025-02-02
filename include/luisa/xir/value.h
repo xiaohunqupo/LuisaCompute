@@ -38,11 +38,14 @@ public:
     [[nodiscard]] auto type() const noexcept { return _type; }
     [[nodiscard]] auto &use_list() noexcept { return _use_list; }
     [[nodiscard]] auto &use_list() const noexcept { return _use_list; }
+
+    LUISA_XIR_DEFINED_ISA_METHOD(Value, value)
 };
 
-template<DerivedValueTag tag, typename Base = Value>
+template<typename Derived, DerivedValueTag tag, typename Base = Value>
 class DerivedValue : public Base {
 public:
+    using derived_value_type = Derived;
     using Base::Base;
 
     [[nodiscard]] static constexpr DerivedValueTag

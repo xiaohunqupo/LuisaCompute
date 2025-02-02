@@ -4,7 +4,7 @@
 
 namespace luisa::compute::xir {
 
-class LC_XIR_API CallInst final : public DerivedInstruction<DerivedInstructionTag::CALL> {
+class LC_XIR_API CallInst final : public DerivedInstruction<CallInst, DerivedInstructionTag::CALL> {
 
 public:
     static constexpr size_t operand_index_callee = 0u;

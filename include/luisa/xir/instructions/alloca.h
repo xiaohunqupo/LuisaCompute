@@ -9,7 +9,7 @@ enum struct AllocSpace {
     SHARED,
 };
 
-class LC_XIR_API AllocaInst final : public DerivedInstruction<DerivedInstructionTag::ALLOCA> {
+class LC_XIR_API AllocaInst final : public DerivedInstruction<AllocaInst, DerivedInstructionTag::ALLOCA> {
 
 private:
     AllocSpace _space;

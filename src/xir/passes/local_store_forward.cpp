@@ -122,9 +122,7 @@ static void forward_single_store_to_loads_on_function(FunctionDefinition *functi
         for (auto [alloca_inst, count] : store_count) {
             if (count == 1u) {
                 for (auto &&use : alloca_inst->use_list()) {
-                    if (auto user = use.user();
-                        user->derived_value_tag() == DerivedValueTag::INSTRUCTION &&
-                        static_cast<Instruction *>(user)->derived_instruction_tag() == DerivedInstructionTag::STORE) {
+                    if (auto user = use.user(); user->isa<StoreInst>()) {
                         auto store_inst = static_cast<StoreInst *>(user);
                         if (store_inst->variable() == alloca_inst) {// only consider stores to the entire alloca
                             single_store.emplace(alloca_inst, store_inst);
@@ -151,7 +149,7 @@ static void forward_single_store_to_loads_on_function(FunctionDefinition *functi
                        dom_tree.dominates(store_block, load_block);
         };
         function->traverse_instructions([&](Instruction *inst) noexcept {
-            if (inst->derived_instruction_tag() == DerivedInstructionTag::LOAD) {
+            if (inst->isa<LoadInst>()) {
                 auto load = static_cast<LoadInst *>(inst);
                 if (auto base_alloca = trace_pointer_base_local_alloca_inst(load->variable())) {
                     auto iter = single_store.find(base_alloca);
@@ -167,16 +165,13 @@ static void forward_single_store_to_loads_on_function(FunctionDefinition *functi
     for (auto load : removable_loads) {
         // convert load to extract
         luisa::fixed_vector<Value *, 8u> extract_args;
-        LUISA_DEBUG_ASSERT(load->variable()->derived_value_tag() == DerivedValueTag::INSTRUCTION,
-                           "Load variable must be an instruction.");
+        LUISA_DEBUG_ASSERT(load->variable()->isa<Instruction>(), "Load variable must be an instruction.");
         auto pointer = static_cast<Instruction *>(load->variable());
         for (;;) {
-            if (auto tag = pointer->derived_instruction_tag(); tag == DerivedInstructionTag::ALLOCA) {
-                break;
-            } else if (tag == DerivedInstructionTag::GEP) {
+            if (pointer->isa<AllocaInst>()) { break; }
+            if (pointer->isa<GEPInst>()) {
                 auto gep = static_cast<GEPInst *>(pointer);
-                LUISA_DEBUG_ASSERT(gep->base()->derived_value_tag() == DerivedValueTag::INSTRUCTION,
-                                   "GEP base must be an instruction.");
+                LUISA_DEBUG_ASSERT(gep->base()->isa<Instruction>(), "GEP base must be an instruction.");
                 auto sub_indices = gep->index_uses();
                 // note: we emplace the indices in reverse order to avoid
                 // expensive insertions at the beginning of the vector
@@ -189,8 +184,7 @@ static void forward_single_store_to_loads_on_function(FunctionDefinition *functi
             }
         }
         // process the alloca pointer
-        LUISA_DEBUG_ASSERT(pointer->derived_instruction_tag() == DerivedInstructionTag::ALLOCA,
-                           "Pointer must be an alloca.");
+        LUISA_DEBUG_ASSERT(pointer->isa<AllocaInst>(), "Pointer must be an alloca.");
         auto store = single_store[static_cast<AllocaInst *>(pointer)];
         LUISA_DEBUG_ASSERT(store != nullptr, "Store must not be null.");
         extract_args.emplace_back(store->value());

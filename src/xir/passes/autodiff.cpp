@@ -8,12 +8,14 @@
 #include "helpers.h"
 
 namespace luisa::compute::xir {
+
 struct TransformAdScope {
     Function *function{};
     AutodiffScope *ad_scope{};
     void run() {
     }
 };
+
 struct AutodiffPass {
     Function *function{};
     AutodiffOptions options{};
@@ -23,8 +25,7 @@ struct AutodiffPass {
         luisa::vector<AutodiffScope *> ad_scopes;
 
         def->traverse_instructions([&](Instruction *inst) {
-            auto tag = inst->derived_instruction_tag();
-            if (tag == DerivedInstructionTag::AUTO_DIFF) {
+            if (inst->isa<AutodiffScope>()) {
                 auto ad_scope = static_cast<AutodiffScope *>(inst);
                 ad_scopes.emplace_back(ad_scope);
                 LUISA_INFO("Found autodiff scope: {}", ad_scope->name().value_or("unnamed"));
@@ -44,13 +45,16 @@ struct AutodiffPass {
         }
     }
 };
-[[nodiscard]] LC_XIR_API void autodiff_pass_run_on_function(Function *function, const AutodiffOptions &options) noexcept {
+
+LC_XIR_API void autodiff_pass_run_on_function(Function *function, const AutodiffOptions &options) noexcept {
     AutodiffPass pass{function, options};
     pass.run();
 }
-[[nodiscard]] LC_XIR_API void autodiff_pass_run_on_module(Module *module, const AutodiffOptions &options) noexcept {
+
+LC_XIR_API void autodiff_pass_run_on_module(Module *module, const AutodiffOptions &options) noexcept {
     for (auto &func : module->functions()) {
         autodiff_pass_run_on_function(&func, options);
     }
 }
+
 }// namespace luisa::compute::xir

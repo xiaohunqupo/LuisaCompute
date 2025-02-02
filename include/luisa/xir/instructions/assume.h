@@ -4,7 +4,7 @@
 
 namespace luisa::compute::xir {
 
-class LC_XIR_API AssumeInst final : public DerivedInstruction<DerivedInstructionTag::ASSUME> {
+class LC_XIR_API AssumeInst final : public DerivedInstruction<AssumeInst, DerivedInstructionTag::ASSUME> {
 
 public:
     static constexpr size_t operand_index_condition = 0u;

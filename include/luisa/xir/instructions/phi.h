@@ -26,7 +26,7 @@ struct ConstPhiIncomingUse {
     const BasicBlock *block;
 };
 
-class LC_XIR_API PhiInst final : public DerivedInstruction<DerivedInstructionTag::PHI> {
+class LC_XIR_API PhiInst final : public DerivedInstruction<PhiInst, DerivedInstructionTag::PHI> {
 
 private:
     luisa::vector<BasicBlock *> _incoming_blocks;

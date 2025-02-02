@@ -4,7 +4,7 @@
 
 namespace luisa::compute::xir {
 
-class LC_XIR_API AutodiffScope final : public DerivedAutodiffInstruction<DerivedInstructionTag::AUTO_DIFF> {
+class LC_XIR_API AutodiffScope final : public DerivedAutodiffInstruction<AutodiffScope, DerivedInstructionTag::AUTO_DIFF> {
 
 private:
     // TODO: this should be placed into operands

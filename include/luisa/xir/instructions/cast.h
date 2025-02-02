@@ -12,7 +12,7 @@ enum struct CastOp {
 [[nodiscard]] LC_XIR_API luisa::string_view to_string(CastOp op) noexcept;
 [[nodiscard]] LC_XIR_API CastOp cast_op_from_string(luisa::string_view name) noexcept;
 
-class LC_XIR_API CastInst final : public DerivedInstruction<DerivedInstructionTag::CAST>,
+class LC_XIR_API CastInst final : public DerivedInstruction<CastInst, DerivedInstructionTag::CAST>,
                                   public InstructionOpMixin<CastOp> {
 public:
     explicit CastInst(const Type *target_type = nullptr,

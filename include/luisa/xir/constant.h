@@ -4,7 +4,7 @@
 
 namespace luisa::compute::xir {
 
-class LC_XIR_API Constant : public IntrusiveForwardNode<Constant, DerivedValue<DerivedValueTag::CONSTANT>> {
+class LC_XIR_API Constant final : public IntrusiveForwardNode<Constant, DerivedValue<Constant, DerivedValueTag::CONSTANT>> {
 
 private:
     union {

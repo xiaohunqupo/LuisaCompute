@@ -12,7 +12,7 @@ enum struct DerivedArgumentTag {
     RESOURCE,
 };
 
-class LC_XIR_API Argument : public DerivedValue<DerivedValueTag::ARGUMENT> {
+class LC_XIR_API Argument : public DerivedValue<Argument, DerivedValueTag::ARGUMENT> {
 
 private:
     Function *_parent_function = nullptr;
@@ -35,11 +35,14 @@ public:
 
     [[nodiscard]] Function *parent_function() noexcept { return _parent_function; }
     [[nodiscard]] const Function *parent_function() const noexcept { return _parent_function; }
+
+    LUISA_XIR_DEFINED_ISA_METHOD(Argument, argument)
 };
 
-template<DerivedArgumentTag tag>
+template<typename Derived, DerivedArgumentTag tag>
 class DerivedArgument : public Argument {
 public:
+    using derived_argument_type = Derived;
     using Argument::Argument;
 
     [[nodiscard]] static constexpr auto
@@ -49,17 +52,17 @@ public:
     derived_argument_tag() const noexcept final { return static_derived_argument_tag(); }
 };
 
-class ValueArgument final : public DerivedArgument<DerivedArgumentTag::VALUE> {
+class ValueArgument final : public DerivedArgument<ValueArgument, DerivedArgumentTag::VALUE> {
 public:
     using DerivedArgument::DerivedArgument;
 };
 
-class ReferenceArgument final : public DerivedArgument<DerivedArgumentTag::REFERENCE> {
+class ReferenceArgument final : public DerivedArgument<ReferenceArgument, DerivedArgumentTag::REFERENCE> {
 public:
     using DerivedArgument::DerivedArgument;
 };
 
-class ResourceArgument final : public DerivedArgument<DerivedArgumentTag::RESOURCE> {
+class ResourceArgument final : public DerivedArgument<ResourceArgument, DerivedArgumentTag::RESOURCE> {
 public:
     using DerivedArgument::DerivedArgument;
 };

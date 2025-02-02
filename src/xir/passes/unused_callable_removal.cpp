@@ -11,7 +11,7 @@ static void collect_reachable_callables(Function *f, luisa::unordered_set<Functi
         if (auto def = f->definition()) {
             def->traverse_instructions([&](Instruction *inst) noexcept {
                 for (auto &&op_use : inst->operand_uses()) {
-                    if (auto op = op_use->value(); op != nullptr && op->derived_value_tag() == DerivedValueTag::FUNCTION) {
+                    if (auto op = op_use->value(); op != nullptr && op->isa<Function>()) {
                         collect_reachable_callables(static_cast<Function *>(op), reachable);
                     }
                 }
@@ -25,13 +25,13 @@ static void collect_reachable_callables(Function *f, luisa::unordered_set<Functi
 UnusedCallableRemovalInfo unused_callable_removal_pass_run_on_module(Module *module) noexcept {
     luisa::unordered_set<Function *> reachable;
     for (auto &&f : module->functions()) {
-        if (f.derived_function_tag() == DerivedFunctionTag::KERNEL) {
+        if (f.isa<KernelFunction>()) {
             detail::collect_reachable_callables(&f, reachable);
         }
     }
     UnusedCallableRemovalInfo info;
     for (auto &&f : module->functions()) {
-        if (f.derived_function_tag() == DerivedFunctionTag::CALLABLE && !reachable.contains(&f)) {
+        if (f.isa<CallableFunction>() && !reachable.contains(&f)) {
             info.removed_callable_functions.emplace_back(static_cast<CallableFunction *>(&f));
         }
     }

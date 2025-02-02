@@ -40,7 +40,7 @@ enum class ThreadGroupOp {
 [[nodiscard]] LC_XIR_API luisa::string_view to_string(ThreadGroupOp op) noexcept;
 [[nodiscard]] LC_XIR_API ThreadGroupOp thread_group_op_from_string(luisa::string_view name) noexcept;
 
-class LC_XIR_API ThreadGroupInst final : public DerivedInstruction<DerivedInstructionTag::THREAD_GROUP>,
+class LC_XIR_API ThreadGroupInst final : public DerivedInstruction<ThreadGroupInst, DerivedInstructionTag::THREAD_GROUP>,
                                          public InstructionOpMixin<ThreadGroupOp> {
 public:
     explicit ThreadGroupInst(const Type *type = nullptr, ThreadGroupOp op = {},

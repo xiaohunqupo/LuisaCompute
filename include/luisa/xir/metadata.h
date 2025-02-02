@@ -1,8 +1,8 @@
 #pragma once
 
+#include <luisa/core/stl/optional.h>
 #include <luisa/core/stl/filesystem.h>
 #include <luisa/xir/ilist.h>
-#include <optional>
 
 namespace luisa::compute::xir {
 
@@ -17,11 +17,13 @@ public:
     using Super::Super;
     [[nodiscard]] virtual DerivedMetadataTag derived_metadata_tag() const noexcept = 0;
     [[nodiscard]] virtual Metadata *clone() const noexcept = 0;
+    LUISA_XIR_DEFINED_ISA_METHOD(Metadata, metadata)
 };
 
-template<DerivedMetadataTag tag, typename Base = Metadata>
+template<typename Derived, DerivedMetadataTag tag, typename Base = Metadata>
 class LC_XIR_API DerivedMetadata : public Base {
 public:
+    using derived_metadata_type = Derived;
     using Base::Base;
     [[nodiscard]] static constexpr auto
     static_derived_metadata_tag() noexcept {
@@ -74,7 +76,7 @@ public:
     void set_location(const std::filesystem::path &file, int line = -1) noexcept;
     void add_comment(std::string_view comment) noexcept;
 
-    std::optional<luisa::string> name() const noexcept;
+    [[nodiscard]] luisa::optional<luisa::string_view> name() const noexcept;
 };
 
 }// namespace luisa::compute::xir

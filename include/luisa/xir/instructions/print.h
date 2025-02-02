@@ -5,7 +5,7 @@
 
 namespace luisa::compute::xir {
 
-class LC_XIR_API PrintInst final : public DerivedInstruction<DerivedInstructionTag::PRINT> {
+class LC_XIR_API PrintInst final : public DerivedInstruction<PrintInst, DerivedInstructionTag::PRINT> {
 
 private:
     luisa::string _format;

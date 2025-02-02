@@ -15,9 +15,7 @@ static void eliminate_dead_code_in_function(Function *function, DCEInfo &info) n
         luisa::unordered_set<Instruction *> dead;
         auto all_users_dead = [&](Instruction *inst) noexcept {
             auto is_live = [&dead](Value *value) noexcept {
-                return value != nullptr &&
-                       (value->derived_value_tag() != DerivedValueTag::INSTRUCTION ||
-                        !dead.contains(static_cast<Instruction *>(value)));
+                return value != nullptr && (!value->isa<Instruction>() || !dead.contains(static_cast<Instruction *>(value)));
             };
             for (auto &&use : inst->use_list()) {
                 if (is_live(use.value())) {
@@ -80,9 +78,7 @@ static void eliminate_dead_code_in_function(Function *function, DCEInfo &info) n
     if (known.contains(inst)) { return true; }
     for (auto &&use : inst->use_list()) {
         if (auto user = use.user()) {
-            if (user->derived_value_tag() != DerivedValueTag::INSTRUCTION) {
-                return false;
-            }
+            if (!user->isa<Instruction>()) { return false; }
             switch (auto user_inst = static_cast<Instruction *>(user);
                     user_inst->derived_instruction_tag()) {
                 case DerivedInstructionTag::STORE: {
@@ -110,8 +106,7 @@ static void collect_inst_and_users_recursive(Instruction *inst, luisa::unordered
     if (collected.emplace(inst).second) {
         for (auto &&use : inst->use_list()) {
             if (auto user = use.user()) {
-                LUISA_ASSERT(user->derived_value_tag() == DerivedValueTag::INSTRUCTION,
-                             "Only instruction can be user.");
+                LUISA_ASSERT(user->isa<Instruction>(), "Only instruction can be user.");
                 collect_inst_and_users_recursive(static_cast<Instruction *>(user), collected);
             }
         }
@@ -123,8 +118,7 @@ static void eliminate_dead_alloca_in_function(Function *function, DCEInfo &info)
         luisa::unordered_set<Instruction *> dead;
         luisa::unordered_set<Instruction *> known_write_only;
         definition->traverse_instructions([&](Instruction *inst) noexcept {
-            if (inst->derived_instruction_tag() == DerivedInstructionTag::ALLOCA &&
-                !dead.contains(inst) && is_pointer_write_only(known_write_only, inst)) {
+            if (inst->isa<AllocaInst>() && !dead.contains(inst) && is_pointer_write_only(known_write_only, inst)) {
                 collect_inst_and_users_recursive(inst, dead);
             }
         });
@@ -136,7 +130,7 @@ static void eliminate_dead_alloca_in_function(Function *function, DCEInfo &info)
 }
 
 [[nodiscard]] static bool is_block_terminated_by_unreachable(BasicBlock *block) noexcept {
-    return block->terminator()->derived_instruction_tag() == DerivedInstructionTag::UNREACHABLE;
+    return block->terminator()->isa<UnreachableInst>();
 }
 
 void eliminate_instructions_in_unreachable_blocks(const luisa::unordered_set<BasicBlock *> &blocks, DCEInfo &info) noexcept {
@@ -204,7 +198,7 @@ void propagate_unreachable_marks_in_function(Function *function, DCEInfo &info) 
 
 [[nodiscard]] static luisa::optional<bool> try_evaluate_static_branch_condition(Value *cond) noexcept {
     LUISA_DEBUG_ASSERT(cond != nullptr, "Branch condition must not be null.");
-    if (cond->derived_value_tag() != DerivedValueTag::CONSTANT) { return luisa::nullopt; }
+    if (!cond->isa<Constant>()) { return luisa::nullopt; }
     auto static_cond = static_cast<Constant *>(cond);
     LUISA_DEBUG_ASSERT(static_cond->type()->is_bool(), "Branch condition must be a boolean constant.");
     return static_cond->as<bool>();
@@ -212,7 +206,7 @@ void propagate_unreachable_marks_in_function(Function *function, DCEInfo &info) 
 
 [[nodiscard]] static luisa::optional<SwitchInst::case_value_type> try_evaluate_static_switch_condition(Value *cond) noexcept {
     LUISA_DEBUG_ASSERT(cond != nullptr, "Switch condition must not be null.");
-    if (cond->derived_value_tag() != DerivedValueTag::CONSTANT) { return luisa::nullopt; }
+    if (!cond->isa<Constant>()) { return luisa::nullopt; }
     return [static_cond = static_cast<Constant *>(cond)]() noexcept -> SwitchInst::case_value_type {
         switch (auto t = static_cond->type(); t->tag()) {
             case Type::Tag::BOOL: return static_cond->as<bool>();
@@ -241,13 +235,11 @@ void eliminate_unreachable_blocks_in_function(Function *function, DCEInfo &info)
             // let's find out instructions users' blocks that are not in the reachable set
             b->traverse_instructions([&](Instruction *inst) noexcept {
                 for (auto &&use : inst->use_list()) {
-                    if (auto user = use.user()) {
-                        if (user->derived_value_tag() == DerivedValueTag::INSTRUCTION) {
-                            auto user_inst = static_cast<Instruction *>(user);
-                            if (auto user_block = user_inst->parent_block();
-                                user_block != nullptr && !reachable.contains(user_block)) {
-                                unreachable.emplace(user_block);
-                            }
+                    if (auto user = use.user(); user != nullptr && user->isa<Instruction>()) {
+                        auto user_inst = static_cast<Instruction *>(user);
+                        if (auto user_block = user_inst->parent_block();
+                            user_block != nullptr && !reachable.contains(user_block)) {
+                            unreachable.emplace(user_block);
                         }
                     }
                 }
@@ -294,7 +286,7 @@ void fix_phi_nodes_in_function(Function *function, luisa::vector<PhiInst *> &phi
         luisa::vector<PhiIncoming> valid_incomings;
         luisa::unordered_set<BasicBlock *> predecessors;
         definition->traverse_instructions([&](Instruction *inst) noexcept {
-            if (inst->derived_instruction_tag() == DerivedInstructionTag::PHI) {
+            if (inst->isa<PhiInst>()) {
                 valid_incomings.clear();
                 predecessors.clear();
                 auto phi = static_cast<PhiInst *>(inst);

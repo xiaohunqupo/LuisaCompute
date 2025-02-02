@@ -25,7 +25,7 @@ static void trace_gep_chain(Instruction *inst, luisa::fixed_vector<Value *, 16u>
                 chain.emplace_back((*it)->value());
             }
             auto base = gep_inst->base();
-            LUISA_DEBUG_ASSERT(base->derived_value_tag() == DerivedValueTag::INSTRUCTION, "Invalid GEP base.");
+            LUISA_DEBUG_ASSERT(base->isa<Instruction>(), "Invalid GEP base.");
             trace_gep_chain(static_cast<Instruction *>(base), chain);
             break;
         }
@@ -42,7 +42,7 @@ static void trace_gep_chain(Instruction *inst, luisa::fixed_vector<Value *, 16u>
 
 // Load(GEP(agg, indices...)) => Extract(Load(agg), indices...)
 static void transpose_load_gep(LoadInst *load, TransposeGEPInfo &info) noexcept {
-    LUISA_DEBUG_ASSERT(load->variable()->derived_value_tag() == DerivedValueTag::INSTRUCTION, "Invalid pointer.");
+    LUISA_DEBUG_ASSERT(load->variable()->isa<Instruction>(), "Invalid pointer.");
     auto gep_chain = trace_gep_chain(static_cast<Instruction *>(load->variable()));
     Builder b;
     b.set_insertion_point(load);
@@ -57,7 +57,7 @@ static void transpose_load_gep(LoadInst *load, TransposeGEPInfo &info) noexcept 
 
 // Store(GEP(agg, indices...), elem) => Store(agg, Insert(Load(agg), elem, indices...))
 static void transpose_store_gep(StoreInst *store, TransposeGEPInfo &info) noexcept {
-    LUISA_DEBUG_ASSERT(store->variable()->derived_value_tag() == DerivedValueTag::INSTRUCTION, "Invalid pointer.");
+    LUISA_DEBUG_ASSERT(store->variable()->isa<Instruction>(), "Invalid pointer.");
     auto gep_chain = trace_gep_chain(static_cast<Instruction *>(store->variable()));
     Builder b;
     b.set_insertion_point(store);
@@ -117,7 +117,7 @@ static void run_transpose_gep_pass_on_function(Function *function, TransposeGEPI
             gep_stores.clear();
             for (auto &&use : gep->use_list()) {
                 if (auto user = use.user()) {
-                    LUISA_DEBUG_ASSERT(user->derived_value_tag() == DerivedValueTag::INSTRUCTION, "Invalid user.");
+                    LUISA_DEBUG_ASSERT(user->isa<Instruction>(), "Invalid user.");
                     switch (static_cast<Instruction *>(user)->derived_instruction_tag()) {
                         case DerivedInstructionTag::LOAD: {
                             gep_loads.emplace_back(static_cast<LoadInst *>(user));

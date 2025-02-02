@@ -14,7 +14,7 @@ enum struct DerivedFunctionTag {
 class Module;
 class FunctionDefinition;
 
-class LC_XIR_API Function : public IntrusiveForwardNode<Function, DerivedValue<DerivedValueTag::FUNCTION>> {
+class LC_XIR_API Function : public IntrusiveForwardNode<Function, DerivedValue<Function, DerivedValueTag::FUNCTION>> {
 
 private:
     Module *_module;
@@ -50,13 +50,16 @@ public:
     [[nodiscard]] const FunctionDefinition *definition() const noexcept {
         return const_cast<Function *>(this)->definition();
     }
+
+    LUISA_XIR_DEFINED_ISA_METHOD(Function, function)
 };
 
 using FunctionList = IntrusiveForwardList<Function>;
 
-template<DerivedFunctionTag tag, typename Base = Function>
+template<typename Derived, DerivedFunctionTag tag, typename Base = Function>
 class DerivedFunction : public Base {
 public:
+    using derived_function_type = Derived;
     using Base::Base;
     [[nodiscard]] static constexpr DerivedFunctionTag static_derived_function_tag() noexcept { return tag; }
     [[nodiscard]] DerivedFunctionTag derived_function_tag() const noexcept final { return static_derived_function_tag(); }
@@ -159,12 +162,12 @@ public:
     }
 };
 
-class LC_XIR_API CallableFunction final : public DerivedFunction<DerivedFunctionTag::CALLABLE, FunctionDefinition> {
+class LC_XIR_API CallableFunction final : public DerivedFunction<CallableFunction, DerivedFunctionTag::CALLABLE, FunctionDefinition> {
 public:
     using DerivedFunction::DerivedFunction;
 };
 
-class LC_XIR_API KernelFunction final : public DerivedFunction<DerivedFunctionTag::KERNEL, FunctionDefinition> {
+class LC_XIR_API KernelFunction final : public DerivedFunction<KernelFunction, DerivedFunctionTag::KERNEL, FunctionDefinition> {
 
 public:
     static constexpr auto default_block_size = luisa::make_uint3(64u, 1u, 1u);
@@ -178,7 +181,7 @@ public:
     [[nodiscard]] luisa::uint3 block_size() const noexcept;
 };
 
-class LC_XIR_API ExternalFunction final : public DerivedFunction<DerivedFunctionTag::EXTERNAL> {
+class LC_XIR_API ExternalFunction final : public DerivedFunction<ExternalFunction, DerivedFunctionTag::EXTERNAL> {
 public:
     using DerivedFunction::DerivedFunction;
 };

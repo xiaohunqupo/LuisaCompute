@@ -5,7 +5,7 @@
 namespace luisa::compute::xir {
 
 // Note: this instruction must be the terminator of a basic block.
-class LC_XIR_API LoopInst final : public ControlFlowMergeMixin<DerivedTerminatorInstruction<DerivedInstructionTag::LOOP>> {
+class LC_XIR_API LoopInst final : public ControlFlowMergeMixin<DerivedTerminatorInstruction<LoopInst, DerivedInstructionTag::LOOP>> {
 
 public:
     static constexpr size_t operand_index_prepare_block = 0u;
@@ -37,7 +37,7 @@ public:
     [[nodiscard]] LoopInst *clone(InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
-class LC_XIR_API SimpleLoopInst final : public ControlFlowMergeMixin<DerivedTerminatorInstruction<DerivedInstructionTag::SIMPLE_LOOP>> {
+class LC_XIR_API SimpleLoopInst final : public ControlFlowMergeMixin<DerivedTerminatorInstruction<SimpleLoopInst, DerivedInstructionTag::SIMPLE_LOOP>> {
 public:
     static constexpr size_t operand_index_body_block = 0u;
 

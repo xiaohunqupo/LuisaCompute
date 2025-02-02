@@ -4,7 +4,7 @@
 
 namespace luisa::compute::xir {
 
-class LC_XIR_API StoreInst final : public DerivedInstruction<DerivedInstructionTag::STORE> {
+class LC_XIR_API StoreInst final : public DerivedInstruction<StoreInst, DerivedInstructionTag::STORE> {
 
 public:
     static constexpr size_t operand_index_variable = 0u;

@@ -4,7 +4,7 @@
 
 namespace luisa::compute::xir {
 
-class LC_XIR_API Undefined : public DerivedValue<DerivedValueTag::UNDEFINED> {
+class LC_XIR_API Undefined final : public DerivedValue<Undefined, DerivedValueTag::UNDEFINED> {
 public:
     using DerivedValue::DerivedValue;
     [[nodiscard]] static Undefined *create(const Type *type) noexcept;

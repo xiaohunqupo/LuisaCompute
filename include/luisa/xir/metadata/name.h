@@ -5,7 +5,7 @@
 
 namespace luisa::compute::xir {
 
-class LC_XIR_API NameMD final : public DerivedMetadata<DerivedMetadataTag::NAME> {
+class LC_XIR_API NameMD final : public DerivedMetadata<NameMD, DerivedMetadataTag::NAME> {
 
 private:
     luisa::string _name;

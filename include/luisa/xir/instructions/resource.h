@@ -132,7 +132,7 @@ enum class ResourceWriteOp {
 [[nodiscard]] LC_XIR_API ResourceReadOp resource_read_op_from_string(luisa::string_view name) noexcept;
 [[nodiscard]] LC_XIR_API ResourceWriteOp resource_write_op_from_string(luisa::string_view name) noexcept;
 
-class LC_XIR_API ResourceQueryInst final : public DerivedInstruction<DerivedInstructionTag::RESOURCE_QUERY>,
+class LC_XIR_API ResourceQueryInst final : public DerivedInstruction<ResourceQueryInst, DerivedInstructionTag::RESOURCE_QUERY>,
                                            public InstructionOpMixin<ResourceQueryOp> {
 public:
     explicit ResourceQueryInst(const Type *type = nullptr, ResourceQueryOp op = {},
@@ -140,7 +140,7 @@ public:
     [[nodiscard]] ResourceQueryInst *clone(InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
-class LC_XIR_API ResourceReadInst final : public DerivedInstruction<DerivedInstructionTag::RESOURCE_READ>,
+class LC_XIR_API ResourceReadInst final : public DerivedInstruction<ResourceReadInst, DerivedInstructionTag::RESOURCE_READ>,
                                           public InstructionOpMixin<ResourceReadOp> {
 public:
     explicit ResourceReadInst(const Type *type = nullptr, ResourceReadOp op = {},
@@ -148,7 +148,7 @@ public:
     [[nodiscard]] ResourceReadInst *clone(InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
-class LC_XIR_API ResourceWriteInst final : public DerivedInstruction<DerivedInstructionTag::RESOURCE_WRITE>,
+class LC_XIR_API ResourceWriteInst final : public DerivedInstruction<ResourceWriteInst, DerivedInstructionTag::RESOURCE_WRITE>,
                                            public InstructionOpMixin<ResourceWriteOp> {
 public:
     explicit ResourceWriteInst(ResourceWriteOp op = {},

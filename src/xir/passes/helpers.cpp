@@ -1,4 +1,5 @@
 #include <luisa/core/logging.h>
+#include <luisa/xir/undefined.h>
 #include <luisa/xir/builder.h>
 
 #include "helpers.h"
@@ -6,9 +7,7 @@
 namespace luisa::compute::xir {
 
 AllocaInst *trace_pointer_base_local_alloca_inst(Value *pointer) noexcept {
-    if (pointer == nullptr || pointer->derived_value_tag() != DerivedValueTag::INSTRUCTION) {
-        return nullptr;
-    }
+    if (pointer == nullptr || !pointer->isa<Instruction>()) { return nullptr; }
     switch (auto inst = static_cast<Instruction *>(pointer); inst->derived_instruction_tag()) {
         case DerivedInstructionTag::ALLOCA: {
             if (auto alloca_inst = static_cast<AllocaInst *>(inst); alloca_inst->space() == AllocSpace::LOCAL) {
@@ -38,9 +37,6 @@ bool remove_redundant_phi_instruction(PhiInst *phi) noexcept {
         phi->remove_self();
         return true;
     }
-    static constexpr auto is_undef = [](Value *v) noexcept {
-        return v->derived_value_tag() == DerivedValueTag::UNDEFINED;
-    };
     static constexpr auto is_invariant = [](Value *v) noexcept {
         if (v == nullptr) { return true; }
         switch (v->derived_value_tag()) {
@@ -58,8 +54,8 @@ bool remove_redundant_phi_instruction(PhiInst *phi) noexcept {
     for (auto value_use : phi->incoming_value_uses()) {
         auto value = value_use->value();
         LUISA_DEBUG_ASSERT(value != nullptr, "Invalid incoming value.");
-        if (same_incoming == nullptr || is_undef(same_incoming)) { same_incoming = value; }
-        if (is_undef(value)) {
+        if (same_incoming == nullptr || same_incoming->isa<Undefined>()) { same_incoming = value; }
+        if (value->isa<Undefined>()) {
             any_undef = true;
         } else if (same_incoming != value) {
             all_same = false;

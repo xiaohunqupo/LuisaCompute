@@ -117,7 +117,7 @@ struct InstructionCloneValueResolver {
     [[nodiscard]] virtual Value *resolve(const Value *value) noexcept = 0;
 };
 
-class LC_XIR_API Instruction : public IntrusiveNode<Instruction, DerivedValue<DerivedValueTag::INSTRUCTION, User>> {
+class LC_XIR_API Instruction : public IntrusiveNode<Instruction, DerivedValue<Instruction, DerivedValueTag::INSTRUCTION, User>> {
 
 private:
     friend BasicBlock;
@@ -145,9 +145,11 @@ public:
 
     [[nodiscard]] virtual ControlFlowMerge *control_flow_merge() noexcept { return nullptr; }
     [[nodiscard]] const ControlFlowMerge *control_flow_merge() const noexcept;
+
+    LUISA_XIR_DEFINED_ISA_METHOD(Instruction, instruction)
 };
 
-class LC_XIR_API SentinelInst : public Instruction {
+class LC_XIR_API SentinelInst final : public Instruction {
 public:
     SentinelInst() noexcept = default;
     [[nodiscard]] DerivedInstructionTag derived_instruction_tag() const noexcept override;
@@ -213,9 +215,10 @@ public:
     [[nodiscard]] const BasicBlock *false_block() const noexcept;
 };
 
-template<DerivedInstructionTag tag, typename Base = Instruction>
+template<typename Derived, DerivedInstructionTag tag, typename Base = Instruction>
 class DerivedInstruction : public Base {
 public:
+    using derived_instruction_type = Derived;
     using Base::Base;
 
     [[nodiscard]] static constexpr DerivedInstructionTag
@@ -227,28 +230,28 @@ public:
     }
 };
 
-template<DerivedInstructionTag tag>
-class DerivedTerminatorInstruction : public DerivedInstruction<tag, TerminatorInstruction> {
+template<typename Derived, DerivedInstructionTag tag>
+class DerivedTerminatorInstruction : public DerivedInstruction<Derived, tag, TerminatorInstruction> {
 public:
-    using DerivedInstruction<tag, TerminatorInstruction>::DerivedInstruction;
+    using DerivedInstruction<Derived, tag, TerminatorInstruction>::DerivedInstruction;
 };
 
-template<DerivedInstructionTag tag>
-class DerivedBranchInstruction : public DerivedInstruction<tag, BranchTerminatorInstruction> {
+template<typename Derived, DerivedInstructionTag tag>
+class DerivedBranchInstruction : public DerivedInstruction<Derived, tag, BranchTerminatorInstruction> {
 public:
-    using DerivedInstruction<tag, BranchTerminatorInstruction>::DerivedInstruction;
+    using DerivedInstruction<Derived, tag, BranchTerminatorInstruction>::DerivedInstruction;
 };
 
-template<DerivedInstructionTag tag>
-class DerivedConditionalBranchInstruction : public DerivedInstruction<tag, ConditionalBranchTerminatorInstruction> {
+template<typename Derived, DerivedInstructionTag tag>
+class DerivedConditionalBranchInstruction : public DerivedInstruction<Derived, tag, ConditionalBranchTerminatorInstruction> {
 public:
-    using DerivedInstruction<tag, ConditionalBranchTerminatorInstruction>::DerivedInstruction;
+    using DerivedInstruction<Derived, tag, ConditionalBranchTerminatorInstruction>::DerivedInstruction;
 };
 
-template<DerivedInstructionTag tag>
-class DerivedAutodiffInstruction : public DerivedInstruction<tag, AutodiffInstruction> {
+template<typename Derived, DerivedInstructionTag tag>
+class DerivedAutodiffInstruction : public DerivedInstruction<Derived, tag, AutodiffInstruction> {
 public:
-    using DerivedInstruction<tag, AutodiffInstruction>::DerivedInstruction;
+    using DerivedInstruction<Derived, tag, AutodiffInstruction>::DerivedInstruction;
 };
 
 class LC_XIR_API ControlFlowMerge {

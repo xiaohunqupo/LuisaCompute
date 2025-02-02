@@ -130,7 +130,7 @@ enum class ArithmeticOp {
 [[nodiscard]] LC_XIR_API luisa::string_view to_string(ArithmeticOp op) noexcept;
 [[nodiscard]] LC_XIR_API ArithmeticOp arithmetic_op_from_string(luisa::string_view name) noexcept;
 
-class LC_XIR_API ArithmeticInst final : public DerivedInstruction<DerivedInstructionTag::ARITHMETIC>,
+class LC_XIR_API ArithmeticInst final : public DerivedInstruction<ArithmeticInst, DerivedInstructionTag::ARITHMETIC>,
                                         public InstructionOpMixin<ArithmeticOp> {
 public:
     explicit ArithmeticInst(const Type *type = nullptr, ArithmeticOp op = {},

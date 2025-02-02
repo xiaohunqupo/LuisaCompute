@@ -23,7 +23,7 @@ enum class AtomicOp {
     return op == AtomicOp::COMPARE_EXCHANGE ? 2u : 1u;
 }
 
-class LC_XIR_API AtomicInst final : public DerivedInstruction<DerivedInstructionTag::ATOMIC>,
+class LC_XIR_API AtomicInst final : public DerivedInstruction<AtomicInst, DerivedInstructionTag::ATOMIC>,
                                     public InstructionOpMixin<AtomicOp> {
 public:
     explicit AtomicInst(const Type *type = nullptr, AtomicOp op = {},
