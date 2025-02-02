@@ -5,7 +5,7 @@
 
 namespace luisa::compute::xir {
 
-class LC_XIR_API LocationMD : public DerivedMetadata<LocationMD, DerivedMetadataTag::LOCATION> {
+class LC_XIR_API LocationMD final : public DerivedMetadata<LocationMD, DerivedMetadataTag::LOCATION> {
 
 private:
     luisa::filesystem::path _file;
