@@ -61,13 +61,18 @@ template<typename T>
 template<typename T, DerivedSpecialRegisterTag tag>
 class DerivedSpecialRegister final : public SpecialRegister {
 public:
+    using derived_special_register_type = DerivedSpecialRegister;
+
     DerivedSpecialRegister() noexcept : SpecialRegister{detail::get_special_register_type<T>()} {}
+
     [[nodiscard]] static constexpr auto
     static_derived_special_register_tag() noexcept { return tag; }
+
     [[nodiscard]] DerivedSpecialRegisterTag
     derived_special_register_tag() const noexcept override {
         return static_derived_special_register_tag();
     }
+
     [[nodiscard]] static auto create() noexcept {
         return static_cast<DerivedSpecialRegister *>(SpecialRegister::create(tag));
     }
