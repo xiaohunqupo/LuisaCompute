@@ -91,8 +91,12 @@ CallInst *Builder::call(const Type *type, Function *callee, std::initializer_lis
     return _create_and_append_instruction<CallInst>(type, callee, luisa::span{arguments.begin(), arguments.end()});
 }
 
-IntrinsicInst *Builder::call(const Type *type, IntrinsicOp op, std::initializer_list<Value *> arguments) noexcept {
-    return _create_and_append_instruction<IntrinsicInst>(type, op, luisa::span{arguments.begin(), arguments.end()});
+AutodiffIntrinsicInst *Builder::call(const Type *type, AutodiffIntrinsicOp op, std::initializer_list<Value *> arguments) noexcept {
+    return _create_and_append_instruction<AutodiffIntrinsicInst>(type, op, luisa::span{arguments.begin(), arguments.end()});
+}
+
+AutodiffIntrinsicInst *Builder::call(const Type *type, AutodiffIntrinsicOp op, luisa::span<Value *const> arguments) noexcept {
+    return _create_and_append_instruction<AutodiffIntrinsicInst>(type, op, arguments);
 }
 
 PhiInst *Builder::phi(const Type *type, std::initializer_list<PhiIncoming> incomings) noexcept {
@@ -119,10 +123,6 @@ AllocaInst *Builder::alloca_shared(const Type *type) noexcept {
 
 GEPInst *Builder::gep(const Type *type, Value *base, std::initializer_list<Value *> indices) noexcept {
     return _create_and_append_instruction<GEPInst>(type, base, luisa::span{indices.begin(), indices.end()});
-}
-
-IntrinsicInst *Builder::call(const Type *type, IntrinsicOp op, luisa::span<Value *const> arguments) noexcept {
-    return _create_and_append_instruction<IntrinsicInst>(type, op, arguments);
 }
 
 Instruction *Builder::static_cast_(const Type *type, Value *value) noexcept {

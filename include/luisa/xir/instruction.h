@@ -50,7 +50,11 @@ enum struct DerivedInstructionTag {
     RAY_QUERY_DISPATCH,    // basic block terminator: ray query switch branches
     RAY_QUERY_OBJECT_READ, // read from ray query objects
     RAY_QUERY_OBJECT_WRITE,// write to ray query objects
-    RAY_QUERY_PIPELINE,
+    RAY_QUERY_PIPELINE,    // ray query pipeline with surface and procedural callbacks
+
+    /* automatic differentiation */
+    AUTODIFF_SCOPE,
+    AUTODIFF_INTRINSIC,
 
     /* other instructions */
     CALL, // user or external function calls
@@ -61,10 +65,7 @@ enum struct DerivedInstructionTag {
     ASSERT,// assertion
     ASSUME,// assumption
 
-    OUTLINE,  // mark that the body might be outlined (e.g., for faster compilation)
-    AUTODIFF,// automatic differentiation
-
-    INTRINSIC,// other intrinsics that are not yet promoted to dedicated instructions
+    OUTLINE,// mark that the body might be outlined (e.g., for faster compilation)
 };
 
 [[nodiscard]] constexpr luisa::string_view to_string(DerivedInstructionTag tag) noexcept {
@@ -104,8 +105,8 @@ enum struct DerivedInstructionTag {
         case DerivedInstructionTag::ASSERT: return "assert"sv;
         case DerivedInstructionTag::ASSUME: return "assume"sv;
         case DerivedInstructionTag::OUTLINE: return "outline"sv;
-        case DerivedInstructionTag::AUTODIFF: return "autodiff"sv;
-        case DerivedInstructionTag::INTRINSIC: return "intrinsic"sv;
+        case DerivedInstructionTag::AUTODIFF_SCOPE: return "autodiff_scope"sv;
+        case DerivedInstructionTag::AUTODIFF_INTRINSIC: return "autodiff_intrinsic"sv;
     }
     return "unknown"sv;
 }

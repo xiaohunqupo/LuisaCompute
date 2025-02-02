@@ -19,7 +19,7 @@
 #include <luisa/xir/instructions/clock.h>
 #include <luisa/xir/instructions/continue.h>
 #include <luisa/xir/instructions/gep.h>
-#include <luisa/xir/instructions/intrinsic.h>
+#include <luisa/xir/instructions/autodiff.h>
 #include <luisa/xir/instructions/load.h>
 #include <luisa/xir/instructions/loop.h>
 #include <luisa/xir/instructions/outline.h>
@@ -419,7 +419,7 @@ private:
         _emit_operands(inst);
     }
 
-    void _emit_intrinsic_inst(const IntrinsicInst *inst) noexcept {
+    void _emit_autodiff_intrinsic_inst(const AutodiffIntrinsicInst *inst) noexcept {
         _main << "@" << to_string(inst->op());
         if (!inst->operand_uses().empty()) {
             _main << " ";
@@ -528,9 +528,6 @@ private:
             case DerivedInstructionTag::CALL:
                 _emit_call_inst(static_cast<const CallInst *>(inst));
                 break;
-            case DerivedInstructionTag::INTRINSIC:
-                _emit_intrinsic_inst(static_cast<const IntrinsicInst *>(inst));
-                break;
             case DerivedInstructionTag::CAST:
                 _emit_cast_inst(static_cast<const CastInst *>(inst));
                 break;
@@ -540,7 +537,10 @@ private:
             case DerivedInstructionTag::OUTLINE:
                 _emit_outline_inst(static_cast<const OutlineInst *>(inst), indent);
                 break;
-            case DerivedInstructionTag::AUTODIFF: LUISA_NOT_IMPLEMENTED();
+            case DerivedInstructionTag::AUTODIFF_SCOPE: LUISA_NOT_IMPLEMENTED();
+            case DerivedInstructionTag::AUTODIFF_INTRINSIC:
+                _emit_autodiff_intrinsic_inst(static_cast<const AutodiffIntrinsicInst *>(inst));
+                break;
             case DerivedInstructionTag::RAY_QUERY_LOOP:
                 _emit_ray_query_loop_inst(static_cast<const RayQueryLoopInst *>(inst), indent);
                 break;

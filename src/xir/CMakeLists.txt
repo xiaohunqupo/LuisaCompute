@@ -29,7 +29,6 @@ set(LUISA_COMPUTE_XIR_SOURCES
         instructions/continue.cpp
         instructions/gep.cpp
         instructions/if.cpp
-        instructions/intrinsic.cpp
         instructions/load.cpp
         instructions/loop.cpp
         instructions/op_name_map.cpp

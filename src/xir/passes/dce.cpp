@@ -1,6 +1,5 @@
 #include <luisa/core/logging.h>
 #include <luisa/core/stl/optional.h>
-#include <luisa/xir/instructions/intrinsic.h>
 #include <luisa/xir/passes/dce.h>
 #include <luisa/xir/builder.h>
 
@@ -48,11 +47,10 @@ static void eliminate_dead_code_in_function(Function *function, DCEInfo &info) n
                             collect_if_dead(inst);
                             break;
                         }
-                        case DerivedInstructionTag::INTRINSIC: {
-                            auto intrinsic = static_cast<IntrinsicInst *>(inst);
+                        case DerivedInstructionTag::AUTODIFF_INTRINSIC: {
+                            auto intrinsic = static_cast<AutodiffIntrinsicInst *>(inst);
                             switch (intrinsic->op()) {
-                                case IntrinsicOp::NOP: [[fallthrough]];
-                                case IntrinsicOp::AUTODIFF_GRADIENT: {
+                                case AutodiffIntrinsicOp::AUTODIFF_GRADIENT: {
                                     collect_if_dead(inst);
                                     break;
                                 }

@@ -219,7 +219,6 @@
 #include <luisa/xir/instructions/continue.h>
 #include <luisa/xir/instructions/gep.h>
 #include <luisa/xir/instructions/if.h>
-#include <luisa/xir/instructions/intrinsic.h>
 #include <luisa/xir/instructions/load.h>
 #include <luisa/xir/instructions/loop.h>
 #include <luisa/xir/instructions/outline.h>

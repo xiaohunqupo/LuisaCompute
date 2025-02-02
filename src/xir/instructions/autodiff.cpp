@@ -40,4 +40,17 @@ AutodiffScopeInst *AutodiffScopeInst::clone(InstructionCloneValueResolver &resol
     return cloned;
 }
 
+AutodiffIntrinsicInst::AutodiffIntrinsicInst(const Type *type, AutodiffIntrinsicOp op,
+                                             luisa::span<Value *const> operands) noexcept
+    : DerivedInstruction{type}, InstructionOpMixin{op} { set_operands(operands); }
+
+AutodiffIntrinsicInst *AutodiffIntrinsicInst::clone(InstructionCloneValueResolver &resolver) const noexcept {
+    luisa::fixed_vector<Value *, 16u> resolved_operands;
+    resolved_operands.reserve(operand_count());
+    for (auto op_use : operand_uses()) {
+        resolved_operands.emplace_back(resolver.resolve(op_use->value()));
+    }
+    return Pool::current()->create<AutodiffIntrinsicInst>(type(), op(), resolved_operands);
+}
+
 }// namespace luisa::compute::xir
