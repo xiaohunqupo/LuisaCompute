@@ -31,9 +31,6 @@
 #include <luisa/xir/instructions/unreachable.h>
 
 namespace luisa::compute::xir {
-class ClockInst;
-}// namespace luisa::compute::xir
-namespace luisa::compute::xir {
 
 class LC_XIR_API Builder {
 
