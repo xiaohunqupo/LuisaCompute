@@ -181,6 +181,10 @@ OutlineInst *Builder::outline() noexcept {
     return _create_and_append_instruction<OutlineInst>(_insertion_point->parent_block());
 }
 
+AutodiffScopeInst *Builder::autodiff_scope() noexcept {
+    return _create_and_append_instruction<AutodiffScopeInst>(_insertion_point->parent_block());
+}
+
 RayQueryLoopInst *Builder::ray_query_loop() noexcept {
     return _create_and_append_instruction<RayQueryLoopInst>(_insertion_point->parent_block());
 }

@@ -33,14 +33,14 @@ const BasicBlock *AutodiffScopeInst::entry_block() const noexcept {
 }
 
 AutodiffScopeInst *AutodiffScopeInst::clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept {
-    LUISA_NOT_IMPLEMENTED();
-    // auto resolved_entry_block = resolver.resolve(entry_block());
-    // LUISA_DEBUG_ASSERT(resolved_entry_block == nullptr || resolved_entry_block->isa<BasicBlock>(), "Invalid entry block.");
-    // cloned->set_entry_block(static_cast<BasicBlock *>(resolved_entry_block));
-    // auto resolved_merge_block = resolver.resolve(merge_block());
-    // LUISA_DEBUG_ASSERT(resolved_merge_block == nullptr || resolved_merge_block->isa<BasicBlock>(), "Invalid merge block.");
-    // cloned->set_merge_block(static_cast<BasicBlock *>(resolved_merge_block));
-    // return cloned;
+    auto cloned = b.autodiff_scope();
+    auto resolved_entry_block = resolver.resolve(entry_block());
+    LUISA_DEBUG_ASSERT(resolved_entry_block == nullptr || resolved_entry_block->isa<BasicBlock>(), "Invalid entry block.");
+    cloned->set_entry_block(static_cast<BasicBlock *>(resolved_entry_block));
+    auto resolved_merge_block = resolver.resolve(merge_block());
+    LUISA_DEBUG_ASSERT(resolved_merge_block == nullptr || resolved_merge_block->isa<BasicBlock>(), "Invalid merge block.");
+    cloned->set_merge_block(static_cast<BasicBlock *>(resolved_merge_block));
+    return cloned;
 }
 
 AutodiffIntrinsicInst::AutodiffIntrinsicInst(BasicBlock *parent_block, const Type *type, AutodiffIntrinsicOp op,

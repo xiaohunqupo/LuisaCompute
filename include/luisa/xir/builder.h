@@ -133,6 +133,8 @@ public:
 
     OutlineInst *outline() noexcept;
 
+    AutodiffScopeInst *autodiff_scope() noexcept;
+
     RayQueryLoopInst *ray_query_loop() noexcept;
     RayQueryDispatchInst *ray_query_dispatch(Value *query_object) noexcept;
 
