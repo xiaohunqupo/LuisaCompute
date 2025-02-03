@@ -24,13 +24,13 @@ static void collect_reachable_callables(Function *f, luisa::unordered_set<Functi
 
 UnusedCallableRemovalInfo unused_callable_removal_pass_run_on_module(Module *module) noexcept {
     luisa::unordered_set<Function *> reachable;
-    for (auto &&f : module->functions()) {
+    for (auto &&f : module->function_list()) {
         if (f.isa<KernelFunction>()) {
             detail::collect_reachable_callables(&f, reachable);
         }
     }
     UnusedCallableRemovalInfo info;
-    for (auto &&f : module->functions()) {
+    for (auto &&f : module->function_list()) {
         if (f.isa<CallableFunction>() && !reachable.contains(&f)) {
             info.removed_callable_functions.emplace_back(static_cast<CallableFunction *>(&f));
         }

@@ -385,7 +385,7 @@ private:
     }
 
     void _translate_module(const xir::Module *module) noexcept {
-        for (auto &f : module->functions()) {
+        for (auto &f : module->function_list()) {
             static_cast<void>(_translate_function(&f));
         }
     }

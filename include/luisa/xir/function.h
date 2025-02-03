@@ -14,18 +14,15 @@ enum struct DerivedFunctionTag {
 class Module;
 class FunctionDefinition;
 
-class LC_XIR_API Function : public IntrusiveForwardNode<Function, DerivedValue<Function, DerivedValueTag::FUNCTION>> {
+class LC_XIR_API Function : public IntrusiveForwardNode<Function, DerivedGlobalValue<Function, DerivedValueTag::FUNCTION>> {
 
 private:
     Module *_module;
     luisa::vector<Argument *> _arguments;
 
 public:
-    explicit Function(Module *module, const Type *type = nullptr) noexcept;
+    explicit Function(Module *parent_module, const Type *type = nullptr) noexcept;
     [[nodiscard]] virtual DerivedFunctionTag derived_function_tag() const noexcept = 0;
-
-    [[nodiscard]] Module *module() noexcept { return _module; }
-    [[nodiscard]] const Module *module() const noexcept { return _module; }
 
     void add_argument(Argument *argument) noexcept;
     void insert_argument(size_t index, Argument *argument) noexcept;
@@ -34,10 +31,12 @@ public:
     void replace_argument(Argument *old_argument, Argument *new_argument) noexcept;
     void replace_argument(size_t index, Argument *argument) noexcept;
 
-    Argument *create_argument(const Type *type, bool by_ref) noexcept;
-    ValueArgument *create_value_argument(const Type *type) noexcept;
-    ReferenceArgument *create_reference_argument(const Type *type) noexcept;
-    ResourceArgument *create_resource_argument(const Type *type) noexcept;
+    Argument *create_argument(const Type *type, bool by_ref, bool should_append = true) noexcept;
+    ValueArgument *create_value_argument(const Type *type, bool should_append = true) noexcept;
+    ReferenceArgument *create_reference_argument(const Type *type, bool should_append = true) noexcept;
+    ResourceArgument *create_resource_argument(const Type *type, bool should_append = true) noexcept;
+
+    [[nodiscard]] BasicBlock *create_basic_block() noexcept;
 
     [[nodiscard]] auto is_definition() const noexcept {
         return derived_function_tag() != DerivedFunctionTag::EXTERNAL;
@@ -176,7 +175,7 @@ private:
     std::array<uint, 3> _block_size;
 
 public:
-    explicit KernelFunction(Module *module, luisa::uint3 block_size = default_block_size) noexcept;
+    explicit KernelFunction(Module *parent_module, luisa::uint3 block_size = default_block_size) noexcept;
     void set_block_size(luisa::uint3 size) noexcept;
     [[nodiscard]] luisa::uint3 block_size() const noexcept;
 };

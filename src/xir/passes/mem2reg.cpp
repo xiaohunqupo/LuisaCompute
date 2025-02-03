@@ -105,7 +105,6 @@ struct PhiInsertionAndRenaming {
 
     // the following fields are used across the processing of different alloca's
     luisa::vector<PhiInst *> inserted;
-    luisa::unordered_map<const Type *, Undefined *> undefined_values;
 
     template<typename T>
     [[nodiscard]] Value *find_dom_value_for_use_block(BasicBlock *use_block, const Type *type,
@@ -127,13 +126,7 @@ struct PhiInsertionAndRenaming {
             }
         }
         // not found, get an undef value
-        return get_undefined_value(type);
-    }
-
-    [[nodiscard]] Undefined *get_undefined_value(const Type *type) noexcept {
-        auto iter = undefined_values.emplace(type, nullptr).first;
-        if (iter->second == nullptr) { iter->second = Undefined::create(type); }
-        return iter->second;
+        return use_block->parent_module()->create_undefined(type);
     }
 
     void place_phi_nodes(AllocaInst *inst, const AllocaAnalysis &analysis, Mem2RegInfo &info) noexcept {
@@ -363,7 +356,7 @@ Mem2RegInfo mem2reg_pass_run_on_function(Function *function) noexcept {
 
 Mem2RegInfo mem2reg_pass_run_on_module(Module *module) noexcept {
     Mem2RegInfo info;
-    for (auto &&f : module->functions()) {
+    for (auto &&f : module->function_list()) {
         detail::promote_alloca_instructions_in_function(&f, info);
     }
     return info;

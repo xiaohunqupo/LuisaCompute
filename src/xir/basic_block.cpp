@@ -1,4 +1,5 @@
 #include <luisa/core/logging.h>
+#include <luisa/xir/function.h>
 #include <luisa/xir/basic_block.h>
 
 namespace luisa::compute::xir {
@@ -48,11 +49,8 @@ void BasicBlock::_do_traverse_successors(bool exclude_self, void *ctx, void (*vi
     }
 }
 
-BasicBlock::BasicBlock() noexcept
-    : DerivedValue{nullptr} {
-    _instructions.head_sentinel()->_set_parent_block(this);
-    _instructions.tail_sentinel()->_set_parent_block(this);
-}
+BasicBlock::BasicBlock(Function *function) noexcept
+    : DerivedFunctionScopeValue{function, nullptr}, _instructions{this} {}
 
 bool BasicBlock::is_terminated() const noexcept {
     return _instructions.back().is_terminator();

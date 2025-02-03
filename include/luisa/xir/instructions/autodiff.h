@@ -10,12 +10,12 @@ public:
     static constexpr size_t operand_index_entry_block = 0u;
 
 public:
-    AutodiffScopeInst() noexcept;
+    explicit AutodiffScopeInst(BasicBlock *parent_block) noexcept;
     void set_entry_block(BasicBlock *block) noexcept;
     BasicBlock *create_entry_block(bool overwrite_existing = false) noexcept;
     [[nodiscard]] BasicBlock *entry_block() noexcept;
     [[nodiscard]] const BasicBlock *entry_block() const noexcept;
-    [[nodiscard]] AutodiffScopeInst *clone(InstructionCloneValueResolver &resolver) const noexcept override;
+    [[nodiscard]] AutodiffScopeInst *clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 enum struct AutodiffIntrinsicOp {
@@ -33,9 +33,9 @@ enum struct AutodiffIntrinsicOp {
 class LC_XIR_API AutodiffIntrinsicInst final : public DerivedInstruction<AutodiffIntrinsicInst, DerivedInstructionTag::AUTODIFF_INTRINSIC>,
                                                public InstructionOpMixin<AutodiffIntrinsicOp> {
 public:
-    explicit AutodiffIntrinsicInst(const Type *type = nullptr, AutodiffIntrinsicOp op = {},
-                                   luisa::span<Value *const> operands = {}) noexcept;
-    [[nodiscard]] AutodiffIntrinsicInst *clone(InstructionCloneValueResolver &resolver) const noexcept override;
+    AutodiffIntrinsicInst(BasicBlock *parent_block, const Type *type, AutodiffIntrinsicOp op,
+                          luisa::span<Value *const> operands = {}) noexcept;
+    [[nodiscard]] AutodiffIntrinsicInst *clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 }// namespace luisa::compute::xir

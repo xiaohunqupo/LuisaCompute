@@ -19,7 +19,7 @@ class BasicBlock;
 class LC_XIR_API IfInst final : public ControlFlowMergeMixin<DerivedConditionalBranchInstruction<IfInst, DerivedInstructionTag::IF>> {
 public:
     using ControlFlowMergeMixin::ControlFlowMergeMixin;
-    [[nodiscard]] IfInst *clone(InstructionCloneValueResolver &resolver) const noexcept override;
+    [[nodiscard]] IfInst *clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 }// namespace luisa::compute::xir

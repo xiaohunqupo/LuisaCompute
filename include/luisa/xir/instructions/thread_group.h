@@ -43,9 +43,10 @@ enum class ThreadGroupOp {
 class LC_XIR_API ThreadGroupInst final : public DerivedInstruction<ThreadGroupInst, DerivedInstructionTag::THREAD_GROUP>,
                                          public InstructionOpMixin<ThreadGroupOp> {
 public:
-    explicit ThreadGroupInst(const Type *type = nullptr, ThreadGroupOp op = {},
-                             luisa::span<Value *const> operands = {}) noexcept;
-    [[nodiscard]] ThreadGroupInst *clone(InstructionCloneValueResolver &resolver) const noexcept override;
+    ThreadGroupInst(BasicBlock *parent_block,
+                    const Type *type, ThreadGroupOp op,
+                    luisa::span<Value *const> operands = {}) noexcept;
+    [[nodiscard]] ThreadGroupInst *clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 }// namespace luisa::compute::xir

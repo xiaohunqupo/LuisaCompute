@@ -153,9 +153,6 @@ int main() {
         seed_image.write(coord, make_uint4(seed));
     };
 
-    xir::Pool pool;
-    xir::PoolGuard guard{&pool};
-
     auto module = xir::ast_to_xir_translate(render_kernel.function()->function(), {});
     auto text = xir::xir_to_text_translate(module, true);
 

@@ -1,5 +1,4 @@
 #include <luisa/core/logging.h>
-#include <luisa/xir/basic_block.h>
 #include <luisa/xir/user.h>
 
 namespace luisa::compute::xir {
@@ -48,7 +47,7 @@ void User::set_operand_count(size_t n) noexcept {
     } else {// create new operands
         _operands.reserve(n);
         for (auto i = _operands.size(); i < n; i++) {
-            auto use = Pool::current()->create<Use>(this);
+            auto use = pool()->create<Use>(this);
             _operands.emplace_back(use);
         }
     }
@@ -62,14 +61,14 @@ void User::set_operands(luisa::span<Value *const> operands) noexcept {
 }
 
 void User::add_operand(Value *value) noexcept {
-    auto use = Pool::current()->create<Use>(this);
+    auto use = pool()->create<Use>(this);
     set_operand_use_value(use, value);
     _operands.emplace_back(use);
 }
 
 void User::insert_operand(size_t index, Value *value) noexcept {
     LUISA_DEBUG_ASSERT(index <= _operands.size(), "Index out of range.");
-    auto use = Pool::current()->create<Use>(this);
+    auto use = pool()->create<Use>(this);
     set_operand_use_value(use, value);
     _operands.insert(_operands.cbegin() + index, use);
 }

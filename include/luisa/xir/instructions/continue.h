@@ -8,7 +8,7 @@ namespace luisa::compute::xir {
 class LC_XIR_API ContinueInst final : public DerivedBranchInstruction<ContinueInst, DerivedInstructionTag::CONTINUE> {
 public:
     using DerivedBranchInstruction::DerivedBranchInstruction;
-    [[nodiscard]] ContinueInst *clone(InstructionCloneValueResolver &resolver) const noexcept override;
+    [[nodiscard]] ContinueInst *clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 }// namespace luisa::compute::xir

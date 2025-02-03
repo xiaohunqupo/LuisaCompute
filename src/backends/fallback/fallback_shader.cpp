@@ -182,8 +182,6 @@ FallbackShader::FallbackShader(FallbackDevice *device, const ShaderOption &optio
     _build_bound_arguments(kernel.bound_arguments());
 
     Clock translate_clk;
-    xir::Pool pool;
-    xir::PoolGuard guard{&pool};
     auto xir_module = xir::ast_to_xir_translate(kernel, {});
     xir_module->set_name(luisa::format("kernel_{:016x}", kernel.hash()));
     if (!option.name.empty()) { xir_module->set_location(option.name); }

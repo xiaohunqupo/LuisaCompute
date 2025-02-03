@@ -59,7 +59,7 @@ TraceGEPInfo trace_gep_pass_run_on_function(Function *function) noexcept {
 
 TraceGEPInfo trace_gep_pass_run_on_module(Module *module) noexcept {
     TraceGEPInfo info;
-    for (auto &f : module->functions()) {
+    for (auto &f : module->function_list()) {
         detail::trace_gep_instructions_in_function(&f, info);
     }
     return info;

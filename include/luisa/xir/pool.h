@@ -7,7 +7,6 @@
 #include <luisa/core/stl/vector.h>
 
 namespace luisa::compute::xir {
-class Pool;
 
 #define LUISA_XIR_DEFINED_ISA_METHOD(BaseType, base_name)                                            \
     template<typename Derived>                                                                       \
@@ -26,13 +25,16 @@ class Pool;
         }                                                                                            \
     }
 
+class Pool;
+
 class LC_XIR_API PooledObject {
 
 protected:
-    PooledObject() noexcept = default;
+    explicit PooledObject() noexcept = default;
 
 public:
     virtual ~PooledObject() noexcept = default;
+    [[nodiscard]] virtual Pool *pool() const noexcept = 0;
 
     // make the object pinned to its memory location
     PooledObject(PooledObject &&) noexcept = delete;
@@ -51,14 +53,6 @@ public:
     ~Pool() noexcept;
 
 public:
-    static void push_current(Pool *pool) noexcept;
-    static Pool *pop_current() noexcept;
-    [[nodiscard]] static Pool *current() noexcept;
-
-    template<typename F>
-    decltype(auto) with_current(F &&f);
-
-public:
     template<typename T, typename... Args>
         requires std::derived_from<T, PooledObject>
     [[nodiscard]] T *create(Args &&...args) {
@@ -68,25 +62,15 @@ public:
     }
 };
 
-class LC_XIR_API PoolGuard {
+class LC_XIR_API PoolOwner {
 
 private:
-    Pool *_pool;
+    luisa::unique_ptr<Pool> _pool;
 
 public:
-    explicit PoolGuard(Pool *pool) noexcept;
-    ~PoolGuard() noexcept;
-
-    PoolGuard(PoolGuard &&) noexcept = delete;
-    PoolGuard(const PoolGuard &) noexcept = delete;
-    PoolGuard &operator=(PoolGuard &&) noexcept = delete;
-    PoolGuard &operator=(const PoolGuard &) noexcept = delete;
+    explicit PoolOwner(size_t init_pool_cap = 0u) noexcept;
+    virtual ~PoolOwner() noexcept = default;
+    [[nodiscard]] Pool *pool() const noexcept { return _pool.get(); }
 };
-
-template<typename F>
-decltype(auto) Pool::with_current(F &&f) {
-    PoolGuard guard{this};
-    return std::forward<F>(f)();
-}
 
 }// namespace luisa::compute::xir

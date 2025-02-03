@@ -205,7 +205,7 @@ static BasicBlock *duplicate_basic_block_for_ray_query_loop_dispatch_branch(cons
     }
     // create blocks for the function
     for (auto block : subgraph.reverse_post_order) {
-        auto local_block = Pool::current()->create<BasicBlock>();
+        auto local_block = function->create_basic_block();
         resolver.emplace(block, local_block);
     }
     // set function body
@@ -249,13 +249,13 @@ static void lower_ray_query_loop(Function *function, RayQueryLoopInst *loop, Ray
     auto dispatch = static_cast<RayQueryDispatchInst *>(subgraph.reverse_post_order.front()->terminator());
     auto merge_block = loop->control_flow_merge()->merge_block();
     LUISA_DEBUG_ASSERT(dispatch->exit_block() == merge_block, "Invalid ray query loop exit block.");
-    LUISA_DEBUG_ASSERT(function->module() != nullptr, "Invalid function module.");
+    LUISA_DEBUG_ASSERT(function->parent_module() != nullptr, "Invalid function module.");
     auto on_surface = outline_ray_query_loop_dispatch_branch(
-        function->module(), dispatch->on_surface_candidate_block(), subgraph.query_object,
+        function->parent_module(), dispatch->on_surface_candidate_block(), subgraph.query_object,
         subgraph.reverse_post_order.front(), capture_list,
         "on_surface function outlined from ray query loop");
     auto on_procedural = outline_ray_query_loop_dispatch_branch(
-        function->module(), dispatch->on_procedural_candidate_block(), subgraph.query_object,
+        function->parent_module(), dispatch->on_procedural_candidate_block(), subgraph.query_object,
         subgraph.reverse_post_order.front(), capture_list,
         "on_procedural function outlined from ray query loop");
     // prepare captured arguments
@@ -439,7 +439,7 @@ RayQueryLoopLowerInfo lower_ray_query_loop_pass_run_on_function(Function *functi
 
 RayQueryLoopLowerInfo lower_ray_query_loop_pass_run_on_module(Module *module) noexcept {
     RayQueryLoopLowerInfo info;
-    for (auto &&f : module->functions()) {
+    for (auto &&f : module->function_list()) {
         detail::run_lower_ray_query_loop_pass_on_function(&f, info);
     }
     return info;

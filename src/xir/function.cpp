@@ -7,9 +7,7 @@
 namespace luisa::compute::xir {
 
 Function::Function(Module *module, const Type *type) noexcept
-    : Super{type}, _module{module} {
-    LUISA_DEBUG_ASSERT(module != nullptr, "Module must not be null.");
-}
+    : Super{module, type}, _module{module} {}
 
 void Function::add_argument(Argument *argument) noexcept {
     argument->_set_parent_function(this);
@@ -33,7 +31,6 @@ void Function::remove_argument(Argument *argument) noexcept {
 
 void Function::remove_argument(size_t index) noexcept {
     LUISA_ASSERT(index < _arguments.size(), "Argument index out of range.");
-    _arguments[index]->_set_parent_function(nullptr);
     _arguments.erase(_arguments.begin() + index);
 }
 
@@ -51,41 +48,44 @@ void Function::replace_argument(Argument *old_argument, Argument *new_argument) 
 
 void Function::replace_argument(size_t index, Argument *argument) noexcept {
     LUISA_ASSERT(index < _arguments.size(), "Argument index out of range.");
-    _arguments[index]->_set_parent_function(nullptr);
     _arguments[index]->replace_all_uses_with(argument);
     argument->_set_parent_function(this);
     _arguments[index] = argument;
 }
 
-Argument *Function::create_argument(const Type *type, bool by_ref) noexcept {
+Argument *Function::create_argument(const Type *type, bool by_ref, bool should_append) noexcept {
     if (type->is_resource()) {
         LUISA_ASSERT(!by_ref, "Resource argument must not be passed by reference.");
-        return create_resource_argument(type);
+        return create_resource_argument(type, should_append);
     }
-    return by_ref ? static_cast<Argument *>(create_reference_argument(type)) :
-                    static_cast<Argument *>(create_value_argument(type));
+    return by_ref ? static_cast<Argument *>(create_reference_argument(type, should_append)) :
+                    static_cast<Argument *>(create_value_argument(type, should_append));
 }
 
-ValueArgument *Function::create_value_argument(const Type *type) noexcept {
+ValueArgument *Function::create_value_argument(const Type *type, bool should_append) noexcept {
     LUISA_ASSERT(!type->is_resource(), "Resource argument must be created with create_resource_argument.");
     LUISA_ASSERT(!type->is_custom(), "Opaque argument must be created with create_reference_argument.");
-    auto argument = Pool::current()->create<ValueArgument>(type, this);
-    add_argument(argument);
+    auto argument = pool()->create<ValueArgument>(this, type);
+    if (should_append) { add_argument(argument); }
     return argument;
 }
 
-ReferenceArgument *Function::create_reference_argument(const Type *type) noexcept {
+ReferenceArgument *Function::create_reference_argument(const Type *type, bool should_append) noexcept {
     LUISA_ASSERT(!type->is_resource(), "Resource argument must be created with create_resource_argument.");
-    auto argument = Pool::current()->create<ReferenceArgument>(type, this);
-    add_argument(argument);
+    auto argument = pool()->create<ReferenceArgument>(this, type);
+    if (should_append) { add_argument(argument); }
     return argument;
 }
 
-ResourceArgument *Function::create_resource_argument(const Type *type) noexcept {
+ResourceArgument *Function::create_resource_argument(const Type *type, bool should_append) noexcept {
     LUISA_ASSERT(type->is_resource(), "Resource argument must be created with create_resource_argument.");
-    auto argument = Pool::current()->create<ResourceArgument>(type, this);
-    add_argument(argument);
+    auto argument = pool()->create<ResourceArgument>(this, type);
+    if (should_append) { add_argument(argument); }
     return argument;
+}
+
+BasicBlock *Function::create_basic_block() noexcept {
+    return pool()->create<BasicBlock>(this);
 }
 
 void FunctionDefinition::set_body_block(BasicBlock *block) noexcept {
@@ -93,9 +93,8 @@ void FunctionDefinition::set_body_block(BasicBlock *block) noexcept {
 }
 
 BasicBlock *FunctionDefinition::create_body_block(bool overwrite_existing) noexcept {
-    LUISA_ASSERT(_body_block == nullptr || overwrite_existing,
-                 "Body block already exists.");
-    auto new_block = Pool::current()->create<BasicBlock>();
+    LUISA_ASSERT(_body_block == nullptr || overwrite_existing, "Body block already exists.");
+    auto new_block = create_basic_block();
     set_body_block(new_block);
     return new_block;
 }

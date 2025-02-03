@@ -13,4 +13,8 @@ void Use::set_value(Value *value) noexcept {
     _value = value;
 }
 
+Pool *Use::pool() const noexcept {
+    return user()->pool();
+}
+
 }// namespace luisa::compute::xir

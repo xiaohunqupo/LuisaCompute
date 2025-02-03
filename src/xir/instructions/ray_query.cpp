@@ -1,39 +1,40 @@
 #include <luisa/core/logging.h>
 #include <luisa/xir/basic_block.h>
 #include <luisa/xir/function.h>
+#include <luisa/xir/builder.h>
 #include <luisa/xir/instructions/ray_query.h>
 
 namespace luisa::compute::xir {
 
-RayQueryObjectReadInst::RayQueryObjectReadInst(const Type *type, RayQueryObjectReadOp op,
-                                               luisa::span<Value *const> operands) noexcept
-    : DerivedInstruction{type},
+RayQueryObjectReadInst::RayQueryObjectReadInst(BasicBlock *parent_block, const Type *type,
+                                               RayQueryObjectReadOp op, luisa::span<Value *const> operands) noexcept
+    : DerivedInstruction{parent_block, type},
       InstructionOpMixin{op} { set_operands(operands); }
 
-RayQueryObjectReadInst *RayQueryObjectReadInst::clone(InstructionCloneValueResolver &resolver) const noexcept {
+RayQueryObjectReadInst *RayQueryObjectReadInst::clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept {
     luisa::fixed_vector<Value *, 16u> resolved_ops;
     resolved_ops.reserve(operand_count());
     for (auto op_use : operand_uses()) {
         resolved_ops.emplace_back(resolver.resolve(op_use->value()));
     }
-    return Pool::current()->create<RayQueryObjectReadInst>(type(), op(), resolved_ops);
+    return b.call(type(), op(), resolved_ops);
 }
 
-RayQueryObjectWriteInst::RayQueryObjectWriteInst(RayQueryObjectWriteOp op,
+RayQueryObjectWriteInst::RayQueryObjectWriteInst(BasicBlock *parent_block, RayQueryObjectWriteOp op,
                                                  luisa::span<Value *const> operands) noexcept
-    : DerivedInstruction{nullptr},
+    : DerivedInstruction{parent_block, nullptr},
       InstructionOpMixin{op} { set_operands(operands); }
 
-RayQueryObjectWriteInst *RayQueryObjectWriteInst::clone(InstructionCloneValueResolver &resolver) const noexcept {
+RayQueryObjectWriteInst *RayQueryObjectWriteInst::clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept {
     luisa::fixed_vector<Value *, 16u> resolved_ops;
     resolved_ops.reserve(operand_count());
     for (auto op_use : operand_uses()) {
         resolved_ops.emplace_back(resolver.resolve(op_use->value()));
     }
-    return Pool::current()->create<RayQueryObjectWriteInst>(op(), resolved_ops);
+    return b.call(op(), resolved_ops);
 }
 
-RayQueryLoopInst::RayQueryLoopInst() noexcept {
+RayQueryLoopInst::RayQueryLoopInst(BasicBlock *parent_block) noexcept : ControlFlowMergeMixin{parent_block} {
     auto dispatch_block = static_cast<Value *>(nullptr);
     auto operands = std::array{dispatch_block};
     set_operands(operands);
@@ -44,7 +45,7 @@ void RayQueryLoopInst::set_dispatch_block(BasicBlock *block) noexcept {
 }
 
 BasicBlock *RayQueryLoopInst::create_dispatch_block() noexcept {
-    auto block = Pool::current()->create<BasicBlock>();
+    auto block = parent_function()->create_basic_block();
     set_dispatch_block(block);
     return block;
 }
@@ -57,8 +58,8 @@ const BasicBlock *RayQueryLoopInst::dispatch_block() const noexcept {
     return const_cast<RayQueryLoopInst *>(this)->dispatch_block();
 }
 
-RayQueryLoopInst *RayQueryLoopInst::clone(InstructionCloneValueResolver &resolver) const noexcept {
-    auto cloned = Pool::current()->create<RayQueryLoopInst>();
+RayQueryLoopInst *RayQueryLoopInst::clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept {
+    auto cloned = b.ray_query_loop();
     auto resolved_dispatch = resolver.resolve(dispatch_block());
     LUISA_DEBUG_ASSERT(resolved_dispatch == nullptr || resolved_dispatch->isa<BasicBlock>(), "Invalid dispatch block.");
     auto resolved_merge = resolver.resolve(merge_block());
@@ -68,7 +69,8 @@ RayQueryLoopInst *RayQueryLoopInst::clone(InstructionCloneValueResolver &resolve
     return cloned;
 }
 
-RayQueryDispatchInst::RayQueryDispatchInst(Value *query_object) noexcept {
+RayQueryDispatchInst::RayQueryDispatchInst(BasicBlock *parent_block, Value *query_object) noexcept
+    : DerivedTerminatorInstruction{parent_block} {
     auto exit_block = static_cast<Value *>(nullptr);
     auto on_surface_candidate_block = static_cast<Value *>(nullptr);
     auto on_procedural_candidate_block = static_cast<Value *>(nullptr);
@@ -94,13 +96,13 @@ void RayQueryDispatchInst::set_on_procedural_candidate_block(BasicBlock *block) 
 }
 
 BasicBlock *RayQueryDispatchInst::create_on_surface_candidate_block() noexcept {
-    auto block = Pool::current()->create<BasicBlock>();
+    auto block = parent_function()->create_basic_block();
     set_on_surface_candidate_block(block);
     return block;
 }
 
 BasicBlock *RayQueryDispatchInst::create_on_procedural_candidate_block() noexcept {
-    auto block = Pool::current()->create<BasicBlock>();
+    auto block = parent_function()->create_basic_block();
     set_on_procedural_candidate_block(block);
     return block;
 }
@@ -137,9 +139,9 @@ const BasicBlock *RayQueryDispatchInst::on_procedural_candidate_block() const no
     return const_cast<RayQueryDispatchInst *>(this)->on_procedural_candidate_block();
 }
 
-RayQueryDispatchInst *RayQueryDispatchInst::clone(InstructionCloneValueResolver &resolver) const noexcept {
+RayQueryDispatchInst *RayQueryDispatchInst::clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept {
     auto resolved_query_object = resolver.resolve(query_object());
-    auto cloned = Pool::current()->create<RayQueryDispatchInst>(resolved_query_object);
+    auto cloned = b.ray_query_dispatch(resolved_query_object);
     auto resolved_exit = resolver.resolve(exit_block());
     LUISA_DEBUG_ASSERT(resolved_exit == nullptr || resolved_exit->isa<BasicBlock>(), "Invalid exit block.");
     auto resolved_on_surface = resolver.resolve(on_surface_candidate_block());
@@ -152,10 +154,10 @@ RayQueryDispatchInst *RayQueryDispatchInst::clone(InstructionCloneValueResolver 
     return cloned;
 }
 
-RayQueryPipelineInst::RayQueryPipelineInst(Value *query_object,
-                                           Function *on_surface,
-                                           Function *on_procedural,
-                                           luisa::span<Value *const> captured_args) noexcept {
+RayQueryPipelineInst::RayQueryPipelineInst(BasicBlock *parent_block, Value *query_object,
+                                           Function *on_surface, Function *on_procedural,
+                                           luisa::span<Value *const> captured_args) noexcept
+    : DerivedInstruction{parent_block, nullptr} {
     std::array operands{query_object, static_cast<Value *>(on_surface), static_cast<Value *>(on_procedural)};
     LUISA_DEBUG_ASSERT(operands[operand_index_query_object] == query_object, "Invalid query object operand.");
     LUISA_DEBUG_ASSERT(operands[operand_index_on_surface_function] == on_surface, "Invalid on surface function operand.");
@@ -166,7 +168,7 @@ RayQueryPipelineInst::RayQueryPipelineInst(Value *query_object,
     }
 }
 
-RayQueryPipelineInst *RayQueryPipelineInst::clone(InstructionCloneValueResolver &resolver) const noexcept {
+RayQueryPipelineInst *RayQueryPipelineInst::clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept {
     auto resolved_query_object = resolver.resolve(query_object());
     auto resolved_on_surface = resolver.resolve(on_surface_function());
     LUISA_DEBUG_ASSERT(resolved_on_surface == nullptr || resolved_on_surface->isa<Function>(), "Invalid on surface function.");
@@ -177,11 +179,10 @@ RayQueryPipelineInst *RayQueryPipelineInst::clone(InstructionCloneValueResolver 
     for (auto arg_use : captured_argument_uses()) {
         resolved_args.emplace_back(resolver.resolve(arg_use->value()));
     }
-    return Pool::current()->create<RayQueryPipelineInst>(
-        resolved_query_object,
-        static_cast<Function *>(resolved_on_surface),
-        static_cast<Function *>(resolved_on_procedural),
-        resolved_args);
+    return b.ray_query_pipeline(resolved_query_object,
+                                static_cast<Function *>(resolved_on_surface),
+                                static_cast<Function *>(resolved_on_procedural),
+                                resolved_args);
 }
 
 void RayQueryPipelineInst::set_query_object(Value *query_object) noexcept {

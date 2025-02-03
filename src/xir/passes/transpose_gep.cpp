@@ -149,7 +149,7 @@ TransposeGEPInfo transpose_gep_pass_run_on_function(Function *function) noexcept
 
 TransposeGEPInfo transpose_gep_pass_run_on_module(Module *module) noexcept {
     TransposeGEPInfo info;
-    for (auto &&f : module->functions()) {
+    for (auto &&f : module->function_list()) {
         detail::run_transpose_gep_pass_on_function(&f, info);
     }
     return info;

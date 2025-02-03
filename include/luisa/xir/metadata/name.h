@@ -11,11 +11,11 @@ private:
     luisa::string _name;
 
 public:
-    explicit NameMD(luisa::string name = {}) noexcept;
+    explicit NameMD(Pool *pool, luisa::string name = {}) noexcept;
     void set_name(luisa::string_view name) noexcept;
     [[nodiscard]] auto &name() noexcept { return _name; }
     [[nodiscard]] auto &name() const noexcept { return _name; }
-    [[nodiscard]] NameMD *clone() const noexcept override;
+    [[nodiscard]] NameMD *clone(Pool *pool) const noexcept override;
 };
 
 }// namespace luisa::compute::xir

@@ -224,7 +224,7 @@ LocalStoreForwardInfo local_store_forward_pass_run_on_function(Function *functio
 
 LocalStoreForwardInfo local_store_forward_pass_run_on_module(Module *module) noexcept {
     LocalStoreForwardInfo info;
-    for (auto &&f : module->functions()) {
+    for (auto &&f : module->function_list()) {
         detail::run_local_store_forward_on_function(&f, info);
     }
     return info;

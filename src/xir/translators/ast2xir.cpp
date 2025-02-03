@@ -257,18 +257,18 @@ private:
         return _translate_typed_literal(key);
     }
 
-    [[nodiscard]] static Value *_translate_builtin_variable(Variable ast_var) noexcept {
+    [[nodiscard]] Value *_translate_builtin_variable(Variable ast_var) noexcept {
         LUISA_ASSERT(ast_var.is_builtin(), "Unresolved variable reference.");
-        auto r = [tag = ast_var.tag()] {
+        auto r = [m = this->_module, tag = ast_var.tag()]() noexcept -> SpecialRegister * {
             switch (tag) {
-                case Variable::Tag::THREAD_ID: return SpecialRegister::create(DerivedSpecialRegisterTag::THREAD_ID);
-                case Variable::Tag::BLOCK_ID: return SpecialRegister::create(DerivedSpecialRegisterTag::BLOCK_ID);
-                case Variable::Tag::DISPATCH_ID: return SpecialRegister::create(DerivedSpecialRegisterTag::DISPATCH_ID);
-                case Variable::Tag::DISPATCH_SIZE: return SpecialRegister::create(DerivedSpecialRegisterTag::DISPATCH_SIZE);
-                case Variable::Tag::KERNEL_ID: return SpecialRegister::create(DerivedSpecialRegisterTag::KERNEL_ID);
-                case Variable::Tag::WARP_LANE_COUNT: return SpecialRegister::create(DerivedSpecialRegisterTag::WARP_SIZE);
-                case Variable::Tag::WARP_LANE_ID: return SpecialRegister::create(DerivedSpecialRegisterTag::WARP_LANE_ID);
-                case Variable::Tag::OBJECT_ID: return SpecialRegister::create(DerivedSpecialRegisterTag::OBJECT_ID);
+                case Variable::Tag::THREAD_ID: return m->create_thread_id();
+                case Variable::Tag::BLOCK_ID: return m->create_block_id();
+                case Variable::Tag::DISPATCH_ID: return m->create_dispatch_id();
+                case Variable::Tag::DISPATCH_SIZE: return m->create_dispatch_size();
+                case Variable::Tag::KERNEL_ID: return m->create_kernel_id();
+                case Variable::Tag::WARP_LANE_COUNT: return m->create_warp_size();
+                case Variable::Tag::WARP_LANE_ID: return m->create_warp_lane_id();
+                case Variable::Tag::OBJECT_ID: return m->create_object_id();
                 default: break;
             }
             LUISA_ERROR_WITH_LOCATION("Unexpected variable type.");
@@ -1129,8 +1129,7 @@ private:
     }
 
 public:
-    explicit AST2XIRContext(const AST2XIRConfig &config) noexcept
-        : _config{config}, _module{Pool::current()->create<Module>()} {}
+    explicit AST2XIRContext(const AST2XIRConfig &config) noexcept : _config{config} {}
 
     Function *add_function(const ASTFunction &f) noexcept {
         LUISA_ASSERT(_module != nullptr, "Module has been finalized.");

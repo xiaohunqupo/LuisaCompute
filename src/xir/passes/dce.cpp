@@ -362,7 +362,7 @@ DCEInfo dce_pass_run_on_function(Function *function) noexcept {
 
 DCEInfo dce_pass_run_on_module(Module *module) noexcept {
     DCEInfo info;
-    for (auto &&f : module->functions()) {
+    for (auto &&f : module->function_list()) {
         detail::run_dce_pass_on_function(&f, info);
     }
     return info;

@@ -42,7 +42,8 @@ private:
 
     template<typename T, typename... Args>
     [[nodiscard]] auto _create_and_append_instruction(Args &&...args) noexcept {
-        auto inst = Pool::current()->create<T>(std::forward<Args>(args)...);
+        _check_valid_insertion_point();
+        auto inst = _insertion_point->pool()->create<T>(std::forward<Args>(args)...);
         append(inst);
         return inst;
     }
@@ -103,6 +104,8 @@ public:
 
     ResourceWriteInst *call(ResourceWriteOp op, luisa::span<Value *const> operands) noexcept;
     ResourceWriteInst *call(ResourceWriteOp op, std::initializer_list<Value *> operands) noexcept;
+
+    CastInst *cast_(const Type *type, CastOp op, Value *value) noexcept;
 
     Instruction *static_cast_(const Type *type, Value *value) noexcept;
     CastInst *bit_cast_(const Type *type, Value *value) noexcept;

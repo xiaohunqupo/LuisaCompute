@@ -11,10 +11,10 @@ private:
     luisa::string _message;
 
 public:
-    explicit UnreachableInst(luisa::string message = {}) noexcept;
+    explicit UnreachableInst(BasicBlock *parent_block, luisa::string message = {}) noexcept;
     void set_message(luisa::string_view message) noexcept;
     [[nodiscard]] luisa::string_view message() const noexcept;
-    [[nodiscard]] UnreachableInst *clone(InstructionCloneValueResolver &resolver) const noexcept override;
+    [[nodiscard]] UnreachableInst *clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 }// namespace luisa::compute::xir

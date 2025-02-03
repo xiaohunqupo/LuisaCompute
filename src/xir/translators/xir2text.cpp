@@ -131,10 +131,10 @@ private:
     }
 
     void _traverse_values_in_module(const Module *module) noexcept {
-        for (auto &c : module->constants()) {
+        for (auto &c : module->constant_list()) {
             static_cast<void>(_value_uid(&c));
         }
-        for (auto &f : module->functions()) {
+        for (auto &f : module->function_list()) {
             static_cast<void>(_value_uid(&f));
             _traverse_values_in_function(&f);
         }
@@ -765,8 +765,8 @@ private:
             _prelude << "\n";
         }
         _prelude << "module;\n\n";// TODO: metadata
-        for (auto &c : module->constants()) { _emit_constant(&c); }
-        for (auto &f : module->functions()) { _emit_function(&f); }
+        for (auto &c : module->constant_list()) { _emit_constant(&c); }
+        for (auto &f : module->function_list()) { _emit_function(&f); }
     }
 
     static void _emit_name_metadata(StringScratch &s, const NameMD &m) noexcept {
@@ -784,7 +784,8 @@ private:
         _emit_string_escaped(s, m.comment());
     }
 
-    static void _emit_metadata_list(StringScratch &s, const MetadataList &m) noexcept {
+    template<typename T>
+    static void _emit_metadata_list(StringScratch &s, const T &m) noexcept {
         s << "[";
         for (auto &item : m) {
             switch (item.derived_metadata_tag()) {

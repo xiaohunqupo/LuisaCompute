@@ -1,12 +1,13 @@
 #include <luisa/core/logging.h>
 #include <luisa/xir/function.h>
+#include <luisa/xir/builder.h>
 #include <luisa/xir/instructions/call.h>
 
 namespace luisa::compute::xir {
 
-CallInst::CallInst(const Type *type, Function *callee,
+CallInst::CallInst(BasicBlock *parent_block, const Type *type, Function *callee,
                    luisa::span<Value *const> arguments) noexcept
-    : DerivedInstruction{type} {
+    : DerivedInstruction{parent_block, type} {
     set_operand_count(1u + arguments.size());
     set_operand(operand_index_callee, callee);
     for (auto i = 0u; i < arguments.size(); i++) {
@@ -51,7 +52,7 @@ void CallInst::remove_argument(size_t index) noexcept {
     remove_operand(operand_index_argument_offset + index);
 }
 
-CallInst *CallInst::clone(InstructionCloneValueResolver &resolver) const noexcept {
+CallInst *CallInst::clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept {
     auto resolved_callee = resolver.resolve(callee());
     LUISA_DEBUG_ASSERT(resolved_callee == nullptr || resolved_callee->isa<Function>(), "Invalid callee.");
     luisa::fixed_vector<Value *, 16u> resolved_args;
@@ -59,7 +60,7 @@ CallInst *CallInst::clone(InstructionCloneValueResolver &resolver) const noexcep
     for (auto arg_use : argument_uses()) {
         resolved_args.emplace_back(resolver.resolve(arg_use->value()));
     }
-    return Pool::current()->create<CallInst>(type(), static_cast<Function *>(resolved_callee), resolved_args);
+    return b.call(type(), static_cast<Function *>(resolved_callee), resolved_args);
 }
 
 }// namespace luisa::compute::xir

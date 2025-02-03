@@ -52,7 +52,7 @@ LC_XIR_API void autodiff_pass_run_on_function(Function *function, const Autodiff
 }
 
 LC_XIR_API void autodiff_pass_run_on_module(Module *module, const AutodiffOptions &options) noexcept {
-    for (auto &func : module->functions()) {
+    for (auto &func : module->function_list()) {
         autodiff_pass_run_on_function(&func, options);
     }
 }

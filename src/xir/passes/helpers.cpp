@@ -26,9 +26,8 @@ AllocaInst *trace_pointer_base_local_alloca_inst(Value *pointer) noexcept {
 
 Instruction *duplicate_instruction(Builder &b, const Instruction *inst,
                                    InstructionCloneValueResolver &resolver) noexcept {
-    auto cloned = inst->clone(resolver);
+    auto cloned = inst->clone(b, resolver);
     LUISA_DEBUG_ASSERT(cloned != nullptr, "Failed to clone instruction.");
-    b.append(cloned);
     return cloned;
 }
 

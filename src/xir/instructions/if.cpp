@@ -1,12 +1,13 @@
 #include <luisa/core/logging.h>
 #include <luisa/xir/basic_block.h>
+#include <luisa/xir/builder.h>
 #include <luisa/xir/instructions/if.h>
 
 namespace luisa::compute::xir {
 
-IfInst *IfInst::clone(InstructionCloneValueResolver &resolver) const noexcept {
+IfInst *IfInst::clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept {
     auto resolved_cond = resolver.resolve(condition());
-    auto cloned = Pool::current()->create<IfInst>(resolved_cond);
+    auto cloned = b.if_(resolved_cond);
     auto resolved_true_block = resolver.resolve(true_block());
     LUISA_DEBUG_ASSERT(resolved_true_block == nullptr || resolved_true_block->isa<BasicBlock>(), "Invalid true block.");
     auto resolved_false_block = resolver.resolve(false_block());
