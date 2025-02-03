@@ -43,13 +43,13 @@ public:
 using MetadataList = IntrusiveForwardList<Metadata>;
 
 namespace detail {
-[[nodiscard]] Metadata *luisa_xir_metadata_list_mixin_find_metadata(MetadataList &list, DerivedMetadataTag tag) noexcept;
-[[nodiscard]] Metadata *luisa_xir_metadata_list_mixin_create_metadata(MetadataList &list, Pool *pool, DerivedMetadataTag tag) noexcept;
-[[nodiscard]] Metadata *luisa_xir_metadata_list_mixin_find_or_create_metadata(MetadataList &list, Pool *pool, DerivedMetadataTag tag) noexcept;
-void luisa_xir_metadata_list_mixin_set_name(MetadataList &list, Pool *pool, std::string_view name) noexcept;
-void luisa_xir_metadata_list_mixin_set_location(MetadataList &list, Pool *pool, const std::filesystem::path &file, int line) noexcept;
-void luisa_xir_metadata_list_mixin_add_comment(MetadataList &list, Pool *pool, std::string_view comment) noexcept;
-[[nodiscard]] luisa::optional<luisa::string_view> luisa_xir_metadata_list_mixin_get_name(const MetadataList &list) noexcept;
+[[nodiscard]] LC_XIR_API Metadata *luisa_xir_metadata_list_mixin_find_metadata(MetadataList &list, DerivedMetadataTag tag) noexcept;
+[[nodiscard]] LC_XIR_API Metadata *luisa_xir_metadata_list_mixin_create_metadata(MetadataList &list, Pool *pool, DerivedMetadataTag tag) noexcept;
+[[nodiscard]] LC_XIR_API Metadata *luisa_xir_metadata_list_mixin_find_or_create_metadata(MetadataList &list, Pool *pool, DerivedMetadataTag tag) noexcept;
+[[nodiscard]] LC_XIR_API luisa::optional<luisa::string_view> luisa_xir_metadata_list_mixin_get_name(const MetadataList &list) noexcept;
+LC_XIR_API void luisa_xir_metadata_list_mixin_set_name(MetadataList &list, Pool *pool, std::string_view name) noexcept;
+LC_XIR_API void luisa_xir_metadata_list_mixin_set_location(MetadataList &list, Pool *pool, const std::filesystem::path &file, int line) noexcept;
+LC_XIR_API void luisa_xir_metadata_list_mixin_add_comment(MetadataList &list, Pool *pool, std::string_view comment) noexcept;
 }// namespace detail
 
 template<typename Base>

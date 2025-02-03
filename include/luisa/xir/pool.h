@@ -43,6 +43,10 @@ public:
     PooledObject &operator=(const PooledObject &) noexcept = delete;
 };
 
+namespace detail {
+LC_XIR_API void luisa_xir_pooled_object_check_pool(PooledObject *object, Pool *pool) noexcept;
+}// namespace detail
+
 class LC_XIR_API Pool : public concepts::Noncopyable {
 
 private:
@@ -57,6 +61,9 @@ public:
         requires std::derived_from<T, PooledObject>
     [[nodiscard]] T *create(Args &&...args) {
         auto object = luisa::new_with_allocator<T>(std::forward<Args>(args)...);
+#ifndef NDEBUG
+        detail::luisa_xir_pooled_object_check_pool(object, this);
+#endif
         _objects.emplace_back(object);
         return object;
     }

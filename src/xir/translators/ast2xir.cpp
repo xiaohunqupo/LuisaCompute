@@ -63,7 +63,7 @@ public:
 
 private:
     AST2XIRConfig _config;
-    Module *_module;
+    luisa::unique_ptr<Module> _module;
     luisa::unordered_map<uint64_t, Function *> _generated_functions;
     luisa::unordered_map<ConstantData, Constant *> _generated_constants;
     luisa::unordered_map<TypedLiteral, Constant *> _generated_literals;
@@ -259,7 +259,7 @@ private:
 
     [[nodiscard]] Value *_translate_builtin_variable(Variable ast_var) noexcept {
         LUISA_ASSERT(ast_var.is_builtin(), "Unresolved variable reference.");
-        auto r = [m = this->_module, tag = ast_var.tag()]() noexcept -> SpecialRegister * {
+        auto r = [m = this->_module.get(), tag = ast_var.tag()]() noexcept -> SpecialRegister * {
             switch (tag) {
                 case Variable::Tag::THREAD_ID: return m->create_thread_id();
                 case Variable::Tag::BLOCK_ID: return m->create_block_id();
@@ -1129,7 +1129,8 @@ private:
     }
 
 public:
-    explicit AST2XIRContext(const AST2XIRConfig &config) noexcept : _config{config} {}
+    explicit AST2XIRContext(const AST2XIRConfig &config) noexcept
+        : _config{config}, _module{luisa::make_unique<Module>()} {}
 
     Function *add_function(const ASTFunction &f) noexcept {
         LUISA_ASSERT(_module != nullptr, "Module has been finalized.");
@@ -1168,9 +1169,8 @@ public:
         LUISA_NOT_IMPLEMENTED();
     }
 
-    [[nodiscard]] Module *finalize() noexcept {
-        auto module = std::exchange(_module, nullptr);
-        return module;
+    [[nodiscard]] luisa::unique_ptr<Module> finalize() noexcept {
+        return std::exchange(_module, nullptr);
     }
 };
 
@@ -1186,13 +1186,13 @@ void ast_to_xir_translate_add_external_function(AST2XIRContext *ctx, const ASTEx
     ctx->add_external_function(f);
 }
 
-Module *ast_to_xir_translate_finalize(AST2XIRContext *ctx) noexcept {
+luisa::unique_ptr<Module> ast_to_xir_translate_finalize(AST2XIRContext *ctx) noexcept {
     auto m = ctx->finalize();
     luisa::delete_with_allocator(ctx);
     return m;
 }
 
-Module *ast_to_xir_translate(const ASTFunction &kernel, const AST2XIRConfig &config) noexcept {
+luisa::unique_ptr<Module> ast_to_xir_translate(const ASTFunction &kernel, const AST2XIRConfig &config) noexcept {
     AST2XIRContext ctx{config};
     ctx.add_function(kernel);
     return ctx.finalize();

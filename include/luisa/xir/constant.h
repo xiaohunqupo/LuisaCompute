@@ -40,7 +40,8 @@ public:
 
     template<typename T>
     [[nodiscard]] const T &as() const noexcept {
-        return const_cast<Constant *>(this)->as<T>();
+        _check_reinterpret_cast_type_size(sizeof(T));
+        return *static_cast<const T *>(data());
     }
 };
 
