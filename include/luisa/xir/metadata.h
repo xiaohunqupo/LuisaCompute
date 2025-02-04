@@ -12,7 +12,7 @@ enum struct DerivedMetadataTag {
     COMMENT,
 };
 
-class Metadata : public IntrusiveForwardNode<Metadata> {
+class LC_XIR_API Metadata : public IntrusiveForwardNode<Metadata> {
 
 private:
     Pool *_pool{nullptr};
