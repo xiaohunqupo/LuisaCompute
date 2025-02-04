@@ -169,7 +169,7 @@ static BasicBlock *duplicate_basic_block_for_ray_query_loop_dispatch_branch(cons
             phi_nodes.emplace_back(static_cast<const PhiInst *>(&inst), dup_phi);
             resolver.emplace(&inst, dup_phi);
         } else {
-            auto dup_inst = duplicate_instruction(b, &inst, resolver);
+            auto dup_inst = inst.clone(b, resolver);
             LUISA_DEBUG_ASSERT(dup_inst != nullptr, "Failed to duplicate instruction.");
             resolver.emplace(&inst, dup_inst);
         }
@@ -419,6 +419,7 @@ static void run_lower_ray_query_loop_pass_on_function(Function *function, RayQue
         // lower each ray query loop
         for (auto loop : loops) {
             lower_phi_nodes_in_loop_dispatch_block(def, loop);
+            hoist_alloca_instructions_to_entry_block(def);
             lower_ray_query_loop(function, loop, info);
         }
         // remove dead code after lowering using the DCE pass

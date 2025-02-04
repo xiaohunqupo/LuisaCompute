@@ -247,6 +247,7 @@
 #include <luisa/xir/passes/mem2reg.h>
 #include <luisa/xir/passes/outline.h>
 #include <luisa/xir/passes/pointer_usage.h>
+#include <luisa/xir/passes/reg2mem.h>
 #include <luisa/xir/passes/sroa.h>
 #include <luisa/xir/passes/trace_gep.h>
 #include <luisa/xir/passes/transpose_gep.h>
