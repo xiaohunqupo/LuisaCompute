@@ -1,5 +1,4 @@
 #include <luisa/core/logging.h>
-#include <luisa/xir/function.h>
 #include <luisa/xir/basic_block.h>
 
 namespace luisa::compute::xir {

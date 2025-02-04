@@ -26,6 +26,7 @@ public:
 };
 
 template<typename Derived, DerivedMetadataTag tag, typename Base = Metadata>
+    requires std::derived_from<Base, Metadata>
 class LC_XIR_API DerivedMetadata : public Base {
 public:
     using derived_metadata_type = Derived;

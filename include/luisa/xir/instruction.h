@@ -209,6 +209,7 @@ public:
 };
 
 template<typename Derived, DerivedInstructionTag tag, typename Base = Instruction>
+    requires std::derived_from<Base, Instruction>
 class DerivedInstruction : public Base {
 public:
     using derived_instruction_type = Derived;

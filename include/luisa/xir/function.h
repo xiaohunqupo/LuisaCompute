@@ -56,6 +56,7 @@ public:
 using FunctionList = IntrusiveForwardList<Function>;
 
 template<typename Derived, DerivedFunctionTag tag, typename Base = Function>
+    requires std::derived_from<Base, Function>
 class DerivedFunction : public Base {
 public:
     using derived_function_type = Derived;

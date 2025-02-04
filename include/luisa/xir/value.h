@@ -86,6 +86,7 @@ public:
     explicit DerivedGlobalValue(Module *module, Args &&...args) noexcept
         : DerivedValue<Derived, tag, Base>{std::forward<Args>(args)...},
           GlobalValueModuleMixin{module} {}
+    [[nodiscard]] bool is_global() const noexcept final { return true; }
     [[nodiscard]] Pool *pool() noexcept final { return _pool_from_parent_module(); }
 };
 
