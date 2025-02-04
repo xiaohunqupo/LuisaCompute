@@ -6,7 +6,7 @@ namespace luisa::compute::xir {
 ArithmeticInst::ArithmeticInst(BasicBlock *parent_block,
                                const Type *type, ArithmeticOp op,
                                luisa::span<Value *const> operands) noexcept
-    : DerivedInstruction{parent_block, type}, InstructionOpMixin{op} {
+    : Super{parent_block, type}, InstructionOpMixin{op} {
     set_operands(operands);
 }
 

@@ -7,7 +7,7 @@ namespace luisa::compute::xir {
 
 CallInst::CallInst(BasicBlock *parent_block, const Type *type, Function *callee,
                    luisa::span<Value *const> arguments) noexcept
-    : DerivedInstruction{parent_block, type} {
+    : Super{parent_block, type} {
     set_operand_count(1u + arguments.size());
     set_operand(operand_index_callee, callee);
     for (auto i = 0u; i < arguments.size(); i++) {

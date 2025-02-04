@@ -59,6 +59,7 @@ template<typename Derived, DerivedFunctionTag tag, typename Base = Function>
 class DerivedFunction : public Base {
 public:
     using derived_function_type = Derived;
+    using Super = DerivedFunction;
     using Base::Base;
     [[nodiscard]] static constexpr DerivedFunctionTag static_derived_function_tag() noexcept { return tag; }
     [[nodiscard]] DerivedFunctionTag derived_function_tag() const noexcept final { return static_derived_function_tag(); }
@@ -163,7 +164,7 @@ public:
 
 class LC_XIR_API CallableFunction final : public DerivedFunction<CallableFunction, DerivedFunctionTag::CALLABLE, FunctionDefinition> {
 public:
-    using DerivedFunction::DerivedFunction;
+    using Super::Super;
 };
 
 class LC_XIR_API KernelFunction final : public DerivedFunction<KernelFunction, DerivedFunctionTag::KERNEL, FunctionDefinition> {
@@ -182,7 +183,7 @@ public:
 
 class LC_XIR_API ExternalFunction final : public DerivedFunction<ExternalFunction, DerivedFunctionTag::EXTERNAL> {
 public:
-    using DerivedFunction::DerivedFunction;
+    using Super::Super;
 };
 
 }// namespace luisa::compute::xir

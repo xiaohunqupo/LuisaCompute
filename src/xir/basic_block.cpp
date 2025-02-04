@@ -50,7 +50,7 @@ void BasicBlock::_do_traverse_successors(bool exclude_self, void *ctx, void (*vi
 }
 
 BasicBlock::BasicBlock(Function *function) noexcept
-    : DerivedFunctionScopeValue{function, nullptr}, _instructions{this} {}
+    : Super{function, nullptr}, _instructions{this} {}
 
 bool BasicBlock::is_terminated() const noexcept {
     return _instructions.back().is_terminator();

@@ -29,6 +29,7 @@ template<typename Derived, DerivedMetadataTag tag, typename Base = Metadata>
 class LC_XIR_API DerivedMetadata : public Base {
 public:
     using derived_metadata_type = Derived;
+    using Super = DerivedMetadata;
     using Base::Base;
     [[nodiscard]] static constexpr auto
     static_derived_metadata_tag() noexcept {

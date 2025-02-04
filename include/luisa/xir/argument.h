@@ -29,6 +29,7 @@ template<typename Derived, DerivedArgumentTag tag>
 class DerivedArgument : public Argument {
 public:
     using derived_argument_type = Derived;
+    using Super = DerivedArgument;
     using Argument::Argument;
 
     [[nodiscard]] static constexpr auto
@@ -40,17 +41,17 @@ public:
 
 class ValueArgument final : public DerivedArgument<ValueArgument, DerivedArgumentTag::VALUE> {
 public:
-    using DerivedArgument::DerivedArgument;
+    using Super::Super;
 };
 
 class ReferenceArgument final : public DerivedArgument<ReferenceArgument, DerivedArgumentTag::REFERENCE> {
 public:
-    using DerivedArgument::DerivedArgument;
+    using Super::Super;
 };
 
 class ResourceArgument final : public DerivedArgument<ResourceArgument, DerivedArgumentTag::RESOURCE> {
 public:
-    using DerivedArgument::DerivedArgument;
+    using Super::Super;
 };
 
 using ArgumentList = InlineIntrusiveList<Argument>;

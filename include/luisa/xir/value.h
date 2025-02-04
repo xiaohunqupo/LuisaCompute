@@ -44,6 +44,7 @@ template<typename Derived, DerivedValueTag tag, typename Base = Value>
 class DerivedValue : public Base {
 public:
     using derived_value_type = Derived;
+    using Super = DerivedValue;
     using Base::Base;
 
     [[nodiscard]] static constexpr DerivedValueTag
@@ -80,6 +81,7 @@ template<typename Derived, DerivedValueTag tag, typename Base = Value>
 class DerivedGlobalValue : public DerivedValue<Derived, tag, Base>,
                            public GlobalValueModuleMixin {
 public:
+    using Super = DerivedGlobalValue;
     template<typename... Args>
     explicit DerivedGlobalValue(Module *module, Args &&...args) noexcept
         : DerivedValue<Derived, tag, Base>{std::forward<Args>(args)...},
@@ -112,6 +114,7 @@ template<typename Derived, DerivedValueTag tag, typename Base = Value>
 class DerivedFunctionScopeValue : public DerivedValue<Derived, tag, Base>,
                                   public LocalValueFunctionMixin {
 public:
+    using Super = DerivedFunctionScopeValue;
     template<typename... Args>
     explicit DerivedFunctionScopeValue(Function *function, Args &&...args) noexcept
         : DerivedValue<Derived, tag, Base>{std::forward<Args>(args)...},
@@ -145,6 +148,7 @@ template<typename Derived, DerivedValueTag tag, typename Base = Value>
 class DerivedBlockScopeValue : public DerivedValue<Derived, tag, Base>,
                                public LocalValueBlockMixin {
 public:
+    using Super = DerivedBlockScopeValue;
     template<typename... Args>
     explicit DerivedBlockScopeValue(BasicBlock *block, Args &&...args) noexcept
         : DerivedValue<Derived, tag, Base>{std::forward<Args>(args)...},

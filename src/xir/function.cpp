@@ -172,7 +172,7 @@ void FunctionDefinition::_traverse_basic_block_reverse_post_order(BasicBlock *bl
 }
 
 KernelFunction::KernelFunction(Module *module, luisa::uint3 block_size) noexcept
-    : DerivedFunction{module}, _block_size{} { set_block_size(block_size); }
+    : Super{module}, _block_size{} { set_block_size(block_size); }
 
 void KernelFunction::set_block_size(luisa::uint3 size) noexcept {
     auto thread_count = size.x * size.y * size.z;

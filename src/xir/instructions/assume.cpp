@@ -4,7 +4,7 @@
 namespace luisa::compute::xir {
 
 AssumeInst::AssumeInst(BasicBlock *parent_block, Value *condition, luisa::string message) noexcept
-    : DerivedInstruction{parent_block, nullptr}, _message{std::move(message)} {
+    : Super{parent_block, nullptr}, _message{std::move(message)} {
     set_operands(std::array{condition});
 }
 

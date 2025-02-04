@@ -4,7 +4,7 @@
 namespace luisa::compute::xir {
 
 UnreachableInst::UnreachableInst(BasicBlock *parent_block, luisa::string message) noexcept
-    : DerivedTerminatorInstruction{parent_block}, _message{std::move(message)} {}
+    : Super{parent_block}, _message{std::move(message)} {}
 
 void UnreachableInst::set_message(luisa::string_view message) noexcept {
     _message = message;

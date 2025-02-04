@@ -6,7 +6,7 @@
 
 namespace luisa::compute::xir {
 
-SwitchInst::SwitchInst(BasicBlock *parent_block, Value *value) noexcept : ControlFlowMergeMixin{parent_block} {
+SwitchInst::SwitchInst(BasicBlock *parent_block, Value *value) noexcept : Super{parent_block} {
     auto default_block = static_cast<Value *>(nullptr);
     auto operands = std::array{value, default_block};
     LUISA_DEBUG_ASSERT(operands[operand_index_value] == value, "Unexpected operand index.");

@@ -5,7 +5,7 @@
 namespace luisa::compute::xir {
 
 CastInst::CastInst(BasicBlock *parent_block, const Type *target_type, CastOp op, Value *value) noexcept
-    : DerivedInstruction{parent_block, target_type}, InstructionOpMixin{op} {
+    : Super{parent_block, target_type}, InstructionOpMixin{op} {
     auto operands = std::array{value};
     set_operands(operands);
 }

@@ -5,7 +5,7 @@
 namespace luisa::compute::xir {
 
 ClockInst::ClockInst(BasicBlock *parent_block) noexcept
-    : DerivedInstruction{parent_block, Type::of<luisa::ulong>()} {}
+    : Super{parent_block, Type::of<luisa::ulong>()} {}
 
 ClockInst *ClockInst::clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept {
     return b.clock();

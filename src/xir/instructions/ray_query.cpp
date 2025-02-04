@@ -8,8 +8,7 @@ namespace luisa::compute::xir {
 
 RayQueryObjectReadInst::RayQueryObjectReadInst(BasicBlock *parent_block, const Type *type,
                                                RayQueryObjectReadOp op, luisa::span<Value *const> operands) noexcept
-    : DerivedInstruction{parent_block, type},
-      InstructionOpMixin{op} { set_operands(operands); }
+    : Super{parent_block, type}, InstructionOpMixin{op} { set_operands(operands); }
 
 RayQueryObjectReadInst *RayQueryObjectReadInst::clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept {
     luisa::fixed_vector<Value *, 16u> resolved_ops;
@@ -22,8 +21,7 @@ RayQueryObjectReadInst *RayQueryObjectReadInst::clone(Builder &b, InstructionClo
 
 RayQueryObjectWriteInst::RayQueryObjectWriteInst(BasicBlock *parent_block, RayQueryObjectWriteOp op,
                                                  luisa::span<Value *const> operands) noexcept
-    : DerivedInstruction{parent_block, nullptr},
-      InstructionOpMixin{op} { set_operands(operands); }
+    : Super{parent_block, nullptr}, InstructionOpMixin{op} { set_operands(operands); }
 
 RayQueryObjectWriteInst *RayQueryObjectWriteInst::clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept {
     luisa::fixed_vector<Value *, 16u> resolved_ops;
@@ -34,7 +32,7 @@ RayQueryObjectWriteInst *RayQueryObjectWriteInst::clone(Builder &b, InstructionC
     return b.call(op(), resolved_ops);
 }
 
-RayQueryLoopInst::RayQueryLoopInst(BasicBlock *parent_block) noexcept : ControlFlowMergeMixin{parent_block} {
+RayQueryLoopInst::RayQueryLoopInst(BasicBlock *parent_block) noexcept : Super{parent_block} {
     auto dispatch_block = static_cast<Value *>(nullptr);
     auto operands = std::array{dispatch_block};
     set_operands(operands);
@@ -69,8 +67,7 @@ RayQueryLoopInst *RayQueryLoopInst::clone(Builder &b, InstructionCloneValueResol
     return cloned;
 }
 
-RayQueryDispatchInst::RayQueryDispatchInst(BasicBlock *parent_block, Value *query_object) noexcept
-    : DerivedTerminatorInstruction{parent_block} {
+RayQueryDispatchInst::RayQueryDispatchInst(BasicBlock *parent_block, Value *query_object) noexcept : Super{parent_block} {
     auto exit_block = static_cast<Value *>(nullptr);
     auto on_surface_candidate_block = static_cast<Value *>(nullptr);
     auto on_procedural_candidate_block = static_cast<Value *>(nullptr);
@@ -157,7 +154,7 @@ RayQueryDispatchInst *RayQueryDispatchInst::clone(Builder &b, InstructionCloneVa
 RayQueryPipelineInst::RayQueryPipelineInst(BasicBlock *parent_block, Value *query_object,
                                            Function *on_surface, Function *on_procedural,
                                            luisa::span<Value *const> captured_args) noexcept
-    : DerivedInstruction{parent_block, nullptr} {
+    : Super{parent_block, nullptr} {
     std::array operands{query_object, static_cast<Value *>(on_surface), static_cast<Value *>(on_procedural)};
     LUISA_DEBUG_ASSERT(operands[operand_index_query_object] == query_object, "Invalid query object operand.");
     LUISA_DEBUG_ASSERT(operands[operand_index_on_surface_function] == on_surface, "Invalid on surface function operand.");

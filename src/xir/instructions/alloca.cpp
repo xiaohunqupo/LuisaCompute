@@ -4,7 +4,7 @@
 namespace luisa::compute::xir {
 
 AllocaInst::AllocaInst(BasicBlock *parent_block, const Type *type, AllocSpace space) noexcept
-    : DerivedInstruction{parent_block, type}, _space{space} {}
+    : Super{parent_block, type}, _space{space} {}
 
 void AllocaInst::set_space(AllocSpace space) noexcept {
     _space = space;

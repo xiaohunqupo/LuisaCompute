@@ -3,7 +3,7 @@
 
 namespace luisa::compute::xir {
 
-ReturnInst::ReturnInst(BasicBlock *parent_block, Value *value) noexcept : DerivedTerminatorInstruction{parent_block} {
+ReturnInst::ReturnInst(BasicBlock *parent_block, Value *value) noexcept : Super{parent_block} {
     set_operands(std::array{value});
 }
 

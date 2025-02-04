@@ -6,13 +6,13 @@ namespace luisa::compute::xir {
 
 class LC_XIR_API BranchInst final : public DerivedBranchInstruction<BranchInst, DerivedInstructionTag::BRANCH> {
 public:
-    using DerivedBranchInstruction::DerivedBranchInstruction;
+    using Super::Super;
     [[nodiscard]] BranchInst *clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 class ConditionalBranchInst final : public DerivedConditionalBranchInstruction<ConditionalBranchInst, DerivedInstructionTag::CONDITIONAL_BRANCH> {
 public:
-    using DerivedConditionalBranchInstruction::DerivedConditionalBranchInstruction;
+    using Super::Super;
     [[nodiscard]] ConditionalBranchInst *clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };
 

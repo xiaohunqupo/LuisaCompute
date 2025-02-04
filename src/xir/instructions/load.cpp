@@ -4,7 +4,7 @@
 namespace luisa::compute::xir {
 
 LoadInst::LoadInst(BasicBlock *parent_block, const Type *type, Value *variable) noexcept
-    : DerivedInstruction{parent_block, type} {
+    : Super{parent_block, type} {
     auto operands = std::array{variable};
     set_operands(operands);
 }

@@ -6,7 +6,7 @@
 namespace luisa::compute::xir {
 
 PhiInst::PhiInst(BasicBlock *parent_block, const Type *type) noexcept
-    : DerivedInstruction{parent_block, type} {}
+    : Super{parent_block, type} {}
 
 void PhiInst::set_incoming_count(size_t count) noexcept {
     set_operand_count(count);

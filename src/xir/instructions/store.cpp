@@ -5,11 +5,11 @@
 namespace luisa::compute::xir {
 
 StoreInst::StoreInst(BasicBlock *parent_block, Value *variable, Value *value) noexcept
-    : DerivedInstruction{parent_block, nullptr} {
-    auto oprands = std::array{variable, value};
-    LUISA_DEBUG_ASSERT(oprands[operand_index_variable] == variable, "Unexpected operand index.");
-    LUISA_DEBUG_ASSERT(oprands[operand_index_value] == value, "Unexpected operand index.");
-    set_operands(oprands);
+    : Super{parent_block, nullptr} {
+    auto operands = std::array{variable, value};
+    LUISA_DEBUG_ASSERT(operands[operand_index_variable] == variable, "Unexpected operand index.");
+    LUISA_DEBUG_ASSERT(operands[operand_index_value] == value, "Unexpected operand index.");
+    set_operands(operands);
 }
 
 void StoreInst::set_variable(Value *variable) noexcept {

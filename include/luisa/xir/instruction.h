@@ -212,6 +212,7 @@ template<typename Derived, DerivedInstructionTag tag, typename Base = Instructio
 class DerivedInstruction : public Base {
 public:
     using derived_instruction_type = Derived;
+    using Super = DerivedInstruction;
     using Base::Base;
 
     [[nodiscard]] static constexpr DerivedInstructionTag
@@ -226,18 +227,21 @@ public:
 template<typename Derived, DerivedInstructionTag tag>
 class DerivedTerminatorInstruction : public DerivedInstruction<Derived, tag, TerminatorInstruction> {
 public:
+    using Super = DerivedTerminatorInstruction;
     using DerivedInstruction<Derived, tag, TerminatorInstruction>::DerivedInstruction;
 };
 
 template<typename Derived, DerivedInstructionTag tag>
 class DerivedBranchInstruction : public DerivedInstruction<Derived, tag, BranchTerminatorInstruction> {
 public:
+    using Super = DerivedBranchInstruction;
     using DerivedInstruction<Derived, tag, BranchTerminatorInstruction>::DerivedInstruction;
 };
 
 template<typename Derived, DerivedInstructionTag tag>
 class DerivedConditionalBranchInstruction : public DerivedInstruction<Derived, tag, ConditionalBranchTerminatorInstruction> {
 public:
+    using Super = DerivedConditionalBranchInstruction;
     using DerivedInstruction<Derived, tag, ConditionalBranchTerminatorInstruction>::DerivedInstruction;
 };
 
@@ -270,6 +274,7 @@ private:
     }
 
 public:
+    using Super = ControlFlowMergeMixin;
     using Base::Base;
     [[nodiscard]] ControlFlowMerge *control_flow_merge() noexcept final { return this; }
 };

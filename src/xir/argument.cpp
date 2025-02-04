@@ -4,6 +4,6 @@
 namespace luisa::compute::xir {
 
 Argument::Argument(Function *parent_function, const Type *type) noexcept
-    : DerivedFunctionScopeValue{parent_function, type} {}
+    : Super{parent_function, type} {}
 
 }// namespace luisa::compute::xir

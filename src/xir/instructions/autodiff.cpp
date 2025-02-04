@@ -6,8 +6,7 @@
 
 namespace luisa::compute::xir {
 
-AutodiffScopeInst::AutodiffScopeInst(BasicBlock *parent_block) noexcept
-    : ControlFlowMergeMixin{parent_block} {
+AutodiffScopeInst::AutodiffScopeInst(BasicBlock *parent_block) noexcept : Super{parent_block} {
     set_operands(std::array{static_cast<Value *>(nullptr)});
 }
 
@@ -45,7 +44,7 @@ AutodiffScopeInst *AutodiffScopeInst::clone(Builder &b, InstructionCloneValueRes
 
 AutodiffIntrinsicInst::AutodiffIntrinsicInst(BasicBlock *parent_block, const Type *type, AutodiffIntrinsicOp op,
                                              luisa::span<Value *const> operands) noexcept
-    : DerivedInstruction{parent_block, type}, InstructionOpMixin{op} { set_operands(operands); }
+    : Super{parent_block, type}, InstructionOpMixin{op} { set_operands(operands); }
 
 AutodiffIntrinsicInst *AutodiffIntrinsicInst::clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept {
     luisa::fixed_vector<Value *, 16u> resolved_operands;

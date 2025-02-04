@@ -35,9 +35,7 @@ class LC_XIR_API RayQueryObjectReadInst final : public DerivedInstruction<RayQue
                                                 public InstructionOpMixin<RayQueryObjectReadOp> {
 
 public:
-    RayQueryObjectReadInst(BasicBlock *parent_block,
-                           const Type *type,
-                           RayQueryObjectReadOp op,
+    RayQueryObjectReadInst(BasicBlock *parent_block, const Type *type, RayQueryObjectReadOp op,
                            luisa::span<Value *const> operands = {}) noexcept;
     [[nodiscard]] RayQueryObjectReadInst *clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };
@@ -45,8 +43,7 @@ public:
 class LC_XIR_API RayQueryObjectWriteInst final : public DerivedInstruction<RayQueryObjectWriteInst, DerivedInstructionTag::RAY_QUERY_OBJECT_WRITE>,
                                                  public InstructionOpMixin<RayQueryObjectWriteOp> {
 public:
-    RayQueryObjectWriteInst(BasicBlock *parent_block,
-                            RayQueryObjectWriteOp op,
+    RayQueryObjectWriteInst(BasicBlock *parent_block, RayQueryObjectWriteOp op,
                             luisa::span<Value *const> operands = {}) noexcept;
     [[nodiscard]] RayQueryObjectWriteInst *clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };

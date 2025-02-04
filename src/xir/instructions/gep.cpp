@@ -5,7 +5,7 @@ namespace luisa::compute::xir {
 
 GEPInst::GEPInst(BasicBlock *parent_block, const Type *type,
                  Value *base, luisa::span<Value *const> indices) noexcept
-    : DerivedInstruction{parent_block, type} {
+    : Super{parent_block, type} {
     set_operand_count(1u + indices.size());
     set_operand(operand_index_base, base);
     for (size_t i = 0u; i < indices.size(); ++i) {

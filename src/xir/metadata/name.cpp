@@ -22,7 +22,7 @@ inline void name_metadata_validate(luisa::string_view name) noexcept {
 }// namespace detail
 
 NameMD::NameMD(Pool *pool, luisa::string name) noexcept
-    : DerivedMetadata{pool}, _name{std::move(name)} {
+    : Super{pool}, _name{std::move(name)} {
     detail::name_metadata_validate(_name);
 }
 

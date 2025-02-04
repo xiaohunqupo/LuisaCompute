@@ -7,7 +7,7 @@
 
 namespace luisa::compute::xir {
 
-LoopInst::LoopInst(BasicBlock *parent_block) noexcept : ControlFlowMergeMixin{parent_block} {
+LoopInst::LoopInst(BasicBlock *parent_block) noexcept : Super{parent_block} {
     set_operands(std::array{static_cast<Value *>(nullptr)});
 }
 
@@ -85,7 +85,7 @@ LoopInst *LoopInst::clone(Builder &b, InstructionCloneValueResolver &resolver) c
     return cloned;
 }
 
-SimpleLoopInst::SimpleLoopInst(BasicBlock *parent_block) noexcept : ControlFlowMergeMixin{parent_block} {
+SimpleLoopInst::SimpleLoopInst(BasicBlock *parent_block) noexcept : Super{parent_block} {
     set_operands(std::array{static_cast<Value *>(nullptr)});
 }
 
