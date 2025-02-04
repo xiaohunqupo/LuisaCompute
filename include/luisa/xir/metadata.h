@@ -54,7 +54,7 @@ LC_XIR_API void luisa_xir_metadata_list_mixin_add_comment(MetadataList &list, Po
 }// namespace detail
 
 template<typename Base>
-class LC_XIR_API MetadataListMixin : public Base {
+class MetadataListMixin : public Base {
 
 private:
     MetadataList _metadata_list;
