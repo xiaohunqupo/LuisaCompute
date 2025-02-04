@@ -22,7 +22,7 @@ GlobalValueModuleMixin::GlobalValueModuleMixin(Module *module) noexcept : _paren
     LUISA_DEBUG_ASSERT(_parent_module != nullptr, "Module must not be null.");
 }
 
-Pool *GlobalValueModuleMixin::_pool_from_parent_module() const noexcept {
+Pool *GlobalValueModuleMixin::_pool_from_parent_module() noexcept {
     return parent_module()->pool();
 }
 
@@ -36,7 +36,7 @@ void LocalValueFunctionMixin::_set_parent_function(Function *function) noexcept 
     _parent_function = function;
 }
 
-Pool *LocalValueFunctionMixin::_pool_from_parent_function() const noexcept {
+Pool *LocalValueFunctionMixin::_pool_from_parent_function() noexcept {
     return parent_function()->pool();
 }
 
@@ -58,7 +58,7 @@ void LocalValueBlockMixin::_set_parent_block(BasicBlock *block) noexcept {
     _parent_block = block;
 }
 
-Pool *LocalValueBlockMixin::_pool_from_parent_block() const noexcept {
+Pool *LocalValueBlockMixin::_pool_from_parent_block() noexcept {
     return parent_block()->pool();
 }
 

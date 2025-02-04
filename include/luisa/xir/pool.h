@@ -31,7 +31,11 @@ protected:
 
 public:
     virtual ~PooledObject() noexcept = default;
-    [[nodiscard]] virtual Pool *pool() const noexcept = 0;
+
+    [[nodiscard]] virtual Pool *pool() noexcept = 0;
+    [[nodiscard]] const Pool *pool() const noexcept {
+        return const_cast<PooledObject *>(this)->pool();
+    }
 
     // make the object pinned to its memory location
     PooledObject(PooledObject &&) noexcept = delete;
@@ -74,7 +78,8 @@ private:
 public:
     explicit PoolOwner(size_t init_pool_cap = 0u) noexcept;
     virtual ~PoolOwner() noexcept = default;
-    [[nodiscard]] Pool *pool() const noexcept { return _pool.get(); }
+    [[nodiscard]] Pool *pool() noexcept { return _pool.get(); }
+    [[nodiscard]] const Pool *pool() const noexcept { return _pool.get(); }
 };
 
 }// namespace luisa::compute::xir

@@ -69,7 +69,7 @@ private:
 protected:
     explicit GlobalValueModuleMixin(Module *module) noexcept;
     ~GlobalValueModuleMixin() noexcept = default;
-    [[nodiscard]] Pool *_pool_from_parent_module() const noexcept;
+    [[nodiscard]] Pool *_pool_from_parent_module() noexcept;
 
 public:
     [[nodiscard]] Module *parent_module() noexcept { return _parent_module; }
@@ -86,7 +86,7 @@ public:
     explicit DerivedGlobalValue(Module *module, Args &&...args) noexcept
         : DerivedValue<Derived, tag, Base>{std::forward<Args>(args)...},
           GlobalValueModuleMixin{module} {}
-    [[nodiscard]] Pool *pool() const noexcept final { return _pool_from_parent_module(); }
+    [[nodiscard]] Pool *pool() noexcept final { return _pool_from_parent_module(); }
 };
 
 class LC_XIR_API LocalValueFunctionMixin {
@@ -100,7 +100,7 @@ protected:
     explicit LocalValueFunctionMixin(Function *function) noexcept;
     ~LocalValueFunctionMixin() noexcept = default;
     void _set_parent_function(Function *function) noexcept;
-    [[nodiscard]] Pool *_pool_from_parent_function() const noexcept;
+    [[nodiscard]] Pool *_pool_from_parent_function() noexcept;
 
 public:
     [[nodiscard]] Function *parent_function() noexcept { return _parent_function; }
@@ -119,7 +119,7 @@ public:
     explicit DerivedFunctionScopeValue(Function *function, Args &&...args) noexcept
         : DerivedValue<Derived, tag, Base>{std::forward<Args>(args)...},
           LocalValueFunctionMixin{function} {}
-    [[nodiscard]] Pool *pool() const noexcept final { return _pool_from_parent_function(); }
+    [[nodiscard]] Pool *pool() noexcept final { return _pool_from_parent_function(); }
 };
 
 class LC_XIR_API LocalValueBlockMixin {
@@ -132,7 +132,7 @@ protected:
     explicit LocalValueBlockMixin(BasicBlock *block) noexcept;
     ~LocalValueBlockMixin() noexcept = default;
     void _set_parent_block(BasicBlock *block) noexcept;
-    [[nodiscard]] Pool *_pool_from_parent_block() const noexcept;
+    [[nodiscard]] Pool *_pool_from_parent_block() noexcept;
 
 public:
     [[nodiscard]] BasicBlock *parent_block() noexcept { return _parent_block; }
@@ -153,7 +153,7 @@ public:
     explicit DerivedBlockScopeValue(BasicBlock *block, Args &&...args) noexcept
         : DerivedValue<Derived, tag, Base>{std::forward<Args>(args)...},
           LocalValueBlockMixin{block} {}
-    [[nodiscard]] Pool *pool() const noexcept final { return _pool_from_parent_block(); }
+    [[nodiscard]] Pool *pool() noexcept final { return _pool_from_parent_block(); }
 };
 
 }// namespace luisa::compute::xir

@@ -19,7 +19,7 @@ private:
 
 public:
     explicit Metadata(Pool *pool) noexcept;
-    [[nodiscard]] Pool *pool() const noexcept override { return _pool; }
+    [[nodiscard]] Pool *pool() noexcept override { return _pool; }
     [[nodiscard]] virtual DerivedMetadataTag derived_metadata_tag() const noexcept = 0;
     [[nodiscard]] virtual Metadata *clone(Pool *pool) const noexcept = 0;
     LUISA_XIR_DEFINED_ISA_METHOD(Metadata, metadata)
@@ -31,14 +31,12 @@ public:
     using derived_metadata_type = Derived;
     using Super = DerivedMetadata;
     using Base::Base;
+
     [[nodiscard]] static constexpr auto
-    static_derived_metadata_tag() noexcept {
-        return tag;
-    }
+    static_derived_metadata_tag() noexcept { return tag; }
+
     [[nodiscard]] DerivedMetadataTag
-    derived_metadata_tag() const noexcept final {
-        return static_derived_metadata_tag();
-    }
+    derived_metadata_tag() const noexcept final { return static_derived_metadata_tag(); }
 };
 
 using MetadataList = IntrusiveForwardList<Metadata>;
