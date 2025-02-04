@@ -6,6 +6,8 @@
 namespace luisa::compute::xir {
 
 class PhiInst;
+class Function;
+class Module;
 
 struct Reg2MemInfo {
     luisa::vector<PhiInst *> lowered_phi_nodes;
