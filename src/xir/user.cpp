@@ -29,6 +29,7 @@ const Value *User::operand(size_t index) const noexcept {
 
 void User::set_operand_use_value(Use *use, Value *value) noexcept {
     LUISA_DEBUG_ASSERT(use != nullptr, "Invalid use.");
+    LUISA_DEBUG_ASSERT(value == nullptr || use->pool() == value->pool(), "Use and value should be in the same pool.");
     if (use->value() != value) {
         if (use->value()) { use->remove_self(); }
         use->set_value(value);

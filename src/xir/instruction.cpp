@@ -22,7 +22,7 @@ void Instruction::_add_self_to_operand_use_lists() noexcept {
     for (auto use : operand_uses()) {
         LUISA_DEBUG_ASSERT(!use->is_linked(), "Use already linked.");
         if (auto value = use->value()) {
-            value->use_list().insert_front(use);
+            use->add_to_list(value->use_list());
         }
     }
 }
@@ -77,8 +77,7 @@ void BranchTerminatorInstruction::set_target_block(BasicBlock *target) noexcept 
 }
 
 BasicBlock *BranchTerminatorInstruction::create_target_block(bool overwrite_existing) noexcept {
-    LUISA_ASSERT(target_block() == nullptr || overwrite_existing,
-                 "Target block already exists.");
+    LUISA_ASSERT(target_block() == nullptr || overwrite_existing, "Target block already exists.");
     auto new_block = parent_function()->create_basic_block();
     set_target_block(new_block);
     return new_block;
@@ -111,16 +110,14 @@ void ConditionalBranchTerminatorInstruction::set_false_target(BasicBlock *target
 }
 
 BasicBlock *ConditionalBranchTerminatorInstruction::create_true_block(bool overwrite_existing) noexcept {
-    LUISA_ASSERT(true_block() == nullptr || overwrite_existing,
-                 "True block already exists.");
+    LUISA_ASSERT(true_block() == nullptr || overwrite_existing, "True block already exists.");
     auto new_block = parent_function()->create_basic_block();
     set_true_target(new_block);
     return new_block;
 }
 
 BasicBlock *ConditionalBranchTerminatorInstruction::create_false_block(bool overwrite_existing) noexcept {
-    LUISA_ASSERT(false_block() == nullptr || overwrite_existing,
-                 "False block already exists.");
+    LUISA_ASSERT(false_block() == nullptr || overwrite_existing, "False block already exists.");
     auto new_block = parent_function()->create_basic_block();
     set_false_target(new_block);
     return new_block;
@@ -150,9 +147,16 @@ const BasicBlock *ConditionalBranchTerminatorInstruction::false_block() const no
     return const_cast<ConditionalBranchTerminatorInstruction *>(this)->false_block();
 }
 
+void ControlFlowMerge::set_merge_block(BasicBlock *block) noexcept {
+    auto base = _base_instruction();
+    LUISA_DEBUG_ASSERT(block == nullptr || (block->parent_function() == base->parent_function() &&
+                                            block->pool() == base->pool()),
+                       "Invalid merge block.");
+    _merge_block = block;
+}
+
 BasicBlock *ControlFlowMerge::create_merge_block(bool overwrite_existing) noexcept {
-    LUISA_ASSERT(merge_block() == nullptr || overwrite_existing,
-                 "Merge block already exists.");
+    LUISA_ASSERT(merge_block() == nullptr || overwrite_existing, "Merge block already exists.");
     auto block = _base_instruction()->parent_function()->create_basic_block();
     set_merge_block(block);
     return block;

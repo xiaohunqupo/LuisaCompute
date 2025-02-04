@@ -6,6 +6,7 @@ namespace luisa::compute::xir {
 
 void Builder::_check_valid_insertion_point() const noexcept {
     LUISA_DEBUG_ASSERT(_insertion_point != nullptr, "Invalid insertion point.");
+    LUISA_DEBUG_ASSERT(_pool != nullptr, "Invalid pool.");
 }
 
 Builder::Builder() noexcept = default;
@@ -338,6 +339,7 @@ AtomicInst *Builder::atomic_compare_exchange(const Type *type, Value *base,
 
 void Builder::set_insertion_point(Instruction *insertion_point) noexcept {
     _insertion_point = insertion_point;
+    _pool = insertion_point->pool();
 }
 
 void Builder::set_insertion_point(BasicBlock *block) noexcept {

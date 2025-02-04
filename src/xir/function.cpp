@@ -10,11 +10,15 @@ Function::Function(Module *module, const Type *type) noexcept
     : Super{module, type}, _module{module} {}
 
 void Function::add_argument(Argument *argument) noexcept {
+    LUISA_DEBUG_ASSERT(argument != nullptr, "Invalid argument.");
+    LUISA_DEBUG_ASSERT(argument->pool() == pool(), "Argument and function should be in the same pool.");
     argument->_set_parent_function(this);
     _arguments.emplace_back(argument);
 }
 
 void Function::insert_argument(size_t index, Argument *argument) noexcept {
+    LUISA_DEBUG_ASSERT(argument != nullptr, "Invalid argument.");
+    LUISA_DEBUG_ASSERT(argument->pool() == pool(), "Argument and function should be in the same pool.");
     argument->_set_parent_function(this);
     _arguments.insert(_arguments.begin() + index, argument);
 }
@@ -48,6 +52,8 @@ void Function::replace_argument(Argument *old_argument, Argument *new_argument) 
 
 void Function::replace_argument(size_t index, Argument *argument) noexcept {
     LUISA_ASSERT(index < _arguments.size(), "Argument index out of range.");
+    LUISA_DEBUG_ASSERT(argument != nullptr, "Invalid argument.");
+    LUISA_DEBUG_ASSERT(argument->pool() == pool(), "Argument and function should be in the same pool.");
     _arguments[index]->replace_all_uses_with(argument);
     argument->_set_parent_function(this);
     _arguments[index] = argument;
@@ -89,6 +95,9 @@ BasicBlock *Function::create_basic_block() noexcept {
 }
 
 void FunctionDefinition::set_body_block(BasicBlock *block) noexcept {
+    LUISA_DEBUG_ASSERT(block != nullptr, "Invalid body block.");
+    LUISA_DEBUG_ASSERT(block->pool() == pool(), "Block and function should be in the same pool.");
+    block->_set_parent_function(this);
     _body_block = block;
 }
 

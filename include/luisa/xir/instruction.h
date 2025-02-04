@@ -254,7 +254,7 @@ private:
     [[nodiscard]] virtual Instruction *_base_instruction() noexcept = 0;
 
 public:
-    void set_merge_block(BasicBlock *block) noexcept { _merge_block = block; }
+    void set_merge_block(BasicBlock *block) noexcept;
     [[nodiscard]] BasicBlock *merge_block() noexcept { return _merge_block; }
     [[nodiscard]] const BasicBlock *merge_block() const noexcept { return _merge_block; }
     BasicBlock *create_merge_block(bool overwrite_existing = false) noexcept;

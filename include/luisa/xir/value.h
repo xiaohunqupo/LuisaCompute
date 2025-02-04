@@ -57,6 +57,7 @@ public:
 
 class Module;
 class Function;
+class FunctionDefinition;
 class BasicBlock;
 
 class LC_XIR_API GlobalValueModuleMixin {
@@ -90,6 +91,7 @@ class LC_XIR_API LocalValueFunctionMixin {
 
 private:
     friend class Function;
+    friend class FunctionDefinition;
     Function *_parent_function;
 
 protected:
