@@ -169,6 +169,7 @@ Constant::Constant(Module *module, const Type *type) noexcept
     LUISA_DEBUG_ASSERT(type != nullptr && !type->is_custom() && !type->is_resource(),
                        "Invalid constant type: {}.", type == nullptr ? "void" : type->description());
     if (!_is_small()) { _large = luisa::allocate_with_allocator<std::byte>(type->size()); }
+    std::memset(_data(), 0, type->size());
 }
 
 bool Constant::_is_small() const noexcept {
@@ -186,14 +187,13 @@ Constant::Constant(Module *module, const Type *type, const void *data,
 Constant::Constant(Module *module, const Type *type, ctor_tag_zero,
                    luisa::optional<uint64_t> hash) noexcept
     : Constant{module, type} {
-    std::memset(_data(), 0, type->size());
+    // already memset to zero in the delegate constructor
     _update_hash(std::move(hash));
 }
 
 Constant::Constant(Module *module, const Type *type, ctor_tag_one,
                    luisa::optional<uint64_t> hash) noexcept
     : Constant{module, type} {
-    std::memset(_data(), 0, type->size());
     detail::xir_constant_fill_one(type, _data());
     _update_hash(std::move(hash));
 }
