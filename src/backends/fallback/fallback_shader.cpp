@@ -137,12 +137,9 @@ FallbackShader::FallbackShader(FallbackDevice *device, const ShaderOption &optio
         host->setCodeGenOptLevel(::llvm::CodeGenOptLevel::Aggressive);
 #ifdef __aarch64__
         host->addFeatures({"+neon"});
-#else
-        host->addFeatures({"+avx2"});
 #endif
-        // LUISA_INFO("LLVM JIT target: triplet = {}, features = {}.",
-        //            host->getTargetTriple().str(),
-        //            host->getFeatures().getString());
+        LUISA_VERBOSE("LLVM JIT target: triplet = {}, features = {}.",
+                      host->getTargetTriple().str(), host->getFeatures().getString());
         if (auto machine = host->createTargetMachine()) {
             _target_machine = std::move(machine.get());
         } else {
