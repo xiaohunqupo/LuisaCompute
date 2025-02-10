@@ -4,12 +4,16 @@
 
 namespace luisa::compute::xir {
 
-void Builder::_check_valid_insertion_point() const noexcept {
+Builder::Builder() noexcept = default;
+
+template<typename T, typename... Args>
+auto Builder::_create_and_append_instruction(Args &&...args) noexcept -> T * {
     LUISA_DEBUG_ASSERT(_insertion_point != nullptr, "Invalid insertion point.");
     LUISA_DEBUG_ASSERT(_pool != nullptr, "Invalid pool.");
+    auto inst = _pool->create<T>(std::forward<Args>(args)...);
+    append(inst);
+    return inst;
 }
-
-Builder::Builder() noexcept = default;
 
 void Builder::append(Instruction *inst) noexcept {
     _insertion_point->insert_after_self(inst);

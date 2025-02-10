@@ -39,15 +39,8 @@ private:
     Instruction *_insertion_point = nullptr;
 
 private:
-    void _check_valid_insertion_point() const noexcept;
-
     template<typename T, typename... Args>
-    [[nodiscard]] auto _create_and_append_instruction(Args &&...args) noexcept {
-        _check_valid_insertion_point();
-        auto inst = _pool->create<T>(std::forward<Args>(args)...);
-        append(inst);
-        return inst;
-    }
+    [[nodiscard]] auto _create_and_append_instruction(Args &&...args) noexcept -> T *;
 
 public:
     Builder() noexcept;
