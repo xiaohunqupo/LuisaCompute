@@ -11,22 +11,20 @@ int main(int argc, char *argv[]) {
 
     using namespace luisa::compute;
     auto shader = device.compile<1>([&](UInt n) noexcept {
-        auto x = def<uint>();
-        auto zero = def(0u);
-        auto one = def(1u);
-        $while (true) {
-            $if (n == 0u) {
-                x = zero;
-            }
-            $else {
-                n -= 1u;
-                x = one;
-            };
-            $if (n == 0u) {
-                $break;
-            };
+        auto b = compute::detail::FunctionBuilder::current();
+        auto t = Type::of<uint>();
+        auto x = b->local(t);
+        auto zero = b->literal(t, 0u);
+        auto one = b->literal(t, 1u);
+        $if (n == 0u) {
+        }
+        $elif (n == 1u) {
+            // b->assign(x, one);
+        }
+        $else {
+            b->assign(x, zero);
         };
-        buffer->write(0u, x);
+        buffer->write(0u, def<uint>(x));
     });
 
     uint result = 0u;

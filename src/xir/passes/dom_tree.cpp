@@ -4,7 +4,7 @@
 namespace luisa::compute::xir {
 
 inline DomTreeNode::DomTreeNode(BasicBlock *block) noexcept
-    : _parent{nullptr}, _block{block} {}
+    : _block{block}, _parent{nullptr} {}
 
 inline void DomTreeNode::add_child(DomTreeNode *child) noexcept {
     LUISA_DEBUG_ASSERT(child != nullptr && child->_parent == nullptr && child != this, "Invalid child.");
