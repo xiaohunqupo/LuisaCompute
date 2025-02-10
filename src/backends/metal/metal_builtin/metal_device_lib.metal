@@ -603,7 +603,7 @@ inline void bindless_buffer_write(LCBindlessArray array, uint buffer_index, uint
 
 template<typename T>
 [[nodiscard]] inline auto bindless_byte_address_buffer_read(LCBindlessArray array, uint buffer_index, uint offset) {
-    return reinterpret_cast<device const T *>(static_cast<device const char *>(array.items[buffer_index].buffer) + offset);
+    return *reinterpret_cast<device const T *>(static_cast<device const char *>(array.items[buffer_index].buffer) + offset);
 }
 
 template<typename T>
