@@ -43,6 +43,10 @@ ByteBufferView ByteBuffer::view() const noexcept {
     return ByteBufferView{native_handle(), handle(), 0u, _size_bytes, _size_bytes};
 }
 
+ByteBufferView ByteBuffer::view(size_t offset_bytes, size_t size_bytes) const noexcept {
+    return view().subview(offset_bytes, size_bytes);
+}
+
 luisa::unique_ptr<BufferDownloadCommand> ByteBuffer::copy_to(void *data) const noexcept {
     _check_is_valid();
     return view().copy_to(data);
@@ -71,8 +75,7 @@ ByteBufferView ByteBufferView::subview(size_t offset_bytes, size_t size_bytes) c
     if (offset_bytes + size_bytes > _size) [[unlikely]] {
         detail::error_buffer_subview_overflow(offset_bytes, size_bytes, _size);
     }
-    return ByteBufferView{_native_handle, _handle, _offset_bytes + offset_bytes,
-                          size_bytes, _total_size};
+    return ByteBufferView{_native_handle, _handle, _offset_bytes + offset_bytes, size_bytes, _total_size};
 }
 
 luisa::unique_ptr<BufferDownloadCommand> ByteBufferView::copy_to(void *data) const noexcept {

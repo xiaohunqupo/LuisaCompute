@@ -35,6 +35,7 @@ public:
     using Resource::operator bool;
 
     [[nodiscard]] ByteBufferView view() const noexcept;
+    [[nodiscard]] ByteBufferView view(size_t offset_bytes, size_t size_bytes) const noexcept;
 
     [[nodiscard]] luisa::unique_ptr<BufferUploadCommand> copy_from(const void *data) const noexcept;
     [[nodiscard]] luisa::unique_ptr<BufferCopyCommand> copy_from(ByteBufferView source) const noexcept;

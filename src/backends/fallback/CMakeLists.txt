@@ -107,13 +107,13 @@ if (LLVM_FOUND AND embree_FOUND)
         target_link_libraries(luisa-compute-backend-fallback PRIVATE ${LLVM_LIBS})
     endif ()
 
-    if (CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
-        target_compile_options(luisa-compute-backend-fallback PRIVATE
-                /wd4624 /wd4996 # do not complain about LLVM
-                /fp:fast /fp:contract /fp:except- /ARCH:AVX2)
-    else ()
-        target_compile_options(luisa-compute-backend-fallback PRIVATE -ffast-math)
-    endif ()
+    #    if (CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
+    #        target_compile_options(luisa-compute-backend-fallback PRIVATE
+    #                /wd4624 /wd4996 # do not complain about LLVM
+    #                /fp:fast /fp:contract /fp:except- /ARCH:AVX2)
+    #    else ()
+    #        target_compile_options(luisa-compute-backend-fallback PRIVATE -ffast-math)
+    #    endif ()
 
 elseif (NOT LUISA_COMPUTE_CHECK_BACKEND_DEPENDENCIES)
     message(FATAL_ERROR "LLVM or Embree not found for the fallback backend.")
