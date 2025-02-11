@@ -61,7 +61,7 @@ public:
     }
 };
 
-class ByteBufferView {
+class LC_RUNTIME_API ByteBufferView {
     friend class lc::validation::Stream;
 
 private:
