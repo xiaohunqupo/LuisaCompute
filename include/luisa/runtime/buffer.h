@@ -145,14 +145,14 @@ public:
         return this->view().copy_to(data);
     }
     // copy pointer's data to buffer
-    [[nodiscard]] auto copy_from(const void *data) noexcept {
+    [[nodiscard]] auto copy_from(const void *data) const noexcept {
         return this->view().copy_from(data);
     }
-    [[nodiscard]] auto copy_from(const void *data, luisa::move_only_function<void(void*)>&& upload_callback) noexcept {
+    [[nodiscard]] auto copy_from(const void *data, luisa::move_only_function<void(void*)>&& upload_callback) const noexcept {
         return this->view().copy_from(data, std::move(upload_callback));
     }
     // copy source buffer's data to buffer
-    [[nodiscard]] auto copy_from(BufferView<T> source) noexcept {
+    [[nodiscard]] auto copy_from(BufferView<T> source) const noexcept {
         return this->view().copy_from(source);
     }
     // DSL interface
@@ -242,11 +242,11 @@ public:
         return luisa::make_unique<BufferDownloadCommand>(_handle, offset_bytes(), size_bytes(), data);
     }
     // copy pointer's data to buffer
-    [[nodiscard]] auto copy_from(const void *data) noexcept {
+    [[nodiscard]] auto copy_from(const void *data) const noexcept {
         return luisa::make_unique<BufferUploadCommand>(this->handle(), this->offset_bytes(), this->size_bytes(), data);
     }
     // copy source buffer's data to buffer
-    [[nodiscard]] auto copy_from(BufferView<T> source) noexcept {
+    [[nodiscard]] auto copy_from(BufferView<T> source) const noexcept {
         if (source.size() != this->size()) [[unlikely]] {
             detail::error_buffer_copy_sizes_mismatch(source.size(), this->size());
         }

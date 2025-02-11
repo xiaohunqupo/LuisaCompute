@@ -45,7 +45,16 @@ ByteBuffer Device::import_external_byte_buffer(void *external_memory, size_t byt
     return ByteBuffer{impl(), info};
 }
 
+ByteBufferView ByteBuffer::view() const noexcept {
+    return ByteBufferView{native_handle(), handle(), 0u, _size_bytes, _size_bytes};
+}
+
 namespace detail {
+ShaderInvokeBase &ShaderInvokeBase::operator<<(const ByteBufferView &buffer) noexcept {
+    _encoder.encode_buffer(buffer.handle(), buffer.offset_bytes(), buffer.size_bytes());
+    return *this;
+}
+
 ShaderInvokeBase &ShaderInvokeBase::operator<<(const ByteBuffer &buffer) noexcept {
     buffer._check_is_valid();
     _encoder.encode_buffer(buffer.handle(), 0u, buffer.size_bytes());
