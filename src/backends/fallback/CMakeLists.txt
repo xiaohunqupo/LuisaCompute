@@ -97,6 +97,10 @@ if (LLVM_FOUND AND embree_FOUND)
                 set(LLVM_LIBS ${LLVM_DYLIB})
             endif ()
         endif ()
+    endif ()
+
+    message(STATUS "Linking with LLVM libraries: ${LLVM_LIBS}")
+    if (UNIX AND NOT APPLE)
         # avoid re-exporting symbols from LLVM
         target_link_libraries(luisa-compute-backend-fallback PRIVATE "-Wl,--exclude-libs,ALL" ${LLVM_LIBS})
     else ()
