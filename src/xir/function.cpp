@@ -6,14 +6,19 @@
 
 namespace luisa::compute::xir {
 
-Function::Function(const Type *type) noexcept : Super{type} {}
+Function::Function(Module *module, const Type *type) noexcept
+    : Super{module, type}, _module{module} {}
 
 void Function::add_argument(Argument *argument) noexcept {
+    LUISA_DEBUG_ASSERT(argument != nullptr, "Invalid argument.");
+    LUISA_DEBUG_ASSERT(argument->pool() == pool(), "Argument and function should be in the same pool.");
     argument->_set_parent_function(this);
     _arguments.emplace_back(argument);
 }
 
 void Function::insert_argument(size_t index, Argument *argument) noexcept {
+    LUISA_DEBUG_ASSERT(argument != nullptr, "Invalid argument.");
+    LUISA_DEBUG_ASSERT(argument->pool() == pool(), "Argument and function should be in the same pool.");
     argument->_set_parent_function(this);
     _arguments.insert(_arguments.begin() + index, argument);
 }
@@ -30,7 +35,6 @@ void Function::remove_argument(Argument *argument) noexcept {
 
 void Function::remove_argument(size_t index) noexcept {
     LUISA_ASSERT(index < _arguments.size(), "Argument index out of range.");
-    _arguments[index]->_set_parent_function(nullptr);
     _arguments.erase(_arguments.begin() + index);
 }
 
@@ -48,51 +52,58 @@ void Function::replace_argument(Argument *old_argument, Argument *new_argument) 
 
 void Function::replace_argument(size_t index, Argument *argument) noexcept {
     LUISA_ASSERT(index < _arguments.size(), "Argument index out of range.");
-    _arguments[index]->_set_parent_function(nullptr);
+    LUISA_DEBUG_ASSERT(argument != nullptr, "Invalid argument.");
+    LUISA_DEBUG_ASSERT(argument->pool() == pool(), "Argument and function should be in the same pool.");
     _arguments[index]->replace_all_uses_with(argument);
     argument->_set_parent_function(this);
     _arguments[index] = argument;
 }
 
-Argument *Function::create_argument(const Type *type, bool by_ref) noexcept {
+Argument *Function::create_argument(const Type *type, bool by_ref, bool should_append) noexcept {
     if (type->is_resource()) {
         LUISA_ASSERT(!by_ref, "Resource argument must not be passed by reference.");
-        return create_resource_argument(type);
+        return create_resource_argument(type, should_append);
     }
-    return by_ref ? static_cast<Argument *>(create_reference_argument(type)) :
-                    static_cast<Argument *>(create_value_argument(type));
+    return by_ref ? static_cast<Argument *>(create_reference_argument(type, should_append)) :
+                    static_cast<Argument *>(create_value_argument(type, should_append));
 }
 
-ValueArgument *Function::create_value_argument(const Type *type) noexcept {
+ValueArgument *Function::create_value_argument(const Type *type, bool should_append) noexcept {
     LUISA_ASSERT(!type->is_resource(), "Resource argument must be created with create_resource_argument.");
     LUISA_ASSERT(!type->is_custom(), "Opaque argument must be created with create_reference_argument.");
-    auto argument = Pool::current()->create<ValueArgument>(type, this);
-    add_argument(argument);
+    auto argument = pool()->create<ValueArgument>(this, type);
+    if (should_append) { add_argument(argument); }
     return argument;
 }
 
-ReferenceArgument *Function::create_reference_argument(const Type *type) noexcept {
+ReferenceArgument *Function::create_reference_argument(const Type *type, bool should_append) noexcept {
     LUISA_ASSERT(!type->is_resource(), "Resource argument must be created with create_resource_argument.");
-    auto argument = Pool::current()->create<ReferenceArgument>(type, this);
-    add_argument(argument);
+    auto argument = pool()->create<ReferenceArgument>(this, type);
+    if (should_append) { add_argument(argument); }
     return argument;
 }
 
-ResourceArgument *Function::create_resource_argument(const Type *type) noexcept {
+ResourceArgument *Function::create_resource_argument(const Type *type, bool should_append) noexcept {
     LUISA_ASSERT(type->is_resource(), "Resource argument must be created with create_resource_argument.");
-    auto argument = Pool::current()->create<ResourceArgument>(type, this);
-    add_argument(argument);
+    auto argument = pool()->create<ResourceArgument>(this, type);
+    if (should_append) { add_argument(argument); }
     return argument;
+}
+
+BasicBlock *Function::create_basic_block() noexcept {
+    return pool()->create<BasicBlock>(this);
 }
 
 void FunctionDefinition::set_body_block(BasicBlock *block) noexcept {
+    LUISA_DEBUG_ASSERT(block != nullptr, "Invalid body block.");
+    LUISA_DEBUG_ASSERT(block->pool() == pool(), "Block and function should be in the same pool.");
+    block->_set_parent_function(this);
     _body_block = block;
 }
 
 BasicBlock *FunctionDefinition::create_body_block(bool overwrite_existing) noexcept {
-    LUISA_ASSERT(_body_block == nullptr || overwrite_existing,
-                 "Body block already exists.");
-    auto new_block = Pool::current()->create<BasicBlock>();
+    LUISA_ASSERT(_body_block == nullptr || overwrite_existing, "Body block already exists.");
+    auto new_block = create_basic_block();
     set_body_block(new_block);
     return new_block;
 }
@@ -160,9 +171,8 @@ void FunctionDefinition::_traverse_basic_block_reverse_post_order(BasicBlock *bl
     }
 }
 
-KernelFunction::KernelFunction(luisa::uint3 block_size) noexcept {
-    set_block_size(block_size);
-}
+KernelFunction::KernelFunction(Module *module, luisa::uint3 block_size) noexcept
+    : Super{module}, _block_size{} { set_block_size(block_size); }
 
 void KernelFunction::set_block_size(luisa::uint3 size) noexcept {
     auto thread_count = size.x * size.y * size.z;
@@ -170,7 +180,11 @@ void KernelFunction::set_block_size(luisa::uint3 size) noexcept {
                      thread_count <= 1024u &&
                      thread_count % 32u == 0u,
                  "Invalid block size: {}.", size);
-    _block_size = size;
+    _block_size = {size.x, size.y, size.z};
+}
+
+luisa::uint3 KernelFunction::block_size() const noexcept {
+    return luisa::make_uint3(_block_size[0], _block_size[1], _block_size[2]);
 }
 
 }// namespace luisa::compute::xir

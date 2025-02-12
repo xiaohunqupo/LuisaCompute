@@ -23,13 +23,11 @@ enum class AtomicOp {
     return op == AtomicOp::COMPARE_EXCHANGE ? 2u : 1u;
 }
 
-class LC_XIR_API AtomicInst final : public DerivedInstruction<DerivedInstructionTag::ATOMIC>,
+class LC_XIR_API AtomicInst final : public DerivedInstruction<AtomicInst, DerivedInstructionTag::ATOMIC>,
                                     public InstructionOpMixin<AtomicOp> {
 public:
-    explicit AtomicInst(const Type *type = nullptr, AtomicOp op = {},
-                        Value *base = nullptr,
-                        luisa::span<Value *const> indices = {},
-                        luisa::span<Value *const> values = {}) noexcept;
+    AtomicInst(BasicBlock *parent_block, const Type *type, AtomicOp op, Value *base,
+               luisa::span<Value *const> indices = {}, luisa::span<Value *const> values = {}) noexcept;
 
     [[nodiscard]] Value *base() noexcept;
     [[nodiscard]] const Value *base() const noexcept;
@@ -52,6 +50,8 @@ public:
     [[nodiscard]] luisa::span<Use *const> value_uses() noexcept;
     [[nodiscard]] luisa::span<const Use *const> value_uses() const noexcept;
     void set_values(luisa::span<Value *const> values) noexcept;
+
+    [[nodiscard]] AtomicInst *clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 }// namespace luisa::compute::xir

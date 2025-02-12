@@ -112,8 +112,7 @@ if (LUISA_COMPUTE_ENABLE_FALLBACK)
     if (NOT LLVM_FOUND AND WIN32)
         include(${CMAKE_CURRENT_SOURCE_DIR}/scripts/download_and_patch_llvm.cmake)
     endif ()
-    if (NOT LLVM_FOUND OR LLVM_VERSION VERSION_LESS 16 OR
-            NOT embree_FOUND OR embree_VERSION VERSION_LESS 3)
+    if (NOT LLVM_FOUND OR LLVM_VERSION VERSION_LESS 16 OR NOT embree_FOUND OR embree_VERSION VERSION_LESS 3.12)
         report_feature_not_available(FALLBACK "fallback backend")
     elseif (WIN32)
         # LLVMDebugInfoPDB has a hard-coded path to diaguids.lib

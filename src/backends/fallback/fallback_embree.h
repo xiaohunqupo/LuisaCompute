@@ -1,16 +1,6 @@
 #pragma once
 
-#ifndef LUISA_COMPUTE_EMBREE_VERSION
-#if __has_include(<embree4/rtcore.h>)
-#define LUISA_COMPUTE_EMBREE_VERSION 4
-#elif __has_include(<embree3/rtcore.h>)
-#define LUISA_COMPUTE_EMBREE_VERSION 3
-#else
-#error "Embree not found."
-#endif
-#endif
-
-#if LUISA_COMPUTE_EMBREE_VERSION == 3
+#if LUISA_COMPUTE_FALLBACK_EMBREE_VERSION == 3
 #include <embree3/rtcore.h>
 #else
 #include <embree4/rtcore.h>
@@ -22,6 +12,9 @@ namespace luisa::compute::fallback {
 
 inline void luisa_fallback_accel_set_flags(RTCScene scene, const AccelOption &option) noexcept {
     auto scene_flags = 0u;
+#if LUISA_COMPUTE_FALLBACK_EMBREE_VERSION == 3
+    scene_flags |= RTC_SCENE_FLAG_CONTEXT_FILTER_FUNCTION;
+#endif
     if (option.allow_compaction) { scene_flags |= RTC_SCENE_FLAG_COMPACT; }
     if (option.allow_update) { scene_flags |= RTC_SCENE_FLAG_DYNAMIC; }
     rtcSetSceneFlags(scene, static_cast<RTCSceneFlags>(scene_flags));

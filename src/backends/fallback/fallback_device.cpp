@@ -23,6 +23,7 @@
 #include "fallback_device.h"
 #include "fallback_texture.h"
 #include "fallback_mesh.h"
+#include "fallback_proc_prim.h"
 #include "fallback_accel.h"
 #include "fallback_bindless_array.h"
 #include "fallback_shader.h"
@@ -35,18 +36,24 @@ namespace luisa::compute::fallback {
 FallbackDevice::FallbackDevice(Context &&ctx) noexcept
     : DeviceInterface{std::move(ctx)} {
 
-#ifdef LUISA_ARCH_X86_64
+#if defined(LUISA_ARCH_X86_64)
     _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
     _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+#elif defined(LUISA_ARCH_ARM64)
+    uint64_t fpcr;
+    asm volatile("mrs %0, FPCR" : "=r"(fpcr));                  /* read */
+    asm volatile("msr FPCR, %0" ::"r"(fpcr | (1ull << 24ull))); /* write */
 #endif
 
     // embree
-    _rtc_device = rtcNewDevice("frequency_level=simd128,isa=avx2,verbose=1");
+    _rtc_device = rtcNewDevice("frequency_level=simd128,verbose=1");
     rtcSetDeviceErrorFunction(
         _rtc_device,
         [](void *, RTCError code, const char *message) {
-            LUISA_WARNING_WITH_LOCATION("Embree error (code = {}): {}",
-                                        luisa::to_underlying(code), message);
+            if (code != RTC_ERROR_NONE) {
+                LUISA_ERROR_WITH_LOCATION("Embree error (code = {}): {}",
+                                          luisa::to_underlying(code), message);
+            }
         },
         nullptr);
 
@@ -233,10 +240,14 @@ ResourceCreationInfo FallbackDevice::create_mesh(const AccelOption &option) noex
 }
 
 ResourceCreationInfo FallbackDevice::create_procedural_primitive(const AccelOption &option) noexcept {
-    return ResourceCreationInfo();
+    auto prim = luisa::new_with_allocator<FallbackProceduralPrim>(_rtc_device, option);
+    return {.handle = reinterpret_cast<uint64_t>(prim),
+            .native_handle = prim->handle()};
 }
 
 void FallbackDevice::destroy_procedural_primitive(uint64_t handle) noexcept {
+    auto prim = reinterpret_cast<FallbackProceduralPrim *>(handle);
+    luisa::delete_with_allocator(prim);
 }
 
 ResourceCreationInfo FallbackDevice::create_curve(const AccelOption &option) noexcept {

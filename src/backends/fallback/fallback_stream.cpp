@@ -1,7 +1,3 @@
-//
-// Created by Mike Smith on 2022/2/7.
-//
-
 #include <algorithm>
 #include <luisa/core/logging.h>
 
@@ -9,6 +5,7 @@
 #include "fallback_accel.h"
 #include "fallback_bindless_array.h"
 #include "fallback_mesh.h"
+#include "fallback_proc_prim.h"
 #include "fallback_texture.h"
 #include "fallback_shader.h"
 #include "fallback_buffer.h"
@@ -97,7 +94,10 @@ void FallbackStream::_enqueue(luisa::unique_ptr<CurveBuildCommand> cmd) noexcept
 }
 
 void FallbackStream::_enqueue(luisa::unique_ptr<ProceduralPrimitiveBuildCommand> cmd) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    queue()->enqueue([cmd = std::move(cmd)]() mutable noexcept {
+        auto prim = reinterpret_cast<FallbackProceduralPrim *>(cmd->handle());
+        prim->build(std::move(cmd));
+    });
 }
 
 void FallbackStream::_enqueue(luisa::unique_ptr<MotionInstanceBuildCommand> cmd) noexcept {

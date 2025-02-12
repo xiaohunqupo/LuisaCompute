@@ -152,6 +152,10 @@ set_values(true, false)
 set_default(false)
 set_showmenu(true)
 option_end()
+option("llvm_path")
+set_default(false)
+set_showmenu(true)
+option_end()
 -- pre-defined options end
 
 -- use xrepo from skr

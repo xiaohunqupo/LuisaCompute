@@ -4,9 +4,10 @@
 
 namespace luisa::compute::xir {
 
-class RasterDiscardInst final : public DerivedInstruction<DerivedInstructionTag::RASTER_DISCARD> {
+class LC_XIR_API RasterDiscardInst final : public DerivedTerminatorInstruction<RasterDiscardInst, DerivedInstructionTag::RASTER_DISCARD> {
 public:
-    using DerivedInstruction::DerivedInstruction;
+    using Super::Super;
+    [[nodiscard]] RasterDiscardInst *clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 }// namespace luisa::compute::xir

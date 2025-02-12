@@ -73,6 +73,31 @@ struct alignas(8) SurfaceHit {
     float2 bary;
     float committed_ray_t;
 };
+static_assert(sizeof(SurfaceHit) == 24u, "SurfaceHit size mismatch");
+static_assert(alignof(SurfaceHit) == 8u, "SurfaceHit align mismatch");
+
+struct alignas(8) AABBHit {
+    uint inst;
+    uint prim;
+};
+static_assert(sizeof(AABBHit) == 8u, "AABBHit size mismatch");
+static_assert(alignof(AABBHit) == 8u, "AABBHit align mismatch");
+
+enum struct HitType : uint {
+    Miss = 0,
+    Surface = 1,   // triangle or curve
+    Procedural = 2,// bounding box (for procedural primitives)
+};
+
+struct alignas(8) CommittedHit {
+    uint inst;
+    uint prim;
+    float2 bary;
+    HitType hit_type;// HitType
+    float committed_ray_t;
+};
+static_assert(sizeof(CommittedHit) == 24u, "CommittedHit size mismatch");
+static_assert(alignof(CommittedHit) == 8u, "CommittedHit align mismatch");
 
 struct alignas(16u) TextureView {
     void *_data;
@@ -162,6 +187,32 @@ struct alignas(16) AccelView {
 void luisa_fallback_accel_trace_closest(void *handle, EmbreeRayHit *ray_hit) noexcept;
 void luisa_fallback_accel_trace_any(void *handle, EmbreeRay *ray) noexcept;
 
+struct alignas(16) LC_RayQueryObject;
+
+[[nodiscard]] size_t luisa_fallback_ray_query_object_size() noexcept;
+[[nodiscard]] size_t luisa_fallback_ray_query_object_alignment() noexcept;
+
+struct alignas(16) RayQueryCandidate {
+    uint inst;
+    uint prim;
+    float2 bary;
+    float t;
+    float pad;
+    int committed;
+    int terminated;
+};
+
+using RayQueryOnSurfaceFunc = void(LC_RayQueryObject *, const void *capture) noexcept;
+using RayQueryOnProceduralFunc = void(LC_RayQueryObject *, const void *capture) noexcept;
+
+struct RayQueryIntersectFunctionArguments;
+struct RayQueryOccludedFunctionArguments;
+
+void luisa_fallback_ray_query_procedural_intersect_function(const RayQueryIntersectFunctionArguments *args) noexcept;
+void luisa_fallback_ray_query_procedural_occluded_function(const RayQueryOccludedFunctionArguments *args) noexcept;
+
+void luisa_fallback_ray_query_pipeline_all(LC_RayQueryObject *query_object, const void *capture, RayQueryOnSurfaceFunc *on_surface, RayQueryOnProceduralFunc *on_procedural) noexcept;
+void luisa_fallback_ray_query_pipeline_any(LC_RayQueryObject *query_object, const void *capture, RayQueryOnSurfaceFunc *on_surface, RayQueryOnProceduralFunc *on_procedural) noexcept;
 }
 
 #ifndef LUISA_COMPUTE_FALLBACK_DEVICE_LIB

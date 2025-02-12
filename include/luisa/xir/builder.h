@@ -15,7 +15,7 @@
 #include <luisa/xir/instructions/continue.h>
 #include <luisa/xir/instructions/gep.h>
 #include <luisa/xir/instructions/if.h>
-#include <luisa/xir/instructions/intrinsic.h>
+#include <luisa/xir/instructions/autodiff.h>
 #include <luisa/xir/instructions/load.h>
 #include <luisa/xir/instructions/loop.h>
 #include <luisa/xir/instructions/outline.h>
@@ -31,25 +31,16 @@
 #include <luisa/xir/instructions/unreachable.h>
 
 namespace luisa::compute::xir {
-class ClockInst;
-}// namespace luisa::compute::xir
-namespace luisa::compute::xir {
 
 class LC_XIR_API Builder {
 
 private:
+    Pool *_pool = nullptr;
     Instruction *_insertion_point = nullptr;
 
 private:
-    void _check_valid_insertion_point() const noexcept;
-
     template<typename T, typename... Args>
-    [[nodiscard]] auto _create_and_append_instruction(Args &&...args) noexcept {
-        auto inst = Pool::current()->create<T>(std::forward<Args>(args)...);
-        _insertion_point->insert_after_self(inst);
-        set_insertion_point(inst);
-        return inst;
-    }
+    [[nodiscard]] auto _create_and_append_instruction(Args &&...args) noexcept -> T *;
 
 public:
     Builder() noexcept;
@@ -64,6 +55,8 @@ public:
     }
 
 public:
+    void append(Instruction *inst) noexcept;
+
     IfInst *if_(Value *cond) noexcept;
     SwitchInst *switch_(Value *value) noexcept;
     LoopInst *loop() noexcept;
@@ -82,11 +75,11 @@ public:
     AssertInst *assert_(Value *condition, luisa::string_view message = {}) noexcept;
     AssumeInst *assume_(Value *condition, luisa::string_view message = {}) noexcept;
 
-    CallInst *call(const Type *type, Value *callee, luisa::span<Value *const> arguments) noexcept;
-    CallInst *call(const Type *type, Value *callee, std::initializer_list<Value *> arguments) noexcept;
+    CallInst *call(const Type *type, Function *callee, luisa::span<Value *const> arguments) noexcept;
+    CallInst *call(const Type *type, Function *callee, std::initializer_list<Value *> arguments) noexcept;
 
-    IntrinsicInst *call(const Type *type, IntrinsicOp op, luisa::span<Value *const> arguments) noexcept;
-    IntrinsicInst *call(const Type *type, IntrinsicOp op, std::initializer_list<Value *> arguments) noexcept;
+    AutodiffIntrinsicInst *call(const Type *type, AutodiffIntrinsicOp op, luisa::span<Value *const> arguments) noexcept;
+    AutodiffIntrinsicInst *call(const Type *type, AutodiffIntrinsicOp op, std::initializer_list<Value *> arguments) noexcept;
 
     AtomicInst *call(const Type *type, AtomicOp op, Value *base, luisa::span<Value *const> indices, luisa::span<Value *const> values) noexcept;
     AtomicInst *call(const Type *type, AtomicOp op, Value *base, luisa::span<Value *const> indices, std::initializer_list<Value *> values) noexcept;
@@ -105,6 +98,8 @@ public:
 
     ResourceWriteInst *call(ResourceWriteOp op, luisa::span<Value *const> operands) noexcept;
     ResourceWriteInst *call(ResourceWriteOp op, std::initializer_list<Value *> operands) noexcept;
+
+    CastInst *cast_(const Type *type, CastOp op, Value *value) noexcept;
 
     Instruction *static_cast_(const Type *type, Value *value) noexcept;
     CastInst *bit_cast_(const Type *type, Value *value) noexcept;
@@ -132,12 +127,20 @@ public:
 
     OutlineInst *outline() noexcept;
 
+    AutodiffScopeInst *autodiff_scope() noexcept;
+
     RayQueryLoopInst *ray_query_loop() noexcept;
     RayQueryDispatchInst *ray_query_dispatch(Value *query_object) noexcept;
+
     RayQueryObjectReadInst *call(const Type *type, RayQueryObjectReadOp op, luisa::span<Value *const> operands) noexcept;
     RayQueryObjectReadInst *call(const Type *type, RayQueryObjectReadOp op, std::initializer_list<Value *> operands) noexcept;
     RayQueryObjectWriteInst *call(RayQueryObjectWriteOp op, luisa::span<Value *const> operands) noexcept;
     RayQueryObjectWriteInst *call(RayQueryObjectWriteOp op, std::initializer_list<Value *> operands) noexcept;
+
+    RayQueryPipelineInst *ray_query_pipeline(Value *query_object = nullptr,
+                                             Function *on_surface = nullptr,
+                                             Function *on_procedural = nullptr,
+                                             luisa::span<Value *const> captured_args = {}) noexcept;
 
     AtomicInst *atomic_fetch_add(const Type *type, Value *base, luisa::span<Value *const> indices, Value *value) noexcept;
     AtomicInst *atomic_fetch_sub(const Type *type, Value *base, luisa::span<Value *const> indices, Value *value) noexcept;

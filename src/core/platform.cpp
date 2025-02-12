@@ -207,7 +207,9 @@ luisa::string current_executable_path() noexcept {
 
 #ifdef LUISA_ARCH_ARM64
 #include <sys/types.h>
+#ifdef LUISA_PLATFORM_APPLE
 #include <sys/sysctl.h>
+#endif
 #else
 #include <cpuid.h>
 #endif
@@ -337,6 +339,7 @@ luisa::vector<TraceItem> backtrace() noexcept {
 
 #ifdef LUISA_ARCH_ARM64
 luisa::string cpu_name() noexcept {
+#ifdef LUISA_PLATFORM_APPLE
     constexpr auto buffer_size = static_cast<size_t>(256u);
     char brand[buffer_size];
     auto size = buffer_size;
@@ -344,6 +347,9 @@ luisa::string cpu_name() noexcept {
         return "Unknown ARM64";
     }
     return brand;
+#else
+    return "Unknown ARM64";// TODO: implement this
+#endif
 }
 #else
 luisa::string cpu_name() noexcept {

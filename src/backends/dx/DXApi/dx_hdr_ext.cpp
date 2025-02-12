@@ -134,7 +134,7 @@ DXHDRExtImpl::DXHDRExtImpl(LCDevice *lc_device) : _lc_device(lc_device) {
         ThrowIfFailed(currentOutput.As(&output6));
         DXGI_OUTPUT_DESC1 desc1;
         ThrowIfFailed(output6->GetDesc1(&desc1));
-        _device_support_hdr |= (desc1.ColorSpace == DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020);
+        _device_support_hdr |= (desc1.ColorSpace == DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020) || (desc1.ColorSpace == DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709);
         i++;
     }
 }

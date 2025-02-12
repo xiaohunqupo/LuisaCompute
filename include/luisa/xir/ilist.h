@@ -15,8 +15,8 @@ namespace detail {
 template<typename>
 struct extract_intrusive_list_node {};
 
-template<template<typename> typename List, typename T>
-struct extract_intrusive_list_node<List<T>> {
+template<template<typename...> typename List, typename T, typename... Other>
+struct extract_intrusive_list_node<List<T, Other...>> {
     using type = T;
 };
 
@@ -98,10 +98,10 @@ public:
 
 }// namespace detail
 
-template<typename>
+template<typename, typename>
 class IntrusiveList;
 
-template<typename>
+template<typename, typename>
 class InlineIntrusiveList;
 
 template<typename T, typename Base = PooledObject>
@@ -115,8 +115,11 @@ protected:
     using Base::Base;
 
 private:
-    friend IntrusiveList<T>;
-    friend InlineIntrusiveList<T>;
+    template<typename, typename>
+    friend class IntrusiveList;
+
+    template<typename, typename>
+    friend class InlineIntrusiveList;
 
     T *_prev = nullptr;
     T *_next = nullptr;
@@ -159,35 +162,41 @@ public:
     }
 };
 
-template<typename Node>
-class IntrusiveList : public detail::IntrusiveListImpl<IntrusiveList<Node>> {
+template<typename Node, typename SentinelNode = Node>
+class IntrusiveList : public detail::IntrusiveListImpl<IntrusiveList<Node, SentinelNode>> {
+
+    static_assert(std::derived_from<SentinelNode, Node>);
 
 private:
     Node *_head_sentinel = nullptr;
     Node *_tail_sentinel = nullptr;
 
 public:
-    IntrusiveList() noexcept {
-        _head_sentinel = Pool::current()->create<Node>();
-        _tail_sentinel = Pool::current()->create<Node>();
+    explicit IntrusiveList(Pool *pool) noexcept {
+        _head_sentinel = pool->create<SentinelNode>();
+        _tail_sentinel = pool->create<SentinelNode>();
         _head_sentinel->_next = _tail_sentinel;
         _tail_sentinel->_prev = _head_sentinel;
     }
-    [[nodiscard]] auto head_sentinel() noexcept { return _head_sentinel; }
-    [[nodiscard]] auto head_sentinel() const noexcept { return const_cast<const Node *>(_head_sentinel); }
-    [[nodiscard]] auto tail_sentinel() noexcept { return _tail_sentinel; }
-    [[nodiscard]] auto tail_sentinel() const noexcept { return const_cast<const Node *>(_tail_sentinel); }
+    [[nodiscard]] auto head_sentinel() noexcept -> Node * { return _head_sentinel; }
+    [[nodiscard]] auto head_sentinel() const noexcept -> const Node * { return _head_sentinel; }
+    [[nodiscard]] auto tail_sentinel() noexcept -> Node * { return _tail_sentinel; }
+    [[nodiscard]] auto tail_sentinel() const noexcept -> const Node * { return _tail_sentinel; }
 };
 
-template<typename Node>
-class InlineIntrusiveList : public detail::IntrusiveListImpl<InlineIntrusiveList<Node>> {
+template<typename Node, typename SentinelNode = Node>
+class InlineIntrusiveList : public detail::IntrusiveListImpl<InlineIntrusiveList<Node, SentinelNode>> {
+
+    static_assert(std::derived_from<SentinelNode, Node>);
 
 private:
-    Node _head_sentinel;
-    Node _tail_sentinel;
+    SentinelNode _head_sentinel;
+    SentinelNode _tail_sentinel;
 
 public:
-    InlineIntrusiveList() noexcept {
+    template<typename... Args>
+    explicit InlineIntrusiveList(Args... args) noexcept
+        : _head_sentinel{args...}, _tail_sentinel{args...} {
         _head_sentinel._next = &_tail_sentinel;
         _tail_sentinel._prev = &_head_sentinel;
     }
@@ -196,10 +205,10 @@ public:
     InlineIntrusiveList &operator=(InlineIntrusiveList &&) noexcept = delete;
     InlineIntrusiveList &operator=(const InlineIntrusiveList &) noexcept = delete;
 
-    [[nodiscard]] auto head_sentinel() noexcept { return &_head_sentinel; }
-    [[nodiscard]] auto head_sentinel() const noexcept { return const_cast<const Node *>(&_head_sentinel); }
-    [[nodiscard]] auto tail_sentinel() noexcept { return &_tail_sentinel; }
-    [[nodiscard]] auto tail_sentinel() const noexcept { return const_cast<const Node *>(&_tail_sentinel); }
+    [[nodiscard]] auto head_sentinel() noexcept -> Node * { return &_head_sentinel; }
+    [[nodiscard]] auto head_sentinel() const noexcept -> const Node * { return &_head_sentinel; }
+    [[nodiscard]] auto tail_sentinel() noexcept -> Node * { return &_tail_sentinel; }
+    [[nodiscard]] auto tail_sentinel() const noexcept -> const Node * { return &_tail_sentinel; }
 };
 
 template<typename Node>

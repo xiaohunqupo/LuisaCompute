@@ -5,6 +5,7 @@
 #include <luisa/ast/type.h>
 #include <luisa/xir/constant.h>
 #include <luisa/xir/special_register.h>
+#include <luisa/xir/undefined.h>
 #include <luisa/xir/instructions/alloca.h>
 #include <luisa/xir/instructions/arithmetic.h>
 #include <luisa/xir/instructions/assert.h>
@@ -18,7 +19,7 @@
 #include <luisa/xir/instructions/clock.h>
 #include <luisa/xir/instructions/continue.h>
 #include <luisa/xir/instructions/gep.h>
-#include <luisa/xir/instructions/intrinsic.h>
+#include <luisa/xir/instructions/autodiff.h>
 #include <luisa/xir/instructions/load.h>
 #include <luisa/xir/instructions/loop.h>
 #include <luisa/xir/instructions/outline.h>
@@ -63,6 +64,10 @@ private:
             auto name = xir::to_string(r->derived_special_register_tag());
             return luisa::format("%{}.{}", uid, name);
         }
+        if (value->derived_value_tag() == DerivedValueTag::UNDEFINED) {
+            auto u = static_cast<const Undefined *>(value);
+            return luisa::format("%{}.undefined", uid);
+        }
         return luisa::format("%{}", uid);
     }
 
@@ -70,6 +75,9 @@ private:
         LUISA_ASSERT(type != nullptr, "Type must not be null.");
         // custom
         if (type->is_custom()) {
+            if (auto iter = _struct_uid_map.find(type); iter != _struct_uid_map.end()) {
+                return iter->second;
+            }
             auto next_uid = static_cast<uint>(_struct_uid_map.size());
             _prelude << "type T" << next_uid << " = opaque \"" << type->description() << "\";\n\n";
             _struct_uid_map.emplace(type, next_uid);
@@ -123,10 +131,10 @@ private:
     }
 
     void _traverse_values_in_module(const Module *module) noexcept {
-        for (auto &c : module->constants()) {
+        for (auto &c : module->constant_list()) {
             static_cast<void>(_value_uid(&c));
         }
-        for (auto &f : module->functions()) {
+        for (auto &f : module->function_list()) {
             static_cast<void>(_value_uid(&f));
             _traverse_values_in_function(&f);
         }
@@ -346,6 +354,11 @@ private:
         _emit_operands(inst);
     }
 
+    void _emit_ray_query_pipeline_inst(const RayQueryPipelineInst *inst) noexcept {
+        _main << "ray_query_pipeline ";
+        _emit_operands(inst);
+    }
+
     void _emit_return_inst(const ReturnInst *inst) noexcept {
         if (auto ret = inst->return_value()) {
             _main << "return " << _value_ident(ret);
@@ -406,7 +419,7 @@ private:
         _emit_operands(inst);
     }
 
-    void _emit_intrinsic_inst(const IntrinsicInst *inst) noexcept {
+    void _emit_autodiff_intrinsic_inst(const AutodiffIntrinsicInst *inst) noexcept {
         _main << "@" << to_string(inst->op());
         if (!inst->operand_uses().empty()) {
             _main << " ";
@@ -470,8 +483,6 @@ private:
         _emit_indent(indent);
         _main << _value_ident(inst) << ": " << _type_ident(inst->type()) << " = ";
         switch (inst->derived_instruction_tag()) {
-            case DerivedInstructionTag::SENTINEL:
-                LUISA_ERROR_WITH_LOCATION("Unexpected sentinel instruction.");
             case DerivedInstructionTag::UNREACHABLE:
                 _emit_unreachable_inst(static_cast<const UnreachableInst *>(inst));
                 break;
@@ -517,9 +528,6 @@ private:
             case DerivedInstructionTag::CALL:
                 _emit_call_inst(static_cast<const CallInst *>(inst));
                 break;
-            case DerivedInstructionTag::INTRINSIC:
-                _emit_intrinsic_inst(static_cast<const IntrinsicInst *>(inst));
-                break;
             case DerivedInstructionTag::CAST:
                 _emit_cast_inst(static_cast<const CastInst *>(inst));
                 break;
@@ -529,7 +537,10 @@ private:
             case DerivedInstructionTag::OUTLINE:
                 _emit_outline_inst(static_cast<const OutlineInst *>(inst), indent);
                 break;
-            case DerivedInstructionTag::AUTO_DIFF: LUISA_NOT_IMPLEMENTED();
+            case DerivedInstructionTag::AUTODIFF_SCOPE: LUISA_NOT_IMPLEMENTED();
+            case DerivedInstructionTag::AUTODIFF_INTRINSIC:
+                _emit_autodiff_intrinsic_inst(static_cast<const AutodiffIntrinsicInst *>(inst));
+                break;
             case DerivedInstructionTag::RAY_QUERY_LOOP:
                 _emit_ray_query_loop_inst(static_cast<const RayQueryLoopInst *>(inst), indent);
                 break;
@@ -541,6 +552,9 @@ private:
                 break;
             case DerivedInstructionTag::RAY_QUERY_OBJECT_WRITE:
                 _emit_ray_query_object_write_inst(static_cast<const RayQueryObjectWriteInst *>(inst));
+                break;
+            case DerivedInstructionTag::RAY_QUERY_PIPELINE:
+                _emit_ray_query_pipeline_inst(static_cast<const RayQueryPipelineInst *>(inst));
                 break;
             case DerivedInstructionTag::BRANCH:
                 _emit_branch_inst(static_cast<const BranchInst *>(inst));
@@ -751,8 +765,8 @@ private:
             _prelude << "\n";
         }
         _prelude << "module;\n\n";// TODO: metadata
-        for (auto &c : module->constants()) { _emit_constant(&c); }
-        for (auto &f : module->functions()) { _emit_function(&f); }
+        for (auto &c : module->constant_list()) { _emit_constant(&c); }
+        for (auto &f : module->function_list()) { _emit_function(&f); }
     }
 
     static void _emit_name_metadata(StringScratch &s, const NameMD &m) noexcept {
@@ -770,7 +784,8 @@ private:
         _emit_string_escaped(s, m.comment());
     }
 
-    static void _emit_metadata_list(StringScratch &s, const MetadataList &m) noexcept {
+    template<typename T>
+    static void _emit_metadata_list(StringScratch &s, const T &m) noexcept {
         s << "[";
         for (auto &item : m) {
             switch (item.derived_metadata_tag()) {

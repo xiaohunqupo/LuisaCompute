@@ -21,14 +21,18 @@ inline void name_metadata_validate(luisa::string_view name) noexcept {
 
 }// namespace detail
 
-NameMD::NameMD(luisa::string name) noexcept
-    : _name{std::move(name)} {
+NameMD::NameMD(Pool *pool, luisa::string name) noexcept
+    : Super{pool}, _name{std::move(name)} {
     detail::name_metadata_validate(_name);
 }
 
 void NameMD::set_name(luisa::string_view name) noexcept {
     detail::name_metadata_validate(name);
     _name = name;
+}
+
+NameMD *NameMD::clone(Pool *pool) const noexcept {
+    return pool->create<NameMD>(pool, name());
 }
 
 }// namespace luisa::compute::xir

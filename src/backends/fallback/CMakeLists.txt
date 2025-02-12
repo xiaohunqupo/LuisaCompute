@@ -23,7 +23,9 @@ if (LLVM_FOUND AND embree_FOUND)
             fallback_bindless_array.cpp
             fallback_stream.cpp
             fallback_texture.cpp
+            fallback_prim.cpp
             fallback_mesh.cpp
+            fallback_proc_prim.cpp
             fallback_accel.cpp
             fallback_texture_bc.cpp
             fallback_codegen.cpp
@@ -42,9 +44,8 @@ if (LLVM_FOUND AND embree_FOUND)
             luisa-compute-vulkan-swapchain
             embree)
 
-    # help distinguish between embree 3 and 4
     target_compile_definitions(luisa-compute-backend-fallback PRIVATE
-            LUISA_COMPUTE_EMBREE_VERSION=${embree_VERSION_MAJOR})
+            LUISA_COMPUTE_FALLBACK_EMBREE_VERSION=${embree_VERSION_MAJOR})
 
     # use libdispatch or TBB for parallel_for on non-Apple Unix systems if available
     if (UNIX AND NOT APPLE)
@@ -96,19 +97,23 @@ if (LLVM_FOUND AND embree_FOUND)
                 set(LLVM_LIBS ${LLVM_DYLIB})
             endif ()
         endif ()
+    endif ()
+
+    message(STATUS "Linking with LLVM libraries: ${LLVM_LIBS}")
+    if (UNIX AND NOT APPLE)
         # avoid re-exporting symbols from LLVM
         target_link_libraries(luisa-compute-backend-fallback PRIVATE "-Wl,--exclude-libs,ALL" ${LLVM_LIBS})
     else ()
         target_link_libraries(luisa-compute-backend-fallback PRIVATE ${LLVM_LIBS})
     endif ()
 
-    if (CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
-        target_compile_options(luisa-compute-backend-fallback PRIVATE
-                /wd4624 /wd4996 # do not complain about LLVM
-                /fp:fast /fp:contract /fp:except- /ARCH:AVX2)
-    else ()
-        target_compile_options(luisa-compute-backend-fallback PRIVATE -ffast-math)
-    endif ()
+    #    if (CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
+    #        target_compile_options(luisa-compute-backend-fallback PRIVATE
+    #                /wd4624 /wd4996 # do not complain about LLVM
+    #                /fp:fast /fp:contract /fp:except- /ARCH:AVX2)
+    #    else ()
+    #        target_compile_options(luisa-compute-backend-fallback PRIVATE -ffast-math)
+    #    endif ()
 
 elseif (NOT LUISA_COMPUTE_CHECK_BACKEND_DEPENDENCIES)
     message(FATAL_ERROR "LLVM or Embree not found for the fallback backend.")

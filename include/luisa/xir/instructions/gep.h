@@ -5,15 +5,15 @@
 namespace luisa::compute::xir {
 
 // Get element pointer instruction.
-class LC_XIR_API GEPInst final : public DerivedInstruction<DerivedInstructionTag::GEP> {
+class LC_XIR_API GEPInst final : public DerivedInstruction<GEPInst, DerivedInstructionTag::GEP> {
 
 public:
     static constexpr size_t operand_index_base = 0u;
     static constexpr size_t operand_index_index_offset = 1u;
 
 public:
-    explicit GEPInst(const Type *type = nullptr, Value *base = nullptr,
-                     luisa::span<Value *const> indices = {}) noexcept;
+    explicit GEPInst(BasicBlock *parent_block, const Type *type,
+                     Value *base, luisa::span<Value *const> indices = {}) noexcept;
     [[nodiscard]] bool is_lvalue() const noexcept override { return true; }
 
     [[nodiscard]] auto base() noexcept { return operand(operand_index_base); }
@@ -30,6 +30,8 @@ public:
     void add_index(Value *index) noexcept;
     void insert_index(size_t i, Value *index) noexcept;
     void remove_index(size_t i) noexcept;
+
+    [[nodiscard]] GEPInst *clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 }// namespace luisa::compute::xir

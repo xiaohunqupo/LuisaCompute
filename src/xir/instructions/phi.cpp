@@ -1,11 +1,12 @@
 #include <luisa/core/logging.h>
 #include <luisa/xir/basic_block.h>
+#include <luisa/xir/builder.h>
 #include <luisa/xir/instructions/phi.h>
 
 namespace luisa::compute::xir {
 
-PhiInst::PhiInst(const Type *type) noexcept
-    : DerivedInstruction{type} {}
+PhiInst::PhiInst(BasicBlock *parent_block, const Type *type) noexcept
+    : Super{parent_block, type} {}
 
 void PhiInst::set_incoming_count(size_t count) noexcept {
     set_operand_count(count);
@@ -61,6 +62,18 @@ PhiIncomingUse PhiInst::incoming_use(size_t index) noexcept {
 ConstPhiIncomingUse PhiInst::incoming_use(size_t index) const noexcept {
     auto incoming = const_cast<PhiInst *>(this)->incoming_use(index);
     return {incoming.value, incoming.block};
+}
+
+PhiInst *PhiInst::clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept {
+    auto cloned = b.phi(type());
+    for (auto i = 0u; i < incoming_count(); i++) {
+        auto incoming = this->incoming(i);
+        auto resolved_value = resolver.resolve(incoming.value);
+        auto resolved_block = resolver.resolve(incoming.block);
+        LUISA_DEBUG_ASSERT(resolved_block == nullptr || resolved_block->isa<BasicBlock>(), "Invalid incoming block.");
+        cloned->add_incoming(resolved_value, static_cast<BasicBlock *>(resolved_block));
+    }
+    return cloned;
 }
 
 }// namespace luisa::compute::xir

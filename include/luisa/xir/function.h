@@ -11,15 +11,17 @@ enum struct DerivedFunctionTag {
     EXTERNAL,
 };
 
+class Module;
 class FunctionDefinition;
 
-class LC_XIR_API Function : public IntrusiveForwardNode<Function, DerivedValue<DerivedValueTag::FUNCTION>> {
+class LC_XIR_API Function : public IntrusiveForwardNode<Function, DerivedGlobalValue<Function, DerivedValueTag::FUNCTION>> {
 
 private:
+    Module *_module;
     luisa::vector<Argument *> _arguments;
 
 public:
-    explicit Function(const Type *type = nullptr) noexcept;
+    explicit Function(Module *parent_module, const Type *type = nullptr) noexcept;
     [[nodiscard]] virtual DerivedFunctionTag derived_function_tag() const noexcept = 0;
 
     void add_argument(Argument *argument) noexcept;
@@ -29,10 +31,12 @@ public:
     void replace_argument(Argument *old_argument, Argument *new_argument) noexcept;
     void replace_argument(size_t index, Argument *argument) noexcept;
 
-    Argument *create_argument(const Type *type, bool by_ref) noexcept;
-    ValueArgument *create_value_argument(const Type *type) noexcept;
-    ReferenceArgument *create_reference_argument(const Type *type) noexcept;
-    ResourceArgument *create_resource_argument(const Type *type) noexcept;
+    Argument *create_argument(const Type *type, bool by_ref, bool should_append = true) noexcept;
+    ValueArgument *create_value_argument(const Type *type, bool should_append = true) noexcept;
+    ReferenceArgument *create_reference_argument(const Type *type, bool should_append = true) noexcept;
+    ResourceArgument *create_resource_argument(const Type *type, bool should_append = true) noexcept;
+
+    [[nodiscard]] BasicBlock *create_basic_block() noexcept;
 
     [[nodiscard]] auto is_definition() const noexcept {
         return derived_function_tag() != DerivedFunctionTag::EXTERNAL;
@@ -45,13 +49,18 @@ public:
     [[nodiscard]] const FunctionDefinition *definition() const noexcept {
         return const_cast<Function *>(this)->definition();
     }
+
+    LUISA_XIR_DEFINED_ISA_METHOD(Function, function)
 };
 
 using FunctionList = IntrusiveForwardList<Function>;
 
-template<DerivedFunctionTag tag, typename Base = Function>
+template<typename Derived, DerivedFunctionTag tag, typename Base = Function>
+    requires std::derived_from<Base, Function>
 class DerivedFunction : public Base {
 public:
+    using derived_function_type = Derived;
+    using Super = DerivedFunction;
     using Base::Base;
     [[nodiscard]] static constexpr DerivedFunctionTag static_derived_function_tag() noexcept { return tag; }
     [[nodiscard]] DerivedFunctionTag derived_function_tag() const noexcept final { return static_derived_function_tag(); }
@@ -154,28 +163,28 @@ public:
     }
 };
 
-class LC_XIR_API CallableFunction final : public DerivedFunction<DerivedFunctionTag::CALLABLE, FunctionDefinition> {
+class LC_XIR_API CallableFunction final : public DerivedFunction<CallableFunction, DerivedFunctionTag::CALLABLE, FunctionDefinition> {
 public:
-    using DerivedFunction::DerivedFunction;
+    using Super::Super;
 };
 
-class LC_XIR_API KernelFunction final : public DerivedFunction<DerivedFunctionTag::KERNEL, FunctionDefinition> {
+class LC_XIR_API KernelFunction final : public DerivedFunction<KernelFunction, DerivedFunctionTag::KERNEL, FunctionDefinition> {
 
 public:
     static constexpr auto default_block_size = luisa::make_uint3(64u, 1u, 1u);
 
 private:
-    luisa::uint3 _block_size{default_block_size};
+    std::array<uint, 3> _block_size;
 
 public:
-    explicit KernelFunction(luisa::uint3 block_size = default_block_size) noexcept;
+    explicit KernelFunction(Module *parent_module, luisa::uint3 block_size = default_block_size) noexcept;
     void set_block_size(luisa::uint3 size) noexcept;
-    [[nodiscard]] luisa::uint3 block_size() const noexcept { return _block_size; }
+    [[nodiscard]] luisa::uint3 block_size() const noexcept;
 };
 
-class LC_XIR_API ExternalFunction final : public DerivedFunction<DerivedFunctionTag::EXTERNAL> {
+class LC_XIR_API ExternalFunction final : public DerivedFunction<ExternalFunction, DerivedFunctionTag::EXTERNAL> {
 public:
-    using DerivedFunction::DerivedFunction;
+    using Super::Super;
 };
 
 }// namespace luisa::compute::xir

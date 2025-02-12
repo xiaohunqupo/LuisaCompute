@@ -22,5 +22,7 @@ map_symbol("luisa.bindless.texture2d.read.impl", &api::luisa_fallback_bindless_t
 map_symbol("luisa.bindless.texture3d.read.impl", &api::luisa_fallback_bindless_texture3d_read);
 map_symbol("luisa.bindless.texture2d.read.level.impl", &api::luisa_fallback_bindless_texture2d_read_level);
 map_symbol("luisa.bindless.texture3d.read.level.impl", &api::luisa_fallback_bindless_texture3d_read_level);
+map_symbol("luisa.ray.query.pipeline.all.impl", &api::luisa_fallback_ray_query_pipeline_all);
+map_symbol("luisa.ray.query.pipeline.any.impl", &api::luisa_fallback_ray_query_pipeline_any);
 map_symbol("luisa.accel.trace.closest.impl", &api::luisa_fallback_accel_trace_closest);
 map_symbol("luisa.accel.trace.any.impl", &api::luisa_fallback_accel_trace_any);

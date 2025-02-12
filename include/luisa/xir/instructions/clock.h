@@ -4,9 +4,10 @@
 
 namespace luisa::compute::xir {
 
-class LC_XIR_API ClockInst final : public DerivedInstruction<DerivedInstructionTag::CLOCK> {
+class LC_XIR_API ClockInst final : public DerivedInstruction<ClockInst, DerivedInstructionTag::CLOCK> {
 public:
-    ClockInst() noexcept;
+    explicit ClockInst(BasicBlock *parent_block) noexcept;
+    [[nodiscard]] ClockInst *clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 }// namespace luisa::compute::xir

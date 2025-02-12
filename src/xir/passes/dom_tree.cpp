@@ -4,7 +4,7 @@
 namespace luisa::compute::xir {
 
 inline DomTreeNode::DomTreeNode(BasicBlock *block) noexcept
-    : _parent{nullptr}, _block{block} {}
+    : _block{block}, _parent{nullptr} {}
 
 inline void DomTreeNode::add_child(DomTreeNode *child) noexcept {
     LUISA_DEBUG_ASSERT(child != nullptr && child->_parent == nullptr && child != this, "Invalid child.");
@@ -64,6 +64,11 @@ auto DomTree::node(BasicBlock *block) const noexcept -> const DomTreeNode * {
     auto iter = _nodes.find(block);
     LUISA_ASSERT(iter != _nodes.end(), "Block not found in the dom tree.");
     return iter->second.get();
+}
+
+auto DomTree::node_or_null(BasicBlock *block) const noexcept -> const DomTreeNode * {
+    auto iter = _nodes.find(block);
+    return iter == _nodes.cend() ? nullptr : iter->second.get();
 }
 
 bool DomTree::contains(BasicBlock *block) const noexcept {
