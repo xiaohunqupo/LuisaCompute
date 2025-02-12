@@ -73,7 +73,7 @@ static void traverse_call_graph_post_order(Function *f, const CallGraph &call_gr
                 traverse_call_graph_post_order(call->callee(), call_graph, bitmap, visited, post_order);
             }
             if (def->isa<CallableFunction>() && bitmap.callable_bit_offsets.contains(static_cast<CallableFunction *>(def))) {
-                post_order.emplace_back(f);
+                post_order.emplace_back(static_cast<CallableFunction *>(def));
             }
         }
     }
