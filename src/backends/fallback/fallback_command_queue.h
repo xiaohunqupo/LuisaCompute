@@ -28,7 +28,7 @@
 
 namespace luisa::compute::fallback {
 
-struct AkrThreadPool;
+class AkrThreadPool;
 
 class FallbackCommandQueue {
 
@@ -48,7 +48,7 @@ private:
 #if defined(LUISA_FALLBACK_USE_DISPATCH_QUEUE)
     dispatch_queue_t _dispatch_queue{nullptr};
 #elif defined(LUISA_FALLBACK_USE_AKR_THREAD_POOL)
-    AkrThreadPool *_worker_pool{nullptr};
+    luisa::unique_ptr<AkrThreadPool> _worker_pool;
 #endif
 
 private:
