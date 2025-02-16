@@ -49,7 +49,7 @@ struct Thread {
 #ifdef LUISA_PLATFORM_APPLE
         pthread_attr_set_qos_class_np(&attr, QOS_CLASS_USER_INTERACTIVE, 0);
 #endif
-        if (pthread_create(&handle, &attr, [](void *arg) -> void * {
+        if (pthread_create(&handle, &attr, [](void *arg) noexcept -> void * {
             auto *f = static_cast<luisa::move_only_function<void()> *>(arg);
             (*f)();
             return nullptr; }, &this->f) != 0) {
