@@ -107,7 +107,7 @@ private:
 public:
     explicit AkrThreadPool(size_t n_threads) noexcept {
         for (size_t tid = 0; tid < n_threads; tid++) {
-            _threads.emplace_back(std::move(luisa::make_unique<Thread>(tid, [this, tid] {
+            _threads.emplace_back(std::move(luisa::make_unique<Thread>(tid, [this] {
                 auto last_task_generation = 0;
                 while (!_stopped.load(std::memory_order_seq_cst)) {
                     std::unique_lock lock{_task_mutex};
@@ -134,7 +134,7 @@ public:
         _has_work.notify_all();
         _threads.clear();
     }
-    void parallel_for(uint count, luisa::move_only_function<void(uint)> &&task) {
+    void parallel_for(uint count, luisa::move_only_function<void(uint)> &&task) noexcept {
         std::scoped_lock _lk{_submit_mutex};
         std::unique_lock lock{_task_mutex};
         _thread_working.store(_threads.size(), std::memory_order_seq_cst);
