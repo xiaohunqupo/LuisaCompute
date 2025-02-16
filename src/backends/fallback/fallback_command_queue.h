@@ -4,27 +4,31 @@
 #include <thread>
 #include <condition_variable>
 
-#include <luisa/core/basic_types.h>
 #include <luisa/core/stl/queue.h>
 #include <luisa/core/stl/functional.h>
 #include <luisa/runtime/rhi/device_interface.h>
 
-// #if defined(LUISA_PLATFORM_APPLE)
-// #define LUISA_FALLBACK_USE_DISPATCH_QUEUE
-// #include <dispatch/dispatch.h>
-// #elif defined(LUISA_PLATFORM_WINDOWS)
-// #define LUISA_FALLBACK_USE_PPL
-// #include <ppl.h>
-// #elif defined(LUISA_COMPUTE_ENABLE_LIBDISPATCH)
-// #define LUISA_FALLBACK_USE_DISPATCH_QUEUE
-// #include <dispatch/dispatch.h>
-// #elif defined(LUISA_COMPUTE_ENABLE_TBB)
-// #define LUISA_FALLBACK_USE_TBB
-// #include <tbb/parallel_for.h>
-// #else
-// #define LUISA_FALLBACK_USE_AKR_THREAD_POOL
-// #endif
-#define LUISA_FALLBACK_USE_AKR_THREAD_POOL
+#ifdef LUISA_COMPUTE_ENABLE_SYSTEM_PARALLEL_FOR
+
+#if defined(LUISA_PLATFORM_APPLE)
+#define LUISA_FALLBACK_USE_DISPATCH_QUEUE
+#include <dispatch/dispatch.h>
+#elif defined(LUISA_PLATFORM_WINDOWS)
+#define LUISA_FALLBACK_USE_PPL
+#include <ppl.h>
+#elif defined(LUISA_COMPUTE_ENABLE_LIBDISPATCH)
+#define LUISA_FALLBACK_USE_DISPATCH_QUEUE
+#include <dispatch/dispatch.h>
+#elif defined(LUISA_COMPUTE_ENABLE_TBB)
+#define LUISA_FALLBACK_USE_TBB
+#include <tbb/parallel_for.h>
+#else
+#define LUISA_FALLBACK_USE_AKARI_THREAD_POOL
+#endif
+
+#else
+#define LUISA_FALLBACK_USE_AKARI_THREAD_POOL
+#endif
 
 namespace luisa::compute::fallback {
 
@@ -47,7 +51,7 @@ private:
 
 #if defined(LUISA_FALLBACK_USE_DISPATCH_QUEUE)
     dispatch_queue_t _dispatch_queue{nullptr};
-#elif defined(LUISA_FALLBACK_USE_AKR_THREAD_POOL)
+#elif defined(LUISA_FALLBACK_USE_AKARI_THREAD_POOL)
     luisa::unique_ptr<AkrThreadPool> _worker_pool;
 #endif
 
