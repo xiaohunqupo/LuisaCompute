@@ -8,16 +8,41 @@
 #include <luisa/core/logging.h>
 #include <iostream>
 #include <chrono>
+#ifdef LUISA_PLATFORM_WINDOWS
+#include <windows.h>
+#else
 #include <pthread.h>
+#endif
 namespace luisa::compute::fallback {
 
 struct Thread {
+#ifdef LUISA_PLATFORM_WINDOWS
+    HANDLE handle{};
+#else
     pthread_t handle{};
+#endif
     luisa::move_only_function<void()> *f;
-    static constexpr size_t STACK_SIZE = 1 << 20;
+    static constexpr size_t STACK_SIZE = 1 << 21;
     template<class F>
     explicit Thread(uint32_t tid, F &&f) {
         this->f = new luisa::move_only_function<void()>{std::forward<F>(f)};
+#ifdef LUISA_PLATFORM_WINDOWS
+        handle = CreateThread(nullptr, STACK_SIZE, [](void *arg) -> DWORD {
+            auto *f = static_cast<luisa::move_only_function<void()> *>(arg);
+            (*f)();
+            return 0; }, this->f, 0, nullptr);
+        if (handle == nullptr) {
+            LUISA_ERROR_WITH_LOCATION("Failed to create thread");
+        }
+        auto thread_group = tid / 64;
+        GROUP_AFFINITY affinity{};
+        affinity.Group = static_cast<WORD>(thread_group);
+        affinity.Mask = 1ull << (tid % 64);
+        if (SetThreadGroupAffinity(handle, &affinity, nullptr) == 0) {
+            LUISA_ERROR_WITH_LOCATION("Failed to pin thread to group");
+        }
+        
+#else
         pthread_attr_t attr;
         size_t stack_size;
 
@@ -35,11 +60,17 @@ struct Thread {
         if (pthread_setaffinity_np(handle, sizeof(cpu_set_t), &cpuset) != 0) {
             LUISA_ERROR_WITH_LOCATION("Failed to create thread");
         }
+#endif
     }
     Thread(const Thread &) = delete;
     Thread(Thread &&) = delete;
     ~Thread() {
+#ifdef LUISA_PLATFORM_WINDOWS
+        WaitForSingleObject(handle, INFINITE);
+        CloseHandle(handle);
+#else
         pthread_join(handle, nullptr);
+#endif
         delete f;
     }
 };
