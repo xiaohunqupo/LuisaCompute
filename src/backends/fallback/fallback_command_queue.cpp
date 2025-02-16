@@ -42,7 +42,7 @@ struct Thread {
         affinity.Group = static_cast<WORD>(thread_group);
         affinity.Mask = 1ull << (tid % 64);
         if (SetThreadGroupAffinity(handle, &affinity, nullptr) == 0) {
-            LUISA_ERROR_WITH_LOCATION("Failed to pin thread to group");
+            LUISA_WARNING_WITH_LOCATION("Failed to pin thread to group");
         }
 #else
         pthread_attr_t attr;
@@ -57,12 +57,13 @@ struct Thread {
             return nullptr; }, &this->f) != 0) {
             LUISA_ERROR_WITH_LOCATION("Failed to create thread");
         }
+        pthread_attr_destroy(&attr);
 #if !defined(LUISA_PLATFORM_APPLE)
         cpu_set_t cpuset;
         CPU_ZERO(&cpuset);
         CPU_SET(tid, &cpuset);
         if (pthread_setaffinity_np(handle, sizeof(cpu_set_t), &cpuset) != 0) {
-            LUISA_ERROR_WITH_LOCATION("Failed to create thread");
+            LUISA_WARNING_WITH_LOCATION("Failed to create thread");
         }
 #endif
 #endif
