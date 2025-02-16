@@ -39,6 +39,11 @@ set_default(false)
 set_showmenu(true)
 option_end()
 -- enable Vulkan backend
+option("vk_support")
+set_values(true, false)
+set_default(true)
+set_showmenu(true)
+option_end()
 option("vk_backend")
 set_values(true, false)
 -- TODO: vulkan backend not ready

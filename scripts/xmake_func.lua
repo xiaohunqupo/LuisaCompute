@@ -8,6 +8,27 @@ set_showmenu(false)
 set_default(false)
 option_end()
 
+option("_lc_vk_sdk_dir")
+set_default(false)
+set_showmenu(false)
+add_deps("vk_support")
+after_check(function(option)
+    if not option:dep("vk_support"):enabled() then
+        option:set_value(false)
+        return
+    end
+    local sdk_dir = os.getenv("VK_SDK_PATH")
+    if not sdk_dir then
+        sdk_dir = os.getenv("VULKAN_SDK")
+    end
+    if not sdk_dir then
+        option:set_value(false)
+    else
+        option:set_value(sdk_dir)
+    end
+end)
+option_end()
+
 option("_lc_check_env")
 set_showmenu(false)
 set_default(false)
