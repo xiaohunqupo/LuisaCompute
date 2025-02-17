@@ -38,6 +38,13 @@ set_values(true, false)
 set_default(false)
 set_showmenu(true)
 option_end()
+
+option("enable_win_pix")
+set_values(true, false)
+set_default(false)
+set_showmenu(true)
+option_end()
+
 -- enable Vulkan backend
 option("vk_support")
 set_values(true, false)

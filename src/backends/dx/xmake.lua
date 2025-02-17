@@ -12,6 +12,11 @@ if is_plat("windows") then
     add_defines("UNICODE", "_CRT_SECURE_NO_WARNINGS")
 end
 on_load(function(target)
+    if get_config("enable_win_pix") then
+        target:add("linkdirs", target:targetdir())
+        target:add("links", "WinPixEventRuntime")
+        target:add("defines", "LCDX_ENABLE_WINPIX")
+    end
     if get_config("dx_cuda_interop") then
         local cuda_path = os.getenv("CUDA_PATH")
         if not cuda_path then
