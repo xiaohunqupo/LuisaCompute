@@ -399,17 +399,20 @@ rule_end()
 
 rule('lc_install_sdk')
 on_load(function(target)
+    local custom_sdk_dir = get_config("sdk_dir")
+    if custom_sdk_dir and not os.exists(custom_sdk_dir) then
+        return
+    end
     local packages = import('packages')
     local libnames = target:extraconf("rules", "lc_install_sdk", "libnames")
     local find_sdk = import('find_sdk')
     local enable = true
-    local sdk_dir = get_config("sdk_dir")
     for _, lib in ipairs(libnames) do
-        local valid = find_sdk.check_file(lib, sdk_dir)
+        local valid = find_sdk.check_file(lib, custom_sdk_dir)
         if not valid then
             utils.error("Library: " .. packages.sdks()[lib]['name'] ..
                             " not installed, run 'xmake lua setup.lua' or download it manually from " ..
-                            packages.sdk_address(packages.sdks()[lib]) .. ' to ' .. packages.sdk_dir(os.arch(), sdk_dir) ..
+                            packages.sdk_address(packages.sdks()[lib]) .. ' to ' .. packages.sdk_dir(os.arch(), custom_sdk_dir) ..
                             '.')
             enable = false
         end
@@ -419,6 +422,10 @@ on_load(function(target)
     end
 end)
 on_clean(function(target)
+    local custom_sdk_dir = get_config("sdk_dir")
+    if custom_sdk_dir and not os.exists(custom_sdk_dir) then
+        return
+    end
     local bin_dir = target:targetdir()
     local find_sdk = import('find_sdk')
     local packages = import('packages')
@@ -433,6 +440,10 @@ on_clean(function(target)
     end
 end)
 before_build(function(target)
+    local custom_sdk_dir = get_config("sdk_dir")
+    if custom_sdk_dir and not os.exists(custom_sdk_dir) then
+        return
+    end
     local bin_dir = target:targetdir()
     local lib = import('lib')
     lib.mkdirs(bin_dir)
@@ -440,7 +451,7 @@ before_build(function(target)
     local packages = import('packages')
     local find_sdk = import('find_sdk')
     local sdks = packages.sdks()
-    local sdk_dir = packages.sdk_dir(os.arch(), get_config("sdk_dir"))
+    local sdk_dir = packages.sdk_dir(os.arch(), custom_sdk_dir)
     for _, lib in ipairs(libnames) do
         local sdk_map = sdks[lib]
         local zip = sdk_map['name']
