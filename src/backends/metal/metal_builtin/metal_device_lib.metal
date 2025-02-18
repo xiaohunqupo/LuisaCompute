@@ -602,13 +602,13 @@ inline void bindless_buffer_write(LCBindlessArray array, uint buffer_index, uint
 }
 
 template<typename T>
-[[nodiscard]] inline auto bindless_byte_address_buffer_read(LCBindlessArray array, uint buffer_index, uint offset) {
-    return *reinterpret_cast<device const T *>(static_cast<device const char *>(array.items[buffer_index].buffer) + offset);
+[[nodiscard]] inline auto bindless_byte_address_buffer_read(LCBindlessArray array, uint buffer_index, ulong offset) {
+    return *reinterpret_cast<device const T *>(bindless_buffer_address(array, buffer_index) + offset);
 }
 
 template<typename T>
 inline void bindless_byte_address_buffer_write(LCBindlessArray array, uint buffer_index, uint offset, T value) {
-    *reinterpret_cast<device T *>(static_cast<device char *>(array.items[buffer_index].buffer) + offset) = value;
+    *reinterpret_cast<device T *>(bindless_buffer_address(array, buffer_index) + offset) = value;
 }
 
 using namespace metal::raytracing;
