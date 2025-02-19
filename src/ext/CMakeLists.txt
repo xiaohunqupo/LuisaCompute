@@ -162,6 +162,9 @@ target_compile_definitions(luisa-compute-ext-yyjson-interface INTERFACE YYJSON_I
 add_library(luisa-compute-ext-yyjson OBJECT yyjson/src/yyjson.c yyjson/src/yyjson.h)
 target_link_libraries(luisa-compute-ext-yyjson PUBLIC luisa-compute-ext-yyjson-interface)
 target_compile_definitions(luisa-compute-ext-yyjson PRIVATE YYJSON_EXPORTS=1)
+if (UNIX AND NOT APPLE)
+    set_target_properties(luisa-compute-ext-yyjson PROPERTIES POSITION_INDEPENDENT_CODE ON)
+endif ()
 
 # marl
 add_library(luisa-compute-ext-marl-interface INTERFACE)
