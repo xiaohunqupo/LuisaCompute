@@ -4,18 +4,18 @@
 namespace lc::dx {
 class UpdateTileTracker {
     struct UpdateTileCommand {
-        vstd::fixed_vector<D3D12_TILED_RESOURCE_COORDINATE, 4>ResourceRegionStartCoordinates;
-        vstd::fixed_vector<D3D12_TILE_REGION_SIZE, 4>ResourceRegionSizes;
-        vstd::fixed_vector<D3D12_TILE_RANGE_FLAGS, 4>RangeFlags;
-        vstd::fixed_vector<UINT, 4>HeapRangeStartOffsets;
-        vstd::fixed_vector<UINT, 4>RangeTileCounts;
+        vstd::fixed_vector<D3D12_TILED_RESOURCE_COORDINATE, 4> ResourceRegionStartCoordinates;
+        vstd::fixed_vector<D3D12_TILE_REGION_SIZE, 4> ResourceRegionSizes;
+        vstd::fixed_vector<D3D12_TILE_RANGE_FLAGS, 4> RangeFlags;
+        vstd::fixed_vector<UINT, 4> HeapRangeStartOffsets;
+        vstd::fixed_vector<UINT, 4> RangeTileCounts;
     };
-    struct DisposeTileTracker {
-        vstd::fixed_vector<D3D12_TILED_RESOURCE_COORDINATE, 4>ResourceRegionStartCoordinates;
-        vstd::fixed_vector<D3D12_TILE_REGION_SIZE, 4>ResourceRegionSizes;
+    struct AllTileTracker {
+        vstd::unordered_map<ID3D12Heap *, UpdateTileCommand> update_tiles;
+        vstd::fixed_vector<D3D12_TILED_RESOURCE_COORDINATE, 4> ResourceRegionStartCoordinates;
+        vstd::fixed_vector<D3D12_TILE_REGION_SIZE, 4> ResourceRegionSizes;
     };
-    vstd::HashMap<std::pair<ID3D12Heap *, ID3D12Resource *>, UpdateTileCommand> map;
-    vstd::HashMap<ID3D12Resource *, DisposeTileTracker> disp_map;
+    vstd::unordered_map<ID3D12Resource *, AllTileTracker> map;
 public:
     void record(
         ID3D12Heap *heap,
@@ -33,4 +33,4 @@ public:
         ID3D12CommandQueue *queue,
         D3D12_TILE_MAPPING_FLAGS Flags);
 };
-}// namespace lcdx
+}// namespace lc::dx
