@@ -168,14 +168,24 @@ option("llvm_path")
 set_default(false)
 set_showmenu(true)
 option_end()
-option("lc_xrepo_path")
+option("lc_xrepo_dir")
 set_default(false)
 set_showmenu(true)
 option_end()
 -- pre-defined options end
+-- try options.lua
+if path.absolute(os.projectdir()) == path.absolute(os.scriptdir()) and os.exists("scripts/options.lua") then
+    includes("scripts/options.lua")
+end
+if lc_options then
+    for k, v in pairs(lc_options) do
+        set_config(k, v)
+    end
+end
+includes("scripts/xmake_func.lua")
 
 -- use xrepo from skr
-local xrepo_path = get_config("lc_xrepo_path")
+local xrepo_path = get_config("lc_xrepo_dir")
 if not xrepo_path then
     add_repositories("skr-xrepo xrepo", {
         rootdir = os.scriptdir()
@@ -185,17 +195,6 @@ elseif type(xrepo_path) == "string" then
         rootdir = xrepo_path
     })
 end
--- try options.lua
-if path.absolute(os.projectdir()) == path.absolute(os.scriptdir()) and os.exists("scripts/options.lua") then
-    includes("scripts/options.lua")
-end
-if lc_toolchain then
-    for k, v in pairs(lc_toolchain) do
-        set_config(k, v)
-    end
-end
-includes("scripts/xmake_func.lua")
-
 if get_config('_lc_check_env') then
     local bin_dir = get_config("_lc_bin_dir")
     if bin_dir then
