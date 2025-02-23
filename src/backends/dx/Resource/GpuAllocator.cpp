@@ -22,6 +22,12 @@ public:
 static AllocateCallback gAllocateCallback;
 }// namespace ma_detail
 GpuAllocator::~GpuAllocator() {
+    if(sparse_buffer_pool) {
+        sparse_buffer_pool->Release();
+    }
+    if(sparse_image_pool) {
+        sparse_image_pool->Release();
+    }
     if (allocator)
         allocator->Release();
 }
@@ -31,15 +37,17 @@ uint64 GpuAllocator::AllocateTextureHeap(
     size_t sizeBytes,
     ID3D12Heap **heap, uint64_t *offset,
     bool isRenderTexture,
-    D3D12_HEAP_FLAGS extra_flags) {
+    D3D12_HEAP_FLAGS extra_flags,
+    bool is_sparse) {
     using namespace D3D12MA;
     D3D12_HEAP_FLAGS heapFlag =
         isRenderTexture ? D3D12_HEAP_FLAG_ALLOW_ONLY_RT_DS_TEXTURES : D3D12_HEAP_FLAG_ALLOW_ONLY_NON_RT_DS_TEXTURES;
+    assert(!(is_sparse && isRenderTexture)); // sparse can not be render texture
     ALLOCATION_DESC desc;
     desc.HeapType = D3D12_HEAP_TYPE_DEFAULT;
     desc.Flags = ALLOCATION_FLAGS::ALLOCATION_FLAG_STRATEGY_BEST_FIT;
     desc.ExtraHeapFlags = heapFlag | extra_flags;
-    desc.CustomPool = nullptr;
+    desc.CustomPool = is_sparse ? sparse_image_pool : nullptr;
     D3D12_RESOURCE_ALLOCATION_INFO info;
     info.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
     info.SizeInBytes = sizeBytes;
@@ -60,13 +68,14 @@ uint64 GpuAllocator::AllocateBufferHeap(
     uint64_t targetSizeInBytes,
     D3D12_HEAP_TYPE heapType, ID3D12Heap **heap,
     uint64_t *offset,
-    D3D12_HEAP_FLAGS extra_flags) {
+    D3D12_HEAP_FLAGS extra_flags,
+    bool is_sparse) {
     using namespace D3D12MA;
     ALLOCATION_DESC desc;
     desc.HeapType = heapType;
     desc.Flags = ALLOCATION_FLAGS::ALLOCATION_FLAG_STRATEGY_BEST_FIT;
     desc.ExtraHeapFlags = D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS | extra_flags;
-    desc.CustomPool = nullptr;
+    desc.CustomPool = is_sparse ? sparse_buffer_pool : nullptr;
     D3D12_RESOURCE_ALLOCATION_INFO info;
     info.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
     info.SizeInBytes = CalcPlacedOffsetAlignment(targetSizeInBytes);
@@ -99,6 +108,18 @@ GpuAllocator::GpuAllocator(
     desc.pAllocationCallbacks = &ma_detail::gAllocateCallback.callbacks;
     desc.pDevice = device->device.Get();
     desc.PreferredBlockSize = 0;
-    D3D12MA::CreateAllocator(&desc, &allocator);
+   ThrowIfFailed( D3D12MA::CreateAllocator(&desc, &allocator));
+    // sparse pool
+    POOL_DESC pool_desc{
+        .Flags = D3D12MA::POOL_FLAG_NONE,
+        .HeapProperties = D3D12_HEAP_PROPERTIES{
+            .Type = D3D12_HEAP_TYPE_DEFAULT,
+        },
+        .HeapFlags = D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS,
+        .ResidencyPriority = D3D12_RESIDENCY_PRIORITY_LOW
+    };
+    ThrowIfFailed( allocator->CreatePool(&pool_desc, &sparse_buffer_pool));
+    pool_desc.HeapFlags = D3D12_HEAP_FLAG_ALLOW_ONLY_NON_RT_DS_TEXTURES;
+    ThrowIfFailed( allocator->CreatePool(&pool_desc, &sparse_image_pool));
 }
 }// namespace lc::dx

@@ -779,7 +779,7 @@ ShaderCreationInfo LCDevice::create_shader(const ShaderOption &option, const ir:
 }
 ResourceCreationInfo LCDevice::allocate_sparse_buffer_heap(size_t byte_size) noexcept {
     auto heap = reinterpret_cast<SparseHeap *>(vengine_malloc(sizeof(SparseHeap)));
-    heap->allocation = nativeDevice.defaultAllocator->AllocateBufferHeap(&nativeDevice, "sparse buffer heap", byte_size, D3D12_HEAP_TYPE_DEFAULT, &heap->heap, &heap->offset);
+    heap->allocation = nativeDevice.defaultAllocator->AllocateBufferHeap(&nativeDevice, "sparse buffer heap", byte_size, D3D12_HEAP_TYPE_DEFAULT, &heap->heap, &heap->offset, D3D12_HEAP_FLAG_NONE, true);
     heap->size_bytes = byte_size;
     ResourceCreationInfo r;
     r.handle = reinterpret_cast<uint64>(heap);
@@ -793,7 +793,7 @@ void LCDevice::deallocate_sparse_buffer_heap(uint64_t handle) noexcept {
 }
 ResourceCreationInfo LCDevice::allocate_sparse_texture_heap(size_t byte_size, bool is_compressed_type) noexcept {
     auto heap = reinterpret_cast<SparseHeap *>(vengine_malloc(sizeof(SparseHeap)));
-    heap->allocation = nativeDevice.defaultAllocator->AllocateTextureHeap(&nativeDevice, "sparse texture heap", byte_size, &heap->heap, &heap->offset, !is_compressed_type);
+    heap->allocation = nativeDevice.defaultAllocator->AllocateTextureHeap(&nativeDevice, "sparse texture heap", byte_size, &heap->heap, &heap->offset, !is_compressed_type, D3D12_HEAP_FLAG_NONE, true);
     heap->size_bytes = byte_size;
     ResourceCreationInfo r;
     r.handle = reinterpret_cast<uint64>(heap);
