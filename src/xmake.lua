@@ -33,7 +33,3 @@ end
 if get_config("enable_clangcxx") then
     includes("clangcxx")
 end
-
-add_requires("zlib >=1.2.8-skr", {
-    system = false
-})

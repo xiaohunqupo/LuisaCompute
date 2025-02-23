@@ -34,8 +34,12 @@ set_pcxxheader("pch.h")
 add_rules('lc_install_sdk', {
     libnames = {'dx_sdk'}
 })
-add_packages("zlib", {
-    public = false,
-    inherit = false
-})
+if get_config("lc_xrepo_dir") then
+    add_packages("zlib", {
+        public = false,
+        inherit = false
+    })
+else
+    add_deps("zlib")
+end
 target_end()
