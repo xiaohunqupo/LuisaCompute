@@ -400,7 +400,7 @@ rule_end()
 rule('lc_install_sdk')
 on_load(function(target)
     local custom_sdk_dir = get_config("sdk_dir")
-    if custom_sdk_dir and not os.exists(custom_sdk_dir) then
+    if type(custom_sdk_dir ) == "string" and not os.exists(custom_sdk_dir) then
         return
     end
     local packages = import('packages')
@@ -423,7 +423,7 @@ on_load(function(target)
 end)
 on_clean(function(target)
     local custom_sdk_dir = get_config("sdk_dir")
-    if custom_sdk_dir and not os.exists(custom_sdk_dir) then
+    if type(custom_sdk_dir ) == "string" and not os.exists(custom_sdk_dir) then
         return
     end
     local bin_dir = target:targetdir()
@@ -441,7 +441,7 @@ on_clean(function(target)
 end)
 before_build(function(target)
     local custom_sdk_dir = get_config("sdk_dir")
-    if custom_sdk_dir and not os.exists(custom_sdk_dir) then
+    if type(custom_sdk_dir ) == "string" and not os.exists(custom_sdk_dir) then
         return
     end
     local bin_dir = target:targetdir()

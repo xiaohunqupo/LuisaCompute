@@ -168,12 +168,23 @@ option("llvm_path")
 set_default(false)
 set_showmenu(true)
 option_end()
+option("lc_xrepo_path")
+set_default(false)
+set_showmenu(true)
+option_end()
 -- pre-defined options end
 
 -- use xrepo from skr
-add_repositories("skr-xrepo xrepo", {
-    rootdir = os.projectdir()
-})
+local xrepo_path = get_config("lc_xrepo_path")
+if not xrepo_path then
+    add_repositories("skr-xrepo xrepo", {
+        rootdir = os.scriptdir()
+    })
+elseif type(xrepo_path) == "string" then
+    add_repositories("skr-xrepo xrepo", {
+        rootdir = xrepo_path
+    })
+end
 -- try options.lua
 if path.absolute(os.projectdir()) == path.absolute(os.scriptdir()) and os.exists("scripts/options.lua") then
     includes("scripts/options.lua")
