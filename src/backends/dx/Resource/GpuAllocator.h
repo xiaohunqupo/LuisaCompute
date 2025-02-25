@@ -28,7 +28,11 @@ public:
         D3D12_HEAP_FLAGS extra_flags = D3D12_HEAP_FLAG_NONE,
         bool is_sparse = false);
     void Release(uint64 handle);
-    GpuAllocator(Device *device, luisa::compute::Profiler *profiler);
+    GpuAllocator(
+        Device *device, luisa::compute::Profiler *profiler,
+        uint64_t preferred_block_size,
+        uint64_t sparse_buffer_block_size,
+        uint64_t sparse_image_block_size);
     ~GpuAllocator();
 };
 }// namespace lc::dx
