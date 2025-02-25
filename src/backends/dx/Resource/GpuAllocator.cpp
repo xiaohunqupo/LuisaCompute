@@ -118,6 +118,7 @@ GpuAllocator::GpuAllocator(
         .HeapFlags = D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS,
         .ResidencyPriority = D3D12_RESIDENCY_PRIORITY_LOW
     };
+    pool_desc.BlockSize = 256ull * 1024ull * 1024ull;
     ThrowIfFailed( allocator->CreatePool(&pool_desc, &sparse_buffer_pool));
     pool_desc.HeapFlags = D3D12_HEAP_FLAG_ALLOW_ONLY_NON_RT_DS_TEXTURES;
     ThrowIfFailed( allocator->CreatePool(&pool_desc, &sparse_image_pool));
