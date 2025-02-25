@@ -35,6 +35,13 @@ on_load(function(target)
             public = true
         })
     end
+    if get_config("lc_backend_lto") then
+        target:set("policy", "build.optimization.lto", true)
+        if get_config("lc_toolchain") == "llvm" then
+            target:add("ldflags", "-fuse-ld=lld-link")
+            target:add("shflags", "-fuse-ld=lld-link")
+        end
+    end
 end)
 target_end()
 

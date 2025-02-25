@@ -17,6 +17,13 @@ on_load(function(target)
         target:add("links", "WinPixEventRuntime")
         target:add("defines", "LCDX_ENABLE_WINPIX")
     end
+    if get_config("lc_backend_lto") then
+        target:set("policy", "build.optimization.lto", true)
+        if get_config("lc_toolchain") == "llvm" then
+            target:add("ldflags", "-fuse-ld=lld-link")
+            target:add("shflags", "-fuse-ld=lld-link")
+        end
+    end
     if get_config("dx_cuda_interop") then
         local cuda_path = os.getenv("CUDA_PATH")
         if not cuda_path then
