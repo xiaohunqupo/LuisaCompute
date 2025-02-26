@@ -18,8 +18,17 @@ def cross_compile(hlsl_path: str, entry_point: str):
     system(f"dxc -O3 -spirv -T cs_6_5 {hlsl_path} -HV 2016 -E {entry_point} -Fo {spv_name}.spv -no-warnings")
     system(f"spirv-cross {spv_name}.spv --msl --msl-argument-buffers --msl-argument-buffer-tier 1 --msl-version 30000 > {spv_name}.metal")
     with open(f"{spv_name}.metal", "r") as f:
-        return f.read()
-
+        src = f.read()
+    # patch the unusable source
+    src = src \
+        .replace("constant type_cbCS* cbCS [[id(0)]]", "type_cbCS cbCS") \
+        .replace(" [[id(1)]]", "") \
+        .replace(" [[id(2)]]", "") \
+        .replace(" [[id(3)]]", "") \
+        .replace("(*spvDescriptorSet0.cbCS)", "spvDescriptorSet0.cbCS")
+    with open(f"{spv_name}.patched.metal", "w") as f:
+        f.write(src)
+    return src
 
 # 16-char per line
 def string_to_hex_array(s: str, indent=4):
