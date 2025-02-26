@@ -88,6 +88,7 @@ struct Sampler {
 };
 
 [[nodiscard]] inline auto sampler_code(Sampler s) { return (s.filter << 2u) | s.address; }
+[[nodiscard]] inline auto sampler_code_uint(uint filter, uint address) { return (filter << 2u) | address; }
 
 struct alignas(16) BindlessSlotModification {
     struct Buffer {
