@@ -42,4 +42,4 @@ if __name__ == "__main__":
     # embed the shaders into C hex arrays in "../metal_tex_compress.inl.h"
     with open(os.path.join(base_dir, "../metal_tex_compress.inl.h"), "w") as f:
         for name, source in mtl_sources:
-            f.write(f"static const char metal_tex_compress_{name}[] = {{\n{string_to_hex_array(source)}\n}};\n\n")
+            f.write(f"static const char metal_tex_compress_{name}[] = {{\n{string_to_hex_array(source)}}};\n\n")
