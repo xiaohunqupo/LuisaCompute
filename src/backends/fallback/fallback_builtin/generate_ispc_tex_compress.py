@@ -16,11 +16,8 @@ def download_ispc_tex_compress(output_file: str):
         f.write(src)
 
 
-def compile_ispc_kernel(src_file: str, output_file: str, ispc_exe: str):
-    if os.uname().sysname == "Darwin":
-        target = "neon-i32x8"
-    else:
-        target = "generic-i32x8"
+def compile_ispc_kernel(src_file: str, output_file: str, arch: str, ispc_exe: str):
+    target = "neon-i32x8" if arch == "arm64" else "generic-i32x8"
     subprocess.run([ispc_exe, src_file, "-o", output_file, "-O3", "-DNDEBUG", "--emit-llvm-text",
                     "--opt=disable-assertions", "--opt=fast-math", "--math-lib=fast", "-woff",
                     "--opt=enable-ldst-vectorizer", "--opt=enable-slp-vectorizer", f"--target={target}"])
@@ -67,8 +64,9 @@ if __name__ == "__main__":
     if clang_exe is None:
         raise FileNotFoundError("clang not found in PATH")
     # compile the ispc kernel to LLVM IR
+    arch = "x86_64" if os.uname().machine == "x86_64" else "arm64"
     ll_path = os.path.join(base_dir, "tex_compress.ll")
-    compile_ispc_kernel(src_path, ll_path, ispc_exe)
+    compile_ispc_kernel(src_path, ll_path, arch, ispc_exe)
     # patch the LLVM IR to make unwanted functions private
     patched_ll_path = os.path.join(base_dir, "tex_compress.patched.ll")
     patch_llvm_ir(ll_path, patched_ll_path, [BC6H_KERNEL, BC7_KERNEL])
@@ -76,5 +74,5 @@ if __name__ == "__main__":
     bc_path = os.path.join(base_dir, "tex_compress.bc")
     compile_llvm_ir(patched_ll_path, bc_path, clang_exe)
     # embed the bitcode into C hex array in "../fallback_tex_compress.inl.h"
-    c_path = os.path.join(base_dir, "../fallback_tex_compress.inl.h")
+    c_path = os.path.join(base_dir, f"../fallback_tex_compress.{arch}.inl.h")
     embed_bitcode_into_c_hex_array(bc_path, c_path, "fallback_tex_compress_llvm_bc")

@@ -25,7 +25,11 @@ namespace luisa::compute::fallback {
 
 namespace {
 
-#include "fallback_tex_compress.inl.h"
+#ifdef LUISA_ARCH_ARM64
+#include "fallback_tex_compress.arm64.inl.h"
+#else
+#include "fallback_tex_compress.x86_64.inl.h"
+#endif
 
 struct BC6HEncodeConfig {
     bool slow_mode;
