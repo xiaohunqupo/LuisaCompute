@@ -138,7 +138,7 @@ TexCompressExt::Result MetalTexCompressExt::compress_bc6h(Stream &stream, const 
                                   command_buffer, std::max<uint>(1u, (total_block_count + 1u) / 2u));
     }
     dispatch_bc_encode_shader(_bc6h_encode_encode_block.get(), config, texture,
-                              err1_buffer, 0ull, err2_buffer, result.size_bytes(),
+                              err1_buffer, 0ull, err2_buffer, result.offset_bytes(),
                               command_buffer, std::max<uint>(1u, (total_block_count + 1u) / 2u));
     command_buffer->commit();
     err1_buffer->release();// captured by command_buffer, so we can release it here
@@ -150,6 +150,7 @@ TexCompressExt::Result MetalTexCompressExt::compress_bc7(Stream &stream, const I
     auto total_block_count = blocks.x * blocks.y;
     auto err1_buffer = _device->handle()->newBuffer(total_block_count * sizeof(uint4), MTL::ResourceStorageModePrivate);
     auto err2_buffer = _device->handle()->newBuffer(total_block_count * sizeof(uint4), MTL::ResourceStorageModePrivate);
+    LUISA_DEBUG_ASSERT(result.size_bytes() >= err1_buffer->length(), "Output buffer too small for BC6H compression.");
     BCEncode_Config config{
         .g_tex_width = src.size().x,
         .g_num_block_x = blocks.x,
