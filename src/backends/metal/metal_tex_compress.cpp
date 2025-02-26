@@ -9,8 +9,8 @@ namespace luisa::compute::metal {
 
 static constexpr auto metal_texture_compress_block_size = make_uint3(64u, 1u, 1u);
 static constexpr auto metal_texture_compress_thread_count = metal_texture_compress_block_size.x *
-                                                           metal_texture_compress_block_size.y *
-                                                           metal_texture_compress_block_size.z;
+                                                            metal_texture_compress_block_size.y *
+                                                            metal_texture_compress_block_size.z;
 
 MetalTexCompressExt::MetalTexCompressExt(MetalDevice *device) noexcept {
     auto compile_shader = [device = device->handle()](luisa::string_view f, luisa::string_view s) noexcept {
@@ -60,6 +60,76 @@ MetalTexCompressExt::MetalTexCompressExt(MetalDevice *device) noexcept {
 TexCompressExt::Result MetalTexCompressExt::check_builtin_shader() noexcept {
     return TexCompressExt::Result::Success;
 }
+
+namespace {
+
+struct BC6HEncode_Config {
+    uint g_tex_width;
+    uint g_num_block_x;
+    uint g_format;
+    uint g_mode_id;
+    uint g_start_block_id;
+    uint g_num_total_blocks;
+};
+
+struct BC6HEncode_EncodeBlockCS_ArgumentBuffer {
+    BC6HEncode_Config cbCS;
+    MTL::ResourceID g_Input;
+    uint64_t g_InBuff;
+    uint64_t g_OutBuff;
+};
+
+struct BC6HEncode_TryModeG10CS_ArgumentBuffer {
+    BC6HEncode_Config cbCS;
+    MTL::ResourceID g_Input;
+    uint64_t g_OutBuff;
+};
+
+struct BC6HEncode_TryModeLE10CS_ArgumentBuffer {
+    BC6HEncode_Config cbCS;
+    MTL::ResourceID g_Input;
+    uint64_t g_InBuff;
+    uint64_t g_OutBuff;
+};
+
+struct BC7Encode_Config {
+    uint g_tex_width;
+    uint g_num_block_x;
+    uint g_format;
+    uint g_mode_id;
+    uint g_start_block_id;
+    uint g_num_total_blocks;
+    float g_alpha_weight;
+};
+
+struct BC7Encode_EncodeBlockCS_ArgumentBuffer {
+    BC7Encode_Config cbCS;
+    MTL::ResourceID g_Input;
+    uint64_t g_InBuff;
+    uint64_t g_OutBuff;
+};
+
+struct BC7Encode_TryMode02CS_ArgumentBuffer {
+    BC7Encode_Config cbCS;
+    MTL::ResourceID g_Input;
+    uint64_t g_InBuff;
+    uint64_t g_OutBuff;
+};
+
+struct BC7Encode_TryMode137CS_ArgumentBuffer {
+    BC7Encode_Config cbCS;
+    MTL::ResourceID g_Input;
+    uint64_t g_InBuff;
+    uint64_t g_OutBuff;
+};
+
+struct BC7Encode_TryMode456CS_ArgumentBuffer {
+    BC7Encode_Config cbCS;
+    MTL::ResourceID g_Input;
+    uint64_t g_OutBuff;
+};
+
+}// namespace
 
 TexCompressExt::Result MetalTexCompressExt::compress_bc6h(Stream &stream, const ImageView<float> &src, const BufferView<uint> &result) noexcept {
     return TexCompressExt::compress_bc6h(stream, src, result);
