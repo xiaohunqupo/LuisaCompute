@@ -10,6 +10,7 @@ class MetalDevice;
 class MetalTexCompressExt final : public TexCompressExt {
 
 private:
+    MetalDevice *_device;
     NS::SharedPtr<MTL::ComputePipelineState> _bc7_encode_try_mode_456;
     NS::SharedPtr<MTL::ComputePipelineState> _bc7_encode_try_mode_137;
     NS::SharedPtr<MTL::ComputePipelineState> _bc7_encode_try_mode_02;

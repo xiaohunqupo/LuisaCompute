@@ -15,13 +15,19 @@ def find_entry_points(hlsl_path: str):
 def cross_compile(hlsl_path: str, entry_point: str):
     from os import system
     spv_name = f"{hlsl_path[:-len('.hlsl')]}_{entry_point}"
-    system(f"dxc -O3 -spirv -T cs_6_5 {hlsl_path} -HV 2016 -E {entry_point} -Fo {spv_name}.spv -no-warnings")
-    system(f"spirv-cross {spv_name}.spv --msl --msl-argument-buffers --msl-argument-buffer-tier 1 --msl-version 30000 > {spv_name}.metal")
+    # system(f"dxc -O3 -spirv -T cs_6_5 {hlsl_path} -HV 2016 -E {entry_point} -Fo {spv_name}.spv -no-warnings")
+    # system(f"spirv-cross {spv_name}.spv --msl --msl-argument-buffers --msl-argument-buffer-tier 1 --msl-version 30000 > {spv_name}.metal")
     with open(f"{spv_name}.metal", "r") as f:
         src = f.read()
     # patch the unusable source
     src = src \
+        .replace("struct type_cbCS", "struct alignas(16) type_cbCS") \
         .replace("constant type_cbCS* cbCS [[id(0)]]", "type_cbCS cbCS") \
+        .replace("    texture2d<float> g_Input [[id(1)]];\n"
+                 "    device type_RWStructuredBuffer_v4uint* g_OutBuff [[id(2)]];",
+                 "    texture2d<float> g_Input [[id(1)]];\n"
+                 "    ulong _;\n"
+                 "    device type_RWStructuredBuffer_v4uint* g_OutBuff [[id(2)]];") \
         .replace(" [[id(1)]]", "") \
         .replace(" [[id(2)]]", "") \
         .replace(" [[id(3)]]", "") \
@@ -29,6 +35,7 @@ def cross_compile(hlsl_path: str, entry_point: str):
     with open(f"{spv_name}.patched.metal", "w") as f:
         f.write(src)
     return src
+
 
 # 16-char per line
 def string_to_hex_array(s: str, indent=4):

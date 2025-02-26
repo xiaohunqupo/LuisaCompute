@@ -44,7 +44,7 @@ struct spvUnsafeArray
     }
 };
 
-struct type_cbCS
+struct alignas(16) type_cbCS
 {
     uint g_tex_width;
     uint g_num_block_x;
@@ -80,6 +80,7 @@ struct spvDescriptorSetBuffer0
 {
     type_cbCS cbCS;
     texture2d<float> g_Input;
+    ulong _;
     device type_RWStructuredBuffer_v4uint* g_OutBuff;
 };
 

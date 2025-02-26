@@ -44,7 +44,7 @@ struct spvUnsafeArray
     }
 };
 
-struct type_cbCS
+struct alignas(16) type_cbCS
 {
     uint g_tex_width;
     uint g_num_block_x;
