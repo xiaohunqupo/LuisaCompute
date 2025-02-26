@@ -111,58 +111,61 @@ void dispatch_bc_encode_shader(MTL::ComputePipelineState *shader,
 TexCompressExt::Result MetalTexCompressExt::compress_bc6h(Stream &stream, const ImageView<float> &src, const BufferView<uint> &result) noexcept {
     auto blocks = luisa::max(1u, (src.size() + 3u) / 4u);
     auto total_block_count = blocks.x * blocks.y;
-    auto err1_buffer = _device->handle()->newBuffer(total_block_count * sizeof(uint4), MTL::ResourceStorageModePrivate);
-    LUISA_DEBUG_ASSERT(result.size_bytes() >= err1_buffer->length(), "Output buffer too small for BC6H compression.");
+    auto err1_buffer_alloca = NS::TransferPtr(_device->handle()->newBuffer(total_block_count * sizeof(uint4), MTL::ResourceStorageModePrivate));
+    auto err1_buffer = err1_buffer_alloca.get();
+    auto err1_buffer_offset = static_cast<size_t>(0u);
     auto err2_buffer = reinterpret_cast<MetalBuffer *>(result.handle())->handle();
-    BCEncode_Config config{
-        .g_tex_width = src.size().x,
-        .g_num_block_x = blocks.x,
-        .g_format = metal_texture_compress_format_bc6h_uf16,
-        .g_mode_id = 0u,
-        .g_start_block_id = 0u,
-        .g_num_total_blocks = total_block_count,
-        .g_alpha_weight = 0.f};
+    auto err2_buffer_offset = result.offset_bytes();
+    LUISA_DEBUG_ASSERT(result.size_bytes() >= err1_buffer->length(), "Output buffer too small for BC6H compression.");
+    BCEncode_Config config{.g_tex_width = src.size().x,
+                           .g_num_block_x = blocks.x,
+                           .g_format = metal_texture_compress_format_bc6h_uf16,
+                           .g_mode_id = 0u,
+                           .g_start_block_id = 0u,
+                           .g_num_total_blocks = total_block_count,
+                           .g_alpha_weight = 0.f};
     auto command_buffer = reinterpret_cast<MetalStream *>(stream.handle())->queue()->commandBuffer();// will capture err1_buffer
     auto texture = reinterpret_cast<MetalTexture *>(src.handle())->handle(src.level());
     dispatch_bc_encode_shader(_bc6h_encode_try_mode_g10.get(), config, texture,
-                              nullptr, 0ull, err1_buffer, 0ull,
+                              nullptr, 0ull, err1_buffer, err1_buffer_offset,
                               command_buffer, std::max<uint>(1u, (total_block_count + 3u) / 4u));
     for (auto i = 0u; i < 10u; i++) {
         config.g_mode_id = i;
         auto in_buffer = (i % 2u == 0u) ? err1_buffer : err2_buffer;
-        auto in_buffer_offset = (i % 2u == 0u) ? 0u : result.offset_bytes();
+        auto in_buffer_offset = (i % 2u == 0u) ? err1_buffer_offset : err2_buffer_offset;
         auto out_buffer = (i % 2u == 0u) ? err2_buffer : err1_buffer;
-        auto out_buffer_offset = (i % 2u == 0u) ? result.offset_bytes() : 0u;
+        auto out_buffer_offset = (i % 2u == 0u) ? err2_buffer_offset : err1_buffer_offset;
         dispatch_bc_encode_shader(_bc6h_encode_try_mode_le10.get(), config, texture,
                                   in_buffer, in_buffer_offset, out_buffer, out_buffer_offset,
                                   command_buffer, std::max<uint>(1u, (total_block_count + 1u) / 2u));
     }
     dispatch_bc_encode_shader(_bc6h_encode_encode_block.get(), config, texture,
-                              err1_buffer, 0ull, err2_buffer, result.offset_bytes(),
+                              err1_buffer, err1_buffer_offset, err2_buffer, err2_buffer_offset,
                               command_buffer, std::max<uint>(1u, (total_block_count + 1u) / 2u));
     command_buffer->commit();
-    err1_buffer->release();// captured by command_buffer, so we can release it here
     return TexCompressExt::Result::Success;
 }
 
 TexCompressExt::Result MetalTexCompressExt::compress_bc7(Stream &stream, const ImageView<float> &src, const BufferView<uint> &result, float alpha_importance) noexcept {
     auto blocks = luisa::max(1u, (src.size() + 3u) / 4u);
     auto total_block_count = blocks.x * blocks.y;
-    auto err1_buffer = _device->handle()->newBuffer(total_block_count * sizeof(uint4), MTL::ResourceStorageModePrivate);
-    auto err2_buffer = _device->handle()->newBuffer(total_block_count * sizeof(uint4), MTL::ResourceStorageModePrivate);
-    LUISA_DEBUG_ASSERT(result.size_bytes() >= err1_buffer->length(), "Output buffer too small for BC6H compression.");
-    BCEncode_Config config{
-        .g_tex_width = src.size().x,
-        .g_num_block_x = blocks.x,
-        .g_format = metal_texture_compress_format_bc7_unorm,
-        .g_mode_id = 0u,
-        .g_start_block_id = 0u,
-        .g_num_total_blocks = total_block_count,
-        .g_alpha_weight = alpha_importance};
-    auto command_buffer = reinterpret_cast<MetalStream *>(stream.handle())->queue()->commandBuffer();// will capture err1_buffer and err2_buffer
+    auto err1_buffer = reinterpret_cast<MetalBuffer *>(result.handle())->handle();
+    auto err1_buffer_offset = result.offset_bytes();
+    auto err2_buffer_alloc = NS::TransferPtr(_device->handle()->newBuffer(total_block_count * sizeof(uint4), MTL::ResourceStorageModePrivate));
+    auto err2_buffer = err2_buffer_alloc.get();
+    auto err2_buffer_offset = static_cast<size_t>(0u);
+    LUISA_DEBUG_ASSERT(result.size_bytes() >= err1_buffer->length(), "Output buffer too small for BC7 compression.");
+    BCEncode_Config config{.g_tex_width = src.size().x,
+                           .g_num_block_x = blocks.x,
+                           .g_format = metal_texture_compress_format_bc7_unorm,
+                           .g_mode_id = 0u,
+                           .g_start_block_id = 0u,
+                           .g_num_total_blocks = total_block_count,
+                           .g_alpha_weight = alpha_importance};
+    auto command_buffer = reinterpret_cast<MetalStream *>(stream.handle())->queue()->commandBuffer();// will capture err2_buffer
     auto texture = reinterpret_cast<MetalTexture *>(src.handle())->handle(src.level());
     dispatch_bc_encode_shader(_bc7_encode_try_mode_456.get(), config, texture,
-                              nullptr, 0ull, err1_buffer, 0ull,
+                              nullptr, 0ull, err1_buffer, err1_buffer_offset,
                               command_buffer, std::max<uint>(1u, (total_block_count + 3u) / 4u));
     // try mode 137
     for (auto i = 0u; i < 3u; i++) {
@@ -172,9 +175,11 @@ TexCompressExt::Result MetalTexCompressExt::compress_bc7(Stream &stream, const I
         // Mode 7: err1 -> err2
         config.g_mode_id = modes[i];
         auto in_buffer = (i % 2u == 0u) ? err1_buffer : err2_buffer;
+        auto in_buffer_offset = (i % 2u == 0u) ? err1_buffer_offset : err2_buffer_offset;
         auto out_buffer = (i % 2u == 0u) ? err2_buffer : err1_buffer;
+        auto out_buffer_offset = (i % 2u == 0u) ? err2_buffer_offset : err1_buffer_offset;
         dispatch_bc_encode_shader(_bc7_encode_try_mode_137.get(), config, texture,
-                                  in_buffer, 0ull, out_buffer, 0ull,
+                                  in_buffer, in_buffer_offset, out_buffer, out_buffer_offset,
                                   command_buffer, total_block_count);
     }
     // try mode 02
@@ -184,18 +189,17 @@ TexCompressExt::Result MetalTexCompressExt::compress_bc7(Stream &stream, const I
         // Mode 2: err1 -> err2
         config.g_mode_id = modes[i];
         auto in_buffer = (i % 2u == 0u) ? err2_buffer : err1_buffer;
+        auto in_buffer_offset = (i % 2u == 0u) ? err2_buffer_offset : err1_buffer_offset;
         auto out_buffer = (i % 2u == 0u) ? err1_buffer : err2_buffer;
+        auto out_buffer_offset = (i % 2u == 0u) ? err1_buffer_offset : err2_buffer_offset;
         dispatch_bc_encode_shader(_bc7_encode_try_mode_02.get(), config, texture,
-                                  in_buffer, 0ull, out_buffer, 0ull,
+                                  in_buffer, in_buffer_offset, out_buffer, out_buffer_offset,
                                   command_buffer, total_block_count);
     }
-    auto output_buffer = reinterpret_cast<MetalBuffer *>(result.handle())->handle();
     dispatch_bc_encode_shader(_bc7_encode_encode_block.get(), config, texture,
-                              err2_buffer, 0ull, output_buffer, result.offset_bytes(),
+                              err2_buffer, err2_buffer_offset, err1_buffer, err1_buffer_offset,
                               command_buffer, std::max<uint>(1u, (total_block_count + 3u) / 4u));
     command_buffer->commit();
-    err1_buffer->release();// captured by command_buffer, so we can release it here
-    err2_buffer->release();// captured by command_buffer, so we can release it here
     return TexCompressExt::Result::Success;
 }
 
