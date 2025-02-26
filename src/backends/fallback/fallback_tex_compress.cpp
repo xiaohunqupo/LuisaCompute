@@ -114,25 +114,25 @@ using func_type_bc7_encode_blocks = void(const RGBASurface &src, std::byte *dst,
 template<typename T>
 [[nodiscard]] auto create_rgba_surface(FallbackCommandQueue &queue, ImageView<float> src) noexcept {
     auto size = src.size();
-    auto memory = luisa::allocate_with_allocator<luisa::Vector<T, 4u>>(size.x * size.y);
+    auto padded_size = (size + 3u) / 4u * 4u;
+    auto memory = luisa::allocate_with_allocator<luisa::Vector<T, 4u>>(padded_size.x * padded_size.y);
     auto view = reinterpret_cast<FallbackTexture *>(src.handle())->view(src.level());
     static constexpr auto scanline_height = 4u;
     auto scanline_count = (size.y + scanline_height - 1u) / scanline_height;
-    queue.enqueue_parallel(scanline_count, [memory, view](uint32_t scanline) noexcept {
+    queue.enqueue_parallel(scanline_count, [view, memory, padded_w = padded_size.x](uint32_t scanline) noexcept {
         auto size = view.size2d();
         auto y_begin = scanline * scanline_height;
-        auto y_end = luisa::min(y_begin + scanline_height, size.y);
-        auto dst = memory + y_begin * size.x;
-        for (auto y = y_begin; y < y_end; y++) {
+        auto dst = memory + y_begin * padded_w;
+        for (auto y = y_begin; y < y_begin + scanline_height; y++) {
             for (auto x = 0u; x < size.x; x++) {
-                *(dst++) = view.read2d<T>(make_uint2(x, y));
+                *(dst++) = view.read2d<T>(luisa::min(make_uint2(x, y), size - 1u));
             }
         }
     });
     return RGBASurface{.ptr = reinterpret_cast<std::byte *>(memory),
-                       .width = size.x,
-                       .height = size.y,
-                       .stride = static_cast<uint>(size.x * sizeof(T) * 4u)};
+                       .width = padded_size.x,
+                       .height = padded_size.y,
+                       .stride = static_cast<uint>(padded_size.x * sizeof(T) * 4u)};
 }
 
 template<typename Func, typename Config>
