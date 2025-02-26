@@ -36,9 +36,8 @@ if __name__ == "__main__":
         hlsl_path = os.path.join(base_dir, hlsl)
         entry_points = find_entry_points(hlsl_path)
         for entry_point in entry_points:
-            cross_compile(hlsl_path, entry_point)
-            mtl_sources.append((f"{hlsl[:-len('.hlsl')]}_{entry_point}",
-                                cross_compile(hlsl_path, entry_point)))
+            mtl_src = cross_compile(hlsl_path, entry_point)
+            mtl_sources.append((f"{hlsl[:-len('.hlsl')]}_{entry_point}", mtl_src + "\0"))
     # embed the shaders into C hex arrays in "../metal_tex_compress.inl.h"
     with open(os.path.join(base_dir, "../metal_tex_compress.inl.h"), "w") as f:
         for name, source in mtl_sources:
