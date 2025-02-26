@@ -74,7 +74,7 @@ void *FallbackDevice::native_handle() const noexcept {
 }
 
 void FallbackDevice::destroy_buffer(uint64_t handle) noexcept {
-    luisa::deallocate_with_allocator(reinterpret_cast<FallbackBuffer *>(handle));
+    luisa::delete_with_allocator(reinterpret_cast<FallbackBuffer *>(handle));
 }
 
 void FallbackDevice::destroy_texture(uint64_t handle) noexcept {
@@ -110,7 +110,7 @@ void FallbackDevice::destroy_accel(uint64_t handle) noexcept {
 }
 
 void FallbackDevice::destroy_swap_chain(uint64_t handle) noexcept {
-    luisa::deallocate_with_allocator(reinterpret_cast<FallbackSwapchain *>(handle));
+    luisa::delete_with_allocator(reinterpret_cast<FallbackSwapchain *>(handle));
 }
 
 void FallbackDevice::present_display_in_stream(uint64_t stream_handle,
