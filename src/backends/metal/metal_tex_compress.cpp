@@ -10,11 +10,54 @@
 
 namespace luisa::compute::metal {
 
+namespace {
+
 #include "metal_tex_compress.inl.h"
 
-static constexpr auto metal_texture_compress_thread_group_size = 64u;
-static constexpr auto metal_texture_compress_format_bc6h_uf16 = 95u;
-static constexpr auto metal_texture_compress_format_bc7_unorm = 98u;
+constexpr auto metal_texture_compress_thread_group_size = 64u;
+constexpr auto metal_texture_compress_format_bc6h_uf16 = 95u;
+constexpr auto metal_texture_compress_format_bc7_unorm = 98u;
+
+struct alignas(16) BCEncode_Config {
+    uint g_tex_width;
+    uint g_num_block_x;
+    uint g_format;
+    uint g_mode_id;
+    uint g_start_block_id;
+    uint g_num_total_blocks;
+    float g_alpha_weight;
+};
+
+struct BCEncode_ArgumentBuffer {
+    BCEncode_Config cbCS;
+    MTL::ResourceID g_Input;
+    uint64_t g_InBuff;
+    uint64_t g_OutBuff;
+};
+
+void dispatch_bc_encode_shader(MTL::ComputePipelineState *shader,
+                               const BCEncode_Config &config,
+                               MTL::Texture *input,
+                               MTL::Buffer *in_buffer, size_t in_buffer_offset,
+                               MTL::Buffer *out_buffer, size_t out_buffer_offset,
+                               MTL::CommandBuffer *command_buffer,
+                               uint thread_group_count) noexcept {
+    BCEncode_ArgumentBuffer args{.cbCS = config,
+                                 .g_Input = input == nullptr ? MTL::ResourceID{} : input->gpuResourceID(),
+                                 .g_InBuff = in_buffer == nullptr ? 0u : in_buffer->gpuAddress() + in_buffer_offset,
+                                 .g_OutBuff = out_buffer == nullptr ? 0u : out_buffer->gpuAddress() + out_buffer_offset};
+    auto command_encoder = command_buffer->computeCommandEncoder(MTL::DispatchTypeConcurrent);
+    command_encoder->setComputePipelineState(shader);
+    command_encoder->setBytes(&args, sizeof(BCEncode_ArgumentBuffer), 0u);
+    if (input != nullptr) { command_encoder->useResource(input, MTL::ResourceUsageRead); }
+    if (in_buffer != nullptr) { command_encoder->useResource(in_buffer, MTL::ResourceUsageRead); }
+    if (out_buffer != nullptr) { command_encoder->useResource(out_buffer, MTL::ResourceUsageWrite); }
+    command_encoder->dispatchThreadgroups(MTL::Size{thread_group_count, 1u, 1u},
+                                          MTL::Size{metal_texture_compress_thread_group_size, 1u, 1u});
+    command_encoder->endEncoding();
+}
+
+}// namespace
 
 MetalTexCompressExt::MetalTexCompressExt(MetalDevice *device) noexcept : _device{device} {
     auto compile_shader = [device = device->handle()](luisa::string_view f, luisa::string_view s) noexcept {
@@ -64,49 +107,6 @@ MetalTexCompressExt::MetalTexCompressExt(MetalDevice *device) noexcept : _device
 TexCompressExt::Result MetalTexCompressExt::check_builtin_shader() noexcept {
     return TexCompressExt::Result::Success;
 }
-
-namespace {
-
-struct alignas(16) BCEncode_Config {
-    uint g_tex_width;
-    uint g_num_block_x;
-    uint g_format;
-    uint g_mode_id;
-    uint g_start_block_id;
-    uint g_num_total_blocks;
-    float g_alpha_weight;
-};
-
-struct BCEncode_ArgumentBuffer {
-    BCEncode_Config cbCS;
-    MTL::ResourceID g_Input;
-    uint64_t g_InBuff;
-    uint64_t g_OutBuff;
-};
-
-void dispatch_bc_encode_shader(MTL::ComputePipelineState *shader,
-                               const BCEncode_Config &config,
-                               MTL::Texture *input,
-                               MTL::Buffer *in_buffer, size_t in_buffer_offset,
-                               MTL::Buffer *out_buffer, size_t out_buffer_offset,
-                               MTL::CommandBuffer *command_buffer,
-                               uint thread_group_count) noexcept {
-    BCEncode_ArgumentBuffer args{.cbCS = config,
-                                 .g_Input = input == nullptr ? MTL::ResourceID{} : input->gpuResourceID(),
-                                 .g_InBuff = in_buffer == nullptr ? 0u : in_buffer->gpuAddress() + in_buffer_offset,
-                                 .g_OutBuff = out_buffer == nullptr ? 0u : out_buffer->gpuAddress() + out_buffer_offset};
-    auto command_encoder = command_buffer->computeCommandEncoder(MTL::DispatchTypeConcurrent);
-    command_encoder->setComputePipelineState(shader);
-    command_encoder->setBytes(&args, sizeof(BCEncode_ArgumentBuffer), 0u);
-    if (input != nullptr) { command_encoder->useResource(input, MTL::ResourceUsageRead); }
-    if (in_buffer != nullptr) { command_encoder->useResource(in_buffer, MTL::ResourceUsageRead); }
-    if (out_buffer != nullptr) { command_encoder->useResource(out_buffer, MTL::ResourceUsageWrite); }
-    command_encoder->dispatchThreadgroups(MTL::Size{thread_group_count, 1u, 1u},
-                                          MTL::Size{metal_texture_compress_thread_group_size, 1u, 1u});
-    command_encoder->endEncoding();
-}
-
-}// namespace
 
 TexCompressExt::Result MetalTexCompressExt::compress_bc6h(Stream &stream, const ImageView<float> &src, const BufferView<uint> &result) noexcept {
     auto blocks = luisa::max(1u, (src.size() + 3u) / 4u);

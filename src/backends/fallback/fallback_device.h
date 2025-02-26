@@ -17,10 +17,16 @@ class LLJIT;
 
 namespace luisa::compute::fallback {
 
+class FallbackTexCompressInterface;
+
 class FallbackDevice : public DeviceInterface {
 
 private:
     RTCDevice _rtc_device{nullptr};
+
+private:
+    luisa::spin_mutex _ext_mutex;
+    luisa::unique_ptr<FallbackTexCompressInterface> _tex_compress_ext;
 
 public:
     explicit FallbackDevice(Context &&ctx) noexcept;

@@ -31,6 +31,9 @@
 #include "fallback_event.h"
 #include "fallback_swapchain.h"
 
+// extensions
+#include "fallback_tex_compress.h"
+
 namespace luisa::compute::fallback {
 
 FallbackDevice::FallbackDevice(Context &&ctx) noexcept
@@ -277,6 +280,11 @@ string FallbackDevice::query(luisa::string_view property) noexcept {
 }
 
 DeviceExtension *FallbackDevice::extension(luisa::string_view name) noexcept {
+    if (name == TexCompressExt::name) {
+        std::scoped_lock lock{_ext_mutex};
+        if (_tex_compress_ext == nullptr) { _tex_compress_ext = create_fallback_tex_compress_ext(); }
+        return _tex_compress_ext.get();
+    }
     return DeviceInterface::extension(name);
 }
 

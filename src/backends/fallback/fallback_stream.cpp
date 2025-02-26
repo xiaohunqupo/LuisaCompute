@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <luisa/core/logging.h>
+#include <luisa/runtime/command_list.h>
 
 #include "fallback_stream.h"
 #include "fallback_accel.h"

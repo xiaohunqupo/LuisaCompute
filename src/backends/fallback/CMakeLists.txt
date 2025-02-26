@@ -32,6 +32,7 @@ if (LLVM_FOUND AND embree_FOUND)
             fallback_shader.cpp
             fallback_buffer.cpp
             fallback_swapchain.cpp
+            fallback_tex_compress.cpp
     )
 
     luisa_compute_add_backend(fallback SOURCES ${LC_BACKEND_FALLBACK_SRC})
