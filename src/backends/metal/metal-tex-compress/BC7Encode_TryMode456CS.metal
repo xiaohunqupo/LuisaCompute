@@ -76,13 +76,6 @@ struct BufferShared
 
 constant uint4 _136 = {};
 
-struct spvDescriptorSetBuffer0
-{
-    constant type_cbCS* cbCS [[id(0)]];
-    texture2d<float> g_Input [[id(1)]];
-    device type_RWStructuredBuffer_v4uint* g_OutBuff [[id(2)]];
-};
-
 constant spvUnsafeArray<uint, 16> _119 = spvUnsafeArray<uint, 16>({ 0u, 4u, 9u, 13u, 17u, 21u, 26u, 30u, 34u, 38u, 43u, 47u, 51u, 55u, 60u, 64u });
 constant spvUnsafeArray<uint, 16> _120 = spvUnsafeArray<uint, 16>({ 0u, 9u, 18u, 27u, 37u, 46u, 55u, 64u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u });
 constant spvUnsafeArray<uint, 16> _121 = spvUnsafeArray<uint, 16>({ 0u, 21u, 43u, 64u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u });
@@ -92,19 +85,21 @@ constant spvUnsafeArray<uint, 64> _124 = spvUnsafeArray<uint, 64>({ 0u, 0u, 0u, 
 constant spvUnsafeArray<uint, 64> _125 = spvUnsafeArray<uint, 64>({ 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 3u, 3u, 3u, 3u, 3u, 3u, 3u, 3u, 3u, 3u });
 constant spvUnsafeArray<spvUnsafeArray<uint, 64>, 3> _126 = spvUnsafeArray<spvUnsafeArray<uint, 64>, 3>({ spvUnsafeArray<uint, 64>({ 0u, 0u, 0u, 1u, 1u, 1u, 1u, 2u, 2u, 2u, 2u, 2u, 3u, 3u, 3u, 3u, 4u, 4u, 4u, 4u, 5u, 5u, 5u, 5u, 6u, 6u, 6u, 6u, 6u, 7u, 7u, 7u, 7u, 8u, 8u, 8u, 8u, 9u, 9u, 9u, 9u, 10u, 10u, 10u, 10u, 10u, 11u, 11u, 11u, 11u, 12u, 12u, 12u, 12u, 13u, 13u, 13u, 13u, 14u, 14u, 14u, 14u, 15u, 15u }), spvUnsafeArray<uint, 64>({ 0u, 0u, 0u, 0u, 0u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 3u, 3u, 3u, 3u, 3u, 3u, 3u, 3u, 3u, 3u, 4u, 4u, 4u, 4u, 4u, 4u, 4u, 4u, 4u, 5u, 5u, 5u, 5u, 5u, 5u, 5u, 5u, 5u, 6u, 6u, 6u, 6u, 6u, 6u, 6u, 6u, 6u, 7u, 7u, 7u, 7u }), spvUnsafeArray<uint, 64>({ 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 3u, 3u, 3u, 3u, 3u, 3u, 3u, 3u, 3u, 3u }) });
 
-kernel void TryMode456CS(constant spvDescriptorSetBuffer0& spvDescriptorSet0 [[buffer(0)]], uint gl_LocalInvocationIndex [[thread_index_in_threadgroup]], uint3 gl_WorkGroupID [[threadgroup_position_in_grid]])
+kernel void TryMode456CS(constant void* spvBufferAliasSet0Binding0 [[buffer(0)]], texture2d<float> g_Input [[texture(0)]], uint gl_LocalInvocationIndex [[thread_index_in_threadgroup]], uint3 gl_WorkGroupID [[threadgroup_position_in_grid]])
 {
+    constant auto& cbCS = *(constant type_cbCS*)spvBufferAliasSet0Binding0;
+    device auto& g_OutBuff = *(device type_RWStructuredBuffer_v4uint*)spvBufferAliasSet0Binding0;
     threadgroup spvUnsafeArray<BufferShared, 64> shared_temp;
     uint _145 = gl_LocalInvocationIndex / 16u;
-    uint _151 = ((*spvDescriptorSet0.cbCS).g_start_block_id + (gl_WorkGroupID.x * 4u)) + _145;
+    uint _151 = (cbCS.g_start_block_id + (gl_WorkGroupID.x * 4u)) + _145;
     uint _152 = _145 * 16u;
     uint _153 = gl_LocalInvocationIndex - _152;
-    uint _156 = _151 / (*spvDescriptorSet0.cbCS).g_num_block_x;
+    uint _156 = _151 / cbCS.g_num_block_x;
     bool _161 = _153 < 16u;
     if (_161)
     {
-        int3 _169 = int3(uint3(((_151 - (_156 * (*spvDescriptorSet0.cbCS).g_num_block_x)) * 4u) + (_153 % 4u), (_156 * 4u) + (_153 / 4u), 0u));
-        shared_temp[gl_LocalInvocationIndex].pixel = clamp(uint4(spvDescriptorSet0.g_Input.read(uint2(_169.xy), _169.z) * 255.0), uint4(0u), uint4(255u));
+        int3 _169 = int3(uint3(((_151 - (_156 * cbCS.g_num_block_x)) * 4u) + (_153 % 4u), (_156 * 4u) + (_153 / 4u), 0u));
+        shared_temp[gl_LocalInvocationIndex].pixel = clamp(uint4(g_Input.read(uint2(_169.xy), _169.z) * 255.0), uint4(0u), uint4(255u));
         shared_temp[gl_LocalInvocationIndex].endPoint_low = shared_temp[gl_LocalInvocationIndex].pixel;
         shared_temp[gl_LocalInvocationIndex].endPoint_high = shared_temp[gl_LocalInvocationIndex].pixel;
     }
@@ -430,7 +425,7 @@ kernel void TryMode456CS(constant spvDescriptorSetBuffer0& spvDescriptorSet0 [[b
                 _662 = _661;
             }
             float _675 = float(_662.w);
-            _497 = _496 + uint(float(((_662.x * _662.x) + (_662.y * _662.y)) + (_662.z * _662.z)) + (((*spvDescriptorSet0.cbCS).g_alpha_weight * _675) * _675));
+            _497 = _496 + uint(float(((_662.x * _662.x) + (_662.y * _662.y)) + (_662.z * _662.z)) + ((cbCS.g_alpha_weight * _675) * _675));
         }
         _871 = _299;
         _872 = _182 ? 4u : 5u;
@@ -558,7 +553,7 @@ kernel void TryMode456CS(constant spvDescriptorSetBuffer0& spvDescriptorSet0 [[b
                 uint _853 = _850.y;
                 uint _855 = _850.z;
                 float _863 = float(_850.w);
-                _757 = _756 + uint(float(((_851 * _851) + (_853 * _853)) + (_855 * _855)) + (((*spvDescriptorSet0.cbCS).g_alpha_weight * _863) * _863));
+                _757 = _756 + uint(float(((_851 * _851) + (_853 * _853)) + (_855 * _855)) + ((cbCS.g_alpha_weight * _863) * _863));
             }
             _868 = _682;
             _869 = _756;
@@ -623,7 +618,7 @@ kernel void TryMode456CS(constant spvDescriptorSetBuffer0& spvDescriptorSet0 [[b
             shared_temp[gl_LocalInvocationIndex].index_selector = shared_temp[_929].index_selector;
             shared_temp[gl_LocalInvocationIndex].rotation = shared_temp[_929].rotation;
         }
-        (*spvDescriptorSet0.g_OutBuff)._m0[_151] = uint4(shared_temp[gl_LocalInvocationIndex].error, (shared_temp[gl_LocalInvocationIndex].index_selector << 31u) | shared_temp[gl_LocalInvocationIndex].mode, 0u, shared_temp[gl_LocalInvocationIndex].rotation);
+        g_OutBuff._m0[_151] = uint4(shared_temp[gl_LocalInvocationIndex].error, (shared_temp[gl_LocalInvocationIndex].index_selector << 31u) | shared_temp[gl_LocalInvocationIndex].mode, 0u, shared_temp[gl_LocalInvocationIndex].rotation);
     }
 }
 
