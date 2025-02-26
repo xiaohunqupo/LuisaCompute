@@ -9,6 +9,7 @@ REPO_URL = "https://github.com/GameTechDev/ISPCTextureCompressor"
 BC6H_KERNEL = "CompressBlocksBC6H_ispc"
 BC7_KERNEL = "CompressBlocksBC7_ispc"
 
+
 def download_ispc_tex_compress(output_file: str):
     url = f"{REPO_URL}/raw/refs/heads/master/ispc_texcomp/kernel.ispc"
     src = requests.get(url).content.decode("utf-8")
@@ -17,10 +18,13 @@ def download_ispc_tex_compress(output_file: str):
 
 
 def compile_ispc_kernel(src_file: str, output_file: str, arch: str, ispc_exe: str):
-    target = "neon-i32x8" if arch == "arm64" else "generic-i32x8"
-    subprocess.run([ispc_exe, src_file, "-o", output_file, "-O3", "-DNDEBUG", "--emit-llvm-text",
-                    "--opt=disable-assertions", "--opt=fast-math", "--math-lib=fast", "-woff",
-                    "--opt=enable-ldst-vectorizer", "--opt=enable-slp-vectorizer", f"--target={target}"])
+    if arch == "arm64":
+        subprocess.run([ispc_exe, src_file, "-o", output_file, "-O3", "-DNDEBUG", "--emit-llvm-text",
+                        "--opt=disable-assertions", "--opt=fast-math", "--math-lib=fast", "-woff",
+                        "--opt=enable-ldst-vectorizer", "--opt=enable-slp-vectorizer", f"--target=neon-i32x8"])
+    else:
+        subprocess.run([ispc_exe, src_file, "-o", output_file, "-O3", "-DNDEBUG", "--emit-llvm-text",
+                        "--opt=disable-assertions", "--opt=fast-math", "--math-lib=fast", "-woff"])
 
 
 def patch_llvm_ir(src_file: str, output_file: str, preserved_functions: list):
