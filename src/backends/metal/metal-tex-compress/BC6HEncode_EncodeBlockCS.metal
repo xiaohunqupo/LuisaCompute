@@ -79,6 +79,14 @@ struct SharedData
     float endPoint_lum_high;
 };
 
+struct spvDescriptorSetBuffer0
+{
+    constant type_cbCS* cbCS [[id(0)]];
+    texture2d<float> g_Input [[id(1)]];
+    const device type_StructuredBuffer_v4uint* g_InBuff [[id(2)]];
+    device type_RWStructuredBuffer_v4uint* g_OutBuff [[id(3)]];
+};
+
 constant spvUnsafeArray<bool, 14> _187 = spvUnsafeArray<bool, 14>({ true, true, true, true, true, true, true, true, true, false, false, true, true, true });
 constant spvUnsafeArray<uint4, 14> _202 = spvUnsafeArray<uint4, 14>({ uint4(10u, 5u, 5u, 5u), uint4(7u, 6u, 6u, 6u), uint4(11u, 5u, 4u, 4u), uint4(11u, 4u, 5u, 4u), uint4(11u, 4u, 4u, 5u), uint4(9u, 5u, 5u, 5u), uint4(8u, 6u, 5u, 5u), uint4(8u, 5u, 6u, 5u), uint4(8u, 5u, 5u, 6u), uint4(6u), uint4(10u), uint4(11u, 9u, 9u, 9u), uint4(12u, 8u, 8u, 8u), uint4(16u, 4u, 4u, 4u) });
 constant spvUnsafeArray<uint, 32> _203 = spvUnsafeArray<uint, 32>({ 52428u, 34952u, 61166u, 60616u, 51328u, 65260u, 65224u, 60544u, 51200u, 65516u, 65152u, 59392u, 65512u, 65280u, 65520u, 61440u, 63248u, 142u, 28928u, 2254u, 140u, 29456u, 12544u, 36046u, 2188u, 12560u, 26214u, 13932u, 6120u, 4080u, 29070u, 14748u });
@@ -86,28 +94,26 @@ constant spvUnsafeArray<uint, 32> _204 = spvUnsafeArray<uint, 32>({ 15u, 15u, 15
 constant spvUnsafeArray<uint, 64> _205 = spvUnsafeArray<uint, 64>({ 0u, 0u, 0u, 0u, 0u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 3u, 3u, 3u, 3u, 3u, 3u, 3u, 3u, 3u, 3u, 4u, 4u, 4u, 4u, 4u, 4u, 4u, 4u, 4u, 5u, 5u, 5u, 5u, 5u, 5u, 5u, 5u, 5u, 6u, 6u, 6u, 6u, 6u, 6u, 6u, 6u, 6u, 7u, 7u, 7u, 7u });
 constant spvUnsafeArray<uint, 64> _206 = spvUnsafeArray<uint, 64>({ 0u, 0u, 0u, 1u, 1u, 1u, 1u, 2u, 2u, 2u, 2u, 2u, 3u, 3u, 3u, 3u, 4u, 4u, 4u, 4u, 5u, 5u, 5u, 5u, 6u, 6u, 6u, 6u, 6u, 7u, 7u, 7u, 7u, 8u, 8u, 8u, 8u, 9u, 9u, 9u, 9u, 10u, 10u, 10u, 10u, 10u, 11u, 11u, 11u, 11u, 12u, 12u, 12u, 12u, 13u, 13u, 13u, 13u, 14u, 14u, 14u, 14u, 15u, 15u });
 
-kernel void EncodeBlockCS(constant void* spvBufferAliasSet0Binding0 [[buffer(0)]], const device type_StructuredBuffer_v4uint& g_InBuff [[buffer(1)]], texture2d<float> g_Input [[texture(0)]], uint gl_LocalInvocationIndex [[thread_index_in_threadgroup]], uint3 gl_WorkGroupID [[threadgroup_position_in_grid]])
+kernel void EncodeBlockCS(constant spvDescriptorSetBuffer0& spvDescriptorSet0 [[buffer(0)]], uint gl_LocalInvocationIndex [[thread_index_in_threadgroup]], uint3 gl_WorkGroupID [[threadgroup_position_in_grid]])
 {
-    constant auto& cbCS = *(constant type_cbCS*)spvBufferAliasSet0Binding0;
-    device auto& g_OutBuff = *(device type_RWStructuredBuffer_v4uint*)spvBufferAliasSet0Binding0;
     threadgroup spvUnsafeArray<SharedData, 64> shared_temp;
     uint _225 = gl_LocalInvocationIndex / 32u;
-    uint _231 = (cbCS.g_start_block_id + (gl_WorkGroupID.x * 2u)) + _225;
+    uint _231 = ((*spvDescriptorSet0.cbCS).g_start_block_id + (gl_WorkGroupID.x * 2u)) + _225;
     uint _232 = _225 * 32u;
     uint _233 = gl_LocalInvocationIndex - _232;
-    uint _236 = _231 / cbCS.g_num_block_x;
+    uint _236 = _231 / (*spvDescriptorSet0.cbCS).g_num_block_x;
     bool _241 = _233 < 16u;
     if (_241)
     {
-        int3 _249 = int3(uint3(((_231 - (_236 * cbCS.g_num_block_x)) * 4u) + (_233 % 4u), (_236 * 4u) + (_233 / 4u), 0u));
-        shared_temp[gl_LocalInvocationIndex].pixel = g_Input.read(uint2(_249.xy), _249.z).xyz;
+        int3 _249 = int3(uint3(((_231 - (_236 * (*spvDescriptorSet0.cbCS).g_num_block_x)) * 4u) + (_233 % 4u), (_236 * 4u) + (_233 / 4u), 0u));
+        shared_temp[gl_LocalInvocationIndex].pixel = spvDescriptorSet0.g_Input.read(uint2(_249.xy), _249.z).xyz;
         shared_temp[gl_LocalInvocationIndex].pixel = precise::max(shared_temp[gl_LocalInvocationIndex].pixel, float3(0.0));
         shared_temp[gl_LocalInvocationIndex].pixel_lum = dot(shared_temp[gl_LocalInvocationIndex].pixel, float3(0.2125999927520751953125, 0.715200006961822509765625, 0.072200000286102294921875));
         uint3 _271 = uint3(as_type<uint>(half2(float2(shared_temp[gl_LocalInvocationIndex].pixel.x, 0.0))), as_type<uint>(half2(float2(shared_temp[gl_LocalInvocationIndex].pixel.y, 0.0))), as_type<uint>(half2(float2(shared_temp[gl_LocalInvocationIndex].pixel.z, 0.0))));
         int3 _296;
         do
         {
-            if (cbCS.g_format == 95u)
+            if ((*spvDescriptorSet0.cbCS).g_format == 95u)
             {
                 _296 = int3((_271 << uint3(6u)) / uint3(31u));
                 break;
@@ -123,8 +129,8 @@ kernel void EncodeBlockCS(constant void* spvBufferAliasSet0Binding0 [[buffer(0)]
         shared_temp[gl_LocalInvocationIndex].pixel_ph = _296;
     }
     threadgroup_barrier(mem_flags::mem_threadgroup);
-    uint _299 = ((device uint*)&g_InBuff._m0[_231])[1];
-    uint _301 = ((device uint*)&g_InBuff._m0[_231])[2];
+    uint _299 = ((device uint*)&(*spvDescriptorSet0.g_InBuff)._m0[_231])[1];
+    uint _301 = ((device uint*)&(*spvDescriptorSet0.g_InBuff)._m0[_231])[2];
     if (_233 < 32u)
     {
         uint _305 = _233 & 15u;
@@ -474,7 +480,7 @@ kernel void EncodeBlockCS(constant void* spvBufferAliasSet0Binding0 [[buffer(0)]
         {
             uint _783 = uint(_777);
             int3 _839;
-            if (cbCS.g_format == 95u)
+            if ((*spvDescriptorSet0.cbCS).g_format == 95u)
             {
                 _839 = select(select((_220[_783] << (int3(_775) & int3(31))) >> int3(16), int3((1 << (_775 & 31)) - 1), _220[_783] == int3(65535)), _220[_783], (int3(int(_775 >= 15)) | int3(_220[_783] == int3(0))) != int3(0));
             }
@@ -510,7 +516,7 @@ kernel void EncodeBlockCS(constant void* spvBufferAliasSet0Binding0 [[buffer(0)]
             {
                 uint _874 = uint(_868);
                 int3 _930;
-                if (cbCS.g_format == 95u)
+                if ((*spvDescriptorSet0.cbCS).g_format == 95u)
                 {
                     _930 = select(select((_221[_874] << (int3(_866) & int3(31))) >> int3(16), int3((1 << (_866 & 31)) - 1), _221[_874] == int3(65535)), _221[_874], (int3(int(_866 >= 15)) | int3(_221[_874] == int3(0))) != int3(0));
                 }
@@ -888,7 +894,7 @@ kernel void EncodeBlockCS(constant void* spvBufferAliasSet0Binding0 [[buffer(0)]
             }
             _6449 = _5189;
         }
-        g_OutBuff._m0[_231] = _6449;
+        (*spvDescriptorSet0.g_OutBuff)._m0[_231] = _6449;
     }
 }
 

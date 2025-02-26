@@ -16,7 +16,7 @@ def cross_compile(hlsl_path: str, entry_point: str):
     from os import system
     spv_name = f"{hlsl_path[:-len('.hlsl')]}_{entry_point}"
     system(f"dxc -O3 -spirv -T cs_6_5 {hlsl_path} -HV 2016 -E {entry_point} -Fo {spv_name}.spv -no-warnings")
-    system(f"spirv-cross {spv_name}.spv --msl --msl-version 30000 > {spv_name}.metal")
+    system(f"spirv-cross {spv_name}.spv --msl --msl-argument-buffers --msl-argument-buffer-tier 1 --msl-version 30000 > {spv_name}.metal")
     with open(f"{spv_name}.metal", "r") as f:
         return f.read()
 

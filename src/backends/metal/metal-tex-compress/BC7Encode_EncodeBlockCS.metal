@@ -81,6 +81,14 @@ struct BufferShared
 
 constant uint4 _303 = {};
 
+struct spvDescriptorSetBuffer0
+{
+    constant type_cbCS* cbCS [[id(0)]];
+    texture2d<float> g_Input [[id(1)]];
+    const device type_StructuredBuffer_v4uint* g_InBuff [[id(2)]];
+    device type_RWStructuredBuffer_v4uint* g_OutBuff [[id(3)]];
+};
+
 constant spvUnsafeArray<uint, 64> _262 = spvUnsafeArray<uint, 64>({ 52428u, 34952u, 61166u, 60616u, 51328u, 65260u, 65224u, 60544u, 51200u, 65516u, 65152u, 59392u, 65512u, 65280u, 65520u, 61440u, 63248u, 142u, 28928u, 2254u, 140u, 29456u, 12544u, 36046u, 2188u, 12560u, 26214u, 13932u, 6120u, 4080u, 29070u, 14748u, 43690u, 61680u, 23130u, 13260u, 15420u, 21930u, 38550u, 42330u, 29646u, 5064u, 12876u, 15324u, 27030u, 49980u, 39270u, 1632u, 626u, 1252u, 20032u, 10016u, 51510u, 37740u, 14790u, 25500u, 37686u, 40134u, 33150u, 59160u, 52464u, 4044u, 30532u, 60962u });
 constant spvUnsafeArray<uint, 64> _263 = spvUnsafeArray<uint, 64>({ 2858963024u, 1784303680u, 1515864576u, 1414570152u, 2779054080u, 2694860880u, 1431675040u, 1515868240u, 2857697280u, 2857719040u, 2863289600u, 2425393296u, 2492765332u, 2762253476u, 2846200912u, 705315408u, 2777960512u, 172118100u, 2779096320u, 1436590240u, 2829603924u, 1785348160u, 2762231808u, 437912832u, 5285028u, 2862977168u, 342452500u, 1768494080u, 2693105056u, 2860651540u, 1352967248u, 1784283648u, 2846195712u, 1351655592u, 2829094992u, 606348324u, 11162880u, 613566756u, 608801316u, 1352993360u, 1342874960u, 2863285316u, 1717960704u, 2778768800u, 1352683680u, 1764256040u, 1152035396u, 1717986816u, 2856600644u, 1420317864u, 2508232064u, 2526451200u, 2824098984u, 2157286784u, 2853442580u, 2526412800u, 2863272980u, 2689618080u, 2695210400u, 2516582400u, 1082146944u, 2846402984u, 2863311428u, 709513812u });
 constant spvUnsafeArray<uint2, 128> _286 = spvUnsafeArray<uint2, 128>({ uint2(15u, 0u), uint2(15u, 0u), uint2(15u, 0u), uint2(15u, 0u), uint2(15u, 0u), uint2(15u, 0u), uint2(15u, 0u), uint2(15u, 0u), uint2(15u, 0u), uint2(15u, 0u), uint2(15u, 0u), uint2(15u, 0u), uint2(15u, 0u), uint2(15u, 0u), uint2(15u, 0u), uint2(15u, 0u), uint2(15u, 0u), uint2(2u, 0u), uint2(8u, 0u), uint2(2u, 0u), uint2(2u, 0u), uint2(8u, 0u), uint2(8u, 0u), uint2(15u, 0u), uint2(2u, 0u), uint2(8u, 0u), uint2(2u, 0u), uint2(2u, 0u), uint2(8u, 0u), uint2(8u, 0u), uint2(2u, 0u), uint2(2u, 0u), uint2(15u, 0u), uint2(15u, 0u), uint2(6u, 0u), uint2(8u, 0u), uint2(2u, 0u), uint2(8u, 0u), uint2(15u, 0u), uint2(15u, 0u), uint2(2u, 0u), uint2(8u, 0u), uint2(2u, 0u), uint2(2u, 0u), uint2(2u, 0u), uint2(15u, 0u), uint2(15u, 0u), uint2(6u, 0u), uint2(6u, 0u), uint2(2u, 0u), uint2(6u, 0u), uint2(8u, 0u), uint2(15u, 0u), uint2(15u, 0u), uint2(2u, 0u), uint2(2u, 0u), uint2(15u, 0u), uint2(15u, 0u), uint2(15u, 0u), uint2(15u, 0u), uint2(15u, 0u), uint2(2u, 0u), uint2(2u, 0u), uint2(15u, 0u), uint2(3u, 15u), uint2(3u, 8u), uint2(15u, 8u), uint2(15u, 3u), uint2(8u, 15u), uint2(3u, 15u), uint2(15u, 3u), uint2(15u, 8u), uint2(8u, 15u), uint2(8u, 15u), uint2(6u, 15u), uint2(6u, 15u), uint2(6u, 15u), uint2(5u, 15u), uint2(3u, 15u), uint2(3u, 8u), uint2(3u, 15u), uint2(3u, 8u), uint2(8u, 15u), uint2(15u, 3u), uint2(3u, 15u), uint2(3u, 8u), uint2(6u, 15u), uint2(10u, 8u), uint2(5u, 3u), uint2(8u, 15u), uint2(8u, 6u), uint2(6u, 10u), uint2(8u, 15u), uint2(5u, 15u), uint2(15u, 10u), uint2(15u, 8u), uint2(8u, 15u), uint2(15u, 3u), uint2(3u, 15u), uint2(5u, 10u), uint2(6u, 10u), uint2(10u, 8u), uint2(8u, 9u), uint2(15u, 10u), uint2(15u, 6u), uint2(3u, 15u), uint2(15u, 8u), uint2(5u, 15u), uint2(15u, 3u), uint2(15u, 6u), uint2(15u, 6u), uint2(15u, 8u), uint2(3u, 15u), uint2(15u, 3u), uint2(5u, 15u), uint2(5u, 15u), uint2(5u, 15u), uint2(8u, 15u), uint2(5u, 15u), uint2(10u, 15u), uint2(5u, 15u), uint2(10u, 15u), uint2(8u, 15u), uint2(13u, 15u), uint2(15u, 3u), uint2(12u, 15u), uint2(3u, 15u), uint2(3u, 8u) });
@@ -90,27 +98,25 @@ constant spvUnsafeArray<uint, 64> _292 = spvUnsafeArray<uint, 64>({ 0u, 0u, 0u, 
 constant spvUnsafeArray<uint, 64> _293 = spvUnsafeArray<uint, 64>({ 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 3u, 3u, 3u, 3u, 3u, 3u, 3u, 3u, 3u, 3u });
 constant spvUnsafeArray<spvUnsafeArray<uint, 64>, 3> _294 = spvUnsafeArray<spvUnsafeArray<uint, 64>, 3>({ spvUnsafeArray<uint, 64>({ 0u, 0u, 0u, 1u, 1u, 1u, 1u, 2u, 2u, 2u, 2u, 2u, 3u, 3u, 3u, 3u, 4u, 4u, 4u, 4u, 5u, 5u, 5u, 5u, 6u, 6u, 6u, 6u, 6u, 7u, 7u, 7u, 7u, 8u, 8u, 8u, 8u, 9u, 9u, 9u, 9u, 10u, 10u, 10u, 10u, 10u, 11u, 11u, 11u, 11u, 12u, 12u, 12u, 12u, 13u, 13u, 13u, 13u, 14u, 14u, 14u, 14u, 15u, 15u }), spvUnsafeArray<uint, 64>({ 0u, 0u, 0u, 0u, 0u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 3u, 3u, 3u, 3u, 3u, 3u, 3u, 3u, 3u, 3u, 4u, 4u, 4u, 4u, 4u, 4u, 4u, 4u, 4u, 5u, 5u, 5u, 5u, 5u, 5u, 5u, 5u, 5u, 6u, 6u, 6u, 6u, 6u, 6u, 6u, 6u, 6u, 7u, 7u, 7u, 7u }), spvUnsafeArray<uint, 64>({ 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 3u, 3u, 3u, 3u, 3u, 3u, 3u, 3u, 3u, 3u }) });
 
-kernel void EncodeBlockCS(constant void* spvBufferAliasSet0Binding0 [[buffer(0)]], const device type_StructuredBuffer_v4uint& g_InBuff [[buffer(1)]], texture2d<float> g_Input [[texture(0)]], uint gl_LocalInvocationIndex [[thread_index_in_threadgroup]], uint3 gl_WorkGroupID [[threadgroup_position_in_grid]])
+kernel void EncodeBlockCS(constant spvDescriptorSetBuffer0& spvDescriptorSet0 [[buffer(0)]], uint gl_LocalInvocationIndex [[thread_index_in_threadgroup]], uint3 gl_WorkGroupID [[threadgroup_position_in_grid]])
 {
-    constant auto& cbCS = *(constant type_cbCS*)spvBufferAliasSet0Binding0;
-    device auto& g_OutBuff = *(device type_RWStructuredBuffer_v4uint*)spvBufferAliasSet0Binding0;
     threadgroup spvUnsafeArray<BufferShared, 64> shared_temp;
     uint _315 = gl_LocalInvocationIndex / 16u;
-    uint _321 = (cbCS.g_start_block_id + (gl_WorkGroupID.x * 4u)) + _315;
+    uint _321 = ((*spvDescriptorSet0.cbCS).g_start_block_id + (gl_WorkGroupID.x * 4u)) + _315;
     uint _322 = _315 * 16u;
     uint _323 = gl_LocalInvocationIndex - _322;
-    uint _326 = _321 / cbCS.g_num_block_x;
-    uint _332 = ((device uint*)&g_InBuff._m0[_321])[1];
+    uint _326 = _321 / (*spvDescriptorSet0.cbCS).g_num_block_x;
+    uint _332 = ((device uint*)&(*spvDescriptorSet0.g_InBuff)._m0[_321])[1];
     uint _333 = _332 & 2147483647u;
-    uint _335 = ((device uint*)&g_InBuff._m0[_321])[2];
-    uint _336 = ((device uint*)&g_InBuff._m0[_321])[1];
+    uint _335 = ((device uint*)&(*spvDescriptorSet0.g_InBuff)._m0[_321])[2];
+    uint _336 = ((device uint*)&(*spvDescriptorSet0.g_InBuff)._m0[_321])[1];
     uint _338 = (_336 >> 31u) & 1u;
-    uint _340 = ((device uint*)&g_InBuff._m0[_321])[3];
+    uint _340 = ((device uint*)&(*spvDescriptorSet0.g_InBuff)._m0[_321])[3];
     bool _341 = _323 < 16u;
     if (_341)
     {
-        int3 _349 = int3(uint3(((_321 - (_326 * cbCS.g_num_block_x)) * 4u) + (_323 % 4u), (_326 * 4u) + (_323 / 4u), 0u));
-        uint4 _356 = clamp(uint4(g_Input.read(uint2(_349.xy), _349.z) * 255.0), uint4(0u), uint4(255u));
+        int3 _349 = int3(uint3(((_321 - (_326 * (*spvDescriptorSet0.cbCS).g_num_block_x)) * 4u) + (_323 % 4u), (_326 * 4u) + (_323 / 4u), 0u));
+        uint4 _356 = clamp(uint4(spvDescriptorSet0.g_Input.read(uint2(_349.xy), _349.z) * 255.0), uint4(0u), uint4(255u));
         uint4 _379;
         if ((4u == _333) || (5u == _333))
         {
@@ -1047,7 +1053,7 @@ kernel void EncodeBlockCS(constant void* spvBufferAliasSet0Binding0 [[buffer(0)]
             }
             _3022 = _2795;
         }
-        g_OutBuff._m0[_321] = _3022;
+        (*spvDescriptorSet0.g_OutBuff)._m0[_321] = _3022;
     }
 }
 

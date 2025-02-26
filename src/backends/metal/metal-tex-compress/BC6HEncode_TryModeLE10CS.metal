@@ -81,6 +81,14 @@ struct SharedData
 
 constant bool3 _212 = {};
 
+struct spvDescriptorSetBuffer0
+{
+    constant type_cbCS* cbCS [[id(0)]];
+    texture2d<float> g_Input [[id(1)]];
+    const device type_StructuredBuffer_v4uint* g_InBuff [[id(2)]];
+    device type_RWStructuredBuffer_v4uint* g_OutBuff [[id(3)]];
+};
+
 constant spvUnsafeArray<uint, 14> _183 = spvUnsafeArray<uint, 14>({ 1u, 2u, 3u, 4u, 5u, 6u, 7u, 8u, 9u, 10u, 11u, 12u, 13u, 14u });
 constant spvUnsafeArray<bool, 14> _184 = spvUnsafeArray<bool, 14>({ true, true, true, true, true, true, true, true, true, false, false, true, true, true });
 constant spvUnsafeArray<uint4, 14> _199 = spvUnsafeArray<uint4, 14>({ uint4(10u, 5u, 5u, 5u), uint4(7u, 6u, 6u, 6u), uint4(11u, 5u, 4u, 4u), uint4(11u, 4u, 5u, 4u), uint4(11u, 4u, 4u, 5u), uint4(9u, 5u, 5u, 5u), uint4(8u, 6u, 5u, 5u), uint4(8u, 5u, 6u, 5u), uint4(8u, 5u, 5u, 6u), uint4(6u), uint4(10u), uint4(11u, 9u, 9u, 9u), uint4(12u, 8u, 8u, 8u), uint4(16u, 4u, 4u, 4u) });
@@ -89,21 +97,19 @@ constant spvUnsafeArray<uint, 32> _201 = spvUnsafeArray<uint, 32>({ 15u, 15u, 15
 constant spvUnsafeArray<uint, 64> _202 = spvUnsafeArray<uint, 64>({ 0u, 0u, 0u, 0u, 0u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u, 3u, 3u, 3u, 3u, 3u, 3u, 3u, 3u, 3u, 3u, 4u, 4u, 4u, 4u, 4u, 4u, 4u, 4u, 4u, 5u, 5u, 5u, 5u, 5u, 5u, 5u, 5u, 5u, 6u, 6u, 6u, 6u, 6u, 6u, 6u, 6u, 6u, 7u, 7u, 7u, 7u });
 constant spvUnsafeArray<int, 8> _203 = spvUnsafeArray<int, 8>({ 0, 9, 18, 27, 37, 46, 55, 64 });
 
-kernel void TryModeLE10CS(constant void* spvBufferAliasSet0Binding0 [[buffer(0)]], const device type_StructuredBuffer_v4uint& g_InBuff [[buffer(1)]], texture2d<float> g_Input [[texture(0)]], uint gl_LocalInvocationIndex [[thread_index_in_threadgroup]], uint3 gl_WorkGroupID [[threadgroup_position_in_grid]])
+kernel void TryModeLE10CS(constant spvDescriptorSetBuffer0& spvDescriptorSet0 [[buffer(0)]], uint gl_LocalInvocationIndex [[thread_index_in_threadgroup]], uint3 gl_WorkGroupID [[threadgroup_position_in_grid]])
 {
-    constant auto& cbCS = *(constant type_cbCS*)spvBufferAliasSet0Binding0;
-    device auto& g_OutBuff = *(device type_RWStructuredBuffer_v4uint*)spvBufferAliasSet0Binding0;
     threadgroup spvUnsafeArray<SharedData, 64> shared_temp;
     uint _219 = gl_LocalInvocationIndex / 32u;
-    uint _225 = (cbCS.g_start_block_id + (gl_WorkGroupID.x * 2u)) + _219;
+    uint _225 = ((*spvDescriptorSet0.cbCS).g_start_block_id + (gl_WorkGroupID.x * 2u)) + _219;
     uint _226 = _219 * 32u;
     uint _227 = gl_LocalInvocationIndex - _226;
-    uint _230 = _225 / cbCS.g_num_block_x;
+    uint _230 = _225 / (*spvDescriptorSet0.cbCS).g_num_block_x;
     bool _235 = _227 < 16u;
     if (_235)
     {
-        int3 _243 = int3(uint3(((_225 - (_230 * cbCS.g_num_block_x)) * 4u) + (_227 % 4u), (_230 * 4u) + (_227 / 4u), 0u));
-        shared_temp[gl_LocalInvocationIndex].pixel = g_Input.read(uint2(_243.xy), _243.z).xyz;
+        int3 _243 = int3(uint3(((_225 - (_230 * (*spvDescriptorSet0.cbCS).g_num_block_x)) * 4u) + (_227 % 4u), (_230 * 4u) + (_227 / 4u), 0u));
+        shared_temp[gl_LocalInvocationIndex].pixel = spvDescriptorSet0.g_Input.read(uint2(_243.xy), _243.z).xyz;
         shared_temp[gl_LocalInvocationIndex].pixel = precise::max(shared_temp[gl_LocalInvocationIndex].pixel, float3(0.0));
         float3 _252 = shared_temp[gl_LocalInvocationIndex].pixel;
         uint _255 = as_type<uint>(half2(float2(_252.x, 0.0)));
@@ -115,7 +121,7 @@ kernel void TryModeLE10CS(constant void* spvBufferAliasSet0Binding0 [[buffer(0)]
         int3 _298;
         do
         {
-            if (cbCS.g_format == 95u)
+            if ((*spvDescriptorSet0.cbCS).g_format == 95u)
             {
                 _298 = int3((_262 << uint3(6u)) / uint3(31u));
                 break;
@@ -255,12 +261,12 @@ kernel void TryModeLE10CS(constant void* spvBufferAliasSet0Binding0 [[buffer(0)]
         spvUnsafeArray<int3, 2> _422 = spvUnsafeArray<int3, 2>({ _389, select(_317, _315, _388) });
         spvUnsafeArray<int3, 2> _216 = _422;
         spvUnsafeArray<int3, 2> _215 = _421;
-        int _424 = int(_199[cbCS.g_mode_id].x);
+        int _424 = int(_199[(*spvDescriptorSet0.cbCS).g_mode_id].x);
         for (int _426 = 0; _426 < 2; _426++)
         {
             uint _432 = uint(_426);
             int3 _488;
-            if (cbCS.g_format == 95u)
+            if ((*spvDescriptorSet0.cbCS).g_format == 95u)
             {
                 _488 = select(select((_216[_432] << (int3(_424) & int3(31))) >> int3(16), int3((1 << (_424 & 31)) - 1), _216[_432] == int3(65535)), _216[_432], (int3(int(_424 >= 15)) | int3(_216[_432] == int3(0))) != int3(0));
             }
@@ -278,7 +284,7 @@ kernel void TryModeLE10CS(constant void* spvBufferAliasSet0Binding0 [[buffer(0)]
         {
             uint _496 = uint(_490);
             int3 _552;
-            if (cbCS.g_format == 95u)
+            if ((*spvDescriptorSet0.cbCS).g_format == 95u)
             {
                 _552 = select(select((_215[_496] << (int3(_424) & int3(31))) >> int3(16), int3((1 << (_424 & 31)) - 1), _215[_496] == int3(65535)), _215[_496], (int3(int(_424 >= 15)) | int3(_215[_496] == int3(0))) != int3(0));
             }
@@ -292,7 +298,7 @@ kernel void TryModeLE10CS(constant void* spvBufferAliasSet0Binding0 [[buffer(0)]
             }
             _215[_496] = _552;
         }
-        if (_184[cbCS.g_mode_id])
+        if (_184[(*spvDescriptorSet0.cbCS).g_mode_id])
         {
             _216[1u] -= _216[0u];
             _215[0u] -= _216[0u];
@@ -306,22 +312,22 @@ kernel void TryModeLE10CS(constant void* spvBufferAliasSet0Binding0 [[buffer(0)]
             uint _579 = uint(_574);
             int3 _581 = _216[_579];
             int3 _629;
-            if (_184[cbCS.g_mode_id])
+            if (_184[(*spvDescriptorSet0.cbCS).g_mode_id])
             {
                 bool3 _594 = bool3(_581.y >= 0);
                 uint3 _596 = uint3(uint(_581.y));
-                uint3 _600 = uint3(1u) << ((_199[cbCS.g_mode_id].yzw - uint3(1u)) & uint3(31u));
+                uint3 _600 = uint3(1u) << ((_199[(*spvDescriptorSet0.cbCS).g_mode_id].yzw - uint3(1u)) & uint3(31u));
                 bool3 _601 = _596 >= _600;
                 bool3 _605 = uint3(uint(-_581.y)) > _600;
                 int3 _617 = _581;
-                _617.x = int(uint(_581.x) & ((1u << (_199[cbCS.g_mode_id].x & 31u)) - 1u));
-                _617.y = int(select(select(_596 & ((uint3(1u) << (_199[cbCS.g_mode_id].yzw & uint3(31u))) - uint3(1u)), _600, _605), select(_596, _600 - uint3(1u), _601), _594).x);
+                _617.x = int(uint(_581.x) & ((1u << (_199[(*spvDescriptorSet0.cbCS).g_mode_id].x & 31u)) - 1u));
+                _617.y = int(select(select(_596 & ((uint3(1u) << (_199[(*spvDescriptorSet0.cbCS).g_mode_id].yzw & uint3(31u))) - uint3(1u)), _600, _605), select(_596, _600 - uint3(1u), _601), _594).x);
                 _629 = _617;
                 _572 = _571 | int(any(select(_605, _601, _594)));
             }
             else
             {
-                _629 = int3(uint3(_581) & uint3((1u << (_199[cbCS.g_mode_id].x & 31u)) - 1u));
+                _629 = int3(uint3(_581) & uint3((1u << (_199[(*spvDescriptorSet0.cbCS).g_mode_id].x & 31u)) - 1u));
                 _572 = _571;
             }
             _216[_579] = _629;
@@ -337,11 +343,11 @@ kernel void TryModeLE10CS(constant void* spvBufferAliasSet0Binding0 [[buffer(0)]
             uint _641 = uint(_636);
             int3 _643 = _215[_641];
             int3 _705;
-            if (_184[cbCS.g_mode_id])
+            if (_184[(*spvDescriptorSet0.cbCS).g_mode_id])
             {
                 bool3 _656 = bool3(_643.x >= 0);
                 uint3 _658 = uint3(uint(_643.x));
-                uint3 _662 = uint3(1u) << ((_199[cbCS.g_mode_id].yzw - uint3(1u)) & uint3(31u));
+                uint3 _662 = uint3(1u) << ((_199[(*spvDescriptorSet0.cbCS).g_mode_id].yzw - uint3(1u)) & uint3(31u));
                 bool3 _663 = _658 >= _662;
                 bool3 _667 = uint3(uint(-_643.x)) > _662;
                 bool3 _670 = _631;
@@ -352,7 +358,7 @@ kernel void TryModeLE10CS(constant void* spvBufferAliasSet0Binding0 [[buffer(0)]
                 bool3 _680 = uint3(uint(-_643.y)) > _662;
                 _670.y = select(_680, _676, _673).x;
                 uint3 _687 = _662 - uint3(1u);
-                uint3 _691 = (uint3(1u) << (_199[cbCS.g_mode_id].yzw & uint3(31u))) - uint3(1u);
+                uint3 _691 = (uint3(1u) << (_199[(*spvDescriptorSet0.cbCS).g_mode_id].yzw & uint3(31u))) - uint3(1u);
                 int3 _697 = _643;
                 _697.x = int(select(select(_658 & _691, _662, _667), select(_658, _687, _663), _656).x);
                 _697.y = int(select(select(_675 & _691, _662, _680), select(_675, _687, _676), _673).x);
@@ -363,26 +369,26 @@ kernel void TryModeLE10CS(constant void* spvBufferAliasSet0Binding0 [[buffer(0)]
             else
             {
                 _632 = _631;
-                _705 = int3(uint3(_643) & uint3((1u << (_199[cbCS.g_mode_id].x & 31u)) - 1u));
+                _705 = int3(uint3(_643) & uint3((1u << (_199[(*spvDescriptorSet0.cbCS).g_mode_id].x & 31u)) - 1u));
                 _635 = _634;
             }
             _215[_641] = _705;
         }
-        bool _708 = cbCS.g_format == 96u;
+        bool _708 = (*spvDescriptorSet0.cbCS).g_format == 96u;
         if (_708)
         {
-            uint3 _715 = uint3(1u) << ((uint3(_199[cbCS.g_mode_id].x) - uint3(1u)) & uint3(31u));
+            uint3 _715 = uint3(1u) << ((uint3(_199[(*spvDescriptorSet0.cbCS).g_mode_id].x) - uint3(1u)) & uint3(31u));
             _216[0u] = int3(select(uint3(_216[0u]), (uint3(_216[0u]) & (_715 - uint3(1u))) - _715, (uint3(_216[0u]) & _715) != uint3(0u)));
         }
-        if (_708 || _184[cbCS.g_mode_id])
+        if (_708 || _184[(*spvDescriptorSet0.cbCS).g_mode_id])
         {
-            uint3 _736 = uint3(1u) << ((_199[cbCS.g_mode_id].yzw - uint3(1u)) & uint3(31u));
+            uint3 _736 = uint3(1u) << ((_199[(*spvDescriptorSet0.cbCS).g_mode_id].yzw - uint3(1u)) & uint3(31u));
             uint3 _743 = _736 - uint3(1u);
             _216[1u] = int3(select(uint3(_216[1u]), (uint3(_216[1u]) & _743) - _736, (uint3(_216[1u]) & _736) != uint3(0u)));
             _215[0u] = int3(select(uint3(_215[0u]), (uint3(_215[0u]) & _743) - _736, (uint3(_215[0u]) & _736) != uint3(0u)));
             _215[1u] = int3(select(uint3(_215[1u]), (uint3(_215[1u]) & _743) - _736, (uint3(_215[1u]) & _736) != uint3(0u)));
         }
-        if (_184[cbCS.g_mode_id])
+        if (_184[(*spvDescriptorSet0.cbCS).g_mode_id])
         {
             _216[1u] += _216[0u];
             _215[0u] += _216[0u];
@@ -392,10 +398,10 @@ kernel void TryModeLE10CS(constant void* spvBufferAliasSet0Binding0 [[buffer(0)]
         {
             uint _798 = uint(_792);
             int3 _846;
-            if (cbCS.g_format == 95u)
+            if ((*spvDescriptorSet0.cbCS).g_format == 95u)
             {
                 int3 _845;
-                if (_199[cbCS.g_mode_id].x < 15u)
+                if (_199[(*spvDescriptorSet0.cbCS).g_mode_id].x < 15u)
                 {
                     _845 = select(_216[_798], select(((_216[_798] << int3(16)) + int3(32768)) >> (int3(_424) & int3(31)), int3(65535), _216[_798] == int3((1 << (_424 & 31)) - 1)), _216[_798] != int3(0));
                 }
@@ -408,7 +414,7 @@ kernel void TryModeLE10CS(constant void* spvBufferAliasSet0Binding0 [[buffer(0)]
             else
             {
                 int3 _828;
-                if (_199[cbCS.g_mode_id].x < 16u)
+                if (_199[(*spvDescriptorSet0.cbCS).g_mode_id].x < 16u)
                 {
                     int3 _810 = abs(_216[_798]);
                     int _812 = _424 - 1;
@@ -427,10 +433,10 @@ kernel void TryModeLE10CS(constant void* spvBufferAliasSet0Binding0 [[buffer(0)]
         {
             uint _854 = uint(_848);
             int3 _902;
-            if (cbCS.g_format == 95u)
+            if ((*spvDescriptorSet0.cbCS).g_format == 95u)
             {
                 int3 _901;
-                if (_199[cbCS.g_mode_id].x < 15u)
+                if (_199[(*spvDescriptorSet0.cbCS).g_mode_id].x < 15u)
                 {
                     _901 = select(_215[_854], select(((_215[_854] << int3(16)) + int3(32768)) >> (int3(_424) & int3(31)), int3(65535), _215[_854] == int3((1 << (_424 & 31)) - 1)), _215[_854] != int3(0));
                 }
@@ -443,7 +449,7 @@ kernel void TryModeLE10CS(constant void* spvBufferAliasSet0Binding0 [[buffer(0)]
             else
             {
                 int3 _884;
-                if (_199[cbCS.g_mode_id].x < 16u)
+                if (_199[(*spvDescriptorSet0.cbCS).g_mode_id].x < 16u)
                 {
                     int3 _866 = abs(_215[_854]);
                     int _868 = _424 - 1;
@@ -478,7 +484,7 @@ kernel void TryModeLE10CS(constant void* spvBufferAliasSet0Binding0 [[buffer(0)]
                 }
                 int3 _1015 = (((_215[0u] * int3(64 - aWeight3[_1001])) + (_215[1u] * int3(aWeight3[_1001]))) + int3(32)) >> int3(6);
                 int3 _1033;
-                if (cbCS.g_format == 95u)
+                if ((*spvDescriptorSet0.cbCS).g_format == 95u)
                 {
                     _1033 = (_1015 * int3(31)) >> int3(6);
                 }
@@ -500,7 +506,7 @@ kernel void TryModeLE10CS(constant void* spvBufferAliasSet0Binding0 [[buffer(0)]
                 }
                 int3 _958 = (((_216[0u] * int3(64 - aWeight3[_944])) + (_216[1u] * int3(aWeight3[_944]))) + int3(32)) >> int3(6);
                 int3 _976;
-                if (cbCS.g_format == 95u)
+                if ((*spvDescriptorSet0.cbCS).g_format == 95u)
                 {
                     _976 = (_958 * int3(31)) >> int3(6);
                 }
@@ -516,7 +522,7 @@ kernel void TryModeLE10CS(constant void* spvBufferAliasSet0Binding0 [[buffer(0)]
             _908 = _907 + dot(_1049, _1049);
         }
         shared_temp[gl_LocalInvocationIndex].error = (_634 != 0) ? 100000002004087734272.0 : _907;
-        shared_temp[gl_LocalInvocationIndex].best_mode = _183[cbCS.g_mode_id];
+        shared_temp[gl_LocalInvocationIndex].best_mode = _183[(*spvDescriptorSet0.cbCS).g_mode_id];
         shared_temp[gl_LocalInvocationIndex].best_partition = _227;
     }
     threadgroup_barrier(mem_flags::mem_threadgroup);
@@ -573,13 +579,13 @@ kernel void TryModeLE10CS(constant void* spvBufferAliasSet0Binding0 [[buffer(0)]
             shared_temp[gl_LocalInvocationIndex].best_mode = shared_temp[_1134].best_mode;
             shared_temp[gl_LocalInvocationIndex].best_partition = shared_temp[_1134].best_partition;
         }
-        if (as_type<float>(((device uint*)&g_InBuff._m0[_225])[0]) > shared_temp[gl_LocalInvocationIndex].error)
+        if (as_type<float>(((device uint*)&(*spvDescriptorSet0.g_InBuff)._m0[_225])[0]) > shared_temp[gl_LocalInvocationIndex].error)
         {
-            g_OutBuff._m0[_225] = uint4(as_type<uint>(shared_temp[gl_LocalInvocationIndex].error), shared_temp[gl_LocalInvocationIndex].best_mode, shared_temp[gl_LocalInvocationIndex].best_partition, 0u);
+            (*spvDescriptorSet0.g_OutBuff)._m0[_225] = uint4(as_type<uint>(shared_temp[gl_LocalInvocationIndex].error), shared_temp[gl_LocalInvocationIndex].best_mode, shared_temp[gl_LocalInvocationIndex].best_partition, 0u);
         }
         else
         {
-            g_OutBuff._m0[_225] = g_InBuff._m0[_225];
+            (*spvDescriptorSet0.g_OutBuff)._m0[_225] = (*spvDescriptorSet0.g_InBuff)._m0[_225];
         }
     }
 }
