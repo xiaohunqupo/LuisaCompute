@@ -26,9 +26,9 @@ namespace luisa::compute::fallback {
 namespace {
 
 #ifdef LUISA_ARCH_ARM64
-#include "fallback_tex_compress.arm64.inl.h"
+#include "fallback_builtin/fallback_tex_compress.arm64.inl"
 #else
-#include "fallback_tex_compress.x86_64.inl.h"
+#include "fallback_builtin/fallback_tex_compress.x86_64.inl"
 #endif
 
 struct BC6HEncodeConfig {

@@ -77,6 +77,6 @@ if __name__ == "__main__":
     # compile the LLVM IR to bitcode
     bc_path = os.path.join(base_dir, "tex_compress.bc")
     compile_llvm_ir(patched_ll_path, bc_path, clang_exe)
-    # embed the bitcode into C hex array in "../fallback_tex_compress.inl.h"
-    c_path = os.path.join(base_dir, f"../fallback_tex_compress.{arch}.inl.h")
+    # embed the bitcode into C hex array in "fallback_tex_compress.inl"
+    c_path = os.path.join(base_dir, f"fallback_tex_compress.{arch}.inl")
     embed_bitcode_into_c_hex_array(bc_path, c_path, "fallback_tex_compress_llvm_bc")
