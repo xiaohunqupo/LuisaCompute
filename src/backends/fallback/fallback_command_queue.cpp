@@ -98,8 +98,13 @@ private:
     std::condition_variable _has_work, _work_done;
     ParallelFor _parallel_for = {};
 
-    alignas(std::hardware_destructive_interference_size) std::atomic_uint32_t _item_count = 0u;
-    alignas(std::hardware_destructive_interference_size) std::atomic_uint64_t _task_generation = 0u;
+#ifdef __cpp_lib_hardware_interference_size
+    static constexpr auto cache_line_size = std::hardware_destructive_interference_size;
+#else
+    static constexpr auto cache_line_size = 64u;
+#endif
+    alignas(cache_line_size) std::atomic_uint32_t _item_count = 0u;
+    alignas(cache_line_size) std::atomic_uint64_t _task_generation = 0u;
 
     std::atomic_uint32_t _thread_working;
     std::atomic_bool _stopped = false;
