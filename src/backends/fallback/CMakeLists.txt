@@ -87,6 +87,10 @@ if (LLVM_FOUND AND embree_FOUND)
                 LINK_OPTIONS ${LLVM_LINK_DIR_OPTIONS}
                 LINK_LIBRARIES ${LLVM_LIBS})
         if (LLVM_LIB_EXIST)
+            # libzstd_shared might cause problem on Ubuntu
+            get_target_property(LLVM_SUPPORT_LINK_LIBS LLVMSupport INTERFACE_LINK_LIBRARIES)
+            list(FILTER LLVM_SUPPORT_LINK_LIBS EXCLUDE REGEX "(zstd::libzstd_shared)")
+            set_target_properties(LLVMSupport PROPERTIES INTERFACE_LINK_LIBRARIES "${LLVM_SUPPORT_LINK_LIBS}")
             message(STATUS "Linking with LLVM libraries: ${LLVM_LIBS}")
         else ()
             message(WARNING "LLVM libraries not found. Trying to link with LLVM shared libraries.")
