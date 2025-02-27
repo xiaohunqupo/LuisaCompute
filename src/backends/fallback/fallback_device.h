@@ -5,6 +5,8 @@
 #pragma once
 
 #include <luisa/runtime/device.h>
+#include <luisa/core/spin_mutex.h>
+
 #include "fallback_embree.h"
 
 namespace llvm {
