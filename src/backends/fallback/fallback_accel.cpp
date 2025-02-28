@@ -30,7 +30,7 @@ void FallbackAccel::build(luisa::unique_ptr<AccelBuildCommand> cmd) noexcept {
         for (auto i = _instances.size(); i < n; i++) {
             auto geometry = rtcNewGeometry(device, RTC_GEOMETRY_TYPE_INSTANCE);
             rtcSetGeometryBuildQuality(geometry, RTC_BUILD_QUALITY_HIGH);
-            rtcAttachGeometry(_handle, geometry);
+            rtcAttachGeometryByID(_handle, geometry, i);
             rtcReleaseGeometry(geometry);// already moved into the scene
             auto &instance = _instances.emplace_back();
             instance.geometry = geometry;
