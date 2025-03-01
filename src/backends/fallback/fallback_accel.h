@@ -11,6 +11,7 @@
 #include <luisa/runtime/rtx/hit.h>
 
 #include "fallback_embree.h"
+#include "fallback_device_api.h"
 
 namespace luisa {
 class ThreadPool;
@@ -24,15 +25,7 @@ class FallbackMesh;
 class alignas(16) FallbackAccel {
 
 public:
-    struct alignas(16) Instance {
-        float affine[12];
-        uint8_t mask;
-        bool opaque;
-        bool dirty;
-        bool is_curve;
-        uint user_id;
-        RTCGeometry geometry;
-    };
+    using Instance = api::AccelInstance;
     static_assert(sizeof(Instance) == 64u);
 
     struct alignas(16) View {

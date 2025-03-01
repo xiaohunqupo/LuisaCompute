@@ -36,13 +36,13 @@ void FallbackAccel::build(luisa::unique_ptr<AccelBuildCommand> cmd) noexcept {
             rtcAttachGeometryByID(_handle, geometry, i);
             rtcReleaseGeometry(geometry);// already moved into the scene
             auto &instance = _instances.emplace_back();
-            instance.geometry = geometry;
+            instance.geometry = reinterpret_cast<uint64_t>(geometry);
         }
     }
     for (auto m : cmd->modifications()) {
         using Mod = AccelBuildCommand::Modification;
         if (m.flags & Mod::flag_primitive) {
-            auto geometry = _instances[m.index].geometry;
+            auto geometry = reinterpret_cast<RTCGeometry>(_instances[m.index].geometry);
             auto prim = reinterpret_cast<const FallbackPrim *>(m.primitive);
             rtcSetGeometryInstancedScene(geometry, prim->handle());
             _instances[m.index].is_curve = prim->is_curve();
@@ -63,7 +63,7 @@ void FallbackAccel::build(luisa::unique_ptr<AccelBuildCommand> cmd) noexcept {
     }
     for (auto &&instance : _instances) {
         if (instance.dirty) {
-            auto geometry = instance.geometry;
+            auto geometry = reinterpret_cast<RTCGeometry>(instance.geometry);
             rtcSetGeometryTransform(geometry, 0u, RTC_FORMAT_FLOAT3X4_ROW_MAJOR, instance.affine);
             rtcSetGeometryMask(geometry, instance.mask);
             auto flags = (instance.opaque ? api::luisa_fallback_embree_accel_user_data_flags_opaque : 0u) |

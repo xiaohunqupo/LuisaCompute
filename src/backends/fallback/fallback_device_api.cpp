@@ -1,7 +1,6 @@
 #include "fallback_texture.h"
 #include "fallback_texture_bc.h"
 #include "fallback_accel.h"
-#include "fallback_device_api.h"
 
 namespace luisa::compute::fallback::api {
 

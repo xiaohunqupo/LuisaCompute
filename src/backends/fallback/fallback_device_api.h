@@ -173,8 +173,9 @@ struct alignas(16) AccelInstance {
     uint8_t mask;
     bool opaque;
     bool dirty;
+    bool is_curve;
     uint user_id;
-    void *geometry;
+    uint64_t geometry;
 };
 
 static_assert(sizeof(AccelInstance) == 64u);
