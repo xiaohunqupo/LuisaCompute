@@ -1,5 +1,9 @@
 #pragma once
 
+namespace luisa::compute {
+struct MotionInstanceTransform;
+}// namespace luisa::compute
+
 #ifndef LUISA_COMPUTE_FALLBACK_DEVICE_LIB
 #include <cstdint>
 #include <cstddef>
@@ -170,12 +174,16 @@ struct alignas(16) EmbreeRayHit;
 
 struct alignas(16) AccelInstance {
     float affine[12];
-    uint8_t mask;
-    bool opaque;
-    bool dirty;
-    bool is_curve;
+    uint mask : 1;
+    uint opaque : 1;
+    uint dirty : 1;
+    uint is_curve : 1;
+    uint is_motion : 1;
+    uint is_srt : 1;
+    uint is_matrix : 1;
+    uint motion_steps : 8;
     uint user_id;
-    uint64_t geometry;
+    MotionInstanceTransform *motion;
 };
 
 static_assert(sizeof(AccelInstance) == 64u);

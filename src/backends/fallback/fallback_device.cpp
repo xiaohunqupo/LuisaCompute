@@ -25,6 +25,7 @@
 #include "fallback_mesh.h"
 #include "fallback_curve.h"
 #include "fallback_proc_prim.h"
+#include "fallback_motion_instance.h"
 #include "fallback_accel.h"
 #include "fallback_bindless_array.h"
 #include "fallback_shader.h"
@@ -266,11 +267,13 @@ void FallbackDevice::destroy_curve(uint64_t handle) noexcept {
 }
 
 ResourceCreationInfo FallbackDevice::create_motion_instance(const AccelMotionOption &option) noexcept {
-    return DeviceInterface::create_motion_instance(option);
+    auto instance = luisa::new_with_allocator<FallbackMotionInstance>(option);
+    return {.handle = reinterpret_cast<uint64_t>(instance), .native_handle = instance};
 }
 
 void FallbackDevice::destroy_motion_instance(uint64_t handle) noexcept {
-    DeviceInterface::destroy_motion_instance(handle);
+    auto instance = reinterpret_cast<FallbackMotionInstance *>(handle);
+    luisa::delete_with_allocator(instance);
 }
 
 ResourceCreationInfo FallbackDevice::create_accel(const AccelOption &option) noexcept {

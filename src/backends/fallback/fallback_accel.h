@@ -36,6 +36,7 @@ public:
 private:
     RTCScene _handle;
     luisa::vector<Instance> _instances;
+    luisa::vector<RTCGeometry> _geometries;
 
 public:
     [[nodiscard]] RTCScene handle() const noexcept { return _handle; }
