@@ -1,3 +1,5 @@
+#pragma once
+
 #include <luisa/core/spin_mutex.h>
 #include <luisa/runtime/rtx/curve.h>
 
