@@ -29,6 +29,7 @@ public:
         uint8_t mask;
         bool opaque;
         bool dirty;
+        bool is_curve;
         uint user_id;
         RTCGeometry geometry;
     };

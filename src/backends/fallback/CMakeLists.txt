@@ -25,6 +25,7 @@ if (LLVM_FOUND AND embree_FOUND)
             fallback_texture.cpp
             fallback_prim.cpp
             fallback_mesh.cpp
+            fallback_curve.cpp
             fallback_proc_prim.cpp
             fallback_accel.cpp
             fallback_texture_bc.cpp

@@ -23,6 +23,7 @@
 #include "fallback_device.h"
 #include "fallback_texture.h"
 #include "fallback_mesh.h"
+#include "fallback_curve.h"
 #include "fallback_proc_prim.h"
 #include "fallback_accel.h"
 #include "fallback_bindless_array.h"
@@ -254,11 +255,14 @@ void FallbackDevice::destroy_procedural_primitive(uint64_t handle) noexcept {
 }
 
 ResourceCreationInfo FallbackDevice::create_curve(const AccelOption &option) noexcept {
-    return DeviceInterface::create_curve(option);
+    auto curve = luisa::new_with_allocator<FallbackCurve>(_rtc_device, option);
+    return {.handle = reinterpret_cast<uint64_t>(curve),
+            .native_handle = curve->handle()};
 }
 
 void FallbackDevice::destroy_curve(uint64_t handle) noexcept {
-    DeviceInterface::destroy_curve(handle);
+    auto curve = reinterpret_cast<FallbackCurve *>(handle);
+    luisa::delete_with_allocator(curve);
 }
 
 ResourceCreationInfo FallbackDevice::create_motion_instance(const AccelMotionOption &option) noexcept {

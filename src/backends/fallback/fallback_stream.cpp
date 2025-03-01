@@ -6,6 +6,7 @@
 #include "fallback_accel.h"
 #include "fallback_bindless_array.h"
 #include "fallback_mesh.h"
+#include "fallback_curve.h"
 #include "fallback_proc_prim.h"
 #include "fallback_texture.h"
 #include "fallback_shader.h"
@@ -91,7 +92,10 @@ void FallbackStream::_enqueue(luisa::unique_ptr<MeshBuildCommand> cmd) noexcept 
 }
 
 void FallbackStream::_enqueue(luisa::unique_ptr<CurveBuildCommand> cmd) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    queue()->enqueue([cmd = std::move(cmd)]() mutable noexcept {
+        auto curve = reinterpret_cast<FallbackCurve *>(cmd->handle());
+        curve->build(std::move(cmd));
+    });
 }
 
 void FallbackStream::_enqueue(luisa::unique_ptr<ProceduralPrimitiveBuildCommand> cmd) noexcept {

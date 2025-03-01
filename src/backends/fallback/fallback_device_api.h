@@ -202,6 +202,9 @@ struct alignas(16) RayQueryCandidate {
     int terminated;
 };
 
+static constexpr uint64_t luisa_fallback_embree_accel_user_data_flags_opaque = 1u << 0u;
+static constexpr uint64_t luisa_fallback_embree_accel_user_data_flags_curve = 1u << 1u;
+
 using RayQueryOnSurfaceFunc = void(LC_RayQueryObject *, const void *capture) noexcept;
 using RayQueryOnProceduralFunc = void(LC_RayQueryObject *, const void *capture) noexcept;
 

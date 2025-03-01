@@ -5,6 +5,7 @@
 #include <luisa/core/stl.h>
 #include <luisa/core/logging.h>
 
+#include "fallback_device_api.h"
 #include "fallback_prim.h"
 #include "fallback_accel.h"
 #include "fallback_command_queue.h"
@@ -42,6 +43,7 @@ void FallbackAccel::build(luisa::unique_ptr<AccelBuildCommand> cmd) noexcept {
             auto geometry = _instances[m.index].geometry;
             auto prim = reinterpret_cast<const FallbackPrim *>(m.primitive);
             rtcSetGeometryInstancedScene(geometry, prim->handle());
+            _instances[m.index].is_curve = prim->is_curve();
         }
         if (m.flags & Mod::flag_transform) {
             std::memcpy(_instances[m.index].affine, m.affine, sizeof(m.affine));
@@ -62,7 +64,9 @@ void FallbackAccel::build(luisa::unique_ptr<AccelBuildCommand> cmd) noexcept {
             auto geometry = instance.geometry;
             rtcSetGeometryTransform(geometry, 0u, RTC_FORMAT_FLOAT3X4_ROW_MAJOR, instance.affine);
             rtcSetGeometryMask(geometry, instance.mask);
-            rtcSetGeometryUserData(geometry, instance.opaque ? reinterpret_cast<void *>(1ull) : nullptr);
+            auto flags = (instance.opaque ? api::luisa_fallback_embree_accel_user_data_flags_opaque : 0u) |
+                         (instance.is_curve ? api::luisa_fallback_embree_accel_user_data_flags_curve : 0u);
+            rtcSetGeometryUserData(geometry, reinterpret_cast<void *>(flags));
             rtcCommitGeometry(geometry);
             instance.dirty = false;
         }
