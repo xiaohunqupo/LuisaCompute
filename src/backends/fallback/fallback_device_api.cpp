@@ -341,11 +341,11 @@ struct RayQueryContextEx {
 
 // possibly a curve hit, we should modify hit.v to -1
 static void ray_trace_fix_hit_for_curves(RTCScene scene, RTCRayHit *rh) noexcept {
-    if (rh->hit.geomID != ~0u && rh->hit.v == 0.f) {
+    if (auto inst = rh->hit.instID[0]; inst != RTC_INVALID_GEOMETRY_ID && rh->hit.v == 0.f) {
 #if LUISA_COMPUTE_FALLBACK_EMBREE_VERSION == 3
-        auto flags = reinterpret_cast<uint64_t>(rtcGetGeometryUserData(rtcGetGeometry(scene, rh->hit.geomID)));
+        auto flags = reinterpret_cast<uint64_t>(rtcGetGeometryUserData(rtcGetGeometry(scene, inst)));
 #else
-        auto flags = reinterpret_cast<uint64_t>(rtcGetGeometryUserDataFromScene(scene, rh->hit.geomID));
+        auto flags = reinterpret_cast<uint64_t>(rtcGetGeometryUserDataFromScene(scene, inst));
 #endif
         if (flags & luisa_fallback_embree_accel_user_data_flags_curve) {
             rh->hit.v = -1.f;
