@@ -132,15 +132,21 @@ LC_CORE_API void log_flush() noexcept;
 #define LUISA_NOT_IMPLEMENTED() \
     LUISA_ERROR_WITH_LOCATION("Not implemented in function {}.", __FUNCTION__)
 
-#define LUISA_ASSERT(x, fmt, ...)                \
-    do {                                         \
-        if (!(x)) [[unlikely]] {                 \
-            auto msg = luisa::format(            \
-                fmt __VA_OPT__(, ) __VA_ARGS__); \
-            LUISA_ERROR_WITH_LOCATION(           \
-                "Assertion '{}' failed: {}",     \
-                #x, msg);                        \
-        }                                        \
+namespace luisa::detail {
+constexpr auto luisa_assert_has_any_format_arg() noexcept { return std::false_type{}; }
+constexpr auto luisa_assert_has_any_format_arg(auto &&, auto &&...) noexcept { return std::true_type{}; }
+}// namespace luisa::detail
+
+#define LUISA_ASSERT(x, fmt, ...)                                                                         \
+    do {                                                                                                  \
+        if (!(x)) [[unlikely]] {                                                                          \
+            if constexpr (decltype(luisa::detail::luisa_assert_has_any_format_arg(__VA_ARGS__))::value) { \
+                auto msg = luisa::format(fmt __VA_OPT__(, ) __VA_ARGS__);                                 \
+                LUISA_ERROR_WITH_LOCATION("Assertion '{}' failed: {}", #x, msg);                          \
+            } else {                                                                                      \
+                LUISA_ERROR_WITH_LOCATION("Assertion '{}' failed: {}", #x, fmt);                          \
+            }                                                                                             \
+        }                                                                                                 \
     } while (false)
 
 #ifndef NDEBUG
