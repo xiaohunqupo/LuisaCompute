@@ -94,6 +94,7 @@ void FallbackAccel::build(luisa::unique_ptr<AccelBuildCommand> cmd) noexcept {
                 instance.is_srt = option.mode == AccelMotionMode::SRT;
                 if (instance.motion_steps != option.keyframe_count) {
                     if (instance.motion) { luisa::deallocate_with_allocator(instance.motion); }
+                    instance.motion_steps = option.keyframe_count;
                     instance.motion = luisa::allocate_with_allocator<MotionInstanceTransform>(option.keyframe_count);
                 }
                 auto transforms = motion_instance->transforms();
@@ -147,7 +148,6 @@ void FallbackAccel::build(luisa::unique_ptr<AccelBuildCommand> cmd) noexcept {
                         }
                     }
                 } else {// SRT quaternion
-                    // FIXME: seems incorrect
                     if (auto a = instance.affine; luisa_fallback_affine_transform_is_identity(a)) {
                         for (auto k = 0u; k < instance.motion_steps; k++) {
                             auto &t = instance.motion[k].as_srt();
@@ -155,6 +155,7 @@ void FallbackAccel::build(luisa::unique_ptr<AccelBuildCommand> cmd) noexcept {
                             rtcSetGeometryTransformQuaternion(geometry, k, &q);
                         }
                     } else {
+                        // FIXME: seems incorrect
                         auto m = luisa_fallback_affine_to_matrix(a);
                         LUISA_NOT_IMPLEMENTED();
                     }
