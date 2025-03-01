@@ -39,12 +39,12 @@ set(SPDLOG_FMT_EXTERNAL_HO OFF CACHE BOOL "" FORCE)
 set(SPDLOG_DISABLE_DEFAULT_LOGGER ON CACHE BOOL "" FORCE)
 add_subdirectory(spdlog)
 target_compile_definitions(spdlog_header_only INTERFACE
-        FMT_CONSTEVAL=constexpr
+        FMT_USE_CONSTEVAL=0
         FMT_EXCEPTIONS=0
         FMT_HEADER_ONLY=1
         FMT_USE_NOEXCEPT=1)
 target_compile_definitions(spdlog PUBLIC
-        FMT_CONSTEVAL=constexpr
+        FMT_USE_CONSTEVAL=0
         FMT_EXCEPTIONS=0
         FMT_HEADER_ONLY=1
         FMT_USE_NOEXCEPT=1)
