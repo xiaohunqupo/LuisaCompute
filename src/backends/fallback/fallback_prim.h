@@ -9,6 +9,7 @@ class FallbackPrim {
 private:
     RTCScene _handle;
     RTCGeometry _geometry;
+    AccelMotionOption _motion;
 
 protected:
     [[nodiscard]] bool _is_geometry_created() const noexcept { return _geometry != nullptr; }
@@ -22,6 +23,7 @@ public:
     virtual ~FallbackPrim() noexcept;
     [[nodiscard]] auto handle() const noexcept { return _handle; }
     [[nodiscard]] auto geometry() const noexcept { return _geometry; }
+    [[nodiscard]] auto motion() const noexcept { return _motion; }
 };
 
 }// namespace luisa::compute::fallback

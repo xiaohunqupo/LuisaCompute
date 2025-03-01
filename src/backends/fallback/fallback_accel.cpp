@@ -13,7 +13,9 @@
 namespace luisa::compute::fallback {
 
 FallbackAccel::FallbackAccel(RTCDevice device, const AccelOption &option) noexcept
-    : _handle{rtcNewScene(device)} { luisa_fallback_accel_set_flags(_handle, option); }
+    : _handle{rtcNewScene(device)} {
+    luisa_fallback_accel_set_flags(_handle, option);
+}
 
 FallbackAccel::~FallbackAccel() noexcept { rtcReleaseScene(_handle); }
 

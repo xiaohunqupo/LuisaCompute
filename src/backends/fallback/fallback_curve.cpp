@@ -25,12 +25,25 @@ void FallbackCurve::build(luisa::unique_ptr<CurveBuildCommand> cmd) noexcept {
     // build the geometry
     auto cp_buffer = reinterpret_cast<FallbackBuffer *>(cmd->cp_buffer())->data();
     auto seg_buffer = reinterpret_cast<FallbackBuffer *>(cmd->seg_buffer())->data();
-    auto cp_buffer_offset = cmd->cp_buffer_offset();
-    auto seg_buffer_offset = cmd->seg_buffer_offset();
-    rtcSetSharedGeometryBuffer(geometry(), RTC_BUFFER_TYPE_VERTEX, 0u, RTC_FORMAT_FLOAT4,
-                               cp_buffer, cp_buffer_offset, cmd->cp_stride(), cmd->cp_count());
+    if (auto m = motion()) {
+        LUISA_DEBUG_ASSERT(cmd->cp_count() % m.keyframe_count == 0u, "Control point count must be multiple of motion keyframe count.");
+        auto cp_count_per_keyframe = cmd->cp_count() / m.keyframe_count;
+        auto cp_buffer_offset = cmd->cp_buffer_offset();
+        auto cp_stride = cmd->cp_stride();
+        auto cp_buffer_stride = cp_stride * cp_count_per_keyframe;
+        rtcSetGeometryTimeRange(geometry(), m.time_start, m.time_end);
+        rtcSetGeometryTimeStepCount(geometry(), m.keyframe_count);
+        for (auto i = 0u; i < m.keyframe_count; i++) {
+            rtcSetSharedGeometryBuffer(geometry(), RTC_BUFFER_TYPE_VERTEX, i, RTC_FORMAT_FLOAT4,
+                                       cp_buffer, cp_buffer_offset + i * cp_buffer_stride,
+                                       cp_stride, cp_count_per_keyframe);
+        }
+    } else {
+        rtcSetSharedGeometryBuffer(geometry(), RTC_BUFFER_TYPE_VERTEX, 0u, RTC_FORMAT_FLOAT4,
+                                   cp_buffer, cmd->cp_buffer_offset(), cmd->cp_stride(), cmd->cp_count());
+    }
     rtcSetSharedGeometryBuffer(geometry(), RTC_BUFFER_TYPE_INDEX, 0u, RTC_FORMAT_UINT,
-                               seg_buffer, seg_buffer_offset, sizeof(uint), cmd->seg_count());
+                               seg_buffer, cmd->seg_buffer_offset(), sizeof(uint), cmd->seg_count());
     rtcCommitGeometry(geometry());
     rtcCommitScene(handle());
 }

@@ -3,6 +3,11 @@
 
 namespace luisa::compute::fallback {
 
+FallbackPrim::FallbackPrim(RTCDevice device, const AccelOption &option) noexcept
+    : _handle{rtcNewScene(device)}, _geometry{nullptr}, _motion{option.motion} {
+    luisa_fallback_accel_set_flags(_handle, option);
+}
+
 FallbackPrim::FallbackPrim(RTCDevice device, RTCGeometryType geom_type, const AccelOption &option) noexcept
     : FallbackPrim{device, option} { _create_geometry(geom_type); }
 
@@ -13,11 +18,6 @@ void FallbackPrim::_create_geometry(RTCGeometryType geom_type) noexcept {
     rtcSetGeometryMask(_geometry, ~0u);
     rtcAttachGeometry(_handle, _geometry);
     rtcReleaseGeometry(_geometry);// already moved into the scene
-}
-
-FallbackPrim::FallbackPrim(RTCDevice device, const AccelOption &option) noexcept
-    : _handle{rtcNewScene(device)}, _geometry{nullptr} {
-    luisa_fallback_accel_set_flags(_handle, option);
 }
 
 FallbackPrim::~FallbackPrim() noexcept {
