@@ -155,7 +155,7 @@ LC_CORE_API void log_flush() noexcept;
 #ifndef NDEBUG
 #define LUISA_DEBUG_ASSERT(x, ...) LUISA_ASSERT(x __VA_OPT__(, ) __VA_ARGS__)
 #else
-#define LUISA_DEBUG_ASSERT(x, fmt, ...) \
-    do {                                \
+#define LUISA_DEBUG_ASSERT(x, ...) \
+    do {                           \
     } while (false)
 #endif
