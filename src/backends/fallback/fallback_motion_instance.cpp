@@ -5,7 +5,9 @@ namespace luisa::compute::fallback {
 
 FallbackMotionInstance::FallbackMotionInstance(const AccelMotionOption &option) noexcept
     : _option{option}, _child{nullptr} {
-    LUISA_ASSERT(option.keyframe_count <= 255u, "Motion keyframe count must be less than 256.");
+    LUISA_ASSERT(option.keyframe_count <= 255u,
+                 "Motion keyframe count must be less than 256 (got {}).",
+                 option.keyframe_count);
 }
 
 void FallbackMotionInstance::build(luisa::unique_ptr<MotionInstanceBuildCommand> cmd) noexcept {
