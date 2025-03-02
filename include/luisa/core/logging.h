@@ -140,10 +140,10 @@ LC_CORE_API void log_flush() noexcept;
     LUISA_NOT_IMPLEMENTED_IMPL##__VA_OPT__(_WITH_MESSAGE)(__VA_ARGS__)
 
 #define LUISA_ASSERT_FAILED_IMPL(x) \
-    LUISA_ERROR_WITH_LOCATION("Assertion ({}) failed.", #x)
+    LUISA_ERROR_WITH_LOCATION("Assertion '{}' failed.", #x)
 
 #define LUISA_ASSERT_FAILED_IMPL_WITH_MESSAGE(x, fmt, ...) \
-    LUISA_ERROR_WITH_LOCATION("Assertion ({}) failed: " fmt, #x __VA_OPT__(, ) __VA_ARGS__)
+    LUISA_ERROR_WITH_LOCATION("Assertion '{}' failed: " fmt, #x __VA_OPT__(, ) __VA_ARGS__)
 
 #define LUISA_ASSERT(x, ...)                                                                   \
     do {                                                                                       \
@@ -153,7 +153,7 @@ LC_CORE_API void log_flush() noexcept;
     } while (false)
 
 #ifndef NDEBUG
-#define LUISA_DEBUG_ASSERT(x, fmt, ...) LUISA_ASSERT(x, fmt, __VA_ARGS__)
+#define LUISA_DEBUG_ASSERT(x, ...) LUISA_ASSERT(x __VA_OPT__(, ) __VA_ARGS__)
 #else
 #define LUISA_DEBUG_ASSERT(x, fmt, ...) \
     do {                                \
