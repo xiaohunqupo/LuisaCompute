@@ -87,6 +87,11 @@ LC_CORE_API void log_flush() noexcept;
 
 }// namespace luisa
 
+#ifdef FMT_STRING
+#undef FMT_STRING
+#define FMT_STRING(s) s
+#endif
+
 /**
  * @brief Verbose logging
  * 
