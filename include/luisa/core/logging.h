@@ -12,6 +12,7 @@
 #endif
 
 #include <luisa/core/stl/functional.h>
+#include <luisa/core/macro.h>
 #include <luisa/core/stl/format.h>
 #include <luisa/core/platform.h>
 
@@ -118,35 +119,37 @@ LC_CORE_API void log_flush() noexcept;
 
 /// LUISA_VERBOSE with file and line information
 #define LUISA_VERBOSE_WITH_LOCATION(fmt, ...) \
-    LUISA_VERBOSE(fmt " [{}:{}]" __VA_OPT__(, ) __VA_ARGS__, __FILE__, __LINE__)
+    LUISA_VERBOSE(fmt " [" __FILE__ ":" LUISA_STRINGIFY(__LINE__) "]" __VA_OPT__(, ) __VA_ARGS__)
 /// LUISA_INFO with file and line information
 #define LUISA_INFO_WITH_LOCATION(fmt, ...) \
-    LUISA_INFO(fmt " [{}:{}]" __VA_OPT__(, ) __VA_ARGS__, __FILE__, __LINE__)
+    LUISA_INFO(fmt " [" __FILE__ ":" LUISA_STRINGIFY(__LINE__) "]" __VA_OPT__(, ) __VA_ARGS__)
 /// LUISA_WARNING with file and line information
 #define LUISA_WARNING_WITH_LOCATION(fmt, ...) \
-    LUISA_WARNING(fmt " [{}:{}]" __VA_OPT__(, ) __VA_ARGS__, __FILE__, __LINE__)
+    LUISA_WARNING(fmt " [" __FILE__ ":" LUISA_STRINGIFY(__LINE__) "]" __VA_OPT__(, ) __VA_ARGS__)
 /// LUISA_ERROR with file and line information
 #define LUISA_ERROR_WITH_LOCATION(fmt, ...) \
-    LUISA_ERROR(fmt " [{}:{}]" __VA_OPT__(, ) __VA_ARGS__, __FILE__, __LINE__)
+    LUISA_ERROR(fmt " [" __FILE__ ":" LUISA_STRINGIFY(__LINE__) "]" __VA_OPT__(, ) __VA_ARGS__)
 
-#define LUISA_NOT_IMPLEMENTED() \
-    LUISA_ERROR_WITH_LOCATION("Not implemented in function {}.", __FUNCTION__)
+#define LUISA_NOT_IMPLEMENTED_IMPL() \
+    LUISA_ERROR_WITH_LOCATION("Not implemented.")
 
-namespace luisa::detail {
-constexpr auto luisa_assert_has_any_format_arg() noexcept { return std::false_type{}; }
-constexpr auto luisa_assert_has_any_format_arg(auto &&, auto &&...) noexcept { return std::true_type{}; }
-}// namespace luisa::detail
+#define LUISA_NOT_IMPLEMENTED_IMPL_WITH_MESSAGE(fmt, ...) \
+    LUISA_ERROR_WITH_LOCATION("Not implemented: " fmt __VA_OPT__(, ) __VA_ARGS__)
 
-#define LUISA_ASSERT(x, fmt, ...)                                                                         \
-    do {                                                                                                  \
-        if (!(x)) [[unlikely]] {                                                                          \
-            if constexpr (decltype(luisa::detail::luisa_assert_has_any_format_arg(__VA_ARGS__))::value) { \
-                auto msg = luisa::format(fmt __VA_OPT__(, ) __VA_ARGS__);                                 \
-                LUISA_ERROR_WITH_LOCATION("Assertion '{}' failed: {}", #x, msg);                          \
-            } else {                                                                                      \
-                LUISA_ERROR_WITH_LOCATION("Assertion '{}' failed: {}", #x, fmt);                          \
-            }                                                                                             \
-        }                                                                                                 \
+#define LUISA_NOT_IMPLEMENTED(...) \
+    LUISA_NOT_IMPLEMENTED_IMPL##__VA_OPT__(_WITH_MESSAGE)(__VA_ARGS__)
+
+#define LUISA_ASSERT_FAILED_IMPL(x) \
+    LUISA_ERROR_WITH_LOCATION("Assertion ({}) failed.", #x)
+
+#define LUISA_ASSERT_FAILED_IMPL_WITH_MESSAGE(x, fmt, ...) \
+    LUISA_ERROR_WITH_LOCATION("Assertion ({}) failed: " fmt, #x __VA_OPT__(, ) __VA_ARGS__)
+
+#define LUISA_ASSERT(x, ...)                                                                   \
+    do {                                                                                       \
+        if (!(x)) [[unlikely]] {                                                               \
+            LUISA_ASSERT_FAILED_IMPL##__VA_OPT__(_WITH_MESSAGE)(x __VA_OPT__(, ) __VA_ARGS__); \
+        }                                                                                      \
     } while (false)
 
 #ifndef NDEBUG
