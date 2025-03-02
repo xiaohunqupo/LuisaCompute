@@ -87,35 +87,45 @@ LC_CORE_API void log_flush() noexcept;
 
 }// namespace luisa
 
+#define LUISA_LOGGING_FORMAT_IMPL(f) f
+#define LUISA_LOGGING_FORMAT_IMPL_WITH_FMT(f, ...) \
+    ::fmt::format(FMT_STRING(f), __VA_ARGS__)
+
+#define LUISA_LOGGING_FORMAT(f, ...) \
+    LUISA_LOGGING_FORMAT_IMPL##__VA_OPT__(_WITH_FMT)(f __VA_OPT__(, ) __VA_ARGS__)
+
 /**
  * @brief Verbose logging
  * 
  * Ex. LUISA_VERBOSE("function {} returns {}", functionName, functionReturnInt);
  */
-#define LUISA_VERBOSE(f, ...) \
-    ::luisa::log_verbose(::fmt::format(FMT_STRING(f) __VA_OPT__(, ) __VA_ARGS__))
+#define LUISA_VERBOSE(fmt, ...) \
+    ::luisa::log_verbose(LUISA_LOGGING_FORMAT(fmt __VA_OPT__(, ) __VA_ARGS__))
+
 /**
  * @brief Info logging
  * 
  * Ex. LUISA_INFO("function {} returns {}", functionName, functionReturnInt);
  */
-#define LUISA_INFO(f, ...) \
-    ::luisa::log_info(::fmt::format(FMT_STRING(f) __VA_OPT__(, ) __VA_ARGS__))
+#define LUISA_INFO(fmt, ...) \
+    ::luisa::log_info(LUISA_LOGGING_FORMAT(fmt __VA_OPT__(, ) __VA_ARGS__))
+
 /**
  * @brief Warning logging
  * 
  * Ex. LUISA_WARNING("function {} returns {}", functionName, functionReturnInt);
  */
-#define LUISA_WARNING(f, ...) \
-    ::luisa::log_warning(::fmt::format(FMT_STRING(f) __VA_OPT__(, ) __VA_ARGS__))
+#define LUISA_WARNING(fmt, ...) \
+    ::luisa::log_warning(LUISA_LOGGING_FORMAT(fmt __VA_OPT__(, ) __VA_ARGS__))
+
 /**
  * @brief Error logging
  * 
  * After logging error message, the program will be aborted.
  * Ex. LUISA_ERROR("function {} returns {}", functionName, functionReturnInt);
  */
-#define LUISA_ERROR(f, ...) \
-    ::luisa::log_error(::fmt::format(FMT_STRING(f) __VA_OPT__(, ) __VA_ARGS__))
+#define LUISA_ERROR(fmt, ...) \
+    ::luisa::log_error(LUISA_LOGGING_FORMAT(fmt __VA_OPT__(, ) __VA_ARGS__))
 
 /// LUISA_VERBOSE with file and line information
 #define LUISA_VERBOSE_WITH_LOCATION(fmt, ...) \
