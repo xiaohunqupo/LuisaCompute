@@ -81,7 +81,7 @@ int main(int argc, char *argv[]) {
     auto resolution = make_uint2(1280u, 720u);
     Window window{"Starship", resolution};
     SwapchainOption swapchain_option{
-        .display = 0,
+        .display = window.native_display(),
         .window = window.native_handle(),
         .size = resolution,
         .wants_hdr = false,
