@@ -71,7 +71,7 @@ template<typename... Args>
             ("\n    {:>2} {}"sv),
             i, luisa::to_string(t)));
     }
-    detail::default_logger().error("{}", error_message);
+    detail::default_logger().error(error_message);
     std::abort();
 }
 
