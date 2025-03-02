@@ -66,10 +66,8 @@ template<typename... Args>
     auto trace = luisa::backtrace();
     for (auto i = 0u; i < trace.size(); i++) {
         auto &&t = trace[i];
-        using namespace std::string_view_literals;
-        error_message.append(luisa::format(
-            ("\n    {:>2} {}"sv),
-            i, luisa::to_string(t)));
+        fmt::format_to(std::back_inserter(error_message),
+                       FMT_STRING("\n    {:>2} {}"), i, t);
     }
     detail::default_logger().error(error_message);
     std::abort();
@@ -89,33 +87,27 @@ LC_CORE_API void log_flush() noexcept;
 
 }// namespace luisa
 
-#ifdef LUISA_DISABLE_STATIC_FMT_STRING
-#define LUISA_STATIC_FMT_STRING(s) (s)
-#else
-#define LUISA_STATIC_FMT_STRING(s) FMT_STRING(s)
-#endif
-
 /**
  * @brief Verbose logging
  * 
  * Ex. LUISA_VERBOSE("function {} returns {}", functionName, functionReturnInt);
  */
 #define LUISA_VERBOSE(f, ...) \
-    ::luisa::log_verbose(::fmt::format(LUISA_STATIC_FMT_STRING(f) __VA_OPT__(, ) __VA_ARGS__))
+    ::luisa::log_verbose(::fmt::format(FMT_STRING(f) __VA_OPT__(, ) __VA_ARGS__))
 /**
  * @brief Info logging
  * 
  * Ex. LUISA_INFO("function {} returns {}", functionName, functionReturnInt);
  */
 #define LUISA_INFO(f, ...) \
-    ::luisa::log_info(::fmt::format(LUISA_STATIC_FMT_STRING(f) __VA_OPT__(, ) __VA_ARGS__))
+    ::luisa::log_info(::fmt::format(FMT_STRING(f) __VA_OPT__(, ) __VA_ARGS__))
 /**
  * @brief Warning logging
  * 
  * Ex. LUISA_WARNING("function {} returns {}", functionName, functionReturnInt);
  */
 #define LUISA_WARNING(f, ...) \
-    ::luisa::log_warning(::fmt::format(LUISA_STATIC_FMT_STRING(f) __VA_OPT__(, ) __VA_ARGS__))
+    ::luisa::log_warning(::fmt::format(FMT_STRING(f) __VA_OPT__(, ) __VA_ARGS__))
 /**
  * @brief Error logging
  * 
@@ -123,7 +115,7 @@ LC_CORE_API void log_flush() noexcept;
  * Ex. LUISA_ERROR("function {} returns {}", functionName, functionReturnInt);
  */
 #define LUISA_ERROR(f, ...) \
-    ::luisa::log_error(::fmt::format(LUISA_STATIC_FMT_STRING(f) __VA_OPT__(, ) __VA_ARGS__))
+    ::luisa::log_error(::fmt::format(FMT_STRING(f) __VA_OPT__(, ) __VA_ARGS__))
 
 /// LUISA_VERBOSE with file and line information
 #define LUISA_VERBOSE_WITH_LOCATION(fmt, ...) \

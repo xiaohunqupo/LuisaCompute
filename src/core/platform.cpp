@@ -392,8 +392,6 @@ luisa::string current_executable_path() noexcept {
 namespace luisa {
 luisa::string to_string(const TraceItem &item) noexcept {
     using namespace std::string_view_literals;
-    return luisa::format(
-        FMT_STRING("[0x{:012x}]: {} :: {} + {}"sv),
-        item.address, item.module, item.symbol, item.offset);
+    return luisa::format("{}", item);
 }
 }// namespace luisa
