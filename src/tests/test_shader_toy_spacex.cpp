@@ -43,8 +43,8 @@ int main(int argc, char *argv[]) {
         auto size = make_uint2(128u);
         luisa::vector<uint8_t> pixels(size.x * size.y);
         std::mt19937 rng{std::random_device{}()};
-        std::uniform_int_distribution<uint8_t> dist;
-        for (auto &x : pixels) { x = dist(rng); }
+        std::uniform_int_distribution<uint32_t> dist;
+        for (auto &x : pixels) { x = static_cast<uint8_t>(dist(rng) & 0xffu); }
         auto texture = device.create_image<float>(PixelStorage::BYTE1, size);
         stream << texture.copy_from(pixels.data());
         return texture;
