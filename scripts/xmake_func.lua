@@ -296,7 +296,7 @@ on_load(function(target)
         })
     end
     target:set("fpmodels", "fast")
-    target:add("cxflags", "/Zc:preprocessor", {
+    target:add("cxflags", "/Zc:preprocessor", "/utf8", {
         tools = "cl",
         public = true
     });
