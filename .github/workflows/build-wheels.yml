@@ -95,7 +95,7 @@ jobs:
         uses: Jimver/cuda-toolkit@v0.2.21
         with:
           cuda: 12.8.0
-          sub-packages: '[ "cudart", "nvrtc" ]'
+          sub-packages: '[ "cudart", "nvrtc", "nvtx" ]'
       - name: "Setup Ninja"
         uses: ashutoshvarma/setup-ninja@master
         with:
