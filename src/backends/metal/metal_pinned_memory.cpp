@@ -38,7 +38,10 @@ BufferCreationInfo MetalPinnedMemoryExt::_pin_host_memory(
     auto buffer_size = luisa_metal_pinned_memory_ext_get_buffer_size(elem_type, elem_count);
     MetalPinnedMemory memory{_device->handle(), host_ptr, buffer_size, option.write_combined};
     LUISA_ASSERT(memory.valid(), "Failed to pin host memory.");
-    auto info = _device->create_buffer(elem_type, elem_count, memory.device_buffer());
+    auto elem_stride = buffer_size / elem_count;
+    LUISA_ASSERT(memory.device_buffer_offset() % elem_stride == 0u, "Invalid buffer offset.");
+    auto offset_count = memory.device_buffer_offset() / elem_stride;
+    auto info = _device->create_buffer(elem_type, offset_count + elem_count, memory.device_buffer());
     info.native_handle = memory.device_buffer()->contents();
     return info;
 }
