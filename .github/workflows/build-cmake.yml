@@ -36,7 +36,7 @@ jobs:
           wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/${{ matrix.cuda-keyring }}/cuda-keyring_1.1-1_all.deb
       - name: "Setup CUDA"
         run: |
-          dpkg -l | grep -E 'libcuda|cuda|libnvidia|nvidia' | awk '{print $2}'
+          dpkg -l | grep -E 'libcuda|cuda|libnvidia|nvidia'
           sudo apt-get -y remove --purge $(dpkg -l | grep -E 'libcuda|cuda|libnvidia|nvidia' | awk '{print $2}')  # remove all libcuda-*, cuda-*, libnvidia-*, and nvidia-* packages to avoid conflicts
           sudo dpkg -i cuda-keyring_1.1-1_all.deb
           sudo apt-get update
