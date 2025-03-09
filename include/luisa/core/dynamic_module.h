@@ -27,6 +27,7 @@ public:
     DynamicModule &operator=(DynamicModule &&rhs) noexcept;
     ~DynamicModule() noexcept;
     void dispose() noexcept;
+    static void _dispose_all_path() noexcept;
 
     /**
      * @brief Return address of given name

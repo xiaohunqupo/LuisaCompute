@@ -118,7 +118,7 @@ private:
     luisa::string _name;
 
 protected:
-    [[nodiscard]] static luisa::vector<FunctionBuilder *> &_function_stack() noexcept;
+
     [[nodiscard]] uint32_t _next_variable_uid() noexcept;
     [[nodiscard]] const Expression *_internalize(const Expression *expr) noexcept;
     void _append(const Statement *statement) noexcept;
@@ -178,7 +178,7 @@ public:
     FunctionBuilder &operator=(FunctionBuilder &&) noexcept = delete;
     FunctionBuilder &operator=(const FunctionBuilder &) noexcept = delete;
     ~FunctionBuilder() noexcept;
-
+    [[nodiscard]] static luisa::vector<FunctionBuilder *> &_function_stack() noexcept;
     /**
      * @brief Return current function builder on function stack.
      * 
@@ -189,7 +189,7 @@ public:
     [[nodiscard]] static FunctionBuilder *current() noexcept;
     [[nodiscard]] static FunctionBuilder *current_or_null() noexcept;
     [[nodiscard]] static luisa::span<const FunctionBuilder *const> stack() noexcept;
-    
+
     [[nodiscard]] auto hash_computed() const noexcept { return _hash_computed; }
     // interfaces for class Function
     /// Return a span of builtin variables.

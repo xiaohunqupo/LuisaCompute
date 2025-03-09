@@ -401,6 +401,8 @@ public:
     /// Traverse TypeVisitor
     static void traverse(TypeVisitor &visitor) noexcept;
     static void traverse(const luisa::function<void(const Type *)> &visitor) noexcept;
+    // Warning!!! This should ONLY be called when program is finished.
+    static void _dispose_all() noexcept;
 
     /// Compare by description
     [[nodiscard]] bool operator==(const Type &rhs) const noexcept;
