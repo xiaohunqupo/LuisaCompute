@@ -89,21 +89,10 @@ private:
     }
 
 public:
-    void dispose() noexcept {
-        std::lock_guard lock{_mutex};
-        for (auto t : _types) {
-            _type_pool.destroy(t);
-        }
-        // memset a managed class is UB, but due to usage of luisa container, it is memory-safe.
-        std::destroy_at(&_type_set);
-        std::memset(std::launder(&_type_set), 0, sizeof(_type_set));
-        std::destroy_at(&_types);
-        std::memset(std::launder(&_types), 0, sizeof(_types));
-        std::destroy_at(&_type_pool);
-        std::memset(std::launder(&_type_pool), 0, sizeof(_type_pool));
-    }
     ~TypeRegistry() noexcept {
-        dispose();
+        for (auto t : _types) {
+            std::destroy_at(t);
+        }
     }
     /// Get registry instance
     [[nodiscard]] static TypeRegistry &instance() noexcept {
@@ -119,7 +108,6 @@ public:
     /// Traverse all types using visitor
     void traverse(TypeVisitor &visitor) const noexcept;
 };
-
 
 const Type *TypeRegistry::decode_type(luisa::string_view desc) noexcept {
     using namespace std::literals;
@@ -743,9 +731,5 @@ bool Type::is_uint64_vector() const noexcept { return is_vector() && element()->
 bool Type::is_resource() const noexcept {
     return is_buffer() || is_texture() || is_bindless_array() || is_accel();
 }
-void Type::_dispose_all() noexcept{
-    detail::TypeRegistry::instance().dispose();
-}
-
 
 }// namespace luisa::compute
