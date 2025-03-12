@@ -1,4 +1,4 @@
-find_package(CUDAToolkit 12.8 COMPONENTS cuda_driver nvrtc_static)
+find_package(CUDAToolkit 12.1 COMPONENTS cuda_driver nvrtc_static)
 
 if (CUDAToolkit_FOUND)
     message(STATUS "Build with CUDA backend: ${CUDAToolkit_VERSION}")
