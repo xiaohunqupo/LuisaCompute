@@ -42,8 +42,19 @@ void reset(T &v, Args &&...args) {
     v.~T();
     new (std::launder(&v)) T(std::forward<Args>(args)...);
 }
-using luisa::destruct;
-using luisa::construct;
+template<typename T>
+constexpr void destruct(T *ptr) noexcept {
+    if constexpr (!std::is_void_v<T> && !std::is_trivially_destructible_v<T>) {
+        ptr->~T();
+    }
+}
+
+template<typename T, typename... Args>
+    requires(luisa::is_constructible_v<T, Args && ...>)
+constexpr T *construct(T *ptr, Args &&...args) noexcept {
+    return ::new (std::launder(ptr)) T(std::forward<Args>(args)...);
+}
+
 template<typename T>
 struct TypeOf {
     using Type = T;
