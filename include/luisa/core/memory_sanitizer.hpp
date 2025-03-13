@@ -1,3 +1,4 @@
+#pragma once
 #include <luisa/core/dynamic_module.h>
 #include <luisa/ast/type.h>
 #include <luisa/ast/function_builder.h>
