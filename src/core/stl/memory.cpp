@@ -1,11 +1,19 @@
 #include <luisa/core/logging.h>
 #include <luisa/core/stl/memory.h>
 
-namespace luisa {
+namespace luisa::detail {
 
 LUISA_EXPORT_API void *allocator_allocate(size_t size, size_t alignment) noexcept {
 #ifdef LUISA_USE_SYSTEM_STL
-    return ::aligned_alloc(alignment, size);
+    alignment = std::max<size_t>(alignment, 16u);
+    size = luisa::align(size, alignment);
+#ifdef _WIN32
+    auto p = _aligned_malloc(size, alignment);
+#else
+    auto p = ::aligned_alloc(alignment, size);
+#endif
+    LUISA_DEBUG_ASSERT(p != nullptr, "Failed to allocate memory.");
+    return p;
 #else
     return eastl::GetDefaultAllocator()->allocate(size, alignment, 0u);
 #endif
@@ -30,4 +38,4 @@ LUISA_EXPORT_API void *allocator_reallocate(void *p, size_t size, size_t alignme
     return p;
 }
 
-}// namespace luisa
+}// namespace luisa::detail

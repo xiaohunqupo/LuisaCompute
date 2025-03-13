@@ -65,7 +65,7 @@ public:
     [[nodiscard]] virtual BinaryBlob read(size_t expected_max_size) noexcept {
         auto len = std::min(expected_max_size, length());
         BinaryBlob blob{
-            reinterpret_cast<std::byte *>(luisa::detail::allocator_allocate(len, 0)),
+            static_cast<std::byte *>(luisa::detail::allocator_allocate(len, 0)),
             len,
             [](void *ptr) { luisa::detail::allocator_deallocate(ptr, 0); }};
         read(blob);
