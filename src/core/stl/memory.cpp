@@ -32,7 +32,13 @@ LUISA_EXPORT_API void allocator_deallocate(void *p, size_t) noexcept {
 
 LUISA_EXPORT_API void *allocator_reallocate(void *p, size_t size, size_t alignment) noexcept {
 #ifdef LUISA_USE_SYSTEM_STL
-    p = ::realloc(p, size);
+    if (alignment != 0u && alignment <= alignof(std::max_align_t)) {
+        return ::realloc(p, size);
+    }
+    auto new_p = allocator_allocate(size, alignment);
+    std::memcpy(new_p, p, size);
+    allocator_deallocate(p, 0u);
+    p = new_p;
 #else
     p = eastl::GetDefaultAllocator()->reallocate(p, size);
 #endif
