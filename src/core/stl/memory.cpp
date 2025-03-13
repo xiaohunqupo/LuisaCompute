@@ -5,6 +5,9 @@ namespace luisa::detail {
 
 LUISA_EXPORT_API void *allocator_allocate(size_t size, size_t alignment) noexcept {
 #ifdef LUISA_USE_SYSTEM_STL
+    if (alignment != 0u && alignment <= alignof(std::max_align_t)) {
+        return ::malloc(size);
+    }
     alignment = std::max<size_t>(alignment, 16u);
     size = luisa::align(size, alignment);
 #ifdef _WIN32
