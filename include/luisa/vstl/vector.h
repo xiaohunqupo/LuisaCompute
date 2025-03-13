@@ -22,7 +22,7 @@ using VectorFuncReturnType_t = typename decltype(VectorFuncReturnType<F>())::Typ
 }// namespace detail
 template<typename T, typename... Func>
     requires(luisa::is_constructible_v<T, detail::VectorFuncReturnType_t<Func> &&...>)
-void push_back_func(vector<T> &vec, size_t n, Func &&...f) EA_NOEXCEPT {
+void push_back_func(vector<T> &vec, size_t n, Func &&...f) noexcept {
     size_t index = 0;
     auto CallFunc = [&]<typename FT>(FT &&f) -> decltype(auto) {
         if constexpr (std::is_invocable_v<FT, size_t>) {
@@ -31,7 +31,7 @@ void push_back_func(vector<T> &vec, size_t n, Func &&...f) EA_NOEXCEPT {
             return f();
         }
     };
-    auto ptr = reinterpret_cast<T *>(vec.push_back_uninitialized(n));
+    auto ptr = reinterpret_cast<T *>(luisa::enlarge_by(vec, n));
     while (index != n) {
         ::new (ptr) T(CallFunc(f)...);
         ++index;
@@ -40,7 +40,7 @@ void push_back_func(vector<T> &vec, size_t n, Func &&...f) EA_NOEXCEPT {
 }
 template<typename T, size_t node, typename... Func>
     requires(luisa::is_constructible_v<T, detail::VectorFuncReturnType_t<Func> &&...>)
-void push_back_func(fixed_vector<T, node> &vec, size_t n, Func &&...f) EA_NOEXCEPT {
+void push_back_func(fixed_vector<T, node> &vec, size_t n, Func &&...f) noexcept {
     size_t index = 0;
     auto CallFunc = [&]<typename FT>(FT &&f) -> decltype(auto) {
         if constexpr (std::is_invocable_v<FT, size_t>) {

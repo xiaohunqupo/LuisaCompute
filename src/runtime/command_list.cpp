@@ -38,12 +38,12 @@ CommandList &CommandList::add_range(CommandList &&cmdlist) noexcept {
     if (cmdlist.empty()) [[unlikely]]
         return *this;
     auto size = _commands.size();
-    _commands.push_back_uninitialized(cmdlist._commands.size());
+    luisa::enlarge_by(_commands, cmdlist._commands.size());
     for (size_t i = 0; i < cmdlist._commands.size(); ++i) {
         new (_commands.data() + i + size) CommandContainer::value_type{std::move(cmdlist._commands[i])};
     }
     size = _callbacks.size();
-    _callbacks.push_back_uninitialized(cmdlist._callbacks.size());
+    luisa::enlarge_by(_callbacks, cmdlist._callbacks.size());
     for (size_t i = 0; i < cmdlist._callbacks.size(); ++i) {
         new (_callbacks.data() + i + size) CallbackContainer::value_type{std::move(cmdlist._callbacks[i])};
     }

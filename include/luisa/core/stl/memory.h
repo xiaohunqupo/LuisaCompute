@@ -17,6 +17,10 @@
 #pragma warning(disable : 4996)
 #endif
 
+#ifdef LUISA_USE_SYSTEM_STL
+#include <span>
+#include <bit>
+#else
 #include <EASTL/bit.h>
 #include <EASTL/memory.h>
 #include <EASTL/shared_array.h>
@@ -24,6 +28,8 @@
 #include <EASTL/shared_ptr.h>
 #include <EASTL/span.h>
 #include <EASTL/bonus/compressed_pair.h>
+#endif
+
 #include <luisa/core/intrin.h>
 
 #if defined(__clang__)
@@ -65,6 +71,9 @@ LUISA_EXPORT_API void *allocator_reallocate(void *p, size_t size, size_t alignme
     return (s + (a - 1)) & ~(a - 1);
 }
 
+#ifdef LUISA_USE_SYSTEM_STL
+using std::allocator;
+#else
 template<typename T = std::byte>
 struct allocator {
     using value_type = T;
@@ -90,6 +99,7 @@ struct allocator {
         return std::is_same_v<T, R>;
     }
 };
+#endif
 
 template<typename T>
 [[nodiscard]] inline auto allocate_with_allocator(size_t n = 1u) noexcept {
@@ -114,6 +124,26 @@ inline void delete_with_allocator(T *p) noexcept {
     }
 }
 
+#ifdef LUISA_USE_SYSTEM_STL
+
+using std::bit_cast;
+using std::span;
+
+using std::const_pointer_cast;
+using std::dynamic_pointer_cast;
+using std::enable_shared_from_this;
+using std::make_shared;
+using std::make_unique;
+using std::reinterpret_pointer_cast;
+using std::shared_ptr;
+using std::static_pointer_cast;
+using std::unique_ptr;
+using std::weak_ptr;
+
+using std::aligned_storage_t;
+
+#else
+
 using eastl::bit_cast;
 using eastl::span;
 
@@ -130,6 +160,10 @@ using eastl::shared_ptr;
 using eastl::static_pointer_cast;
 using eastl::unique_ptr;
 using eastl::weak_ptr;
+
+using eastl::aligned_storage_t;
+
+#endif
 
 // hash functions
 template<typename T>
@@ -155,6 +189,7 @@ struct pointer_hash {
                                       uint64_t seed = hash64_default_seed) const noexcept {
         return (*this)(ptr.get(), seed);
     }
+#ifndef LUISA_USE_SYSTEM_STL
     [[nodiscard]] uint64_t operator()(const std::shared_ptr<T> &ptr,
                                       uint64_t seed = hash64_default_seed) const noexcept {
         return (*this)(ptr.get(), seed);
@@ -164,6 +199,7 @@ struct pointer_hash {
                                       uint64_t seed = hash64_default_seed) const noexcept {
         return (*this)(ptr.get(), seed);
     }
+#endif
 };
 
 template<>

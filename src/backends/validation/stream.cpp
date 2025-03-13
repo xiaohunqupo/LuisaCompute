@@ -23,7 +23,7 @@ Stream::Stream(uint64_t handle, StreamTag stream_tag) : RWResource{handle, Tag::
 std::recursive_mutex stream_global_lock;
 void Stream::signal(Event *evt, uint64_t fence) {
     std::lock_guard lck{stream_global_lock};
-    evt->signaled.force_emplace(this, Event::Signaled{fence, _executed_layer});
+    evt->signaled[this] = Event::Signaled{fence, _executed_layer};
 }
 uint64_t Stream::stream_synced_frame(Stream *stream) const {
     auto iter = waited_stream.find(stream);
@@ -37,7 +37,7 @@ void Stream::wait(Event *evt, uint64_t fence) {
     std::lock_guard lck{stream_global_lock};
     for (auto &&i : evt->signaled) {
         if (fence >= i.second.event_fence) {
-            waited_stream.force_emplace(i.first, i.second.stream_fence);
+            waited_stream[i.first] = i.second.stream_fence;
         }
     }
 }

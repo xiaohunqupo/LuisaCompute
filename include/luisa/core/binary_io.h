@@ -40,10 +40,10 @@ public:
     ~BinaryBlob() noexcept {
         if (_disposer) { _disposer(_ptr); }
     }
-    [[nodiscard]] explicit operator luisa::span<const std::byte>() const noexcept {
+    [[nodiscard]] operator luisa::span<const std::byte>() const noexcept {
         return {_ptr, _size};
     }
-    [[nodiscard]] explicit operator luisa::span<std::byte>() noexcept {
+    [[nodiscard]] operator luisa::span<std::byte>() noexcept {
         return {_ptr, _size};
     }
     [[nodiscard]] std::byte const *data() const noexcept {

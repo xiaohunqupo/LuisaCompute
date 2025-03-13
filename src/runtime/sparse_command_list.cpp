@@ -21,8 +21,8 @@ SparseCommandList &SparseCommandList::add_range(SparseCommandList &&cmdlist) noe
     if (cmdlist.empty()) [[unlikely]]
         return *this;
     auto size = _update_cmd.size();
-    _update_cmd.push_back_uninitialized(cmdlist._update_cmd.size());
-    std::memcpy(_update_cmd.data() + size, cmdlist._update_cmd.data(), cmdlist._update_cmd.size_bytes());
+    luisa::enlarge_by(_update_cmd, cmdlist._update_cmd.size());
+    std::memcpy(_update_cmd.data() + size, cmdlist._update_cmd.data(), luisa::size_bytes(cmdlist._update_cmd));
     cmdlist._update_cmd.clear();
     return *this;
 }

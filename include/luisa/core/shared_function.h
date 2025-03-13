@@ -30,10 +30,8 @@ class SharedFunction<Ret(Args...)> {
     }
 
 public:
-    SharedFunction() noexcept : _base(nullptr) {}
-    ~SharedFunction() noexcept {
-        _dispose();
-    }
+    SharedFunction() noexcept : _base{nullptr}, _func_ptr{} {}
+    ~SharedFunction() noexcept { _dispose(); }
     Ret operator()(Args... args) const noexcept {
         LUISA_ASSUME(_base);
         if constexpr (std::is_same_v<Ret, void>) {
@@ -46,7 +44,7 @@ public:
         requires((!std::is_same_v<std::remove_cvref_t<F>, SharedFunction>) && (std::is_invocable_r_v<Ret, F, Args && ...>))
     SharedFunction(F &&f) noexcept {
         struct SharedFunctionDerive : public SharedFunctionBase {
-            eastl::aligned_storage_t<sizeof(F), alignof(F)> storage;
+            luisa::aligned_storage_t<sizeof(F), alignof(F)> storage;
         };
         using Func = std::remove_cvref_t<F>;
         auto derive = new (luisa::detail::allocator_allocate(sizeof(SharedFunctionDerive), alignof(SharedFunctionDerive))) SharedFunctionDerive();

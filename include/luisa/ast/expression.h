@@ -647,7 +647,11 @@ void traverse_subexpressions(const Expression *expr,
 
 }// namespace luisa::compute
 
+#ifdef LUISA_USE_SYSTEM_STL
+namespace std {
+#else
 namespace eastl {
+#endif
 template<>
 struct variant_size<luisa::compute::detail::LiteralValue>
     : variant_size<luisa::compute::detail::LiteralValueVariant> {};
