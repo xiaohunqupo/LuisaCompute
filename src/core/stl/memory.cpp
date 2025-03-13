@@ -38,13 +38,13 @@ LUISA_EXPORT_API void *allocator_reallocate(void *p, size_t size, size_t alignme
     auto new_p = allocator_allocate(size, alignment);
     std::memcpy(new_p, p, size);
     allocator_deallocate(p, 0u);
-    p = new_p;
+    return new_p;
 #else
     p = eastl::GetDefaultAllocator()->reallocate(p, size);
-#endif
     LUISA_DEBUG_ASSERT(alignment == 0u || reinterpret_cast<uintptr_t>(p) % alignment == 0u,
                        "Reallocation failed to maintain alignment.");
     return p;
+#endif
 }
 
 }// namespace luisa::detail
