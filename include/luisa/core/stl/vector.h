@@ -1,5 +1,12 @@
 #pragma once
 
+#ifdef LUISA_USE_SYSTEM_STL
+
+#include <span>
+#include <vector>
+
+#else
+
 #if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -11,16 +18,11 @@
 #pragma warning(disable : 4996)
 #endif
 
-#include <luisa/core/stl/type_traits.h>
-
-#ifdef LUISA_USE_SYSTEM_STL
-#include <span>
-#include <vector>
-#else
 #include <EASTL/vector.h>
 #include <EASTL/fixed_vector.h>
 #include <EASTL/bitvector.h>
-#endif
+
+#include <luisa/core/stl/type_traits.h>
 
 #if defined(__clang__)
 #pragma clang diagnostic pop
@@ -28,6 +30,8 @@
 #pragma GCC diagnostic pop
 #elif defined(_MSC_VER)
 #pragma warning(pop)
+#endif
+
 #endif
 
 namespace luisa {
@@ -53,24 +57,30 @@ using bitvector = eastl::bitvector<>;
 
 #endif
 
+#ifdef LUISA_USE_SYSTEM_STL
 template<typename... T>
 auto enlarge_by(luisa::vector<T...> &vec, size_t size) noexcept {
-#ifdef LUISA_USE_SYSTEM_STL
     auto old_size = vec.size();
     vec.resize(old_size + size);
     return vec.data() + old_size;
-#else
-    return vec.push_back_uninitialized(size);
-#endif
 }
-
 template<typename... T>
 auto size_bytes(const luisa::vector<T...> &vec) noexcept {
-#ifdef LUISA_USE_SYSTEM_STL
     return std::span{vec}.size_bytes();
-#else
-    return vec.size_bytes();
-#endif
 }
+#else
+template<typename T>
+auto enlarge_by(luisa::vector<T> &vec, size_t size) noexcept {
+    return vec.push_back_uninitialized(size);
+}
+template<typename T, size_t node_count, bool allow_overflow>
+auto enlarge_by(luisa::fixed_vector<T, node_count, allow_overflow> &vec, size_t size) noexcept {
+    return vec.push_back_uninitialized(size);
+}
+template<typename T>
+auto size_bytes(const luisa::vector<T> &vec) noexcept {
+    return vec.size_bytes();
+}
+#endif
 
 }// namespace luisa

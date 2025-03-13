@@ -11,16 +11,12 @@
 #include <utility>
 
 #include <luisa/core/stl/type_traits.h>
+#include <luisa/core/intrin.h>
 #include <luisa/vstl/config.h>
 
 #include <luisa/vstl/hash.h>
 #include <luisa/vstl/allocate_type.h>
 #include <luisa/vstl/compare.h>
-namespace luisa::detail {
-LUISA_EXPORT_API void *allocator_allocate(size_t size, size_t alignment) noexcept;
-LUISA_EXPORT_API void allocator_deallocate(void *p, size_t alignment) noexcept;
-LUISA_EXPORT_API void *allocator_reallocate(void *p, size_t size, size_t alignment) noexcept;
-}// namespace luisa::detail
 
 inline void *vengine_malloc(size_t size) {
     return luisa::detail::allocator_allocate(size, 0);

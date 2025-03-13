@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef LUISA_USE_SYSTEM_STL
+#include <optional>
+#else
+
 #if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -11,11 +15,7 @@
 #pragma warning(disable : 4996)
 #endif
 
-#ifdef LUISA_USE_SYSTEM_STL
-#include <optional>
-#else
 #include <EASTL/optional.h>
-#endif
 
 #if defined(__clang__)
 #pragma clang diagnostic pop
@@ -23,6 +23,8 @@
 #pragma GCC diagnostic pop
 #elif defined(_MSC_VER)
 #pragma warning(pop)
+#endif
+
 #endif
 
 namespace luisa {
@@ -40,4 +42,3 @@ using eastl::optional;
 #endif
 
 }// namespace luisa
-

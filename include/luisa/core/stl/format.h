@@ -2,7 +2,7 @@
 
 #include <type_traits>
 
-#if defined(_MSC_VER)
+#if !defined(LUISA_USE_SYSTEM_STL) && defined(_MSC_VER)
 #pragma warning(push)
 #pragma warning(disable : 4996)
 #endif
@@ -169,6 +169,6 @@ template<typename T, size_t N>
 
 }// namespace luisa
 
-#if defined(_MSC_VER)
+#if !defined(LUISA_USE_SYSTEM_STL) && defined(_MSC_VER)
 #pragma warning(pop)
 #endif
