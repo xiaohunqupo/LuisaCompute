@@ -46,8 +46,19 @@ public:
 
     struct ModSlotEqual {
         using is_transparent = void;
-        [[nodiscard]] auto operator()(Modification lhs, Modification rhs) const noexcept -> bool {
-            return lhs.slot == rhs.slot;
+
+        template<typename T>
+        [[nodiscard]] static auto slot(const T &m) noexcept -> size_t {
+            if constexpr (requires(T m) { m.slot; }) {
+                return m.slot;
+            } else {
+                return m;
+            }
+        }
+
+        template<typename Lhs, typename Rhs>
+        [[nodiscard]] auto operator()(const Lhs &lhs, const Rhs &rhs) const noexcept -> bool {
+            return slot(lhs) == slot(rhs);
         }
     };
 
