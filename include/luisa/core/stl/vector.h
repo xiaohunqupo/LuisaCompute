@@ -81,6 +81,10 @@ template<typename T>
 auto size_bytes(const luisa::vector<T> &vec) noexcept {
     return vec.size_bytes();
 }
+template<typename T, size_t node_count, bool allow_overflow>
+auto size_bytes(const luisa::fixed_vector<T, node_count, allow_overflow> &vec) noexcept {
+    return vec.size_bytes();
+}
 #endif
 
 }// namespace luisa
