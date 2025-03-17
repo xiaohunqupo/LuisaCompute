@@ -138,7 +138,7 @@ public:
     ResourceQueryInst(BasicBlock *parent_block,
                       const Type *type, ResourceQueryOp op,
                       luisa::span<Value *const> operands = {}) noexcept;
-    [[nodiscard]] ResourceQueryInst *clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept override;
+    [[nodiscard]] ResourceQueryInst *clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 class LC_XIR_API ResourceReadInst final : public DerivedInstruction<ResourceReadInst, DerivedInstructionTag::RESOURCE_READ>,
@@ -147,7 +147,7 @@ public:
     ResourceReadInst(BasicBlock *parent_block,
                      const Type *type, ResourceReadOp op,
                      luisa::span<Value *const> operands = {}) noexcept;
-    [[nodiscard]] ResourceReadInst *clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept override;
+    [[nodiscard]] ResourceReadInst *clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 class LC_XIR_API ResourceWriteInst final : public DerivedInstruction<ResourceWriteInst, DerivedInstructionTag::RESOURCE_WRITE>,
@@ -155,7 +155,7 @@ class LC_XIR_API ResourceWriteInst final : public DerivedInstruction<ResourceWri
 public:
     ResourceWriteInst(BasicBlock *parent_block, ResourceWriteOp op,
                       luisa::span<Value *const> operands = {}) noexcept;
-    [[nodiscard]] ResourceWriteInst *clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept override;
+    [[nodiscard]] ResourceWriteInst *clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 }// namespace luisa::compute::xir

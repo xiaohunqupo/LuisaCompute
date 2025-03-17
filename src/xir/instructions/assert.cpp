@@ -28,7 +28,7 @@ luisa::string_view AssertInst::message() const noexcept {
     return _message;
 }
 
-AssertInst *AssertInst::clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept {
+AssertInst *AssertInst::clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept {
     auto resolved_cond = resolver.resolve(condition());
     return b.assert_(resolved_cond, _message);
 }

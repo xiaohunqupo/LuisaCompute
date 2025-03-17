@@ -119,7 +119,7 @@ struct InstructionCloneValueResolver {
     [[nodiscard]] virtual Value *resolve(const Value *value) noexcept = 0;
 };
 
-class Builder;
+class XIRBuilder;
 
 class LC_XIR_API Instruction : public IntrusiveNode<Instruction, DerivedBlockScopeValue<Instruction, DerivedValueTag::INSTRUCTION, User>> {
 
@@ -131,7 +131,7 @@ protected:
 public:
     explicit Instruction(BasicBlock *parent_block, const Type *type) noexcept;
     [[nodiscard]] virtual DerivedInstructionTag derived_instruction_tag() const noexcept = 0;
-    [[nodiscard]] virtual Instruction *clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept = 0;
+    [[nodiscard]] virtual Instruction *clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept = 0;
 
     void remove_self() noexcept override;
     void insert_before_self(Instruction *node) noexcept override;
@@ -150,7 +150,7 @@ class LC_XIR_API SentinelInst final : public Instruction {
 public:
     explicit SentinelInst(BasicBlock *parent_block) noexcept;
     [[nodiscard]] DerivedInstructionTag derived_instruction_tag() const noexcept override;
-    [[nodiscard]] Instruction *clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept override;
+    [[nodiscard]] Instruction *clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 using InstructionList = InlineIntrusiveList<Instruction, SentinelInst>;

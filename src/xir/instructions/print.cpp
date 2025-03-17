@@ -9,7 +9,7 @@ PrintInst::PrintInst(BasicBlock *parent_block, luisa::string format,
     set_operands(operands);
 }
 
-PrintInst *PrintInst::clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept {
+PrintInst *PrintInst::clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept {
     luisa::fixed_vector<Value *, 16u> resolved_operands;
     resolved_operands.reserve(operand_count());
     for (auto op_use : operand_uses()) {

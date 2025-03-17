@@ -40,6 +40,7 @@
 #include <luisa/core/macro.h>
 #include <luisa/core/magic_enum.h>
 #include <luisa/core/mathematics.h>
+#include <luisa/core/memory_sanitizer.hpp>
 #include <luisa/core/platform.h>
 #include <luisa/core/pool.h>
 #include <luisa/core/shared_function.h>
@@ -256,6 +257,7 @@
 #include <luisa/xir/passes/transpose_gep.h>
 #include <luisa/xir/passes/unused_callable_removal.h>
 #include <luisa/xir/pool.h>
+#include <luisa/xir/printer.h>
 #include <luisa/xir/special_register.h>
 #include <luisa/xir/translators/ast2xir.h>
 #include <luisa/xir/translators/json2xir.h>

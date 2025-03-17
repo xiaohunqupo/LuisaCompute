@@ -51,7 +51,7 @@ public:
     [[nodiscard]] luisa::span<const Use *const> value_uses() const noexcept;
     void set_values(luisa::span<Value *const> values) noexcept;
 
-    [[nodiscard]] AtomicInst *clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept override;
+    [[nodiscard]] AtomicInst *clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 }// namespace luisa::compute::xir

@@ -19,7 +19,7 @@ public:
     [[nodiscard]] bool is_lvalue() const noexcept override { return true; }
     void set_space(AllocSpace space) noexcept;
     [[nodiscard]] auto space() const noexcept { return _space; }
-    [[nodiscard]] AllocaInst *clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept override;
+    [[nodiscard]] AllocaInst *clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 }// namespace luisa::compute::xir

@@ -15,7 +15,7 @@ public:
     BasicBlock *create_entry_block(bool overwrite_existing = false) noexcept;
     [[nodiscard]] BasicBlock *entry_block() noexcept;
     [[nodiscard]] const BasicBlock *entry_block() const noexcept;
-    [[nodiscard]] AutodiffScopeInst *clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept override;
+    [[nodiscard]] AutodiffScopeInst *clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 enum struct AutodiffIntrinsicOp {
@@ -35,7 +35,7 @@ class LC_XIR_API AutodiffIntrinsicInst final : public DerivedInstruction<Autodif
 public:
     AutodiffIntrinsicInst(BasicBlock *parent_block, const Type *type, AutodiffIntrinsicOp op,
                           luisa::span<Value *const> operands = {}) noexcept;
-    [[nodiscard]] AutodiffIntrinsicInst *clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept override;
+    [[nodiscard]] AutodiffIntrinsicInst *clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 }// namespace luisa::compute::xir

@@ -11,7 +11,7 @@ ThreadGroupInst::ThreadGroupInst(BasicBlock *parent_block, const Type *type, Thr
     }
 }
 
-ThreadGroupInst *ThreadGroupInst::clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept {
+ThreadGroupInst *ThreadGroupInst::clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept {
     luisa::fixed_vector<Value *, 16u> resolved_operands;
     resolved_operands.reserve(operand_count());
     for (auto op_use : operand_uses()) {

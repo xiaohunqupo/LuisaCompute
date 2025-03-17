@@ -60,7 +60,7 @@ DerivedInstructionTag SentinelInst::derived_instruction_tag() const noexcept {
     LUISA_ERROR_WITH_LOCATION("Calling SentinelInst::derived_instruction_tag()");
 }
 
-Instruction *SentinelInst::clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept {
+Instruction *SentinelInst::clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept {
     LUISA_ERROR_WITH_LOCATION("Calling SentinelInst::clone()");
 }
 

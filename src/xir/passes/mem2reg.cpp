@@ -144,7 +144,7 @@ struct PhiInsertionAndRenaming {
                 if (auto fb = frontier->block(); analysis.live_in_blocks.contains(fb)) {
                     if (auto iter = block_to_phi.try_emplace(fb, nullptr).first; iter->second == nullptr) {
                         // insert the phi node
-                        Builder b;
+                        XIRBuilder b;
                         b.set_insertion_point(fb->instructions().head_sentinel());
                         auto phi = b.phi(type);
                         iter->second = phi;

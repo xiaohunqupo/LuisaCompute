@@ -46,7 +46,7 @@ public:
     ThreadGroupInst(BasicBlock *parent_block,
                     const Type *type, ThreadGroupOp op,
                     luisa::span<Value *const> operands = {}) noexcept;
-    [[nodiscard]] ThreadGroupInst *clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept override;
+    [[nodiscard]] ThreadGroupInst *clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 }// namespace luisa::compute::xir

@@ -37,7 +37,7 @@ class LC_XIR_API RayQueryObjectReadInst final : public DerivedInstruction<RayQue
 public:
     RayQueryObjectReadInst(BasicBlock *parent_block, const Type *type, RayQueryObjectReadOp op,
                            luisa::span<Value *const> operands = {}) noexcept;
-    [[nodiscard]] RayQueryObjectReadInst *clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept override;
+    [[nodiscard]] RayQueryObjectReadInst *clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 class LC_XIR_API RayQueryObjectWriteInst final : public DerivedInstruction<RayQueryObjectWriteInst, DerivedInstructionTag::RAY_QUERY_OBJECT_WRITE>,
@@ -45,7 +45,7 @@ class LC_XIR_API RayQueryObjectWriteInst final : public DerivedInstruction<RayQu
 public:
     RayQueryObjectWriteInst(BasicBlock *parent_block, RayQueryObjectWriteOp op,
                             luisa::span<Value *const> operands = {}) noexcept;
-    [[nodiscard]] RayQueryObjectWriteInst *clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept override;
+    [[nodiscard]] RayQueryObjectWriteInst *clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 // Ray query control flow instructions:
@@ -75,7 +75,7 @@ public:
     BasicBlock *create_dispatch_block() noexcept;
     [[nodiscard]] BasicBlock *dispatch_block() noexcept;
     [[nodiscard]] const BasicBlock *dispatch_block() const noexcept;
-    [[nodiscard]] RayQueryLoopInst *clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept override;
+    [[nodiscard]] RayQueryLoopInst *clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 class LC_XIR_API RayQueryDispatchInst final : public DerivedTerminatorInstruction<RayQueryDispatchInst, DerivedInstructionTag::RAY_QUERY_DISPATCH> {
@@ -110,7 +110,7 @@ public:
     [[nodiscard]] BasicBlock *on_procedural_candidate_block() noexcept;
     [[nodiscard]] const BasicBlock *on_procedural_candidate_block() const noexcept;
 
-    [[nodiscard]] RayQueryDispatchInst *clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept override;
+    [[nodiscard]] RayQueryDispatchInst *clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 // Ray query pipeline instruction:
@@ -158,7 +158,7 @@ public:
 
     [[nodiscard]] size_t captured_argument_count() const noexcept;
 
-    [[nodiscard]] RayQueryPipelineInst *clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept override;
+    [[nodiscard]] RayQueryPipelineInst *clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 }// namespace luisa::compute::xir

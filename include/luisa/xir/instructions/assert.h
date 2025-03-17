@@ -22,7 +22,7 @@ public:
     void set_message(luisa::string_view message) noexcept;
     [[nodiscard]] luisa::string_view message() const noexcept;
 
-    [[nodiscard]] AssertInst *clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept override;
+    [[nodiscard]] AssertInst *clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
 }// namespace luisa::compute::xir

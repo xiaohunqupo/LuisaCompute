@@ -8,6 +8,7 @@ set(LUISA_COMPUTE_XIR_SOURCES
         metadata.cpp
         module.cpp
         pool.cpp
+        printer.cpp
         special_register.cpp
         undefined.cpp
         use.cpp

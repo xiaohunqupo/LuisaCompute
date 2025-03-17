@@ -7,7 +7,7 @@ ResourceQueryInst::ResourceQueryInst(BasicBlock *parent_block, const Type *type,
                                      luisa::span<Value *const> operands) noexcept
     : Super{parent_block, type}, InstructionOpMixin{op} { set_operands(operands); }
 
-ResourceQueryInst *ResourceQueryInst::clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept {
+ResourceQueryInst *ResourceQueryInst::clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept {
     luisa::fixed_vector<Value *, 8u> cloned_operands;
     cloned_operands.reserve(operand_count());
     for (auto op_use : operand_uses()) {
@@ -20,7 +20,7 @@ ResourceReadInst::ResourceReadInst(BasicBlock *parent_block, const Type *type, R
                                    luisa::span<Value *const> operands) noexcept
     : Super{parent_block, type}, InstructionOpMixin{op} { set_operands(operands); }
 
-ResourceReadInst *ResourceReadInst::clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept {
+ResourceReadInst *ResourceReadInst::clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept {
     luisa::fixed_vector<Value *, 8u> cloned_operands;
     cloned_operands.reserve(operand_count());
     for (auto op_use : operand_uses()) {
@@ -33,7 +33,7 @@ ResourceWriteInst::ResourceWriteInst(BasicBlock *parent_block, ResourceWriteOp o
                                      luisa::span<Value *const> operands) noexcept
     : Super{parent_block, nullptr}, InstructionOpMixin{op} { set_operands(operands); }
 
-ResourceWriteInst *ResourceWriteInst::clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept {
+ResourceWriteInst *ResourceWriteInst::clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept {
     luisa::fixed_vector<Value *, 8u> cloned_operands;
     cloned_operands.reserve(operand_count());
     for (auto op_use : operand_uses()) {

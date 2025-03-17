@@ -14,7 +14,7 @@ luisa::string_view UnreachableInst::message() const noexcept {
     return _message;
 }
 
-UnreachableInst *UnreachableInst::clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept {
+UnreachableInst *UnreachableInst::clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept {
     return b.unreachable_(_message);
 }
 

@@ -22,7 +22,7 @@ void CastInst::set_value(Value *value) noexcept {
     set_operand(0, value);
 }
 
-CastInst *CastInst::clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept {
+CastInst *CastInst::clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept {
     auto resolved_value = resolver.resolve(value());
     return b.cast_(type(), op(), resolved_value);
 }

@@ -10,7 +10,7 @@ void AllocaInst::set_space(AllocSpace space) noexcept {
     _space = space;
 }
 
-AllocaInst *AllocaInst::clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept {
+AllocaInst *AllocaInst::clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept {
     return b.alloca_(type(), space());
 }
 

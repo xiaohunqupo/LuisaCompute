@@ -51,7 +51,7 @@ void AtomicInst::set_values(luisa::span<Value *const> values) noexcept {
     }
 }
 
-AtomicInst *AtomicInst::clone(Builder &b, InstructionCloneValueResolver &resolver) const noexcept {
+AtomicInst *AtomicInst::clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept {
     auto resolved_base = resolver.resolve(base());
     luisa::fixed_vector<Value *, 16u> resolved_indices;
     resolved_indices.reserve(index_count());
