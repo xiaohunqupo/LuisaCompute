@@ -525,7 +525,7 @@ protected:
 public:
     explicit StringIDExpr(luisa::string data) noexcept
         : Expression{Tag::STRING_ID, Type::of<ulong>()}, _data{std::move(data)} {}
-    [[nodiscard]] auto data() const noexcept { return luisa::string_view{_data}; }
+    [[nodiscard]] auto &data() const noexcept { return _data; }
     LUISA_EXPRESSION_COMMON()
 };
 

@@ -3,6 +3,7 @@
 #include <luisa/core/stl/type_traits.h>
 
 #ifdef LUISA_USE_SYSTEM_STL
+#include <memory>
 #include <functional>
 #else
 #include <EASTL/finally.h>

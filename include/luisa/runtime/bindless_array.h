@@ -34,14 +34,19 @@ public:
     using Modification = BindlessArrayUpdateCommand::Modification;
 
     struct ModSlotHash {
+        using is_transparent = void;
         using is_avalanching = void;
-        [[nodiscard]] auto operator()(Modification m, uint64_t seed = hash64_default_seed) const noexcept {
-            return hash_value(static_cast<size_t>(m.slot), seed);
+        [[nodiscard]] auto operator()(size_t slot) const noexcept -> uint64_t {
+            return hash_value(slot);
+        }
+        [[nodiscard]] auto operator()(const Modification &m) const noexcept -> uint64_t {
+            return (*this)(m.slot);
         }
     };
 
     struct ModSlotEqual {
-        [[nodiscard]] auto operator()(Modification lhs, Modification rhs) const noexcept {
+        using is_transparent = void;
+        [[nodiscard]] auto operator()(Modification lhs, Modification rhs) const noexcept -> bool {
             return lhs.slot == rhs.slot;
         }
     };
@@ -84,7 +89,7 @@ public:
     void emplace_buffer_handle_on_update(size_t index, uint64_t handle, size_t offset_bytes) noexcept;
     void emplace_tex2d_handle_on_update(size_t index, uint64_t handle, Sampler sampler) noexcept;
     void emplace_tex3d_handle_on_update(size_t index, uint64_t handle, Sampler sampler) noexcept;
-    
+
     BindlessArray &remove_buffer_on_update(size_t index) noexcept;
     BindlessArray &remove_tex2d_on_update(size_t index) noexcept;
     BindlessArray &remove_tex3d_on_update(size_t index) noexcept;
