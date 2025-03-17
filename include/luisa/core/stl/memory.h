@@ -74,8 +74,12 @@ LUISA_EXPORT_API void *allocator_reallocate(void *p, size_t size, size_t alignme
 }
 
 #ifdef LUISA_USE_SYSTEM_STL
-using std::allocator;
+
+template<typename T = std::byte>
+using allocator = std::allocator<T>;
+
 #else
+
 template<typename T = std::byte>
 struct allocator {
     using value_type = T;
@@ -100,6 +104,7 @@ struct allocator {
         return std::is_same_v<T, R>;
     }
 };
+
 #endif
 
 template<typename T>
@@ -141,12 +146,15 @@ using std::static_pointer_cast;
 using std::unique_ptr;
 using std::weak_ptr;
 
+using std::make_pair;
 using std::aligned_storage_t;
 
 #else
 
 using eastl::bit_cast;
 using eastl::span;
+
+using eastl::make_pair;
 
 // smart pointers
 using eastl::compressed_pair;
