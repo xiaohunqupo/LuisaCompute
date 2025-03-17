@@ -1,6 +1,5 @@
 #pragma once
 #include <DXRuntime/Device.h>
-#include <EASTL/shared_ptr.h>
 #include <luisa/runtime/rhi/command.h>
 #include <luisa/runtime/device.h>
 #include <Resource/Resource.h>

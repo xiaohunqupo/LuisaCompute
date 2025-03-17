@@ -39,7 +39,7 @@ void TopAccel::UpdateMesh(
     MeshHandle *handle) {
     auto instIndex = handle->accelIndex;
     LUISA_ASSUME(allInstance[instIndex].handle == handle);
-    setMap.force_emplace(instIndex, handle);
+    setMap[instIndex] = handle;
     requireBuild = true;
 }
 void TopAccel::SetMesh(BottomAccel *mesh, uint64 index) {
@@ -180,7 +180,11 @@ void TopAccel::ProcessSetDesc() {
 }
 void TopAccel::InitSetDesc(vstd::span<AccelBuildCommand::Modification const> const &modifications) {
     setDesc.clear();
+#ifdef LUISA_USE_SYSTEM_STL
+    setDesc.resize(modifications.size());
+#else
     setDesc.resize_uninitialized(modifications.size());
+#endif
     {
         auto iter = setDesc.data();
         for (auto &i : modifications) {
@@ -268,7 +272,7 @@ void TopAccel::Build(
     if (!setDesc.empty()) {
         auto cs = device->setAccelKernel.Get(device);
         auto size = setDesc.size();
-        auto size_bytes = setDesc.size_bytes();
+        auto size_bytes = luisa::size_bytes(setDesc);
         auto setBuffer = alloc->GetTempUploadBuffer(size_bytes);
         auto cbuffer = alloc->GetTempUploadBuffer(sizeof(size_t), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
         struct CBuffer {
@@ -296,7 +300,7 @@ void TopAccel::Build(
     }
     if (scratchBuffer) {
         auto readState = tracker.ReadState(ResourceReadUsage::AccelBuildSrc);
-        if ((eastl::to_underlying(tracker.GetState(instBuffer.get())) & eastl::to_underlying(readState)) == 0) {
+        if ((luisa::to_underlying(tracker.GetState(instBuffer.get())) & luisa::to_underlying(readState)) == 0) {
             tracker.RecordState(instBuffer.get(), readState);
             tracker.UpdateState(builder);
         }

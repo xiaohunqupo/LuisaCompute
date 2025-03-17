@@ -139,7 +139,7 @@ int main(int argc, char *argv[]) {
     {
         std::ofstream file{"test_dstorage_texture_compressed.gdeflate", std::ios::binary};
         file.write(reinterpret_cast<const char *>(compressed_pixels.data()),
-                   static_cast<ssize_t>(luisa::size_bytes(compressed_pixels)));
+                   static_cast<std::streamsize>(luisa::size_bytes(compressed_pixels)));
     }
     LUISA_INFO("Texture compress time: {} ms, before compress size: {} bytes, after compress size: {} bytes", compress_time, luisa::size_bytes(pixels), luisa::size_bytes(compressed_pixels));
     {

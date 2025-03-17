@@ -170,7 +170,7 @@ RasterBin ShaderCompiler::compile_raster(
     args.emplace_back(L"/DVS");
     RasterBin bin;
     bin.vertex = compile(code, args);
-    args.resize_uninitialized(size);
+    luisa::enlarge_by(args, size);
     smStr.clear();
     smStr << L"ps_" << GetSM(shaderModel);
     args.emplace_back(smStr.c_str());

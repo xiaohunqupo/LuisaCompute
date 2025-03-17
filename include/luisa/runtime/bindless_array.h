@@ -1,5 +1,7 @@
 #pragma once
 
+#include <mutex>
+
 #include <luisa/core/stl/unordered_map.h>
 #include <luisa/core/spin_mutex.h>
 #include <luisa/runtime/rhi/sampler.h>
