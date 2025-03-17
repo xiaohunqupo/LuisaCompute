@@ -5,9 +5,11 @@ namespace luisa::detail {
 
 LUISA_EXPORT_API void *allocator_allocate(size_t size, size_t alignment) noexcept {
 #ifdef LUISA_USE_SYSTEM_STL
+#ifndef _WIN32
     if (alignment != 0u && alignment <= alignof(std::max_align_t)) {
         return ::malloc(size);
     }
+#endif
     alignment = std::max<size_t>(alignment, 16u);
     size = luisa::align(size, alignment);
 #ifdef _WIN32
@@ -24,7 +26,11 @@ LUISA_EXPORT_API void *allocator_allocate(size_t size, size_t alignment) noexcep
 
 LUISA_EXPORT_API void allocator_deallocate(void *p, size_t) noexcept {
 #ifdef LUISA_USE_SYSTEM_STL
+#ifdef _WIN32
+    return _aligned_free(p);
+#else
     return ::free(p);
+#endif
 #else
     eastl::GetDefaultAllocator()->deallocate(p, 0u);
 #endif
