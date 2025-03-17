@@ -49,8 +49,8 @@ LUISA_EXPORT_API void *allocator_reallocate(void *p, size_t size, size_t alignme
     auto new_p = allocator_allocate(size, alignment);
     std::memcpy(new_p, p, size);
     allocator_deallocate(p, 0u);
-#endif
     return new_p;
+#endif
 #else
     p = eastl::GetDefaultAllocator()->reallocate(p, size);
     LUISA_DEBUG_ASSERT(alignment == 0u || reinterpret_cast<uintptr_t>(p) % alignment == 0u,
