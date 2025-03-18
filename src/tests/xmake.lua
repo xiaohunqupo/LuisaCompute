@@ -169,6 +169,7 @@ if get_config("dx_backend") then
         test_proj("test_cuda_dx_interop")
     end
     test_proj("test_dml")
+    test_proj("test_matrix_multiply")
 end
 test_proj("test_manual_ast")
 if not is_mode("debug") then

@@ -29,24 +29,26 @@ void TensorExpr::add_before(TensorExpr *expr) noexcept {
         _last->_next = this;
 }
 SetValueExpr::SetValueExpr(
-    TensorDataView tensor_data,
+    TensorData *tensor_data,
     uint32_t value) noexcept
     : tensor_data(tensor_data), value(value) {
 }
-FullyConnectTensorExpr::FullyConnectTensorExpr(
-    TensorDataView const &input_tensor,
-    TensorDataView const &output_tensor,
-    TensorDataView const &weight_tensor,
-    FusedActivation const &fused_activation) noexcept
+MultipleTensorExpr::MultipleTensorExpr(
+    TensorData *const &input_tensor,
+    TensorData *const &output_tensor,
+    TensorData *const &weight_tensor,
+    FusedActivation const &fused_activation,
+    uint group_count) noexcept
     : input_tensor(input_tensor),
       output_tensor(output_tensor),
       weight_tensor(weight_tensor),
-      fused_activation(fused_activation) {}
+      fused_activation(fused_activation),
+      group_count(group_count) {}
 ConvolutionExpr::ConvolutionExpr(
-    TensorDataView const &input_tensor,
-    TensorDataView const &filter_tensor,
-    TensorDataView const &bias_tensor,
-    TensorDataView const &output_tensor,
+    TensorData *const &input_tensor,
+    TensorData *const &filter_tensor,
+    TensorData *const &bias_tensor,
+    TensorData *const &output_tensor,
     bool is_cross_convolution,
     bool is_backward,
     uint dimension_count,
@@ -80,8 +82,8 @@ ConvolutionExpr::ConvolutionExpr(
     std::memcpy(this->output_paddings, output_paddings.data(), output_paddings.size_bytes());
 }
 MaxPoolExpr::MaxPoolExpr(
-    TensorDataView const &input_tensor,
-    TensorDataView const &output_tensor,
+    TensorData *const &input_tensor,
+    TensorData *const &output_tensor,
     uint dimension_count,
     luisa::span<uint const> strides,
     luisa::span<uint const> window_size,

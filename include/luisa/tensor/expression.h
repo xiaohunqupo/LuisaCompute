@@ -4,7 +4,7 @@
 namespace luisa::compute {
 #define LUISA_COMPUTE_TENSOR_EXPRRESSIONS \
     SetValueExpr,                         \
-        FullyConnectTensorExpr,           \
+        MultipleTensorExpr,               \
         ConvolutionExpr,                  \
         MaxPoolExpr
 
@@ -50,36 +50,33 @@ public:
 };
 
 #define LUISA_TENSOR_EXPR_CLASS_INHERIT(ClassName) ClassName final : public TensorExprCRTPDerive<ClassName, TensorExpr::Tag::E##ClassName>
-struct TensorDataView {
-    TensorData *data;
-    size_t offset;
-    size_t size;
-};
 class LC_TENSOR_API LUISA_TENSOR_EXPR_CLASS_INHERIT(SetValueExpr) {
 public:
-    TensorDataView tensor_data;
+    TensorData *tensor_data;
     uint32_t value;
     SetValueExpr(
-        TensorDataView tensor_data,
+        TensorData *tensor_data,
         uint32_t value) noexcept;
 };
-class LC_TENSOR_API LUISA_TENSOR_EXPR_CLASS_INHERIT(FullyConnectTensorExpr) {
+class LC_TENSOR_API LUISA_TENSOR_EXPR_CLASS_INHERIT(MultipleTensorExpr) {
 public:
-    TensorDataView input_tensor;
-    TensorDataView output_tensor;
-    TensorDataView weight_tensor;
+    TensorData *input_tensor;
+    TensorData *output_tensor;
+    TensorData *weight_tensor;
     FusedActivation fused_activation;
-    FullyConnectTensorExpr(
-        TensorDataView const &input_tensor,
-        TensorDataView const &output_tensor,
-        TensorDataView const &weight_tensor,
-        FusedActivation const &fused_activation) noexcept;
+    uint group_count;
+    MultipleTensorExpr(
+        TensorData *const &input_tensor,
+        TensorData *const &output_tensor,
+        TensorData *const &weight_tensor,
+        FusedActivation const &fused_activation,
+        uint group_count) noexcept;
 };
 class LC_TENSOR_API LUISA_TENSOR_EXPR_CLASS_INHERIT(ConvolutionExpr) {
-    TensorDataView input_tensor;
-    TensorDataView filter_tensor;
-    TensorDataView bias_tensor;
-    TensorDataView output_tensor;
+    TensorData *input_tensor;
+    TensorData *filter_tensor;
+    TensorData *bias_tensor;
+    TensorData *output_tensor;
     bool is_cross_convolution : 1;
     bool is_backward : 1;
     uint dimension_count;
@@ -91,10 +88,10 @@ class LC_TENSOR_API LUISA_TENSOR_EXPR_CLASS_INHERIT(ConvolutionExpr) {
     uint group_count;
     FusedActivation fused_activation;
     ConvolutionExpr(
-        TensorDataView const &input_tensor,
-        TensorDataView const &filter_tensor,
-        TensorDataView const &bias_tensor,
-        TensorDataView const &output_tensor,
+        TensorData *const &input_tensor,
+        TensorData *const &filter_tensor,
+        TensorData *const &bias_tensor,
+        TensorData *const &output_tensor,
         bool is_cross_convolution,
         bool is_backward,
         uint dimension_count,
@@ -107,16 +104,16 @@ class LC_TENSOR_API LUISA_TENSOR_EXPR_CLASS_INHERIT(ConvolutionExpr) {
     // TODO
 };
 class LC_TENSOR_API LUISA_TENSOR_EXPR_CLASS_INHERIT(MaxPoolExpr) {
-    TensorDataView input_tensor;
-    TensorDataView output_tensor;
+    TensorData *input_tensor;
+    TensorData *output_tensor;
     uint dimension_count;
     // dimension count:
     uint *strides;
     uint *window_size;
     uint2 *paddings;
     MaxPoolExpr(
-        TensorDataView const &input_tensor,
-        TensorDataView const &output_tensor,
+        TensorData *const &input_tensor,
+        TensorData *const &output_tensor,
         uint dimension_count,
         luisa::span<uint const> strides,
         luisa::span<uint const> window_size,
