@@ -16,18 +16,22 @@ class Function;
 class Module;
 class Constant;
 
-class LC_XIR_API XIRPrinter {
+class LC_XIR_API XIRDebugPrinter {
 
 private:
     struct Impl;
     luisa::unique_ptr<Impl> _impl;
 
 public:
-    XIRPrinter() noexcept;
+    XIRDebugPrinter() noexcept;
 
     struct NestedBlockFormat {
-        bool expand{false};
-        int indent{0};
+        bool expand = false;
+        int indent = 0;
+
+        [[nodiscard]] static constexpr NestedBlockFormat make_default() noexcept {
+            return {};
+        }
     };
 
 public:
@@ -35,9 +39,12 @@ public:
     [[nodiscard]] size_t value_uid(const Value *value) noexcept;
     void emit_type(luisa::string &s, const Type *type) noexcept;
     void emit_value_name(luisa::string &s, const Value *value) noexcept;
-    void emit_operand(luisa::string &s, const Value *value, NestedBlockFormat block_format = {}) noexcept;
-    void emit_instruction(luisa::string &s, const Instruction *instruction, NestedBlockFormat block_format = {}) noexcept;
-    void emit_basic_block(luisa::string &s, const BasicBlock *block, NestedBlockFormat block_format = {}) noexcept;
+    void emit_operand(luisa::string &s, const Value *value,
+                      NestedBlockFormat block_format = NestedBlockFormat::make_default()) noexcept;
+    void emit_instruction(luisa::string &s, const Instruction *instruction,
+                          NestedBlockFormat block_format = NestedBlockFormat::make_default()) noexcept;
+    void emit_basic_block(luisa::string &s, const BasicBlock *block,
+                          NestedBlockFormat block_format = NestedBlockFormat::make_default()) noexcept;
     void emit_constant(luisa::string &s, const Constant *value) noexcept;
     void emit_function_decl(luisa::string &s, const Function *function) noexcept;
     void emit_function(luisa::string &s, const Function *function) noexcept;

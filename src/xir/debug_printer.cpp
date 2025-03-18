@@ -5,13 +5,13 @@
 #include <luisa/xir/instruction.h>
 #include <luisa/xir/function.h>
 #include <luisa/xir/module.h>
-#include <luisa/xir/printer.h>
+#include <luisa/xir/debug_printer.h>
 
 namespace luisa::compute::xir {
 
 using namespace std::string_view_literals;
 
-struct XIRPrinter::Impl {
+struct XIRDebugPrinter::Impl {
 
     luisa::unordered_map<const Value *, size_t> value_indices;
 
@@ -20,19 +20,19 @@ struct XIRPrinter::Impl {
     }
 };
 
-XIRPrinter::XIRPrinter() noexcept
+XIRDebugPrinter::XIRDebugPrinter() noexcept
     : _impl{luisa::make_unique<Impl>()} {}
 
-void XIRPrinter::reset() noexcept {
+void XIRDebugPrinter::reset() noexcept {
     _impl->reset();
 }
 
-size_t XIRPrinter::value_uid(const Value *value) noexcept {
+size_t XIRDebugPrinter::value_uid(const Value *value) noexcept {
     auto it = _impl->value_indices.try_emplace(value, _impl->value_indices.size());
     return it.first->second;
 }
 
-void XIRPrinter::emit_type(luisa::string &s, const Type *type) noexcept {
+void XIRDebugPrinter::emit_type(luisa::string &s, const Type *type) noexcept {
     if (type == nullptr) {
         s.append("void"sv);
         return;
@@ -97,13 +97,12 @@ void XIRPrinter::emit_type(luisa::string &s, const Type *type) noexcept {
     }
 }
 
-void XIRPrinter::emit_value_name(luisa::string &s, const Value *value) noexcept {
+void XIRDebugPrinter::emit_value_name(luisa::string &s, const Value *value) noexcept {
     if (value == nullptr) {
         s.append("null"sv);
         return;
     }
     switch (value->derived_value_tag()) {
-
     }
     if (value->isa<SpecialRegister>()) {
         auto sreg = static_cast<const SpecialRegister *>(value);
@@ -115,31 +114,29 @@ void XIRPrinter::emit_value_name(luisa::string &s, const Value *value) noexcept 
     luisa::format_to(std::back_inserter(s), "%{}", uid);
 }
 
-void XIRPrinter::emit_operand(luisa::string &s, const Value *value, NestedBlockFormat block_format) noexcept {
+void XIRDebugPrinter::emit_operand(luisa::string &s, const Value *value, NestedBlockFormat block_format) noexcept {
     if (value == nullptr || value->isa<SpecialRegister>()) {
         emit_value_name(s, value);
         return;
     }
-
 }
 
-void XIRPrinter::emit_instruction(luisa::string &s, const Instruction *instruction, NestedBlockFormat block_format) noexcept {
+void XIRDebugPrinter::emit_instruction(luisa::string &s, const Instruction *instruction, NestedBlockFormat block_format) noexcept {
 }
 
-void XIRPrinter::emit_basic_block(luisa::string &s, const BasicBlock *block, NestedBlockFormat block_format) noexcept {
+void XIRDebugPrinter::emit_basic_block(luisa::string &s, const BasicBlock *block, NestedBlockFormat block_format) noexcept {
 }
 
-void XIRPrinter::emit_constant(luisa::string &s, const Constant *value) noexcept {
-
+void XIRDebugPrinter::emit_constant(luisa::string &s, const Constant *value) noexcept {
 }
 
-void XIRPrinter::emit_function_decl(luisa::string &s, const Function *function) noexcept {
+void XIRDebugPrinter::emit_function_decl(luisa::string &s, const Function *function) noexcept {
 }
 
-void XIRPrinter::emit_function(luisa::string &s, const Function *function) noexcept {
+void XIRDebugPrinter::emit_function(luisa::string &s, const Function *function) noexcept {
 }
 
-void XIRPrinter::emit_module(luisa::string &s, const Module *module) noexcept {
+void XIRDebugPrinter::emit_module(luisa::string &s, const Module *module) noexcept {
     for (auto &sreg : module->special_register_list()) {
     }
 }

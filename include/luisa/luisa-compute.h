@@ -203,6 +203,7 @@
 #include <luisa/xir/basic_block.h>
 #include <luisa/xir/builder.h>
 #include <luisa/xir/constant.h>
+#include <luisa/xir/debug_printer.h>
 #include <luisa/xir/function.h>
 #include <luisa/xir/ilist.h>
 #include <luisa/xir/instruction.h>
@@ -257,7 +258,6 @@
 #include <luisa/xir/passes/transpose_gep.h>
 #include <luisa/xir/passes/unused_callable_removal.h>
 #include <luisa/xir/pool.h>
-#include <luisa/xir/printer.h>
 #include <luisa/xir/special_register.h>
 #include <luisa/xir/translators/ast2xir.h>
 #include <luisa/xir/translators/json2xir.h>

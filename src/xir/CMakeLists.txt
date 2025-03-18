@@ -3,12 +3,12 @@ set(LUISA_COMPUTE_XIR_SOURCES
         basic_block.cpp
         builder.cpp
         constant.cpp
+        debug_printer.cpp
         function.cpp
         instruction.cpp
         metadata.cpp
         module.cpp
         pool.cpp
-        printer.cpp
         special_register.cpp
         undefined.cpp
         use.cpp
