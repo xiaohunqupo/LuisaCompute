@@ -1,9 +1,9 @@
 #pragma once
 #include <luisa/tensor/tensor.h>
+#include <luisa/tensor/fused_activation.h>
 namespace luisa::compute {
 #define LUISA_COMPUTE_TENSOR_EXPRRESSIONS \
-    AllocateTensorExpr,                   \
-        DeAllocateTensorExpr,             \
+    SetValueExpr,                         \
         FullyConnectTensorExpr,           \
         ConvolutionExpr,                  \
         MaxPoolExpr
@@ -21,7 +21,13 @@ struct TensorExprVisitor {
 };
 
 class TensorExpr {
+    TensorExpr *_last = nullptr;
+    TensorExpr *_next = nullptr;
 public:
+    LC_TENSOR_API void remove_self() noexcept;
+    LC_TENSOR_API void add_after(TensorExpr *expr) noexcept;
+    LC_TENSOR_API void add_before(TensorExpr *expr) noexcept;
+
     enum struct Tag : uint8_t {
 #define LUISA_MAKE_TENSOR_EXPR_TAG(Cmd) E##Cmd,
         LUISA_MAP(LUISA_MAKE_TENSOR_EXPR_TAG, LUISA_COMPUTE_TENSOR_EXPRRESSIONS)
@@ -29,7 +35,7 @@ public:
     };
     [[nodiscard]] virtual Tag tag() noexcept = 0;
     virtual void accept(TensorExprVisitor *) const noexcept = 0;
-    virtual ~TensorExpr() noexcept = default;
+    // virtual ~TensorExpr() noexcept = default;
 };
 
 template<typename Derive, TensorExpr::Tag _tag>
@@ -39,41 +45,82 @@ public:
         return _tag;
     }
     static constexpr TensorExpr::Tag const_tag = _tag;
-    virtual ~TensorExprCRTPDerive() noexcept = default;
+    // virtual ~TensorExprCRTPDerive() noexcept = default;
     void accept(TensorExprVisitor *visitor) const noexcept override;
 };
 
-#define LUISA_TENSOR_EXPR_CLASS_INHERIT(ClassName) \
-public                                             \
-    TensorExprCRTPDerive<ClassName, TensorExpr::Tag::E##ClassName>
-
-class AllocateTensorExpr : LUISA_TENSOR_EXPR_CLASS_INHERIT(AllocateTensorExpr) {
-public:
-    TensorData *alloc_data;
-    AllocateTensorExpr(TensorData *alloc_data) noexcept : alloc_data(alloc_data) {}
+#define LUISA_TENSOR_EXPR_CLASS_INHERIT(ClassName) ClassName final : public TensorExprCRTPDerive<ClassName, TensorExpr::Tag::E##ClassName>
+struct TensorDataView {
+    TensorData *data;
+    size_t offset;
+    size_t size;
 };
-class DeAllocateTensorExpr : LUISA_TENSOR_EXPR_CLASS_INHERIT(DeAllocateTensorExpr) {
+class LC_TENSOR_API LUISA_TENSOR_EXPR_CLASS_INHERIT(SetValueExpr) {
 public:
-    TensorData *dealloc_data;
-    DeAllocateTensorExpr(TensorData *dealloc_data) noexcept : dealloc_data(dealloc_data) {}
+    TensorDataView tensor_data;
+    uint32_t value;
+    SetValueExpr(
+        TensorDataView tensor_data,
+        uint32_t value) noexcept;
 };
-class FullyConnectTensorExpr : LUISA_TENSOR_EXPR_CLASS_INHERIT(FullyConnectTensorExpr) {
+class LC_TENSOR_API LUISA_TENSOR_EXPR_CLASS_INHERIT(FullyConnectTensorExpr) {
 public:
-    TensorData *input_tensor;
-    TensorData *output_tensor;
-    TensorData *weight_tensor;
+    TensorDataView input_tensor;
+    TensorDataView output_tensor;
+    TensorDataView weight_tensor;
+    FusedActivation fused_activation;
     FullyConnectTensorExpr(
-        TensorData *input_tensor,
-        TensorData *output_tensor,
-        TensorData *weight_tensor) noexcept
-        : input_tensor(input_tensor),
-          output_tensor(output_tensor),
-          weight_tensor(weight_tensor) {}
+        TensorDataView const &input_tensor,
+        TensorDataView const &output_tensor,
+        TensorDataView const &weight_tensor,
+        FusedActivation const &fused_activation) noexcept;
 };
-class ConvolutionExpr : LUISA_TENSOR_EXPR_CLASS_INHERIT(ConvolutionExpr) {
+class LC_TENSOR_API LUISA_TENSOR_EXPR_CLASS_INHERIT(ConvolutionExpr) {
+    TensorDataView input_tensor;
+    TensorDataView filter_tensor;
+    TensorDataView bias_tensor;
+    TensorDataView output_tensor;
+    bool is_cross_convolution : 1;
+    bool is_backward : 1;
+    uint dimension_count;
+    // dimension count:
+    uint *strides;
+    uint *dilations;
+    uint2 *paddings;// start + end
+    uint *output_paddings;
+    uint group_count;
+    FusedActivation fused_activation;
+    ConvolutionExpr(
+        TensorDataView const &input_tensor,
+        TensorDataView const &filter_tensor,
+        TensorDataView const &bias_tensor,
+        TensorDataView const &output_tensor,
+        bool is_cross_convolution,
+        bool is_backward,
+        uint dimension_count,
+        luisa::span<uint const> strides,
+        luisa::span<uint const> dilations,
+        luisa::span<uint2 const> paddings,
+        luisa::span<uint const> output_paddingss,
+        uint group_count,
+        FusedActivation const &fused_activation) noexcept;
     // TODO
 };
-class MaxPoolExpr : LUISA_TENSOR_EXPR_CLASS_INHERIT(MaxPoolExpr) {
+class LC_TENSOR_API LUISA_TENSOR_EXPR_CLASS_INHERIT(MaxPoolExpr) {
+    TensorDataView input_tensor;
+    TensorDataView output_tensor;
+    uint dimension_count;
+    // dimension count:
+    uint *strides;
+    uint *window_size;
+    uint2 *paddings;
+    MaxPoolExpr(
+        TensorDataView const &input_tensor,
+        TensorDataView const &output_tensor,
+        uint dimension_count,
+        luisa::span<uint const> strides,
+        luisa::span<uint const> window_size,
+        luisa::span<uint const> paddings) noexcept;
     // TODO
 };
 #undef LUISA_TENSOR_EXPR_CLASS_INHERIT

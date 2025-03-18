@@ -8,21 +8,20 @@ namespace luisa::compute {
 
 enum struct TensorElementType : uint8_t {
     Float16,
-    Float32
+    Float32,
+    Float64,
 };
 class LC_TENSOR_API TensorData {
-    std::array<uint32_t, 8> _sizes;
-    size_t _dimension;
+    luisa::span<uint32_t const> _sizes;
     TensorElementType _type;
     uint64_t _uid;
     size_t _size_bytes;
 
 public:
-    TensorData(luisa::span<size_t const> sizes,
+    TensorData(luisa::span<uint32_t const> sizes,
                TensorElementType element_type,
                uint64_t uid) noexcept;
     TensorData(TensorData &&rhs) noexcept;
-    ~TensorData() noexcept;
 
     TensorData(TensorData const &rhs) = delete;
 
@@ -30,10 +29,10 @@ public:
         return _uid;
     }
     [[nodiscard]] luisa::span<uint32_t const> sizes() const noexcept {
-        return luisa::span{_sizes.data(), _dimension};
+        return _sizes;
     }
     [[nodiscard]] size_t dimension() const noexcept {
-        return _dimension;
+        return _sizes.size();
     }
     [[nodiscard]] size_t size_bytes() const noexcept {
         return _size_bytes;
@@ -51,7 +50,7 @@ class LC_TENSOR_API Tensor {
            bool contained) noexcept;
 
 public:
-    Tensor(TensorData *data) noexcept : Tensor(data, false) {}
+    explicit Tensor(TensorData *data) noexcept : Tensor(data, false) {}
     Tensor(Tensor &&rhs) noexcept;
     ~Tensor() noexcept;
     Tensor &operator=(Tensor &&rhs) noexcept {

@@ -4,6 +4,7 @@
 namespace luisa {
 using eastl::transform;
 using eastl::swap;
+using eastl::binary_search;
 template<pdqsort_detail::LinearIterable Iter>
 inline void sort(Iter begin, Iter end) {
     pdqsort(begin, end);
