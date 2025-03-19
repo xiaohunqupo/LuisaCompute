@@ -2,53 +2,78 @@
 #include <luisa/tensor/tensor_builder.h>
 #include <luisa/tensor/kernel.h>
 namespace luisa::compute {
-void TensorExpr::remove_self() noexcept {
-    if (_last != nullptr) {
-        _last->_next = _next;
-        _last = nullptr;
-    }
-    if (_next != nullptr) {
-        _next->_last = _last;
-        _next = nullptr;
-    }
+// std::pair<TensorExpr *, TensorExpr *> TensorExpr::remove_self() noexcept {
+//     std::pair<TensorExpr *, TensorExpr *> r{_last, _next};
+//     if (_last != nullptr) {
+//         _last->_next = _next;
+//         _last = nullptr;
+//     }
+//     if (_next != nullptr) {
+//         _next->_last = _last;
+//         _next = nullptr;
+//     }
+//     return r;
+// }
+// void TensorExpr::add_after(TensorExpr *expr) noexcept {
+//     remove_self();
+//     _next = expr->_next;
+//     _last = expr;
+//     expr->_next = this;
+//     if (_next)
+//         _next->_last = this;
+// }
+// void TensorExpr::add_before(TensorExpr *expr) noexcept {
+//     remove_self();
+//     _next = expr;
+//     _last = expr->_last;
+//     expr->_last = this;
+//     if (_last)
+//         _last->_next = this;
+// }
+
+void TensorExpr::set_read_tensors(std::initializer_list<TensorData *> tensors) noexcept {
+    auto ptr = TensorBuilder::get_thd_local()->allocate_array<TensorData *>(tensors.size());
+    _read_tensors = luisa::span{
+        ptr,
+        tensors.size()};
+    std::memcpy(ptr, tensors.begin(), _read_tensors.size_bytes());
 }
-void TensorExpr::add_after(TensorExpr *expr) noexcept {
-    remove_self();
-    _next = expr->_next;
-    _last = expr;
-    expr->_next = this;
-    if (_next)
-        _next->_last = this;
-}
-void TensorExpr::add_before(TensorExpr *expr) noexcept {
-    remove_self();
-    _next = expr;
-    _last = expr->_last;
-    expr->_last = this;
-    if (_last)
-        _last->_next = this;
+void TensorExpr::set_write_tensors(std::initializer_list<TensorData *> tensors) noexcept {
+    auto ptr = TensorBuilder::get_thd_local()->allocate_array<TensorData *>(tensors.size());
+    _write_tensors = luisa::span{
+        ptr,
+        tensors.size()};
+    std::memcpy(ptr, tensors.begin(), _write_tensors.size_bytes());
 }
 SetValueExpr::SetValueExpr(
+    uint64_t idx,
     TensorData *tensor_data,
     uint32_t value) noexcept
-    : tensor_data(tensor_data), value(value) {
+    : BaseClass(idx), tensor_data(tensor_data), value(value) {
+    set_write_tensors({tensor_data});
 }
 MultipleTensorExpr::MultipleTensorExpr(
-    TensorData *const &input_tensor,
-    TensorData *const &output_tensor,
-    TensorData *const &weight_tensor,
+    uint64_t idx,
+    TensorData *input_tensor,
+    TensorData *output_tensor,
+    TensorData *weight_tensor,
     FusedActivation const &fused_activation,
     uint group_count) noexcept
-    : input_tensor(input_tensor),
+    : BaseClass(idx),
+      input_tensor(input_tensor),
       output_tensor(output_tensor),
       weight_tensor(weight_tensor),
       fused_activation(fused_activation),
-      group_count(group_count) {}
+      group_count(group_count) {
+    set_read_tensors({input_tensor, weight_tensor});
+    set_write_tensors({output_tensor});
+}
 ConvolutionExpr::ConvolutionExpr(
-    TensorData *const &input_tensor,
-    TensorData *const &filter_tensor,
-    TensorData *const &bias_tensor,
-    TensorData *const &output_tensor,
+    uint64_t idx,
+    TensorData *input_tensor,
+    TensorData *filter_tensor,
+    TensorData *bias_tensor,
+    TensorData *output_tensor,
     bool is_cross_convolution,
     bool is_backward,
     uint dimension_count,
@@ -58,7 +83,8 @@ ConvolutionExpr::ConvolutionExpr(
     luisa::span<uint const> output_paddings,
     uint group_count,
     FusedActivation const &fused_activation) noexcept
-    : input_tensor(input_tensor),
+    : BaseClass(idx),
+      input_tensor(input_tensor),
       filter_tensor(filter_tensor),
       bias_tensor(bias_tensor),
       output_tensor(output_tensor),
@@ -67,6 +93,10 @@ ConvolutionExpr::ConvolutionExpr(
       dimension_count(dimension_count),
       group_count(group_count),
       fused_activation(fused_activation) {
+    set_read_tensors({input_tensor,
+                      filter_tensor,
+                      bias_tensor});
+    set_write_tensors({output_tensor});
     auto builder = TensorBuilder::get_thd_local();
     this->strides = builder->allocate_array<uint>(dimension_count);
     this->dilations = builder->allocate_array<uint>(dimension_count);
@@ -82,15 +112,21 @@ ConvolutionExpr::ConvolutionExpr(
     std::memcpy(this->output_paddings, output_paddings.data(), output_paddings.size_bytes());
 }
 MaxPoolExpr::MaxPoolExpr(
-    TensorData *const &input_tensor,
-    TensorData *const &output_tensor,
+    uint64_t idx,
+    TensorData *input_tensor,
+    TensorData *output_tensor,
     uint dimension_count,
     luisa::span<uint const> strides,
     luisa::span<uint const> window_size,
     luisa::span<uint const> paddings) noexcept
-    : input_tensor(input_tensor),
+    : BaseClass(idx),
+      input_tensor(input_tensor),
       output_tensor(output_tensor),
       dimension_count(dimension_count) {
+    set_read_tensors({
+        input_tensor,
+    });
+    set_write_tensors({output_tensor});
     auto builder = TensorBuilder::get_thd_local();
     this->strides = builder->allocate_array<uint>(dimension_count);
     this->window_size = builder->allocate_array<uint>(dimension_count);
@@ -102,5 +138,19 @@ MaxPoolExpr::MaxPoolExpr(
     std::memcpy(this->strides, strides.data(), strides.size_bytes());
     std::memcpy(this->window_size, window_size.data(), window_size.size_bytes());
     std::memcpy(this->paddings, paddings.data(), paddings.size_bytes());
+}
+TestExpr::TestExpr(
+    uint64_t idx,
+    TensorData *input,
+    TensorData *output,
+    luisa::string_view name) noexcept
+    : BaseClass(idx),
+      input(input),
+      output(output),
+      name(name) {
+          set_read_tensors({
+        input,
+    });
+    set_write_tensors({output});
 }
 }// namespace luisa::compute

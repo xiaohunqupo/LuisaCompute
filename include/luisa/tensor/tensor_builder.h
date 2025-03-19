@@ -19,8 +19,14 @@ class LC_TENSOR_API TensorBuilder {
     void deallocate_tensor(TensorData *tensor) noexcept;
 
 public:
-    static void set_thd_local(TensorBuilder* builder);
-    static TensorBuilder* get_thd_local();
+    [[nodiscard]] luisa::span<TensorData *const> allocated_tensor() const noexcept {
+        return {_allocated_tensor};
+    }
+    [[nodiscard]] luisa::span<TensorExpr *const> tensor_expr() const noexcept {
+        return {_tensor_expr};
+    }
+    static void set_thd_local(TensorBuilder *builder);
+    static TensorBuilder *get_thd_local();
     void *allocate_stack(size_t size_bytes, size_t alignment = 8) noexcept;
     template<typename T>
         requires(std::is_trivially_destructible_v<T>)
@@ -30,6 +36,14 @@ public:
     TensorData *allocate_tensor(
         luisa::span<uint32_t const> sizes,
         TensorElementType element_type) noexcept;
+    template<typename T, typename... Args>
+        requires(std::is_base_of_v<TensorExpr, T> && std::is_trivially_destructible_v<T> && luisa::is_constructible_v<T, uint64_t, Args && ...>)
+    T *allocate_expr(Args &&...args) {
+        auto ptr = allocate_stack(sizeof(T), alignof(T));
+        auto r = new (ptr) T{_tensor_expr.size(), std::forward<Args>(args)...};
+        _tensor_expr.emplace_back(r);
+        return r;
+    }
     TensorBuilder() noexcept;
     ~TensorBuilder() noexcept;
     TensorBuilder(TensorBuilder const &) = delete;

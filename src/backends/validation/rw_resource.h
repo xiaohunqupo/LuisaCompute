@@ -43,6 +43,15 @@ public:
     }
     template<typename T>
         requires(std::is_same_v<T, RWResource> || std::is_base_of_v<RWResource, T>)
+    static T *get(uint64_t handle, luisa::string_view type_name) {
+        auto ptr = static_cast<T *>(_get(handle));
+        if(ptr == nullptr) [[unlikely]]{
+            LUISA_ERROR("Type {} instance not found.", type_name);
+        }
+        return ptr;
+    }
+    template<typename T>
+        requires(std::is_same_v<T, RWResource> || std::is_base_of_v<RWResource, T>)
     static T *try_get(uint64_t handle) {
         return static_cast<T *>(_get(handle));
     }

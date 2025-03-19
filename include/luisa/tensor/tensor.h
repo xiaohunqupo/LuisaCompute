@@ -14,7 +14,7 @@ enum struct TensorElementType : uint8_t {
 class LC_TENSOR_API TensorData {
     luisa::span<uint32_t const> _sizes;
     TensorElementType _type;
-    uint64_t _uid;
+    uint64_t _idx;
     size_t _size_bytes;
 
 public:
@@ -25,8 +25,8 @@ public:
 
     TensorData(TensorData const &rhs) = delete;
 
-    [[nodiscard]] uint64_t uid() const noexcept {
-        return _uid;
+    [[nodiscard]] uint64_t idx() const noexcept {
+        return _idx;
     }
     [[nodiscard]] luisa::span<uint32_t const> sizes() const noexcept {
         return _sizes;

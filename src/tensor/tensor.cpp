@@ -15,7 +15,7 @@ TensorData::TensorData(luisa::span<uint32_t const> sizes,
                        TensorElementType element_type,
                        uint64_t uid) noexcept
     : _type(element_type),
-      _uid(uid) {
+      _idx(uid) {
     _size_bytes = 0;
     switch (_type) {
         case TensorElementType::Float16:

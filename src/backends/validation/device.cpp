@@ -357,7 +357,7 @@ void Device::set_name(luisa::compute::Resource::Tag resource_tag, uint64_t resou
     _native->set_name(resource_tag, resource_handle, name);
 }
 void Device::check_stream(uint64_t stream, StreamFunc func, uint64_t custom_cmd_id) {
-    auto stream_ptr = RWResource::get<RWResource>(stream);
+    auto stream_ptr = RWResource::get<RWResource>(stream, "stream");
     if (!stream_ptr) {
         LUISA_ERROR("Invalid stream.");
     }
