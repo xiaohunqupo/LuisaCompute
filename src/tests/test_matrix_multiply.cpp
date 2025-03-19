@@ -1,18 +1,30 @@
 #include <luisa/runtime/context.h>
 #include <luisa/runtime/device.h>
 #include <luisa/runtime/stream.h>
+#include <luisa/runtime/image.h>
 #include <luisa/dsl/sugar.h>
 #include <luisa/core/clock.h>
+#include <luisa/vstl/meta_lib.h>
 #include <fstream>
 using namespace luisa;
 using namespace luisa::compute;
+template<typename T>
 struct DispatchPack {
-    Kernel3D<void(Buffer<float>, Buffer<float>, Buffer<float>)> kernel;
+    Kernel3D<void(Buffer<T>, Buffer<T>, Buffer<T>)> kernel;
     uint3 dispatch_size;
 };
 
-DispatchPack get_matrix_multiple_kernel(uint2 lhs_matrix_size, uint2 rhs_matrix_size, uint batch_size, bool lhs_batch, bool rhs_batch) {
-    LUISA_ASSERT(lhs_matrix_size.x == rhs_matrix_size.y);
+template<typename T>
+DispatchPack<T> get_matrix_multiple_kernel(uint2 lhs_matrix_size, uint2 rhs_matrix_size, uint batch_size, bool lhs_batch, bool rhs_batch) {
+    using VarType = typename decltype([&]() {
+        if constexpr (std::is_same_v<T, float>) {
+            return vstd::TypeOf<Float>{};
+        } else {
+            return vstd::TypeOf<Half>{};
+        }
+    }())::Type;
+    auto iterate_size = std::min(lhs_matrix_size.x, rhs_matrix_size.y);
+    auto bias_size = std::max(lhs_matrix_size.x, rhs_matrix_size.y);
     uint3 block_size;
     if (batch_size == 1) {
         block_size = make_uint3(8, 8, 1);
@@ -39,10 +51,16 @@ DispatchPack get_matrix_multiple_kernel(uint2 lhs_matrix_size, uint2 rhs_matrix_
         luisa::swap(block_size.x, block_size.y);
     }
     block_size = block_size.zyx();
-    uint3 size = make_uint3(rhs_matrix_size.x, lhs_matrix_size.y, batch_size);
+    uint2 size = make_uint2(rhs_matrix_size.x, lhs_matrix_size.y);
     uint2 lhs_size = make_uint2(lhs_matrix_size.x, size.y);
     uint2 rhs_size = make_uint2(size.x, lhs_matrix_size.x);
-    auto kernel = Kernel3D([=](BufferVar<float> lhs, BufferVar<float> rhs, BufferVar<float> output) {
+    auto kernel = Kernel3D([=](BufferVar<T> lhs, BufferVar<T> rhs, BufferVar<T> output) {
+        auto ReadTex = [&](BufferVar<T> &img, auto &&idx) {
+            return img.read(idx);
+        };
+        auto WriteTex = [&](BufferVar<T> &img, auto &&idx, auto &&value) {
+            img.write(idx, value);
+        };
         set_block_size(block_size);
         // device
         UInt3 id = dispatch_id().zyx();
@@ -50,20 +68,31 @@ DispatchPack get_matrix_multiple_kernel(uint2 lhs_matrix_size, uint2 rhs_matrix_
         UInt lhs_global_offset = lhs_batch ? ((lhs_matrix_size.x * lhs_matrix_size.y) * id.z) : 0u;
         UInt rhs_gloabal_offset = rhs_batch ? ((rhs_matrix_size.x * rhs_matrix_size.y) * id.z) : 0u;
         UInt output_global_offset = (size.x * size.y) * id.z;
-        auto compute_code = [&](auto i) {
-            auto lhs_val = lhs.read(lhs_global_offset + lhs_size.y * i + id.y);
-            auto rhs_val = rhs.read(rhs_gloabal_offset + rhs_size.y * id.x + i);
-            r += lhs_val * rhs_val;
+        for (auto i : dynamic_range(iterate_size)) {
+            auto lhs_val = ReadTex(lhs, lhs_global_offset + lhs_size.y * i + id.y);
+            auto rhs_val = ReadTex(rhs, rhs_gloabal_offset + rhs_size.y * id.x + i);
+            r += Float(lhs_val * rhs_val);
         };
-        $for (i, lhs_size.x) {
-            compute_code(i);
-        };
+        // bias
+        if (lhs_matrix_size.x < rhs_matrix_size.y) {
+            for (auto i : dynamic_range(iterate_size, rhs_matrix_size.y)) {
+                r += Float(ReadTex(rhs, rhs_gloabal_offset + rhs_size.y * id.x + i));
+            }
+        } else if (lhs_matrix_size.x > rhs_matrix_size.y) {
+            for (auto i : dynamic_range(iterate_size, lhs_matrix_size.x)) {
+                r += Float(ReadTex(lhs, lhs_global_offset + lhs_size.y * i + id.y));
+            }
+        }
         // TDOO: fused activation
-        output.write(
-            output_global_offset + size.y * id.x + id.y,
-            r);
+        WriteTex(output,
+                 output_global_offset + size.y * id.x + id.y,
+                 VarType(r));
     });
-    return {kernel, size.zyx()};
+    return {kernel, make_uint3(batch_size, size.yx())};
+}
+template<typename T>
+auto create_tensor(Device &device, size_t element_size) {
+    return device.create_buffer<T>(element_size);
 }
 
 int main(int argc, char *argv[]) {
@@ -72,10 +101,12 @@ int main(int argc, char *argv[]) {
     auto stream = device.create_stream();
 
     size_t batch_size = 1920ull * 1080ull;
-    Buffer<float> a_buffer = device.create_buffer<float>(batch_size * 16ull * 16ull);
-    Buffer<float> b_buffer = device.create_buffer<float>(16ull);
-    Buffer<float> r_buffer = device.create_buffer<float>(batch_size * 16ull);
-    auto kernel_pack = get_matrix_multiple_kernel(uint2(16, 16), uint2(1, 16), batch_size, true, false);
+    size_t node_size = 4;
+    auto a_buffer = create_tensor<half>(device, batch_size * node_size * node_size);
+    auto b_buffer = create_tensor<half>(device, node_size);
+    auto r_buffer = create_tensor<half>(device, batch_size * node_size);
+
+    auto kernel_pack = get_matrix_multiple_kernel<half>(uint2(node_size, node_size), uint2(1, node_size), batch_size, true, false);
     auto shader = device.compile(kernel_pack.kernel);
     Clock clk;
     LUISA_INFO("Dispatch size {}", kernel_pack.dispatch_size);
@@ -83,7 +114,9 @@ int main(int argc, char *argv[]) {
         << shader(a_buffer, b_buffer, r_buffer).dispatch(kernel_pack.dispatch_size)
         << synchronize();
     CommandList cmdlist;
-    cmdlist << shader(a_buffer, b_buffer, r_buffer).dispatch(kernel_pack.dispatch_size);
+    for (int i = 0; i < 5; ++i) {
+        cmdlist << shader(a_buffer, b_buffer, r_buffer).dispatch(kernel_pack.dispatch_size);
+    }
     clk.tic();
     stream << cmdlist.commit() << synchronize();
     auto time = clk.toc();
