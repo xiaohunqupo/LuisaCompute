@@ -53,7 +53,7 @@ DispatchPack<T> get_matrix_multiple_kernel(uint2 lhs_matrix_size, uint2 rhs_matr
     block_size = block_size.zyx();
     uint2 size = make_uint2(rhs_matrix_size.x, lhs_matrix_size.y);
     uint2 lhs_size = make_uint2(lhs_matrix_size.x, size.y);
-    uint2 rhs_size = make_uint2(size.x, lhs_matrix_size.x);
+    uint2 rhs_size = make_uint2(size.x, rhs_matrix_size.y);
     auto kernel = Kernel3D([=](BufferVar<T> lhs, BufferVar<T> rhs, BufferVar<T> output) {
         auto ReadTex = [&](BufferVar<T> &img, auto &&idx) {
             return img.read(idx);
