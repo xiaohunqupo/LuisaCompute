@@ -68,6 +68,10 @@ template<typename... T>
 auto size_bytes(const luisa::vector<T...> &vec) noexcept {
     return std::span{vec}.size_bytes();
 }
+template<typename T>
+auto vector_resize(luisa::vector<T> &vec, size_t size) noexcept {
+    return vec.resize(size);
+}
 #else
 template<typename T>
 auto enlarge_by(luisa::vector<T> &vec, size_t size) noexcept {
@@ -77,6 +81,16 @@ template<typename T, size_t node_count, bool allow_overflow>
 auto enlarge_by(luisa::fixed_vector<T, node_count, allow_overflow> &vec, size_t size) noexcept {
     return vec.push_back_uninitialized(size);
 }
+
+template<typename T>
+auto vector_resize(luisa::vector<T> &vec, size_t size) noexcept {
+    return vec.resize_uninitialized(size);
+}
+template<typename T, size_t node_count, bool allow_overflow>
+auto vector_resize(luisa::fixed_vector<T, node_count, allow_overflow> &vec, size_t size) noexcept {
+    return vec.resize_uninitialized(size);
+}
+
 template<typename T>
 auto size_bytes(const luisa::vector<T> &vec) noexcept {
     return vec.size_bytes();

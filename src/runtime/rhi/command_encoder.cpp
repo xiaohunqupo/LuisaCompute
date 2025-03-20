@@ -20,7 +20,7 @@ ShaderDispatchCmdEncoder::ShaderDispatchCmdEncoder(
     : _handle{handle}, _argument_count{arg_count} {
     if (auto arg_size_bytes = arg_count * sizeof(Argument)) {
         _argument_buffer.reserve(arg_size_bytes + uniform_size);
-        luisa::enlarge_by(_argument_buffer, arg_size_bytes);
+        luisa::vector_resize(_argument_buffer, arg_size_bytes);
     }
 }
 

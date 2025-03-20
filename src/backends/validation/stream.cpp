@@ -110,9 +110,12 @@ void Stream::dispatch() {
 }
 void Stream::mark_shader_dispatch(DeviceInterface *dev, ShaderDispatchCommandBase *cmd, bool contain_bindings) {
     size_t arg_idx = 0;
-    auto shader = RWResource::get<RWResource>(cmd->handle());
-    auto mark_handle = [&](uint64_t &handle, Range range) -> std::pair<RWResource *, Usage> {
-        auto res = RWResource::get<RWResource>(handle);
+    auto shader = RWResource::get<RWResource>(cmd->handle(), "shader");
+    auto mark_handle = [&](uint64_t &handle, Range range, luisa::string_view name) -> std::pair<RWResource *, Usage> {
+        auto res = RWResource::try_get<RWResource>(handle);
+        if (!res) {
+            LUISA_ERROR("Can not find {} in shader dispatch.", name);
+        }
         auto usage = dev->shader_argument_usage(cmd->handle(), arg_idx);
         res->set(this, usage, range);
         return {res, usage};
@@ -123,13 +126,13 @@ void Stream::mark_shader_dispatch(DeviceInterface *dev, ShaderDispatchCommandBas
                 if (arg.buffer.handle == invalid_resource_handle) [[unlikely]] {
                     LUISA_ERROR("Invalid shader dispatch buffer argument.");
                 }
-                mark_handle(arg.buffer.handle, Range{arg.buffer.offset, arg.buffer.size});
+                mark_handle(arg.buffer.handle, Range{arg.buffer.offset, arg.buffer.size}, "buffer");
             } break;
             case Argument::Tag::TEXTURE: {
                 if (arg.texture.handle == invalid_resource_handle) [[unlikely]] {
                     LUISA_ERROR("Invalid shader dispatch texture argument.");
                 }
-                auto tex_usage = mark_handle(arg.texture.handle, Range{arg.texture.level, 1});
+                auto tex_usage = mark_handle(arg.texture.handle, Range{arg.texture.level, 1}, "texture");
                 if (tex_usage.first->tag() == Resource::Tag::DEPTH_BUFFER && (luisa::to_underlying(tex_usage.second) & luisa::to_underlying(Usage::WRITE)) != 0) {
                     LUISA_ERROR("{} can not be written by kernel.", tex_usage.first->get_name());
                 }
@@ -138,13 +141,13 @@ void Stream::mark_shader_dispatch(DeviceInterface *dev, ShaderDispatchCommandBas
                 if (arg.bindless_array.handle == invalid_resource_handle) [[unlikely]] {
                     LUISA_ERROR("Invalid shader dispatch bindless argument.");
                 }
-                mark_handle(arg.bindless_array.handle, Range{});
+                mark_handle(arg.bindless_array.handle, Range{}, "bindless_array");
             } break;
             case Argument::Tag::ACCEL: {
                 if (arg.accel.handle == invalid_resource_handle) [[unlikely]] {
                     LUISA_ERROR("Invalid shader dispatch accel argument.");
                 }
-                mark_handle(arg.accel.handle, Range{});
+                mark_handle(arg.accel.handle, Range{}, "accel");
             } break;
             default:
                 break;

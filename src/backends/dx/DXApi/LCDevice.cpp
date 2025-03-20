@@ -649,7 +649,7 @@ void LCDevice::set_name(luisa::compute::Resource::Tag resource_tag, uint64_t res
             }
             auto instBuffer = reinterpret_cast<TopAccel *>(resource_handle)->GetInstBuffer();
             constexpr auto inst = L"_Instance"sv;
-            luisa::enlarge_by(vec, name.size() + inst.size() + 1);
+            luisa::vector_resize(vec, name.size() + inst.size() + 1);
             vec[vec.size() - 1] = 0;
             for (auto i : vstd::range(inst.size())) {
                 vec[name.size() + i] = inst[i];
@@ -685,7 +685,7 @@ void LCDevice::set_name(luisa::compute::Resource::Tag resource_tag, uint64_t res
         case Tag::SWAP_CHAIN: {
             size_t backBuffer = 0;
             for (auto &&i : reinterpret_cast<LCSwapChain *>(resource_handle)->m_renderTargets) {
-                luisa::enlarge_by(vec, name.size());
+                luisa::vector_resize(vec, name.size());
                 vec.push_back(L'_');
                 auto num = vstd::to_string(backBuffer);
                 for (auto &&i : num) {

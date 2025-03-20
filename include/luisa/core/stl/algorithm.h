@@ -13,11 +13,12 @@ namespace luisa {
 #ifdef LUISA_USE_SYSTEM_STL
 using std::transform;
 using std::swap;
+using std::binary_search;
 #else
 using eastl::transform;
 using eastl::swap;
+using eastl::binary_search;
 #endif
-
 template<pdqsort_detail::LinearIterable Iter>
 inline void sort(Iter begin, Iter end) {
     pdqsort(begin, end);

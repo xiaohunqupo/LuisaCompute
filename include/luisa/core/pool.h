@@ -104,6 +104,7 @@ public:
      * @return pointer to constructed object
      */
     template<typename... Args>
+    requires(luisa::is_constructible_v<T, Args&&...>)
     [[nodiscard]] auto create(Args &&...args) noexcept {
         auto p = allocate();
         return std::construct_at(p, std::forward<Args>(args)...);
