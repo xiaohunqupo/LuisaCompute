@@ -93,9 +93,14 @@ set_target_properties(luisa-compute-xir PROPERTIES
 luisa_compute_install(xir)
 
 if (LUISA_COMPUTE_ENABLE_XIR_TESTS)
+
     add_executable(test_aggregate_field_bitmasks tests/test_aggregate_field_bitmasks.cpp)
     target_link_libraries(test_aggregate_field_bitmasks PRIVATE luisa-compute-xir)
 
     add_executable(test_mem2reg tests/test_mem2reg.cpp)
     target_link_libraries(test_mem2reg PRIVATE luisa::compute)
+
+    add_executable(test_debug_printer tests/test_debug_printer.cpp)
+    target_link_libraries(test_debug_printer PRIVATE luisa::compute)
+
 endif ()

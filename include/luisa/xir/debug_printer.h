@@ -24,19 +24,22 @@ private:
 
 public:
     XIRDebugPrinter() noexcept;
+    ~XIRDebugPrinter() noexcept;
 
 public:
     void reset() noexcept;
     [[nodiscard]] size_t value_uid(const Value *value) noexcept;
     void emit_type(luisa::string &s, const Type *type) noexcept;
     void emit_value_name(luisa::string &s, const Value *value) noexcept;
+    void emit_value_debug_info(luisa::string &s, const Value *value) noexcept;
     void emit_operand(luisa::string &s, const Value *value) noexcept;
-    void emit_instruction(luisa::string &s, const Instruction *instruction, int indent = 0) noexcept;
-    void emit_basic_block(luisa::string &s, const BasicBlock *block, int indent = 0) noexcept;
+    void emit_instruction(luisa::string &s, const Instruction *instruction) noexcept;
+    void emit_basic_block(luisa::string &s, const BasicBlock *block) noexcept;
     void emit_constant(luisa::string &s, const Constant *value) noexcept;
     void emit_function_decl(luisa::string &s, const Function *function) noexcept;
     void emit_function(luisa::string &s, const Function *function) noexcept;
     void emit_module(luisa::string &s, const Module *module) noexcept;
+    void emit_metadata(luisa::string &s, const Metadata *metadata) noexcept;
 };
 
 }// namespace luisa::compute::xir

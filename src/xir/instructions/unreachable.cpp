@@ -4,18 +4,10 @@
 namespace luisa::compute::xir {
 
 UnreachableInst::UnreachableInst(BasicBlock *parent_block, luisa::string message) noexcept
-    : Super{parent_block}, _message{std::move(message)} {}
-
-void UnreachableInst::set_message(luisa::string_view message) noexcept {
-    _message = message;
-}
-
-luisa::string_view UnreachableInst::message() const noexcept {
-    return _message;
-}
+    : Super{std::move(message), parent_block} {}
 
 UnreachableInst *UnreachableInst::clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept {
-    return b.unreachable_(_message);
+    return b.unreachable_(message());
 }
 
 }// namespace luisa::compute::xir
