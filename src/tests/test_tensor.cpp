@@ -27,10 +27,9 @@ int main(int argc, char *argv[]) {
     auto c_expr = builder.root_expr().allocate_expr<TestExpr>(b, c, "C");
     auto b_expr = builder.root_expr().allocate_expr<TestExpr>(b, c, "B");
     auto e_expr = builder.root_expr().allocate_expr<TestExpr>(d, e, "E");
-    ExprTopo topo(
+    auto sorted =  ExprTopo::topo_sort(
         builder.root_expr().expressions,
         builder.allocated_tensor().size());
-    auto sorted = topo.topo_sort();
     LUISA_INFO("size {}", sorted.size());
     for(auto& i : sorted) {
         LUISA_INFO("{}", static_cast<TestExpr*>(i)->name);
