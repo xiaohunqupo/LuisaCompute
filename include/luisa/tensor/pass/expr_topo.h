@@ -4,10 +4,6 @@
 
 namespace luisa::compute {
 class LC_TENSOR_API ExprTopo {
-    enum struct Usage {
-        READ,
-        WRITE
-    };
     struct ExprDependency {
         TensorExpr *self;
         // this expr depends on

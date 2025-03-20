@@ -17,14 +17,11 @@ ExprTopo::ExprTopo(luisa::span<TensorExpr *const> exprs, size_t tensor_count) no
     _tensor_depends.resize(tensor_count);
     // Mark all tensor
     for (auto &i : exprs) {
-        for (auto &read : i->read_tensors()) {
-            auto &tensor_dep = _tensor_depends[read->idx()];
-            tensor_dep.depend_exprs.emplace_back(i, Usage::READ);
-        }
-        for (auto &write : i->write_tensors()) {
-            auto &tensor_dep = _tensor_depends[write->idx()];
-            tensor_dep.depend_exprs.emplace_back(i, Usage::WRITE);
-        }
+        auto callback = [&](TensorData *data, Usage usage) {
+            auto &tensor_dep = _tensor_depends[data->idx()];
+            tensor_dep.depend_exprs.emplace_back(i, usage);
+        };
+        i->get_tensors(vstd::make_func_ref(callback));
     }
     // iterate tensors to mark depend
     for (auto &i : _tensor_depends) {

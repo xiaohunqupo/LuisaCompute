@@ -4,13 +4,6 @@
 #include <luisa/core/logging.h>
 
 namespace luisa::compute {
-/////////////// Static assert
-#define LUISA_TENSOR_EXPR_STATIC_ASSERT(CMD) static_assert(std::is_trivially_destructible_v<CMD>, "Expr type must be trivially destructible.");
-LUISA_MAP(LUISA_TENSOR_EXPR_STATIC_ASSERT, LUISA_COMPUTE_TENSOR_EXPRRESSIONS)
-#undef LUISA_TENSOR_EXPR_STATIC_ASSERT
-static_assert(std::is_trivially_destructible_v<TensorData>, "Tensor data must be trivially destructible.");
-/////////////// Static assert
-
 TensorData::TensorData(luisa::span<uint32_t const> sizes,
                        TensorElementType element_type,
                        uint64_t uid) noexcept
@@ -78,17 +71,14 @@ TensorData *TensorBuilder::allocate_tensor(
     _allocated_tensor.emplace_back(ptr);
     return ptr;
 }
-TensorBuilder::TensorBuilder() noexcept {}
+TensorBuilder::TensorBuilder() noexcept : _root_expr(~0ull) {}
 TensorBuilder::~TensorBuilder() noexcept {
-    for (auto &i : _stack_allocator) {
-        luisa::detail::allocator_deallocate(i.ptr, 0);
-    }
 }
 void *TensorBuilder::allocate_stack(size_t size_bytes, size_t alignment) noexcept {
     for (auto &i : _stack_allocator) {
         auto aligned_offset = (i.offset + alignment - 1ull) & (~(alignment - 1ull));
         if (i.size - aligned_offset >= size_bytes) {
-            auto result = reinterpret_cast<std::byte *>(i.ptr) + aligned_offset;
+            auto result = i.ptr.get() + aligned_offset;
             i.offset = aligned_offset + size_bytes;
             return result;
         }
@@ -99,11 +89,10 @@ void *TensorBuilder::allocate_stack(size_t size_bytes, size_t alignment) noexcep
     }
     return _stack_allocator
         .emplace_back(
-            Stack{
-                .ptr = luisa::detail::allocator_allocate(init_size, 0),
-                .size = init_size,
-                .offset = size_bytes})
-        .ptr;
+            static_cast<std::byte *>(luisa::detail::allocator_allocate(init_size, 0)),
+            init_size,
+            size_bytes)
+        .ptr.get();
 }
 
 TensorBuilder *TensorBuilder::get_thd_local() {

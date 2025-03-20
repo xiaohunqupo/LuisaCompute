@@ -22,13 +22,13 @@ int main(int argc, char *argv[]) {
     auto c = builder.allocate_tensor(luisa::span{sizes.begin(), sizes.size()}, TensorElementType::Float32);
     auto d = builder.allocate_tensor(luisa::span{sizes.begin(), sizes.size()}, TensorElementType::Float32);
     auto e = builder.allocate_tensor(luisa::span{sizes.begin(), sizes.size()}, TensorElementType::Float32);
-    auto a_expr = builder.allocate_expr<TestExpr>(a, b, "A");
-    auto d_expr = builder.allocate_expr<TestExpr>(c, d, "D");
-    auto c_expr = builder.allocate_expr<TestExpr>(b, c, "C");
-    auto b_expr = builder.allocate_expr<TestExpr>(b, c, "B");
-    auto e_expr = builder.allocate_expr<TestExpr>(d, e, "E");
+    auto a_expr = builder.root_expr().allocate_expr<TestExpr>(a, b, "A");
+    auto d_expr = builder.root_expr().allocate_expr<TestExpr>(c, d, "D");
+    auto c_expr = builder.root_expr().allocate_expr<TestExpr>(b, c, "C");
+    auto b_expr = builder.root_expr().allocate_expr<TestExpr>(b, c, "B");
+    auto e_expr = builder.root_expr().allocate_expr<TestExpr>(d, e, "E");
     ExprTopo topo(
-        builder.tensor_expr(),
+        builder.root_expr().expressions,
         builder.allocated_tensor().size());
     auto sorted = topo.topo_sort();
     LUISA_INFO("size {}", sorted.size());

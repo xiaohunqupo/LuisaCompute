@@ -33,22 +33,15 @@ LC_VSTL_API void vengine_log(char const *chunk);
 class
 namespace vstd {
 template<typename T, typename... Args>
+    requires(luisa::is_constructible_v<T, Args && ...>)
+constexpr void construct_at(T *ptr, Args &&...args) noexcept {
+    std::construct_at(ptr, std::forward<Args>(args)...);
+}
+template<typename T, typename... Args>
     requires(!std::is_const_v<T> && luisa::is_constructible_v<T, Args && ...>)
 void reset(T &v, Args &&...args) {
-    v.~T();
-    new (std::launder(&v)) T(std::forward<Args>(args)...);
-}
-template<typename T>
-constexpr void destruct(T *ptr) noexcept {
-    if constexpr (!std::is_void_v<T> && !std::is_trivially_destructible_v<T>) {
-        ptr->~T();
-    }
-}
-
-template<typename T, typename... Args>
-    requires(luisa::is_constructible_v<T, Args && ...>)
-constexpr T *construct(T *ptr, Args &&...args) noexcept {
-    return ::new (std::launder(ptr)) T(std::forward<Args>(args)...);
+    std::destroy_at(std::addressof(v));
+    std::construct_at(&v, std::forward<Args>(args)...);
 }
 
 template<typename T>
@@ -112,7 +105,7 @@ public:
     }
     inline void destroy() noexcept {
         if constexpr (!std::is_trivially_destructible_v<T>)
-            vstd::destruct(std::launder(reinterpret_cast<T *>(storage)));
+            std::destroy_at(reinterpret_cast<T *>(storage));
     }
     T &operator*() & noexcept {
         return *std::launder(reinterpret_cast<T *>(storage));
@@ -635,7 +628,7 @@ private:
     void m_dispose() {
         if constexpr (detail::AnyMap<std::is_trivially_destructible, true>::template Run<AA...>()) {
             auto disposeFunc = [&]<typename T>(T &value) {
-                vstd::destruct(std::addressof(value));
+                std::destroy_at(std::addressof(value));
             };
             visit(disposeFunc);
         }
@@ -1106,17 +1099,17 @@ struct compare<variant<T...>> {
             return (a.index() > idx) ? 1 : -1;
     }
 };
-#define VSTD_TRIVIAL_COMPARABLE(T)               \
-    bool operator==(T const &a) const {          \
+#define VSTD_TRIVIAL_COMPARABLE(T)                    \
+    bool operator==(T const &a) const {               \
         return std::memcmp(this, &a, sizeof(T)) == 0; \
-    }                                            \
-    bool operator!=(T const &a) const {          \
+    }                                                 \
+    bool operator!=(T const &a) const {               \
         return std::memcmp(this, &a, sizeof(T)) != 0; \
-    }                                            \
-    bool operator>(T const &a) const {           \
+    }                                                 \
+    bool operator>(T const &a) const {                \
         return std::memcmp(this, &a, sizeof(T)) > 0;  \
-    }                                            \
-    bool operator<(T const &a) const {           \
+    }                                                 \
+    bool operator<(T const &a) const {                \
         return std::memcmp(this, &a, sizeof(T)) < 0;  \
     }
 class IOperatorNewBase {

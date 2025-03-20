@@ -71,7 +71,7 @@ public:
         requires(std::is_invocable_r_v<Ret, F, Args && ...>)
     SharedFunction &operator=(F &&f) noexcept {
         _dispose();
-        new (std::launder(this)) SharedFunction(std::forward<F>(f));
+        std::construct_at(this, std::forward<F>(f));
         return *this;
     }
     template<typename FuncPtr_Ret, typename... FuncPtr_Args>
@@ -99,7 +99,7 @@ public:
         requires(std::is_invocable_r_v<Ret, FuncPtr_Ret (*)(FuncPtr_Args...), Args && ...>)
     SharedFunction &operator=(FuncPtr_Ret (*func_ptr)(FuncPtr_Args...)) noexcept {
         _dispose();
-        new (std::launder(this)) SharedFunction(func_ptr);
+        std::construct_at(this, func_ptr);
         return *this;
     }
     SharedFunction(SharedFunction const &x) noexcept {
@@ -120,12 +120,13 @@ public:
         if (&x == this) [[unlikely]]
             return *this;
         _dispose();
-        new (std::launder(this)) SharedFunction(x);
+        std::destroy_at(this);
+        std::construct_at(this, x);
         return *this;
     }
     SharedFunction &operator=(SharedFunction &&x) noexcept {
         _dispose();
-        new (std::launder(this)) SharedFunction(std::move(x));
+        std::construct_at(this, std::move(x));
         return *this;
     }
 };
