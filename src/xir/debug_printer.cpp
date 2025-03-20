@@ -102,8 +102,6 @@ void XIRDebugPrinter::emit_value_name(luisa::string &s, const Value *value) noex
         s.append("null"sv);
         return;
     }
-    switch (value->derived_value_tag()) {
-    }
     if (value->isa<SpecialRegister>()) {
         auto sreg = static_cast<const SpecialRegister *>(value);
         luisa::format_to(std::back_inserter(s), "%{}",
@@ -114,17 +112,70 @@ void XIRDebugPrinter::emit_value_name(luisa::string &s, const Value *value) noex
     luisa::format_to(std::back_inserter(s), "%{}", uid);
 }
 
-void XIRDebugPrinter::emit_operand(luisa::string &s, const Value *value, NestedBlockFormat block_format) noexcept {
-    if (value == nullptr || value->isa<SpecialRegister>()) {
-        emit_value_name(s, value);
-        return;
+void XIRDebugPrinter::emit_operand(luisa::string &s, const Value *value) noexcept {
+    if (value == nullptr) {
+        return emit_value_name(s, value);
+    }
+    if (!value->isa<BasicBlock>() && !value->isa<Function>()) {
+        emit_type(s, value->type());
+        s.append(" "sv);
+    }
+    if (value->isa<SpecialRegister>()) {
+        return emit_value_name(s, value);
+    }
+    luisa::format_to(std::back_inserter(s), " {} ",
+                     xir::to_string(value->derived_value_tag()));
+    emit_value_name(s, value);
+}
+
+void XIRDebugPrinter::emit_instruction(luisa::string &s, const Instruction *instruction, int indent) noexcept {
+    LUISA_DEBUG_ASSERT(instruction != nullptr);
+    s.append(2 * indent, ' ');
+    emit_type(s, instruction->type());
+    s.append(" "sv);
+    emit_value_name(s, instruction);
+    luisa::format_to(std::back_inserter(s), " = {}", instruction->intrinsic_identifier());
+    switch (instruction->derived_instruction_tag()) {
+        case DerivedInstructionTag::IF: break;
+        case DerivedInstructionTag::SWITCH: break;
+        case DerivedInstructionTag::LOOP: break;
+        case DerivedInstructionTag::SIMPLE_LOOP: break;
+        case DerivedInstructionTag::BRANCH: break;
+        case DerivedInstructionTag::CONDITIONAL_BRANCH: break;
+        case DerivedInstructionTag::UNREACHABLE: break;
+        case DerivedInstructionTag::BREAK: break;
+        case DerivedInstructionTag::CONTINUE: break;
+        case DerivedInstructionTag::RETURN: break;
+        case DerivedInstructionTag::RASTER_DISCARD: break;
+        case DerivedInstructionTag::PHI: break;
+        case DerivedInstructionTag::ALLOCA: break;
+        case DerivedInstructionTag::LOAD: break;
+        case DerivedInstructionTag::STORE: break;
+        case DerivedInstructionTag::GEP: break;
+        case DerivedInstructionTag::ATOMIC: break;
+        case DerivedInstructionTag::ARITHMETIC: break;
+        case DerivedInstructionTag::THREAD_GROUP: break;
+        case DerivedInstructionTag::RESOURCE_QUERY: break;
+        case DerivedInstructionTag::RESOURCE_READ: break;
+        case DerivedInstructionTag::RESOURCE_WRITE: break;
+        case DerivedInstructionTag::RAY_QUERY_LOOP: break;
+        case DerivedInstructionTag::RAY_QUERY_DISPATCH: break;
+        case DerivedInstructionTag::RAY_QUERY_OBJECT_READ: break;
+        case DerivedInstructionTag::RAY_QUERY_OBJECT_WRITE: break;
+        case DerivedInstructionTag::RAY_QUERY_PIPELINE: break;
+        case DerivedInstructionTag::AUTODIFF_SCOPE: break;
+        case DerivedInstructionTag::AUTODIFF_INTRINSIC: break;
+        case DerivedInstructionTag::CALL: break;
+        case DerivedInstructionTag::CAST: break;
+        case DerivedInstructionTag::PRINT: break;
+        case DerivedInstructionTag::CLOCK: break;
+        case DerivedInstructionTag::ASSERT: break;
+        case DerivedInstructionTag::ASSUME: break;
+        case DerivedInstructionTag::OUTLINE: break;
     }
 }
 
-void XIRDebugPrinter::emit_instruction(luisa::string &s, const Instruction *instruction, NestedBlockFormat block_format) noexcept {
-}
-
-void XIRDebugPrinter::emit_basic_block(luisa::string &s, const BasicBlock *block, NestedBlockFormat block_format) noexcept {
+void XIRDebugPrinter::emit_basic_block(luisa::string &s, const BasicBlock *block, int indent) noexcept {
 }
 
 void XIRDebugPrinter::emit_constant(luisa::string &s, const Constant *value) noexcept {
@@ -134,10 +185,23 @@ void XIRDebugPrinter::emit_function_decl(luisa::string &s, const Function *funct
 }
 
 void XIRDebugPrinter::emit_function(luisa::string &s, const Function *function) noexcept {
+    emit_function_decl(s, function);
+    if (auto def = function->definition()) {
+
+    }
 }
 
 void XIRDebugPrinter::emit_module(luisa::string &s, const Module *module) noexcept {
-    for (auto &sreg : module->special_register_list()) {
+    for (auto &c : module->constant_list()) {
+        emit_constant(s, &c);
+        s.append("\n"sv);
+    }
+    if (!module->constant_list().empty()) {
+        s.append("\n"sv);
+    }
+    for (auto &f : module->function_list()) {
+        emit_function(s, &f);
+        s.append("\n\n"sv);
     }
 }
 

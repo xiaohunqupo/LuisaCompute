@@ -3,15 +3,11 @@
 
 namespace luisa::compute::xir {
 
-AllocaInst::AllocaInst(BasicBlock *parent_block, const Type *type, AllocSpace space) noexcept
-    : Super{parent_block, type}, _space{space} {}
-
-void AllocaInst::set_space(AllocSpace space) noexcept {
-    _space = space;
-}
+AllocaInst::AllocaInst(BasicBlock *parent_block, const Type *type, AllocaOp op) noexcept
+    : Super{op, parent_block, type} {}
 
 AllocaInst *AllocaInst::clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept {
-    return b.alloca_(type(), space());
+    return b.alloca_(type(), op());
 }
 
 }// namespace luisa::compute::xir

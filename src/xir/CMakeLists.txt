@@ -32,7 +32,7 @@ set(LUISA_COMPUTE_XIR_SOURCES
         instructions/if.cpp
         instructions/load.cpp
         instructions/loop.cpp
-        instructions/op_name_map.cpp
+        op.cpp
         instructions/outline.cpp
         instructions/phi.cpp
         instructions/print.cpp

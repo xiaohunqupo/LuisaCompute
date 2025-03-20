@@ -8,7 +8,7 @@ namespace luisa::compute::xir {
 
 RayQueryObjectReadInst::RayQueryObjectReadInst(BasicBlock *parent_block, const Type *type,
                                                RayQueryObjectReadOp op, luisa::span<Value *const> operands) noexcept
-    : Super{parent_block, type}, InstructionOpMixin{op} { set_operands(operands); }
+    : Super{op, parent_block, type} { set_operands(operands); }
 
 RayQueryObjectReadInst *RayQueryObjectReadInst::clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept {
     luisa::fixed_vector<Value *, 16u> resolved_ops;
@@ -21,7 +21,7 @@ RayQueryObjectReadInst *RayQueryObjectReadInst::clone(XIRBuilder &b, Instruction
 
 RayQueryObjectWriteInst::RayQueryObjectWriteInst(BasicBlock *parent_block, RayQueryObjectWriteOp op,
                                                  luisa::span<Value *const> operands) noexcept
-    : Super{parent_block, nullptr}, InstructionOpMixin{op} { set_operands(operands); }
+    : Super{op, parent_block, nullptr} { set_operands(operands); }
 
 RayQueryObjectWriteInst *RayQueryObjectWriteInst::clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept {
     luisa::fixed_vector<Value *, 16u> resolved_ops;

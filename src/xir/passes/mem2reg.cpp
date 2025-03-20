@@ -14,7 +14,7 @@ namespace detail {
 
 [[nodiscard]] static bool is_alloca_promotable(AllocaInst *inst) noexcept {
     // check if it's a local variable
-    if (inst->space() != AllocSpace::LOCAL) { return false; }
+    if (inst->op() != AllocaOp::LOCAL) { return false; }
     // check if it's used as reference in other instructions than load/store
     for (auto &&use : inst->use_list()) {
         if (auto user = use.user()) {

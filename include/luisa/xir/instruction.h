@@ -2,6 +2,7 @@
 
 #include <luisa/core/concepts.h>
 #include <luisa/xir/user.h>
+#include <luisa/xir/op.h>
 
 namespace luisa::compute::xir {
 
@@ -132,6 +133,10 @@ public:
     explicit Instruction(BasicBlock *parent_block, const Type *type) noexcept;
     [[nodiscard]] virtual DerivedInstructionTag derived_instruction_tag() const noexcept = 0;
     [[nodiscard]] virtual Instruction *clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept = 0;
+
+    [[nodiscard]] virtual luisa::string intrinsic_identifier() const noexcept {
+        return luisa::string{xir::to_string(derived_instruction_tag())};
+    }
 
     void remove_self() noexcept override;
     void insert_before_self(Instruction *node) noexcept override;
@@ -280,14 +285,26 @@ public:
     [[nodiscard]] ControlFlowMerge *control_flow_merge() noexcept final { return this; }
 };
 
-template<typename OpType>
-class InstructionOpMixin {
+template<typename OpType, typename Base>
+    requires std::derived_from<Base, Instruction>
+class InstructionOpMixin : public Base {
 
 private:
     OpType _op;
 
 public:
-    explicit InstructionOpMixin(OpType op) noexcept : _op{op} {}
+    using Super = InstructionOpMixin;
+
+    template<typename... Args>
+    explicit InstructionOpMixin(OpType op, Args &&...args) noexcept
+        : Base{std::forward<Args>(args)...}, _op{op} {}
+
+    [[nodiscard]] luisa::string intrinsic_identifier() const noexcept override {
+        return Base::intrinsic_identifier()
+            .append("::")
+            .append(xir::to_string(op()));
+    }
+
     [[nodiscard]] OpType op() const noexcept { return _op; }
     void set_op(OpType op) noexcept { _op = op; }
 };
