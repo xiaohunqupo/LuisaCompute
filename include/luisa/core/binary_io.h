@@ -33,8 +33,8 @@ public:
     }
     BinaryBlob &operator=(BinaryBlob const &rhs) noexcept = delete;
     BinaryBlob &operator=(BinaryBlob &&rhs) noexcept {
-        this->~BinaryBlob();
-        new (std::launder(this)) BinaryBlob{std::move(rhs)};
+        std::destroy_at(this);
+        std::construct_at(this, std::move(rhs));
         return *this;
     }
     ~BinaryBlob() noexcept {

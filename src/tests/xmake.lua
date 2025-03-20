@@ -170,6 +170,7 @@ if get_config("dx_backend") then
     end
     test_proj("test_dml")
     -- test_proj("test_matrix_multiply")
+    -- test_proj("test_conv")
     -- test_proj("test_tensor", false, function()
     --     add_deps("lc-tensor")
     -- end)
