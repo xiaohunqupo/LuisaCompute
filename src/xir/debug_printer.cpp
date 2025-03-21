@@ -104,7 +104,88 @@ void XIRDebugPrinter::emit_type(luisa::string &s, const Type *type) noexcept {
 namespace {
 
 void print_literal(luisa::string &s, const Type *type, const void *data) noexcept {
-    s.append("[placeholder]"sv);// TODO
+    LUISA_DEBUG_ASSERT(type != nullptr, "Type should not be null.");
+    auto print_scalar = [&]<typename T>(T x) noexcept {
+        std::memcpy(&x, data, sizeof(T));
+        if constexpr (std::is_same_v<T, bool>) {
+            s.append(x ? "true"sv : "false"sv);
+        } else if constexpr (luisa::is_floating_point_v<T>) {
+            luisa::format_to(std::back_inserter(s), "{}", static_cast<double>(x));
+        } else if constexpr (luisa::is_signed_integral_v<T>) {
+            luisa::format_to(std::back_inserter(s), "{}", static_cast<int64_t>(x));
+        } else if constexpr (luisa::is_unsigned_integral_v<T>) {
+            luisa::format_to(std::back_inserter(s), "{}", static_cast<uint64_t>(x));
+        }
+    };
+    switch (type->tag()) {
+        case Type::Tag::BOOL: print_scalar(bool{}); break;
+        case Type::Tag::INT8: print_scalar(int8_t{}); break;
+        case Type::Tag::UINT8: print_scalar(uint8_t{}); break;
+        case Type::Tag::INT16: print_scalar(int16_t{}); break;
+        case Type::Tag::UINT16: print_scalar(uint16_t{}); break;
+        case Type::Tag::INT32: print_scalar(int32_t{}); break;
+        case Type::Tag::UINT32: print_scalar(uint32_t{}); break;
+        case Type::Tag::INT64: print_scalar(int64_t{}); break;
+        case Type::Tag::UINT64: print_scalar(uint64_t{}); break;
+        case Type::Tag::FLOAT16: print_scalar(half{}); break;
+        case Type::Tag::FLOAT32: print_scalar(float{}); break;
+        case Type::Tag::FLOAT64: print_scalar(double{}); break;
+        case Type::Tag::VECTOR: {
+            auto elem_stride = type->element()->size();
+            auto elem_count = type->dimension();
+            s.append("<"sv);
+            auto p = static_cast<const std::byte *>(data);
+            for (auto i = 0u; i < elem_count; i++) {
+                if (i != 0u) { s.append(", "sv); }
+                print_literal(s, type->element(), p);
+                p += elem_stride;
+            }
+            s.append(">"sv);
+            break;
+        }
+        case Type::Tag::MATRIX: {
+            auto dim = type->dimension();
+            auto col_type = Type::vector(type->element(), dim);
+            auto col_stride = col_type->size();
+            auto p = static_cast<const std::byte *>(data);
+            s.append("("sv);
+            for (auto i = 0u; i < dim; i++) {
+                if (i != 0u) { s.append(", "sv); }
+                print_literal(s, col_type, p);
+                p += col_stride;
+            }
+            s.append(")"sv);
+            break;
+        }
+        case Type::Tag::ARRAY: {
+            auto elem_stride = type->element()->size();
+            auto elem_count = type->dimension();
+            s.append("["sv);
+            auto p = static_cast<const std::byte *>(data);
+            for (auto i = 0u; i < elem_count; i++) {
+                if (i != 0u) { s.append(", "sv); }
+                print_literal(s, type->element(), p);
+                p += elem_stride;
+            }
+            s.append("]"sv);
+            break;
+        }
+        case Type::Tag::STRUCTURE: {
+            auto members = type->members();
+            auto p = static_cast<const std::byte *>(data);
+            s.append("{");
+            for (auto i = 0u; i < members.size(); i++) {
+                if (i != 0u) { s.append(", "sv); }
+                print_literal(s, members[i], p);
+                p += members[i]->size();
+            }
+            s.append("}"sv);
+            break;
+        }
+        default: LUISA_ERROR_WITH_LOCATION(
+            "Invalid constant type: {}",
+            type == nullptr ? "void" : type->description());
+    }
 }
 
 }// namespace
@@ -116,8 +197,11 @@ void XIRDebugPrinter::emit_value_name(luisa::string &s, const Value *value) noex
     }
     if (value->isa<SpecialRegister>()) {
         auto sreg = static_cast<const SpecialRegister *>(value);
-        luisa::format_to(std::back_inserter(s), "%{}",
-                         xir::to_string(sreg->derived_special_register_tag()));
+        s.append(xir::to_string(sreg->derived_special_register_tag()));
+        return;
+    }
+    if (value->isa<Undefined>()) {
+        s.append(xir::to_string(Undefined::static_derived_value_tag()));
         return;
     }
     if (value->isa<Constant>() && value->type()->is_basic()) {

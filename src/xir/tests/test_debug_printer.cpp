@@ -9,21 +9,20 @@ int main(int argc, char *argv[]) {
         return 1u;
     };
 
-
-
     Kernel1D kernel = [&](BufferUInt buffer, UInt n, AccelVar accel) noexcept {
+        Constant ccc{make_half2(1._h), make_half2(2._h)};
         auto z = def(1u);
         $loop {
             UInt x;
             x = 2u;
-            x = 2u;
+            x = dispatch_x();
             n -= just_one();
             $if (n == 1u) {
                 $break;
             };
             z *= x;
         };
-        device_log("你好, {} World!", z);
+        device_log("你好, {} World! {}", z, ccc[1]);
         buffer->write(0u, z);
         auto h = accel->traverse_any(make_ray(make_float3(), make_float3()), {}).trace();
     };
