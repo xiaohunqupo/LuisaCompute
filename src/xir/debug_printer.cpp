@@ -20,6 +20,11 @@ struct XIRDebugPrinter::Impl {
     void reset() noexcept {
         value_indices.clear();
     }
+
+    [[nodiscard]] auto index_of(const Value *value) noexcept {
+        auto it = value_indices.try_emplace(value, value_indices.size());
+        return it.first->second;
+    }
 };
 
 XIRDebugPrinter::XIRDebugPrinter() noexcept
@@ -29,11 +34,6 @@ XIRDebugPrinter::~XIRDebugPrinter() noexcept = default;
 
 void XIRDebugPrinter::reset() noexcept {
     _impl->reset();
-}
-
-size_t XIRDebugPrinter::value_uid(const Value *value) noexcept {
-    auto it = _impl->value_indices.try_emplace(value, _impl->value_indices.size());
-    return it.first->second;
 }
 
 void XIRDebugPrinter::emit_type(luisa::string &s, const Type *type) noexcept {
@@ -74,7 +74,7 @@ void XIRDebugPrinter::emit_type(luisa::string &s, const Type *type) noexcept {
             break;
         }
         case Type::Tag::STRUCTURE: {
-            luisa::format_to(std::back_inserter(s), "{{{}", type->alignment());
+            luisa::format_to(std::back_inserter(s), "{{align {}", type->alignment());
             for (auto m : type->members()) {
                 s.append(", "sv);
                 emit_type(s, m);
@@ -96,10 +96,18 @@ void XIRDebugPrinter::emit_type(luisa::string &s, const Type *type) noexcept {
         }
         case Type::Tag::BINDLESS_ARRAY: s.append("Bindless"sv); break;
         case Type::Tag::ACCEL: s.append("Accel"sv); break;
-        case Type::Tag::CUSTOM: s.append(R"(")").append(type->description()).append(R"(")"); break;
+        case Type::Tag::CUSTOM: s.append(R"(T")").append(type->description()).append(R"(")"); break;
         default: LUISA_ERROR_WITH_LOCATION("Unknown type");
     }
 }
+
+namespace {
+
+void print_literal(luisa::string &s, const Type *type, const void *data) noexcept {
+    s.append("[placeholder]"sv);// TODO
+}
+
+}// namespace
 
 void XIRDebugPrinter::emit_value_name(luisa::string &s, const Value *value) noexcept {
     if (value == nullptr) {
@@ -112,12 +120,12 @@ void XIRDebugPrinter::emit_value_name(luisa::string &s, const Value *value) noex
                          xir::to_string(sreg->derived_special_register_tag()));
         return;
     }
-    auto uid = value_uid(value);
-    if (value->is_lvalue()) {
-        luisa::format_to(std::back_inserter(s), "*%{}", uid);
-    } else {
-        luisa::format_to(std::back_inserter(s), "%{}", uid);
+    if (value->isa<Constant>() && value->type()->is_basic()) {
+        return print_literal(s, value->type(), static_cast<const Constant *>(value)->data());
     }
+    auto uid = _impl->index_of(value);
+    if (value->is_lvalue()) { s.append("*"sv); }
+    luisa::format_to(std::back_inserter(s), "%{}", uid);
 }
 
 void XIRDebugPrinter::emit_value_debug_info(luisa::string &s, const Value *value) noexcept {
@@ -127,14 +135,14 @@ void XIRDebugPrinter::emit_value_debug_info(luisa::string &s, const Value *value
         s.append(prefix);
         if (!value->metadata_list().empty()) {
             any_info = true;
-            s.append("metadata = ["sv);
+            s.append("metadata = {"sv);
             for (auto &m : value->metadata_list()) {
                 emit_metadata(s, &m);
                 s.append(", "sv);
             }
             s.pop_back();
             s.pop_back();
-            s.append("], "sv);
+            s.append("}, "sv);
         }
         if (value->isa<Instruction>()) {
             auto inst = static_cast<const Instruction *>(value);
@@ -147,14 +155,32 @@ void XIRDebugPrinter::emit_value_debug_info(luisa::string &s, const Value *value
         }
         if (!value->use_list().empty()) {
             any_info = true;
-            s.append("users = ["sv);
+            s.append("users = {"sv);
             for (auto &use : value->use_list()) {
                 emit_value_name(s, use.user());
                 s.append(", "sv);
             }
             s.pop_back();
             s.pop_back();
-            s.append("], "sv);
+            s.append("}, "sv);
+        }
+        if (value->isa<BasicBlock>()) {
+            auto bb = static_cast<const BasicBlock *>(value);
+            auto any_pred = false;
+            bb->traverse_predecessors(false, [&](const BasicBlock *pred) noexcept {
+                if (any_pred == false) {
+                    any_pred = true;
+                    s.append("preds = {"sv);
+                }
+                emit_value_name(s, pred);
+                s.append(", "sv);
+            });
+            if (any_pred) {
+                any_info = true;
+                s.pop_back();
+                s.pop_back();
+                s.append("}, "sv);
+            }
         }
         if (any_info) {
             s.pop_back();
@@ -201,7 +227,6 @@ void XIRDebugPrinter::emit_instruction(luisa::string &s, const Instruction *inst
         }
         emit_operand(s, op_use->value());
     }
-    s.append(";"sv);
     emit_value_debug_info(s, instruction);
 }
 
@@ -225,15 +250,46 @@ void XIRDebugPrinter::emit_basic_block(luisa::string &s, const BasicBlock *block
 }
 
 void XIRDebugPrinter::emit_constant(luisa::string &s, const Constant *value) noexcept {
+    LUISA_DEBUG_ASSERT(value != nullptr);
+    luisa::format_to(std::back_inserter(s), "{} ",
+                     xir::to_string(Constant::static_derived_value_tag()));
+    emit_value_name(s, value);
+    s.append(": "sv);
+    emit_type(s, value->type());
+    s.append(" "sv);
+    print_literal(s, value->type(), value->data());
+    emit_value_debug_info(s, value);
 }
 
 void XIRDebugPrinter::emit_function_decl(luisa::string &s, const Function *function) noexcept {
+    LUISA_DEBUG_ASSERT(function != nullptr);
+    luisa::format_to(std::back_inserter(s), "{} ",
+                     xir::to_string(Function::static_derived_value_tag()));
+    emit_value_name(s, function);
+    s.append(": "sv);
+    emit_type(s, function->type());
+    luisa::format_to(std::back_inserter(s), " {}"sv,
+                     xir::to_string(function->derived_function_tag()));
+    emit_value_debug_info(s, function);
+    s.append("\n"sv);
+    s.append("("sv);
+    for (auto arg : function->arguments()) {
+        s.append("\n  "sv);
+        emit_value_name(s, arg);
+        s.append(": "sv);
+        emit_type(s, arg->type());
+        emit_value_debug_info(s, arg);
+    }
+    if (!function->arguments().empty()) {
+        s.append("\n"sv);
+    }
+    s.append(")"sv);
 }
 
 void XIRDebugPrinter::emit_function(luisa::string &s, const Function *function) noexcept {
     emit_function_decl(s, function);
     if (auto def = function->definition()) {
-        s.append("\n{"sv);
+        s.append(" {"sv);
         def->traverse_basic_blocks(
             BasicBlockTraversalOrder::REVERSE_POST_ORDER,
             [this, &s](const BasicBlock *block) {
@@ -241,19 +297,27 @@ void XIRDebugPrinter::emit_function(luisa::string &s, const Function *function) 
                 s.append("\n"sv);
             });
         s.append("}"sv);
-    } else {
-        s.append(";"sv);
     }
 }
 
 void XIRDebugPrinter::emit_module(luisa::string &s, const Module *module) noexcept {
+    s.append("module"sv);
+    if (auto name = module->name()) {
+        luisa::format_to(std::back_inserter(s), "({})", name.value());
+    }
+    s.append("\n");
+    auto any_const = false;
     for (auto &c : module->constant_list()) {
-        emit_constant(s, &c);
+        if (!c.type()->is_basic()) {
+            any_const = true;
+            s.append("\n"sv);
+            emit_constant(s, &c);
+        }
+    }
+    if (any_const) {
         s.append("\n"sv);
     }
-    if (!module->constant_list().empty()) {
-        s.append("\n"sv);
-    }
+    s.append("\n"sv);
     for (auto &f : module->function_list()) {
         emit_function(s, &f);
         s.append("\n\n"sv);

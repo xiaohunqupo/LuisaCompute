@@ -28,7 +28,6 @@ public:
 
 public:
     void reset() noexcept;
-    [[nodiscard]] size_t value_uid(const Value *value) noexcept;
     void emit_type(luisa::string &s, const Type *type) noexcept;
     void emit_value_name(luisa::string &s, const Value *value) noexcept;
     void emit_value_debug_info(luisa::string &s, const Value *value) noexcept;
