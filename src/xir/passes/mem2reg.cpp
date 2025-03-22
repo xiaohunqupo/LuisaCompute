@@ -101,7 +101,7 @@ static void remove_alloca(AllocaInst *alloca_inst, Mem2RegInfo &info) noexcept {
 
 struct PhiInsertionAndRenaming {
     luisa::unordered_map<BasicBlock *, PhiInst *> block_to_phi;
-    luisa::unordered_map<BasicBlock *, Value *> out_values;
+    luisa::unordered_map<BasicBlock *, Value *> out_value_phis;
 
     // the following fields are used across the processing of different alloca's
     luisa::vector<PhiInst *> inserted;
@@ -119,7 +119,12 @@ struct PhiInsertionAndRenaming {
             while (node != analysis.dom.root()) {
                 auto parent = node->parent();
                 LUISA_DEBUG_ASSERT(parent != nullptr, "Invalid parent.");
-                if (auto iter = out_values.find(parent->block()); iter != out_values.end()) {
+                // store must have higher priority than phi nodes as it's closer to the use block
+                if (auto iter = analysis.def_blocks.find(parent->block()); iter != analysis.def_blocks.end()) {
+                    return iter->second->value();
+                }
+                // check phi nodes if no store is found
+                if (auto iter = out_value_phis.find(parent->block()); iter != out_value_phis.end()) {
                     return iter->second;
                 }
                 node = parent;
@@ -132,7 +137,7 @@ struct PhiInsertionAndRenaming {
     void place_phi_nodes(AllocaInst *inst, const AllocaAnalysis &analysis, Mem2RegInfo &info) noexcept {
         // insert new phi nodes by traversing the closure of dominance frontiers of the def blocks
         block_to_phi.clear();
-        out_values.clear();
+        out_value_phis.clear();
         auto type = inst->type();
         luisa::fixed_vector<BasicBlock *, 64u> work_list;
         work_list.reserve(analysis.def_blocks.size());
@@ -150,8 +155,8 @@ struct PhiInsertionAndRenaming {
                         iter->second = phi;
                         inserted.emplace_back(phi);
                         info.inserted_phi_instructions.emplace(phi);
-                        // update the block-out value (note: we will overwrite it later if the block contains a store)
-                        out_values[fb] = phi;
+                        // update the block-out phi value
+                        out_value_phis[fb] = phi;
                         // replace the load instructions in the same block with the new phi node
                         if (auto use_iter = analysis.use_blocks.find(fb); use_iter != analysis.use_blocks.end()) {
                             replace_load_with_value(use_iter->second, phi, info);
@@ -162,10 +167,6 @@ struct PhiInsertionAndRenaming {
                 }
             }
         }
-        // overwrite the block-out values with the store values
-        for (auto [def_block, store] : analysis.def_blocks) {
-            out_values[def_block] = store->value();
-        }
         // each of the use blocks must be dominated by some def/phi block, or it must contain undefined value
         for (auto [use_block, load_inst] : analysis.use_blocks) {
             if (!info.removed_load_instructions.contains(load_inst)) {
@@ -173,18 +174,13 @@ struct PhiInsertionAndRenaming {
                 replace_load_with_value(load_inst, dom_value, info);
             }
         }
-        // overwrite the block-out values with the store values again because
-        // the load instructions in the use blocks may have been replaced
-        for (auto [def_block, store] : analysis.def_blocks) {
-            out_values[def_block] = store->value();
-        }
         // fill incomings of the phi nodes
         for (auto mapping : block_to_phi) {
             // earlier clang compilers have trouble with structural binding in lambda capture, so we manually unpack here
             auto phi_block = mapping.first;
             auto phi_inst = mapping.second;
             phi_block->traverse_predecessors(false, [&](BasicBlock *pred) noexcept {
-                auto dom_value = find_dom_value_for_use_block(pred, type, out_values, analysis);
+                auto dom_value = find_dom_value_for_use_block(pred, type, out_value_phis, analysis);
                 phi_inst->add_incoming(dom_value, pred);
             });
         }
