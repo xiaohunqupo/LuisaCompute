@@ -162,4 +162,30 @@ BasicBlock *ControlFlowMerge::create_merge_block(bool overwrite_existing) noexce
     return block;
 }
 
+namespace detail {
+
+luisa::string intrinsic_identifier_with_print_message(luisa::string base_ident, luisa::string_view message) noexcept {
+    base_ident.append("(\"");
+    for (auto c : message) {
+        if (c == '\n') {
+            base_ident.append("\\n");
+        } else if (c == '\r') {
+            base_ident.append("\\r");
+        } else if (c == '\t') {
+            base_ident.append("\\t");
+        } else if (c == '\"') {
+            base_ident.append("\\\"");
+        } else if (!std::isprint(c)) {
+            luisa::format_to(std::back_inserter(base_ident),
+                             "\\x{:02x}", static_cast<uint8_t>(c));
+        } else {
+            base_ident.push_back(c);
+        }
+    }
+    base_ident.append("\")");
+    return base_ident;
+}
+
+}// namespace detail
+
 }// namespace luisa::compute::xir

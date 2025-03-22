@@ -5,7 +5,7 @@ namespace luisa::compute::xir {
 
 PrintInst::PrintInst(BasicBlock *parent_block, luisa::string format,
                      luisa::span<Value *const> operands) noexcept
-    : Super{parent_block, nullptr}, _format{std::move(format)} {
+    : Super{std::move(format), parent_block, nullptr} {
     set_operands(operands);
 }
 
@@ -15,7 +15,7 @@ PrintInst *PrintInst::clone(XIRBuilder &b, InstructionCloneValueResolver &resolv
     for (auto op_use : operand_uses()) {
         resolved_operands.emplace_back(resolver.resolve(op_use->value()));
     }
-    return b.print(_format, resolved_operands);
+    return b.print(message(), resolved_operands);
 }
 
 }// namespace luisa::compute::xir

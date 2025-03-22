@@ -113,7 +113,7 @@ public:
     PrintInst *print(luisa::string format, luisa::span<Value *const> values) noexcept;
     PrintInst *print(luisa::string format, std::initializer_list<Value *> values) noexcept;
 
-    AllocaInst *alloca_(const Type *type, AllocSpace space) noexcept;
+    AllocaInst *alloca_(const Type *type, AllocaOp space) noexcept;
     AllocaInst *alloca_local(const Type *type) noexcept;
     AllocaInst *alloca_shared(const Type *type) noexcept;
 

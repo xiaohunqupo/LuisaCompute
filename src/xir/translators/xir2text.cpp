@@ -382,9 +382,9 @@ private:
 
     void _emit_alloca_inst(const AllocaInst *inst) noexcept {
         _main << "alloca ";
-        switch (inst->space()) {
-            case AllocSpace::LOCAL: _main << "local"; break;
-            case AllocSpace::SHARED: _main << "shared"; break;
+        switch (inst->op()) {
+            case AllocaOp::LOCAL: _main << "local"; break;
+            case AllocaOp::SHARED: _main << "shared"; break;
         }
     }
 

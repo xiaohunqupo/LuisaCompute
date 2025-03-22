@@ -5,7 +5,7 @@ namespace luisa::compute::xir {
 
 ResourceQueryInst::ResourceQueryInst(BasicBlock *parent_block, const Type *type, ResourceQueryOp op,
                                      luisa::span<Value *const> operands) noexcept
-    : Super{parent_block, type}, InstructionOpMixin{op} { set_operands(operands); }
+    : Super{op, parent_block, type} { set_operands(operands); }
 
 ResourceQueryInst *ResourceQueryInst::clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept {
     luisa::fixed_vector<Value *, 8u> cloned_operands;
@@ -18,7 +18,7 @@ ResourceQueryInst *ResourceQueryInst::clone(XIRBuilder &b, InstructionCloneValue
 
 ResourceReadInst::ResourceReadInst(BasicBlock *parent_block, const Type *type, ResourceReadOp op,
                                    luisa::span<Value *const> operands) noexcept
-    : Super{parent_block, type}, InstructionOpMixin{op} { set_operands(operands); }
+    : Super{op, parent_block, type} { set_operands(operands); }
 
 ResourceReadInst *ResourceReadInst::clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept {
     luisa::fixed_vector<Value *, 8u> cloned_operands;
@@ -31,7 +31,7 @@ ResourceReadInst *ResourceReadInst::clone(XIRBuilder &b, InstructionCloneValueRe
 
 ResourceWriteInst::ResourceWriteInst(BasicBlock *parent_block, ResourceWriteOp op,
                                      luisa::span<Value *const> operands) noexcept
-    : Super{parent_block, nullptr}, InstructionOpMixin{op} { set_operands(operands); }
+    : Super{op, parent_block, nullptr} { set_operands(operands); }
 
 ResourceWriteInst *ResourceWriteInst::clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept {
     luisa::fixed_vector<Value *, 8u> cloned_operands;

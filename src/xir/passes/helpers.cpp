@@ -16,7 +16,7 @@ Value *trace_pointer_base_value(Value *pointer) noexcept {
 AllocaInst *trace_pointer_base_local_alloca_inst(Value *pointer) noexcept {
     if (auto base = trace_pointer_base_value(pointer);
         base != nullptr && base->isa<AllocaInst>() &&
-        static_cast<AllocaInst *>(base)->space() == AllocSpace::LOCAL) {
+        static_cast<AllocaInst *>(base)->op() == AllocaOp::LOCAL) {
         return static_cast<AllocaInst *>(base);
     }
     return nullptr;

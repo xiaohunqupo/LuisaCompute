@@ -4,35 +4,7 @@
 
 namespace luisa::compute::xir {
 
-enum class RayQueryObjectReadOp {
-    RAY_QUERY_OBJECT_WORLD_SPACE_RAY,         // (RayQuery): Ray
-    RAY_QUERY_OBJECT_PROCEDURAL_CANDIDATE_HIT,// (RayQuery): ProceduralHit
-    RAY_QUERY_OBJECT_TRIANGLE_CANDIDATE_HIT,  // (RayQuery): TriangleHit
-    RAY_QUERY_OBJECT_COMMITTED_HIT,           // (RayQuery): CommittedHit
-
-    // Maxwell's extensions
-    RAY_QUERY_OBJECT_IS_TRIANGLE_CANDIDATE,  // (RayQuery): bool
-    RAY_QUERY_OBJECT_IS_PROCEDURAL_CANDIDATE,// (RayQuery): bool
-    RAY_QUERY_OBJECT_IS_TERMINATED,          // (RayQuery): bool
-};
-
-enum class RayQueryObjectWriteOp {
-    RAY_QUERY_OBJECT_COMMIT_TRIANGLE,  // (RayQuery): void
-    RAY_QUERY_OBJECT_COMMIT_PROCEDURAL,// (RayQuery, float): void
-    RAY_QUERY_OBJECT_TERMINATE,        // (RayQuery): void
-
-    // Maxwell's extensions
-    RAY_QUERY_OBJECT_PROCEED,// (RayQuery): void
-};
-
-[[nodiscard]] LC_XIR_API luisa::string_view to_string(RayQueryObjectReadOp op) noexcept;
-[[nodiscard]] LC_XIR_API RayQueryObjectReadOp ray_query_object_read_op_from_string(luisa::string_view name) noexcept;
-
-[[nodiscard]] LC_XIR_API luisa::string_view to_string(RayQueryObjectWriteOp op) noexcept;
-[[nodiscard]] LC_XIR_API RayQueryObjectWriteOp ray_query_object_write_op_from_string(luisa::string_view name) noexcept;
-
-class LC_XIR_API RayQueryObjectReadInst final : public DerivedInstruction<RayQueryObjectReadInst, DerivedInstructionTag::RAY_QUERY_OBJECT_READ>,
-                                                public InstructionOpMixin<RayQueryObjectReadOp> {
+class LC_XIR_API RayQueryObjectReadInst final : public InstructionOpMixin<RayQueryObjectReadOp, DerivedInstruction<RayQueryObjectReadInst, DerivedInstructionTag::RAY_QUERY_OBJECT_READ>> {
 
 public:
     RayQueryObjectReadInst(BasicBlock *parent_block, const Type *type, RayQueryObjectReadOp op,
@@ -40,8 +12,7 @@ public:
     [[nodiscard]] RayQueryObjectReadInst *clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
-class LC_XIR_API RayQueryObjectWriteInst final : public DerivedInstruction<RayQueryObjectWriteInst, DerivedInstructionTag::RAY_QUERY_OBJECT_WRITE>,
-                                                 public InstructionOpMixin<RayQueryObjectWriteOp> {
+class LC_XIR_API RayQueryObjectWriteInst final : public InstructionOpMixin<RayQueryObjectWriteOp, DerivedInstruction<RayQueryObjectWriteInst, DerivedInstructionTag::RAY_QUERY_OBJECT_WRITE>> {
 public:
     RayQueryObjectWriteInst(BasicBlock *parent_block, RayQueryObjectWriteOp op,
                             luisa::span<Value *const> operands = {}) noexcept;

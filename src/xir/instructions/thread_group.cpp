@@ -5,7 +5,7 @@ namespace luisa::compute::xir {
 
 ThreadGroupInst::ThreadGroupInst(BasicBlock *parent_block, const Type *type, ThreadGroupOp op,
                                  luisa::span<Value *const> operands) noexcept
-    : Super{parent_block, type}, InstructionOpMixin{op} {
+    : Super{op, parent_block, type} {
     if (!operands.empty()) {
         set_operands(operands);
     }

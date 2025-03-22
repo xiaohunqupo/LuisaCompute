@@ -114,16 +114,16 @@ PrintInst *XIRBuilder::print(luisa::string format, std::initializer_list<Value *
     return _create_and_append_instruction<PrintInst>(_insertion_point->parent_block(), std::move(format), luisa::span{values.begin(), values.end()});
 }
 
-AllocaInst *XIRBuilder::alloca_(const Type *type, AllocSpace space) noexcept {
+AllocaInst *XIRBuilder::alloca_(const Type *type, AllocaOp space) noexcept {
     return _create_and_append_instruction<AllocaInst>(_insertion_point->parent_block(), type, space);
 }
 
 AllocaInst *XIRBuilder::alloca_local(const Type *type) noexcept {
-    return alloca_(type, AllocSpace::LOCAL);
+    return alloca_(type, AllocaOp::LOCAL);
 }
 
 AllocaInst *XIRBuilder::alloca_shared(const Type *type) noexcept {
-    return alloca_(type, AllocSpace::SHARED);
+    return alloca_(type, AllocaOp::SHARED);
 }
 
 GEPInst *XIRBuilder::gep(const Type *type, Value *base, std::initializer_list<Value *> indices) noexcept {
