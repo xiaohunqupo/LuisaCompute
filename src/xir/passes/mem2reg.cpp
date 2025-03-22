@@ -173,6 +173,11 @@ struct PhiInsertionAndRenaming {
                 replace_load_with_value(load_inst, dom_value, info);
             }
         }
+        // overwrite the block-out values with the store values again because
+        // the load instructions in the use blocks may have been replaced
+        for (auto [def_block, store] : analysis.def_blocks) {
+            out_values[def_block] = store->value();
+        }
         // fill incomings of the phi nodes
         for (auto mapping : block_to_phi) {
             // earlier clang compilers have trouble with structural binding in lambda capture, so we manually unpack here
