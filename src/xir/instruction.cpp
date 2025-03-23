@@ -148,7 +148,7 @@ const BasicBlock *ConditionalBranchTerminatorInstruction::false_block() const no
 }
 
 void ControlFlowMerge::set_merge_block(BasicBlock *block) noexcept {
-    auto base = _base_instruction();
+    [[maybe_unused]] auto base = _base_instruction();
     LUISA_DEBUG_ASSERT(block == nullptr || (block->parent_function() == base->parent_function() &&
                                             block->pool() == base->pool()),
                        "Invalid merge block.");
@@ -165,24 +165,7 @@ BasicBlock *ControlFlowMerge::create_merge_block(bool overwrite_existing) noexce
 namespace detail {
 
 luisa::string intrinsic_identifier_with_print_message(luisa::string base_ident, luisa::string_view message) noexcept {
-    base_ident.append("(\"");
-    for (auto c : message) {
-        if (c == '\n') {
-            base_ident.append("\\n");
-        } else if (c == '\r') {
-            base_ident.append("\\r");
-        } else if (c == '\t') {
-            base_ident.append("\\t");
-        } else if (c == '\"') {
-            base_ident.append("\\\"");
-        } else if (!std::isprint(c)) {
-            luisa::format_to(std::back_inserter(base_ident),
-                             "\\x{:02x}", static_cast<uint8_t>(c));
-        } else {
-            base_ident.push_back(c);
-        }
-    }
-    base_ident.append("\")");
+    luisa::format_to(std::back_inserter(base_ident), "({:?})", message);
     return base_ident;
 }
 

@@ -7,6 +7,7 @@
 #include <luisa/xir/module.h>
 #include <luisa/xir/metadata/location.h>
 #include <luisa/xir/metadata/comment.h>
+#include <luisa/xir/metadata/name.h>
 #include <luisa/xir/debug_printer.h>
 
 namespace luisa::compute::xir {
@@ -96,7 +97,7 @@ void XIRDebugPrinter::emit_type(luisa::string &s, const Type *type) noexcept {
         }
         case Type::Tag::BINDLESS_ARRAY: s.append("Bindless"sv); break;
         case Type::Tag::ACCEL: s.append("Accel"sv); break;
-        case Type::Tag::CUSTOM: s.append(R"(T")").append(type->description()).append(R"(")"); break;
+        case Type::Tag::CUSTOM: luisa::format_to(std::back_inserter(s), "T{:?}", type->description()); break;
         default: LUISA_ERROR_WITH_LOCATION("Unknown type");
     }
 }
@@ -217,17 +218,6 @@ void XIRDebugPrinter::emit_value_debug_info(luisa::string &s, const Value *value
         auto any_info = false;
         constexpr auto prefix = " // "sv;
         s.append(prefix);
-        if (!value->metadata_list().empty()) {
-            any_info = true;
-            s.append("metadata = {"sv);
-            for (auto &m : value->metadata_list()) {
-                emit_metadata(s, &m);
-                s.append(", "sv);
-            }
-            s.pop_back();
-            s.pop_back();
-            s.append("}, "sv);
-        }
         if (value->isa<Instruction>()) {
             auto inst = static_cast<const Instruction *>(value);
             if (auto merge = inst->control_flow_merge()) {
@@ -295,6 +285,10 @@ void XIRDebugPrinter::emit_operand(luisa::string &s, const Value *value) noexcep
 
 void XIRDebugPrinter::emit_instruction(luisa::string &s, const Instruction *instruction) noexcept {
     LUISA_DEBUG_ASSERT(instruction != nullptr);
+    if (auto &metadata = instruction->metadata_list(); !metadata.empty()) {
+        emit_metadata_list(s, metadata);
+        s.append("\n    "sv);
+    }
     emit_value_name(s, instruction);
     s.append(": "sv);
     if (auto t = instruction->type()) {
@@ -316,6 +310,10 @@ void XIRDebugPrinter::emit_instruction(luisa::string &s, const Instruction *inst
 
 void XIRDebugPrinter::emit_basic_block(luisa::string &s, const BasicBlock *block) noexcept {
     LUISA_DEBUG_ASSERT(block != nullptr);
+    if (auto &metadata = block->metadata_list(); !metadata.empty()) {
+        s.append("\n  "sv);
+        emit_metadata_list(s, metadata);
+    }
     s.append("\n  "sv);
     luisa::format_to(std::back_inserter(s), "{} ",
                      xir::to_string(block->derived_value_tag()));
@@ -335,6 +333,10 @@ void XIRDebugPrinter::emit_basic_block(luisa::string &s, const BasicBlock *block
 
 void XIRDebugPrinter::emit_constant(luisa::string &s, const Constant *value) noexcept {
     LUISA_DEBUG_ASSERT(value != nullptr);
+    if (auto &metadata = value->metadata_list(); !metadata.empty()) {
+        emit_metadata_list(s, metadata);
+        s.append("\n"sv);
+    }
     luisa::format_to(std::back_inserter(s), "{} ",
                      xir::to_string(Constant::static_derived_value_tag()));
     emit_value_name(s, value);
@@ -347,6 +349,10 @@ void XIRDebugPrinter::emit_constant(luisa::string &s, const Constant *value) noe
 
 void XIRDebugPrinter::emit_function_decl(luisa::string &s, const Function *function) noexcept {
     LUISA_DEBUG_ASSERT(function != nullptr);
+    if (auto &metadata = function->metadata_list(); !metadata.empty()) {
+        emit_metadata_list(s, metadata);
+        s.append("\n"sv);
+    }
     luisa::format_to(std::back_inserter(s), "{} ",
                      xir::to_string(Function::static_derived_value_tag()));
     emit_value_name(s, function);
@@ -385,6 +391,10 @@ void XIRDebugPrinter::emit_function(luisa::string &s, const Function *function) 
 }
 
 void XIRDebugPrinter::emit_module(luisa::string &s, const Module *module) noexcept {
+    if (auto &metadata = module->metadata_list(); !metadata.empty()) {
+        emit_metadata_list(s, metadata);
+        s.append("\n"sv);
+    }
     s.append("module"sv);
     if (auto name = module->name()) {
         luisa::format_to(std::back_inserter(s), "({})", name.value());
@@ -408,7 +418,35 @@ void XIRDebugPrinter::emit_module(luisa::string &s, const Module *module) noexce
     }
 }
 
-void XIRDebugPrinter::emit_metadata(luisa::string &s, const Metadata *metadata) noexcept {
+void XIRDebugPrinter::emit_metadata_list(luisa::string &s, const MetadataList &metadata) noexcept {
+    if (!metadata.empty()) {
+        s.append("[["sv);
+        for (auto &md : metadata) {
+            switch (md.derived_metadata_tag()) {
+                case DerivedMetadataTag::NAME: {
+                    auto name_md = static_cast<const NameMD *>(&md);
+                    luisa::format_to(std::back_inserter(s), "name = {:?}, ",
+                                     name_md->name());
+                    break;
+                }
+                case DerivedMetadataTag::LOCATION: {
+                    auto loc_md = static_cast<const LocationMD *>(&md);
+                    luisa::format_to(std::back_inserter(s), "location = ({:?}, {}), ",
+                                     loc_md->file().string(), loc_md->line());
+                    break;
+                }
+                case DerivedMetadataTag::COMMENT: {
+                    auto comment_md = static_cast<const CommentMD *>(&md);
+                    luisa::format_to(std::back_inserter(s), "comment = {:?}, ",
+                                     comment_md->comment());
+                    break;
+                }
+            }
+        }
+        s.pop_back();
+        s.pop_back();
+        s.append("]]"sv);
+    }
 }
 
 }// namespace luisa::compute::xir
