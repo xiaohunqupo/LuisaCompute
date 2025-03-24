@@ -22,7 +22,7 @@ int main(int argc, char *argv[]) {
             };
             z *= x;
         };
-        device_log("你好, {} World! {}", z, ccc[1]);
+        device_log("你好, {}\nWorld! {}", z, ccc[1]);
         buffer->write(0u, z);
         auto h = accel->traverse_any(make_ray(make_float3(), make_float3()), {}).trace();
     };

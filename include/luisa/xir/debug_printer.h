@@ -3,6 +3,7 @@
 #include <luisa/core/dll_export.h>
 #include <luisa/core/stl/string.h>
 #include <luisa/core/stl/memory.h>
+#include <luisa/xir/metadata.h>
 
 namespace luisa::compute {
 class Type;
@@ -38,7 +39,7 @@ public:
     void emit_function_decl(luisa::string &s, const Function *function) noexcept;
     void emit_function(luisa::string &s, const Function *function) noexcept;
     void emit_module(luisa::string &s, const Module *module) noexcept;
-    void emit_metadata(luisa::string &s, const Metadata *metadata) noexcept;
+    void emit_metadata_list(luisa::string &s, const MetadataList &metadata) noexcept;
 };
 
 }// namespace luisa::compute::xir
