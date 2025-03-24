@@ -37,7 +37,7 @@ public:
         return std::launder(reinterpret_cast<T *>(allocate_stack(size * sizeof(T), alignof(T))));
     }
     TensorData *allocate_tensor(
-        luisa::span<uint32_t const> sizes,
+        luisa::span<size_t const> sizes,
         TensorElementType element_type) noexcept;
     template<typename T, typename... Args>
         requires(std::is_base_of_v<TensorExpr, T> && std::is_trivially_destructible_v<T> && luisa::is_constructible_v<T, uint64_t, Args && ...>)

@@ -6,9 +6,10 @@
 namespace luisa::compute {
 // clang-format off
 #define LUISA_COMPUTE_TENSOR_EXPRRESSIONS \
-    ScopeExpr,                        \
-    SetValueExpr,                     \
-    MultipleTensorExpr,               \
+    ScopeExpr,                          \
+    SetValueExpr,                       \
+    GEMMExpr,                           \
+    ConvExpr,                           \
     TestExpr
 // clang-format on
 
@@ -37,13 +38,13 @@ class TensorExpr {
 public:
     virtual void get_tensors(vstd::FuncRef<void(TensorData *, Usage usage)> callback) noexcept = 0;
     TensorExpr(uint64_t idx) noexcept : _idx(idx) {}
-    enum struct Tag : uint8_t {
+    enum struct Tag : uint32_t {
 #define LUISA_MAKE_TENSOR_EXPR_TAG(Cmd) E##Cmd,
         LUISA_MAP(LUISA_MAKE_TENSOR_EXPR_TAG, LUISA_COMPUTE_TENSOR_EXPRRESSIONS)
 #undef LUISA_MAKE_TENSOR_EXPR_TAG
     };
     [[nodiscard]] virtual Tag tag() noexcept = 0;
-    [[nodiscard]] auto idx() const noexcept { return _idx; }
+    [[nodiscard]] uint64_t idx() const noexcept { return _idx; }
     virtual void accept(TensorExprVisitor *) const noexcept = 0;
     virtual ~TensorExpr() noexcept = default;
 };
@@ -84,35 +85,73 @@ public:
 };
 class LC_TENSOR_API LUISA_TENSOR_EXPR_CLASS_INHERIT(SetValueExpr) {
 public:
+    enum class Type {
+        ConstValue,
+        Lcg1D,
+        Lcg2D,
+        Lcg3D,
+        Hammersley2D,
+        Halton,
+        Sobol,
+    };
     TensorData *tensor_data;
-    uint32_t value;
+    Type type;
+    uint value;
     SetValueExpr(
         uint64_t idx,
         TensorData *tensor_data,
+        Type type,
         uint32_t value) noexcept;
     void get_tensors(vstd::FuncRef<void(TensorData *, Usage usage)> callback) noexcept override {
         callback(tensor_data, Usage::WRITE);
     }
 };
-class LC_TENSOR_API LUISA_TENSOR_EXPR_CLASS_INHERIT(MultipleTensorExpr) {
+class LC_TENSOR_API LUISA_TENSOR_EXPR_CLASS_INHERIT(GEMMExpr) {
 public:
-    TensorData *input_tensor;
+    TensorData *lhs_tensor;
+    TensorData *rhs_tensor;
     TensorData *output_tensor;
-    TensorData *weight_tensor;
     FusedActivation fused_activation;
     uint group_count;
-    MultipleTensorExpr(
+    GEMMExpr(
         uint64_t idx,
-        TensorData *input_tensor,
-        TensorData *output_tensor,
-        TensorData *weight_tensor,
+        TensorData *lhs_tensor,
+        TensorData *rhs_tensor,
         FusedActivation const &fused_activation,
-        uint group_count) noexcept;
+        uint group_count,
+        TensorElementType out_type) noexcept;
+    void get_tensors(vstd::FuncRef<void(TensorData *, Usage usage)> callback) noexcept override {
+        callback(lhs_tensor, Usage::READ);
+        callback(rhs_tensor, Usage::READ);
+        callback(output_tensor, Usage::WRITE);
+    }
+};
+
+class LC_TENSOR_API LUISA_TENSOR_EXPR_CLASS_INHERIT(ConvExpr) {
+public:
+    TensorData *input_tensor;
+    TensorData *weight_tensor;
+    TensorData *out_tensor;
+    luisa::fixed_vector<uint, 3> filter_size;
+    luisa::fixed_vector<uint, 3> dilation;
+    luisa::fixed_vector<uint, 3> start_paddings;
+    luisa::fixed_vector<uint, 3> end_paddings;
     void get_tensors(vstd::FuncRef<void(TensorData *, Usage usage)> callback) noexcept override {
         callback(input_tensor, Usage::READ);
         callback(weight_tensor, Usage::READ);
-        callback(output_tensor, Usage::WRITE);
+        callback(out_tensor, Usage::WRITE);
     }
+    ConvExpr(
+        uint64_t idx,
+        TensorData *input_tensor,
+        TensorData *weight_tensor,
+        luisa::span<uint const> filter_size,
+        luisa::span<uint const> dilation,
+        luisa::span<uint const> start_paddings,
+        luisa::span<uint const> end_paddings,
+        TensorElementType out_type) noexcept;
+    [[nodiscard]] uint dimension() const noexcept { return filter_size.size(); }
+    static luisa::variant<TensorData *, luisa::string> get_output_tensor(TensorData *input_tensor, TensorData *filter_tensor) noexcept;
 };
 
 class LC_TENSOR_API LUISA_TENSOR_EXPR_CLASS_INHERIT(TestExpr) {
@@ -130,6 +169,7 @@ public:
         callback(output, Usage::WRITE);
     }
 };
+
 #undef LUISA_TENSOR_EXPR_CLASS_INHERIT
 template<typename Derive, TensorExpr::Tag _tag>
 inline void TensorExprCRTPDerive<Derive, _tag>::accept(TensorExprVisitor *visitor) const noexcept {
