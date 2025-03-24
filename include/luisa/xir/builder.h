@@ -32,7 +32,7 @@
 
 namespace luisa::compute::xir {
 
-class LC_XIR_API XIRBuilder {
+class LC_XIR_API XIRBuilder : luisa::concepts::Noncopyable {
 
 private:
     Pool *_pool = nullptr;
@@ -44,6 +44,7 @@ private:
 
 public:
     XIRBuilder() noexcept;
+    ~XIRBuilder() noexcept = default;
     void set_insertion_point(Instruction *insertion_point) noexcept;
     void set_insertion_point(BasicBlock *block) noexcept;
     [[nodiscard]] auto insertion_point() noexcept -> Instruction * { return _insertion_point; }

@@ -25,6 +25,7 @@ public:
         luisa::unordered_map<Variable, Value *> variables;
         luisa::vector<const CommentStmt *> comments;
         luisa::unordered_map<Variable, Value *> adjoint_variables;
+        luisa::unordered_set<Value *> initialized_adjoint_variables;
     };
 
     struct TypedLiteral {
@@ -299,18 +300,27 @@ private:
         return iter->second;
     }
 
+    void _reset_adjoint_variable(XIRBuilder &b, Value *adjoint) noexcept {
+        auto zero = _module->create_constant_zero(adjoint->type());
+        auto store = b.store(adjoint, zero);
+        store->add_comment("reset adjoint variable");
+    }
+
     [[nodiscard]] Value *_get_or_create_adjoint_variable(XIRBuilder &b, const Expression *expr) noexcept {
         LUISA_ASSERT(expr->tag() == Expression::Tag::REF, "Unexpected expression tag.");
         auto ast_var = static_cast<const RefExpr *>(expr)->variable();
         auto [iter, just_inserted] = _current.adjoint_variables.try_emplace(ast_var, nullptr);
-        if (just_inserted) { iter->second = b.alloca_local(ast_var.type()); }
-        auto local = iter->second;
-        auto zero = _module->create_constant_zero(expr->type());
-        b.store(local, zero);
-        return local;
+        if (just_inserted) {
+            XIRBuilder bb;
+            bb.set_insertion_point(_current.f->body_block()->instructions().head_sentinel());
+            iter->second = bb.alloca_local(ast_var.type());
+            iter->second->add_comment("adjoint variable for autodiff");
+            _reset_adjoint_variable(bb, iter->second);
+        }
+        return iter->second;
     }
 
-    void _accumulate_grad(XIRBuilder b, Value *adjoint, Value *grad) noexcept {
+    void _accumulate_grad(XIRBuilder &b, Value *adjoint, Value *grad) noexcept {
         LUISA_ASSERT(adjoint->type() == grad->type(), "Adjoint and gradient type mismatch.");
         switch (auto type = adjoint->type(); type->tag()) {
             case Type::Tag::FLOAT16: [[fallthrough]];
@@ -684,31 +694,27 @@ private:
             case CallOp::UNPACK: LUISA_NOT_IMPLEMENTED();
             case CallOp::REQUIRES_GRADIENT: {
                 LUISA_ASSERT(expr->arguments().size() == 1u, "Requires gradient call requires exactly one argument.");
-                return _get_or_create_adjoint_variable(b, expr->arguments()[0]);
-            }
-            case CallOp::GRADIENT: {
-                LUISA_ASSERT(expr->arguments().size() == 1u, "Gradient call requires exactly one argument.");
                 auto adjoint = _get_or_create_adjoint_variable(b, expr->arguments()[0]);
-                return b.load(expr->type(), adjoint);
+                _reset_adjoint_variable(b, adjoint);
+                return nullptr;
             }
-            case CallOp::GRADIENT_MARKER: {
-                LUISA_ASSERT(expr->arguments().size() == 2u, "Gradient marker call requires exactly two arguments.");
-                auto adjoint = _get_or_create_adjoint_variable(b, expr->arguments()[0]);
-                auto grad = _translate_expression(b, expr->arguments()[1], true);
-                return b.store(adjoint, grad);
-            }
+            case CallOp::GRADIENT: LUISA_NOT_IMPLEMENTED();
+            case CallOp::GRADIENT_MARKER: LUISA_NOT_IMPLEMENTED();
             case CallOp::ACCUMULATE_GRADIENT: {
                 LUISA_ASSERT(expr->arguments().size() == 2u, "Accumulate gradient call requires exactly two arguments.");
-                auto adjoint = _get_or_create_adjoint_variable(b, expr->arguments()[0]);
+                auto adjoint = _translate_expression(b, expr->arguments()[0], false);// WHY???
+                if (_current.initialized_adjoint_variables.emplace(adjoint).second) {
+                    LUISA_ASSERT(adjoint->isa<AllocaInst>());
+                    XIRBuilder init_builder;
+                    init_builder.set_insertion_point(static_cast<AllocaInst *>(adjoint));
+                    _reset_adjoint_variable(init_builder, adjoint);
+                }
                 auto grad = _translate_expression(b, expr->arguments()[1], true);
                 _accumulate_grad(b, adjoint, grad);
                 return nullptr;
             }
             case CallOp::BACKWARD: LUISA_NOT_IMPLEMENTED();
-            case CallOp::DETACH: {
-                LUISA_ASSERT(expr->arguments().size() == 1u, "Detach call requires exactly one argument.");
-                return _translate_expression(b, expr->arguments()[0], true);
-            }
+            case CallOp::DETACH: LUISA_NOT_IMPLEMENTED();
             case CallOp::RAY_TRACING_INSTANCE_TRANSFORM: return resource_call(ResourceQueryOp::RAY_TRACING_INSTANCE_TRANSFORM);
             case CallOp::RAY_TRACING_INSTANCE_USER_ID: return resource_call(ResourceQueryOp::RAY_TRACING_INSTANCE_USER_ID);
             case CallOp::RAY_TRACING_INSTANCE_VISIBILITY_MASK: return resource_call(ResourceQueryOp::RAY_TRACING_INSTANCE_VISIBILITY_MASK);
