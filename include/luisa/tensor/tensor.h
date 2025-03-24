@@ -12,13 +12,13 @@ enum struct TensorElementType : uint8_t {
     Float64,
 };
 class LC_TENSOR_API TensorData {
-    luisa::span<uint32_t const> _sizes;
+    luisa::span<size_t const> _sizes;
     TensorElementType _type;
     uint64_t _idx;
     size_t _size_bytes;
 
 public:
-    TensorData(luisa::span<uint32_t const> sizes,
+    TensorData(luisa::span<size_t const> sizes,
                TensorElementType element_type,
                uint64_t uid) noexcept;
     TensorData(TensorData &&rhs) noexcept;
@@ -28,14 +28,18 @@ public:
     [[nodiscard]] uint64_t idx() const noexcept {
         return _idx;
     }
-    [[nodiscard]] luisa::span<uint32_t const> sizes() const noexcept {
-        return _sizes;
+    [[nodiscard]] size_t get_size(uint dimension) const noexcept {
+        if (dimension >= _sizes.size()) return 1;
+        return _sizes[dimension];
     }
     [[nodiscard]] size_t dimension() const noexcept {
         return _sizes.size();
     }
     [[nodiscard]] size_t size_bytes() const noexcept {
         return _size_bytes;
+    }
+    [[nodiscard]] TensorElementType element_type() const noexcept {
+        return _type;
     }
 };
 

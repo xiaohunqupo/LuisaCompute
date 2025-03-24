@@ -16,7 +16,7 @@ int main(int argc, char *argv[]) {
 
     TensorBuilder builder;
     TensorBuilder::set_thd_local(&builder);
-    auto sizes = {1u};
+    auto sizes = {1ull};
     auto a = builder.allocate_tensor(luisa::span{sizes.begin(), sizes.size()}, TensorElementType::Float32);
     auto b = builder.allocate_tensor(luisa::span{sizes.begin(), sizes.size()}, TensorElementType::Float32);
     auto c = builder.allocate_tensor(luisa::span{sizes.begin(), sizes.size()}, TensorElementType::Float32);

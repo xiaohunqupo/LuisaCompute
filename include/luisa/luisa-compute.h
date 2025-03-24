@@ -34,7 +34,6 @@
 #include <luisa/core/dynamic_module.h>
 #include <luisa/core/fiber.h>
 #include <luisa/core/first_fit.h>
-#include <luisa/core/forget.h>
 #include <luisa/core/intrin.h>
 #include <luisa/core/logging.h>
 #include <luisa/core/macro.h>

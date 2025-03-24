@@ -32,16 +32,16 @@ struct member_func_meta<Ret (Class::*)(Args...) noexcept> : ObjType<Ret, Args...
 }// namespace detail
 
 struct TensorDescriptor {
-    luisa::fixed_vector<uint32_t, 4> _sizes;
+    luisa::fixed_vector<size_t, 4> _sizes;
     TensorElementType _type;
     TensorDescriptor(
-        std::initializer_list<uint32_t> dimensions,
+        std::initializer_list<size_t> dimensions,
         TensorElementType type) noexcept : _type(type) {
         _sizes.resize_uninitialized(dimensions.size());
         std::memcpy(_sizes.data(), dimensions.begin(), _sizes.size_bytes());
     }
     TensorDescriptor(
-        luisa::span<uint32_t const> dimensions,
+        luisa::span<size_t const> dimensions,
         TensorElementType type) noexcept : _type(type) {
         _sizes.resize_uninitialized(dimensions.size());
         std::memcpy(_sizes.data(), dimensions.data(), _sizes.size_bytes());
@@ -75,15 +75,13 @@ class TensorKernel<Lambda, void, Args...> {
     Lambda lambda;
 public:
     explicit TensorKernel(Lambda &&lambda) noexcept : lambda(std::forward<Lambda>(lambda)) {}
-    luisa::unique_ptr<TensorBuilder> compile(
+    void compile(
         // Device const& device,
         typename detail::tensor_kernel_type<Args>::Type... args) noexcept {
-        luisa::unique_ptr<TensorBuilder> r = luisa::make_unique<TensorBuilder>();
-        TensorBuilder::set_thd_local(r.get());
+        TensorBuilder r;
+        TensorBuilder::set_thd_local(&r);
         lambda(detail::tensor_kernel_type<Args>::_forward(std::forward<typename detail::tensor_kernel_type<Args>::Type>(args))...);
         TensorBuilder::set_thd_local(nullptr);
-        // TODO: dispatch backend
-        return r;
     }
 };
 

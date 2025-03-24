@@ -4,7 +4,7 @@
 #include <luisa/core/logging.h>
 
 namespace luisa::compute {
-TensorData::TensorData(luisa::span<uint32_t const> sizes,
+TensorData::TensorData(luisa::span<size_t const> sizes,
                        TensorElementType element_type,
                        uint64_t uid) noexcept
     : _type(element_type),
@@ -21,12 +21,12 @@ TensorData::TensorData(luisa::span<uint32_t const> sizes,
             _size_bytes = 8;
             break;
     }
-    auto new_sizes = TensorBuilder::get_thd_local()->allocate_array<uint>(sizes.size());
+    auto new_sizes = TensorBuilder::get_thd_local()->allocate_array<size_t>(sizes.size());
     for (size_t idx = 0; idx != sizes.size(); ++idx) {
         new_sizes[idx] = sizes[idx];
         _size_bytes *= sizes[idx];
     }
-    _sizes = luisa::span<uint const>{new_sizes, sizes.size()};
+    _sizes = luisa::span<size_t const>{new_sizes, sizes.size()};
 }
 
 TensorData::TensorData(TensorData &&rhs) noexcept = default;
@@ -59,7 +59,7 @@ void TensorBuilder::deallocate_tensor(TensorData *tensor) noexcept {
     // TODO: record deallocate
 }
 TensorData *TensorBuilder::allocate_tensor(
-    luisa::span<uint32_t const> sizes,
+    luisa::span<size_t const> sizes,
     TensorElementType element_type) noexcept {
     // TODO: record allocate
     auto id = _allocated_tensor.size();
