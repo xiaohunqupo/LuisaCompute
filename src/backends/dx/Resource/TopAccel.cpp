@@ -105,6 +105,15 @@ bool TopAccel::GenerateNewBuffer(
         return true;
     }
 }
+void TopAccel::ResizeAllInstance(size_t size) {
+    if (size < allInstance.size()) {
+        for (auto &i : vstd::ptr_range(allInstance.data() + size, allInstance.data() + allInstance.size())) {
+            if (!i.handle) continue;
+            i.handle->mesh->RemoveAccelRef(i.handle);
+        }
+    }
+    allInstance.resize(size);
+}
 
 void TopAccel::PreProcessInst(
     ResourceStateTracker &tracker,
@@ -114,7 +123,7 @@ void TopAccel::PreProcessInst(
     auto &&input = topLevelBuildDesc.Inputs;
     if (input.NumDescs != size) update = false;
     input.NumDescs = size;
-    allInstance.resize(size);
+    ResizeAllInstance(size);
     InitSetDesc(modifications);
     ProcessSetDesc();
     if (requireBuild) {
@@ -224,7 +233,7 @@ size_t TopAccel::PreProcess(
                D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_UPDATE) == 0 ||
         input.NumDescs != size) update = false;
     input.NumDescs = size;
-    allInstance.resize(size);
+    ResizeAllInstance(size);
     InitSetDesc(modifications);
     ProcessSetDesc();
     if (requireBuild) {

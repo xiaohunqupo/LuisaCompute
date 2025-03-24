@@ -24,16 +24,26 @@ void Accel::set(Stream *stream, Usage usage, Range range) {
 }
 void Accel::modify(size_t size, Stream *stream, luisa::span<AccelBuildCommand::Modification const> modifies) {
     auto last_size = _meshes.size();
+    auto remove_mesh = [&](uint64_t mesh) {
+        auto iter = _ref_count.find(mesh);
+        if (iter != _ref_count.end()) {
+            if (--iter->second == 0) {
+                _ref_count.erase(iter);
+            } 
+        } else {
+            LUISA_ERROR("Find mesh in tlas failed.");
+        }
+    };
+    if (size < _meshes.size()) {
+        for(auto i : vstd::ptr_range(_meshes.data()+ size, _meshes.data() + _meshes.size())) {
+            remove_mesh(i);
+        }
+    }
     _meshes.resize(size);
     for (auto &&i : modifies) {
         auto &mesh = _meshes[i.index];
         if (mesh) {
-            auto iter = _ref_count.find(mesh);
-            if (iter != _ref_count.end()) {
-                if (--iter->second == 0) {
-                    _ref_count.erase(iter);
-                }
-            }
+            remove_mesh(mesh);
         }
         mesh = i.primitive;
         if (mesh && mesh != invalid_resource_handle) {
