@@ -271,7 +271,7 @@ on_load(function(target)
             public = true
         })
     elseif is_mode("releasedbg") then
-        target:set("runtimes", _get_or("runtime", "MDd"), {
+        target:set("runtimes", _get_or("runtime", "MD"), {
             public = true
         })
         if force_optimize then
