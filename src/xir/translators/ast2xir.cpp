@@ -24,6 +24,8 @@ public:
         BreakContinueTarget break_continue_target;
         luisa::unordered_map<Variable, Value *> variables;
         luisa::vector<const CommentStmt *> comments;
+        luisa::unordered_map<Variable, Value *> adjoint_variables;
+        luisa::unordered_set<Value *> initialized_adjoint_variables;
     };
 
     struct TypedLiteral {
@@ -298,76 +300,60 @@ private:
         return iter->second;
     }
 
-    [[nodiscard]] Value *_translate_zero_or_one(const Type *type, int value) noexcept {
-
-        // zero or one scalar
-#define LUISA_AST2XIR_ZERO_ONE_SCALAR(T)    \
-    if (type == Type::of<T>()) {            \
-        return _translate_typed_literal(    \
-            {type, static_cast<T>(value)}); \
+    void _reset_adjoint_variable(XIRBuilder &b, Value *adjoint) noexcept {
+        auto zero = _module->create_constant_zero(adjoint->type());
+        auto store = b.store(adjoint, zero);
+        store->add_comment("reset adjoint variable");
     }
-        LUISA_AST2XIR_ZERO_ONE_SCALAR(bool)
-        LUISA_AST2XIR_ZERO_ONE_SCALAR(byte)
-        LUISA_AST2XIR_ZERO_ONE_SCALAR(ubyte)
-        LUISA_AST2XIR_ZERO_ONE_SCALAR(short)
-        LUISA_AST2XIR_ZERO_ONE_SCALAR(ushort)
-        LUISA_AST2XIR_ZERO_ONE_SCALAR(int)
-        LUISA_AST2XIR_ZERO_ONE_SCALAR(uint)
-        LUISA_AST2XIR_ZERO_ONE_SCALAR(slong)
-        LUISA_AST2XIR_ZERO_ONE_SCALAR(ulong)
-        LUISA_AST2XIR_ZERO_ONE_SCALAR(half)
-        LUISA_AST2XIR_ZERO_ONE_SCALAR(float)
-        LUISA_AST2XIR_ZERO_ONE_SCALAR(double)
-#undef LUISA_AST2XIR_ZERO_ONE_SCALAR
 
-        // zero or one vector
-#define LUISA_AST2XIR_ZERO_ONE_VECTOR_N(T, N)                   \
-    if (type == Type::of<T##N>()) {                             \
-        return _translate_typed_literal(                        \
-            {type, luisa::make_##T##N(static_cast<T>(value))}); \
-    }
-#define LUISA_AST2XIR_ZERO_ONE_VECTOR(T)  \
-    LUISA_AST2XIR_ZERO_ONE_VECTOR_N(T, 2) \
-    LUISA_AST2XIR_ZERO_ONE_VECTOR_N(T, 3) \
-    LUISA_AST2XIR_ZERO_ONE_VECTOR_N(T, 4)
-        LUISA_AST2XIR_ZERO_ONE_VECTOR(bool)
-        LUISA_AST2XIR_ZERO_ONE_VECTOR(byte)
-        LUISA_AST2XIR_ZERO_ONE_VECTOR(ubyte)
-        LUISA_AST2XIR_ZERO_ONE_VECTOR(short)
-        LUISA_AST2XIR_ZERO_ONE_VECTOR(ushort)
-        LUISA_AST2XIR_ZERO_ONE_VECTOR(int)
-        LUISA_AST2XIR_ZERO_ONE_VECTOR(uint)
-        LUISA_AST2XIR_ZERO_ONE_VECTOR(slong)
-        LUISA_AST2XIR_ZERO_ONE_VECTOR(ulong)
-        LUISA_AST2XIR_ZERO_ONE_VECTOR(half)
-        LUISA_AST2XIR_ZERO_ONE_VECTOR(float)
-        LUISA_AST2XIR_ZERO_ONE_VECTOR(double)
-#undef LUISA_AST2XIR_ZERO_ONE_VECTOR
-#undef LUISA_AST2XIR_ZERO_ONE_VECTOR_N
-
-        // zero or one matrix
-#define LUISA_AST2XIR_ZERO_ONE_MATRIX(N)                                    \
-    if (type == Type::of<luisa::float##N##x##N>()) {                        \
-        return _translate_typed_literal(                                    \
-            {type, luisa::make_float##N##x##N(static_cast<float>(value))}); \
-    }
-        LUISA_AST2XIR_ZERO_ONE_MATRIX(2)
-        LUISA_AST2XIR_ZERO_ONE_MATRIX(3)
-        LUISA_AST2XIR_ZERO_ONE_MATRIX(4)
-#undef LUISA_AST2XIR_ZERO_ONE_MATRIX
-
-        // fall back to generic zero constant
-        if (value == 0) {
-            auto iter = _generated_zero_constants.try_emplace(type, nullptr).first;
-            if (iter->second == nullptr) { iter->second = _module->create_constant_zero(type); }
-            return iter->second;
+    [[nodiscard]] Value *_get_or_create_adjoint_variable(XIRBuilder &b, const Expression *expr) noexcept {
+        LUISA_ASSERT(expr->tag() == Expression::Tag::REF, "Unexpected expression tag.");
+        auto ast_var = static_cast<const RefExpr *>(expr)->variable();
+        auto [iter, just_inserted] = _current.adjoint_variables.try_emplace(ast_var, nullptr);
+        if (just_inserted) {
+            XIRBuilder bb;
+            bb.set_insertion_point(_current.f->body_block()->instructions().head_sentinel());
+            iter->second = bb.alloca_local(ast_var.type());
+            iter->second->add_comment("adjoint variable for autodiff");
+            _reset_adjoint_variable(bb, iter->second);
         }
-        if (value == 1) {
-            auto iter = _generated_one_constants.try_emplace(type, nullptr).first;
-            if (iter->second == nullptr) { iter->second = _module->create_constant_one(type); }
-            return iter->second;
+        return iter->second;
+    }
+
+    void _accumulate_grad(XIRBuilder &b, Value *adjoint, Value *grad) noexcept {
+        LUISA_ASSERT(adjoint->type() == grad->type(), "Adjoint and gradient type mismatch.");
+        switch (auto type = adjoint->type(); type->tag()) {
+            case Type::Tag::FLOAT16: [[fallthrough]];
+            case Type::Tag::FLOAT32: [[fallthrough]];
+            case Type::Tag::FLOAT64: [[fallthrough]];
+            case Type::Tag::VECTOR: [[fallthrough]];
+            case Type::Tag::MATRIX: {
+                auto old_grad = b.load(type, adjoint);
+                auto new_grad = b.call(type, ArithmeticOp::BINARY_ADD, {old_grad, grad});
+                b.store(adjoint, new_grad);
+                break;
+            }
+            case Type::Tag::ARRAY: {
+                auto elem_type = type->element();
+                auto dim = type->dimension();
+                for (auto i = 0u; i < dim; i++) {
+                    auto adjoint_elem = b.gep(elem_type, adjoint, {_translate_constant_access_index(i)});
+                    auto grad_elem = b.call(elem_type, ArithmeticOp::EXTRACT, {grad, _translate_constant_access_index(i)});
+                    _accumulate_grad(b, adjoint_elem, grad_elem);
+                }
+                break;
+            }
+            case Type::Tag::STRUCTURE: {
+                auto member_types = type->members();
+                for (auto i = 0u; i < member_types.size(); i++) {
+                    auto adjoint_elem = b.gep(member_types[i], adjoint, {_translate_constant_access_index(i)});
+                    auto grad_elem = b.call(member_types[i], ArithmeticOp::EXTRACT, {grad, _translate_constant_access_index(i)});
+                    _accumulate_grad(b, adjoint_elem, grad_elem);
+                }
+                break;
+            }
+            default: break;
         }
-        LUISA_ERROR_WITH_LOCATION("Unexpected zero or one constant.");
     }
 
     [[nodiscard]] Value *_translate_call_expr(XIRBuilder &b, const CallExpr *expr) noexcept {
@@ -702,14 +688,31 @@ private:
                 return b.unreachable_(message);
             }
             case CallOp::RASTER_DISCARD: return b.raster_discard();
-            case CallOp::ZERO: return _translate_zero_or_one(expr->type(), 0);
-            case CallOp::ONE: return _translate_zero_or_one(expr->type(), 1);
+            case CallOp::ZERO: return _module->create_constant_zero(expr->type());
+            case CallOp::ONE: return _module->create_constant_one(expr->type());
             case CallOp::PACK: LUISA_NOT_IMPLEMENTED();
             case CallOp::UNPACK: LUISA_NOT_IMPLEMENTED();
-            case CallOp::REQUIRES_GRADIENT: LUISA_NOT_IMPLEMENTED();
+            case CallOp::REQUIRES_GRADIENT: {
+                LUISA_ASSERT(expr->arguments().size() == 1u, "Requires gradient call requires exactly one argument.");
+                auto adjoint = _get_or_create_adjoint_variable(b, expr->arguments()[0]);
+                _reset_adjoint_variable(b, adjoint);
+                return nullptr;
+            }
             case CallOp::GRADIENT: LUISA_NOT_IMPLEMENTED();
             case CallOp::GRADIENT_MARKER: LUISA_NOT_IMPLEMENTED();
-            case CallOp::ACCUMULATE_GRADIENT: LUISA_NOT_IMPLEMENTED();
+            case CallOp::ACCUMULATE_GRADIENT: {
+                LUISA_ASSERT(expr->arguments().size() == 2u, "Accumulate gradient call requires exactly two arguments.");
+                auto adjoint = _translate_expression(b, expr->arguments()[0], false);// WHY???
+                if (_current.initialized_adjoint_variables.emplace(adjoint).second) {
+                    LUISA_ASSERT(adjoint->isa<AllocaInst>());
+                    XIRBuilder init_builder;
+                    init_builder.set_insertion_point(static_cast<AllocaInst *>(adjoint));
+                    _reset_adjoint_variable(init_builder, adjoint);
+                }
+                auto grad = _translate_expression(b, expr->arguments()[1], true);
+                _accumulate_grad(b, adjoint, grad);
+                return nullptr;
+            }
             case CallOp::BACKWARD: LUISA_NOT_IMPLEMENTED();
             case CallOp::DETACH: LUISA_NOT_IMPLEMENTED();
             case CallOp::RAY_TRACING_INSTANCE_TRANSFORM: return resource_call(ResourceQueryOp::RAY_TRACING_INSTANCE_TRANSFORM);
@@ -932,6 +935,23 @@ private:
         _translate_statements(b, cdr);
     }
 
+    void _translate_autodiff_stmt(XIRBuilder &b, const AutoDiffStmt *ast_autodiff, luisa::span<const Statement *const> cdr) noexcept {
+        // we do not support break/continue in autodiff statement
+        auto old_break_continue_target = std::exchange(_current.break_continue_target, {});
+        auto inst = _commented(b.autodiff_scope());
+        auto merge_block = inst->create_merge_block();
+        // entry block
+        {
+            b.set_insertion_point(inst->create_entry_block());
+            _translate_statements(b, ast_autodiff->body()->statements());
+            if (!b.is_insertion_point_terminator()) { b.br(merge_block); }
+        }
+        // merge block
+        _current.break_continue_target = old_break_continue_target;
+        b.set_insertion_point(merge_block);
+        _translate_statements(b, cdr);
+    }
+
     void _translate_for_stmt(XIRBuilder &b, const ForStmt *ast_for, luisa::span<const Statement *const> cdr) noexcept {
         auto var = _translate_expression(b, ast_for->variable(), false);
         auto inst = _commented(b.loop());
@@ -1072,7 +1092,10 @@ private:
                     auto ast_ray_query = static_cast<const RayQueryStmt *>(car);
                     return _translate_ray_query_stmt(b, ast_ray_query, cdr);
                 }
-                case Statement::Tag::AUTO_DIFF: LUISA_NOT_IMPLEMENTED();
+                case Statement::Tag::AUTO_DIFF: {
+                    auto ast_auto_diff = static_cast<const AutoDiffStmt *>(car);
+                    return _translate_autodiff_stmt(b, ast_auto_diff, cdr);
+                }
                 case Statement::Tag::PRINT: {
                     auto ast_print = static_cast<const PrintStmt *>(car);
                     luisa::fixed_vector<Value *, 16u> args;

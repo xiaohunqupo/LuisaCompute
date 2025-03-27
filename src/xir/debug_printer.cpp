@@ -449,4 +449,9 @@ void XIRDebugPrinter::emit_metadata_list(luisa::string &s, const MetadataList &m
     }
 }
 
+XIRDebugPrinter &XIRDebugPrinter::global() noexcept {
+    static XIRDebugPrinter printer;
+    return printer;
+}
+
 }// namespace luisa::compute::xir
