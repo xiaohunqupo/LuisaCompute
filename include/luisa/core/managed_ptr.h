@@ -5,36 +5,50 @@
 
 namespace luisa {
 
+namespace detail {
 class ManagedObject;
-
-template<typename T>
-    requires std::derived_from<T, ManagedObject>
-class ManagedPtr;
 
 class ManagedObject {
 
 private:
-    std::atomic<size_t> _ref_count{1ul};
+    std::atomic<uint32_t> _ref_count;
+    uint32_t _managed_id;
 
 public:
-    ManagedObject() noexcept = default;
+    explicit ManagedObject(uint32_t m_id = 0u) noexcept : _ref_count{1u}, _managed_id{m_id} {}
     virtual ~ManagedObject() = default;
     ManagedObject(ManagedObject &&) = delete;
     ManagedObject(const ManagedObject &) = delete;
     ManagedObject &operator=(ManagedObject &&) = delete;
     ManagedObject &operator=(const ManagedObject &) = delete;
 
-private:
-    template<typename T>
-        requires std::derived_from<T, ManagedObject>
-    friend class ManagedPtr;
+protected:
+    ManagedObject *do_retain() noexcept;
+    void do_release() noexcept;
 
-    ManagedObject *retain() noexcept;
-    void release() noexcept;
+public:
+    [[nodiscard]] auto managed_id() const noexcept { return _managed_id; }
+    void set_managed_id(uint32_t m_id) noexcept { _managed_id = m_id; }
+};
+
+}// namespace detail
+
+template<typename T, typename Base = detail::ManagedObject>
+    requires std::derived_from<Base, detail::ManagedObject>
+class Managed : public Base {
+public:
+    using derived_type = T;
+    using base_type = Base;
+    using super_type = Managed;
+
+public:
+    using base_type::base_type;
+    derived_type *retain() noexcept { return static_cast<derived_type *>(this->do_retain()); }
+    void release() noexcept { this->do_release(); }
 };
 
 template<typename T>
-    requires std::derived_from<T, ManagedObject>
+    requires std::derived_from<T, detail::ManagedObject>
 class ManagedPtr {
 
 private:
@@ -85,10 +99,10 @@ public:
 };
 
 template<typename T, typename... Args>
-    requires std::derived_from<T, ManagedObject>
+    requires std::derived_from<T, detail::ManagedObject>
 [[nodiscard]] ManagedPtr<T> make_managed(Args &&...args) noexcept {
     auto o = luisa::new_with_allocator<T>(std::forward<Args>(args)...);
-    assert(std::addressof(*o) == std::addressof(*static_cast<ManagedObject *>(o)) &&
+    assert(std::addressof(*o) == std::addressof(*static_cast<detail::ManagedObject *>(o)) &&
            "ManagedObject should be the first base class of its derived classes.");
     ManagedPtr<T> ret;
     ret.reset(o);
