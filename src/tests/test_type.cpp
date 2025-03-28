@@ -163,6 +163,7 @@ int main() {
     auto [m, n] = std::array{1, 2};
 
     auto sth = luisa::make_managed<Something>();
+    sth->set_managed_id(123);
     {
         auto another = sth;
         auto good = std::move(another);

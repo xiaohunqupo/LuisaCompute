@@ -33,23 +33,10 @@ public:
 
 }// namespace detail
 
-template<typename T, typename Base = detail::ManagedObject>
-    requires std::derived_from<Base, detail::ManagedObject>
-class Managed : public Base {
-public:
-    using derived_type = T;
-    using base_type = Base;
-    using super_type = Managed;
-
-public:
-    using base_type::base_type;
-    derived_type *retain() noexcept { return static_cast<derived_type *>(this->do_retain()); }
-    void release() noexcept { this->do_release(); }
-};
-
 template<typename T>
-    requires std::derived_from<T, detail::ManagedObject>
 class ManagedPtr {
+
+    static_assert(std::derived_from<T, detail::ManagedObject>);
 
 private:
     T *_object{nullptr};
@@ -96,6 +83,23 @@ public:
             old_object->release();
         }
     }
+};
+
+template<typename T, typename Base = detail::ManagedObject>
+    requires std::derived_from<Base, detail::ManagedObject>
+class Managed : public Base {
+public:
+    using derived_type = T;
+    using base_type = Base;
+    using super_type = Managed;
+
+public:
+    using base_type::base_type;
+
+private:
+    friend ManagedPtr<T>;
+    derived_type *retain() noexcept { return static_cast<derived_type *>(this->do_retain()); }
+    void release() noexcept { this->do_release(); }
 };
 
 template<typename T, typename... Args>
