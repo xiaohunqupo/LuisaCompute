@@ -140,7 +140,7 @@ public:
     [[nodiscard]] auto view(size_t offset, size_t count) const noexcept {
         return view().subview(offset, count);
     }
-#ifndef LC_SAFE_MODE
+#ifndef LUISA_ENABLE_SAFE_MODE
     // commands
     // copy buffer's data to pointer
     [[nodiscard]] auto copy_to(void *data) const noexcept {
