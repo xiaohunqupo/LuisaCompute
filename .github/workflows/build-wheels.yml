@@ -22,8 +22,9 @@ jobs:
         include:
           - os: ubuntu-24.04
             arch: x86_64
-          - os: ubuntu-24.04-arm
-            arch: aarch64
+            # CIBW uses CentOS 7, which does not support CUDA 12
+#          - os: ubuntu-24.04-arm
+#            arch: aarch64
     name: ${{ matrix.os }} / ${{ matrix.arch }}
     runs-on: ${{ matrix.os }}
     steps:
@@ -78,6 +79,7 @@ jobs:
       - name: "Upload Wheels"
         uses: actions/upload-artifact@v4
         with:
+          name: wheels-macOS-${{ matrix.os }}
           path: ./wheelhouse/*.whl
 
   build-windows:
@@ -111,4 +113,5 @@ jobs:
       - name: "Upload Wheels"
         uses: actions/upload-artifact@v4
         with:
+          name: wheels-windows
           path: ./wheelhouse/*.whl
