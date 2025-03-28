@@ -68,7 +68,11 @@ using ScalarType_t = typename ScalarType<T>::type;
 
 template<typename T, typename Variant>
 T &force_get(Variant &&variant) {
-    return *variant.template get_as<T *>();
+    return *std::visit(
+        [](auto &v) noexcept {
+            return reinterpret_cast<T *>(&v);
+        },
+        variant);
 }
 
 }// namespace analyzer_detail
