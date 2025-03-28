@@ -98,8 +98,14 @@ public:
 
 private:
     friend ManagedPtr<T>;
-    derived_type *retain() noexcept { return static_cast<derived_type *>(this->do_retain()); }
-    void release() noexcept { this->do_release(); }
+    derived_type *retain() noexcept {
+        static_assert(std::derived_from<T, Managed>);
+        return static_cast<derived_type *>(this->do_retain());
+    }
+    void release() noexcept {
+        static_assert(std::derived_from<T, Managed>);
+        this->do_release();
+    }
 };
 
 template<typename T, typename... Args>
