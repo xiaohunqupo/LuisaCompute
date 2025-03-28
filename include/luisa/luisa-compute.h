@@ -38,6 +38,7 @@
 #include <luisa/core/logging.h>
 #include <luisa/core/macro.h>
 #include <luisa/core/magic_enum.h>
+#include <luisa/core/managed_ptr.h>
 #include <luisa/core/mathematics.h>
 #include <luisa/core/memory_sanitizer.hpp>
 #include <luisa/core/platform.h>
@@ -167,7 +168,9 @@
 
 #ifdef LUISA_ENABLE_TENSOR
 #include <luisa/tensor/expression.h>
+#include <luisa/tensor/ext.h>
 #include <luisa/tensor/fused_activation.h>
+#include <luisa/tensor/graph.h>
 #include <luisa/tensor/kernel.h>
 #include <luisa/tensor/pass/expr_topo.h>
 #include <luisa/tensor/tensor.h>
