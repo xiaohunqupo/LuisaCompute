@@ -1,7 +1,6 @@
 #include <Resource/TopAccel.h>
 #include <Resource/DefaultBuffer.h>
 #include <DXRuntime/CommandAllocator.h>
-#include <DXRuntime/ResourceStateTracker.h>
 #include <DXRuntime/CommandBuffer.h>
 #include <Resource/BottomAccel.h>
 #include <luisa/core/logging.h>
@@ -60,7 +59,7 @@ TopAccel::~TopAccel() {
 }
 bool TopAccel::GenerateNewBuffer(
     char const *name,
-    ResourceStateTracker &tracker,
+    EnhancedBarrierTracker &tracker,
     CommandBufferBuilder &builder,
     vstd::unique_ptr<DefaultBuffer> &oldBuffer, size_t newSize, bool needCopy, D3D12_RESOURCE_STATES state) {
     if (!oldBuffer) {
@@ -82,12 +81,12 @@ bool TopAccel::GenerateNewBuffer(
             device->defaultAllocator.get(),
             state);
         if (needCopy) {
-            tracker.RecordState(
-                oldBuffer.get(),
-                D3D12_RESOURCE_STATE_COPY_SOURCE);
-            tracker.RecordState(
-                newBuffer,
-                D3D12_RESOURCE_STATE_COPY_DEST);
+            tracker.Record(
+                BufferView(oldBuffer.get()),
+                EnhancedBarrierTracker::Usage::CopySource);
+            tracker.Record(
+                BufferView(newBuffer),
+                EnhancedBarrierTracker::Usage::CopyDest);
             tracker.UpdateState(builder);
             builder.CopyBuffer(
                 oldBuffer.get(),
@@ -95,10 +94,6 @@ bool TopAccel::GenerateNewBuffer(
                 0,
                 0,
                 oldBuffer->GetByteSize());
-            tracker.RecordState(
-                oldBuffer.get(), oldBuffer->GetInitState());
-            tracker.RecordState(
-                newBuffer, oldBuffer->GetInitState());
         }
         builder.GetCB()->GetAlloc()->DisposeAfterComplete(std::move(oldBuffer));
         oldBuffer = vstd::create_unique(newBuffer);
@@ -116,7 +111,7 @@ void TopAccel::ResizeAllInstance(size_t size) {
 }
 
 void TopAccel::PreProcessInst(
-    ResourceStateTracker &tracker,
+    EnhancedBarrierTracker &tracker,
     CommandBufferBuilder &builder,
     uint64 size,
     vstd::span<AccelBuildCommand::Modification const> const &modifications) {
@@ -134,7 +129,8 @@ void TopAccel::PreProcessInst(
     size_t instanceByteCount = size * sizeof(D3D12_RAYTRACING_INSTANCE_DESC);
     if (GenerateNewBuffer(
             "tlas-instance-buffer",
-            tracker, builder, instBuffer, instanceByteCount, true, tracker.ReadState(ResourceReadUsage::AccelBuildSrc))) {
+            tracker, builder, instBuffer, instanceByteCount, true,
+            D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE)) {
         input.InstanceDescs = instBuffer->GetAddress();
     }
 }
@@ -221,7 +217,7 @@ void TopAccel::InitSetDesc(vstd::span<AccelBuildCommand::Modification const> con
 }
 
 size_t TopAccel::PreProcess(
-    ResourceStateTracker &tracker,
+    EnhancedBarrierTracker &tracker,
     CommandBufferBuilder &builder,
     uint64 size,
     vstd::span<AccelBuildCommand::Modification const> const &modifications,
@@ -245,7 +241,7 @@ size_t TopAccel::PreProcess(
     size_t instanceByteCount = size * sizeof(D3D12_RAYTRACING_INSTANCE_DESC);
     if (GenerateNewBuffer(
             "tlas-instance-buffer",
-            tracker, builder, instBuffer, instanceByteCount, true, tracker.ReadState(ResourceReadUsage::AccelBuildSrc))) {
+            tracker, builder, instBuffer, instanceByteCount, true, D3D12_RESOURCE_STATE_COMMON)) {
         input.InstanceDescs = instBuffer->GetAddress();
     }
     device->device->GetRaytracingAccelerationStructurePrebuildInfo(&input, &topLevelPrebuildInfo);
@@ -261,18 +257,18 @@ size_t TopAccel::PreProcess(
         input.Flags =
             (D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS)(((uint)input.Flags) & (~((uint)D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PERFORM_UPDATE)));
     }
-    tracker.RecordState(
-        GetAccelBuffer(),
-        D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
+    tracker.Record(
+        BufferView(GetAccelBuffer(), 0, GetAccelBuffer()->GetByteSize()),
+        EnhancedBarrierTracker::Usage::BuildAccel);
     if (!setDesc.empty()) {
-        tracker.RecordState(
-            instBuffer.get(),
-            D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        tracker.Record(
+            BufferView(instBuffer.get(), 0, instBuffer->GetByteSize()),
+            EnhancedBarrierTracker::Usage::ComputeUAV);
     }
     return (update ? topLevelPrebuildInfo.UpdateScratchDataSizeInBytes : topLevelPrebuildInfo.ScratchDataSizeInBytes) + sizeof(size_t);
 }
 void TopAccel::Build(
-    ResourceStateTracker &tracker,
+    EnhancedBarrierTracker &tracker,
     CommandBufferBuilder &builder,
     BufferView const *scratchBuffer) {
     if (Length() == 0) return;
@@ -308,11 +304,10 @@ void TopAccel::Build(
             properties);
     }
     if (scratchBuffer) {
-        auto readState = tracker.ReadState(ResourceReadUsage::AccelBuildSrc);
-        if ((luisa::to_underlying(tracker.GetState(instBuffer.get())) & luisa::to_underlying(readState)) == 0) {
-            tracker.RecordState(instBuffer.get(), readState);
-            tracker.UpdateState(builder);
-        }
+        tracker.Record(
+            BufferView(instBuffer.get(), 0, instBuffer->GetByteSize()),
+            EnhancedBarrierTracker::Usage::AccelInstanceBuffer);
+        tracker.UpdateState(builder);
         topLevelBuildDesc.ScratchAccelerationStructureData = scratchBuffer->buffer->GetAddress() + scratchBuffer->offset;
         if (RequireCompact()) {
             D3D12_RAYTRACING_ACCELERATION_STRUCTURE_POSTBUILD_INFO_DESC postInfo;

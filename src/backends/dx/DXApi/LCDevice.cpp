@@ -226,6 +226,12 @@ ResourceCreationInfo LCDevice::create_texture(
     uint height,
     uint depth,
     uint mipmap_levels, bool simultaneous_access, bool allow_raster_target) noexcept {
+    if (allow_raster_target) {
+        if (simultaneous_access) {
+            LUISA_INFO("DX do not allow simultaneous access texture as render target, set simultaneous_access = false");
+        }
+        simultaneous_access = false;
+    }
     bool allowUAV = !is_block_compressed(format);
     ResourceCreationInfo info;
     auto res = new RenderTexture(

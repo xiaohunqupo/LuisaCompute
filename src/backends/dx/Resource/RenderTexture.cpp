@@ -15,7 +15,8 @@ RenderTexture::RenderTexture(
     GpuAllocator *allocator,
     bool shared_adaptor)
     : TextureBase(device, width, height, format, dimension, depth, mip, GetInitState()),
-      allocHandle(allocator) {
+      allocHandle(allocator),
+      allowSimul(allowSimul) {
     auto texDesc = GetResourceDescBase(allowUav, allowSimul, allowRaster, false);
     if (!allocator) {
         auto prop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);

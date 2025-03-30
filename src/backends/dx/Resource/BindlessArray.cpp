@@ -4,7 +4,6 @@
 #include <Resource/DescriptorHeap.h>
 #include <DXRuntime/CommandBuffer.h>
 #include <DXRuntime/GlobalSamplers.h>
-#include <DXRuntime/ResourceStateTracker.h>
 #include <DXRuntime/CommandAllocator.h>
 #include <luisa/core/logging.h>
 
@@ -141,22 +140,23 @@ void BindlessArray::Bind(vstd::span<const BindlessArrayUpdateCommand::Modificati
 }
 void BindlessArray::PreProcessStates(
     CommandBufferBuilder &builder,
-    ResourceStateTracker &tracker,
+    EnhancedBarrierTracker &tracker,
     vstd::span<const BindlessArrayUpdateCommand::Modification> mods) const {
     std::lock_guard lck{mtx};
     if (mods.empty()) return;
-    tracker.RecordState(
+    tracker.Record(
         &buffer,
-        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        EnhancedBarrierTracker::Range(),
+        EnhancedBarrierTracker::Usage::ComputeUAV);
 }
 void BindlessArray::UpdateStates(
     CommandBufferBuilder &builder,
-    ResourceStateTracker &tracker,
+    EnhancedBarrierTracker &tracker,
     vstd::span<const BindlessArrayUpdateCommand::Modification> mods) const {
     std::lock_guard lck{mtx};
-    struct BindlessElement{
+    struct BindlessElement {
         uint idx;
-        BindlessStruct e;   
+        BindlessStruct e;
     };
     if (!mods.empty()) {
         auto alloc = builder.GetCB()->GetAlloc();
@@ -189,9 +189,10 @@ void BindlessArray::UpdateStates(
             uint3(mods.size(), 1, 1),
             properties);
 
-        tracker.RecordState(
+        tracker.Record(
             &buffer,
-            tracker.ReadState(ResourceReadUsage::Srv));
+            EnhancedBarrierTracker::Range(),
+            EnhancedBarrierTracker::Usage::GenericRead);
     }
     if (!freeQueue.empty()) {
         builder.GetCB()->GetAlloc()->ExecuteAfterComplete(

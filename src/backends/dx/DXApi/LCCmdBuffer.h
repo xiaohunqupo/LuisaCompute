@@ -6,7 +6,8 @@
 #include <DXRuntime/CommandAllocator.h>
 #include <DXRuntime/CommandBuffer.h>
 #include <luisa/runtime/command_list.h>
-#include <DXRuntime/ResourceStateTracker.h>
+// #include <DXRuntime/ResourceStateTracker.h>
+#include <DXRuntime/EnhancedBarrierTracker.h>
 #include "../../common/command_reorder_visitor.h"
 #include <Resource/BindlessArray.h>
 #include <Shader/ComputeShader.h>
@@ -52,7 +53,8 @@ struct ReorderFuncTable {
 };
 class LCCmdBuffer final : public CmdQueueBase {
 protected:
-    ResourceStateTracker tracker;
+    // ResourceStateTracker tracker;
+    EnhancedBarrierTracker tracker;
     ReorderFuncTable reorderFuncTable;
     // CommandReorderVisitor<ReorderFuncTable, false> reorder;
     vstd::vector<BindProperty> bindProps;
