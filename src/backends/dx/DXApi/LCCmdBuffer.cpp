@@ -352,6 +352,7 @@ public:
     void visit(const CurveBuildCommand *) noexcept override { /* TODO */
     }
     void visit(const BindlessArrayUpdateCommand *cmd) noexcept override {
+        // reinterpret_cast<BindlessArray *>(cmd->handle())->Bind(cmd->modifications());
         auto arr = reinterpret_cast<BindlessArray *>(cmd->handle());
         arr->PreProcessStates(
             *bd,
@@ -1047,7 +1048,7 @@ LCCmdBuffer::LCCmdBuffer(
     GpuAllocator *resourceAllocator,
     D3D12_COMMAND_LIST_TYPE type)
     : CmdQueueBase{device, CmdQueueTag::MainCmd},
-      reorder({}),
+    //   reorder({}),
       queue(
           device,
           resourceAllocator,
@@ -1100,20 +1101,30 @@ void LCCmdBuffer::Execute(
         visitor.bd = &cmdBuilder;
         ppVisitor.bd = &cmdBuilder;
         for (auto &&command : commands) {
-            command->accept(reorder);
+            if (command->tag() == Command::Tag::EBindlessArrayUpdateCommand) {
+                auto cmd = static_cast<BindlessArrayUpdateCommand const *>(command.get());
+                reinterpret_cast<BindlessArray *>(cmd->handle())->Bind(cmd->modifications());
+            }
+            // command->accept(reorder);
         }
-        auto cmdLists = reorder.command_lists();
-        auto clearReorder = vstd::scope_exit([&] {
-            reorder.clear();
-        });
+        // auto cmdLists = reorder.command_lists();
+        // auto clearReorder = vstd::scope_exit([&] {
+        //     reorder.clear();
+        // });
         ID3D12DescriptorHeap *h[2] = {
             device->globalHeap->GetHeap(),
             device->samplerHeap->GetHeap()};
-        for (auto lst : cmdLists) {
-            if (allocType != D3D12_COMMAND_LIST_TYPE_COPY) {
-                cmdBuffer->CmdList()->SetDescriptorHeaps(vstd::array_count(h), h);
-            }
-            cmdListIsEmpty = cmdListIsEmpty && (lst == nullptr);
+        cmdListIsEmpty = commands.empty();
+        if (allocType != D3D12_COMMAND_LIST_TYPE_COPY) {
+            cmdBuffer->CmdList()->SetDescriptorHeaps(vstd::array_count(h), h);
+        }
+        for (auto &&command : commands) {
+            // for (auto lst : cmdLists) {
+            auto after_cmd = vstd::scope_exit([&]() {
+                if (command->tag() == Command::Tag::ECustomCommand && allocType != D3D12_COMMAND_LIST_TYPE_COPY) {
+                    cmdBuffer->CmdList()->SetDescriptorHeaps(vstd::array_count(h), h);
+                }
+            });
             // Clear caches
             ppVisitor.argVecs->clear();
             ppVisitor.argBuffer->clear();
@@ -1121,9 +1132,10 @@ void LCCmdBuffer::Execute(
             ppVisitor.bottomAccelDatas->clear();
             ppVisitor.buildAccelSize = 0;
             // Preprocess: record resources' states
-            for (auto i = lst; i != nullptr; i = i->p_next) {
-                i->cmd->accept(ppVisitor);
-            }
+            // for (auto i = lst; i != nullptr; i = i->p_next) {
+            //     i->cmd->accept(ppVisitor);
+            // }
+            command->accept(ppVisitor);
             visitor.bottomAccelData = ppVisitor.bottomAccelDatas->data();
             DefaultBuffer const *accelScratchBuffer;
             if (ppVisitor.buildAccelSize) {
@@ -1166,9 +1178,11 @@ void LCCmdBuffer::Execute(
                 cmdBuilder);
             visitor.bufferVec = ppVisitor.argVecs->data();
             // Execute commands
-            for (auto i = lst; i != nullptr; i = i->p_next) {
-                i->cmd->accept(visitor);
-            }
+            // for (auto i = lst; i != nullptr; i = i->p_next) {
+            //     i->cmd->accept(visitor);
+            // }
+            command->accept(visitor);
+
             if (!updateAccel.empty()) {
                 tracker.ClearFence();
                 tracker.RecordState(
