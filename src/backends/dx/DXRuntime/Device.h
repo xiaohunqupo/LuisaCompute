@@ -100,6 +100,7 @@ public:
     vstd::unique_ptr<ComputeShader> bc7_1;
     vstd::unique_ptr<ComputeShader> bc7_2;
     vstd::unique_ptr<ComputeShader> bc7_3;*/
+    std::atomic_bool fallback_mode{false}; // for older system like win-10
     Device(luisa::compute::Context &&ctx, luisa::compute::DeviceConfig const *settings);
     Device(Device const &) = delete;
     Device(Device &&) = delete;

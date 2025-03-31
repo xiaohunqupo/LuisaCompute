@@ -12,9 +12,16 @@ DefaultBuffer::DefaultBuffer(
       byteSize(byteSize),
       initState(initState) {
     auto flag = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-    if (initState == D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE) {
+    if (initState == D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE && !device->fallback_mode) {
         flag |= D3D12_RESOURCE_FLAG_RAYTRACING_ACCELERATION_STRUCTURE;
     }
+    auto create_res = [&](auto &&func) {
+        if (initState == D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE && func() != S_OK) {
+            flag &= ~D3D12_RESOURCE_FLAG_RAYTRACING_ACCELERATION_STRUCTURE;
+            device->fallback_mode = true;
+        }
+        ThrowIfFailed(func());
+    };
     if (allocator) {
         ID3D12Heap *heap;
         uint64 offset;
@@ -22,23 +29,29 @@ DefaultBuffer::DefaultBuffer(
             device, name ? name : "default buffer", byteSize, D3D12_HEAP_TYPE_DEFAULT, &heap, &offset,
             shared_adaptor ? D3D12_HEAP_FLAG_SHARED : D3D12_HEAP_FLAG_NONE);
         auto buffer = CD3DX12_RESOURCE_DESC::Buffer(byteSize, flag);
-        ThrowIfFailed(device->device->CreatePlacedResource(
-            heap, offset,
-            &buffer,
-            initState,
-            nullptr,
-            IID_PPV_ARGS(&allocHandle.resource)));
+        auto func = [&]() {
+            return device->device->CreatePlacedResource(
+                heap, offset,
+                &buffer,
+                initState,
+                nullptr,
+                IID_PPV_ARGS(&allocHandle.resource));
+        };
+        create_res(func);
         _is_heap_resource = true;
     } else {
         auto prop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
         auto buffer = CD3DX12_RESOURCE_DESC::Buffer(byteSize, flag);
-        ThrowIfFailed(device->device->CreateCommittedResource(
-            &prop,
-            shared_adaptor ? D3D12_HEAP_FLAG_SHARED : D3D12_HEAP_FLAG_NONE,
-            &buffer,
-            initState,
-            nullptr,
-            IID_PPV_ARGS(&allocHandle.resource)));
+        auto func = [&]() {
+            return device->device->CreateCommittedResource(
+                &prop,
+                shared_adaptor ? D3D12_HEAP_FLAG_SHARED : D3D12_HEAP_FLAG_NONE,
+                &buffer,
+                initState,
+                nullptr,
+                IID_PPV_ARGS(&allocHandle.resource));
+        };
+        create_res(func);
         _is_heap_resource = false;
     }
 }
