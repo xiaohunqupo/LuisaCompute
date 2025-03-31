@@ -477,6 +477,7 @@ void EnhancedBarrierTracker::UpdateState(CommandBufferBuilder const &cmdBuffer) 
     }
 }
 void EnhancedBarrierTracker::RestoreState(CommandBufferBuilder const &cmdBuffer) {
+    current_update_states.clear();
     bufferBarriers.clear();
     texBarriers.clear();
     for (auto &i : frameStates) {
