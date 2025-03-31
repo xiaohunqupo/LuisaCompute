@@ -543,6 +543,32 @@ void EnhancedBarrierTrackerImpl::RestoreState(CommandBufferBuilder const &cmdBuf
     }
     frameStates.clear();
 }
+namespace detail {
+void FilterAccess(
+    D3D12_COMMAND_LIST_TYPE type,
+    D3D12_BARRIER_SYNC &sync,
+    D3D12_BARRIER_ACCESS &access) {
+    switch (type) {
+        case D3D12_COMMAND_LIST_TYPE_COMPUTE: {
+            sync &= ~D3D12_BARRIER_SYNC_DRAW;
+            sync &= ~D3D12_BARRIER_SYNC_PIXEL_SHADING;
+            sync &= ~D3D12_BARRIER_SYNC_DEPTH_STENCIL;
+            sync &= ~D3D12_BARRIER_SYNC_RENDER_TARGET;
+            access &= ~D3D12_BARRIER_ACCESS_VERTEX_BUFFER;
+            access &= ~D3D12_BARRIER_ACCESS_CONSTANT_BUFFER;
+            access &= ~D3D12_BARRIER_ACCESS_INDEX_BUFFER;
+            access &= ~D3D12_BARRIER_ACCESS_RENDER_TARGET;
+            access &= ~D3D12_BARRIER_ACCESS_DEPTH_STENCIL_WRITE;
+            access &= ~D3D12_BARRIER_ACCESS_DEPTH_STENCIL_READ;
+            access &= ~D3D12_BARRIER_ACCESS_SHADING_RATE_SOURCE;
+        } break;
+        case D3D12_COMMAND_LIST_TYPE_COPY: {
+            sync &= (D3D12_BARRIER_SYNC_ALL | D3D12_BARRIER_SYNC_COPY | D3D12_BARRIER_SYNC_COPY_RAYTRACING_ACCELERATION_STRUCTURE);
+            access &= (D3D12_BARRIER_ACCESS_COPY_DEST | D3D12_BARRIER_ACCESS_COPY_SOURCE | D3D12_BARRIER_ACCESS_RESOLVE_DEST | D3D12_BARRIER_ACCESS_RESOLVE_SOURCE);
+        } break;
+    }
+}
+}// namespace detail
 void EnhancedBarrierTrackerImpl::BarrierFilter(D3D12_BUFFER_BARRIER &barrier) {
     if (barrier.AccessBefore == D3D12_BARRIER_ACCESS_COMMON && barrier.SyncBefore == D3D12_BARRIER_SYNC_NONE) {
         barrier.SyncBefore = D3D12_BARRIER_SYNC_ALL;
@@ -550,6 +576,8 @@ void EnhancedBarrierTrackerImpl::BarrierFilter(D3D12_BUFFER_BARRIER &barrier) {
     if (barrier.AccessAfter == D3D12_BARRIER_ACCESS_COMMON && barrier.SyncAfter == D3D12_BARRIER_SYNC_NONE) {
         barrier.SyncAfter = D3D12_BARRIER_SYNC_ALL;
     }
+    detail::FilterAccess(listType, barrier.SyncBefore, barrier.AccessBefore);
+    detail::FilterAccess(listType, barrier.SyncAfter, barrier.AccessAfter);
 }
 void EnhancedBarrierTrackerImpl::BarrierFilter(D3D12_TEXTURE_BARRIER &barrier) {
     if (barrier.AccessBefore == D3D12_BARRIER_ACCESS_COMMON && barrier.SyncBefore == D3D12_BARRIER_SYNC_NONE) {

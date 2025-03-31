@@ -63,6 +63,7 @@ public:
         }
         bool operator!=(Range const &r) const { return !operator==(r); }
     };
+    D3D12_COMMAND_LIST_TYPE listType;
 protected:
     struct BufferRange {
         // Range range;

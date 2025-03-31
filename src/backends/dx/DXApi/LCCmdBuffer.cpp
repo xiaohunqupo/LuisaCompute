@@ -1091,7 +1091,6 @@ void LCCmdBuffer::Execute(
     bool cmdListIsEmpty = commands.empty();
     {
         std::unique_lock lck{mtx};
-        // tracker.listType = allocator->Type();
         LCPreProcessVisitor ppVisitor;
         ppVisitor.argVecs = &argVecs;
         ppVisitor.argBuffer = &argBuffer;
@@ -1136,6 +1135,7 @@ void LCCmdBuffer::Execute(
                 tracker = luisa::make_unique<EnhancedBarrierTrackerBackup>();
             }
         }
+        tracker->listType = allocator->Type();
         visitor.stateTracker = tracker.get();
         ppVisitor.stateTracker = tracker.get();
         visitor.bd = &cmdBuilder;
@@ -1275,7 +1275,7 @@ void LCCmdBuffer::Present(
     auto alloc = queue.CreateAllocator(maxAlloc);
     {
         std::lock_guard lck{mtx};
-        // tracker->listType = alloc->Type();
+        tracker->listType = alloc->Type();
         // swapchain->frameIndex = swapchain->swapChain->GetCurrentBackBufferIndex();
         auto &&rt = &swapchain->m_renderTargets[swapchain->frameIndex];
         swapchain->frameIndex += 1;
@@ -1353,7 +1353,7 @@ void LCCmdBuffer::CompressBC(
         auto alloc = queue.CreateAllocator(maxAlloc);
         {
             std::lock_guard lck{mtx};
-            // tracker->listType = alloc->Type();
+            tracker->listType = alloc->Type();
             // auto bufferReadState = tracker->ReadState(ResourceReadUsage::Srv);
             auto cmdBuffer = alloc->GetBuffer();
             auto cmdBuilder = cmdBuffer->Build();
