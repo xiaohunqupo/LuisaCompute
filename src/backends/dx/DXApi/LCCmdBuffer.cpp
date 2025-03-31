@@ -1075,7 +1075,7 @@ LCCmdBuffer::LCCmdBuffer(
     GpuAllocator *resourceAllocator,
     D3D12_COMMAND_LIST_TYPE type)
     : CmdQueueBase{device, CmdQueueTag::MainCmd},
-      //   reorder({}),
+      reorder({}),
       queue(
           device,
           resourceAllocator,
@@ -1088,7 +1088,8 @@ void LCCmdBuffer::Execute(
     auto funcs = std::move(cmdList).steal_callbacks();
     auto allocator = queue.CreateAllocator(maxAlloc);
     auto allocType = allocator->Type();
-    bool cmdListIsEmpty = true;
+    bool cmdListIsEmpty = commands.empty();
+
     {
         std::unique_lock lck{mtx};
         // tracker.listType = allocator->Type();
@@ -1128,25 +1129,26 @@ void LCCmdBuffer::Execute(
         visitor.bd = &cmdBuilder;
         ppVisitor.bd = &cmdBuilder;
         for (auto &&command : commands) {
-            if (command->tag() == Command::Tag::EBindlessArrayUpdateCommand) {
-                auto cmd = static_cast<BindlessArrayUpdateCommand const *>(command.get());
-                reinterpret_cast<BindlessArray *>(cmd->handle())->Bind(cmd->modifications());
-            }
-            // command->accept(reorder);
+            // if (command->tag() == Command::Tag::EBindlessArrayUpdateCommand) {
+            //     auto cmd = static_cast<BindlessArrayUpdateCommand const *>(command.get());
+            //     reinterpret_cast<BindlessArray *>(cmd->handle())->Bind(cmd->modifications());
+            // }
+            command->accept(reorder);
         }
-        // auto cmdLists = reorder.command_lists();
-        // auto clearReorder = vstd::scope_exit([&] {
-        //     reorder.clear();
-        // });
+        auto cmdLists = reorder.command_lists();
+        auto clearReorder = vstd::scope_exit([&] {
+            reorder.clear();
+        });
         ID3D12DescriptorHeap *h[2] = {
             device->globalHeap->GetHeap(),
             device->samplerHeap->GetHeap()};
-        cmdListIsEmpty = commands.empty();
 
-        for (auto &&command : commands) {
+        // for (auto &&command : commands) {
+        for (auto &&lst : cmdLists) {
             if (allocType != D3D12_COMMAND_LIST_TYPE_COPY) {
                 cmdBuffer->CmdList()->SetDescriptorHeaps(vstd::array_count(h), h);
             }
+
             // Clear caches
             ppVisitor.argVecs->clear();
             ppVisitor.argBuffer->clear();
@@ -1154,10 +1156,12 @@ void LCCmdBuffer::Execute(
             ppVisitor.bottomAccelDatas->clear();
             ppVisitor.buildAccelSize = 0;
             // Preprocess: record resources' states
-            // for (auto i = lst; i != nullptr; i = i->p_next) {
-            //     i->cmd->accept(ppVisitor);
-            // }
-            command->accept(ppVisitor);
+            auto size = 0;
+            for (auto i = lst; i != nullptr; i = i->p_next) {
+                size += 1;
+                i->cmd->accept(ppVisitor);
+            }
+            // command->accept(ppVisitor);
             visitor.bottomAccelData = ppVisitor.bottomAccelDatas->data();
             DefaultBuffer const *accelScratchBuffer;
             if (ppVisitor.buildAccelSize) {
@@ -1200,10 +1204,10 @@ void LCCmdBuffer::Execute(
                 cmdBuilder);
             visitor.bufferVec = ppVisitor.argVecs->data();
             // Execute commands
-            // for (auto i = lst; i != nullptr; i = i->p_next) {
-            //     i->cmd->accept(visitor);
-            // }
-            command->accept(visitor);
+            for (auto i = lst; i != nullptr; i = i->p_next) {
+                i->cmd->accept(visitor);
+            }
+            // command->accept(visitor);
 
             if (!updateAccel.empty()) {
                 tracker.Record(
@@ -1236,6 +1240,7 @@ void LCCmdBuffer::Execute(
         }
         tracker.RestoreState(cmdBuilder);
     }
+
     if (funcs.empty()) {
         if (cmdListIsEmpty)
             queue.ExecuteEmpty(std::move(allocator));

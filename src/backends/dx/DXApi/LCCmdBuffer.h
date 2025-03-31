@@ -49,6 +49,7 @@ struct ReorderFuncTable {
         CustomDispatchCommand const *cmd,
         Func &&func) const {
         // TODO
+        cmd->traverse_arguments(func);
     }
 };
 class LCCmdBuffer final : public CmdQueueBase {
@@ -56,7 +57,7 @@ protected:
     // ResourceStateTracker tracker;
     EnhancedBarrierTracker tracker;
     ReorderFuncTable reorderFuncTable;
-    // CommandReorderVisitor<ReorderFuncTable, false> reorder;
+    CommandReorderVisitor<ReorderFuncTable, false> reorder;
     vstd::vector<BindProperty> bindProps;
     vstd::vector<ButtomCompactCmd> updateAccel;
     vstd::vector<D3D12_VERTEX_BUFFER_VIEW> vbv;

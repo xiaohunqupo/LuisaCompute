@@ -192,7 +192,7 @@ void BindlessArray::UpdateStates(
         tracker.Record(
             &buffer,
             EnhancedBarrierTracker::Range(),
-            EnhancedBarrierTracker::Usage::GenericRead);
+            EnhancedBarrierTracker::Usage::ShaderRead);
     }
     if (!freeQueue.empty()) {
         builder.GetCB()->GetAlloc()->ExecuteAfterComplete(

@@ -31,9 +31,9 @@ RenderTexture::RenderTexture(
     } else {
         ID3D12Heap *heap;
         uint64 offset;
-        if(device->gpuType == Device::GpuType::NVIDIA && allowUav){
-            texDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
-        }
+        // if(device->gpuType == Device::GpuType::NVIDIA && allowUav){
+        //     texDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+        // }
         auto allocateInfo = device->device->GetResourceAllocationInfo(
             0, 1, &texDesc);
         auto byteSize = allocateInfo.SizeInBytes;
@@ -43,7 +43,7 @@ RenderTexture::RenderTexture(
             byteSize,
             &heap,
             &offset,
-            allowUav,
+            allowRaster,
             shared_adaptor ? D3D12_HEAP_FLAG_SHARED : D3D12_HEAP_FLAG_NONE);
         ThrowIfFailed(device->device->CreatePlacedResource(
             heap,
