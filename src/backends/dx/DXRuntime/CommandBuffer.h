@@ -113,7 +113,9 @@ public:
     ID3D12GraphicsCommandList4 *CmdList() const { return cmdList.Get(); }
     ComPtr<ID3D12GraphicsCommandList7> NextCmdList() const {
         ComPtr<ID3D12GraphicsCommandList7> cmdlist;
-        ThrowIfFailed(cmdList->QueryInterface(IID_PPV_ARGS(&cmdlist)));
+        if (cmdList->QueryInterface(IID_PPV_ARGS(&cmdlist)) != S_OK) {
+            return nullptr;
+        }
         return cmdlist;
     }
     bool ContainedCmdList() const { return cmdList.Contained(); }

@@ -1,0 +1,180 @@
+#include "EnhancedBarrierTrackerBackup.h"
+#include "CommandBuffer.h"
+namespace lc::dx {
+D3D12_RESOURCE_STATES EnhancedBarrierTrackerBackup::ToStates(
+    D3D12_BARRIER_SYNC sync,
+    D3D12_BARRIER_ACCESS access) {
+    switch (access) {
+        case D3D12_BARRIER_ACCESS_VERTEX_BUFFER:
+        case D3D12_BARRIER_ACCESS_CONSTANT_BUFFER:
+            return D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
+        case D3D12_BARRIER_ACCESS_INDEX_BUFFER:
+            return D3D12_RESOURCE_STATE_INDEX_BUFFER;
+        case D3D12_BARRIER_ACCESS_RENDER_TARGET:
+            return D3D12_RESOURCE_STATE_RENDER_TARGET;
+        case D3D12_BARRIER_ACCESS_UNORDERED_ACCESS:
+            return D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+        case D3D12_BARRIER_ACCESS_DEPTH_STENCIL_WRITE:
+            return D3D12_RESOURCE_STATE_DEPTH_WRITE;
+        case D3D12_BARRIER_ACCESS_DEPTH_STENCIL_READ:
+            return D3D12_RESOURCE_STATE_DEPTH_READ;
+        case D3D12_BARRIER_ACCESS_SHADER_RESOURCE: {
+            D3D12_RESOURCE_STATES st{};
+            if (sync & (D3D12_BARRIER_SYNC_ALL |
+                        D3D12_BARRIER_SYNC_DRAW |
+                        D3D12_BARRIER_SYNC_ALL_SHADING)) {
+                st |= D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+            }
+
+            if ((sync & D3D12_BARRIER_SYNC_PIXEL_SHADING) == 0) {
+                st |= D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+            } else {
+                st |= D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+            }
+            return st;
+        }
+        case D3D12_BARRIER_ACCESS_STREAM_OUTPUT:
+            return D3D12_RESOURCE_STATE_STREAM_OUT;
+        case D3D12_BARRIER_ACCESS_INDIRECT_ARGUMENT:
+            return D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT;
+        case D3D12_BARRIER_ACCESS_COPY_DEST:
+            return D3D12_RESOURCE_STATE_COPY_DEST;
+        case D3D12_BARRIER_ACCESS_COPY_SOURCE:
+            return D3D12_RESOURCE_STATE_COPY_SOURCE;
+        case D3D12_BARRIER_ACCESS_RESOLVE_DEST:
+            return D3D12_RESOURCE_STATE_RESOLVE_DEST;
+        case D3D12_BARRIER_ACCESS_RESOLVE_SOURCE:
+            return D3D12_RESOURCE_STATE_RESOLVE_SOURCE;
+        case D3D12_BARRIER_ACCESS_RAYTRACING_ACCELERATION_STRUCTURE_READ:
+        case D3D12_BARRIER_ACCESS_RAYTRACING_ACCELERATION_STRUCTURE_WRITE:
+            return D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE;
+        case D3D12_BARRIER_ACCESS_SHADING_RATE_SOURCE:
+            return D3D12_RESOURCE_STATE_SHADING_RATE_SOURCE;
+        case D3D12_BARRIER_ACCESS_VIDEO_DECODE_READ:
+            return D3D12_RESOURCE_STATE_VIDEO_DECODE_READ;
+        case D3D12_BARRIER_ACCESS_VIDEO_DECODE_WRITE:
+            return D3D12_RESOURCE_STATE_VIDEO_DECODE_WRITE;
+        case D3D12_BARRIER_ACCESS_VIDEO_ENCODE_READ:
+            return D3D12_RESOURCE_STATE_VIDEO_ENCODE_READ;
+        case D3D12_BARRIER_ACCESS_VIDEO_ENCODE_WRITE:
+            return D3D12_RESOURCE_STATE_VIDEO_ENCODE_WRITE;
+        case D3D12_BARRIER_ACCESS_VIDEO_PROCESS_READ:
+            return D3D12_RESOURCE_STATE_VIDEO_PROCESS_READ;
+        case D3D12_BARRIER_ACCESS_VIDEO_PROCESS_WRITE:
+            return D3D12_RESOURCE_STATE_VIDEO_PROCESS_WRITE;
+        default:
+            return D3D12_RESOURCE_STATE_COMMON;
+    }
+}
+void EnhancedBarrierTrackerBackup::UpdateResourceState(Resource const *resPtr, ResourceStates &state) {
+    state.require_update = false;
+    bool is_write = false;
+    if (state.layer_states.index() == 0) {
+        auto &bf = state.layer_states.get<0>();
+        D3D12_RESOURCE_BARRIER &barrier = barriers.emplace_back();
+        barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+        auto before_state = bf.first_time ? resPtr->GetInitState() : ToStates(bf.before_sync, bf.before_access);
+        auto after_state = ToStates(bf.after_sync, bf.after_access);
+        if (before_state == after_state) {
+            barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+            barrier.UAV.pResource = resPtr->GetResource();
+        } else {
+            barrier.Transition.Subresource = UINT32_MAX;
+            barrier.Transition.pResource = resPtr->GetResource();
+            barrier.Transition.StateBefore = before_state;
+            barrier.Transition.StateAfter = after_state;
+        }
+        is_write |= (bf.after_access & detail::write_access) != 0;
+        bf.before_sync = bf.after_sync;
+        bf.after_sync = D3D12_BARRIER_SYNC_NONE;
+        bf.before_access = bf.after_access;
+        bf.after_access = D3D12_BARRIER_ACCESS_COMMON;
+        bf.first_time = false;
+    } else {
+        auto &vec = state.layer_states.get<1>();
+        for (auto idx : vstd::range(vec.size())) {
+            auto &i = vec[idx];
+            if (!i.level_require_update) continue;
+            i.level_require_update = false;
+            D3D12_RESOURCE_BARRIER &barrier = barriers.emplace_back();
+            barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+            auto before_state = i.first_time ? resPtr->GetInitState() : ToStates(i.before_sync, i.before_access);
+            auto after_state = ToStates(i.after_sync, i.after_access);
+            if (before_state == after_state) {
+                barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+                barrier.UAV.pResource = resPtr->GetResource();
+            } else {
+                barrier.Transition.Subresource = idx;
+                barrier.Transition.pResource = resPtr->GetResource();
+                barrier.Transition.StateBefore = before_state;
+                barrier.Transition.StateAfter = after_state;
+            }
+            is_write |= (i.after_access & detail::write_access) != 0;
+            i.before_sync = i.after_sync;
+            i.after_sync = D3D12_BARRIER_SYNC_NONE;
+            i.before_access = i.after_access;
+            i.after_access = D3D12_BARRIER_ACCESS_COMMON;
+            i.before_layout = i.after_layout;
+            i.first_time = false;
+        }
+    }
+    if (is_write) {
+        writeStateMap.emplace(resPtr, state.size);
+    }
+}
+
+void EnhancedBarrierTrackerBackup::UpdateState(CommandBufferBuilder const &cmdBuffer) {
+    barriers.clear();
+    for (auto &i : current_update_states) {
+        UpdateResourceState(i.first, *i.second);
+    }
+    current_update_states.clear();
+    if (!barriers.empty())
+        cmdBuffer.GetCB()->CmdList()->ResourceBarrier(barriers.size(), barriers.data());
+}
+void EnhancedBarrierTrackerBackup::RestoreState(CommandBufferBuilder const &cmdBuffer) {
+    barriers.clear();
+    writeStateMap.clear();
+    current_update_states.clear();
+    for (auto &i : frameStates) {
+        Resource const *resPtr = i.first;
+        ResourceStates &state = i.second;
+        if (state.layer_states.index() == 0) {
+            auto &bf = state.layer_states.get<0>();
+            if (bf.before_access == D3D12_BARRIER_ACCESS_COMMON || bf.first_time) continue;
+            auto before_state = ToStates(bf.before_sync, bf.before_access);
+            auto after_state = resPtr->GetInitState();
+            if (before_state == after_state) continue;
+            D3D12_RESOURCE_BARRIER &barrier = barriers.emplace_back();
+            barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+            barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+            barrier.Transition.pResource = resPtr->GetResource();
+            barrier.Transition.Subresource = UINT32_MAX;
+            barrier.Transition.StateBefore = before_state;
+            barrier.Transition.StateAfter = after_state;
+        } else {
+            auto &vec = state.layer_states.get<1>();
+            auto init_state = resPtr->GetInitState();
+            for (auto idx : vstd::range(vec.size())) {
+                auto &i = vec[idx];
+                if (!i.level_inited || i.first_time) continue;
+                auto before_state = ToStates(i.before_sync, i.before_access);
+                auto after_state = resPtr->GetInitState();
+                if (before_state == after_state) continue;
+                D3D12_RESOURCE_BARRIER &barrier = barriers.emplace_back();
+                barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+                barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+                barrier.Transition.pResource = resPtr->GetResource();
+                barrier.Transition.Subresource = idx;
+                barrier.Transition.StateBefore = before_state;
+                barrier.Transition.StateAfter = after_state;
+            }
+        }
+    }
+    frameStates.clear();
+    if (!barriers.empty())
+        cmdBuffer.GetCB()->CmdList()->ResourceBarrier(barriers.size(), barriers.data());
+}
+EnhancedBarrierTrackerBackup::EnhancedBarrierTrackerBackup() {}
+EnhancedBarrierTrackerBackup::~EnhancedBarrierTrackerBackup() {}
+}// namespace lc::dx

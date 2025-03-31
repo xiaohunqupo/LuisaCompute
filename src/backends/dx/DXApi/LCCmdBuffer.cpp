@@ -1089,12 +1089,10 @@ void LCCmdBuffer::Execute(
     auto allocator = queue.CreateAllocator(maxAlloc);
     auto allocType = allocator->Type();
     bool cmdListIsEmpty = commands.empty();
-
     {
         std::unique_lock lck{mtx};
         // tracker.listType = allocator->Type();
         LCPreProcessVisitor ppVisitor;
-        ppVisitor.stateTracker = &tracker;
         ppVisitor.argVecs = &argVecs;
         ppVisitor.argBuffer = &argBuffer;
         ppVisitor.bottomAccelDatas = &bottomAccelDatas;
@@ -1114,7 +1112,6 @@ void LCCmdBuffer::Execute(
         visitor.updateAccel = &updateAccel;
         visitor.vbv = &vbv;
         visitor.device = device;
-        visitor.stateTracker = &tracker;
         visitor.after_custom_cmd = [](Device *device, CommandBufferBuilder *bd) {
             ID3D12DescriptorHeap *h[2] = {
                 device->globalHeap->GetHeap(),
@@ -1126,6 +1123,16 @@ void LCCmdBuffer::Execute(
         };
         auto cmdBuffer = allocator->GetBuffer();
         auto cmdBuilder = cmdBuffer->Build();
+        if (!tracker) {
+            auto next_cmdlist = cmdBuffer->NextCmdList();
+            if (next_cmdlist) {// use enhanced barrier in later system
+                tracker = luisa::make_unique<EnhancedBarrierTrackerImpl>();
+            } else {// use backup barrier in older system
+                tracker = luisa::make_unique<EnhancedBarrierTrackerBackup>();
+            }
+        }
+        visitor.stateTracker = tracker.get();
+        ppVisitor.stateTracker = tracker.get();
         visitor.bd = &cmdBuilder;
         ppVisitor.bd = &cmdBuilder;
         for (auto &&command : commands) {
@@ -1176,18 +1183,18 @@ void LCCmdBuffer::Execute(
 // Use default buffer as arguments buffer
 #if false
                 auto uploadBuffer = allocator->GetTempDefaultBuffer(ppVisitor.argBuffer->size(), 16);
-                tracker.RecordState(
+                tracker->RecordState(
                     uploadBuffer.buffer,
                     D3D12_RESOURCE_STATE_COPY_DEST);
                 // Update recorded states
-                tracker.UpdateState(
+                tracker->UpdateState(
                     cmdBuilder);
                 cmdBuilder.Upload(
                     uploadBuffer,
                     ppVisitor.argBuffer->data());
-                tracker.RecordState(
+                tracker->RecordState(
                     uploadBuffer.buffer,
-                    tracker.ReadState(ResourceReadUsage::Srv));
+                    tracker->ReadState(ResourceReadUsage::Srv));
 #else
                 // use upload buffer maybe faster?
                 auto uploadBuffer = allocator->GetTempUploadBuffer(ppVisitor.argBuffer->size(), 16);
@@ -1200,7 +1207,7 @@ void LCCmdBuffer::Execute(
 #endif
                 visitor.argBuffer = uploadBuffer;
             }
-            tracker.UpdateState(
+            tracker->UpdateState(
                 cmdBuilder);
             visitor.bufferVec = ppVisitor.argVecs->data();
             // Execute commands
@@ -1210,10 +1217,10 @@ void LCCmdBuffer::Execute(
             // command->accept(visitor);
 
             if (!updateAccel.empty()) {
-                tracker.Record(
+                tracker->Record(
                     BufferView(accelScratchBuffer),
                     EnhancedBarrierTracker::Usage::CopySource);
-                tracker.UpdateState(cmdBuilder);
+                tracker->UpdateState(cmdBuilder);
                 for (auto &&i : updateAccel) {
                     i.accel.visit([&](auto &&p) {
                         p->FinalCopy(
@@ -1224,7 +1231,7 @@ void LCCmdBuffer::Execute(
                                 i.size));
                     });
                 }
-                tracker.RestoreState(cmdBuilder);
+                tracker->RestoreState(cmdBuilder);
                 auto localUpdateAccel = std::move(updateAccel);
                 lck.unlock();
                 queue.ForceSync(
@@ -1238,7 +1245,7 @@ void LCCmdBuffer::Execute(
                 lck.lock();
             }
         }
-        tracker.RestoreState(cmdBuilder);
+        tracker->RestoreState(cmdBuilder);
     }
 
     if (funcs.empty()) {
@@ -1263,7 +1270,7 @@ void LCCmdBuffer::Present(
     auto alloc = queue.CreateAllocator(maxAlloc);
     {
         std::lock_guard lck{mtx};
-        // tracker.listType = alloc->Type();
+        // tracker->listType = alloc->Type();
         // swapchain->frameIndex = swapchain->swapChain->GetCurrentBackBufferIndex();
         auto &&rt = &swapchain->m_renderTargets[swapchain->frameIndex];
         swapchain->frameIndex += 1;
@@ -1271,9 +1278,11 @@ void LCCmdBuffer::Present(
         auto cb = alloc->GetBuffer();
         auto bd = cb->Build();
         auto cmdList = cb->CmdList();
-        tracker.Record(
-            EnhancedBarrierTracker::ResourceView(rt), EnhancedBarrierTracker::Usage::CopySource);
-        tracker.UpdateState(bd);
+        tracker->Record(
+            EnhancedBarrierTracker::ResourceView(rt), EnhancedBarrierTracker::Usage::CopyDest);
+        tracker->Record(
+            EnhancedBarrierTracker::ResourceView(img), EnhancedBarrierTracker::Usage::CopySource);
+        tracker->UpdateState(bd);
         D3D12_TEXTURE_COPY_LOCATION sourceLocation;
         sourceLocation.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
         sourceLocation.SubresourceIndex = 0;
@@ -1287,7 +1296,7 @@ void LCCmdBuffer::Present(
             0, 0, 0,
             &sourceLocation,
             nullptr);
-        tracker.RestoreState(bd);
+        tracker->RestoreState(bd);
     }
     queue.ExecuteAndPresent(std::move(alloc), swapchain->swapChain.Get(), swapchain->vsync);
 }
@@ -1339,8 +1348,8 @@ void LCCmdBuffer::CompressBC(
         auto alloc = queue.CreateAllocator(maxAlloc);
         {
             std::lock_guard lck{mtx};
-            // tracker.listType = alloc->Type();
-            // auto bufferReadState = tracker.ReadState(ResourceReadUsage::Srv);
+            // tracker->listType = alloc->Type();
+            // auto bufferReadState = tracker->ReadState(ResourceReadUsage::Srv);
             auto cmdBuffer = alloc->GetBuffer();
             auto cmdBuilder = cmdBuffer->Build();
             ID3D12DescriptorHeap *h[2] = {
@@ -1350,19 +1359,19 @@ void LCCmdBuffer::CompressBC(
 
             BCCBuffer cbData{
                 .g_mip_level = level};
-            tracker.Record(
+            tracker->Record(
                 EnhancedBarrierTracker::TexView(rt, level),
                 EnhancedBarrierTracker::Usage::ComputeRead);
             auto RunComputeShader = [&](ComputeShader const *cs, uint dispatchCount, BufferView const &inBuffer, BufferView const &outBuffer) {
                 auto cbuffer = alloc->GetTempUploadBuffer(sizeof(BCCBuffer), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
                 static_cast<UploadBuffer const *>(cbuffer.buffer)->CopyData(cbuffer.offset, {reinterpret_cast<uint8_t const *>(&cbData), sizeof(BCCBuffer)});
-                tracker.Record(
+                tracker->Record(
                     inBuffer,
                     EnhancedBarrierTracker::Usage::ComputeRead);
-                tracker.Record(
+                tracker->Record(
                     outBuffer,
                     EnhancedBarrierTracker::Usage::ComputeUAV);
-                tracker.UpdateState(cmdBuilder);
+                tracker->UpdateState(cmdBuilder);
                 BindProperty prop[4];
                 prop[0] = cbuffer;
                 prop[1] = DescriptorHeapView(device->globalHeap.get(), rt->GetGlobalSRVIndex());
@@ -1463,8 +1472,8 @@ void LCCmdBuffer::CompressBC(
                     numBlocks -= n;
                 }
             }
-            tracker.Record(outBuffer, EnhancedBarrierTracker::Usage::CopySource);
-            tracker.RestoreState(cmdBuilder);
+            tracker->Record(outBuffer, EnhancedBarrierTracker::Usage::CopySource);
+            tracker->RestoreState(cmdBuilder);
         }
         if (batch == batchNum - 1) {
             vstd::vector<vstd::function<void()>> callbacks;

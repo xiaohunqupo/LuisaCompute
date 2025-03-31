@@ -4,6 +4,9 @@
 #include <Resource/Resource.h>
 #include <Resource/SwapChain.h>
 namespace lc::dx {
+namespace detail {
+static constexpr D3D12_BARRIER_ACCESS write_access = D3D12_BARRIER_ACCESS_RENDER_TARGET | D3D12_BARRIER_ACCESS_UNORDERED_ACCESS | D3D12_BARRIER_ACCESS_DEPTH_STENCIL_WRITE | D3D12_BARRIER_ACCESS_STREAM_OUTPUT | D3D12_BARRIER_ACCESS_COPY_DEST | D3D12_BARRIER_ACCESS_RESOLVE_DEST | D3D12_BARRIER_ACCESS_RAYTRACING_ACCELERATION_STRUCTURE_WRITE | D3D12_BARRIER_ACCESS_VIDEO_DECODE_WRITE | D3D12_BARRIER_ACCESS_VIDEO_PROCESS_WRITE | D3D12_BARRIER_ACCESS_VIDEO_ENCODE_WRITE;
+}// namespace detail
 class CommandBufferBuilder;
 class TopAccel;
 class EnhancedBarrierTracker : public vstd::IOperatorNewBase {
@@ -60,7 +63,7 @@ public:
         }
         bool operator!=(Range const &r) const { return !operator==(r); }
     };
-private:
+protected:
     struct BufferRange {
         // Range range;
         D3D12_BARRIER_SYNC before_sync;
@@ -68,6 +71,7 @@ private:
         D3D12_BARRIER_ACCESS before_access;
         D3D12_BARRIER_ACCESS after_access;
         // D3D12_BARRIER_ACCESS init_access;
+        bool first_time{true};// used for backup
     };
     struct BufferAfterRange {
         // Range range;
@@ -77,6 +81,7 @@ private:
     struct TextureRange {
         bool level_inited{false};
         bool level_require_update;
+        bool first_time{true};// used for backup
         D3D12_BARRIER_SYNC before_sync;
         D3D12_BARRIER_SYNC after_sync;
         D3D12_BARRIER_ACCESS before_access;
@@ -97,37 +102,17 @@ private:
         size_t size;
         bool require_update{false};
 
-        ResourceStates(Type type, size_t size, Resource const* res);
+        ResourceStates(Type type, size_t size, Resource const *res);
     };
-    ///////////////// State Tracker
     vstd::HashMap<Resource const *, ResourceStates> frameStates;
-    vstd::HashMap<Resource const *, size_t /* size */> writeStateMap;
     vstd::vector<std::pair<Resource const *, ResourceStates *>> current_update_states;
-    vstd::vector<D3D12_BUFFER_BARRIER> bufferBarriers;
-    vstd::vector<D3D12_TEXTURE_BARRIER> texBarriers;
-    ///////////////// Commands
-
-    void UpdateResourceState(Resource const *resPtr, ResourceStates &state);
-    void BarrierFilter(D3D12_BUFFER_BARRIER &barrier);
-    void BarrierFilter(D3D12_TEXTURE_BARRIER &barrier);
-
+    vstd::HashMap<Resource const *, size_t /* size */> writeStateMap;
 public:
-    auto const &WriteStateMap() const { return writeStateMap; }
+    vstd::HashMap<Resource const *, size_t> const &WriteStateMap() const {
+        return writeStateMap;
+    }
     EnhancedBarrierTracker();
-    ~EnhancedBarrierTracker();
-    void Record(
-        ResourceView const &res,
-        Usage resUsage);
-    void Record(
-        Resource const *res,
-        Range range,
-        Usage resUsage);
-    void Record(
-        Resource const *res,
-        Range range,
-        D3D12_BARRIER_SYNC sync,
-        D3D12_BARRIER_ACCESS access,
-        D3D12_BARRIER_LAYOUT layout);
+    virtual ~EnhancedBarrierTracker();
     void Record(
         ResourceView const &res,
         D3D12_BARRIER_SYNC sync,
@@ -139,7 +124,21 @@ public:
         Range range,
         D3D12_RESOURCE_STATES state);
 
-    void UpdateState(CommandBufferBuilder const &cmdBuffer);
-    void RestoreState(CommandBufferBuilder const &cmdBuffer);
+    void Record(
+        ResourceView const &res,
+        Usage resUsage);
+    void Record(
+        Resource const *res,
+        Range range,
+        Usage resUsage);
+    void Record(
+        Resource const *res,
+        Range range,
+        D3D12_BARRIER_SYNC sync,
+        D3D12_BARRIER_ACCESS access,
+        D3D12_BARRIER_LAYOUT layout);
+
+    virtual void UpdateState(CommandBufferBuilder const &cmdBuffer) = 0;
+    virtual void RestoreState(CommandBufferBuilder const &cmdBuffer) = 0;
 };
 }// namespace lc::dx

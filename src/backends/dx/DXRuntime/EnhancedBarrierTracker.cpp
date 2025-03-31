@@ -2,6 +2,7 @@
 #include <Resource/DefaultBuffer.h>
 #include <Resource/TextureBase.h>
 #include <DXRuntime/CommandBuffer.h>
+#include "EnhancedBarrierTrackerImpl.h"
 namespace lc::dx {
 namespace detail {
 static constexpr D3D12_BARRIER_SYNC BarrierSyncMap[] = {
@@ -59,7 +60,7 @@ static constexpr D3D12_BARRIER_LAYOUT BarrierLayoutMap[] = {
     D3D12_BARRIER_LAYOUT_UNDEFINED,          //AccelInstanceBuffer
     D3D12_BARRIER_LAYOUT_SHADER_RESOURCE     //ShaderRead
 };
-static constexpr D3D12_BARRIER_ACCESS write_access = D3D12_BARRIER_ACCESS_RENDER_TARGET | D3D12_BARRIER_ACCESS_UNORDERED_ACCESS | D3D12_BARRIER_ACCESS_DEPTH_STENCIL_WRITE | D3D12_BARRIER_ACCESS_STREAM_OUTPUT | D3D12_BARRIER_ACCESS_COPY_DEST | D3D12_BARRIER_ACCESS_RESOLVE_DEST | D3D12_BARRIER_ACCESS_RAYTRACING_ACCELERATION_STRUCTURE_WRITE | D3D12_BARRIER_ACCESS_VIDEO_DECODE_WRITE | D3D12_BARRIER_ACCESS_VIDEO_PROCESS_WRITE | D3D12_BARRIER_ACCESS_VIDEO_ENCODE_WRITE;
+
 }// namespace detail
 
 void EnhancedBarrierTracker::Record(
@@ -74,7 +75,7 @@ void EnhancedBarrierTracker::Record(
         detail::BarrierAccessMap[barrier_state_idx],
         detail::BarrierLayoutMap[barrier_state_idx]);
 }
-EnhancedBarrierTracker::ResourceStates::ResourceStates(Type type, size_t size, Resource const *res) : size(size) {
+EnhancedBarrierTrackerImpl::ResourceStates::ResourceStates(Type type, size_t size, Resource const *res) : size(size) {
     if (type == Type::Texture) {
         layer_states.reset_as<vstd::vector<TextureRange>>(size);
     } else {
@@ -390,7 +391,7 @@ void EnhancedBarrierTracker::Record(
             }
         });
 }
-void EnhancedBarrierTracker::UpdateResourceState(Resource const *resPtr, ResourceStates &state) {
+void EnhancedBarrierTrackerImpl::UpdateResourceState(Resource const *resPtr, ResourceStates &state) {
     state.require_update = false;
     bool is_write = false;
     if (state.layer_states.index() == 0) {
@@ -444,10 +445,9 @@ void EnhancedBarrierTracker::UpdateResourceState(Resource const *resPtr, Resourc
     }
 }
 
-void EnhancedBarrierTracker::UpdateState(CommandBufferBuilder const &cmdBuffer) {
+void EnhancedBarrierTrackerImpl::UpdateState(CommandBufferBuilder const &cmdBuffer) {
     bufferBarriers.clear();
     texBarriers.clear();
-    writeStateMap.clear();
     for (auto &&i : current_update_states) {
         UpdateResourceState(i.first, *i.second);
     }
@@ -476,17 +476,15 @@ void EnhancedBarrierTracker::UpdateState(CommandBufferBuilder const &cmdBuffer) 
         cmdlist->Barrier(barriers.size(), barriers.data());
     }
 }
-void EnhancedBarrierTracker::RestoreState(CommandBufferBuilder const &cmdBuffer) {
+void EnhancedBarrierTrackerImpl::RestoreState(CommandBufferBuilder const &cmdBuffer) {
     current_update_states.clear();
+    writeStateMap.clear();
     bufferBarriers.clear();
     texBarriers.clear();
     for (auto &i : frameStates) {
         Resource const *resPtr = i.first;
         ResourceStates &state = i.second;
         if (state.layer_states.index() == 0) {
-            // for (auto &i : state.layer_states.get<0>()) {
-
-            // }
             auto &bf = state.layer_states.get<0>();
             D3D12_BUFFER_BARRIER &barrier = bufferBarriers.emplace_back();
             barrier.SyncBefore = D3D12_BARRIER_SYNC_ALL;
@@ -545,7 +543,7 @@ void EnhancedBarrierTracker::RestoreState(CommandBufferBuilder const &cmdBuffer)
     }
     frameStates.clear();
 }
-void EnhancedBarrierTracker::BarrierFilter(D3D12_BUFFER_BARRIER &barrier) {
+void EnhancedBarrierTrackerImpl::BarrierFilter(D3D12_BUFFER_BARRIER &barrier) {
     if (barrier.AccessBefore == D3D12_BARRIER_ACCESS_COMMON && barrier.SyncBefore == D3D12_BARRIER_SYNC_NONE) {
         barrier.SyncBefore = D3D12_BARRIER_SYNC_ALL;
     }
@@ -553,7 +551,7 @@ void EnhancedBarrierTracker::BarrierFilter(D3D12_BUFFER_BARRIER &barrier) {
         barrier.SyncAfter = D3D12_BARRIER_SYNC_ALL;
     }
 }
-void EnhancedBarrierTracker::BarrierFilter(D3D12_TEXTURE_BARRIER &barrier) {
+void EnhancedBarrierTrackerImpl::BarrierFilter(D3D12_TEXTURE_BARRIER &barrier) {
     if (barrier.AccessBefore == D3D12_BARRIER_ACCESS_COMMON && barrier.SyncBefore == D3D12_BARRIER_SYNC_NONE) {
         barrier.SyncBefore = D3D12_BARRIER_SYNC_ALL;
     }
@@ -563,4 +561,6 @@ void EnhancedBarrierTracker::BarrierFilter(D3D12_TEXTURE_BARRIER &barrier) {
 }
 EnhancedBarrierTracker::EnhancedBarrierTracker() = default;
 EnhancedBarrierTracker::~EnhancedBarrierTracker() = default;
+EnhancedBarrierTrackerImpl::EnhancedBarrierTrackerImpl() = default;
+EnhancedBarrierTrackerImpl::~EnhancedBarrierTrackerImpl() = default;
 }// namespace lc::dx
