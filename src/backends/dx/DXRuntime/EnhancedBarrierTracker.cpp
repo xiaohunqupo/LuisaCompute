@@ -5,22 +5,22 @@
 namespace lc::dx {
 namespace detail {
 static constexpr D3D12_BARRIER_SYNC BarrierSyncMap[] = {
-    D3D12_BARRIER_SYNC_COMPUTE_SHADING,                        // ComputeRead,
-    D3D12_BARRIER_SYNC_COMPUTE_SHADING,                        // ComputeAccelRead,
-    D3D12_BARRIER_SYNC_COMPUTE_SHADING,                        // ComputeUAV,
-    D3D12_BARRIER_SYNC_COPY,                                   // CopySource,
-    D3D12_BARRIER_SYNC_COPY,                                   // CopyDest,
-    D3D12_BARRIER_SYNC_BUILD_RAYTRACING_ACCELERATION_STRUCTURE,// BuildAccel,
-    D3D12_BARRIER_SYNC_COPY_RAYTRACING_ACCELERATION_STRUCTURE, // CopyAccelSrc
-    D3D12_BARRIER_SYNC_COPY_RAYTRACING_ACCELERATION_STRUCTURE, // CopyAccelDst
-    D3D12_BARRIER_SYNC_ALL,                                    //GenericRead
-    D3D12_BARRIER_SYNC_DEPTH_STENCIL,                          //DepthRead
-    D3D12_BARRIER_SYNC_DEPTH_STENCIL,                          //DepthWrite
-    D3D12_BARRIER_SYNC_EXECUTE_INDIRECT,                       //IndirectArgs
-    D3D12_BARRIER_SYNC_VERTEX_SHADING,                         //VertexRead,
-    D3D12_BARRIER_SYNC_DRAW,                                   //  IndexRead,
-    D3D12_BARRIER_SYNC_RENDER_TARGET,                          //  RenderTarget
-    D3D12_BARRIER_SYNC_COPY_RAYTRACING_ACCELERATION_STRUCTURE, // AccelInstanceBuffer
+    D3D12_BARRIER_SYNC_COMPUTE_SHADING,                                     // ComputeRead,
+    D3D12_BARRIER_SYNC_COMPUTE_SHADING,                                     // ComputeAccelRead,
+    D3D12_BARRIER_SYNC_COMPUTE_SHADING,                                     // ComputeUAV,
+    D3D12_BARRIER_SYNC_COPY,                                                // CopySource,
+    D3D12_BARRIER_SYNC_COPY,                                                // CopyDest,
+    D3D12_BARRIER_SYNC_BUILD_RAYTRACING_ACCELERATION_STRUCTURE,             // BuildAccel,
+    D3D12_BARRIER_SYNC_COPY_RAYTRACING_ACCELERATION_STRUCTURE,              // CopyAccelSrc
+    D3D12_BARRIER_SYNC_COPY_RAYTRACING_ACCELERATION_STRUCTURE,              // CopyAccelDst
+    D3D12_BARRIER_SYNC_DEPTH_STENCIL,                                       //DepthRead
+    D3D12_BARRIER_SYNC_DEPTH_STENCIL,                                       //DepthWrite
+    D3D12_BARRIER_SYNC_EXECUTE_INDIRECT,                                    //IndirectArgs
+    D3D12_BARRIER_SYNC_VERTEX_SHADING,                                      //VertexRead,
+    D3D12_BARRIER_SYNC_DRAW,                                                //  IndexRead,
+    D3D12_BARRIER_SYNC_RENDER_TARGET,                                       //  RenderTarget
+    D3D12_BARRIER_SYNC_BUILD_RAYTRACING_ACCELERATION_STRUCTURE,             // AccelInstanceBuffer
+    D3D12_BARRIER_SYNC_PIXEL_SHADING | D3D12_BARRIER_SYNC_NON_PIXEL_SHADING,//ShaderRead
 
 };
 static constexpr D3D12_BARRIER_ACCESS BarrierAccessMap[] = {
@@ -32,14 +32,14 @@ static constexpr D3D12_BARRIER_ACCESS BarrierAccessMap[] = {
     D3D12_BARRIER_ACCESS_RAYTRACING_ACCELERATION_STRUCTURE_WRITE,// BuildAccel,
     D3D12_BARRIER_ACCESS_COPY_SOURCE,                            // CopyAccelSrc
     D3D12_BARRIER_ACCESS_RAYTRACING_ACCELERATION_STRUCTURE_WRITE,// CopyAccelDst
-    D3D12_BARRIER_ACCESS_SHADER_RESOURCE,                        //GenericRead
     D3D12_BARRIER_ACCESS_DEPTH_STENCIL_READ,                     //DepthRead
     D3D12_BARRIER_ACCESS_DEPTH_STENCIL_WRITE,                    //DepthWrite
     D3D12_BARRIER_ACCESS_INDIRECT_ARGUMENT,                      // IndirectArgs
     D3D12_BARRIER_ACCESS_VERTEX_BUFFER,                          //VertexRead,
     D3D12_BARRIER_ACCESS_INDEX_BUFFER,                           //  IndexRead,
     D3D12_BARRIER_ACCESS_RENDER_TARGET,                          //RenderTarget
-    D3D12_BARRIER_ACCESS_COMMON,                                 //AccelInstanceBuffer
+    D3D12_BARRIER_ACCESS_SHADER_RESOURCE,                        //AccelInstanceBuffer
+    D3D12_BARRIER_ACCESS_SHADER_RESOURCE,                        //ShaderRead
 };
 static constexpr D3D12_BARRIER_LAYOUT BarrierLayoutMap[] = {
     D3D12_BARRIER_LAYOUT_SHADER_RESOURCE,    // ComputeRead,
@@ -50,7 +50,6 @@ static constexpr D3D12_BARRIER_LAYOUT BarrierLayoutMap[] = {
     D3D12_BARRIER_LAYOUT_UNDEFINED,          // BuildAccel,
     D3D12_BARRIER_LAYOUT_UNDEFINED,          // CopyAccelSrc
     D3D12_BARRIER_LAYOUT_UNDEFINED,          // CopyAccelDst
-    D3D12_BARRIER_LAYOUT_GENERIC_READ,       //GenericRead
     D3D12_BARRIER_LAYOUT_DEPTH_STENCIL_READ, //DepthRead
     D3D12_BARRIER_LAYOUT_DEPTH_STENCIL_WRITE,//DepthWrite
     D3D12_BARRIER_LAYOUT_UNDEFINED,          // DepthWrite
@@ -58,6 +57,7 @@ static constexpr D3D12_BARRIER_LAYOUT BarrierLayoutMap[] = {
     D3D12_BARRIER_LAYOUT_UNDEFINED,          //  IndexRead,
     D3D12_BARRIER_LAYOUT_RENDER_TARGET,      //RenderTarget
     D3D12_BARRIER_LAYOUT_UNDEFINED,          //AccelInstanceBuffer
+    D3D12_BARRIER_LAYOUT_SHADER_RESOURCE     //ShaderRead
 };
 static constexpr D3D12_BARRIER_ACCESS write_access = D3D12_BARRIER_ACCESS_RENDER_TARGET | D3D12_BARRIER_ACCESS_UNORDERED_ACCESS | D3D12_BARRIER_ACCESS_DEPTH_STENCIL_WRITE | D3D12_BARRIER_ACCESS_STREAM_OUTPUT | D3D12_BARRIER_ACCESS_COPY_DEST | D3D12_BARRIER_ACCESS_RESOLVE_DEST | D3D12_BARRIER_ACCESS_RAYTRACING_ACCELERATION_STRUCTURE_WRITE | D3D12_BARRIER_ACCESS_VIDEO_DECODE_WRITE | D3D12_BARRIER_ACCESS_VIDEO_PROCESS_WRITE | D3D12_BARRIER_ACCESS_VIDEO_ENCODE_WRITE;
 }// namespace detail
@@ -382,7 +382,8 @@ void EnhancedBarrierTracker::Record(
                 tex_range.level_require_update = true;
                 tex_range.after_sync |= sync;
                 tex_range.after_access |= access;
-                if ((access & D3D12_BARRIER_ACCESS_RENDER_TARGET) != 0) {
+                if ((access & (D3D12_BARRIER_ACCESS_RENDER_TARGET |
+                               D3D12_BARRIER_ACCESS_DEPTH_STENCIL_WRITE)) != 0) {
                     allow_simul_access = false;
                 }
                 tex_range.after_layout = allow_simul_access ? D3D12_BARRIER_LAYOUT_COMMON : layout;

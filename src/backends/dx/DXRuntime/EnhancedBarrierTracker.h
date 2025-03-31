@@ -25,7 +25,6 @@ public:
         BuildAccel,
         CopyAccelSrc,
         CopyAccelDst,
-        GenericRead,
         DepthRead,
         DepthWrite,
         IndirectArgs,
@@ -33,8 +32,8 @@ public:
         IndexRead,
         RenderTarget,
         AccelInstanceBuffer,
+        ShaderRead,
     };
-    static constexpr size_t USAGE_SIZE = static_cast<size_t>(Usage::GenericRead) + 1;
     struct Range {
         uint64 min;
         uint64 max;
