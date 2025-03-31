@@ -722,6 +722,9 @@ public:
 
     virtual void traverse_arguments(ArgumentVisitor &visitor) const noexcept = 0;
 
+    // For backend reorder
+    [[nodiscard]] virtual uint3 max_dispatch_size() const noexcept { return uint3{65535u * 32u}; }
+
     template<typename F>
         requires(!std::derived_from<std::remove_cvref_t<F>, ArgumentVisitor>)
     void traverse_arguments(F &&f) const noexcept {
