@@ -15,13 +15,6 @@ DefaultBuffer::DefaultBuffer(
     if (initState == D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE && !device->fallback_mode) {
         flag |= D3D12_RESOURCE_FLAG_RAYTRACING_ACCELERATION_STRUCTURE;
     }
-    auto create_res = [&](auto &&func) {
-        if (initState == D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE && func() != S_OK) {
-            flag &= ~D3D12_RESOURCE_FLAG_RAYTRACING_ACCELERATION_STRUCTURE;
-            device->fallback_mode = true;
-        }
-        ThrowIfFailed(func());
-    };
     if (allocator) {
         ID3D12Heap *heap;
         uint64 offset;
@@ -37,7 +30,7 @@ DefaultBuffer::DefaultBuffer(
                 nullptr,
                 IID_PPV_ARGS(&allocHandle.resource));
         };
-        create_res(func);
+        ThrowIfFailed(func());
         _is_heap_resource = true;
     } else {
         auto prop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
@@ -51,7 +44,7 @@ DefaultBuffer::DefaultBuffer(
                 nullptr,
                 IID_PPV_ARGS(&allocHandle.resource));
         };
-        create_res(func);
+        ThrowIfFailed(func());
         _is_heap_resource = false;
     }
 }
