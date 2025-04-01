@@ -14,6 +14,7 @@ if (CUDAToolkit_FOUND)
             cuda_command_encoder.cpp cuda_command_encoder.h
             cuda_texture.cpp cuda_texture.h
             cuda_codegen_ast.cpp cuda_codegen_ast.h
+            cuda_codegen_xir.cpp cuda_codegen_xir.h
             cuda_compiler.cpp cuda_compiler.h
             cuda_accel.cpp cuda_accel.h
             cuda_primitive.cpp cuda_primitive.h
@@ -43,6 +44,7 @@ if (CUDAToolkit_FOUND)
     target_link_libraries(luisa-compute-backend-cuda PRIVATE
             CUDA::cuda_driver
             luisa-compute-vulkan-swapchain
+            luisa-compute-xir
             reproc reproc++)
     target_precompile_headers(luisa-compute-backend-cuda PRIVATE pch.h)
 

@@ -169,7 +169,7 @@ static BasicBlock *duplicate_basic_block_for_ray_query_loop_dispatch_branch(cons
             phi_nodes.emplace_back(static_cast<const PhiInst *>(&inst), dup_phi);
             resolver.emplace(&inst, dup_phi);
         } else {
-            auto dup_inst = inst.clone(b, resolver);
+            auto dup_inst = inst.clone_with_metadata(b, resolver);
             LUISA_DEBUG_ASSERT(dup_inst != nullptr, "Failed to duplicate instruction.");
             resolver.emplace(&inst, dup_inst);
         }
