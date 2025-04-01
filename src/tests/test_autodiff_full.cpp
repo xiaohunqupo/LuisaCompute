@@ -164,7 +164,7 @@ LUISA_STRUCT(Foo, v, f, z) {};
 
 int main(int argc, char *argv[]) {
 
-    luisa::log_level_info();
+    // luisa::log_level_info();
 
     auto context = Context{argv[0]};
     if (argc <= 1) {
