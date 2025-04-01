@@ -242,6 +242,7 @@
 #include <luisa/xir/instructions/unreachable.h>
 #include <luisa/xir/metadata.h>
 #include <luisa/xir/metadata/comment.h>
+#include <luisa/xir/metadata/curve_basis.h>
 #include <luisa/xir/metadata/location.h>
 #include <luisa/xir/metadata/name.h>
 #include <luisa/xir/module.h>

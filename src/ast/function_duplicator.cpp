@@ -211,7 +211,7 @@ private:
                 args.reserve(e->arguments().size());
                 for (auto arg : e->arguments()) { args.emplace_back(_dup_expr(arg)); }
                 if (e->is_builtin()) {
-                    copy = fb->call(e->type(), e->op(), args);
+                    copy = fb->call(e->type(), e->op(), args, e->curve_basis_set());
                 } else if (e->is_custom()) {
                     auto callee = _duplicate(*e->custom().builder());
                     copy = fb->call(e->type(), callee->function(), args);

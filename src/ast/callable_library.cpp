@@ -248,7 +248,11 @@ void CallableLibrary::ser_value(CallExpr const &t, luisa::vector<std::byte> &vec
     ser_value(t._op, vec);
     LUISA_ASSERT(!luisa::holds_alternative<CallExpr::ExternalCallee>(t._func),
                  "Callable cannot contain external");
-    ser_value(t._func.index(), vec);
+    if (t.is_builtin()) {
+        ser_value(t.curve_basis_set().to_u64(), vec);
+    } else {
+        ser_value(t._func.index(), vec);
+    }
     luisa::visit(
         [&]<typename T>(T const &v) {
             if constexpr (std::is_same_v<T, CallExpr::CustomCallee>) {
@@ -265,13 +269,20 @@ void CallableLibrary::deser_ptr(CallExpr *obj, std::byte const *&ptr, DeserPacka
         i = deser_value<Expression const *>(ptr, pack);
     }
     obj->_op = deser_value<CallOp>(ptr, pack);
-    auto index = deser_value<size_t>(ptr, pack);
-    if (index == 0) {
+    if (is_builtin_operation(obj->_op)) {// built-in
+        auto curve_basis_set = deser_value<uint64_t>(ptr, pack);
+        obj->_curve_basis_set = CurveBasisSet::from_u64(curve_basis_set);
         obj->_func = luisa::monostate{};
     } else {
-        auto iter = pack.callable_map.find(deser_value<uint64_t>(ptr, pack));
-        LUISA_ASSERT(iter != pack.callable_map.end(), "Custom op not found.");
-        obj->_func = iter->second.get();
+        obj->_curve_basis_set = {};
+        auto index = deser_value<size_t>(ptr, pack);
+        if (index == 0) {
+            obj->_func = luisa::monostate{};
+        } else {
+            auto iter = pack.callable_map.find(deser_value<uint64_t>(ptr, pack));
+            LUISA_ASSERT(iter != pack.callable_map.end(), "Custom op not found.");
+            obj->_func = iter->second.get();
+        }
     }
 }
 

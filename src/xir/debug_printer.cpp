@@ -8,6 +8,7 @@
 #include <luisa/xir/metadata/location.h>
 #include <luisa/xir/metadata/comment.h>
 #include <luisa/xir/metadata/name.h>
+#include <luisa/xir/metadata/curve_basis.h>
 #include <luisa/xir/debug_printer.h>
 
 namespace luisa::compute::xir {
@@ -439,6 +440,33 @@ void XIRDebugPrinter::emit_metadata_list(luisa::string &s, const MetadataList &m
                     auto comment_md = static_cast<const CommentMD *>(&md);
                     luisa::format_to(std::back_inserter(s), "comment = {:?}, ",
                                      comment_md->comment());
+                    break;
+                }
+                case DerivedMetadataTag::CURVE_BASIS: {
+                    auto curve_md = static_cast<const CurveBasisMD *>(&md);
+                    s.append("curve_basis = ("sv);
+                    auto any_basis = false;
+                    if (curve_md->curve_basis_set().test(CurveBasis::PIECEWISE_LINEAR)) {
+                        any_basis = true;
+                        s.append("piecewise_linear, "sv);
+                    }
+                    if (curve_md->curve_basis_set().test(CurveBasis::CUBIC_BSPLINE)) {
+                        any_basis = true;
+                        s.append("cubic_bspline, "sv);
+                    }
+                    if (curve_md->curve_basis_set().test(CurveBasis::CATMULL_ROM)) {
+                        any_basis = true;
+                        s.append("catmull_rom, "sv);
+                    }
+                    if (curve_md->curve_basis_set().test(CurveBasis::BEZIER)) {
+                        any_basis = true;
+                        s.append("bezier, "sv);
+                    }
+                    if (any_basis) {
+                        s.pop_back();
+                        s.pop_back();
+                    }
+                    s.append("), "sv);
                     break;
                 }
             }

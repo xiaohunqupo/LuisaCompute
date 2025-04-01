@@ -4,6 +4,7 @@
 #include <luisa/core/stl/memory.h>
 #include <luisa/core/concepts.h>
 #include <luisa/core/basic_types.h>
+#include <luisa/runtime/rhi/curve_basis.h>
 #include <luisa/ast/variable.h>
 #include <luisa/ast/op.h>
 #include <luisa/ast/constant_data.h>
@@ -412,6 +413,8 @@ private:
     ArgumentList _arguments;
     CallOp _op;
     Callee _func;
+    CurveBasisSet _curve_basis_set;
+
     CallExpr() noexcept = default;
 
 protected:
@@ -439,7 +442,7 @@ public:
      * @param builtin builtin function tag
      * @param args arguments of function
      */
-    CallExpr(const Type *type, CallOp builtin, ArgumentList args) noexcept;
+    CallExpr(const Type *type, CallOp builtin, ArgumentList args, CurveBasisSet curve_basis_set = {}) noexcept;
     /**
      * @brief Construct a new CallExpr object calling external function
      * 
@@ -450,11 +453,13 @@ public:
     CallExpr(const Type *type, const ExternalFunction *external, ArgumentList args) noexcept;
     [[nodiscard]] auto op() const noexcept { return _op; }
     [[nodiscard]] auto arguments() const noexcept { return luisa::span{_arguments}; }
-    [[nodiscard]] auto is_builtin() const noexcept { return _op > CallOp::EXTERNAL; }
+    [[nodiscard]] auto is_builtin() const noexcept { return is_builtin_operation(_op); }
     [[nodiscard]] auto is_custom() const noexcept { return _op == CallOp::CUSTOM; }
     [[nodiscard]] auto is_external() const noexcept { return _op == CallOp::EXTERNAL; }
     [[nodiscard]] Function custom() const noexcept;
     [[nodiscard]] const ExternalFunction *external() const noexcept;
+    [[nodiscard]] auto &curve_basis_set() const noexcept { return _curve_basis_set; }
+    [[nodiscard]] auto &curve_basis_set() noexcept { return _curve_basis_set; }
     LUISA_EXPRESSION_COMMON()
 };
 
