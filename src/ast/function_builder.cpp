@@ -539,9 +539,9 @@ const RefExpr *FunctionBuilder::texture_binding(const Type *type, uint64_t handl
     return _ref(v);
 }
 
-const CallExpr *FunctionBuilder::call(const Type *type, CallOp call_op, std::initializer_list<const Expression *> args) noexcept {
+const CallExpr *FunctionBuilder::call(const Type *type, CallOp call_op, std::initializer_list<const Expression *> args, CurveBasisSet curve_basis_set) noexcept {
     luisa::vector<const Expression *> arg_list{args};
-    return call(type, call_op, arg_list);
+    return call(type, call_op, arg_list, curve_basis_set);
 }
 
 const CallExpr *FunctionBuilder::call(const Type *type, Function custom, std::initializer_list<const Expression *> args) noexcept {
@@ -655,7 +655,7 @@ const RefExpr *FunctionBuilder::accel() noexcept {
 }
 
 // call builtin functions
-const CallExpr *FunctionBuilder::call(const Type *type, CallOp call_op, luisa::span<const Expression *const> args) noexcept {
+const CallExpr *FunctionBuilder::call(const Type *type, CallOp call_op, luisa::span<const Expression *const> args, CurveBasisSet curve_basis_set) noexcept {
     if (call_op == CallOp::CUSTOM) [[unlikely]] {
         LUISA_ERROR_WITH_LOCATION(
             "Custom functions are not allowed to "
@@ -672,7 +672,7 @@ const CallExpr *FunctionBuilder::call(const Type *type, CallOp call_op, luisa::s
     CallExpr::ArgumentList internalized_args;
     internalized_args.reserve(args.size());
     for (auto arg : args) { internalized_args.emplace_back(_internalize(arg)); }
-    auto expr = _create_expression<CallExpr>(type, call_op, internalized_args);
+    auto expr = _create_expression<CallExpr>(type, call_op, internalized_args, curve_basis_set);
     if (type == nullptr) {
         _void_expr(expr);
         return nullptr;

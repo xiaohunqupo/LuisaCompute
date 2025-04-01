@@ -349,7 +349,7 @@ public:
     // return function reference (not supported by some backend)
     [[nodiscard]] const FuncRefExpr *func_ref(Function custom) noexcept;
     /// Create call expression
-    [[nodiscard]] const CallExpr *call(const Type *type /* nullptr for void */, CallOp call_op, std::initializer_list<const Expression *> args) noexcept;
+    [[nodiscard]] const CallExpr *call(const Type *type /* nullptr for void */, CallOp call_op, std::initializer_list<const Expression *> args, CurveBasisSet curve_basis_set = {}) noexcept;
     /// Create call expression
     [[nodiscard]] const CallExpr *call(const Type *type /* nullptr for void */, Function custom, std::initializer_list<const Expression *> args) noexcept;
     // Create make_vecN call
@@ -360,7 +360,7 @@ public:
     /// Call custom function
     void call(Function custom, std::initializer_list<const Expression *> args) noexcept;
     /// Create call expression
-    [[nodiscard]] const CallExpr *call(const Type *type /* nullptr for void */, CallOp call_op, luisa::span<const Expression *const> args) noexcept;
+    [[nodiscard]] const CallExpr *call(const Type *type /* nullptr for void */, CallOp call_op, luisa::span<const Expression *const> args, CurveBasisSet curve_basis_set = {}) noexcept;
     /// Create call expression
     [[nodiscard]] const CallExpr *call(const Type *type /* nullptr for void */, Function custom, luisa::span<const Expression *const> args) noexcept;
     [[nodiscard]] const CpuCustomOpExpr *call(const Type *type, void (*f)(void *, void *), void (*dtor)(void *), void *data, const Expression *arg) noexcept;

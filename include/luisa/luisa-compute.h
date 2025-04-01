@@ -167,7 +167,9 @@
 
 #ifdef LUISA_ENABLE_TENSOR
 #include <luisa/tensor/expression.h>
+#include <luisa/tensor/ext.h>
 #include <luisa/tensor/fused_activation.h>
+#include <luisa/tensor/graph.h>
 #include <luisa/tensor/kernel.h>
 #include <luisa/tensor/pass/expr_topo.h>
 #include <luisa/tensor/tensor.h>
@@ -239,6 +241,7 @@
 #include <luisa/xir/instructions/unreachable.h>
 #include <luisa/xir/metadata.h>
 #include <luisa/xir/metadata/comment.h>
+#include <luisa/xir/metadata/curve_basis.h>
 #include <luisa/xir/metadata/location.h>
 #include <luisa/xir/metadata/name.h>
 #include <luisa/xir/module.h>

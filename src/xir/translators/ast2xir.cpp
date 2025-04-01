@@ -6,6 +6,7 @@
 #include <luisa/ast/function.h>
 #include <luisa/xir/builder.h>
 #include <luisa/xir/special_register.h>
+#include <luisa/xir/metadata/curve_basis.h>
 #include <luisa/xir/translators/ast2xir.h>
 
 namespace luisa::compute::xir {
@@ -498,6 +499,12 @@ private:
             }
             return b.call(expr->type(), ArithmeticOp::AGGREGATE, args);
         };
+        auto curve_bases_marked = [&](xir::Instruction *inst) noexcept {
+            auto pool = inst->pool();
+            auto md = pool->create<CurveBasisMD>(pool, expr->curve_basis_set());
+            md->add_to_list(inst->metadata_list());
+            return inst;
+        };
         // builtin function
         switch (expr->op()) {
             case CallOp::CUSTOM: LUISA_ERROR_WITH_LOCATION("Unexpected custom call operation.");
@@ -722,18 +729,18 @@ private:
             case CallOp::RAY_TRACING_SET_INSTANCE_VISIBILITY: return resource_call(ResourceWriteOp::RAY_TRACING_SET_INSTANCE_VISIBILITY_MASK);
             case CallOp::RAY_TRACING_SET_INSTANCE_OPACITY: return resource_call(ResourceWriteOp::RAY_TRACING_SET_INSTANCE_OPACITY);
             case CallOp::RAY_TRACING_SET_INSTANCE_USER_ID: return resource_call(ResourceWriteOp::RAY_TRACING_SET_INSTANCE_USER_ID);
-            case CallOp::RAY_TRACING_TRACE_CLOSEST: return resource_call(ResourceQueryOp::RAY_TRACING_TRACE_CLOSEST);
-            case CallOp::RAY_TRACING_TRACE_ANY: return resource_call(ResourceQueryOp::RAY_TRACING_TRACE_ANY);
-            case CallOp::RAY_TRACING_QUERY_ALL: return resource_call(ResourceQueryOp::RAY_TRACING_QUERY_ALL);
-            case CallOp::RAY_TRACING_QUERY_ANY: return resource_call(ResourceQueryOp::RAY_TRACING_QUERY_ANY);
+            case CallOp::RAY_TRACING_TRACE_CLOSEST: return curve_bases_marked(resource_call(ResourceQueryOp::RAY_TRACING_TRACE_CLOSEST));
+            case CallOp::RAY_TRACING_TRACE_ANY: return curve_bases_marked(resource_call(ResourceQueryOp::RAY_TRACING_TRACE_ANY));
+            case CallOp::RAY_TRACING_QUERY_ALL: return curve_bases_marked(resource_call(ResourceQueryOp::RAY_TRACING_QUERY_ALL));
+            case CallOp::RAY_TRACING_QUERY_ANY: return curve_bases_marked(resource_call(ResourceQueryOp::RAY_TRACING_QUERY_ANY));
             case CallOp::RAY_TRACING_INSTANCE_MOTION_MATRIX: return resource_call(ResourceQueryOp::RAY_TRACING_INSTANCE_MOTION_MATRIX);
             case CallOp::RAY_TRACING_INSTANCE_MOTION_SRT: return resource_call(ResourceQueryOp::RAY_TRACING_INSTANCE_MOTION_SRT);
             case CallOp::RAY_TRACING_SET_INSTANCE_MOTION_MATRIX: return resource_call(ResourceWriteOp::RAY_TRACING_SET_INSTANCE_MOTION_MATRIX);
             case CallOp::RAY_TRACING_SET_INSTANCE_MOTION_SRT: return resource_call(ResourceWriteOp::RAY_TRACING_SET_INSTANCE_MOTION_SRT);
-            case CallOp::RAY_TRACING_TRACE_CLOSEST_MOTION_BLUR: return resource_call(ResourceQueryOp::RAY_TRACING_TRACE_CLOSEST_MOTION_BLUR);
-            case CallOp::RAY_TRACING_TRACE_ANY_MOTION_BLUR: return resource_call(ResourceQueryOp::RAY_TRACING_TRACE_ANY_MOTION_BLUR);
-            case CallOp::RAY_TRACING_QUERY_ALL_MOTION_BLUR: return resource_call(ResourceQueryOp::RAY_TRACING_QUERY_ALL_MOTION_BLUR);
-            case CallOp::RAY_TRACING_QUERY_ANY_MOTION_BLUR: return resource_call(ResourceQueryOp::RAY_TRACING_QUERY_ANY_MOTION_BLUR);
+            case CallOp::RAY_TRACING_TRACE_CLOSEST_MOTION_BLUR: return curve_bases_marked(resource_call(ResourceQueryOp::RAY_TRACING_TRACE_CLOSEST_MOTION_BLUR));
+            case CallOp::RAY_TRACING_TRACE_ANY_MOTION_BLUR: return curve_bases_marked(resource_call(ResourceQueryOp::RAY_TRACING_TRACE_ANY_MOTION_BLUR));
+            case CallOp::RAY_TRACING_QUERY_ALL_MOTION_BLUR: return curve_bases_marked(resource_call(ResourceQueryOp::RAY_TRACING_QUERY_ALL_MOTION_BLUR));
+            case CallOp::RAY_TRACING_QUERY_ANY_MOTION_BLUR: return curve_bases_marked(resource_call(ResourceQueryOp::RAY_TRACING_QUERY_ANY_MOTION_BLUR));
             case CallOp::RAY_QUERY_WORLD_SPACE_RAY: return rq_call(RayQueryObjectReadOp::RAY_QUERY_OBJECT_WORLD_SPACE_RAY);
             case CallOp::RAY_QUERY_PROCEDURAL_CANDIDATE_HIT: return rq_call(RayQueryObjectReadOp::RAY_QUERY_OBJECT_PROCEDURAL_CANDIDATE_HIT);
             case CallOp::RAY_QUERY_TRIANGLE_CANDIDATE_HIT: return rq_call(RayQueryObjectReadOp::RAY_QUERY_OBJECT_TRIANGLE_CANDIDATE_HIT);

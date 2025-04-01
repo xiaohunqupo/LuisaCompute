@@ -36,6 +36,7 @@
 #include <luisa/xir/metadata/comment.h>
 #include <luisa/xir/metadata/location.h>
 #include <luisa/xir/metadata/name.h>
+#include <luisa/xir/metadata/curve_basis.h>
 #include <luisa/xir/passes/dom_tree.h>
 #include <luisa/xir/translators/xir2text.h>
 
@@ -768,6 +769,32 @@ private:
         _emit_string_escaped(s, m.comment());
     }
 
+    static void _emit_curve_basis_metadata(StringScratch &s, const CurveBasisMD &m) noexcept {
+        s << "curve_basis = {";
+        auto any_basis = false;
+        if (m.curve_basis_set().test(CurveBasis::PIECEWISE_LINEAR)) {
+            any_basis = true;
+            s << "piecewise_linear, ";
+        }
+        if (m.curve_basis_set().test(CurveBasis::CUBIC_BSPLINE)) {
+            any_basis = true;
+            s << "cubic_bspline, ";
+        }
+        if (m.curve_basis_set().test(CurveBasis::CATMULL_ROM)) {
+            any_basis = true;
+            s << "catmull_rom, ";
+        }
+        if (m.curve_basis_set().test(CurveBasis::BEZIER)) {
+            any_basis = true;
+            s << "bezier, ";
+        }
+        if (any_basis) {
+            s.pop_back();
+            s.pop_back();
+        }
+        s << "}";
+    }
+
     template<typename T>
     static void _emit_metadata_list(StringScratch &s, const T &m) noexcept {
         s << "[";
@@ -781,6 +808,9 @@ private:
                     break;
                 case DerivedMetadataTag::COMMENT:
                     _emit_comment_metadata(s, static_cast<const CommentMD &>(item));
+                    break;
+                case DerivedMetadataTag::CURVE_BASIS:
+                    _emit_curve_basis_metadata(s, static_cast<const CurveBasisMD &>(item));
                     break;
                 default: LUISA_NOT_IMPLEMENTED();
             }

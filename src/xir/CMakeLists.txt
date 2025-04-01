@@ -49,6 +49,7 @@ set(LUISA_COMPUTE_XIR_SOURCES
         metadata/location.cpp
         metadata/comment.cpp
         metadata/name.cpp
+        metadata/curve_basis.cpp
 
         # translators
         translators/ast2xir.cpp
