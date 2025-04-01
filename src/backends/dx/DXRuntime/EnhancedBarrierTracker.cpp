@@ -442,6 +442,8 @@ void EnhancedBarrierTrackerImpl::UpdateResourceState(Resource const *resPtr, Res
     }
     if (is_write) {
         writeStateMap.emplace(resPtr, state.size);
+    } else {
+        writeStateMap.remove(resPtr);
     }
 }
 
