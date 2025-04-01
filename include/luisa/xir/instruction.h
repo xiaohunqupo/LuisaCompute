@@ -132,6 +132,7 @@ public:
     explicit Instruction(BasicBlock *parent_block, const Type *type) noexcept;
     [[nodiscard]] virtual DerivedInstructionTag derived_instruction_tag() const noexcept = 0;
     [[nodiscard]] virtual Instruction *clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept = 0;
+    [[nodiscard]] Instruction *clone_with_metadata(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept;
 
     [[nodiscard]] virtual luisa::string intrinsic_identifier() const noexcept {
         return luisa::string{xir::to_string(derived_instruction_tag())};
