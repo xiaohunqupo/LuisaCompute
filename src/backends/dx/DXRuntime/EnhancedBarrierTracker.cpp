@@ -586,6 +586,8 @@ void EnhancedBarrierTrackerImpl::BarrierFilter(D3D12_TEXTURE_BARRIER &barrier) {
     if (barrier.AccessAfter == D3D12_BARRIER_ACCESS_COMMON && barrier.SyncAfter == D3D12_BARRIER_SYNC_NONE) {
         barrier.SyncAfter = D3D12_BARRIER_SYNC_ALL;
     }
+    detail::FilterAccess(listType, barrier.SyncBefore, barrier.AccessBefore);
+    detail::FilterAccess(listType, barrier.SyncAfter, barrier.AccessAfter);
 }
 EnhancedBarrierTracker::EnhancedBarrierTracker() = default;
 EnhancedBarrierTracker::~EnhancedBarrierTracker() = default;
