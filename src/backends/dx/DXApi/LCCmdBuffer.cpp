@@ -1123,7 +1123,7 @@ void LCCmdBuffer::Execute(
         auto cmdBuffer = allocator->GetBuffer();
         auto cmdBuilder = cmdBuffer->Build();
         if (!tracker) {
-            if (!device->fallback_mode) {
+            if (device->use_enhanced_barrier) {
                 tracker = luisa::make_unique<EnhancedBarrierTrackerImpl>();
             } else {
                 tracker = luisa::make_unique<EnhancedBarrierTrackerBackup>();

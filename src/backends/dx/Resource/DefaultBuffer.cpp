@@ -12,7 +12,7 @@ DefaultBuffer::DefaultBuffer(
       byteSize(byteSize),
       initState(initState) {
     auto flag = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-    if (initState == D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE && !device->fallback_mode) {
+    if (initState == D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE && device->use_enhanced_barrier) {
         flag |= D3D12_RESOURCE_FLAG_RAYTRACING_ACCELERATION_STRUCTURE;
     }
     if (allocator) {

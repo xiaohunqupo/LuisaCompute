@@ -269,20 +269,10 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
                 samplerHeap->GetHeap());
         }
         // Test device
-        fallback_mode = [&]() {
-            Microsoft::WRL::ComPtr<ID3D12CommandAllocator> allocator;
-            Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList7> newCmdlist;
-            ThrowIfFailed(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(allocator.GetAddressOf())));
-            if (device->CreateCommandList(
-                    0,
-                    D3D12_COMMAND_LIST_TYPE_DIRECT,
-                    allocator.Get(),
-                    nullptr,
-                    IID_PPV_ARGS(newCmdlist.GetAddressOf())) != S_OK) {
-                        return true;
-            }
-            return false;
-        }();
+        D3D12_FEATURE_DATA_D3D12_OPTIONS12 options12 = {};
+        if (SUCCEEDED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS12, &options12, sizeof(options12)))) {
+            use_enhanced_barrier = options12.EnhancedBarriersSupported;
+        }
     }
 }
 bool Device::SupportMeshShader() const {
