@@ -6,9 +6,8 @@
 namespace luisa {
 
 namespace detail {
-class ManagedObject;
 
-class ManagedObject {
+class LC_CORE_API ManagedObject {
 
 private:
     std::atomic<uint32_t> _ref_count;
