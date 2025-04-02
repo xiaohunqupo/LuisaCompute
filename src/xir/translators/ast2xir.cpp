@@ -1,4 +1,3 @@
-#include <luisa/xir/metadata/comment.h>
 #include <luisa/core/logging.h>
 #include <luisa/core/stl/unordered_map.h>
 #include <luisa/ast/external_function.h>
@@ -6,6 +5,7 @@
 #include <luisa/ast/function.h>
 #include <luisa/xir/builder.h>
 #include <luisa/xir/special_register.h>
+#include <luisa/xir/metadata/comment.h>
 #include <luisa/xir/metadata/curve_basis.h>
 #include <luisa/xir/translators/ast2xir.h>
 
