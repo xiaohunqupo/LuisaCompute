@@ -11,6 +11,7 @@ set(LUISA_COMPUTE_CORE_SOURCES
         dynamic_module.cpp
         first_fit.cpp
         logging.cpp
+        managed_ptr.cpp
         platform.cpp
         pool.cpp
         string_scratch.cpp)

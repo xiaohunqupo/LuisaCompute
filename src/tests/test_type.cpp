@@ -5,14 +5,7 @@
 #include <atomic>
 #include <iostream>
 
-#include <luisa/core/logging.h>
-#include <luisa/core/stl/hash.h>
-#include <luisa/ast/type.h>
-#include <luisa/ast/type_registry.h>
-
-#include <luisa/ast/expression.h>
-#include <luisa/ast/statement.h>
-#include <luisa/ast/variable.h>
+#include <luisa/luisa-compute.h>
 
 struct S1 {
     float x;
@@ -76,6 +69,10 @@ template<typename T>
 requires concepts::container<T> void foo(T &&) noexcept {}
 
 struct Impl : public Interface {};
+
+class Something : public luisa::Managed<Something> {
+
+};
 
 std::string_view tag_name(Type::Tag tag) noexcept {
     using namespace std::string_view_literals;
@@ -164,5 +161,14 @@ int main() {
     foo<std::initializer_list<int>>({1, 2, 3, 4});
 
     auto [m, n] = std::array{1, 2};
+
+    auto sth = luisa::make_managed<Something>();
+    sth->set_managed_id(123);
+    {
+        auto another = sth;
+        auto good = std::move(another);
+        auto more = good;
+    }
+
 }
 

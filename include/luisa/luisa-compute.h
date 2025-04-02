@@ -38,6 +38,7 @@
 #include <luisa/core/logging.h>
 #include <luisa/core/macro.h>
 #include <luisa/core/magic_enum.h>
+#include <luisa/core/managed_ptr.h>
 #include <luisa/core/mathematics.h>
 #include <luisa/core/memory_sanitizer.hpp>
 #include <luisa/core/platform.h>
