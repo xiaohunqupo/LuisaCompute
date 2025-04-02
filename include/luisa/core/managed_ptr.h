@@ -92,9 +92,12 @@ public:
     using derived_type = T;
     using base_type = Base;
     using super_type = Managed;
+    using base_type::base_type;
 
 public:
-    using base_type::base_type;
+    [[nodiscard]] auto lock() noexcept {
+        return ManagedPtr<derived_type>(this->retain());
+    }
 
 private:
     friend ManagedPtr<T>;
