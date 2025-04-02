@@ -745,6 +745,12 @@ ShaderCreationInfo CUDADevice::create_shader(const ShaderOption &option, Functio
             CUDACodegenXIR codegen{scratch, !_cudadevrt_library.empty()};
             codegen.emit(xir_module.get(), _compiler->device_library(), option.native_include);
             LUISA_INFO("CUDA Codegen XIR generated source in {} ms.", clk.toc());
+            // dump for debugging
+            {
+                auto filename = luisa::format("kernel.{:016x}.cu", kernel.hash());
+                std::ofstream f{filename.c_str()};
+                f << scratch.string();
+            }
             return std::move(codegen).move_print_formats();
         }
 #endif

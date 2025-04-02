@@ -112,6 +112,30 @@ void CUDACodegenXIR::_emit_type_name(const Type *type) noexcept {
             }
             break;
         }
+        case Type::Tag::BUFFER: {
+            if (type == _indirect_buffer_type) {
+                _scratch << "LCIndirectBuffer";
+            } else {
+                _scratch << "LCBuffer<";
+                if (auto elem = type->element()) {
+                    _emit_type_name(elem);
+                } else {
+                    _scratch << "lc_ubyte";
+                }
+                _scratch << ">";
+            }
+            break;
+        }
+        case Type::Tag::TEXTURE: {
+            auto elem = type->element();
+            auto dim = type->dimension();
+            _scratch << "LCTexture" << dim << "D<";
+            _emit_type_name(elem);
+            _scratch << ">";
+            break;
+        }
+        case Type::Tag::BINDLESS_ARRAY: _scratch << "LCBindlessArray"; break;
+        case Type::Tag::ACCEL: _scratch << "LCAccel"; break;
         default: LUISA_ERROR_WITH_LOCATION(
             "Invalid type {} in CUDA codegen.",
             type->description());
@@ -329,6 +353,125 @@ void CUDACodegenXIR::_emit_global_constants(luisa::unordered_set<const xir::Cons
     }
 }
 
+void CUDACodegenXIR::_emit_instructions(const xir::InstructionList &inst_list, int indent) noexcept {
+    // TODO
+}
+
+void CUDACodegenXIR::_emit_function_definition(const xir::FunctionDefinition *def) noexcept {
+    _local_value_indices.clear();
+    switch (def->derived_function_tag()) {
+        case xir::DerivedFunctionTag::KERNEL: {
+            auto kernel = static_cast<const xir::KernelFunction *>(def);
+            _emit_kernel_definition(kernel);
+            break;
+        }
+        case xir::DerivedFunctionTag::CALLABLE: {
+            auto callable = static_cast<const xir::CallableFunction *>(def);
+            _emit_callable_definition(callable);
+            break;
+        }
+        default: LUISA_NOT_IMPLEMENTED(
+            "Unsupported function definition {} in XIR-based CUDA codegen.",
+            def->name().value_or("unknown"));
+    }
+}
+
+void CUDACodegenXIR::_emit_kernel_definition(const xir::KernelFunction *kernel) noexcept {
+    // declare the kernel argument struct
+    _scratch << "struct alignas(16) Params {";
+    for (auto arg : kernel->arguments()) {
+        LUISA_ASSERT(!arg->is_reference(), "Reference argument is not supported.");
+        _scratch << "\n  alignas(16) ";
+        _emit_type_name(arg->type());
+        _scratch << " ";
+        _emit_value_name(arg);
+        _scratch << "{};";
+    }
+    if (_requires_printing) {
+        _scratch << "\n  alignas(16) LCPrintBuffer print_buffer{};";
+    }
+    _scratch << "\n  alignas(16) lc_uint4 ls_kid;";
+    _scratch << "\n};\n\n";
+    // emit the kernel signature
+    if (_requires_optix) {
+        _scratch << "extern \"C\" { __constant__ Params params; }\n\n"
+                 << "extern \"C\" __global__ void __raygen__main() {";
+    } else {
+        _scratch << "extern \"C\" __global__ void kernel_main(const Params params) {";
+    }
+    // decode the kernel arguments
+    _scratch << "\n\n  /* kernel arguments */";
+    for (auto arg : kernel->arguments()) {
+        _scratch << "\n  auto ";
+        _emit_value_name(arg);
+        _scratch << " = params.";
+        _emit_value_name(arg);
+        _scratch << ";";
+    }
+    if (!_requires_optix && _requires_printing) {
+        _scratch << "\n  const auto print_buffer = params.print_buffer;";
+    }
+    // emit built-in variables
+    _scratch
+        << "\n\n  /* built-in variables */"
+        // block size
+        << "\n  constexpr auto bs = lc_block_size();"
+        // launch size
+        << "\n  const auto ls = lc_dispatch_size();"
+        // dispatch id
+        << "\n  const auto did = lc_dispatch_id();"
+        // thread id
+        << "\n  const auto tid = lc_thread_id();"
+        // block id
+        << "\n  const auto bid = lc_block_id();"
+        // kernel id
+        << "\n  const auto kid = lc_kernel_id();"
+        // warp size
+        << "\n  const auto ws = lc_warp_size();"
+        // warp lane id
+        << "\n  const auto lid = lc_warp_lane_id();";
+    // emit launch size check if not using OptiX (Optix handles this internally)
+    if (!_requires_optix) {
+        _scratch << "\n  if (lc_any(did >= ls)) { return; }";
+    }
+    _scratch << "\n\n  /* function body */\n";
+    _emit_instructions(kernel->body_block()->instructions(), 1);
+    _scratch << "}\n\n";
+}
+
+void CUDACodegenXIR::_emit_callable_definition(const xir::CallableFunction *callable) noexcept {
+    _scratch << "__device__ ";
+    _emit_type_name(callable->type());
+    _scratch << " ";
+    _emit_value_name(callable);
+    _scratch << "(";
+    auto any_arg = false;
+    for (auto arg : callable->arguments()) {
+        any_arg = true;
+        _scratch << "\n    ";
+        if (!arg->is_reference()) {
+            _scratch << "const ";
+        }
+        _emit_type_name(arg->type());
+        if (arg->is_reference()) {
+            _scratch << " &";
+        } else {
+            _scratch << " ";
+        }
+        _emit_value_name(arg);
+        _scratch << ",";
+    }
+    if (!_requires_optix && _requires_printing) {
+        any_arg = true;
+        _scratch << "\n    LCPrintBuffer print_buffer,";
+    }
+    if (any_arg) { _scratch.pop_back(); }
+    _scratch << ") noexcept {\n"
+             << "  /* function body */\n";
+    _emit_instructions(callable->body_block()->instructions(), 1);
+    _scratch << "}\n\n";
+}
+
 void CUDACodegenXIR::emit(const xir::Module *module,
                           luisa::string_view device_lib,
                           luisa::string_view native_include) noexcept {
@@ -391,17 +534,20 @@ void CUDACodegenXIR::emit(const xir::Module *module,
                         iter->second.type = s;
                         _print_formats.emplace_back(print->format(), s);
                     } else if (inst->isa<xir::ResourceQueryInst>()) {
+                        auto is_ray_trace = false;
                         switch (static_cast<const xir::ResourceQueryInst *>(inst)->op()) {
                             case xir::ResourceQueryOp::RAY_TRACING_TRACE_CLOSEST: [[fallthrough]];
                             case xir::ResourceQueryOp::RAY_TRACING_TRACE_CLOSEST_MOTION_BLUR: {
                                 this->_requires_optix = true;
                                 requires_raytracing_closest = true;
+                                is_ray_trace = true;
                                 break;
                             }
                             case xir::ResourceQueryOp::RAY_TRACING_TRACE_ANY: [[fallthrough]];
                             case xir::ResourceQueryOp::RAY_TRACING_TRACE_ANY_MOTION_BLUR: {
                                 this->_requires_optix = true;
                                 requires_raytracing_any = true;
+                                is_ray_trace = true;
                                 break;
                             }
                             case xir::ResourceQueryOp::RAY_TRACING_QUERY_ALL: [[fallthrough]];
@@ -410,12 +556,15 @@ void CUDACodegenXIR::emit(const xir::Module *module,
                             case xir::ResourceQueryOp::RAY_TRACING_QUERY_ANY_MOTION_BLUR: {
                                 this->_requires_optix = true;
                                 requires_raytracing_query = true;
+                                is_ray_trace = true;
                                 break;
                             }
                             default: break;
                         }
-                        if (auto curve_basis_md = inst->find_metadata<xir::CurveBasisMD>()) {
-                            required_curve_bases.propagate(curve_basis_md->curve_basis_set());
+                        if (is_ray_trace) {
+                            if (auto curve_basis_md = inst->find_metadata<xir::CurveBasisMD>()) {
+                                required_curve_bases.propagate(curve_basis_md->curve_basis_set());
+                            }
                         }
                     }
                     types.emplace(inst->type());
@@ -473,6 +622,35 @@ void CUDACodegenXIR::emit(const xir::Module *module,
         _scratch << "\n/* native include begin */\n\n"
                  << native_include
                  << "\n/* native include end */\n\n";
+    }
+
+    // emit function definitions
+    for (auto f : functions_post_order) {
+        _emit_function_definition(f);
+    }
+
+    // emit indirect dispatch kernel if allowed
+    if (_allow_indirect_dispatch && !_requires_optix) {
+        _scratch << "extern \"C\" __global__ void kernel_launcher(Params params, const LCIndirectBuffer indirect) {\n"
+                 << "  auto i = blockIdx.x * blockDim.x + threadIdx.x;\n"
+                 << "  auto n = min(indirect.header()->size, indirect.capacity - indirect.offset);\n"
+                 << "  if (i < n) {\n"
+                 << "    auto args = params;\n"
+                 << "    auto d = indirect.dispatches()[i + indirect.offset];\n"
+                 << "    args.ls_kid = d.dispatch_size_and_kernel_id;\n"
+                 << "    auto block_size = lc_block_size();\n"
+                 << "#ifdef LUISA_DEBUG\n"
+                 << "    lc_assert(lc_all(block_size == d.block_size));\n"
+                 << "#endif\n"
+                 << "    auto dispatch_size = lc_make_uint3(d.dispatch_size_and_kernel_id);\n"
+                 << "    if (lc_all(dispatch_size > 0u)) {\n"
+                 << "      auto block_count = (dispatch_size + block_size - 1u) / block_size;\n"
+                 << "      auto nb = dim3(block_count.x, block_count.y, block_count.z);\n"
+                 << "      auto bs = dim3(block_size.x, block_size.y, block_size.z);\n"
+                 << "      kernel_main<<<nb, bs>>>(args);\n"
+                 << "    }\n"
+                 << "  }\n"
+                 << "}\n\n";
     }
 }
 

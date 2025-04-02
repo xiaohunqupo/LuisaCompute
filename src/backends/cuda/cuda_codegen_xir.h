@@ -17,7 +17,6 @@ private:
     StringScratch &_scratch;
     luisa::unordered_map<const xir::PrintInst *, PrintInfo> _print_info;
     luisa::vector<std::pair<luisa::string, const Type *>> _print_formats;
-    uint32_t _indent{0u};
     bool _allow_indirect_dispatch;
     bool _requires_printing{false};
     bool _requires_optix{false};
@@ -44,6 +43,10 @@ private:
     void _emit_type_definitions(luisa::unordered_set<const Type *> used_types) noexcept;
     void _emit_value_name(const xir::Value *value, bool is_use = true) noexcept;
     void _emit_global_constants(luisa::unordered_set<const xir::Constant *> used_constants) noexcept;
+    void _emit_function_definition(const xir::FunctionDefinition *def) noexcept;
+    void _emit_kernel_definition(const xir::KernelFunction *kernel) noexcept;
+    void _emit_callable_definition(const xir::CallableFunction *callable) noexcept;
+    void _emit_instructions(const xir::InstructionList &inst_list, int indent) noexcept;
 
 public:
     CUDACodegenXIR(StringScratch &scratch, bool allow_indirect) noexcept;
