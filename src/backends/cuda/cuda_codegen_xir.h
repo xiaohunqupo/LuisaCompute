@@ -17,6 +17,7 @@ private:
     StringScratch &_scratch;
     luisa::unordered_map<const xir::PrintInst *, PrintInfo> _print_info;
     luisa::vector<std::pair<luisa::string, const Type *>> _print_formats;
+    luisa::vector<const xir::Instruction *> _control_flow_stack;
     bool _allow_indirect_dispatch;
     bool _requires_printing{false};
     bool _requires_optix{false};
@@ -47,6 +48,31 @@ private:
     void _emit_kernel_definition(const xir::KernelFunction *kernel) noexcept;
     void _emit_callable_definition(const xir::CallableFunction *callable) noexcept;
     void _emit_instructions(const xir::InstructionList &inst_list, int indent) noexcept;
+    void _emit_metadata(const xir::MetadataList &md_list, int indent) const noexcept;
+    void _emit_indent(int indent) const noexcept;
+    void _emit_if_inst(const xir::IfInst *inst, int indent) noexcept;
+    void _emit_switch_inst(const xir::SwitchInst *inst, int indent) noexcept;
+    void _emit_loop_inst(const xir::LoopInst *inst, int indent) noexcept;
+    void _emit_simple_loop_inst(const xir::SimpleLoopInst *inst, int indent) noexcept;
+    void _emit_gep_inst(const xir::GEPInst *inst, int indent) noexcept;
+    void _emit_atomic_inst(const xir::AtomicInst *inst, int indent) noexcept;
+    void _emit_arithmetic_inst(const xir::ArithmeticInst *inst, int indent) noexcept;
+    void _emit_thread_group_inst(const xir::ThreadGroupInst *inst, int indent) noexcept;
+    void _emit_resource_query_inst(const xir::ResourceQueryInst *inst, int indent) noexcept;
+    void _emit_resource_read_inst(const xir::ResourceReadInst *inst, int indent) noexcept;
+    void _emit_resource_write_inst(const xir::ResourceWriteInst *inst, int indent) noexcept;
+    void _emit_ray_query_object_read_inst(const xir::RayQueryObjectReadInst *inst, int indent) noexcept;
+    void _emit_ray_query_object_write_inst(const xir::RayQueryObjectWriteInst *inst, int indent) noexcept;
+    void _emit_branch_inst(const xir::BranchInst *inst, int indent) noexcept;
+    void _emit_conditional_branch_inst(const xir::ConditionalBranchInst *inst, int indent) noexcept;
+
+    template<typename F>
+    void _with_control_flow(const xir::Instruction *inst, F &&f) noexcept {
+        _control_flow_stack.emplace_back(inst);
+        f();
+        assert(!_control_flow_stack.empty() && _control_flow_stack.back() == inst && "Control flow stack mismatch.");
+        _control_flow_stack.pop_back();
+    }
 
 public:
     CUDACodegenXIR(StringScratch &scratch, bool allow_indirect) noexcept;

@@ -283,6 +283,7 @@ public:
     using Super = ControlFlowMergeMixin;
     using Base::Base;
     [[nodiscard]] ControlFlowMerge *control_flow_merge() noexcept final { return this; }
+    using Base::control_flow_merge;
 };
 
 template<typename OpType, typename Base>
