@@ -13,6 +13,9 @@
 #include <luisa/xir/function.h>
 #include <luisa/xir/builder.h>
 #include <luisa/xir/metadata/curve_basis.h>
+#include <luisa/xir/metadata/name.h>
+#include <luisa/xir/metadata/comment.h>
+#include <luisa/xir/metadata/location.h>
 
 #include "cuda_codegen_xir.h"
 
@@ -291,7 +294,11 @@ void CUDACodegenXIR::_emit_value_name(const xir::Value *value, bool is_use) noex
             break;
         }
         case xir::DerivedValueTag::BASIC_BLOCK: LUISA_ERROR_WITH_LOCATION("Cannot emit name for basic block.");
-        case xir::DerivedValueTag::INSTRUCTION: _scratch << "v" << get_local_index(value); break;
+        case xir::DerivedValueTag::INSTRUCTION: {
+            _scratch << (value->is_lvalue() ? "pv" : "v")
+                     << get_local_index(value);
+            break;
+        }
         case xir::DerivedValueTag::CONSTANT: {
             if (auto c = static_cast<const xir::Constant *>(value); _should_emit_global_constant(c)) {
                 if (is_use) {
@@ -308,7 +315,11 @@ void CUDACodegenXIR::_emit_value_name(const xir::Value *value, bool is_use) noex
             }
             break;
         }
-        case xir::DerivedValueTag::ARGUMENT: _scratch << "a" << get_local_index(value); break;
+        case xir::DerivedValueTag::ARGUMENT: {
+            _scratch << (value->is_lvalue() ? "pa" : "a")
+                     << get_local_index(value);
+            break;
+        }
         case xir::DerivedValueTag::SPECIAL_REGISTER: {
             switch (static_cast<const xir::SpecialRegister *>(value)->derived_special_register_tag()) {
                 case xir::DerivedSpecialRegisterTag::THREAD_ID: _scratch << "sreg_tid"; break;
@@ -354,7 +365,453 @@ void CUDACodegenXIR::_emit_global_constants(luisa::unordered_set<const xir::Cons
 }
 
 void CUDACodegenXIR::_emit_instructions(const xir::InstructionList &inst_list, int indent) noexcept {
-    // TODO
+    for (auto &&inst : inst_list) {
+        auto emit_result_value_eq = [&] {
+            if (auto ret_type = inst.type()) {
+                _emit_type_name(ret_type);
+                if (inst.is_lvalue()) {
+                    _scratch << " *const ";
+                } else {
+                    _scratch << " const ";
+                }
+                _emit_value_name(&inst);
+                _scratch << " = ";
+            }
+        };
+        _emit_metadata(inst.metadata_list(), indent);
+        _emit_indent(indent);
+        switch (inst.derived_instruction_tag()) {
+            case xir::DerivedInstructionTag::IF: {
+                _with_control_flow(&inst, [&] {
+                    _emit_if_inst(static_cast<const xir::IfInst *>(&inst), indent);
+                });
+                break;
+            }
+            case xir::DerivedInstructionTag::SWITCH: {
+                _with_control_flow(&inst, [&] {
+                    _emit_switch_inst(static_cast<const xir::SwitchInst *>(&inst), indent);
+                });
+                break;
+            }
+            case xir::DerivedInstructionTag::LOOP: {
+                _with_control_flow(&inst, [&] {
+                    _emit_loop_inst(static_cast<const xir::LoopInst *>(&inst), indent);
+                });
+                break;
+            }
+            case xir::DerivedInstructionTag::SIMPLE_LOOP: {
+                _with_control_flow(&inst, [&] {
+                    _emit_simple_loop_inst(static_cast<const xir::SimpleLoopInst *>(&inst), indent);
+                });
+                break;
+            }
+            case xir::DerivedInstructionTag::BRANCH: _emit_branch_inst(static_cast<const xir::BranchInst *>(&inst), indent); break;
+            case xir::DerivedInstructionTag::CONDITIONAL_BRANCH: _emit_conditional_branch_inst(static_cast<const xir::ConditionalBranchInst *>(&inst), indent); break;
+            case xir::DerivedInstructionTag::UNREACHABLE: {
+                if (auto &&msg = static_cast<const xir::UnreachableInst *>(&inst)->message(); !msg.empty()) {
+                    _scratch << "lc_unreachable_with_message(__FILE__, __LINE__, "
+                             << luisa::format("{:?}", msg)
+                             << ");";
+                } else {
+                    _scratch << "lc_unreachable(__FILE__, __LINE__);";
+                }
+                break;
+            }
+            case xir::DerivedInstructionTag::BREAK: {
+                LUISA_ASSERT(!_control_flow_stack.empty(), "Control flow stack is empty.");
+                if (_control_flow_stack.back()->isa<xir::LoopInst>()) {
+                    _scratch << "loop_break = true;\n";
+                    _emit_indent(indent);
+                }
+                _scratch << "break;";
+                break;
+            }
+            case xir::DerivedInstructionTag::CONTINUE: {
+                LUISA_ASSERT(!_control_flow_stack.empty(), "Control flow stack is empty.");
+                if (_control_flow_stack.back()->isa<xir::LoopInst>()) {
+                    _scratch << "break;";
+                } else {
+                    _scratch << "continue;";
+                }
+                break;
+            }
+            case xir::DerivedInstructionTag::RETURN: {
+                if (auto ret = static_cast<const xir::ReturnInst *>(&inst)->return_value()) {
+                    _scratch << "return ";
+                    _emit_value_name(ret);
+                    _scratch << ";";
+                } else {
+                    _scratch << "return;";
+                }
+                break;
+            }
+            case xir::DerivedInstructionTag::RASTER_DISCARD: LUISA_NOT_IMPLEMENTED("Raster discard is not supported in XIR-based CUDA codegen.");
+            case xir::DerivedInstructionTag::PHI: LUISA_ERROR_WITH_LOCATION("Phi instructions should be eliminated before codegen.");
+            case xir::DerivedInstructionTag::ALLOCA: {
+                // emit the alloca variable
+                if (static_cast<const xir::AllocaInst *>(&inst)->is_shared()) {
+                    _scratch << "__shared__ ";
+                }
+                _emit_type_name(inst.type());
+                _scratch << " ";
+                _emit_value_name(&inst);
+                _scratch << "_alloca;";
+                // emit the pointer to the alloca variable
+                _scratch << "\n";
+                _emit_indent(indent);
+                emit_result_value_eq();
+                _scratch << "&";
+                _emit_value_name(&inst);
+                _scratch << "_alloca;";
+                break;
+            }
+            case xir::DerivedInstructionTag::LOAD: {
+                emit_result_value_eq();
+                _scratch << "*(";
+                _emit_value_name(static_cast<const xir::LoadInst *>(&inst)->variable());
+                _scratch << ");";
+                break;
+            }
+            case xir::DerivedInstructionTag::STORE: {
+                _scratch << "*(";
+                _emit_value_name(static_cast<const xir::StoreInst *>(&inst)->variable());
+                _scratch << ") = ";
+                _emit_value_name(static_cast<const xir::StoreInst *>(&inst)->value());
+                _scratch << ";";
+                break;
+            }
+            case xir::DerivedInstructionTag::GEP: _emit_gep_inst(static_cast<const xir::GEPInst *>(&inst), indent); break;
+            case xir::DerivedInstructionTag::ATOMIC: _emit_atomic_inst(static_cast<const xir::AtomicInst *>(&inst), indent); break;
+            case xir::DerivedInstructionTag::ARITHMETIC: _emit_arithmetic_inst(static_cast<const xir::ArithmeticInst *>(&inst), indent); break;
+            case xir::DerivedInstructionTag::THREAD_GROUP: _emit_thread_group_inst(static_cast<const xir::ThreadGroupInst *>(&inst), indent); break;
+            case xir::DerivedInstructionTag::RESOURCE_QUERY: _emit_resource_query_inst(static_cast<const xir::ResourceQueryInst *>(&inst), indent); break;
+            case xir::DerivedInstructionTag::RESOURCE_READ: _emit_resource_read_inst(static_cast<const xir::ResourceReadInst *>(&inst), indent); break;
+            case xir::DerivedInstructionTag::RESOURCE_WRITE: _emit_resource_write_inst(static_cast<const xir::ResourceWriteInst *>(&inst), indent); break;
+            case xir::DerivedInstructionTag::RAY_QUERY_LOOP: LUISA_ERROR_WITH_LOCATION("Ray query loop instructions should be eliminated before codegen.");
+            case xir::DerivedInstructionTag::RAY_QUERY_DISPATCH: LUISA_ERROR_WITH_LOCATION("Ray query dispatch instructions should be eliminated before codegen.");
+            case xir::DerivedInstructionTag::RAY_QUERY_OBJECT_READ: _emit_ray_query_object_read_inst(static_cast<const xir::RayQueryObjectReadInst *>(&inst), indent); break;
+            case xir::DerivedInstructionTag::RAY_QUERY_OBJECT_WRITE: _emit_ray_query_object_write_inst(static_cast<const xir::RayQueryObjectWriteInst *>(&inst), indent); break;
+            case xir::DerivedInstructionTag::RAY_QUERY_PIPELINE: LUISA_NOT_IMPLEMENTED("Ray query pipeline has not been implemented in XIR-based CUDA codegen.");
+            case xir::DerivedInstructionTag::AUTODIFF_SCOPE: LUISA_ERROR_WITH_LOCATION("Autodiff scope instructions should be eliminated before codegen.");
+            case xir::DerivedInstructionTag::AUTODIFF_INTRINSIC: LUISA_ERROR_WITH_LOCATION("Autodiff intrinsic instructions should be eliminated before codegen.");
+            case xir::DerivedInstructionTag::CALL: {
+                emit_result_value_eq();
+                auto call = static_cast<const xir::CallInst *>(&inst);
+                _emit_value_name(call->callee());
+                _scratch << "(";
+                auto any_arg = false;
+                for (auto &&arg_use : call->argument_uses()) {
+                    any_arg = true;
+                    _emit_value_name(arg_use->value());
+                    _scratch << ", ";
+                }
+                if (!_requires_optix && _requires_printing) {
+                    any_arg = true;
+                    _scratch << "print_buffer, ";
+                }
+                if (any_arg) {
+                    _scratch.pop_back();
+                    _scratch.pop_back();
+                }
+                _scratch << ");";
+                break;
+            }
+            case xir::DerivedInstructionTag::CAST: {
+                emit_result_value_eq();
+                auto cast = static_cast<const xir::CastInst *>(&inst);
+                switch (cast->op()) {
+                    case xir::CastOp::STATIC_CAST: _scratch << "static_cast<"; break;
+                    case xir::CastOp::BITWISE_CAST: _scratch << "lc_bit_cast<"; break;
+                }
+                _emit_type_name(cast->type());
+                _scratch << ">(";
+                _emit_value_name(cast->value());
+                _scratch << ");";
+                break;
+            }
+            case xir::DerivedInstructionTag::PRINT: {
+                auto p = static_cast<const xir::PrintInst *>(&inst);
+                auto info = _print_info.at(p);
+                _scratch << "lc_print(LC_PRINT_BUFFER, ";
+                _emit_type_name(info.type);
+                _scratch << "{" << info.type->size() << ", "
+                         << info.index;
+                for (auto op_use : p->operand_uses()) {
+                    _scratch << ", ";
+                    _emit_value_name(op_use->value());
+                }
+                _scratch << "});";
+                break;
+            }
+            case xir::DerivedInstructionTag::CLOCK: {
+                emit_result_value_eq();
+                _scratch << "clock64();";
+                break;
+            }
+            case xir::DerivedInstructionTag::ASSERT: {
+                if (auto a = static_cast<const xir::AssertInst *>(&inst); a->message().empty()) {
+                    _scratch << "lc_assert(";
+                    _emit_value_name(a->condition());
+                    _scratch << ");";
+                } else {
+                    _scratch << "lc_assert_with_message(";
+                    _emit_value_name(a->condition());
+                    _scratch << ", "
+                             << luisa::format("{:?}", a->message())
+                             << ");";
+                }
+                break;
+            }
+            case xir::DerivedInstructionTag::ASSUME: {
+                _scratch << "lc_assume(";
+                _emit_value_name(static_cast<const xir::AssumeInst *>(&inst)->condition());
+                _scratch << ");";
+                break;
+            }
+            case xir::DerivedInstructionTag::OUTLINE: LUISA_ERROR_WITH_LOCATION("Outline instructions should be eliminated before codegen.");
+        }
+        _scratch << "\n";
+        if (auto merge = inst.control_flow_merge(); merge != nullptr && merge->merge_block() != nullptr) {
+            _emit_instructions(merge->merge_block()->instructions(), indent);
+        }
+    }
+}
+
+void CUDACodegenXIR::_emit_metadata(const xir::MetadataList &md_list, int indent) const noexcept {
+    for (auto &&md : md_list) {
+        _emit_indent(indent);
+        _scratch << "// ";
+        switch (md.derived_metadata_tag()) {
+            case xir::DerivedMetadataTag::NAME: {
+                auto name_md = static_cast<const xir::NameMD *>(&md);
+                _scratch << luisa::format("name: {:?}",
+                                          name_md->name());
+                break;
+            }
+            case xir::DerivedMetadataTag::LOCATION: {
+                auto loc_md = static_cast<const xir::LocationMD *>(&md);
+                _scratch << luisa::format("location: {:?}, line {}",
+                                          loc_md->file().string(), loc_md->line());
+                break;
+            }
+            case xir::DerivedMetadataTag::COMMENT: {
+                auto comment_md = static_cast<const xir::CommentMD *>(&md);
+                for (auto c : comment_md->comment()) {
+                    if (c == '\n') {
+                        _scratch << "\n";
+                        _emit_indent(indent);
+                        _scratch << "// ";
+                    } else if (isprint(c)) {
+                        char s[] = {c, '\0'};
+                        _scratch << s;
+                    }
+                }
+                break;
+            }
+            case xir::DerivedMetadataTag::CURVE_BASIS: {
+                auto bases = static_cast<const xir::CurveBasisMD *>(&md)->curve_basis_set();
+                _scratch << "curve basis:";
+                if (bases.none()) {
+                    _scratch << " none";
+                } else {
+                    if (bases.test(CurveBasis::PIECEWISE_LINEAR)) { _scratch << " piecewise_linear"; }
+                    if (bases.test(CurveBasis::CUBIC_BSPLINE)) { _scratch << " cubic_bspline"; }
+                    if (bases.test(CurveBasis::CATMULL_ROM)) { _scratch << " catmull_rom"; }
+                    if (bases.test(CurveBasis::BEZIER)) { _scratch << " bezier"; }
+                }
+                break;
+            }
+        }
+        _scratch << "\n";
+    }
+}
+
+void CUDACodegenXIR::_emit_indent(int indent) const noexcept {
+    _scratch.string().append(indent * 2, ' ');
+}
+
+void CUDACodegenXIR::_emit_if_inst(const xir::IfInst *inst, int indent) noexcept {
+    _scratch << "if (";
+    _emit_value_name(inst->condition());
+    _scratch << ") {";
+    if (auto true_block = inst->true_block(); true_block != nullptr && !true_block->instructions().empty()) {
+        _scratch << "\n";
+        _emit_instructions(true_block->instructions(), indent + 1);
+        _emit_indent(indent);
+    }
+    _scratch << "} else {";
+    if (auto false_block = inst->false_block(); false_block != nullptr && !false_block->instructions().empty()) {
+        _scratch << "\n";
+        _emit_instructions(false_block->instructions(), indent + 1);
+        _emit_indent(indent);
+    }
+    _scratch << "}";
+}
+
+void CUDACodegenXIR::_emit_switch_inst(const xir::SwitchInst *inst, int indent) noexcept {
+    _scratch << "switch (";
+    _emit_value_name(inst->value());
+    _scratch << ") {";
+    auto value_type = inst->value()->type();
+    for (auto i = 0u; i < inst->case_count(); i++) {
+        _scratch << "\n";
+        _emit_indent(indent + 1);
+        _scratch << "case static_cast<";
+        _emit_type_name(value_type);
+        _scratch << ">(" << inst->case_value(i) << "): {\n";
+        if (auto block = inst->case_block(i); block != nullptr) {
+            _emit_instructions(block->instructions(), indent + 2);
+        }
+        _emit_indent(indent + 1);
+        _scratch << "}";
+    }
+    if (auto default_block = inst->default_block(); default_block != nullptr) {
+        _scratch << "\n";
+        _emit_indent(indent + 1);
+        _scratch << "default: {\n";
+        _emit_instructions(default_block->instructions(), indent + 2);
+        _emit_indent(indent + 1);
+        _scratch << "}\n";
+    }
+}
+
+void CUDACodegenXIR::_emit_loop_inst(const xir::LoopInst *inst, int indent) noexcept {
+    // template:
+    // loop {
+    //     loop_break = false;
+    //     prepare();
+    //     do {
+    //         body {
+    //             // break => { loop_break = true; break; }
+    //             // continue => { break; }
+    //         }
+    //     } while (false);
+    //     if (loop_break) break;
+    //     update();
+    // }
+    _scratch << "for (;;) { /* generic loop */\n";
+    _emit_indent(indent + 1);
+    _scratch << "bool loop_break = false;\n";
+    _emit_indent(indent + 1);
+    _scratch << "/* generic loop prepare */\n";
+    // prepare
+    if (auto prepare_block = inst->prepare_block(); prepare_block != nullptr && !prepare_block->instructions().empty()) {
+        _emit_instructions(prepare_block->instructions(), indent + 1);
+    }
+    _emit_indent(indent + 1);
+    // body
+    _scratch << "do { /* generic loop body */";
+    if (auto body_block = inst->body_block(); body_block != nullptr && !body_block->instructions().empty()) {
+        _scratch << "\n";
+        _emit_instructions(body_block->instructions(), indent + 2);
+        _emit_indent(indent + 1);
+    }
+    _scratch << "} while (false);\n";
+    // break
+    _emit_indent(indent + 1);
+    _scratch << "if (loop_break) { break; }\n";
+    _emit_indent(indent + 1);
+    _scratch << "/* generic loop update */\n";
+    // update
+    if (auto update_block = inst->update_block(); update_block != nullptr && !update_block->instructions().empty()) {
+        _emit_instructions(update_block->instructions(), indent + 1);
+    }
+    _emit_indent(indent);
+    _scratch << "}";
+}
+
+void CUDACodegenXIR::_emit_simple_loop_inst(const xir::SimpleLoopInst *inst, int indent) noexcept {
+    // do-while loop
+    _scratch << "for (;;) { /* simple loop */";
+    if (auto body_block = inst->body_block(); body_block != nullptr && !body_block->instructions().empty()) {
+        _scratch << "\n";
+        _emit_instructions(body_block->instructions(), indent + 1);
+        _emit_indent(indent);
+    }
+    _scratch << "}";
+}
+
+void CUDACodegenXIR::_emit_gep_inst(const xir::GEPInst *inst, int indent) noexcept {
+}
+
+void CUDACodegenXIR::_emit_atomic_inst(const xir::AtomicInst *inst, int indent) noexcept {
+}
+
+void CUDACodegenXIR::_emit_arithmetic_inst(const xir::ArithmeticInst *inst, int indent) noexcept {
+}
+
+void CUDACodegenXIR::_emit_thread_group_inst(const xir::ThreadGroupInst *inst, int indent) noexcept {
+}
+
+void CUDACodegenXIR::_emit_resource_query_inst(const xir::ResourceQueryInst *inst, int indent) noexcept {
+}
+
+void CUDACodegenXIR::_emit_resource_read_inst(const xir::ResourceReadInst *inst, int indent) noexcept {
+}
+
+void CUDACodegenXIR::_emit_resource_write_inst(const xir::ResourceWriteInst *inst, int indent) noexcept {
+}
+
+void CUDACodegenXIR::_emit_ray_query_object_read_inst(const xir::RayQueryObjectReadInst *inst, int indent) noexcept {
+}
+
+void CUDACodegenXIR::_emit_ray_query_object_write_inst(const xir::RayQueryObjectWriteInst *inst, int indent) noexcept {
+}
+
+void CUDACodegenXIR::_emit_branch_inst(const xir::BranchInst *inst, int indent) noexcept {
+    LUISA_DEBUG_ASSERT(!_control_flow_stack.empty(), "Control flow stack is empty.");
+    switch (auto control_flow = _control_flow_stack.back(); control_flow->derived_instruction_tag()) {
+        case xir::DerivedInstructionTag::IF: {
+            [[maybe_unused]] auto if_inst = static_cast<const xir::IfInst *>(control_flow);
+            LUISA_ASSERT(inst->target_block() == if_inst->merge_block(),
+                         "Branch target block is not the merge block of the if instruction.");
+            break;
+        }
+        case xir::DerivedInstructionTag::SWITCH: {
+            [[maybe_unused]] auto switch_inst = static_cast<const xir::SwitchInst *>(control_flow);
+            LUISA_ASSERT(inst->target_block() == switch_inst->merge_block(),
+                         "Branch target block is not the merge block of the switch instruction.");
+            _scratch << "break;";
+            break;
+        }
+        case xir::DerivedInstructionTag::SIMPLE_LOOP: {
+            auto loop = static_cast<const xir::SimpleLoopInst *>(control_flow);
+            if (inst->target_block() == loop->merge_block()) {
+                _scratch << "break; /* simple loop unconditional branch */";
+            }
+            break;
+        }
+        case xir::DerivedInstructionTag::LOOP: {
+            auto loop = static_cast<const xir::LoopInst *>(control_flow);
+            if (inst->target_block() == loop->merge_block()) {
+                _scratch << "break; /* generic loop unconditional branch */";
+            }
+            break;
+        }
+        default: LUISA_ERROR_WITH_LOCATION("Control flow stack is not a loop instruction.");
+    }
+}
+
+void CUDACodegenXIR::_emit_conditional_branch_inst(const xir::ConditionalBranchInst *inst, int indent) noexcept {
+    LUISA_DEBUG_ASSERT(!_control_flow_stack.empty(), "Control flow stack is empty.");
+    switch (auto control_flow = _control_flow_stack.back(); control_flow->derived_instruction_tag()) {
+        case xir::DerivedInstructionTag::LOOP: [[fallthrough]];
+        case xir::DerivedInstructionTag::SIMPLE_LOOP: {
+            if (auto merge_block = control_flow->control_flow_merge()->merge_block()) {
+                if (inst->true_block() == merge_block) {// break if true
+                    _scratch << "if (";
+                    _emit_value_name(inst->condition());
+                    _scratch << ") /* loop conditional branch */ { break; }";
+                } else if (inst->false_block() == merge_block) {// break if not true
+                    _scratch << "if (!(";
+                    _emit_value_name(inst->condition());
+                    _scratch << ")) /* loop conditional branch */ { break; }";
+                }
+            }
+            break;
+        }
+        default: LUISA_ERROR_WITH_LOCATION("Control flow stack is not a loop instruction.");
+    }
 }
 
 void CUDACodegenXIR::_emit_function_definition(const xir::FunctionDefinition *def) noexcept {
@@ -402,14 +859,14 @@ void CUDACodegenXIR::_emit_kernel_definition(const xir::KernelFunction *kernel) 
     // decode the kernel arguments
     _scratch << "\n\n  /* kernel arguments */";
     for (auto arg : kernel->arguments()) {
-        _scratch << "\n  auto ";
+        _scratch << "\n  auto const ";
         _emit_value_name(arg);
         _scratch << " = params.";
         _emit_value_name(arg);
         _scratch << ";";
     }
     if (!_requires_optix && _requires_printing) {
-        _scratch << "\n  const auto print_buffer = params.print_buffer;";
+        _scratch << "\n  auto const print_buffer = params.print_buffer;";
     }
     // emit built-in variables
     _scratch
@@ -449,21 +906,18 @@ void CUDACodegenXIR::_emit_callable_definition(const xir::CallableFunction *call
     for (auto arg : callable->arguments()) {
         any_arg = true;
         _scratch << "\n    ";
-        if (!arg->is_reference()) {
-            _scratch << "const ";
-        }
         _emit_type_name(arg->type());
         if (arg->is_reference()) {
-            _scratch << " &";
+            _scratch << " *const ";
         } else {
-            _scratch << " ";
+            _scratch << " const ";
         }
         _emit_value_name(arg);
         _scratch << ",";
     }
     if (!_requires_optix && _requires_printing) {
         any_arg = true;
-        _scratch << "\n    LCPrintBuffer print_buffer,";
+        _scratch << "\n    LCPrintBuffer const print_buffer,";
     }
     if (any_arg) { _scratch.pop_back(); }
     _scratch << ") noexcept {\n"
