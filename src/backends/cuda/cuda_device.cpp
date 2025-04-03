@@ -4,11 +4,10 @@
 #include <thread>
 #include <cstdlib>
 
-#include <nvtx3/nvToolsExtCuda.h>
-
 #include <luisa/core/clock.h>
 #include <luisa/core/binary_io.h>
 #include <luisa/core/string_scratch.h>
+#include <luisa/core/logging.h>
 #include <luisa/runtime/rhi/sampler.h>
 #include <luisa/runtime/bindless_array.h>
 #include <luisa/runtime/dispatch_buffer.h>
