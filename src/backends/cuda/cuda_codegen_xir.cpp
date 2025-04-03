@@ -5,6 +5,7 @@
 #ifdef LUISA_ENABLE_XIR
 
 #include <luisa/core/stl/algorithm.h>
+#include <luisa/core/logging.h>
 #include <luisa/runtime/rtx/ray.h>
 #include <luisa/runtime/rtx/hit.h>
 #include <luisa/runtime/dispatch_buffer.h>
@@ -364,20 +365,22 @@ void CUDACodegenXIR::_emit_global_constants(luisa::unordered_set<const xir::Cons
     }
 }
 
+void CUDACodegenXIR::_emit_result_value_eq(const xir::Instruction *inst) noexcept {
+    if (auto ret_type = inst->type()) {
+        _emit_type_name(ret_type);
+        if (inst->is_lvalue()) {
+            _scratch << " *const ";
+        } else {
+            _scratch << " const ";
+        }
+        _emit_value_name(inst);
+        _scratch << " = ";
+    }
+}
+
 void CUDACodegenXIR::_emit_instructions(const xir::InstructionList &inst_list, int indent) noexcept {
     for (auto &&inst : inst_list) {
-        auto emit_result_value_eq = [&] {
-            if (auto ret_type = inst.type()) {
-                _emit_type_name(ret_type);
-                if (inst.is_lvalue()) {
-                    _scratch << " *const ";
-                } else {
-                    _scratch << " const ";
-                }
-                _emit_value_name(&inst);
-                _scratch << " = ";
-            }
-        };
+        auto emit_result_value_eq = [&] { _emit_result_value_eq(&inst); };
         _emit_metadata(inst.metadata_list(), indent);
         _emit_indent(indent);
         switch (inst.derived_instruction_tag()) {
@@ -405,8 +408,8 @@ void CUDACodegenXIR::_emit_instructions(const xir::InstructionList &inst_list, i
                 });
                 break;
             }
-            case xir::DerivedInstructionTag::BRANCH: _emit_branch_inst(static_cast<const xir::BranchInst *>(&inst), indent); break;
-            case xir::DerivedInstructionTag::CONDITIONAL_BRANCH: _emit_conditional_branch_inst(static_cast<const xir::ConditionalBranchInst *>(&inst), indent); break;
+            case xir::DerivedInstructionTag::BRANCH: _emit_branch_inst(static_cast<const xir::BranchInst *>(&inst)); break;
+            case xir::DerivedInstructionTag::CONDITIONAL_BRANCH: _emit_conditional_branch_inst(static_cast<const xir::ConditionalBranchInst *>(&inst)); break;
             case xir::DerivedInstructionTag::UNREACHABLE: {
                 if (auto &&msg = static_cast<const xir::UnreachableInst *>(&inst)->message(); !msg.empty()) {
                     _scratch << "lc_unreachable_with_message(__FILE__, __LINE__, "
@@ -480,17 +483,17 @@ void CUDACodegenXIR::_emit_instructions(const xir::InstructionList &inst_list, i
                 _scratch << ";";
                 break;
             }
-            case xir::DerivedInstructionTag::GEP: _emit_gep_inst(static_cast<const xir::GEPInst *>(&inst), indent); break;
-            case xir::DerivedInstructionTag::ATOMIC: _emit_atomic_inst(static_cast<const xir::AtomicInst *>(&inst), indent); break;
-            case xir::DerivedInstructionTag::ARITHMETIC: _emit_arithmetic_inst(static_cast<const xir::ArithmeticInst *>(&inst), indent); break;
-            case xir::DerivedInstructionTag::THREAD_GROUP: _emit_thread_group_inst(static_cast<const xir::ThreadGroupInst *>(&inst), indent); break;
-            case xir::DerivedInstructionTag::RESOURCE_QUERY: _emit_resource_query_inst(static_cast<const xir::ResourceQueryInst *>(&inst), indent); break;
-            case xir::DerivedInstructionTag::RESOURCE_READ: _emit_resource_read_inst(static_cast<const xir::ResourceReadInst *>(&inst), indent); break;
-            case xir::DerivedInstructionTag::RESOURCE_WRITE: _emit_resource_write_inst(static_cast<const xir::ResourceWriteInst *>(&inst), indent); break;
+            case xir::DerivedInstructionTag::GEP: _emit_gep_inst(static_cast<const xir::GEPInst *>(&inst)); break;
+            case xir::DerivedInstructionTag::ATOMIC: _emit_atomic_inst(static_cast<const xir::AtomicInst *>(&inst)); break;
+            case xir::DerivedInstructionTag::ARITHMETIC: _emit_arithmetic_inst(static_cast<const xir::ArithmeticInst *>(&inst)); break;
+            case xir::DerivedInstructionTag::THREAD_GROUP: _emit_thread_group_inst(static_cast<const xir::ThreadGroupInst *>(&inst)); break;
+            case xir::DerivedInstructionTag::RESOURCE_QUERY: _emit_resource_query_inst(static_cast<const xir::ResourceQueryInst *>(&inst)); break;
+            case xir::DerivedInstructionTag::RESOURCE_READ: _emit_resource_read_inst(static_cast<const xir::ResourceReadInst *>(&inst)); break;
+            case xir::DerivedInstructionTag::RESOURCE_WRITE: _emit_resource_write_inst(static_cast<const xir::ResourceWriteInst *>(&inst)); break;
             case xir::DerivedInstructionTag::RAY_QUERY_LOOP: LUISA_ERROR_WITH_LOCATION("Ray query loop instructions should be eliminated before codegen.");
             case xir::DerivedInstructionTag::RAY_QUERY_DISPATCH: LUISA_ERROR_WITH_LOCATION("Ray query dispatch instructions should be eliminated before codegen.");
-            case xir::DerivedInstructionTag::RAY_QUERY_OBJECT_READ: _emit_ray_query_object_read_inst(static_cast<const xir::RayQueryObjectReadInst *>(&inst), indent); break;
-            case xir::DerivedInstructionTag::RAY_QUERY_OBJECT_WRITE: _emit_ray_query_object_write_inst(static_cast<const xir::RayQueryObjectWriteInst *>(&inst), indent); break;
+            case xir::DerivedInstructionTag::RAY_QUERY_OBJECT_READ: _emit_ray_query_object_read_inst(static_cast<const xir::RayQueryObjectReadInst *>(&inst)); break;
+            case xir::DerivedInstructionTag::RAY_QUERY_OBJECT_WRITE: _emit_ray_query_object_write_inst(static_cast<const xir::RayQueryObjectWriteInst *>(&inst)); break;
             case xir::DerivedInstructionTag::RAY_QUERY_PIPELINE: LUISA_NOT_IMPLEMENTED("Ray query pipeline has not been implemented in XIR-based CUDA codegen.");
             case xir::DerivedInstructionTag::AUTODIFF_SCOPE: LUISA_ERROR_WITH_LOCATION("Autodiff scope instructions should be eliminated before codegen.");
             case xir::DerivedInstructionTag::AUTODIFF_INTRINSIC: LUISA_ERROR_WITH_LOCATION("Autodiff intrinsic instructions should be eliminated before codegen.");
@@ -731,34 +734,149 @@ void CUDACodegenXIR::_emit_simple_loop_inst(const xir::SimpleLoopInst *inst, int
     _scratch << "}";
 }
 
-void CUDACodegenXIR::_emit_gep_inst(const xir::GEPInst *inst, int indent) noexcept {
+void CUDACodegenXIR::_emit_intrinsic_call(luisa::string_view name, const xir::Instruction *inst) noexcept {
+    _emit_result_value_eq(inst);
+    _scratch << name << "(";
+    auto any_arg = false;
+    for (auto &&arg_use : inst->operand_uses()) {
+        any_arg = true;
+        _emit_value_name(arg_use->value());
+        _scratch << ", ";
+    }
+    if (any_arg) {
+        _scratch.pop_back();
+        _scratch.pop_back();
+    }
+    _scratch << ");";
 }
 
-void CUDACodegenXIR::_emit_atomic_inst(const xir::AtomicInst *inst, int indent) noexcept {
+void CUDACodegenXIR::_emit_gep_inst(const xir::GEPInst *inst) noexcept {
 }
 
-void CUDACodegenXIR::_emit_arithmetic_inst(const xir::ArithmeticInst *inst, int indent) noexcept {
+void CUDACodegenXIR::_emit_atomic_inst(const xir::AtomicInst *inst) noexcept {
 }
 
-void CUDACodegenXIR::_emit_thread_group_inst(const xir::ThreadGroupInst *inst, int indent) noexcept {
+void CUDACodegenXIR::_emit_arithmetic_inst(const xir::ArithmeticInst *inst) noexcept {
+    auto u = [&](auto op) noexcept { _emit_with_template(inst, op, "(", 0, ")"); };
+    auto b = [&](auto op) noexcept { _emit_with_template(inst, "(", 0, ") ", op, " (", 1, ")"); };
+    auto f = [&](auto s) noexcept { _emit_intrinsic_call(s, inst); };
+    switch (inst->op()) {
+        case xir::ArithmeticOp::UNARY_PLUS: u("+"); break;
+        case xir::ArithmeticOp::UNARY_MINUS: u("-"); break;
+        case xir::ArithmeticOp::UNARY_BIT_NOT: u("~"); break;
+        case xir::ArithmeticOp::BINARY_ADD: b("+"); break;
+        case xir::ArithmeticOp::BINARY_SUB: b("-"); break;
+        case xir::ArithmeticOp::BINARY_MUL: b("*"); break;
+        case xir::ArithmeticOp::BINARY_DIV: b("/"); break;
+        case xir::ArithmeticOp::BINARY_MOD: b("%"); break;
+        case xir::ArithmeticOp::BINARY_BIT_AND: b("&"); break;
+        case xir::ArithmeticOp::BINARY_BIT_OR: b("|"); break;
+        case xir::ArithmeticOp::BINARY_BIT_XOR: b("^"); break;
+        case xir::ArithmeticOp::BINARY_SHIFT_LEFT: b("<<"); break;
+        case xir::ArithmeticOp::BINARY_SHIFT_RIGHT: b(">>"); break;
+        case xir::ArithmeticOp::BINARY_ROTATE_LEFT: LUISA_NOT_IMPLEMENTED("lc_rotl"); break;
+        case xir::ArithmeticOp::BINARY_ROTATE_RIGHT: LUISA_NOT_IMPLEMENTED("lc_rotr"); break;
+        case xir::ArithmeticOp::BINARY_LESS: b("<"); break;
+        case xir::ArithmeticOp::BINARY_GREATER: b(">"); break;
+        case xir::ArithmeticOp::BINARY_LESS_EQUAL: b("<="); break;
+        case xir::ArithmeticOp::BINARY_GREATER_EQUAL: b(">="); break;
+        case xir::ArithmeticOp::BINARY_EQUAL: b("=="); break;
+        case xir::ArithmeticOp::BINARY_NOT_EQUAL: b("!="); break;
+        case xir::ArithmeticOp::ALL: f("lc_all"); break;
+        case xir::ArithmeticOp::ANY: f("lc_any"); break;
+        case xir::ArithmeticOp::SELECT: f("lc_select"); break;
+        case xir::ArithmeticOp::CLAMP: f("lc_clamp"); break;
+        case xir::ArithmeticOp::SATURATE: f("lc_saturate"); break;
+        case xir::ArithmeticOp::LERP: f("lc_lerp"); break;
+        case xir::ArithmeticOp::SMOOTHSTEP: f("lc_smoothstep"); break;
+        case xir::ArithmeticOp::STEP: f("lc_step"); break;
+        case xir::ArithmeticOp::ABS: f("lc_abs"); break;
+        case xir::ArithmeticOp::MIN: f("lc_min"); break;
+        case xir::ArithmeticOp::MAX: f("lc_max"); break;
+        case xir::ArithmeticOp::CLZ: f("lc_clz"); break;
+        case xir::ArithmeticOp::CTZ: f("lc_ctz"); break;
+        case xir::ArithmeticOp::POPCOUNT: f("lc_popcount"); break;
+        case xir::ArithmeticOp::REVERSE: f("lc_reverse"); break;
+        case xir::ArithmeticOp::ISINF: f("lc_isinf"); break;
+        case xir::ArithmeticOp::ISNAN: f("lc_isnan"); break;
+        case xir::ArithmeticOp::ACOS: f("lc_acos"); break;
+        case xir::ArithmeticOp::ACOSH: f("lc_acosh"); break;
+        case xir::ArithmeticOp::ASIN: f("lc_asin"); break;
+        case xir::ArithmeticOp::ASINH: f("lc_asinh"); break;
+        case xir::ArithmeticOp::ATAN: f("lc_atan"); break;
+        case xir::ArithmeticOp::ATAN2: f("lc_atan2"); break;
+        case xir::ArithmeticOp::ATANH: f("lc_atanh"); break;
+        case xir::ArithmeticOp::COS: f("lc_cos"); break;
+        case xir::ArithmeticOp::COSH: f("lc_cosh"); break;
+        case xir::ArithmeticOp::SIN: f("lc_sin"); break;
+        case xir::ArithmeticOp::SINH: f("lc_sinh"); break;
+        case xir::ArithmeticOp::TAN: f("lc_tan"); break;
+        case xir::ArithmeticOp::TANH: f("lc_tanh"); break;
+        case xir::ArithmeticOp::EXP: f("lc_exp"); break;
+        case xir::ArithmeticOp::EXP2: f("lc_exp2"); break;
+        case xir::ArithmeticOp::EXP10: f("lc_exp10"); break;
+        case xir::ArithmeticOp::LOG: f("lc_log"); break;
+        case xir::ArithmeticOp::LOG2: f("lc_log2"); break;
+        case xir::ArithmeticOp::LOG10: f("lc_log10"); break;
+        case xir::ArithmeticOp::POW: f("lc_pow"); break;
+        case xir::ArithmeticOp::POW_INT: f("lc_powi"); break;
+        case xir::ArithmeticOp::SQRT: f("lc_sqrt"); break;
+        case xir::ArithmeticOp::RSQRT: f("lc_rsqrt"); break;
+        case xir::ArithmeticOp::CEIL: f("lc_ceil"); break;
+        case xir::ArithmeticOp::FLOOR: f("lc_floor"); break;
+        case xir::ArithmeticOp::FRACT: f("lc_fract"); break;
+        case xir::ArithmeticOp::TRUNC: f("lc_trunc"); break;
+        case xir::ArithmeticOp::ROUND: f("lc_round"); break;
+        case xir::ArithmeticOp::RINT: f("lc_round"); break;// TODO: check if this is correct
+        case xir::ArithmeticOp::FMA: f("lc_fma"); break;
+        case xir::ArithmeticOp::COPYSIGN: f("lc_copysign"); break;
+        case xir::ArithmeticOp::CROSS: f("lc_cross"); break;
+        case xir::ArithmeticOp::DOT: f("lc_dot"); break;
+        case xir::ArithmeticOp::LENGTH: f("lc_length"); break;
+        case xir::ArithmeticOp::LENGTH_SQUARED: f("lc_length_squared"); break;
+        case xir::ArithmeticOp::NORMALIZE: f("lc_normalize"); break;
+        case xir::ArithmeticOp::FACEFORWARD: f("lc_faceforward"); break;
+        case xir::ArithmeticOp::REFLECT: f("lc_reflect"); break;
+        case xir::ArithmeticOp::REDUCE_SUM: f("lc_reduce_sum"); break;
+        case xir::ArithmeticOp::REDUCE_PRODUCT: f("lc_reduce_prod"); break;
+        case xir::ArithmeticOp::REDUCE_MIN: f("lc_reduce_min"); break;
+        case xir::ArithmeticOp::REDUCE_MAX: f("lc_reduce_max"); break;
+        case xir::ArithmeticOp::OUTER_PRODUCT: f("lc_outer_product"); break;
+        case xir::ArithmeticOp::MATRIX_COMP_NEG: u("-"); break;
+        case xir::ArithmeticOp::MATRIX_COMP_ADD: b("+"); break;
+        case xir::ArithmeticOp::MATRIX_COMP_SUB: b("-"); break;
+        case xir::ArithmeticOp::MATRIX_COMP_MUL: f("lc_mat_comp_mul"); break;
+        case xir::ArithmeticOp::MATRIX_COMP_DIV: LUISA_NOT_IMPLEMENTED();
+        case xir::ArithmeticOp::MATRIX_LINALG_MUL: b("*"); break;
+        case xir::ArithmeticOp::MATRIX_DETERMINANT: f("lc_determinant"); break;
+        case xir::ArithmeticOp::MATRIX_TRANSPOSE: f("lc_transpose"); break;
+        case xir::ArithmeticOp::MATRIX_INVERSE: f("lc_inverse"); break;
+        case xir::ArithmeticOp::AGGREGATE: break;
+        case xir::ArithmeticOp::SHUFFLE: break;
+        case xir::ArithmeticOp::INSERT: break;
+        case xir::ArithmeticOp::EXTRACT: break;
+    }
 }
 
-void CUDACodegenXIR::_emit_resource_query_inst(const xir::ResourceQueryInst *inst, int indent) noexcept {
+void CUDACodegenXIR::_emit_thread_group_inst(const xir::ThreadGroupInst *inst) noexcept {
 }
 
-void CUDACodegenXIR::_emit_resource_read_inst(const xir::ResourceReadInst *inst, int indent) noexcept {
+void CUDACodegenXIR::_emit_resource_query_inst(const xir::ResourceQueryInst *inst) noexcept {
 }
 
-void CUDACodegenXIR::_emit_resource_write_inst(const xir::ResourceWriteInst *inst, int indent) noexcept {
+void CUDACodegenXIR::_emit_resource_read_inst(const xir::ResourceReadInst *inst) noexcept {
 }
 
-void CUDACodegenXIR::_emit_ray_query_object_read_inst(const xir::RayQueryObjectReadInst *inst, int indent) noexcept {
+void CUDACodegenXIR::_emit_resource_write_inst(const xir::ResourceWriteInst *inst) noexcept {
 }
 
-void CUDACodegenXIR::_emit_ray_query_object_write_inst(const xir::RayQueryObjectWriteInst *inst, int indent) noexcept {
+void CUDACodegenXIR::_emit_ray_query_object_read_inst(const xir::RayQueryObjectReadInst *inst) noexcept {
 }
 
-void CUDACodegenXIR::_emit_branch_inst(const xir::BranchInst *inst, int indent) noexcept {
+void CUDACodegenXIR::_emit_ray_query_object_write_inst(const xir::RayQueryObjectWriteInst *inst) noexcept {
+}
+
+void CUDACodegenXIR::_emit_branch_inst(const xir::BranchInst *inst) noexcept {
     LUISA_DEBUG_ASSERT(!_control_flow_stack.empty(), "Control flow stack is empty.");
     switch (auto control_flow = _control_flow_stack.back(); control_flow->derived_instruction_tag()) {
         case xir::DerivedInstructionTag::IF: {
@@ -792,7 +910,7 @@ void CUDACodegenXIR::_emit_branch_inst(const xir::BranchInst *inst, int indent) 
     }
 }
 
-void CUDACodegenXIR::_emit_conditional_branch_inst(const xir::ConditionalBranchInst *inst, int indent) noexcept {
+void CUDACodegenXIR::_emit_conditional_branch_inst(const xir::ConditionalBranchInst *inst) noexcept {
     LUISA_DEBUG_ASSERT(!_control_flow_stack.empty(), "Control flow stack is empty.");
     switch (auto control_flow = _control_flow_stack.back(); control_flow->derived_instruction_tag()) {
         case xir::DerivedInstructionTag::LOOP: [[fallthrough]];
