@@ -380,9 +380,9 @@ void CUDACodegenXIR::_emit_result_value_eq(const xir::Instruction *inst) noexcep
 
 void CUDACodegenXIR::_emit_instructions(const xir::InstructionList &inst_list, int indent) noexcept {
     for (auto &&inst : inst_list) {
-        auto emit_result_value_eq = [&] { _emit_result_value_eq(&inst); };
         _emit_metadata(inst.metadata_list(), indent);
         _emit_indent(indent);
+        auto emit_result_value_eq = [&] { _emit_result_value_eq(&inst); };
         switch (inst.derived_instruction_tag()) {
             case xir::DerivedInstructionTag::IF: {
                 _with_control_flow(&inst, [&] {
@@ -846,7 +846,14 @@ void CUDACodegenXIR::_emit_arithmetic_inst(const xir::ArithmeticInst *inst) noex
         case xir::ArithmeticOp::MATRIX_COMP_ADD: b("+"); break;
         case xir::ArithmeticOp::MATRIX_COMP_SUB: b("-"); break;
         case xir::ArithmeticOp::MATRIX_COMP_MUL: f("lc_mat_comp_mul"); break;
-        case xir::ArithmeticOp::MATRIX_COMP_DIV: LUISA_NOT_IMPLEMENTED();
+        case xir::ArithmeticOp::MATRIX_COMP_DIV: {
+            if (inst->operand(0)->type()->is_scalar() || inst->operand(1)->type()->is_scalar()) {
+                b("/");
+            } else {
+                _emit_with_template(inst, "lc_mat_comp_mul(", 0, ", 1.f / ", 1, ")");
+            }
+            break;
+        }
         case xir::ArithmeticOp::MATRIX_LINALG_MUL: b("*"); break;
         case xir::ArithmeticOp::MATRIX_DETERMINANT: f("lc_determinant"); break;
         case xir::ArithmeticOp::MATRIX_TRANSPOSE: f("lc_transpose"); break;
@@ -859,9 +866,86 @@ void CUDACodegenXIR::_emit_arithmetic_inst(const xir::ArithmeticInst *inst) noex
 }
 
 void CUDACodegenXIR::_emit_thread_group_inst(const xir::ThreadGroupInst *inst) noexcept {
+    auto f = [&](auto s) noexcept { _emit_intrinsic_call(s, inst); };
+    switch (inst->op()) {
+        case xir::ThreadGroupOp::SHADER_EXECUTION_REORDER: f("lc_shader_execution_reorder"); break;
+        case xir::ThreadGroupOp::RASTER_QUAD_DDX: LUISA_NOT_IMPLEMENTED("lc_raster_quad_ddx"); break;
+        case xir::ThreadGroupOp::RASTER_QUAD_DDY: LUISA_NOT_IMPLEMENTED("lc_raster_quad_ddy"); break;
+        case xir::ThreadGroupOp::WARP_IS_FIRST_ACTIVE_LANE: f("lc_warp_is_first_active_lane"); break;
+        case xir::ThreadGroupOp::WARP_FIRST_ACTIVE_LANE: f("lc_warp_first_active_lane"); break;
+        case xir::ThreadGroupOp::WARP_ACTIVE_ALL_EQUAL: f("lc_warp_active_all_equal"); break;
+        case xir::ThreadGroupOp::WARP_ACTIVE_BIT_AND: f("lc_warp_active_bit_and"); break;
+        case xir::ThreadGroupOp::WARP_ACTIVE_BIT_OR: f("lc_warp_active_bit_or"); break;
+        case xir::ThreadGroupOp::WARP_ACTIVE_BIT_XOR: f("lc_warp_active_bit_xor"); break;
+        case xir::ThreadGroupOp::WARP_ACTIVE_COUNT_BITS: f("lc_warp_active_count_bits"); break;
+        case xir::ThreadGroupOp::WARP_ACTIVE_MAX: f("lc_warp_active_max"); break;
+        case xir::ThreadGroupOp::WARP_ACTIVE_MIN: f("lc_warp_active_min"); break;
+        case xir::ThreadGroupOp::WARP_ACTIVE_PRODUCT: f("lc_warp_active_product"); break;
+        case xir::ThreadGroupOp::WARP_ACTIVE_SUM: f("lc_warp_active_sum"); break;
+        case xir::ThreadGroupOp::WARP_ACTIVE_ALL: f("lc_warp_active_all"); break;
+        case xir::ThreadGroupOp::WARP_ACTIVE_ANY: f("lc_warp_active_any"); break;
+        case xir::ThreadGroupOp::WARP_ACTIVE_BIT_MASK: f("lc_warp_active_bit_mask"); break;
+        case xir::ThreadGroupOp::WARP_PREFIX_COUNT_BITS: f("lc_warp_prefix_count_bits"); break;
+        case xir::ThreadGroupOp::WARP_PREFIX_SUM: f("lc_warp_prefix_sum"); break;
+        case xir::ThreadGroupOp::WARP_PREFIX_PRODUCT: f("lc_warp_prefix_product"); break;
+        case xir::ThreadGroupOp::WARP_READ_LANE: f("lc_warp_read_lane"); break;
+        case xir::ThreadGroupOp::WARP_READ_FIRST_ACTIVE_LANE: f("lc_warp_read_first_active_lane"); break;
+        case xir::ThreadGroupOp::SYNCHRONIZE_BLOCK: f("lc_synchronize_block"); break;
+    }
 }
 
 void CUDACodegenXIR::_emit_resource_query_inst(const xir::ResourceQueryInst *inst) noexcept {
+    switch (inst->op()) {
+        case xir::ResourceQueryOp::BUFFER_SIZE: break;
+        case xir::ResourceQueryOp::BYTE_BUFFER_SIZE: break;
+        case xir::ResourceQueryOp::TEXTURE2D_SIZE: break;
+        case xir::ResourceQueryOp::TEXTURE3D_SIZE: break;
+        case xir::ResourceQueryOp::BINDLESS_BUFFER_SIZE: break;
+        case xir::ResourceQueryOp::BINDLESS_BYTE_BUFFER_SIZE: break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE2D_SIZE: break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SIZE: break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE2D_SIZE_LEVEL: break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SIZE_LEVEL: break;
+        case xir::ResourceQueryOp::TEXTURE2D_SAMPLE: break;
+        case xir::ResourceQueryOp::TEXTURE2D_SAMPLE_LEVEL: break;
+        case xir::ResourceQueryOp::TEXTURE2D_SAMPLE_GRAD: break;
+        case xir::ResourceQueryOp::TEXTURE2D_SAMPLE_GRAD_LEVEL: break;
+        case xir::ResourceQueryOp::TEXTURE3D_SAMPLE: break;
+        case xir::ResourceQueryOp::TEXTURE3D_SAMPLE_LEVEL: break;
+        case xir::ResourceQueryOp::TEXTURE3D_SAMPLE_GRAD: break;
+        case xir::ResourceQueryOp::TEXTURE3D_SAMPLE_GRAD_LEVEL: break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE2D_SAMPLE: break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE2D_SAMPLE_LEVEL: break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE2D_SAMPLE_GRAD: break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL: break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SAMPLE: break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SAMPLE_LEVEL: break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SAMPLE_GRAD: break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL: break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE2D_SAMPLE_SAMPLER: break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE2D_SAMPLE_LEVEL_SAMPLER: break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE2D_SAMPLE_GRAD_SAMPLER: break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL_SAMPLER: break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SAMPLE_SAMPLER: break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SAMPLE_LEVEL_SAMPLER: break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SAMPLE_GRAD_SAMPLER: break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL_SAMPLER: break;
+        case xir::ResourceQueryOp::BUFFER_DEVICE_ADDRESS: break;
+        case xir::ResourceQueryOp::BINDLESS_BUFFER_DEVICE_ADDRESS: break;
+        case xir::ResourceQueryOp::RAY_TRACING_INSTANCE_TRANSFORM: break;
+        case xir::ResourceQueryOp::RAY_TRACING_INSTANCE_USER_ID: break;
+        case xir::ResourceQueryOp::RAY_TRACING_INSTANCE_VISIBILITY_MASK: break;
+        case xir::ResourceQueryOp::RAY_TRACING_TRACE_CLOSEST: break;
+        case xir::ResourceQueryOp::RAY_TRACING_TRACE_ANY: break;
+        case xir::ResourceQueryOp::RAY_TRACING_QUERY_ALL: break;
+        case xir::ResourceQueryOp::RAY_TRACING_QUERY_ANY: break;
+        case xir::ResourceQueryOp::RAY_TRACING_INSTANCE_MOTION_MATRIX: break;
+        case xir::ResourceQueryOp::RAY_TRACING_INSTANCE_MOTION_SRT: break;
+        case xir::ResourceQueryOp::RAY_TRACING_TRACE_CLOSEST_MOTION_BLUR: break;
+        case xir::ResourceQueryOp::RAY_TRACING_TRACE_ANY_MOTION_BLUR: break;
+        case xir::ResourceQueryOp::RAY_TRACING_QUERY_ALL_MOTION_BLUR: break;
+        case xir::ResourceQueryOp::RAY_TRACING_QUERY_ANY_MOTION_BLUR: break;
+    }
 }
 
 void CUDACodegenXIR::_emit_resource_read_inst(const xir::ResourceReadInst *inst) noexcept {
