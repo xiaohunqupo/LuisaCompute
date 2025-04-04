@@ -873,7 +873,14 @@ void CUDACodegenXIR::_emit_arithmetic_inst(const xir::ArithmeticInst *inst, int 
     switch (inst->op()) {
         case xir::ArithmeticOp::UNARY_PLUS: u("+"); break;
         case xir::ArithmeticOp::UNARY_MINUS: u("-"); break;
-        case xir::ArithmeticOp::UNARY_BIT_NOT: u("~"); break;
+        case xir::ArithmeticOp::UNARY_BIT_NOT: {
+            if (auto t = inst->type(); t->is_bool() || t->is_bool_vector()) {
+                u("!");
+            } else {
+                u("~");
+            }
+            break;
+        }
         case xir::ArithmeticOp::BINARY_ADD: b("+"); break;
         case xir::ArithmeticOp::BINARY_SUB: b("-"); break;
         case xir::ArithmeticOp::BINARY_MUL: b("*"); break;
@@ -898,8 +905,8 @@ void CUDACodegenXIR::_emit_arithmetic_inst(const xir::ArithmeticInst *inst, int 
         case xir::ArithmeticOp::CLAMP: f("lc_clamp"); break;
         case xir::ArithmeticOp::SATURATE: f("lc_saturate"); break;
         case xir::ArithmeticOp::LERP: f("lc_lerp"); break;
-        case xir::ArithmeticOp::SMOOTHSTEP: f("lc_smoothstep"); break;
         case xir::ArithmeticOp::STEP: f("lc_step"); break;
+        case xir::ArithmeticOp::SMOOTHSTEP: f("lc_smoothstep"); break;
         case xir::ArithmeticOp::ABS: f("lc_abs"); break;
         case xir::ArithmeticOp::MIN: f("lc_min"); break;
         case xir::ArithmeticOp::MAX: f("lc_max"); break;
