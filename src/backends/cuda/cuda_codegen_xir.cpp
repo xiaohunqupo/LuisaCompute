@@ -665,9 +665,49 @@ void CUDACodegenXIR::_emit_indent(int indent) const noexcept {
 }
 
 void CUDACodegenXIR::_emit_access_chain(const Type *base_type, luisa::span<const xir::Use *const> chain) noexcept {
-    return;
-    while (!chain.empty()) {
-
+    for (auto t = base_type; !chain.empty(); chain = chain.subspan(1)) {
+        auto index = chain.front()->value();
+        switch (t->tag()) {
+            case Type::Tag::VECTOR: [[fallthrough]];
+            case Type::Tag::ARRAY: {
+                _scratch << "[";
+                _emit_value_name(index);
+                _scratch << "]";
+                t = t->element();
+                break;
+            }
+            case Type::Tag::MATRIX: {
+                _scratch << "[";
+                _emit_value_name(index);
+                _scratch << "]";
+                t = Type::vector(t->element(), t->dimension());
+                break;
+            }
+            case Type::Tag::STRUCTURE: {
+                LUISA_ASSERT(index->isa<xir::Constant>(), "Structure index must be a constant.");
+                auto i = [c = static_cast<const xir::Constant *>(index)]() noexcept -> size_t {
+                    switch (c->type()->tag()) {
+                        case Type::Tag::INT8: return c->as<int8_t>();
+                        case Type::Tag::UINT8: return c->as<uint8_t>();
+                        case Type::Tag::INT16: return c->as<int16_t>();
+                        case Type::Tag::UINT16: return c->as<uint16_t>();
+                        case Type::Tag::INT32: return c->as<int32_t>();
+                        case Type::Tag::UINT32: return c->as<uint32_t>();
+                        case Type::Tag::INT64: return c->as<int64_t>();
+                        case Type::Tag::UINT64: return c->as<uint64_t>();
+                        default: break;
+                    }
+                    LUISA_ERROR_WITH_LOCATION(
+                        "Invalid structure index type {}.",
+                        c->type()->description());
+                }();
+                LUISA_ASSERT(i < t->members().size(), "Structure index out of range.");
+                _scratch << ".m" << i;
+                t = t->members()[i];
+                break;
+            }
+            default: LUISA_ERROR_WITH_LOCATION("Invalid access chain type {}.", t->description());
+        }
     }
 }
 
@@ -772,11 +812,9 @@ void CUDACodegenXIR::_emit_simple_loop_inst(const xir::SimpleLoopInst *inst, int
     _scratch << "}";
 }
 
-void CUDACodegenXIR::_emit_intrinsic_call(luisa::string_view name, const xir::Instruction *inst) noexcept {
-    _emit_result_value_eq(inst);
-    _scratch << name << "(";
+void CUDACodegenXIR::_emit_operand_list(luisa::span<const xir::Use *const> operands) noexcept {
     auto any_arg = false;
-    for (auto &&arg_use : inst->operand_uses()) {
+    for (auto &&arg_use : operands) {
         any_arg = true;
         _emit_value_name(arg_use->value());
         _scratch << ", ";
@@ -785,6 +823,12 @@ void CUDACodegenXIR::_emit_intrinsic_call(luisa::string_view name, const xir::In
         _scratch.pop_back();
         _scratch.pop_back();
     }
+}
+
+void CUDACodegenXIR::_emit_intrinsic_call(luisa::string_view name, const xir::Instruction *inst) noexcept {
+    _emit_result_value_eq(inst);
+    _scratch << name << "(";
+    _emit_operand_list(inst->operand_uses());
     _scratch << ");";
 }
 
@@ -893,8 +937,62 @@ void CUDACodegenXIR::_emit_arithmetic_inst(const xir::ArithmeticInst *inst, int 
         case xir::ArithmeticOp::MATRIX_DETERMINANT: f("lc_determinant"); break;
         case xir::ArithmeticOp::MATRIX_TRANSPOSE: f("lc_transpose"); break;
         case xir::ArithmeticOp::MATRIX_INVERSE: f("lc_inverse"); break;
-        case xir::ArithmeticOp::AGGREGATE: break;
-        case xir::ArithmeticOp::SHUFFLE: break;
+        case xir::ArithmeticOp::AGGREGATE: {
+            _emit_result_value_eq(inst);
+            switch (auto t = inst->type(); t->tag()) {
+                case Type::Tag::VECTOR: {
+                    _scratch << "lc_make_" << t->element()->description()
+                             << t->dimension() << "(";
+                    _emit_operand_list(inst->operand_uses());
+                    _scratch << "); /* aggregate */";
+                    break;
+                }
+                case Type::Tag::MATRIX: {
+                    _scratch << "lc_make_" << t->element()->description()
+                             << t->dimension() << "x" << t->dimension() << "(";
+                    _emit_operand_list(inst->operand_uses());
+                    _scratch << "); /* aggregate */";
+                    break;
+                }
+                case Type::Tag::ARRAY: [[fallthrough]];
+                case Type::Tag::STRUCTURE: {
+                    _emit_type_name(t);
+                    _scratch << "{";
+                    _emit_operand_list(inst->operand_uses());
+                    _scratch << "}; /* aggregate */";
+                    break;
+                }
+                default: LUISA_ERROR_WITH_LOCATION("Invalid aggregate type {}.", t->description());
+            }
+            break;
+        }
+        case xir::ArithmeticOp::SHUFFLE: {
+            switch (auto t = inst->type(); t->tag()) {
+                case Type::Tag::VECTOR: [[fallthrough]];
+                case Type::Tag::MATRIX: [[fallthrough]];
+                case Type::Tag::ARRAY: {
+                    LUISA_ASSERT(inst->operand_count() + 1u == t->dimension(),
+                                 "Invalid shuffle instruction.");
+                    _emit_result_value_eq(inst);
+                    _emit_type_name(t);
+                    _scratch << "{";
+                    auto v = inst->operand(0);
+                    for (auto op : inst->operand_uses().subspan(1)) {
+                        _scratch << "(";
+                        _emit_value_name(v);
+                        _scratch << ")[";
+                        _emit_value_name(op->value());
+                        _scratch << "], ";
+                    }
+                    _scratch.pop_back();
+                    _scratch.pop_back();
+                    _scratch << "}; /* shuffle */";
+                    break;
+                }
+                default: LUISA_ERROR_WITH_LOCATION("Invalid shuffle type {}.", t->description());
+            }
+            break;
+        }
         case xir::ArithmeticOp::INSERT: {
             // const T result = v;
             // const_cast<T &>(result).access_chain = e;
@@ -913,7 +1011,7 @@ void CUDACodegenXIR::_emit_arithmetic_inst(const xir::ArithmeticInst *inst, int 
             _scratch << " = ";
             auto e = inst->operand(1);
             _emit_value_name(e);
-            _scratch << ";\n";
+            _scratch << "; /* insert */";
             break;
         }
         case xir::ArithmeticOp::EXTRACT: {
@@ -923,7 +1021,7 @@ void CUDACodegenXIR::_emit_arithmetic_inst(const xir::ArithmeticInst *inst, int 
             _emit_value_name(v);
             _scratch << ")";
             _emit_access_chain(v->type(), inst->operand_uses().subspan(1));
-            _scratch << ";";
+            _scratch << "; /* extract */";
             break;
         }
     }
