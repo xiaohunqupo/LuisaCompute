@@ -971,7 +971,7 @@ void CUDACodegenXIR::_emit_arithmetic_inst(const xir::ArithmeticInst *inst, int 
                 case Type::Tag::VECTOR: [[fallthrough]];
                 case Type::Tag::MATRIX: [[fallthrough]];
                 case Type::Tag::ARRAY: {
-                    LUISA_ASSERT(inst->operand_count() + 1u == t->dimension(),
+                    LUISA_ASSERT(inst->operand_count() == 1u /* the source aggregate */ + t->dimension(),
                                  "Invalid shuffle instruction.");
                     _emit_result_value_eq(inst);
                     _emit_type_name(t);
