@@ -196,10 +196,10 @@ void CUDACodegenXIR::_emit_kernel_params_struct(const xir::KernelFunction *kerne
         _emit_type_name(arg->type());
         _scratch << " ";
         _emit_value_name(arg);
-        _scratch << "{};";
+        _scratch << ";";
     }
     if (_requires_printing) {
-        _scratch << "\n  alignas(16) LCPrintBuffer print_buffer{};";
+        _scratch << "\n  alignas(16) LCPrintBuffer print_buffer;";
     }
     _scratch << "\n  alignas(16) lc_uint4 ls_kid;";
     _scratch << "\n};\n\n";
@@ -371,6 +371,7 @@ void CUDACodegenXIR::_emit_global_constants(luisa::unordered_set<const xir::Cons
         return a->hash() < b->hash();
     });
     for (auto c : constants) {
+        _emit_metadata(c->metadata_list(), 0);
         _scratch << "__constant__ LC_CONSTANT lc_ubyte ";
         _emit_value_name(c, false);
         auto n = c->type()->size();
@@ -504,9 +505,18 @@ void CUDACodegenXIR::_emit_instructions(const xir::InstructionList &inst_list, i
                 _scratch << ";";
                 break;
             }
-            case xir::DerivedInstructionTag::GEP: _emit_gep_inst(static_cast<const xir::GEPInst *>(&inst)); break;
+            case xir::DerivedInstructionTag::GEP: {
+                emit_result_value_eq();
+                auto gep = static_cast<const xir::GEPInst *>(&inst);
+                _scratch << "&((*(";
+                _emit_value_name(gep->base());
+                _scratch << "))";
+                _emit_access_chain(gep->base()->type(), gep->index_uses());
+                _scratch << ");";
+                break;
+            }
             case xir::DerivedInstructionTag::ATOMIC: _emit_atomic_inst(static_cast<const xir::AtomicInst *>(&inst)); break;
-            case xir::DerivedInstructionTag::ARITHMETIC: _emit_arithmetic_inst(static_cast<const xir::ArithmeticInst *>(&inst)); break;
+            case xir::DerivedInstructionTag::ARITHMETIC: _emit_arithmetic_inst(static_cast<const xir::ArithmeticInst *>(&inst), indent); break;
             case xir::DerivedInstructionTag::THREAD_GROUP: _emit_thread_group_inst(static_cast<const xir::ThreadGroupInst *>(&inst)); break;
             case xir::DerivedInstructionTag::RESOURCE_QUERY: _emit_resource_query_inst(static_cast<const xir::ResourceQueryInst *>(&inst)); break;
             case xir::DerivedInstructionTag::RESOURCE_READ: _emit_resource_read_inst(static_cast<const xir::ResourceReadInst *>(&inst)); break;
@@ -654,6 +664,13 @@ void CUDACodegenXIR::_emit_indent(int indent) const noexcept {
     _scratch.string().append(indent * 2, ' ');
 }
 
+void CUDACodegenXIR::_emit_access_chain(const Type *base_type, luisa::span<const xir::Use *const> chain) noexcept {
+    return;
+    while (!chain.empty()) {
+
+    }
+}
+
 void CUDACodegenXIR::_emit_if_inst(const xir::IfInst *inst, int indent) noexcept {
     _scratch << "if (";
     _emit_value_name(inst->condition());
@@ -771,13 +788,10 @@ void CUDACodegenXIR::_emit_intrinsic_call(luisa::string_view name, const xir::In
     _scratch << ");";
 }
 
-void CUDACodegenXIR::_emit_gep_inst(const xir::GEPInst *inst) noexcept {
-}
-
 void CUDACodegenXIR::_emit_atomic_inst(const xir::AtomicInst *inst) noexcept {
 }
 
-void CUDACodegenXIR::_emit_arithmetic_inst(const xir::ArithmeticInst *inst) noexcept {
+void CUDACodegenXIR::_emit_arithmetic_inst(const xir::ArithmeticInst *inst, int indent) noexcept {
     auto u = [&](auto op) noexcept { _emit_with_template(inst, op, "(", 0, ")"); };
     auto b = [&](auto op) noexcept { _emit_with_template(inst, "(", 0, ") ", op, " (", 1, ")"); };
     auto f = [&](auto s) noexcept { _emit_intrinsic_call(s, inst); };
@@ -881,8 +895,37 @@ void CUDACodegenXIR::_emit_arithmetic_inst(const xir::ArithmeticInst *inst) noex
         case xir::ArithmeticOp::MATRIX_INVERSE: f("lc_inverse"); break;
         case xir::ArithmeticOp::AGGREGATE: break;
         case xir::ArithmeticOp::SHUFFLE: break;
-        case xir::ArithmeticOp::INSERT: break;
-        case xir::ArithmeticOp::EXTRACT: break;
+        case xir::ArithmeticOp::INSERT: {
+            // const T result = v;
+            // const_cast<T &>(result).access_chain = e;
+            LUISA_DEBUG_ASSERT(inst->operand_count() > 2u, "Insert instruction should have at least 3 operands.");
+            _emit_result_value_eq(inst);
+            auto v = inst->operand(0);
+            _emit_value_name(v);
+            _scratch << ";\n";
+            _emit_indent(indent);
+            _scratch << "const_cast<";
+            _emit_type_name(v->type());
+            _scratch << " &>(";
+            _emit_value_name(v);
+            _scratch << ")";
+            _emit_access_chain(v->type(), inst->operand_uses().subspan(2));
+            _scratch << " = ";
+            auto e = inst->operand(1);
+            _emit_value_name(e);
+            _scratch << ";\n";
+            break;
+        }
+        case xir::ArithmeticOp::EXTRACT: {
+            _emit_result_value_eq(inst);
+            _scratch << "(";
+            auto v = inst->operand(0);
+            _emit_value_name(v);
+            _scratch << ")";
+            _emit_access_chain(v->type(), inst->operand_uses().subspan(1));
+            _scratch << ";";
+            break;
+        }
     }
 }
 
@@ -1042,11 +1085,13 @@ void CUDACodegenXIR::_emit_function_definition(const xir::FunctionDefinition *de
     switch (def->derived_function_tag()) {
         case xir::DerivedFunctionTag::KERNEL: {
             auto kernel = static_cast<const xir::KernelFunction *>(def);
+            _emit_metadata(kernel->metadata_list(), 0);
             _emit_kernel_definition(kernel);
             break;
         }
         case xir::DerivedFunctionTag::CALLABLE: {
             auto callable = static_cast<const xir::CallableFunction *>(def);
+            _emit_metadata(callable->metadata_list(), 0);
             _emit_callable_definition(callable);
             break;
         }
