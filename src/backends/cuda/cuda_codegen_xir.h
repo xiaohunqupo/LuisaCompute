@@ -7,7 +7,7 @@
 
 namespace luisa::compute::cuda {
 
-class CUDACodegenXIR {
+class CUDACodegenXIR final {
 
 private:
     struct PrintInfo {
@@ -51,14 +51,14 @@ private:
     void _emit_instructions(const xir::InstructionList &inst_list, int indent) noexcept;
     void _emit_metadata(const xir::MetadataList &md_list, int indent) const noexcept;
     void _emit_indent(int indent) const noexcept;
+    void _emit_access_chain(const Type *base_type, luisa::span<const xir::Use *const> chain) noexcept;
     void _emit_result_value_eq(const xir::Instruction *inst) noexcept;
     void _emit_if_inst(const xir::IfInst *inst, int indent) noexcept;
     void _emit_switch_inst(const xir::SwitchInst *inst, int indent) noexcept;
     void _emit_loop_inst(const xir::LoopInst *inst, int indent) noexcept;
     void _emit_simple_loop_inst(const xir::SimpleLoopInst *inst, int indent) noexcept;
-    void _emit_gep_inst(const xir::GEPInst *inst) noexcept;
     void _emit_atomic_inst(const xir::AtomicInst *inst) noexcept;
-    void _emit_arithmetic_inst(const xir::ArithmeticInst *inst) noexcept;
+    void _emit_arithmetic_inst(const xir::ArithmeticInst *inst, int indent) noexcept;
     void _emit_thread_group_inst(const xir::ThreadGroupInst *inst) noexcept;
     void _emit_resource_query_inst(const xir::ResourceQueryInst *inst) noexcept;
     void _emit_resource_read_inst(const xir::ResourceReadInst *inst) noexcept;
@@ -97,7 +97,6 @@ public:
     void emit(const xir::Module *module, luisa::string_view device_lib, luisa::string_view native_include) noexcept;
     [[nodiscard]] auto move_print_formats() && noexcept { return std::move(_print_formats); }
 };
-
 
 }// namespace luisa::compute::cuda
 
