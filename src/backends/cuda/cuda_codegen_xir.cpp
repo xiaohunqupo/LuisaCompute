@@ -1151,6 +1151,34 @@ void CUDACodegenXIR::_emit_resource_query_inst(const xir::ResourceQueryInst *ins
 }
 
 void CUDACodegenXIR::_emit_resource_read_inst(const xir::ResourceReadInst *inst) noexcept {
+    _emit_result_value_eq(inst);
+    switch (inst->op())
+    {
+        case xir::ResourceReadOp::BUFFER_READ:
+            _scratch<<"lc_buffer_read(";
+        break;
+        case xir::ResourceReadOp::BYTE_BUFFER_READ:
+            _scratch<<"lc_byte_buffer_read<";
+        _emit_type_name(inst->type());
+        _scratch<<">(";
+        break;
+        case xir::ResourceReadOp::TEXTURE2D_READ:
+            _scratch<<"lc_texture_read(";
+        break;
+        case xir::ResourceReadOp::BINDLESS_BUFFER_READ:
+            _scratch<<"lc_bindless_buffer_read<";
+        _emit_type_name(inst->type());
+        _scratch<<">(";
+        break;
+        case xir::ResourceReadOp::BINDLESS_TEXTURE2D_READ:
+            _scratch<<"lc_bindless_texture_read2d(";
+        break;
+        default:
+            LUISA_ERROR_WITH_LOCATION("unimplemented resource read inst {}", static_cast<unsigned>(inst->op()));
+        break;
+    }
+    _emit_operand_list(inst->operand_uses());
+    _scratch<<");";
 }
 
 void CUDACodegenXIR::_emit_resource_write_inst(const xir::ResourceWriteInst *inst) noexcept {
