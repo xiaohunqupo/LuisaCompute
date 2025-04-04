@@ -204,7 +204,7 @@ void CUDACodegenXIR::_emit_kernel_params_struct(const xir::KernelFunction *kerne
     _scratch << "\n  alignas(16) lc_uint4 ls_kid;";
     _scratch << "\n};\n\n";
     if (_requires_optix) {// optix requires __constant__ params
-        _scratch << "extern \"C\" { __constant__ Params params; }\n\n";
+        _scratch << "extern \"C\" { __constant__ Params params = {}; }\n\n";
     }
 }
 
@@ -315,7 +315,10 @@ void CUDACodegenXIR::_emit_value_name(const xir::Value *value, bool is_use) noex
             }
             break;
         }
-        case xir::DerivedValueTag::BASIC_BLOCK: LUISA_ERROR_WITH_LOCATION("Cannot emit name for basic block.");
+        case xir::DerivedValueTag::BASIC_BLOCK: {
+            _scratch << "bb" << get_local_index(value);
+            break;
+        }
         case xir::DerivedValueTag::INSTRUCTION: {
             _scratch << (value->is_lvalue() ? "pv" : "v")
                      << get_local_index(value);
@@ -442,19 +445,14 @@ void CUDACodegenXIR::_emit_instructions(const xir::InstructionList &inst_list, i
                 }
                 break;
             }
-            case xir::DerivedInstructionTag::BREAK: {
-                LUISA_ASSERT(!_control_flow_stack.empty(), "Control flow stack is empty.");
-                if (_control_flow_stack.back()->isa<xir::LoopInst>()) {
-                    _scratch << "loop_break = true;\n";
-                    _emit_indent(indent);
-                }
-                _scratch << "break;";
-                break;
-            }
+            case xir::DerivedInstructionTag::BREAK: _scratch << "break;"; break;
             case xir::DerivedInstructionTag::CONTINUE: {
                 LUISA_ASSERT(!_control_flow_stack.empty(), "Control flow stack is empty.");
                 if (_control_flow_stack.back()->isa<xir::LoopInst>()) {
-                    _scratch << "break;";
+                    _scratch << "goto ";
+                    auto loop = static_cast<const xir::LoopInst *>(_control_flow_stack.back());
+                    _emit_value_name(loop->update_block());
+                    _scratch << ";";
                 } else {
                     _scratch << "continue;";
                 }
@@ -759,20 +757,13 @@ void CUDACodegenXIR::_emit_switch_inst(const xir::SwitchInst *inst, int indent) 
 void CUDACodegenXIR::_emit_loop_inst(const xir::LoopInst *inst, int indent) noexcept {
     // template:
     // loop {
-    //     loop_break = false;
-    //     prepare();
-    //     do {
-    //         body {
-    //             // break => { loop_break = true; break; }
-    //             // continue => { break; }
-    //         }
-    //     } while (false);
-    //     if (loop_break) break;
-    //     update();
+    //   /* prepare */
+    //     if (br(merge)) { break; }
+    //     continue -> goto bb.update
+    //     break -> break;
+    //   bb.update:
     // }
     _scratch << "for (;;) { /* generic loop */\n";
-    _emit_indent(indent + 1);
-    _scratch << "bool loop_break = false;\n";
     _emit_indent(indent + 1);
     _scratch << "/* generic loop prepare */\n";
     // prepare
@@ -781,21 +772,21 @@ void CUDACodegenXIR::_emit_loop_inst(const xir::LoopInst *inst, int indent) noex
     }
     _emit_indent(indent + 1);
     // body
-    _scratch << "do { /* generic loop body */";
+    _scratch << "/* generic loop body */\n";
     if (auto body_block = inst->body_block(); body_block != nullptr && !body_block->instructions().empty()) {
-        _scratch << "\n";
-        _emit_instructions(body_block->instructions(), indent + 2);
-        _emit_indent(indent + 1);
+        _emit_instructions(body_block->instructions(), indent + 1);
     }
-    _scratch << "} while (false);\n";
     // break
-    _emit_indent(indent + 1);
-    _scratch << "if (loop_break) { break; }\n";
-    _emit_indent(indent + 1);
-    _scratch << "/* generic loop update */\n";
-    // update
-    if (auto update_block = inst->update_block(); update_block != nullptr && !update_block->instructions().empty()) {
-        _emit_instructions(update_block->instructions(), indent + 1);
+    if (auto update_block = inst->update_block()) {
+        _emit_indent(indent);
+        _emit_value_name(inst->update_block());
+        _scratch << ": /* generic loop update */\n";
+        if (update_block->instructions().empty()) {
+            _emit_indent(indent + 1);
+            _scratch << "/* empty generic loop update */;\n";
+        } else {
+            _emit_instructions(update_block->instructions(), indent + 1);
+        }
     }
     _emit_indent(indent);
     _scratch << "}";
