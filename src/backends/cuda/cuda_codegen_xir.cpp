@@ -955,7 +955,14 @@ void CUDACodegenXIR::_emit_arithmetic_inst(const xir::ArithmeticInst *inst, int 
         case xir::ArithmeticOp::MATRIX_COMP_NEG: u("-"); break;
         case xir::ArithmeticOp::MATRIX_COMP_ADD: b("+"); break;
         case xir::ArithmeticOp::MATRIX_COMP_SUB: b("-"); break;
-        case xir::ArithmeticOp::MATRIX_COMP_MUL: f("lc_mat_comp_mul"); break;
+        case xir::ArithmeticOp::MATRIX_COMP_MUL: {
+            if (inst->operand(0)->type()->is_scalar() || inst->operand(1)->type()->is_scalar()) {
+                b("*");
+            } else {
+                f("lc_mat_comp_mul");
+            }
+            break;
+        }
         case xir::ArithmeticOp::MATRIX_COMP_DIV: {
             if (inst->operand(0)->type()->is_scalar() || inst->operand(1)->type()->is_scalar()) {
                 b("/");
