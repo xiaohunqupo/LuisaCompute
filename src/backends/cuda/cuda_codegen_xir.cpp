@@ -1043,11 +1043,11 @@ void CUDACodegenXIR::_emit_arithmetic_inst(const xir::ArithmeticInst *inst, int 
             _scratch << ";\n";
             _emit_indent(indent);
             _scratch << "const_cast<";
-            _emit_type_name(v->type());
+            _emit_type_name(inst->type());
             _scratch << " &>(";
-            _emit_value_name(v);
+            _emit_value_name(inst);
             _scratch << ")";
-            _emit_access_chain(v->type(), inst->operand_uses().subspan(2));
+            _emit_access_chain(inst->type(), inst->operand_uses().subspan(2));
             _scratch << " = ";
             auto e = inst->operand(1);
             _emit_value_name(e);
@@ -1097,91 +1097,129 @@ void CUDACodegenXIR::_emit_thread_group_inst(const xir::ThreadGroupInst *inst) n
 }
 
 void CUDACodegenXIR::_emit_resource_query_inst(const xir::ResourceQueryInst *inst) noexcept {
+    _emit_result_value_eq(inst);
     switch (inst->op()) {
-        case xir::ResourceQueryOp::BUFFER_SIZE: break;
-        case xir::ResourceQueryOp::BYTE_BUFFER_SIZE: break;
-        case xir::ResourceQueryOp::TEXTURE2D_SIZE: break;
-        case xir::ResourceQueryOp::TEXTURE3D_SIZE: break;
-        case xir::ResourceQueryOp::BINDLESS_BUFFER_SIZE: break;
-        case xir::ResourceQueryOp::BINDLESS_BYTE_BUFFER_SIZE: break;
-        case xir::ResourceQueryOp::BINDLESS_TEXTURE2D_SIZE: break;
-        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SIZE: break;
-        case xir::ResourceQueryOp::BINDLESS_TEXTURE2D_SIZE_LEVEL: break;
-        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SIZE_LEVEL: break;
-        case xir::ResourceQueryOp::TEXTURE2D_SAMPLE: break;
-        case xir::ResourceQueryOp::TEXTURE2D_SAMPLE_LEVEL: break;
-        case xir::ResourceQueryOp::TEXTURE2D_SAMPLE_GRAD: break;
-        case xir::ResourceQueryOp::TEXTURE2D_SAMPLE_GRAD_LEVEL: break;
-        case xir::ResourceQueryOp::TEXTURE3D_SAMPLE: break;
-        case xir::ResourceQueryOp::TEXTURE3D_SAMPLE_LEVEL: break;
-        case xir::ResourceQueryOp::TEXTURE3D_SAMPLE_GRAD: break;
-        case xir::ResourceQueryOp::TEXTURE3D_SAMPLE_GRAD_LEVEL: break;
-        case xir::ResourceQueryOp::BINDLESS_TEXTURE2D_SAMPLE: break;
-        case xir::ResourceQueryOp::BINDLESS_TEXTURE2D_SAMPLE_LEVEL: break;
-        case xir::ResourceQueryOp::BINDLESS_TEXTURE2D_SAMPLE_GRAD: break;
-        case xir::ResourceQueryOp::BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL: break;
-        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SAMPLE: break;
-        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SAMPLE_LEVEL: break;
-        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SAMPLE_GRAD: break;
-        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL: break;
-        case xir::ResourceQueryOp::BINDLESS_TEXTURE2D_SAMPLE_SAMPLER: break;
-        case xir::ResourceQueryOp::BINDLESS_TEXTURE2D_SAMPLE_LEVEL_SAMPLER: break;
-        case xir::ResourceQueryOp::BINDLESS_TEXTURE2D_SAMPLE_GRAD_SAMPLER: break;
-        case xir::ResourceQueryOp::BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL_SAMPLER: break;
-        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SAMPLE_SAMPLER: break;
-        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SAMPLE_LEVEL_SAMPLER: break;
-        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SAMPLE_GRAD_SAMPLER: break;
-        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL_SAMPLER: break;
-        case xir::ResourceQueryOp::BUFFER_DEVICE_ADDRESS: break;
-        case xir::ResourceQueryOp::BINDLESS_BUFFER_DEVICE_ADDRESS: break;
-        case xir::ResourceQueryOp::RAY_TRACING_INSTANCE_TRANSFORM: break;
-        case xir::ResourceQueryOp::RAY_TRACING_INSTANCE_USER_ID: break;
-        case xir::ResourceQueryOp::RAY_TRACING_INSTANCE_VISIBILITY_MASK: break;
-        case xir::ResourceQueryOp::RAY_TRACING_TRACE_CLOSEST: break;
-        case xir::ResourceQueryOp::RAY_TRACING_TRACE_ANY: break;
-        case xir::ResourceQueryOp::RAY_TRACING_QUERY_ALL: break;
-        case xir::ResourceQueryOp::RAY_TRACING_QUERY_ANY: break;
-        case xir::ResourceQueryOp::RAY_TRACING_INSTANCE_MOTION_MATRIX: break;
-        case xir::ResourceQueryOp::RAY_TRACING_INSTANCE_MOTION_SRT: break;
-        case xir::ResourceQueryOp::RAY_TRACING_TRACE_CLOSEST_MOTION_BLUR: break;
-        case xir::ResourceQueryOp::RAY_TRACING_TRACE_ANY_MOTION_BLUR: break;
-        case xir::ResourceQueryOp::RAY_TRACING_QUERY_ALL_MOTION_BLUR: break;
-        case xir::ResourceQueryOp::RAY_TRACING_QUERY_ANY_MOTION_BLUR: break;
+        case xir::ResourceQueryOp::BUFFER_SIZE: _scratch << "lc_buffer_size"; break;
+        case xir::ResourceQueryOp::BYTE_BUFFER_SIZE: _scratch << "lc_byte_buffer_size"; break;
+        case xir::ResourceQueryOp::TEXTURE2D_SIZE: _scratch << "lc_texture_size"; break;
+        case xir::ResourceQueryOp::TEXTURE3D_SIZE: _scratch << "lc_texture_size"; break;
+        case xir::ResourceQueryOp::BINDLESS_BUFFER_SIZE: {
+            LUISA_ASSERT(inst->operand_count() == 3u, "Bindless buffer size instruction should have 3 operands.");
+            _scratch << "([](const LCBindlessArray b, size_t i, size_t s) noexcept { return lc_bindless_buffer_size<lc_ubyte>(b, i) / s; })";
+            break;
+        }
+        case xir::ResourceQueryOp::BINDLESS_BYTE_BUFFER_SIZE: _scratch << "lc_bindless_buffer_size"; break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE2D_SIZE: _scratch << "lc_bindless_texture_size2d"; break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SIZE: _scratch << "lc_bindless_texture_size3d"; break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE2D_SIZE_LEVEL: _scratch << "lc_bindless_texture_size2d_level"; break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SIZE_LEVEL: _scratch << "lc_bindless_texture_size3d_level"; break;
+        case xir::ResourceQueryOp::TEXTURE2D_SAMPLE: LUISA_NOT_IMPLEMENTED("TEXTURE2D_SAMPLE");
+        case xir::ResourceQueryOp::TEXTURE2D_SAMPLE_LEVEL: LUISA_NOT_IMPLEMENTED("TEXTURE2D_SAMPLE_LEVEL");
+        case xir::ResourceQueryOp::TEXTURE2D_SAMPLE_GRAD: LUISA_NOT_IMPLEMENTED("TEXTURE2D_SAMPLE_GRAD");
+        case xir::ResourceQueryOp::TEXTURE2D_SAMPLE_GRAD_LEVEL: LUISA_NOT_IMPLEMENTED("TEXTURE2D_SAMPLE_GRAD_LEVEL");
+        case xir::ResourceQueryOp::TEXTURE3D_SAMPLE: LUISA_NOT_IMPLEMENTED("TEXTURE3D_SAMPLE");
+        case xir::ResourceQueryOp::TEXTURE3D_SAMPLE_LEVEL: LUISA_NOT_IMPLEMENTED("TEXTURE3D_SAMPLE_LEVEL");
+        case xir::ResourceQueryOp::TEXTURE3D_SAMPLE_GRAD: LUISA_NOT_IMPLEMENTED("TEXTURE3D_SAMPLE_GRAD");
+        case xir::ResourceQueryOp::TEXTURE3D_SAMPLE_GRAD_LEVEL: LUISA_NOT_IMPLEMENTED("TEXTURE3D_SAMPLE_GRAD_LEVEL");
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE2D_SAMPLE: _scratch << "lc_bindless_texture_sample2d"; break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE2D_SAMPLE_LEVEL: _scratch << "lc_bindless_texture_sample2d_level"; break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE2D_SAMPLE_GRAD: _scratch << "lc_bindless_texture_sample2d_grad"; break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL: LUISA_NOT_IMPLEMENTED("BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL");
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SAMPLE: _scratch << "lc_bindless_texture_sample3d"; break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SAMPLE_LEVEL: _scratch << "lc_bindless_texture_sample3d_level"; break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SAMPLE_GRAD: _scratch << "lc_bindless_texture_sample3d_grad"; break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL: LUISA_NOT_IMPLEMENTED("BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL");
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE2D_SAMPLE_SAMPLER: LUISA_NOT_IMPLEMENTED("BINDLESS_TEXTURE2D_SAMPLE_SAMPLER"); break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE2D_SAMPLE_LEVEL_SAMPLER: LUISA_NOT_IMPLEMENTED("BINDLESS_TEXTURE2D_SAMPLE_LEVEL_SAMPLER"); break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE2D_SAMPLE_GRAD_SAMPLER: LUISA_NOT_IMPLEMENTED("BINDLESS_TEXTURE2D_SAMPLE_GRAD_SAMPLER"); break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL_SAMPLER: LUISA_NOT_IMPLEMENTED("BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL_SAMPLER"); break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SAMPLE_SAMPLER: LUISA_NOT_IMPLEMENTED("BINDLESS_TEXTURE3D_SAMPLE_SAMPLER"); break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SAMPLE_LEVEL_SAMPLER: LUISA_NOT_IMPLEMENTED("BINDLESS_TEXTURE3D_SAMPLE_LEVEL_SAMPLER"); break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SAMPLE_GRAD_SAMPLER: LUISA_NOT_IMPLEMENTED("BINDLESS_TEXTURE3D_SAMPLE_GRAD_SAMPLER"); break;
+        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL_SAMPLER: LUISA_NOT_IMPLEMENTED("BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL_SAMPLER"); break;
+        case xir::ResourceQueryOp::BUFFER_DEVICE_ADDRESS: _scratch << "lc_buffer_address"; break;
+        case xir::ResourceQueryOp::BINDLESS_BUFFER_DEVICE_ADDRESS: _scratch << "lc_bindless_buffer_address"; break;
+        case xir::ResourceQueryOp::RAY_TRACING_INSTANCE_TRANSFORM: _scratch << "lc_accel_instance_transform"; break;
+        case xir::ResourceQueryOp::RAY_TRACING_INSTANCE_USER_ID: _scratch << "lc_accel_instance_user_id"; break;
+        case xir::ResourceQueryOp::RAY_TRACING_INSTANCE_VISIBILITY_MASK: _scratch << "lc_accel_instance_visibility_mask"; break;
+        case xir::ResourceQueryOp::RAY_TRACING_TRACE_CLOSEST: _scratch << "lc_accel_trace_closest"; break;
+        case xir::ResourceQueryOp::RAY_TRACING_TRACE_ANY: _scratch << "lc_accel_trace_any"; break;
+        case xir::ResourceQueryOp::RAY_TRACING_QUERY_ALL: _scratch << "lc_accel_query_all"; break;
+        case xir::ResourceQueryOp::RAY_TRACING_QUERY_ANY: _scratch << "lc_accel_query_any"; break;
+        case xir::ResourceQueryOp::RAY_TRACING_INSTANCE_MOTION_MATRIX: _scratch << "lc_accel_instance_motion_matrix"; break;
+        case xir::ResourceQueryOp::RAY_TRACING_INSTANCE_MOTION_SRT: _scratch << "lc_accel_instance_motion_srt"; break;
+        case xir::ResourceQueryOp::RAY_TRACING_TRACE_CLOSEST_MOTION_BLUR: _scratch << "lc_accel_trace_closest_motion_blur"; break;
+        case xir::ResourceQueryOp::RAY_TRACING_TRACE_ANY_MOTION_BLUR: _scratch << "lc_accel_trace_any_motion_blur"; break;
+        case xir::ResourceQueryOp::RAY_TRACING_QUERY_ALL_MOTION_BLUR: _scratch << "lc_accel_query_all_motion_blur"; break;
+        case xir::ResourceQueryOp::RAY_TRACING_QUERY_ANY_MOTION_BLUR: _scratch << "lc_accel_query_any_motion_blur"; break;
     }
+    _scratch << "(";
+    _emit_operand_list(inst->operand_uses());
+    _scratch << ");";
 }
 
 void CUDACodegenXIR::_emit_resource_read_inst(const xir::ResourceReadInst *inst) noexcept {
     _emit_result_value_eq(inst);
-    switch (inst->op())
-    {
-        case xir::ResourceReadOp::BUFFER_READ:
-            _scratch<<"lc_buffer_read(";
-        break;
-        case xir::ResourceReadOp::BYTE_BUFFER_READ:
-            _scratch<<"lc_byte_buffer_read<";
-        _emit_type_name(inst->type());
-        _scratch<<">(";
-        break;
-        case xir::ResourceReadOp::TEXTURE2D_READ:
-            _scratch<<"lc_texture_read(";
-        break;
-        case xir::ResourceReadOp::BINDLESS_BUFFER_READ:
-            _scratch<<"lc_bindless_buffer_read<";
-        _emit_type_name(inst->type());
-        _scratch<<">(";
-        break;
-        case xir::ResourceReadOp::BINDLESS_TEXTURE2D_READ:
-            _scratch<<"lc_bindless_texture_read2d(";
-        break;
-        default:
-            LUISA_ERROR_WITH_LOCATION("unimplemented resource read inst {}", static_cast<unsigned>(inst->op()));
-        break;
+    switch (inst->op()) {
+        case xir::ResourceReadOp::BUFFER_READ: _scratch << "lc_buffer_read"; break;
+        case xir::ResourceReadOp::BYTE_BUFFER_READ: {
+            _scratch << "lc_byte_buffer_read<";
+            _emit_type_name(inst->type());
+            _scratch << ">";
+            break;
+        }
+        case xir::ResourceReadOp::TEXTURE2D_READ: _scratch << "lc_texture_read"; break;
+        case xir::ResourceReadOp::TEXTURE3D_READ: _scratch << "lc_texture_read"; break;
+        case xir::ResourceReadOp::BINDLESS_BUFFER_READ: {
+            _scratch << "lc_bindless_buffer_read<";
+            _emit_type_name(inst->type());
+            _scratch << ">";
+            break;
+        }
+        case xir::ResourceReadOp::BINDLESS_BYTE_BUFFER_READ: {
+            _scratch << "lc_bindless_byte_buffer_read<";
+            _emit_type_name(inst->type());
+            _scratch << ">";
+            break;
+        }
+        case xir::ResourceReadOp::BINDLESS_TEXTURE2D_READ: _scratch << "lc_bindless_texture_read2d"; break;
+        case xir::ResourceReadOp::BINDLESS_TEXTURE3D_READ: _scratch << "lc_bindless_texture_read3d"; break;
+        case xir::ResourceReadOp::BINDLESS_TEXTURE2D_READ_LEVEL: _scratch << "lc_bindless_texture_read2d_level"; break;
+        case xir::ResourceReadOp::BINDLESS_TEXTURE3D_READ_LEVEL: _scratch << "lc_bindless_texture_read3d_level"; break;
+        case xir::ResourceReadOp::DEVICE_ADDRESS_READ: {
+            _scratch << "*reinterpret_cast<const ";
+            _emit_type_name(inst->type());
+            _scratch << " *>";
+            break;
+        }
     }
+    _scratch << "(";
     _emit_operand_list(inst->operand_uses());
-    _scratch<<");";
+    _scratch << ");";
 }
 
 void CUDACodegenXIR::_emit_resource_write_inst(const xir::ResourceWriteInst *inst) noexcept {
+    _emit_result_value_eq(inst);
+    switch (inst->op()) {
+        case xir::ResourceWriteOp::BUFFER_WRITE: _scratch << "lc_buffer_write"; break;
+        case xir::ResourceWriteOp::BYTE_BUFFER_WRITE: _scratch << "lc_byte_buffer_write"; break;
+        case xir::ResourceWriteOp::TEXTURE2D_WRITE: _scratch << "lc_texture_write"; break;
+        case xir::ResourceWriteOp::TEXTURE3D_WRITE: _scratch << "lc_texture_write"; break;
+        case xir::ResourceWriteOp::BINDLESS_BUFFER_WRITE: _scratch << "lc_bindless_buffer_write"; break;
+        case xir::ResourceWriteOp::BINDLESS_BYTE_BUFFER_WRITE: _scratch << "lc_bindless_byte_buffer_write"; break;
+        case xir::ResourceWriteOp::DEVICE_ADDRESS_WRITE: _scratch << "([](lc_ulong p, auto v) noexcept { *reinterpret_cast<decltype(v) *>(p) = v; })"; break;
+        case xir::ResourceWriteOp::RAY_TRACING_SET_INSTANCE_TRANSFORM: _scratch << "lc_accel_set_instance_transform"; break;
+        case xir::ResourceWriteOp::RAY_TRACING_SET_INSTANCE_VISIBILITY_MASK: _scratch << "lc_accel_set_instance_visibility"; break;
+        case xir::ResourceWriteOp::RAY_TRACING_SET_INSTANCE_OPACITY: _scratch << "lc_accel_set_instance_opacity"; break;
+        case xir::ResourceWriteOp::RAY_TRACING_SET_INSTANCE_USER_ID: _scratch << "lc_accel_set_instance_user_id"; break;
+        case xir::ResourceWriteOp::RAY_TRACING_SET_INSTANCE_MOTION_MATRIX: _scratch << "lc_accel_set_instance_motion_matrix"; break;
+        case xir::ResourceWriteOp::RAY_TRACING_SET_INSTANCE_MOTION_SRT: _scratch << "lc_accel_set_instance_motion_srt"; break;
+        case xir::ResourceWriteOp::INDIRECT_DISPATCH_SET_KERNEL: _scratch << "lc_indirect_set_dispatch_kernel"; break;
+        case xir::ResourceWriteOp::INDIRECT_DISPATCH_SET_COUNT: _scratch << "lc_indirect_set_dispatch_count"; break;
+    }
+    _scratch << "(";
+    _emit_operand_list(inst->operand_uses());
+    _scratch << ");";
 }
 
 void CUDACodegenXIR::_emit_ray_query_object_read_inst(const xir::RayQueryObjectReadInst *inst) noexcept {
@@ -1230,19 +1268,22 @@ void CUDACodegenXIR::_emit_branch_inst(const xir::BranchInst *inst) const noexce
             [[maybe_unused]] auto if_inst = static_cast<const xir::IfInst *>(control_flow);
             LUISA_ASSERT(inst->target_block() == if_inst->merge_block(),
                          "Branch target block is not the merge block of the if instruction.");
+            _scratch << "/* (eliminated) if unconditional branch */";
             break;
         }
         case xir::DerivedInstructionTag::SWITCH: {
             [[maybe_unused]] auto switch_inst = static_cast<const xir::SwitchInst *>(control_flow);
             LUISA_ASSERT(inst->target_block() == switch_inst->merge_block(),
                          "Branch target block is not the merge block of the switch instruction.");
-            _scratch << "break;";
+            _scratch << "break; /* switch unconditional branch */";
             break;
         }
         case xir::DerivedInstructionTag::SIMPLE_LOOP: {
             auto loop = static_cast<const xir::SimpleLoopInst *>(control_flow);
             if (inst->target_block() == loop->merge_block()) {
                 _scratch << "break; /* simple loop unconditional branch */";
+            } else {
+                _scratch << "/* (eliminated) simple loop unconditional branch */";
             }
             break;
         }
@@ -1250,6 +1291,8 @@ void CUDACodegenXIR::_emit_branch_inst(const xir::BranchInst *inst) const noexce
             auto loop = static_cast<const xir::LoopInst *>(control_flow);
             if (inst->target_block() == loop->merge_block()) {
                 _scratch << "break; /* generic loop unconditional branch */";
+            } else {
+                _scratch << "/* (eliminated) generic loop unconditional branch */";
             }
             break;
         }
@@ -1271,6 +1314,8 @@ void CUDACodegenXIR::_emit_conditional_branch_inst(const xir::ConditionalBranchI
                     _scratch << "if (!(";
                     _emit_value_name(inst->condition());
                     _scratch << ")) /* loop conditional branch */ { break; }";
+                } else {
+                    _scratch << "/* (eliminated) loop conditional branch */";
                 }
             }
             break;
@@ -1322,24 +1367,24 @@ void CUDACodegenXIR::_emit_kernel_definition(const xir::KernelFunction *kernel) 
     _scratch
         << "\n\n  /* built-in variables */"
         // block size
-        << "\n  constexpr auto bs = lc_block_size();"
+        << "\n  constexpr auto sreg_bs = lc_block_size();"
         // launch size
-        << "\n  const auto ls = lc_dispatch_size();"
+        << "\n  const auto sreg_ls = lc_dispatch_size();"
         // dispatch id
-        << "\n  const auto did = lc_dispatch_id();"
+        << "\n  const auto sreg_did = lc_dispatch_id();"
         // thread id
-        << "\n  const auto tid = lc_thread_id();"
+        << "\n  const auto sreg_tid = lc_thread_id();"
         // block id
-        << "\n  const auto bid = lc_block_id();"
+        << "\n  const auto sreg_bid = lc_block_id();"
         // kernel id
-        << "\n  const auto kid = lc_kernel_id();"
+        << "\n  const auto sreg_kid = lc_kernel_id();"
         // warp size
-        << "\n  const auto ws = lc_warp_size();"
+        << "\n  const auto sreg_ws = lc_warp_size();"
         // warp lane id
-        << "\n  const auto lid = lc_warp_lane_id();";
+        << "\n  const auto sreg_lid = lc_warp_lane_id();";
     // emit launch size check if not using OptiX (Optix handles this internally)
     if (!_requires_optix) {
-        _scratch << "\n  if (lc_any(did >= ls)) { return; }";
+        _scratch << "\n  if (lc_any(sreg_did >= sreg_ls)) { return; }";
     }
     _scratch << "\n\n  /* function body */\n";
     _emit_instructions(kernel->body_block()->instructions(), 1);
