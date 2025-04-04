@@ -187,6 +187,27 @@ void CUDACodegenXIR::_emit_type_definitions(luisa::unordered_set<const Type *> u
     }
 }
 
+void CUDACodegenXIR::_emit_kernel_params_struct(const xir::KernelFunction *kernel) noexcept {
+    // declare the kernel argument struct
+    _scratch << "struct alignas(16) Params {";
+    for (auto arg : kernel->arguments()) {
+        LUISA_ASSERT(!arg->is_reference(), "Reference argument is not supported.");
+        _scratch << "\n  alignas(16) ";
+        _emit_type_name(arg->type());
+        _scratch << " ";
+        _emit_value_name(arg);
+        _scratch << "{};";
+    }
+    if (_requires_printing) {
+        _scratch << "\n  alignas(16) LCPrintBuffer print_buffer{};";
+    }
+    _scratch << "\n  alignas(16) lc_uint4 ls_kid;";
+    _scratch << "\n};\n\n";
+    if (_requires_optix) {// optix requires __constant__ params
+        _scratch << "extern \"C\" { __constant__ Params params; }\n\n";
+    }
+}
+
 namespace {
 
 template<typename T>
@@ -1036,25 +1057,8 @@ void CUDACodegenXIR::_emit_function_definition(const xir::FunctionDefinition *de
 }
 
 void CUDACodegenXIR::_emit_kernel_definition(const xir::KernelFunction *kernel) noexcept {
-    // declare the kernel argument struct
-    _scratch << "struct alignas(16) Params {";
-    for (auto arg : kernel->arguments()) {
-        LUISA_ASSERT(!arg->is_reference(), "Reference argument is not supported.");
-        _scratch << "\n  alignas(16) ";
-        _emit_type_name(arg->type());
-        _scratch << " ";
-        _emit_value_name(arg);
-        _scratch << "{};";
-    }
-    if (_requires_printing) {
-        _scratch << "\n  alignas(16) LCPrintBuffer print_buffer{};";
-    }
-    _scratch << "\n  alignas(16) lc_uint4 ls_kid;";
-    _scratch << "\n};\n\n";
-    // emit the kernel signature
     if (_requires_optix) {
-        _scratch << "extern \"C\" { __constant__ Params params; }\n\n"
-                 << "extern \"C\" __global__ void __raygen__main() {";
+        _scratch << "extern \"C\" __global__ void __raygen__main() {";
     } else {
         _scratch << "extern \"C\" __global__ void kernel_main(const Params params) {";
     }
@@ -1269,6 +1273,9 @@ void CUDACodegenXIR::emit(const xir::Module *module,
 
     // emit type declarations
     _emit_type_definitions(std::move(types));
+
+    // emit the kernel parameter struct
+    _emit_kernel_params_struct(kernel);
 
     // emit global constants
     _emit_global_constants(std::move(constants));

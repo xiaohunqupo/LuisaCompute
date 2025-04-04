@@ -42,6 +42,7 @@ private:
     void _emit_type_name(const Type *type) noexcept;
     void _emit_type_definition(const Type *type, luisa::unordered_set<const Type *> &defined_types) noexcept;
     void _emit_type_definitions(luisa::unordered_set<const Type *> used_types) noexcept;
+    void _emit_kernel_params_struct(const xir::KernelFunction *kernel) noexcept;
     void _emit_value_name(const xir::Value *value, bool is_use = true) noexcept;
     void _emit_global_constants(luisa::unordered_set<const xir::Constant *> used_constants) noexcept;
     void _emit_function_definition(const xir::FunctionDefinition *def) noexcept;
