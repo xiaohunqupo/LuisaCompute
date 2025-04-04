@@ -21,7 +21,6 @@
 #include "cuda_codegen_xir.h"
 
 namespace luisa::compute::cuda {
-
 CUDACodegenXIR::CUDACodegenXIR(StringScratch &scratch, bool allow_indirect) noexcept
     : _scratch{scratch},
       _allow_indirect_dispatch{allow_indirect},
@@ -834,6 +833,46 @@ void CUDACodegenXIR::_emit_intrinsic_call(luisa::string_view name, const xir::In
 }
 
 void CUDACodegenXIR::_emit_atomic_inst(const xir::AtomicInst *inst) noexcept {
+    LUISA_ASSERT(inst->operand_count() >= 1u /* base */ + inst->value_count(),
+                 "Atomic instruction {} has {} operands, but at least {} is expected.",
+                 xir::to_string(inst->op()), inst->operand_count(), 1u + inst->value_count());
+    _emit_result_value_eq(inst);
+    switch (inst->op()) {
+        case xir::AtomicOp::EXCHANGE: _scratch << "lc_atomic_exchange"; break;
+        case xir::AtomicOp::COMPARE_EXCHANGE: _scratch << "lc_atomic_compare_exchange"; break;
+        case xir::AtomicOp::FETCH_ADD: _scratch << "lc_atomic_fetch_add"; break;
+        case xir::AtomicOp::FETCH_SUB: _scratch << "lc_atomic_fetch_sub"; break;
+        case xir::AtomicOp::FETCH_AND: _scratch << "lc_atomic_fetch_and"; break;
+        case xir::AtomicOp::FETCH_OR: _scratch << "lc_atomic_fetch_or"; break;
+        case xir::AtomicOp::FETCH_XOR: _scratch << "lc_atomic_fetch_xor"; break;
+        case xir::AtomicOp::FETCH_MIN: _scratch << "lc_atomic_fetch_min"; break;
+        case xir::AtomicOp::FETCH_MAX: _scratch << "lc_atomic_fetch_max"; break;
+    }
+    _scratch << "(";
+    auto base = inst->base();
+    auto base_type = base->type();
+    auto indices = inst->index_uses();
+    if (base_type->is_buffer()) {// decode the buffer type
+        LUISA_ASSERT(!indices.empty(), "Atomic instruction {} has no indices.", xir::to_string(inst->op()));
+        _scratch << "((";
+        _emit_value_name(base);
+        _scratch << ").ptr[";
+        _emit_value_name(indices[0]->value());
+        _scratch << "])";
+        base_type = base_type->element();
+        indices = indices.subspan(1);
+    } else {
+        _scratch << "(*(";
+        _emit_value_name(base);
+        _scratch << "))";
+    }
+    _emit_access_chain(base_type, indices);
+    auto values = inst->value_uses();
+    for (auto value_use : values) {
+        _scratch << ", ";
+        _emit_value_name(value_use->value());
+    }
+    _scratch << ");";
 }
 
 void CUDACodegenXIR::_emit_arithmetic_inst(const xir::ArithmeticInst *inst, int indent) noexcept {
@@ -1118,12 +1157,45 @@ void CUDACodegenXIR::_emit_resource_write_inst(const xir::ResourceWriteInst *ins
 }
 
 void CUDACodegenXIR::_emit_ray_query_object_read_inst(const xir::RayQueryObjectReadInst *inst) noexcept {
+    switch (inst->op()) {
+        case xir::RayQueryObjectReadOp::RAY_QUERY_OBJECT_WORLD_SPACE_RAY:
+            _emit_intrinsic_call("LC_RAY_QUERY_WORLD_RAY", inst);
+            break;
+        case xir::RayQueryObjectReadOp::RAY_QUERY_OBJECT_PROCEDURAL_CANDIDATE_HIT:
+            _emit_intrinsic_call("LC_RAY_QUERY_PROCEDURAL_CANDIDATE_HIT", inst);
+            break;
+        case xir::RayQueryObjectReadOp::RAY_QUERY_OBJECT_TRIANGLE_CANDIDATE_HIT:
+            _emit_intrinsic_call("LC_RAY_QUERY_TRIANGLE_CANDIDATE_HIT", inst);
+            break;
+        case xir::RayQueryObjectReadOp::RAY_QUERY_OBJECT_COMMITTED_HIT:
+            _emit_intrinsic_call("lc_ray_query_committed_hit", inst);
+            break;
+        case xir::RayQueryObjectReadOp::RAY_QUERY_OBJECT_IS_TRIANGLE_CANDIDATE:
+            LUISA_NOT_IMPLEMENTED("LC_RAY_QUERY_IS_TRIANGLE_CANDIDATE");
+        case xir::RayQueryObjectReadOp::RAY_QUERY_OBJECT_IS_PROCEDURAL_CANDIDATE:
+            LUISA_NOT_IMPLEMENTED("LC_RAY_QUERY_IS_PROCEDURAL_CANDIDATE");
+        case xir::RayQueryObjectReadOp::RAY_QUERY_OBJECT_IS_TERMINATED:
+            LUISA_NOT_IMPLEMENTED("LC_RAY_QUERY_IS_TERMINATED");
+    }
 }
 
 void CUDACodegenXIR::_emit_ray_query_object_write_inst(const xir::RayQueryObjectWriteInst *inst) noexcept {
+    switch (inst->op()) {
+        case xir::RayQueryObjectWriteOp::RAY_QUERY_OBJECT_COMMIT_TRIANGLE:
+            _emit_intrinsic_call("LC_RAY_QUERY_COMMIT_TRIANGLE", inst);
+            break;
+        case xir::RayQueryObjectWriteOp::RAY_QUERY_OBJECT_COMMIT_PROCEDURAL:
+            _emit_intrinsic_call("LC_RAY_QUERY_COMMIT_PROCEDURAL", inst);
+            break;
+        case xir::RayQueryObjectWriteOp::RAY_QUERY_OBJECT_TERMINATE:
+            _emit_intrinsic_call("LC_RAY_QUERY_TERMINATE", inst);
+            break;
+        case xir::RayQueryObjectWriteOp::RAY_QUERY_OBJECT_PROCEED:
+            LUISA_NOT_IMPLEMENTED("LC_RAY_QUERY_PROCEED");
+    }
 }
 
-void CUDACodegenXIR::_emit_branch_inst(const xir::BranchInst *inst) noexcept {
+void CUDACodegenXIR::_emit_branch_inst(const xir::BranchInst *inst) const noexcept {
     LUISA_DEBUG_ASSERT(!_control_flow_stack.empty(), "Control flow stack is empty.");
     switch (auto control_flow = _control_flow_stack.back(); control_flow->derived_instruction_tag()) {
         case xir::DerivedInstructionTag::IF: {
