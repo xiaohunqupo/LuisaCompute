@@ -67,6 +67,7 @@ private:
     void _emit_ray_query_object_write_inst(const xir::RayQueryObjectWriteInst *inst) noexcept;
     void _emit_branch_inst(const xir::BranchInst *inst) noexcept;
     void _emit_conditional_branch_inst(const xir::ConditionalBranchInst *inst) noexcept;
+    void _emit_operand_list(luisa::span<const xir::Use *const> operands) noexcept;
     void _emit_intrinsic_call(luisa::string_view name, const xir::Instruction *inst) noexcept;
 
     template<typename F>
