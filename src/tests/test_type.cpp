@@ -166,9 +166,10 @@ int main() {
     sth->set_managed_id(123);
     {
         auto another = sth;
-        auto good = std::move(another);
-        auto more = good;
+        luisa::ManagedPtr<const Something> good = std::move(another);
+        auto gg = good.get();
+        auto ggg = gg->lock();
+        auto more = good->lock();
     }
-
 }
 

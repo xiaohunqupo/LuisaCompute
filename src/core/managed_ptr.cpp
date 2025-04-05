@@ -17,4 +17,4 @@ void ManagedObject::do_release() noexcept {
     }
 }
 
-}// namespace luisa
+}// namespace luisa::detail

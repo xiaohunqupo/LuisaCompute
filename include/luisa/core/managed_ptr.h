@@ -7,6 +7,8 @@ namespace luisa {
 
 namespace detail {
 
+struct ManagedObjectLowLevelOp;
+
 class LC_CORE_API ManagedObject {
 
 private:
@@ -21,7 +23,8 @@ public:
     ManagedObject &operator=(ManagedObject &&) = delete;
     ManagedObject &operator=(const ManagedObject &) = delete;
 
-protected:
+private:
+    friend ManagedObjectLowLevelOp;
     ManagedObject *do_retain() noexcept;
     void do_release() noexcept;
 
@@ -30,63 +33,99 @@ public:
     void set_managed_id(uint32_t m_id) noexcept { _managed_id = m_id; }
 };
 
+struct ManagedObjectLowLevelOp {
+    template<typename T>
+        requires std::derived_from<T, ManagedObject>
+    [[nodiscard]] static auto retain_nonnull(T *o) noexcept {
+        return static_cast<T *>(o->do_retain());
+    }
+    template<typename T>
+        requires std::derived_from<T, ManagedObject>
+    [[nodiscard]] static auto retain(T *o) noexcept {
+        return o == nullptr ? nullptr : retain_nonnull(o);
+    }
+    template<typename T>
+        requires std::derived_from<T, ManagedObject>
+    static void release(T *o) noexcept {
+        if (o != nullptr) { o->do_release(); }
+    }
+};
+
 }// namespace detail
 
 template<typename T>
-class ManagedPtr {
+class ManagedPtr : public ManagedPtr<const T> {
+public:
+    ManagedPtr() noexcept = default;
+    ~ManagedPtr() noexcept = default;
+
+    ManagedPtr(const ManagedPtr &) noexcept = default;
+    ManagedPtr(ManagedPtr &&) noexcept = default;
+    ManagedPtr &operator=(ManagedPtr &&) noexcept = default;
+    ManagedPtr &operator=(const ManagedPtr &) noexcept = default;
+
+    ManagedPtr(const ManagedPtr<const T> &) noexcept = delete;
+    ManagedPtr(ManagedPtr<const T> &&) noexcept = delete;
+    ManagedPtr &operator=(ManagedPtr<const T> &&) noexcept = delete;
+    ManagedPtr &operator=(const ManagedPtr<const T> &) noexcept = delete;
+
+    [[nodiscard]] T *get() const noexcept { return const_cast<T *>(ManagedPtr<const T>::get()); }
+    [[nodiscard]] T *operator->() const noexcept { return get(); }
+    [[nodiscard]] T &operator*() const noexcept { return *get(); }
+};
+
+template<typename T>
+class ManagedPtr<const T> {
 
     static_assert(std::derived_from<T, detail::ManagedObject>);
 
 private:
     T *_object{nullptr};
-    [[nodiscard]] static T *_retained_if_not_null(T *o) noexcept {
-        return o == nullptr ? nullptr : static_cast<T *>(o->retain());
+    [[nodiscard]] T *_transfer_ownership() noexcept {
+        return std::exchange(_object, nullptr);
     }
-    explicit ManagedPtr(T *object) noexcept
-        : _object{object} {}
 
 public:
     ManagedPtr() noexcept = default;
     ~ManagedPtr() noexcept { reset(); }
-    ManagedPtr(ManagedPtr &&other) noexcept
-        : _object{other.transfer()} {}
-    ManagedPtr(const ManagedPtr &other) noexcept
-        : _object{_retained_if_not_null(other.get())} {}
+    ManagedPtr(ManagedPtr &&other) noexcept {
+        reset(other._transfer_ownership());
+    }
+    ManagedPtr(const ManagedPtr &other) noexcept {
+        reset(luisa::detail::ManagedObjectLowLevelOp::
+                  retain(const_cast<T *>(other.get())));
+    }
     ManagedPtr &operator=(ManagedPtr &&other) noexcept {
-        if (&other != this) {
-            reset(other.transfer());
-        }
+        if (&other != this) { reset(other._transfer_ownership()); }
         return *this;
     }
     ManagedPtr &operator=(const ManagedPtr &other) noexcept {
         if (&other != this) {
-            reset(_retained_if_not_null(other.get()));
+            reset(luisa::detail::ManagedObjectLowLevelOp::
+                      retain(const_cast<T *>(other.get())));
         }
         return *this;
     }
 
 public:
-    [[nodiscard]] T *get() noexcept { return _object; }
-    [[nodiscard]] T *get() const noexcept { return _object; }
-    [[nodiscard]] T *operator->() noexcept { return get(); }
-    [[nodiscard]] T *operator->() const noexcept { return get(); }
-    [[nodiscard]] T &operator*() noexcept { return *get(); }
-    [[nodiscard]] T &operator*() const noexcept { return *get(); }
+    [[nodiscard]] const T *get() const noexcept { return _object; }
+    [[nodiscard]] const T *operator->() const noexcept { return get(); }
+    [[nodiscard]] const T &operator*() const noexcept { return *get(); }
+    [[nodiscard]] explicit operator bool() const noexcept { return _object != nullptr; }
 
 public:
-    [[nodiscard]] T *transfer() noexcept {
-        return std::exchange(_object, nullptr);
-    }
-    void reset(T *new_object = nullptr) noexcept {
-        if (auto old_object = std::exchange(_object, new_object)) {
-            old_object->release();
-        }
+    void reset(const T *new_object = nullptr) noexcept {
+        luisa::detail::ManagedObjectLowLevelOp::release(
+            std::exchange(_object, const_cast<T *>(new_object)));
     }
 };
 
 template<typename T, typename Base = detail::ManagedObject>
     requires std::derived_from<Base, detail::ManagedObject>
 class Managed : public Base {
+
+    static_assert(std::same_as<std::remove_cv_t<T>, T>);
+
 public:
     using derived_type = T;
     using base_type = Base;
@@ -95,25 +134,21 @@ public:
 
 public:
     [[nodiscard]] auto lock() noexcept {
-        return ManagedPtr<derived_type>(this->retain());
+        ManagedPtr<T> p;
+        p.reset(detail::ManagedObjectLowLevelOp::
+                    retain_nonnull(static_cast<T *>(this)));
+        return p;
     }
-
-private:
-    friend ManagedPtr<T>;
-    derived_type *retain() noexcept {
-        static_assert(std::derived_from<T, Managed>);
-        return static_cast<derived_type *>(this->do_retain());
-    }
-    void release() noexcept {
-        static_assert(std::derived_from<T, Managed>);
-        this->do_release();
+    [[nodiscard]] auto lock() const noexcept {
+        return static_cast<ManagedPtr<const T>>(
+            const_cast<Managed *>(this)->lock());
     }
 };
 
 template<typename T, typename... Args>
     requires std::derived_from<T, detail::ManagedObject>
 [[nodiscard]] ManagedPtr<T> make_managed(Args &&...args) noexcept {
-    auto o = luisa::new_with_allocator<T>(std::forward<Args>(args)...);
+    auto o = luisa::new_with_allocator<std::remove_const_t<T>>(std::forward<Args>(args)...);
     assert(std::addressof(*o) == std::addressof(*static_cast<detail::ManagedObject *>(o)) &&
            "ManagedObject should be the first base class of its derived classes.");
     ManagedPtr<T> ret;
