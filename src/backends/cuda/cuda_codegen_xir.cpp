@@ -18,6 +18,7 @@
 #include <luisa/xir/metadata/comment.h>
 #include <luisa/xir/metadata/location.h>
 
+#include "cuda_texture.h"
 #include "cuda_codegen_xir.h"
 
 namespace luisa::compute::cuda {
@@ -1332,14 +1333,15 @@ void CUDACodegenXIR::_emit_conditional_branch_inst(const xir::ConditionalBranchI
     }
 }
 
-void CUDACodegenXIR::_emit_function_definition(const xir::FunctionDefinition *def) noexcept {
+void CUDACodegenXIR::_emit_function_definition(const xir::FunctionDefinition *def,
+                                               luisa::span<const Function::Binding> bindings) noexcept {
     _lex_scope_info = xir::lex_scope_analysis_pass_run_on_function(def);
     _local_value_indices.clear();
     switch (def->derived_function_tag()) {
         case xir::DerivedFunctionTag::KERNEL: {
             auto kernel = static_cast<const xir::KernelFunction *>(def);
             _emit_metadata(kernel->metadata_list(), 0);
-            _emit_kernel_definition(kernel);
+            _emit_kernel_definition(kernel, bindings);
             break;
         }
         case xir::DerivedFunctionTag::CALLABLE: {
@@ -1356,7 +1358,8 @@ void CUDACodegenXIR::_emit_function_definition(const xir::FunctionDefinition *de
     _local_value_indices.clear();
 }
 
-void CUDACodegenXIR::_emit_kernel_definition(const xir::KernelFunction *kernel) noexcept {
+void CUDACodegenXIR::_emit_kernel_definition(const xir::KernelFunction *kernel,
+                                             luisa::span<const Function::Binding> bindings) noexcept {
     if (_requires_optix) {
         _scratch << "extern \"C\" __global__ void __raygen__main() {";
     } else {
@@ -1373,6 +1376,16 @@ void CUDACodegenXIR::_emit_kernel_definition(const xir::KernelFunction *kernel) 
     }
     if (!_requires_optix && _requires_printing) {
         _scratch << "\n  auto const print_buffer = params.print_buffer;";
+    }
+    // compiler hints from bindings
+    for (auto i = 0u; i < bindings.size(); i++) {
+        if (auto binding = luisa::get_if<Function::TextureBinding>(&bindings[i])) {
+            auto surface = reinterpret_cast<CUDATexture *>(binding->handle)->binding(binding->level);
+            // generate hints for the underlying storage
+            _scratch << "\n  lc_assume(";
+            _emit_value_name(kernel->arguments().at(i));
+            _scratch << ".surface.storage == " << surface.storage << ");";
+        }
     }
     // emit built-in variables
     _scratch
@@ -1454,6 +1467,7 @@ void CUDACodegenXIR::_emit_callable_definition(const xir::CallableFunction *call
 }
 
 void CUDACodegenXIR::emit(const xir::Module *module,
+                          luisa::span<const Function::Binding> bindings,
                           luisa::string_view device_lib,
                           luisa::string_view native_include) noexcept {
 
@@ -1617,7 +1631,7 @@ void CUDACodegenXIR::emit(const xir::Module *module,
 
     // emit function definitions
     for (auto f : functions_post_order) {
-        _emit_function_definition(f);
+        _emit_function_definition(f, bindings);
     }
 
     // emit indirect dispatch kernel if allowed
