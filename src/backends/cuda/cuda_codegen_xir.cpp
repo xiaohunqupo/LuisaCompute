@@ -22,6 +22,7 @@
 #include "cuda_codegen_xir.h"
 
 namespace luisa::compute::cuda {
+
 CUDACodegenXIR::CUDACodegenXIR(StringScratch &scratch, bool allow_indirect) noexcept
     : _scratch{scratch},
       _allow_indirect_dispatch{allow_indirect},
@@ -38,14 +39,18 @@ CUDACodegenXIR::~CUDACodegenXIR() noexcept = default;
 
 void CUDACodegenXIR::_analyze_instruction_usage(const xir::Function *f, InstructionUsageAnalysis &analysis,
                                                 luisa::unordered_set<const xir::Function *> &visited) noexcept {
+
+    // skip if already visited
     if (!visited.emplace(f).second) { return; }
+
     // collect types from function arguments and return type
     for (auto arg : f->arguments()) {
         LUISA_ASSERT(arg != nullptr, "Function argument is null.");
         analysis.used_types.emplace(arg->type());
     }
     analysis.used_types.emplace(f->type());
-    // collect types from function body
+
+    // collect instruction usage info from function body
     if (auto def = f->definition()) {
         def->traverse_instructions([&](const xir::Instruction *inst) noexcept {
             switch (inst->derived_instruction_tag()) {
@@ -127,8 +132,12 @@ void CUDACodegenXIR::_analyze_instruction_usage(const xir::Function *f, Instruct
                 }
             }
         });
-        analysis.used_functions_post_order.emplace_back(def);
     }
+
+    // collect this used function
+    // note: we collect functions in the post-order traversal order so
+    // that we can naturally emit them in a topologically sorted order
+    analysis.used_functions_post_order.emplace_back(f);
 }
 
 bool CUDACodegenXIR::_should_emit_global_constant(const xir::Constant *c) noexcept {
