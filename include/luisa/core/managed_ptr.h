@@ -150,7 +150,7 @@ template<typename T, typename... Args>
 [[nodiscard]] ManagedPtr<T> make_managed(Args &&...args) noexcept {
     auto o = luisa::new_with_allocator<std::remove_const_t<T>>(std::forward<Args>(args)...);
     assert(std::addressof(*o) == std::addressof(*static_cast<detail::ManagedObject *>(o)) &&
-           "ManagedObject should be the first base class of its derived classes.");
+           "ManagedObject should be the first non-empty base class of its derived classes.");
     ManagedPtr<T> ret;
     ret.reset(o);
     return ret;
