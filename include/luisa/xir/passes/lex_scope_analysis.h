@@ -1,7 +1,7 @@
 #pragma once
 
 #include <luisa/core/dll_export.h>
-#include <luisa/core/stl/unordered_map.h>
+#include <luisa/core/stl/vector.h>
 
 namespace luisa::compute::xir {
 
@@ -27,8 +27,9 @@ class Function;
 
 struct LexScopeInfo {
     luisa::unordered_set<const Instruction *> lexical_scope_breakers;
+    luisa::vector<const Instruction *> lexical_scope_breaks_ordered;
 };
 
-[[nodiscard]] LC_XIR_API LexScopeInfo lex_scope_analysis_pass_run_on_function(Function *function) noexcept;
+[[nodiscard]] LC_XIR_API LexScopeInfo lex_scope_analysis_pass_run_on_function(const Function *function) noexcept;
 
 }// namespace luisa::compute::xir

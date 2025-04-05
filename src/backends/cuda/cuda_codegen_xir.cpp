@@ -392,11 +392,17 @@ void CUDACodegenXIR::_emit_global_constants(luisa::unordered_set<const xir::Cons
 
 void CUDACodegenXIR::_emit_result_value_eq(const xir::Instruction *inst) noexcept {
     if (auto ret_type = inst->type()) {
-        _emit_type_name(ret_type);
-        if (inst->is_lvalue()) {
-            _scratch << " *";
+        // we may define the result value locally if not breaking the lexical scope,
+        // otherwise we are referencing the hoisted result value so do not define it again
+        if (_lex_scope_info.lexical_scope_breakers.contains(inst)) {
+            _scratch << "/* hoisted lexical scope breaker */ ";
         } else {
-            _scratch << " ";
+            _emit_type_name(ret_type);
+            if (inst->is_lvalue()) {
+                _scratch << " *";
+            } else {
+                _scratch << " ";
+            }
         }
         _emit_value_name(inst);
         _scratch << " = ";
@@ -1326,6 +1332,7 @@ void CUDACodegenXIR::_emit_conditional_branch_inst(const xir::ConditionalBranchI
 }
 
 void CUDACodegenXIR::_emit_function_definition(const xir::FunctionDefinition *def) noexcept {
+    _lex_scope_info = xir::lex_scope_analysis_pass_run_on_function(def);
     _local_value_indices.clear();
     switch (def->derived_function_tag()) {
         case xir::DerivedFunctionTag::KERNEL: {
@@ -1344,6 +1351,8 @@ void CUDACodegenXIR::_emit_function_definition(const xir::FunctionDefinition *de
             "Unsupported function definition {} in XIR-based CUDA codegen.",
             def->name().value_or("unknown"));
     }
+    _lex_scope_info = {};
+    _local_value_indices.clear();
 }
 
 void CUDACodegenXIR::_emit_kernel_definition(const xir::KernelFunction *kernel) noexcept {
@@ -1387,12 +1396,29 @@ void CUDACodegenXIR::_emit_kernel_definition(const xir::KernelFunction *kernel) 
     if (!_requires_optix) {
         _scratch << "\n  if (lc_any(sreg_did >= sreg_ls)) { return; }";
     }
+    // emit lexical scope breakers due to the mismatch of SSA and C++ scopes
+    _emit_hoisted_lexical_scope_breakers();
+    // emit function body
     _scratch << "\n\n  /* function body */\n";
     _emit_instructions(kernel->body_block()->instructions(), 1);
     _scratch << "}\n\n";
 }
 
+void CUDACodegenXIR::_emit_hoisted_lexical_scope_breakers() noexcept {
+    if (!_lex_scope_info.lexical_scope_breaks_ordered.empty()) {
+        _scratch << "\n  /* hoisted lexical scope breakers */\n";
+        for (auto breaker : _lex_scope_info.lexical_scope_breaks_ordered) {
+            _emit_indent(1);
+            _emit_type_name(breaker->type());
+            _scratch << " ";
+            _emit_value_name(breaker);
+            _scratch << ";\n";
+        }
+    }
+}
+
 void CUDACodegenXIR::_emit_callable_definition(const xir::CallableFunction *callable) noexcept {
+    // emit function signature
     _scratch << "__device__ ";
     _emit_type_name(callable->type());
     _scratch << " ";
@@ -1416,8 +1442,11 @@ void CUDACodegenXIR::_emit_callable_definition(const xir::CallableFunction *call
         _scratch << "\n    LCPrintBuffer const print_buffer,";
     }
     if (any_arg) { _scratch.pop_back(); }
-    _scratch << ") noexcept {\n"
-             << "  /* function body */\n";
+    _scratch << ") noexcept {\n";
+    // emit lexical scope breakers due to the mismatch of SSA and C++ scopes
+    _emit_hoisted_lexical_scope_breakers();
+    // emit function body
+    _scratch << "  /* function body */\n";
     _emit_instructions(callable->body_block()->instructions(), 1);
     _scratch << "}\n\n";
 }

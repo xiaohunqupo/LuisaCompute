@@ -66,42 +66,42 @@ const bool LUISA_USE_EXPERIMENTAL_XIR_CODEGEN = [] {
     }
 
     // run some simple optimization passes on XIR to reduce the size of LLVM IR
-    // Clock opt_clk;
-    // auto dce1_info = xir::dce_pass_run_on_module(xir_module.get());
-    // auto store_forward_info = xir::local_store_forward_pass_run_on_module(xir_module.get());
-    // auto load_elim_info = xir::local_load_elimination_pass_run_on_module(xir_module.get());
-    // auto dce2_info = xir::dce_pass_run_on_module(xir_module.get());
-    // auto mem2reg_info = xir::mem2reg_pass_run_on_module(xir_module.get());
-    // auto dce3_info = xir::dce_pass_run_on_module(xir_module.get());
-    // if (LUISA_SHOULD_DUMP_XIR) {
-    //     auto filename = luisa::format("kernel.{:016x}.opt.xir", kernel.hash());
-    //     std::ofstream f{filename.c_str()};
-    //     f << xir::xir_to_text_translate(xir_module.get(), true);
-    // }
-    // auto rq_lower_info = xir::lower_ray_query_loop_pass_run_on_module(xir_module.get());
-    // auto reg2mem_info = xir::reg2mem_pass_run_on_module(xir_module.get());
-    // LUISA_VERBOSE("XIR optimization done in {} ms: "
-    //               "forwarded {} store instruction(s), "
-    //               "eliminated {} load instruction(s), "
-    //               "promoted {} alloca instruction(s) with {} load and {} store instruction(s) removed and {} phi node(s) inserted, "
-    //               "removed {} + {} + {} = {} dead instruction(s), "
-    //               "lowered {} ray query loop(s), "
-    //               "lowered {} phi node(s) to local variable(s).",
-    //               opt_clk.toc(),
-    //               store_forward_info.forwarded_instructions.size(),
-    //               load_elim_info.eliminated_instructions.size(),
-    //               mem2reg_info.promoted_alloca_instructions.size(), mem2reg_info.removed_load_instructions.size(), mem2reg_info.removed_store_instructions.size(), mem2reg_info.inserted_phi_instructions.size(),
-    //               dce1_info.removed_instructions.size(), dce2_info.removed_instructions.size(), dce3_info.removed_instructions.size(),
-    //               dce1_info.removed_instructions.size() + dce2_info.removed_instructions.size() + dce3_info.removed_instructions.size(),
-    //               rq_lower_info.lowered_loops.size(),
-    //               reg2mem_info.lowered_phi_nodes.size());
+    Clock opt_clk;
+    auto dce1_info = xir::dce_pass_run_on_module(xir_module.get());
+    auto store_forward_info = xir::local_store_forward_pass_run_on_module(xir_module.get());
+    auto load_elim_info = xir::local_load_elimination_pass_run_on_module(xir_module.get());
+    auto dce2_info = xir::dce_pass_run_on_module(xir_module.get());
+    auto mem2reg_info = xir::mem2reg_pass_run_on_module(xir_module.get());
+    auto dce3_info = xir::dce_pass_run_on_module(xir_module.get());
+    if (LUISA_SHOULD_DUMP_XIR) {
+        auto filename = luisa::format("kernel.{:016x}.opt.xir", kernel.hash());
+        std::ofstream f{filename.c_str()};
+        f << xir::xir_to_text_translate(xir_module.get(), true);
+    }
+    auto rq_lower_info = xir::lower_ray_query_loop_pass_run_on_module(xir_module.get());
+    auto reg2mem_info = xir::reg2mem_pass_run_on_module(xir_module.get());
+    LUISA_VERBOSE("XIR optimization done in {} ms: "
+                  "forwarded {} store instruction(s), "
+                  "eliminated {} load instruction(s), "
+                  "promoted {} alloca instruction(s) with {} load and {} store instruction(s) removed and {} phi node(s) inserted, "
+                  "removed {} + {} + {} = {} dead instruction(s), "
+                  "lowered {} ray query loop(s), "
+                  "lowered {} phi node(s) to local variable(s).",
+                  opt_clk.toc(),
+                  store_forward_info.forwarded_instructions.size(),
+                  load_elim_info.eliminated_instructions.size(),
+                  mem2reg_info.promoted_alloca_instructions.size(), mem2reg_info.removed_load_instructions.size(), mem2reg_info.removed_store_instructions.size(), mem2reg_info.inserted_phi_instructions.size(),
+                  dce1_info.removed_instructions.size(), dce2_info.removed_instructions.size(), dce3_info.removed_instructions.size(),
+                  dce1_info.removed_instructions.size() + dce2_info.removed_instructions.size() + dce3_info.removed_instructions.size(),
+                  rq_lower_info.lowered_loops.size(),
+                  reg2mem_info.lowered_phi_nodes.size());
 
     // dump for debugging
-    // if (LUISA_SHOULD_DUMP_XIR) {
-    //     auto filename = luisa::format("kernel.{:016x}.opt.rq.xir", kernel.hash());
-    //     std::ofstream f{filename.c_str()};
-    //     f << xir::xir_to_text_translate(xir_module.get(), true);
-    // }
+    if (LUISA_SHOULD_DUMP_XIR) {
+        auto filename = luisa::format("kernel.{:016x}.opt.rq.xir", kernel.hash());
+        std::ofstream f{filename.c_str()};
+        f << xir::xir_to_text_translate(xir_module.get(), true);
+    }
     return xir_module;
 }
 

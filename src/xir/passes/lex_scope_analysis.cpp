@@ -53,7 +53,10 @@ static void walk_lexical_scopes_recursively(const BasicBlock *block, LexScopeSta
     for (auto &&inst : block->instructions()) {
         for (auto op_use : inst.operand_uses()) {
             if (auto value = op_use->value(); !stack.is_in_scope(op_use->value())) {
-                info.lexical_scope_breakers.emplace(static_cast<const Instruction *>(value));
+                if (auto op_inst = static_cast<const Instruction *>(value);
+                    info.lexical_scope_breakers.emplace(op_inst).second) {
+                    info.lexical_scope_breaks_ordered.emplace_back(op_inst);
+                }
             }
         }
         stack.define(&inst);
@@ -126,18 +129,20 @@ static void walk_lexical_scopes_recursively(const BasicBlock *block, LexScopeSta
     }
 }
 
-static void analyze_lexical_scopes_in_function(Function *function, LexScopeInfo &info) noexcept {
+static void analyze_lexical_scopes_in_function(const Function *function, LexScopeInfo &info) noexcept {
     if (auto def = function->definition()) {
         LexScopeStack stack;
         stack.with_scope([&] {
             walk_lexical_scopes_recursively(def->body_block(), stack, info);
         });
     }
+    LUISA_DEBUG_ASSERT(info.lexical_scope_breakers.size() == info.lexical_scope_breaks_ordered.size(),
+                       "Lexical scope analysis failed: size mismatch.");
 }
 
 }// namespace detail
 
-LexScopeInfo lex_scope_analysis_pass_run_on_function(Function *function) noexcept {
+LexScopeInfo lex_scope_analysis_pass_run_on_function(const Function *function) noexcept {
     LexScopeInfo info;
     detail::analyze_lexical_scopes_in_function(function, info);
     return info;
