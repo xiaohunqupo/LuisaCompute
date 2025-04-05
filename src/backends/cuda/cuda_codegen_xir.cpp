@@ -1396,10 +1396,11 @@ void CUDACodegenXIR::_emit_kernel_definition(const xir::KernelFunction *kernel) 
     if (!_requires_optix) {
         _scratch << "\n  if (lc_any(sreg_did >= sreg_ls)) { return; }";
     }
+    _scratch << "\n";
     // emit lexical scope breakers due to the mismatch of SSA and C++ scopes
     _emit_hoisted_lexical_scope_breakers();
     // emit function body
-    _scratch << "\n\n  /* function body */\n";
+    _scratch << "\n  /* function body */\n";
     _emit_instructions(kernel->body_block()->instructions(), 1);
     _scratch << "}\n\n";
 }
@@ -1446,7 +1447,7 @@ void CUDACodegenXIR::_emit_callable_definition(const xir::CallableFunction *call
     // emit lexical scope breakers due to the mismatch of SSA and C++ scopes
     _emit_hoisted_lexical_scope_breakers();
     // emit function body
-    _scratch << "  /* function body */\n";
+    _scratch << "\n  /* function body */\n";
     _emit_instructions(callable->body_block()->instructions(), 1);
     _scratch << "}\n\n";
 }
@@ -1493,6 +1494,13 @@ void CUDACodegenXIR::emit(const xir::Module *module,
         visited.reserve(functions_post_order.capacity());
         auto traverse = [&](auto &&self, const xir::Function *f) noexcept {
             if (!visited.emplace(f).second) { return; }
+            // collect types from function arguments and return type
+            for (auto arg : f->arguments()) {
+                LUISA_ASSERT(arg != nullptr, "Function argument is null.");
+                types.emplace(arg->type());
+            }
+            types.emplace(f->type());
+            // collect types from function body
             if (auto def = f->definition()) {
                 def->traverse_instructions([&](const xir::Instruction *inst) noexcept {
                     if (inst->isa<xir::PrintInst>()) {
