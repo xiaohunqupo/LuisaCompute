@@ -149,9 +149,8 @@ template<typename T, typename Base = detail::ManagedObject>
     requires std::derived_from<Base, detail::ManagedObject>
 class Managed : public Base {
 
-    static_assert(std::same_as<std::remove_cv_t<T>, T>);
-
 public:
+    static_assert(std::same_as<std::remove_cv_t<T>, T>);
     using derived_type = T;
     using base_type = Base;
     using super_type = Managed;
