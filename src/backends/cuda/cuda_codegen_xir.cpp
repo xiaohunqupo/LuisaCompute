@@ -926,7 +926,7 @@ void CUDACodegenXIR::_emit_loop_inst(const xir::LoopInst *inst, int indent) noex
                 _scratch << "/* empty generic loop update */;\n";
             }
         } else {// happily we can omit the label
-            _emit_indent(indent);
+            _emit_indent(indent + 1);
             _scratch << "/* generic loop update */\n";
         }
         _emit_instructions(update_block->instructions(), indent + 1);
@@ -1470,7 +1470,7 @@ void CUDACodegenXIR::_emit_conditional_branch_inst(const xir::ConditionalBranchI
 
 void CUDACodegenXIR::_emit_function_definition(const xir::FunctionDefinition *def,
                                                luisa::span<const Function::Binding> bindings) noexcept {
-    _lex_scope_info = xir::lex_scope_analysis_pass_run_on_function(def);
+    _lex_scope_info = xir::lex_scope_analysis_pass_run_on_function(def, {.loop_body_is_nested = false});
     _local_value_indices.clear();
     switch (def->derived_function_tag()) {
         case xir::DerivedFunctionTag::KERNEL: {

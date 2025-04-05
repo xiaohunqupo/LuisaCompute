@@ -48,7 +48,10 @@ public:
     }
 };
 
-static void walk_lexical_scopes_recursively(const BasicBlock *block, LexScopeStack &stack, LexScopeInfo &info) noexcept {
+static void walk_lexical_scopes_recursively(const BasicBlock *block,
+                                            const LexScopeAnalysisConfig &config,
+                                            LexScopeStack &stack,
+                                            LexScopeInfo &info) noexcept {
     if (block == nullptr) { return; }
     for (auto &&inst : block->instructions()) {
         for (auto op_use : inst.operand_uses()) {
@@ -66,14 +69,14 @@ static void walk_lexical_scopes_recursively(const BasicBlock *block, LexScopeSta
                 auto if_inst = static_cast<const IfInst *>(&inst);
                 // scope of the true branch
                 stack.with_scope([&] {
-                    walk_lexical_scopes_recursively(if_inst->true_block(), stack, info);
+                    walk_lexical_scopes_recursively(if_inst->true_block(), config, stack, info);
                 });
                 // scope of the false branch
                 stack.with_scope([&] {
-                    walk_lexical_scopes_recursively(if_inst->false_block(), stack, info);
+                    walk_lexical_scopes_recursively(if_inst->false_block(), config, stack, info);
                 });
                 // merge block should be of the parent block
-                walk_lexical_scopes_recursively(if_inst->merge_block(), stack, info);
+                walk_lexical_scopes_recursively(if_inst->merge_block(), config, stack, info);
                 break;
             }
             case DerivedInstructionTag::SWITCH: {
@@ -81,15 +84,15 @@ static void walk_lexical_scopes_recursively(const BasicBlock *block, LexScopeSta
                 // scopes of the case blocks
                 for (auto i = 0u; i < switch_inst->case_count(); i++) {
                     stack.with_scope([&] {
-                        walk_lexical_scopes_recursively(switch_inst->case_block(i), stack, info);
+                        walk_lexical_scopes_recursively(switch_inst->case_block(i), config, stack, info);
                     });
                 }
                 // scope of the default block
                 stack.with_scope([&] {
-                    walk_lexical_scopes_recursively(switch_inst->default_block(), stack, info);
+                    walk_lexical_scopes_recursively(switch_inst->default_block(), config, stack, info);
                 });
                 // merge block should be of the parent block
-                walk_lexical_scopes_recursively(switch_inst->merge_block(), stack, info);
+                walk_lexical_scopes_recursively(switch_inst->merge_block(), config, stack, info);
                 break;
             }
             case DerivedInstructionTag::LOOP: {
@@ -97,26 +100,29 @@ static void walk_lexical_scopes_recursively(const BasicBlock *block, LexScopeSta
                 // scope of the loop
                 stack.with_scope([&] {
                     // prepare block should be of the loop scope
-                    walk_lexical_scopes_recursively(loop_inst->prepare_block(), stack, info);
-                    // scope of the body block is nested into the loop scope
-                    stack.with_scope([&] {
-                        walk_lexical_scopes_recursively(loop_inst->body_block(), stack, info);
-                    });
+                    walk_lexical_scopes_recursively(loop_inst->prepare_block(), config, stack, info);
+                    if (config.loop_body_is_nested) {// scope of the body block is nested into the loop scope
+                        stack.with_scope([&] {
+                            walk_lexical_scopes_recursively(loop_inst->body_block(), config, stack, info);
+                        });
+                    } else {// otherwise loop body is of the same scope as the loop itself
+                        walk_lexical_scopes_recursively(loop_inst->body_block(), config, stack, info);
+                    }
                     // update block should be of the loop scope
-                    walk_lexical_scopes_recursively(loop_inst->update_block(), stack, info);
+                    walk_lexical_scopes_recursively(loop_inst->update_block(), config, stack, info);
                 });
                 // merge block should be of the parent block
-                walk_lexical_scopes_recursively(loop_inst->merge_block(), stack, info);
+                walk_lexical_scopes_recursively(loop_inst->merge_block(), config, stack, info);
                 break;
             }
             case DerivedInstructionTag::SIMPLE_LOOP: {
                 auto simple_loop_inst = static_cast<const SimpleLoopInst *>(&inst);
                 // scope of the body block
                 stack.with_scope([&] {
-                    walk_lexical_scopes_recursively(simple_loop_inst->body_block(), stack, info);
+                    walk_lexical_scopes_recursively(simple_loop_inst->body_block(), config, stack, info);
                 });
                 // merge block should be of the parent block
-                walk_lexical_scopes_recursively(simple_loop_inst->merge_block(), stack, info);
+                walk_lexical_scopes_recursively(simple_loop_inst->merge_block(), config, stack, info);
                 break;
             }
             default: {
@@ -129,11 +135,13 @@ static void walk_lexical_scopes_recursively(const BasicBlock *block, LexScopeSta
     }
 }
 
-static void analyze_lexical_scopes_in_function(const Function *function, LexScopeInfo &info) noexcept {
+static void analyze_lexical_scopes_in_function(const Function *function,
+                                               const LexScopeAnalysisConfig &config,
+                                               LexScopeInfo &info) noexcept {
     if (auto def = function->definition()) {
         LexScopeStack stack;
         stack.with_scope([&] {
-            walk_lexical_scopes_recursively(def->body_block(), stack, info);
+            walk_lexical_scopes_recursively(def->body_block(), config, stack, info);
         });
     }
     LUISA_DEBUG_ASSERT(info.lexical_scope_breakers.size() == info.lexical_scope_breaks_ordered.size(),
@@ -142,9 +150,10 @@ static void analyze_lexical_scopes_in_function(const Function *function, LexScop
 
 }// namespace detail
 
-LexScopeInfo lex_scope_analysis_pass_run_on_function(const Function *function) noexcept {
+LexScopeInfo lex_scope_analysis_pass_run_on_function(const Function *function,
+                                                     const LexScopeAnalysisConfig &config) noexcept {
     LexScopeInfo info;
-    detail::analyze_lexical_scopes_in_function(function, info);
+    detail::analyze_lexical_scopes_in_function(function, config, info);
     return info;
 }
 

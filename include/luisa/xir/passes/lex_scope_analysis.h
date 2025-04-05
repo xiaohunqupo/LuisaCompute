@@ -30,6 +30,12 @@ struct LexScopeInfo {
     luisa::vector<const Instruction *> lexical_scope_breaks_ordered;
 };
 
-[[nodiscard]] LC_XIR_API LexScopeInfo lex_scope_analysis_pass_run_on_function(const Function *function) noexcept;
+struct LexScopeAnalysisConfig {
+    bool loop_body_is_nested{false};
+};
+
+[[nodiscard]] LC_XIR_API LexScopeInfo lex_scope_analysis_pass_run_on_function(
+    const Function *function,
+    const LexScopeAnalysisConfig &config) noexcept;
 
 }// namespace luisa::compute::xir
