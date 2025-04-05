@@ -908,7 +908,7 @@ void CUDACodegenXIR::_emit_loop_inst(const xir::LoopInst *inst, int indent) noex
         _emit_instructions(body_block->instructions(), indent + 1);
     }
     // update
-    if (auto update_block = inst->update_block()) {
+    if (auto update_block = inst->update_block(); update_block != nullptr && !update_block->instructions().empty()) {
         auto any_continue_user = [&] {
             for (auto &&use : inst->use_list()) {
                 if (auto user = use.user(); user != nullptr && user->isa<xir::ContinueInst>()) {
@@ -921,10 +921,6 @@ void CUDACodegenXIR::_emit_loop_inst(const xir::LoopInst *inst, int indent) noex
             _emit_indent(indent);
             _emit_value_name(inst->update_block());
             _scratch << ": /* generic loop update */\n";
-            if (update_block->instructions().empty()) {// labels must be followed by a statement
-                _emit_indent(indent + 1);
-                _scratch << "/* empty generic loop update */;\n";
-            }
         } else {// happily we can omit the label
             _emit_indent(indent + 1);
             _scratch << "/* generic loop update */\n";
