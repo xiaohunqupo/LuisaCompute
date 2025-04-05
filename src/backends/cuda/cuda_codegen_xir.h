@@ -39,6 +39,20 @@ private:
     luisa::unordered_map<const xir::Value *, size_t> _global_value_indices;
 
 private:
+    struct InstructionUsageAnalysis {
+        CurveBasisSet required_curve_bases;
+        bool requires_raytracing_closest = false;
+        bool requires_raytracing_any = false;
+        bool requires_raytracing_query = false;
+        luisa::unordered_set<const Type *> used_types;
+        luisa::unordered_set<const xir::Constant *> used_constants;
+        luisa::vector<const xir::RayQueryPipelineInst *> ray_query_pipelines;
+        luisa::vector<const xir::Function *> used_functions_post_order;
+    };
+    void _analyze_instruction_usage(const xir::Function *f, InstructionUsageAnalysis &analysis,
+                                    luisa::unordered_set<const xir::Function *> &visited) noexcept;
+
+private:
     [[nodiscard]] static bool _should_emit_global_constant(const xir::Constant *c) noexcept;
     [[nodiscard]] bool _is_builtin_type(const Type *t) const noexcept;
     void _emit_type_name(const Type *type) noexcept;
