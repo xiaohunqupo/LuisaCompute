@@ -120,14 +120,21 @@ void CUDACodegenXIR::_analyze_instruction_usage(const xir::Function *f, Instruct
                 }
                 default: break;
             }
+            // collect types from instruction operands and results
             analysis.used_types.emplace(inst->type());
             for (auto op_use : inst->operand_uses()) {
                 if (auto value = op_use->value()) {
                     analysis.used_types.emplace(value->type());
-                    if (value->isa<xir::Constant>()) {
-                        analysis.used_constants.emplace(static_cast<const xir::Constant *>(value));
-                    } else if (value->isa<xir::Function>()) {
-                        _analyze_instruction_usage(static_cast<const xir::Function *>(value), analysis, visited);
+                    switch (value->derived_value_tag()) {
+                        case xir::DerivedValueTag::FUNCTION: {
+                            _analyze_instruction_usage(static_cast<const xir::Function *>(value), analysis, visited);
+                            break;
+                        }
+                        case xir::DerivedValueTag::CONSTANT: {
+                            analysis.used_constants.emplace(static_cast<const xir::Constant *>(value));
+                            break;
+                        }
+                        default: break;
                     }
                 }
             }
@@ -900,17 +907,29 @@ void CUDACodegenXIR::_emit_loop_inst(const xir::LoopInst *inst, int indent) noex
     if (auto body_block = inst->body_block(); body_block != nullptr && !body_block->instructions().empty()) {
         _emit_instructions(body_block->instructions(), indent + 1);
     }
-    // break
+    // update
     if (auto update_block = inst->update_block()) {
-        _emit_indent(indent);
-        _emit_value_name(inst->update_block());
-        _scratch << ": /* generic loop update */\n";
-        if (update_block->instructions().empty()) {
-            _emit_indent(indent + 1);
-            _scratch << "/* empty generic loop update */;\n";
-        } else {
-            _emit_instructions(update_block->instructions(), indent + 1);
+        auto any_continue_user = [&] {
+            for (auto &&use : inst->use_list()) {
+                if (auto user = use.user(); user != nullptr && user->isa<xir::ContinueInst>()) {
+                    return true;
+                }
+            }
+            return false;
+        }();
+        if (any_continue_user) {// we need to emit a label for continue
+            _emit_indent(indent);
+            _emit_value_name(inst->update_block());
+            _scratch << ": /* generic loop update */\n";
+            if (update_block->instructions().empty()) {// labels must be followed by a statement
+                _emit_indent(indent + 1);
+                _scratch << "/* empty generic loop update */;\n";
+            }
+        } else {// happily we can omit the label
+            _emit_indent(indent);
+            _scratch << "/* generic loop update */\n";
         }
+        _emit_instructions(update_block->instructions(), indent + 1);
     }
     _emit_indent(indent);
     _scratch << "}";
