@@ -394,9 +394,9 @@ void CUDACodegenXIR::_emit_result_value_eq(const xir::Instruction *inst) noexcep
     if (auto ret_type = inst->type()) {
         _emit_type_name(ret_type);
         if (inst->is_lvalue()) {
-            _scratch << " *const ";
+            _scratch << " *";
         } else {
-            _scratch << " const ";
+            _scratch << " ";
         }
         _emit_value_name(inst);
         _scratch << " = ";
@@ -1039,19 +1039,15 @@ void CUDACodegenXIR::_emit_arithmetic_inst(const xir::ArithmeticInst *inst, int 
             break;
         }
         case xir::ArithmeticOp::INSERT: {
-            // const T result = v;
-            // const_cast<T &>(result).access_chain = e;
+            // T result = v;
+            // result.access_chain = e;
             LUISA_DEBUG_ASSERT(inst->operand_count() > 2u, "Insert instruction should have at least 3 operands.");
             _emit_result_value_eq(inst);
             auto v = inst->operand(0);
             _emit_value_name(v);
             _scratch << ";\n";
             _emit_indent(indent);
-            _scratch << "const_cast<";
-            _emit_type_name(inst->type());
-            _scratch << " &>(";
             _emit_value_name(inst);
-            _scratch << ")";
             _emit_access_chain(inst->type(), inst->operand_uses().subspan(2));
             _scratch << " = ";
             auto e = inst->operand(1);
