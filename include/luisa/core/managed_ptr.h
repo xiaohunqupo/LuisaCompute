@@ -99,9 +99,8 @@ public:
 template<typename T>
 class ManagedPtr<const T> {
 
-    static_assert(std::derived_from<T, detail::ManagedObject>);
-
 private:
+    static_assert(std::derived_from<T, detail::ManagedObject>);
     T *_object{nullptr};
 
 private:
