@@ -758,6 +758,7 @@ void CUDACodegenXIR::_emit_switch_inst(const xir::SwitchInst *inst, int indent) 
         _emit_indent(indent + 1);
         _scratch << "}\n";
     }
+    _scratch << "}";
 }
 
 void CUDACodegenXIR::_emit_loop_inst(const xir::LoopInst *inst, int indent) noexcept {
