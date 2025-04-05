@@ -4,6 +4,7 @@
 
 #include <luisa/core/string_scratch.h>
 #include <luisa/xir/builder.h>
+#include <luisa/xir/passes/lex_scope_analysis.h>
 
 namespace luisa::compute::cuda {
 
@@ -33,6 +34,7 @@ private:
     const Type *_motion_srt_type;
 
 private:
+    xir::LexScopeInfo _lex_scope_info;
     luisa::unordered_map<const xir::Value *, size_t> _local_value_indices;
     luisa::unordered_map<const xir::Value *, size_t> _global_value_indices;
 
@@ -47,6 +49,7 @@ private:
     void _emit_global_constants(luisa::unordered_set<const xir::Constant *> used_constants) noexcept;
     void _emit_function_definition(const xir::FunctionDefinition *def) noexcept;
     void _emit_kernel_definition(const xir::KernelFunction *kernel) noexcept;
+    void _emit_hoisted_lexical_scope_breakers() noexcept;
     void _emit_callable_definition(const xir::CallableFunction *callable) noexcept;
     void _emit_instructions(const xir::InstructionList &inst_list, int indent) noexcept;
     void _emit_metadata(const xir::MetadataList &md_list, int indent) const noexcept;
