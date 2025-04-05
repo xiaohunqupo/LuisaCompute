@@ -549,12 +549,24 @@ void CUDACodegenXIR::_emit_instructions(const xir::InstructionList &inst_list, i
             }
             case xir::DerivedInstructionTag::BREAK: _scratch << "break;"; break;
             case xir::DerivedInstructionTag::CONTINUE: {
-                LUISA_ASSERT(!_control_flow_stack.empty(), "Control flow stack is empty.");
-                if (_control_flow_stack.back()->isa<xir::LoopInst>()) {
-                    _scratch << "goto ";
-                    auto loop = static_cast<const xir::LoopInst *>(_control_flow_stack.back());
-                    _emit_value_name(loop->update_block());
-                    _scratch << ";";
+                // find the innermost loop
+                auto loop = static_cast<const xir::Instruction *>(nullptr);
+                for (auto it = _control_flow_stack.rbegin(); it != _control_flow_stack.rend(); ++it) {
+                    if ((*it)->isa<xir::LoopInst>() || (*it)->isa<xir::SimpleLoopInst>()) {
+                        loop = *it;
+                        break;
+                    }
+                }
+                LUISA_ASSERT(loop != nullptr, "Continue instruction is not in a loop.");
+                if (loop->isa<xir::LoopInst>()) {
+                    if (auto update_block = static_cast<const xir::LoopInst *>(loop)->update_block();
+                        update_block != nullptr && !update_block->instructions().empty()) {
+                        _scratch << "goto ";
+                        _emit_value_name(update_block);
+                        _scratch << ";";
+                    } else {
+                        _scratch << "continue;";
+                    }
                 } else {
                     _scratch << "continue;";
                 }
