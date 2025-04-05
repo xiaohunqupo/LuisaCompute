@@ -36,6 +36,101 @@ CUDACodegenXIR::CUDACodegenXIR(StringScratch &scratch, bool allow_indirect) noex
 
 CUDACodegenXIR::~CUDACodegenXIR() noexcept = default;
 
+void CUDACodegenXIR::_analyze_instruction_usage(const xir::Function *f, InstructionUsageAnalysis &analysis,
+                                                luisa::unordered_set<const xir::Function *> &visited) noexcept {
+    if (!visited.emplace(f).second) { return; }
+    // collect types from function arguments and return type
+    for (auto arg : f->arguments()) {
+        LUISA_ASSERT(arg != nullptr, "Function argument is null.");
+        analysis.used_types.emplace(arg->type());
+    }
+    analysis.used_types.emplace(f->type());
+    // collect types from function body
+    if (auto def = f->definition()) {
+        def->traverse_instructions([&](const xir::Instruction *inst) noexcept {
+            switch (inst->derived_instruction_tag()) {
+                case xir::DerivedInstructionTag::PRINT: {
+                    this->_requires_printing = true;
+                    auto print = static_cast<const xir::PrintInst *>(inst);
+                    auto [iter, success] = _print_info.emplace(print, PrintInfo{nullptr, _print_formats.size()});
+                    LUISA_ASSERT(success, "Print info already exists.");
+                    luisa::vector<const Type *> arg_types;
+                    arg_types.reserve(print->operand_count() + 2u);
+                    arg_types.emplace_back(Type::of<uint>());// arg size
+                    arg_types.emplace_back(Type::of<uint>());// fmt id
+                    for (auto op_use : print->operand_uses()) {
+                        LUISA_ASSERT(op_use->value() != nullptr, "Print operand use is null.");
+                        arg_types.emplace_back(op_use->value()->type());
+                    }
+                    auto s = Type::structure(arg_types);
+                    analysis.used_types.emplace(s);
+                    iter->second.type = s;
+                    _print_formats.emplace_back(print->format(), s);
+                    break;
+                }
+                case xir::DerivedInstructionTag::RESOURCE_QUERY: {
+                    auto is_ray_trace = false;
+                    switch (static_cast<const xir::ResourceQueryInst *>(inst)->op()) {
+                        case xir::ResourceQueryOp::RAY_TRACING_TRACE_CLOSEST: [[fallthrough]];
+                        case xir::ResourceQueryOp::RAY_TRACING_TRACE_CLOSEST_MOTION_BLUR: {
+                            this->_requires_optix = true;
+                            analysis.requires_raytracing_closest = true;
+                            is_ray_trace = true;
+                            break;
+                        }
+                        case xir::ResourceQueryOp::RAY_TRACING_TRACE_ANY: [[fallthrough]];
+                        case xir::ResourceQueryOp::RAY_TRACING_TRACE_ANY_MOTION_BLUR: {
+                            this->_requires_optix = true;
+                            analysis.requires_raytracing_any = true;
+                            is_ray_trace = true;
+                            break;
+                        }
+                        case xir::ResourceQueryOp::RAY_TRACING_QUERY_ALL: [[fallthrough]];
+                        case xir::ResourceQueryOp::RAY_TRACING_QUERY_ANY: [[fallthrough]];
+                        case xir::ResourceQueryOp::RAY_TRACING_QUERY_ALL_MOTION_BLUR: [[fallthrough]];
+                        case xir::ResourceQueryOp::RAY_TRACING_QUERY_ANY_MOTION_BLUR: {
+                            this->_requires_optix = true;
+                            analysis.requires_raytracing_query = true;
+                            is_ray_trace = true;
+                            break;
+                        }
+                        default: break;
+                    }
+                    if (is_ray_trace) {
+                        if (auto curve_basis_md = inst->find_metadata<xir::CurveBasisMD>()) {
+                            analysis.required_curve_bases.propagate(curve_basis_md->curve_basis_set());
+                        }
+                    }
+                    break;
+                }
+                case xir::DerivedInstructionTag::RAY_QUERY_PIPELINE: {
+                    this->_requires_optix = true;
+                    analysis.requires_raytracing_query = true;
+                    auto pipeline = static_cast<const xir::RayQueryPipelineInst *>(inst);
+                    if (auto curve_basis_md = pipeline->find_metadata<xir::CurveBasisMD>()) {
+                        analysis.required_curve_bases.propagate(curve_basis_md->curve_basis_set());
+                    }
+                    analysis.ray_query_pipelines.emplace_back(pipeline);
+                    break;
+                }
+                default: break;
+            }
+            analysis.used_types.emplace(inst->type());
+            for (auto op_use : inst->operand_uses()) {
+                if (auto value = op_use->value()) {
+                    analysis.used_types.emplace(value->type());
+                    if (value->isa<xir::Constant>()) {
+                        analysis.used_constants.emplace(static_cast<const xir::Constant *>(value));
+                    } else if (value->isa<xir::Function>()) {
+                        _analyze_instruction_usage(static_cast<const xir::Function *>(value), analysis, visited);
+                    }
+                }
+            }
+        });
+        analysis.used_functions_post_order.emplace_back(def);
+    }
+}
+
 bool CUDACodegenXIR::_should_emit_global_constant(const xir::Constant *c) noexcept {
     return !c->type()->is_basic();
 }
@@ -1471,19 +1566,10 @@ void CUDACodegenXIR::emit(const xir::Module *module,
                           luisa::string_view device_lib,
                           luisa::string_view native_include) noexcept {
 
-    auto requires_raytracing_closest = false;
-    auto requires_raytracing_any = false;
-    auto requires_raytracing_query = false;
-    auto required_curve_bases = CurveBasisSet::make_none();
-
-    luisa::vector<const xir::FunctionDefinition *> functions_post_order;
-
     // find the kernel function
-    const xir::KernelFunction *kernel = nullptr;
-    {
-        size_t function_count = 0u;
+    auto kernel = [module] {
+        const xir::KernelFunction *kernel = nullptr;
         for (auto &&f : module->function_list()) {
-            function_count++;
             if (f.isa<xir::KernelFunction>()) {
                 LUISA_ASSERT(kernel == nullptr,
                              "CUDA codegen: expected exactly one kernel function, "
@@ -1493,115 +1579,39 @@ void CUDACodegenXIR::emit(const xir::Module *module,
             }
         }
         LUISA_ASSERT(kernel != nullptr,
-                     "CUDA codegen: expected exactly one kernel function, "
-                     "found {}.",
-                     function_count);
-        functions_post_order.reserve(function_count);
-    }
+                     "CUDA codegen: kernel function not found in module.");
+        return kernel;
+    }();
 
-    // recursively traverse instructions in the functions to collect the basic information
-    luisa::unordered_set<const Type *> types;
-    luisa::unordered_set<const xir::Constant *> constants;
-    types.reserve(Type::count());
-    constants.reserve(64u);
-    {
+    // analyze instruction usage to prepare for code generation
+    auto analysis = [this, kernel] {
+        InstructionUsageAnalysis analysis;
+        analysis.used_types.reserve(Type::count());
+        analysis.used_constants.reserve(64u);
+        analysis.ray_query_pipelines.reserve(16u);
+        analysis.used_functions_post_order.reserve(64u);
         luisa::unordered_set<const xir::Function *> visited;
-        visited.reserve(functions_post_order.capacity());
-        auto traverse = [&](auto &&self, const xir::Function *f) noexcept {
-            if (!visited.emplace(f).second) { return; }
-            // collect types from function arguments and return type
-            for (auto arg : f->arguments()) {
-                LUISA_ASSERT(arg != nullptr, "Function argument is null.");
-                types.emplace(arg->type());
-            }
-            types.emplace(f->type());
-            // collect types from function body
-            if (auto def = f->definition()) {
-                def->traverse_instructions([&](const xir::Instruction *inst) noexcept {
-                    if (inst->isa<xir::PrintInst>()) {
-                        this->_requires_printing = true;
-                        auto print = static_cast<const xir::PrintInst *>(inst);
-                        auto [iter, success] = _print_info.emplace(print, PrintInfo{nullptr, _print_formats.size()});
-                        LUISA_ASSERT(success, "Print info already exists.");
-                        luisa::vector<const Type *> arg_types;
-                        arg_types.reserve(print->operand_count() + 2u);
-                        arg_types.emplace_back(Type::of<uint>());// arg size
-                        arg_types.emplace_back(Type::of<uint>());// fmt id
-                        for (auto op_use : print->operand_uses()) {
-                            LUISA_ASSERT(op_use->value() != nullptr, "Print operand use is null.");
-                            arg_types.emplace_back(op_use->value()->type());
-                        }
-                        auto s = Type::structure(arg_types);
-                        types.emplace(s);
-                        iter->second.type = s;
-                        _print_formats.emplace_back(print->format(), s);
-                    } else if (inst->isa<xir::ResourceQueryInst>()) {
-                        auto is_ray_trace = false;
-                        switch (static_cast<const xir::ResourceQueryInst *>(inst)->op()) {
-                            case xir::ResourceQueryOp::RAY_TRACING_TRACE_CLOSEST: [[fallthrough]];
-                            case xir::ResourceQueryOp::RAY_TRACING_TRACE_CLOSEST_MOTION_BLUR: {
-                                this->_requires_optix = true;
-                                requires_raytracing_closest = true;
-                                is_ray_trace = true;
-                                break;
-                            }
-                            case xir::ResourceQueryOp::RAY_TRACING_TRACE_ANY: [[fallthrough]];
-                            case xir::ResourceQueryOp::RAY_TRACING_TRACE_ANY_MOTION_BLUR: {
-                                this->_requires_optix = true;
-                                requires_raytracing_any = true;
-                                is_ray_trace = true;
-                                break;
-                            }
-                            case xir::ResourceQueryOp::RAY_TRACING_QUERY_ALL: [[fallthrough]];
-                            case xir::ResourceQueryOp::RAY_TRACING_QUERY_ANY: [[fallthrough]];
-                            case xir::ResourceQueryOp::RAY_TRACING_QUERY_ALL_MOTION_BLUR: [[fallthrough]];
-                            case xir::ResourceQueryOp::RAY_TRACING_QUERY_ANY_MOTION_BLUR: {
-                                this->_requires_optix = true;
-                                requires_raytracing_query = true;
-                                is_ray_trace = true;
-                                break;
-                            }
-                            default: break;
-                        }
-                        if (is_ray_trace) {
-                            if (auto curve_basis_md = inst->find_metadata<xir::CurveBasisMD>()) {
-                                required_curve_bases.propagate(curve_basis_md->curve_basis_set());
-                            }
-                        }
-                    }
-                    types.emplace(inst->type());
-                    for (auto op_use : inst->operand_uses()) {
-                        if (auto value = op_use->value()) {
-                            types.emplace(value->type());
-                            if (value->isa<xir::Constant>()) {
-                                constants.emplace(static_cast<const xir::Constant *>(value));
-                            } else if (value->isa<xir::Function>()) {
-                                self(self, static_cast<const xir::Function *>(value));
-                            }
-                        }
-                    }
-                });
-                functions_post_order.emplace_back(def);
-            }
-        };
-        traverse(traverse, kernel);
-    }
-    LUISA_ASSERT(!functions_post_order.empty() && functions_post_order.back() == kernel,
-                 "CUDA codegen: kernel function not found in post order traversal.");
+        visited.reserve(64u);
+        _analyze_instruction_usage(kernel, analysis, visited);
+        LUISA_ASSERT(!analysis.used_functions_post_order.empty() &&
+                         analysis.used_functions_post_order.back() == kernel,
+                     "CUDA codegen: kernel function not found in post order traversal.");
+        return analysis;
+    }();
 
     // generate macro definitions and header
     if (_requires_optix) {
         _scratch << "#define LUISA_ENABLE_OPTIX\n";
-        if (required_curve_bases.any()) {
+        if (analysis.required_curve_bases.any()) {
             _scratch << "#define LUISA_ENABLE_OPTIX_CURVE\n";
         }
-        if (requires_raytracing_closest) {
+        if (analysis.requires_raytracing_closest) {
             _scratch << "#define LUISA_ENABLE_OPTIX_TRACE_CLOSEST\n";
         }
-        if (requires_raytracing_any) {
+        if (analysis.requires_raytracing_any) {
             _scratch << "#define LUISA_ENABLE_OPTIX_TRACE_ANY\n";
         }
-        if (requires_raytracing_query) {
+        if (analysis.requires_raytracing_query) {
             _scratch << "#define LUISA_ENABLE_OPTIX_RAY_QUERY\n";
         }
     }
@@ -1614,13 +1624,13 @@ void CUDACodegenXIR::emit(const xir::Module *module,
              << "\n/* built-in device library end */\n\n";
 
     // emit type declarations
-    _emit_type_definitions(std::move(types));
+    _emit_type_definitions(std::move(analysis.used_types));
 
     // emit the kernel parameter struct
     _emit_kernel_params_struct(kernel);
 
     // emit global constants
-    _emit_global_constants(std::move(constants));
+    _emit_global_constants(std::move(analysis.used_constants));
 
     // emit native include if any
     if (!native_include.empty()) {
@@ -1630,8 +1640,12 @@ void CUDACodegenXIR::emit(const xir::Module *module,
     }
 
     // emit function definitions
-    for (auto f : functions_post_order) {
-        _emit_function_definition(f, bindings);
+    for (auto f : analysis.used_functions_post_order) {
+        if (auto def = f->definition()) {
+            _emit_function_definition(def, bindings);
+        } else {
+            LUISA_NOT_IMPLEMENTED("External function");
+        }
     }
 
     // emit indirect dispatch kernel if allowed
