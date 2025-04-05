@@ -9,14 +9,14 @@ namespace detail {
 
 struct ManagedObjectLowLevelOp;
 
-class LC_CORE_API ManagedObject {
+class ManagedObject {
 
 private:
-    std::atomic<uint32_t> _ref_count;
+    std::atomic<int32_t> _ref_count;
     uint32_t _managed_id;
 
 public:
-    explicit ManagedObject(uint32_t m_id = 0u) noexcept : _ref_count{1u}, _managed_id{m_id} {}
+    explicit ManagedObject(uint32_t m_id = 0u) noexcept : _ref_count{1}, _managed_id{m_id} {}
     virtual ~ManagedObject() = default;
     ManagedObject(ManagedObject &&) = delete;
     ManagedObject(const ManagedObject &) = delete;
@@ -25,8 +25,16 @@ public:
 
 private:
     friend ManagedObjectLowLevelOp;
-    ManagedObject *do_retain() noexcept;
-    void do_release() noexcept;
+    ManagedObject *do_retain() noexcept {
+        [[maybe_unused]] auto old_refcount = _ref_count.fetch_add(1, std::memory_order_relaxed);
+        assert(old_refcount > 0 && "Retained object is likely already destroyed.");
+        return this;
+    }
+    void do_release() noexcept {
+        auto old_refcount = _ref_count.fetch_sub(1, std::memory_order_acq_rel);
+        assert(old_refcount > 0 && "Releasing object is likely already destroyed.");
+        if (old_refcount == 1) { luisa::delete_with_allocator(this); }
+    }
 
 public:
     [[nodiscard]] auto managed_id() const noexcept { return _managed_id; }
