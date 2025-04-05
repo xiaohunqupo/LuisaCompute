@@ -570,7 +570,7 @@ void CUDACodegenXIR::_emit_instructions(const xir::InstructionList &inst_list, i
             case xir::DerivedInstructionTag::PRINT: {
                 auto p = static_cast<const xir::PrintInst *>(&inst);
                 auto info = _print_info.at(p);
-                _scratch << "lc_print(LC_PRINT_BUFFER, ";
+                _scratch << "lc_print_impl(LC_PRINT_BUFFER, ";
                 _emit_type_name(info.type);
                 _scratch << "{" << info.type->size() << ", "
                          << info.index;
