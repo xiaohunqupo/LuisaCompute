@@ -47,8 +47,8 @@ private:
     void _emit_kernel_params_struct(const xir::KernelFunction *kernel) noexcept;
     void _emit_value_name(const xir::Value *value, bool is_use = true) noexcept;
     void _emit_global_constants(luisa::unordered_set<const xir::Constant *> used_constants) noexcept;
-    void _emit_function_definition(const xir::FunctionDefinition *def) noexcept;
-    void _emit_kernel_definition(const xir::KernelFunction *kernel) noexcept;
+    void _emit_function_definition(const xir::FunctionDefinition *def, luisa::span<const Function::Binding> bindings) noexcept;
+    void _emit_kernel_definition(const xir::KernelFunction *kernel, luisa::span<const Function::Binding> bindings) noexcept;
     void _emit_hoisted_lexical_scope_breakers() noexcept;
     void _emit_callable_definition(const xir::CallableFunction *callable) noexcept;
     void _emit_instructions(const xir::InstructionList &inst_list, int indent) noexcept;
@@ -98,7 +98,8 @@ private:
 public:
     CUDACodegenXIR(StringScratch &scratch, bool allow_indirect) noexcept;
     ~CUDACodegenXIR() noexcept;
-    void emit(const xir::Module *module, luisa::string_view device_lib, luisa::string_view native_include) noexcept;
+    void emit(const xir::Module *module, luisa::span<const Function::Binding> bindings,
+              luisa::string_view device_lib, luisa::string_view native_include) noexcept;
     [[nodiscard]] auto move_print_formats() && noexcept { return std::move(_print_formats); }
 };
 
