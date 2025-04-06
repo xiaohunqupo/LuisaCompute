@@ -143,6 +143,8 @@ public:
     [[nodiscard]] const T *operator->() const noexcept { return get(); }
     [[nodiscard]] const T &operator*() const noexcept { return *get(); }
     [[nodiscard]] explicit operator bool() const noexcept { return _object != nullptr; }
+    [[nodiscard]] bool operator==(const T *rhs) const noexcept { return get() == rhs; }
+    [[nodiscard]] bool operator==(const ManagedPtr &rhs) const noexcept { return get() == rhs.get(); }
 };
 
 template<typename T, typename Base = detail::ManagedObject>

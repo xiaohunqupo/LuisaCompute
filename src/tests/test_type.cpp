@@ -169,11 +169,16 @@ int main() {
     {
         auto another = sth;
         luisa::ManagedPtr<const Something> good = std::move(another);
+        LUISA_ASSERT(nullptr == another);
         auto gg = good.get();
+        LUISA_ASSERT(gg == sth);
         auto ggg = gg->lock();
         auto more = good->lock();
+        LUISA_ASSERT(sth == more);
         more = std::move(ggg);
+        LUISA_ASSERT(more != nullptr);
         good = more;
+        LUISA_ASSERT(good);
         another = sth;
     }
 
