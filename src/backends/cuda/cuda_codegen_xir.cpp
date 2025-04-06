@@ -557,6 +557,7 @@ void CUDACodegenXIR::_emit_ray_query_pipeline_inst(const xir::RayQueryPipelineIn
             _emit_value_name(capture_use->value());
             _scratch << ",\n";
         }
+        _emit_indent(indent);
         _scratch << "};\n";
         _emit_indent(indent);
     }
