@@ -287,9 +287,7 @@ void CUDACodegenXIR::_emit_type_definition(const Type *type, luisa::unordered_se
         case Type::Tag::STRUCTURE: {
             auto members = type->members();
             for (auto m : members) {
-                if (m->is_structure()) {
-                    _emit_type_definition(m, defined_types);
-                }
+                _emit_type_definition(m, defined_types);
             }
             // generate the type definition if not a builtin type
             if (!_is_builtin_type(type)) {
