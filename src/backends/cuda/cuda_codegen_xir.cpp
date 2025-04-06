@@ -151,6 +151,29 @@ bool CUDACodegenXIR::_should_emit_global_constant(const xir::Constant *c) noexce
     return !c->type()->is_basic();
 }
 
+bool CUDACodegenXIR::_is_ray_query_callback_function(const xir::CallableFunction *f) const noexcept {
+    auto any_rq_user = false;
+    auto all_rq_user = true;
+    for (auto &&use : f->use_list()) {
+        if (auto user = use.user(); user != nullptr && user->isa<xir::RayQueryPipelineInst>()) {
+            any_rq_user = true;
+        } else {
+            all_rq_user = false;
+        }
+    }
+    if (any_rq_user) {
+        LUISA_ASSERT(all_rq_user, "Ray query callback function is not used by all ray query pipelines.");
+        LUISA_ASSERT(f->type() == Type::of<void>(), "Ray query callback function must return void.");
+        LUISA_ASSERT(!f->arguments().empty(), "Ray query callback function must have at least one argument.");
+        auto rq_arg = f->arguments().front();
+        LUISA_ASSERT(rq_arg != nullptr && rq_arg->type() != nullptr,
+                     "Ray query callback function must have a valid ray query argument.");
+        LUISA_ASSERT(rq_arg->type() == _ray_query_any_type || rq_arg->type() == _ray_query_all_type,
+                     "Ray query callback function must have a ray query argument.");
+    }
+    return any_rq_user;
+}
+
 bool CUDACodegenXIR::_is_builtin_type(const Type *t) const noexcept {
     return t == _ray_type ||
            t == _triangle_hit_type ||
@@ -521,6 +544,35 @@ void CUDACodegenXIR::_emit_result_value_eq(const xir::Instruction *inst) noexcep
     }
 }
 
+void CUDACodegenXIR::_emit_ray_query_pipeline_inst(const xir::RayQueryPipelineInst *inst, int indent) noexcept {
+    // retrieve info
+    auto info = _ray_query_pipeline_info.at(inst);
+    auto captures = inst->captured_argument_uses();
+    if (!captures.empty()) {
+        _scratch << "LCRayQueryCtx" << info.index << " ";
+        _emit_value_name(inst);
+        _scratch << "_ctx = {\n";
+        for (auto capture_use : inst->captured_argument_uses()) {
+            _emit_indent(indent + 1);
+            _emit_value_name(capture_use->value());
+            _scratch << ",\n";
+        }
+        _scratch << "};\n";
+        _emit_indent(indent);
+    }
+    _scratch << "lc_ray_query_trace(*(";
+    _emit_value_name(inst->query_object());
+    _scratch << "), " << info.index << ", ";
+    if (captures.empty()) {
+        _scratch << "nullptr";
+    } else {
+        _scratch << "&";
+        _emit_value_name(inst);
+        _scratch << "_ctx";
+    }
+    _scratch << ");";
+}
+
 void CUDACodegenXIR::_emit_instructions(const xir::InstructionList &inst_list, int indent) noexcept {
     for (auto &&inst : inst_list) {
         _emit_metadata(inst.metadata_list(), indent);
@@ -653,7 +705,7 @@ void CUDACodegenXIR::_emit_instructions(const xir::InstructionList &inst_list, i
             case xir::DerivedInstructionTag::RAY_QUERY_DISPATCH: LUISA_ERROR_WITH_LOCATION("Ray query dispatch instructions should be eliminated before codegen.");
             case xir::DerivedInstructionTag::RAY_QUERY_OBJECT_READ: _emit_ray_query_object_read_inst(static_cast<const xir::RayQueryObjectReadInst *>(&inst)); break;
             case xir::DerivedInstructionTag::RAY_QUERY_OBJECT_WRITE: _emit_ray_query_object_write_inst(static_cast<const xir::RayQueryObjectWriteInst *>(&inst)); break;
-            case xir::DerivedInstructionTag::RAY_QUERY_PIPELINE: LUISA_NOT_IMPLEMENTED("Ray query pipeline has not been implemented in XIR-based CUDA codegen.");
+            case xir::DerivedInstructionTag::RAY_QUERY_PIPELINE: _emit_ray_query_pipeline_inst(static_cast<const xir::RayQueryPipelineInst *>(&inst), indent); break;
             case xir::DerivedInstructionTag::AUTODIFF_SCOPE: LUISA_ERROR_WITH_LOCATION("Autodiff scope instructions should be eliminated before codegen.");
             case xir::DerivedInstructionTag::AUTODIFF_INTRINSIC: LUISA_ERROR_WITH_LOCATION("Autodiff intrinsic instructions should be eliminated before codegen.");
             case xir::DerivedInstructionTag::CALL: {
@@ -963,11 +1015,63 @@ void CUDACodegenXIR::_emit_intrinsic_call(luisa::string_view name, const xir::In
 }
 
 void CUDACodegenXIR::_preprocess_ray_query_pipelines(luisa::span<const xir::RayQueryPipelineInst *const> pipelines) noexcept {
-    // TODO
+    for (auto p : pipelines) {
+        auto [iter, success] = _ray_query_pipeline_info.emplace(
+            p, RayQueryPipelineInfo{_ray_query_pipeline_info.size()});
+        LUISA_ASSERT(success, "Ray query pipeline {} already exists.", p->name().value_or("unknown"));
+        // emit context struct
+        _scratch << "struct LCRayQueryCtx" << iter->second.index << "{";
+        auto captures = p->captured_argument_uses();
+        if (!captures.empty()) {
+            for (auto i = 0u; i < captures.size(); i++) {
+                auto capture = captures[i]->value();
+                LUISA_ASSERT(capture != nullptr, "Captured argument is null.");
+                _scratch << "\n  ";
+                _emit_type_name(capture->type());
+                if (capture->is_lvalue()) {
+                    _scratch << " *";
+                } else {
+                    _scratch << " ";
+                }
+                _scratch << "m" << i << ";";
+            }
+            _scratch << "\n";
+        }
+        _scratch << "};\n\n";
+    }
 }
 
 void CUDACodegenXIR::_postprocess_ray_query_pipelines(luisa::span<const xir::RayQueryPipelineInst *const> pipelines) noexcept {
-    // TODO
+    for (auto p : pipelines) {
+        // retrieve the pipeline info
+        auto info = _ray_query_pipeline_info.at(p);
+        // emit the triangle wrapper functions
+        auto captures = p->captured_argument_uses();
+        using namespace std::string_view_literals;
+        for (auto [f, signature] : {
+                 std::make_pair(p->on_surface_function(), "LUISA_DECL_RAY_QUERY_TRIANGLE_IMPL"sv),
+                 std::make_pair(p->on_procedural_function(), "LUISA_DECL_RAY_QUERY_PROCEDURAL_IMPL"sv),
+             }) {
+            _scratch << signature << "(" << info.index << ") {\n"
+                     << "  LCIntersectionResult result{};\n";
+            if (f != nullptr) {
+                if (!captures.empty()) {
+                    _scratch << "  /* decode ray query context */\n"
+                             << "  auto ctx = *static_cast<LCRayQueryCtx" << info.index << " *>(ctx_in);\n";
+                }
+                _scratch << "  /* invoke ray query pipeline */\n"
+                         << "  ";
+                _emit_value_name(f);
+                _scratch << "(result";
+                for (auto i = 0u; i < captures.size(); i++) {
+                    _scratch << ", ctx.m" << i;
+                }
+                _scratch << ");\n";
+            }
+            _scratch << "  return result;\n"
+                     << "}\n\n";
+        }
+    }
 }
 
 void CUDACodegenXIR::_emit_atomic_inst(const xir::AtomicInst *inst) noexcept {
@@ -1382,7 +1486,7 @@ void CUDACodegenXIR::_emit_ray_query_object_read_inst(const xir::RayQueryObjectR
             _emit_intrinsic_call("LC_RAY_QUERY_TRIANGLE_CANDIDATE_HIT", inst);
             break;
         case xir::RayQueryObjectReadOp::RAY_QUERY_OBJECT_COMMITTED_HIT:
-            _emit_intrinsic_call("lc_ray_query_committed_hit", inst);
+            _emit_with_template(inst, "lc_ray_query_committed_hit(*(", 0, "))");
             break;
         case xir::RayQueryObjectReadOp::RAY_QUERY_OBJECT_IS_TRIANGLE_CANDIDATE:
             LUISA_NOT_IMPLEMENTED("LC_RAY_QUERY_IS_TRIANGLE_CANDIDATE");
@@ -1486,7 +1590,11 @@ void CUDACodegenXIR::_emit_function_definition(const xir::FunctionDefinition *de
         case xir::DerivedFunctionTag::CALLABLE: {
             auto callable = static_cast<const xir::CallableFunction *>(def);
             _emit_metadata(callable->metadata_list(), 0);
-            _emit_callable_definition(callable);
+            if (_is_ray_query_callback_function(callable)) {
+                _emit_ray_query_callback_definition(callable);
+            } else {
+                _emit_callable_definition(callable);
+            }
             break;
         }
         default: LUISA_NOT_IMPLEMENTED(
@@ -1596,6 +1704,34 @@ void CUDACodegenXIR::_emit_callable_definition(const xir::CallableFunction *call
         _scratch << "\n    LCPrintBuffer const print_buffer,";
     }
     if (any_arg) { _scratch.pop_back(); }
+    _scratch << ") noexcept {\n";
+    // emit lexical scope breakers due to the mismatch of SSA and C++ scopes
+    _emit_hoisted_lexical_scope_breakers();
+    // emit function body
+    _scratch << "\n  /* function body */\n";
+    _emit_instructions(callable->body_block()->instructions(), 1);
+    _scratch << "}\n\n";
+}
+
+void CUDACodegenXIR::_emit_ray_query_callback_definition(const xir::CallableFunction *callable) noexcept {
+    // emit function signature
+    // note: the function signature should already have been validated by
+    // `_is_ray_query_callback_function` so we do not need to check it again
+    _scratch << "__device__ void ";
+    _emit_value_name(callable);
+    // the first argument should be replaced by the ray query result
+    _scratch << "(LCIntersectionResult &result";
+    // emit the rest of the arguments
+    for (auto capture : luisa::span{callable->arguments()}.subspan(1)) {
+        _scratch << ", ";
+        _emit_type_name(capture->type());
+        if (capture->is_reference()) {
+            _scratch << " *const ";
+        } else {
+            _scratch << " const ";
+        }
+        _emit_value_name(capture);
+    }
     _scratch << ") noexcept {\n";
     // emit lexical scope breakers due to the mismatch of SSA and C++ scopes
     _emit_hoisted_lexical_scope_breakers();
