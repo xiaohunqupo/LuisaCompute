@@ -962,6 +962,14 @@ void CUDACodegenXIR::_emit_intrinsic_call(luisa::string_view name, const xir::In
     _scratch << ");";
 }
 
+void CUDACodegenXIR::_preprocess_ray_query_pipelines(luisa::span<const xir::RayQueryPipelineInst *const> pipelines) noexcept {
+    // TODO
+}
+
+void CUDACodegenXIR::_postprocess_ray_query_pipelines(luisa::span<const xir::RayQueryPipelineInst *const> pipelines) noexcept {
+    // TODO
+}
+
 void CUDACodegenXIR::_emit_atomic_inst(const xir::AtomicInst *inst) noexcept {
     LUISA_ASSERT(inst->operand_count() >= 1u /* base */ + inst->value_count(),
                  "Atomic instruction {} has {} operands, but at least {} is expected.",
@@ -1650,6 +1658,9 @@ void CUDACodegenXIR::emit(const xir::Module *module,
         if (analysis.requires_raytracing_query) {
             _scratch << "#define LUISA_ENABLE_OPTIX_RAY_QUERY\n";
         }
+        if (auto n = analysis.ray_query_pipelines.size(); n != 0u) {
+            _scratch << "#define LUISA_RAY_QUERY_IMPL_COUNT " << n << "\n";
+        }
     }
     _scratch << "#define LC_BLOCK_SIZE lc_make_uint3("
              << kernel->block_size().x << ", "
@@ -1675,6 +1686,9 @@ void CUDACodegenXIR::emit(const xir::Module *module,
                  << "\n/* native include end */\n\n";
     }
 
+    // prepare for ray query pipelines
+    _preprocess_ray_query_pipelines(analysis.ray_query_pipelines);
+
     // emit function definitions
     for (auto f : analysis.used_functions_post_order) {
         if (auto def = f->definition()) {
@@ -1683,6 +1697,9 @@ void CUDACodegenXIR::emit(const xir::Module *module,
             LUISA_NOT_IMPLEMENTED("External function");
         }
     }
+
+    // finalize the ray query pipelines
+    _postprocess_ray_query_pipelines(analysis.ray_query_pipelines);
 
     // emit indirect dispatch kernel if allowed
     if (_allow_indirect_dispatch && !_requires_optix) {

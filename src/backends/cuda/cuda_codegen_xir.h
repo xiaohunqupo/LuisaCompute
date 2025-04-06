@@ -87,6 +87,10 @@ private:
     void _emit_operand_list(luisa::span<const xir::Use *const> operands) noexcept;
     void _emit_intrinsic_call(luisa::string_view name, const xir::Instruction *inst) noexcept;
 
+    // ray query pipelines
+    void _preprocess_ray_query_pipelines(luisa::span<const xir::RayQueryPipelineInst *const> pipelines) noexcept;
+    void _postprocess_ray_query_pipelines(luisa::span<const xir::RayQueryPipelineInst *const> pipelines) noexcept;
+
     template<typename F>
     void _with_control_flow(const xir::Instruction *inst, F &&f) noexcept {
         _control_flow_stack.emplace_back(inst);
