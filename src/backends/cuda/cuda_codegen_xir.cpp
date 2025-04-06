@@ -283,25 +283,42 @@ void CUDACodegenXIR::_emit_type_name(const Type *type) noexcept {
 
 void CUDACodegenXIR::_emit_type_definition(const Type *type, luisa::unordered_set<const Type *> &defined_types) noexcept {
     if (!defined_types.emplace(type).second) { return; }
-    LUISA_DEBUG_ASSERT(type->tag() == Type::Tag::STRUCTURE, "Type is not a structure.");
-    // process the members
-    auto members = type->members();
-    for (auto m : members) {
-        if (m->is_structure()) {
-            _emit_type_definition(m, defined_types);
+    switch (type->tag()) {
+        case Type::Tag::STRUCTURE: {
+            auto members = type->members();
+            for (auto m : members) {
+                if (m->is_structure()) {
+                    _emit_type_definition(m, defined_types);
+                }
+            }
+            // generate the type definition if not a builtin type
+            if (!_is_builtin_type(type)) {
+                _scratch << "struct alignas(" << type->alignment() << ") ";
+                _emit_type_name(type);
+                _scratch << " {\n";
+                for (auto i = 0u; i < members.size(); i++) {
+                    _scratch << "  ";
+                    _emit_type_name(members[i]);
+                    _scratch << " m" << i << ";\n";
+                }
+                _scratch << "};\n\n";
+            }
+            break;
         }
-    }
-    // generate the type definition if not a builtin type
-    if (!_is_builtin_type(type)) {
-        _scratch << "struct alignas(" << type->alignment() << ") ";
-        _emit_type_name(type);
-        _scratch << " {\n";
-        for (auto i = 0u; i < members.size(); i++) {
-            _scratch << "  ";
-            _emit_type_name(members[i]);
-            _scratch << " m" << i << ";\n";
+        case Type::Tag::ARRAY: [[fallthrough]];
+        case Type::Tag::BUFFER: {
+            _emit_type_definition(type->element(), defined_types);
+            break;
         }
-        _scratch << "};\n\n";
+        case Type::Tag::CUSTOM: {
+            LUISA_ASSERT(type == _ray_query_all_type ||
+                             type == _ray_query_any_type ||
+                             type == _indirect_buffer_type,
+                         "Unsupported custom type: {}.",
+                         type->description());
+            break;
+        }
+        default: break;
     }
 }
 
@@ -309,9 +326,7 @@ void CUDACodegenXIR::_emit_type_definitions(luisa::unordered_set<const Type *> u
     luisa::vector<const Type *> types;
     types.reserve(used_types.size());
     for (auto t : used_types) {
-        if (t != nullptr && t->is_structure()) {
-            types.emplace_back(t);
-        }
+        if (t != nullptr) { types.emplace_back(t); }
     }
     luisa::sort(types.begin(), types.end(), [](auto a, auto b) noexcept {
         return a->hash() < b->hash();
