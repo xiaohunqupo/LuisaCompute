@@ -163,12 +163,22 @@ int main() {
     auto [m, n] = std::array{1, 2};
 
     auto sth = luisa::make_managed<Something>();
+    sth = sth;
+    sth = std::move(sth);
     sth->set_managed_id(123);
     {
         auto another = sth;
-        auto good = std::move(another);
-        auto more = good;
+        luisa::ManagedPtr<const Something> good = std::move(another);
+        auto gg = good.get();
+        auto ggg = gg->lock();
+        auto more = good->lock();
+        more = std::move(ggg);
+        good = more;
+        another = sth;
     }
 
+    {
+        luisa::ManagedPtr<const Something> bad = std::move(sth);
+    }
 }
 
