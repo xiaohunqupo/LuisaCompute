@@ -6,7 +6,7 @@
 namespace lc::dx {
 namespace detail {
 
-constexpr auto D3D12_BARRIER_SYNC_INPUT_ASSEMBLER = D3D12_BARRIER_SYNC_INDEX_INPUT;// 0x04
+constexpr D3D12_BARRIER_SYNC LUISA_DX12_BARRIER_SYNC_INPUT_INDEX = static_cast<D3D12_BARRIER_SYNC>(0x4);// 0x04
 
 static constexpr D3D12_BARRIER_SYNC BarrierSyncMap[] = {
     D3D12_BARRIER_SYNC_COMPUTE_SHADING,                                     // ComputeRead,
@@ -21,7 +21,7 @@ static constexpr D3D12_BARRIER_SYNC BarrierSyncMap[] = {
     D3D12_BARRIER_SYNC_DEPTH_STENCIL,                                       //DepthWrite
     D3D12_BARRIER_SYNC_EXECUTE_INDIRECT,                                    //IndirectArgs
     D3D12_BARRIER_SYNC_VERTEX_SHADING,                                      //VertexRead,
-    D3D12_BARRIER_SYNC_INPUT_ASSEMBLER,                                     //  IndexRead,
+    LUISA_DX12_BARRIER_SYNC_INPUT_INDEX,                                     //  IndexRead,
     D3D12_BARRIER_SYNC_RENDER_TARGET,                                       //  RenderTarget
     D3D12_BARRIER_SYNC_BUILD_RAYTRACING_ACCELERATION_STRUCTURE,             // AccelInstanceBuffer
     static_cast<D3D12_BARRIER_SYNC>(D3D12_BARRIER_SYNC_PIXEL_SHADING | D3D12_BARRIER_SYNC_NON_PIXEL_SHADING),// RasterRead
