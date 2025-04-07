@@ -145,8 +145,7 @@ void BindlessArray::PreProcessStates(
     std::lock_guard lck{mtx};
     if (mods.empty()) return;
     tracker.Record(
-        &buffer,
-        EnhancedBarrierTracker::Range(),
+        BufferView(&buffer),
         EnhancedBarrierTracker::Usage::ComputeUAV);
 }
 void BindlessArray::UpdateStates(
@@ -188,11 +187,6 @@ void BindlessArray::UpdateStates(
             cs,
             uint3(mods.size(), 1, 1),
             properties);
-
-        tracker.Record(
-            &buffer,
-            EnhancedBarrierTracker::Range(),
-            EnhancedBarrierTracker::Usage::ShaderRead);
     }
     if (!freeQueue.empty()) {
         builder.GetCB()->GetAlloc()->ExecuteAfterComplete(

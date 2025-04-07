@@ -94,13 +94,31 @@ public:
         LCPreProcessVisitor *self;
         SavedArgument const *arg;
         ShaderDispatchCommandBase const &cmd;
+        EnhancedBarrierTracker::Usage uav_usage;
+        EnhancedBarrierTracker::Usage read_usage;
+        EnhancedBarrierTracker::Usage accel_read_usage;
+        Visitor(
+            LCPreProcessVisitor *self,
+            SavedArgument const *arg,
+            ShaderDispatchCommandBase const &cmd,
+            bool is_raster) : self(self), arg(arg), cmd(cmd) {
+            if (is_raster) {
+                uav_usage = EnhancedBarrierTracker::Usage::RasterUAV;
+                read_usage = EnhancedBarrierTracker::Usage::RasterRead;
+                accel_read_usage = EnhancedBarrierTracker::Usage::RasterAccelRead;
+            } else {
+                uav_usage = EnhancedBarrierTracker::Usage::ComputeUAV;
+                read_usage = EnhancedBarrierTracker::Usage::ComputeRead;
+                accel_read_usage = EnhancedBarrierTracker::Usage::ComputeAccelRead;
+            }
+        }
         void operator()(Argument::Buffer const &bf) {
             auto res = reinterpret_cast<Buffer const *>(bf.handle);
             if (((uint)arg->varUsage & (uint)Usage::WRITE) != 0) {
                 LUISA_ASSERT(is_device_buffer(res), "Unordered access buffer can not be host-buffer.");
                 self->stateTracker->Record(
                     BufferView{res, bf.offset, bf.size},
-                    EnhancedBarrierTracker::Usage::ComputeUAV);
+                    uav_usage);
                 // self->stateTracker->RecordState(
                 //     res,
                 //     D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
@@ -109,7 +127,7 @@ public:
                 if (is_device_buffer(res))
                     self->stateTracker->Record(
                         BufferView{res, bf.offset, bf.size},
-                        EnhancedBarrierTracker::Usage::ComputeRead);
+                        read_usage);
                 else {
                     LUISA_ASSERT(res->GetTag() == Resource::Tag::UploadBuffer, "Only upload-buffer allowed as shader's resource.");
                 }
@@ -122,13 +140,13 @@ public:
             if (((uint)arg->varUsage & (uint)Usage::WRITE) != 0) {
                 self->stateTracker->Record(
                     EnhancedBarrierTracker::TexView{rt, bf.level},
-                    EnhancedBarrierTracker::Usage::ComputeUAV);
+                    uav_usage);
             }
             // SRV
             else {
                 self->stateTracker->Record(
                     EnhancedBarrierTracker::TexView{rt, bf.level},
-                    EnhancedBarrierTracker::Usage::ComputeRead);
+                    read_usage);
             }
             ++arg;
         }
@@ -151,9 +169,12 @@ public:
                     self->stateTracker->Record(
                         i.first,
                         EnhancedBarrierTracker::Range(0, i.second),
-                        EnhancedBarrierTracker::Usage::ComputeRead);
+                        read_usage);
                 }
             }
+            self->stateTracker->Record(
+                BufferView(arr->BindlessBuffer()),
+                read_usage);
             ++arg;
         }
         void operator()(Argument::Uniform const &a) {
@@ -173,14 +194,14 @@ public:
                 if (((uint)arg->varUsage & (uint)Usage::WRITE) != 0) {
                     self->stateTracker->Record(
                         BufferView{accel->GetInstBuffer(), 0, accel->GetInstBuffer()->GetByteSize()},
-                        EnhancedBarrierTracker::Usage::ComputeUAV);
+                        uav_usage);
                 } else {
                     self->stateTracker->Record(
                         BufferView{accel->GetInstBuffer(), 0, accel->GetInstBuffer()->GetByteSize()},
-                        EnhancedBarrierTracker::Usage::ComputeRead);
+                        read_usage);
                     self->stateTracker->Record(
                         BufferView{accel->GetAccelBuffer(), 0, accel->GetAccelBuffer()->GetByteSize()},
-                        EnhancedBarrierTracker::Usage::ComputeAccelRead);
+                        accel_read_usage);
                 }
             }
             ++arg;
@@ -296,7 +317,7 @@ public:
     void visit(const ShaderDispatchCommand *cmd) noexcept override {
         auto cs = reinterpret_cast<ComputeShader *>(cmd->handle());
         size_t beforeSize = argBuffer->size();
-        Visitor visitor{this, cs->Args().data(), *cmd};
+        Visitor visitor{this, cs->Args().data(), *cmd, false};
         DecodeCmd(cs->ArgBindings(), visitor);
         DecodeCmd(cmd->arguments(), visitor);
         UniformAlign(16);
@@ -393,7 +414,7 @@ public:
         size_t beforeSize = argBuffer->size();
         auto rtvs = cmd->rtv_texs();
         auto dsv = cmd->dsv_tex();
-        DecodeCmd(cmd->arguments(), Visitor{this, cs->Args().data(), *cmd});
+        DecodeCmd(cmd->arguments(), Visitor{this, cs->Args().data(), *cmd, true});
         UniformAlign(16);
         size_t afterSize = argBuffer->size();
         argVecs->emplace_back(beforeSize, afterSize - beforeSize);
