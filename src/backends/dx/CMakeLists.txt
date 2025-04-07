@@ -63,6 +63,7 @@ if (WIN32)
     target_precompile_headers(luisa-compute-backend-dx PRIVATE pch.h)
     target_include_directories(luisa-compute-backend-dx PRIVATE
             ${DirectX12AgilitySDK_INCLUDE_DIR}
+            ${DirectX12AgilitySDK_INCLUDE_DIR}/d3dx12
             ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(luisa-compute-backend-dx PRIVATE D3D12 d3dcompiler dxgi DirectML)
     target_compile_definitions(luisa-compute-backend-dx PRIVATE UNICODE)
