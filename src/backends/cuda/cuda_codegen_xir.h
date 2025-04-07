@@ -91,11 +91,22 @@ private:
     void _emit_intrinsic_call(luisa::string_view name, const xir::Instruction *inst) noexcept;
 
     // ray query pipelines
+    struct RayQueryPipelineArgument {
+        enum struct Tag : uint8_t {
+            CONTEXT_CAPTURE,
+            KERNEL_PARAM,
+        };
+        Tag tag;
+        bool is_pointer;
+        int mapped_index;
+    };
     struct RayQueryPipelineInfo {
-        size_t index;
-        // TODO
+        uint32_t index;
+        bool any_context_capture{false};
+        luisa::vector<RayQueryPipelineArgument> args;
     };
     luisa::unordered_map<const xir::RayQueryPipelineInst *, RayQueryPipelineInfo> _ray_query_pipeline_info;
+    [[nodiscard]] int _find_ray_query_captured_kernel_param_index(const xir::Value *capture) const noexcept;
     void _preprocess_ray_query_pipelines(luisa::span<const xir::RayQueryPipelineInst *const> pipelines) noexcept;
     void _postprocess_ray_query_pipelines(luisa::span<const xir::RayQueryPipelineInst *const> pipelines) noexcept;
 

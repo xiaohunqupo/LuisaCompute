@@ -558,32 +558,49 @@ void CUDACodegenXIR::_emit_result_value_eq(const xir::Instruction *inst) noexcep
 
 void CUDACodegenXIR::_emit_ray_query_pipeline_inst(const xir::RayQueryPipelineInst *inst, int indent) noexcept {
     // retrieve info
-    auto info = _ray_query_pipeline_info.at(inst);
-    auto captures = inst->captured_argument_uses();
-    if (!captures.empty()) {
+    auto &&info = _ray_query_pipeline_info.at(inst);
+    // prepare capture context if needed
+    if (info.any_context_capture) {
+        _scratch << "/* encode ray query context */\n";
+        _emit_indent(indent);
         _scratch << "LCRayQueryCtx" << info.index << " ";
         _emit_value_name(inst);
-        _scratch << "_ctx = {\n";
-        for (auto capture_use : inst->captured_argument_uses()) {
+        _scratch << "_ctx = {};\n";
+        for (auto i = 0u; i < info.args.size(); i++) {
             _emit_indent(indent + 1);
-            _emit_value_name(capture_use->value());
-            _scratch << ",\n";
+            _emit_value_name(inst);
+            _scratch << "_ctx.m" << info.args[i].mapped_index << " = ";
+            if (info.args[i].is_pointer) { _scratch << "*"; }
+            _scratch << "(";
+            _emit_value_name(inst->captured_argument(i));
+            _scratch << ");\n";
         }
         _emit_indent(indent);
-        _scratch << "};\n";
-        _emit_indent(indent);
     }
+    // invoke the ray query pipeline
     _scratch << "lc_ray_query_trace(*(";
     _emit_value_name(inst->query_object());
     _scratch << "), " << info.index << ", ";
-    if (captures.empty()) {
-        _scratch << "nullptr";
-    } else {
+    if (info.any_context_capture) {
         _scratch << "&";
         _emit_value_name(inst);
         _scratch << "_ctx";
+    } else {
+        _scratch << "nullptr";
     }
     _scratch << ");";
+    // copy out captured pointer values
+    for (auto i = 0u; i < info.args.size(); i++) {
+        if (info.args[i].is_pointer) {
+            _scratch << "\n";
+            _emit_indent(indent + 1);
+            _scratch << "*(";
+            _emit_value_name(inst->captured_argument(i));
+            _scratch << ") = ";
+            _emit_value_name(inst);
+            _scratch << "_ctx.m" << info.args[i].mapped_index << "; /* copy out ray query captured pointer */";
+        }
+    }
 }
 
 void CUDACodegenXIR::_emit_instructions(const xir::InstructionList &inst_list, int indent) noexcept {
@@ -1027,26 +1044,73 @@ void CUDACodegenXIR::_emit_intrinsic_call(luisa::string_view name, const xir::In
     _scratch << ");";
 }
 
+int CUDACodegenXIR::_find_ray_query_captured_kernel_param_index(const xir::Value *capture) const noexcept {
+    return -1;
+}
+
 void CUDACodegenXIR::_preprocess_ray_query_pipelines(luisa::span<const xir::RayQueryPipelineInst *const> pipelines) noexcept {
     for (auto p : pipelines) {
         auto [iter, success] = _ray_query_pipeline_info.emplace(
-            p, RayQueryPipelineInfo{_ray_query_pipeline_info.size()});
+            p, RayQueryPipelineInfo{
+                   .index = static_cast<uint>(_ray_query_pipeline_info.size()),
+                   .any_context_capture = false});
         LUISA_ASSERT(success, "Ray query pipeline {} already exists.", p->name().value_or("unknown"));
-        // emit context struct
-        _scratch << "struct LCRayQueryCtx" << iter->second.index << "{";
-        auto captures = p->captured_argument_uses();
-        if (!captures.empty()) {
-            for (auto i = 0u; i < captures.size(); i++) {
+        // sort the captured arguments
+        struct ContextCapture {
+            const Type *type;
+            int arg_index;
+            int type_align;
+        };
+        // collect argument info
+        luisa::vector<ContextCapture> context;
+        {
+            auto captures = p->captured_argument_uses();
+            iter->second.args.reserve(captures.size());
+            context.reserve(captures.size());
+            for (auto i = 0; i < captures.size(); i++) {
                 auto capture = captures[i]->value();
                 LUISA_ASSERT(capture != nullptr, "Captured argument is null.");
-                _scratch << "\n  ";
-                _emit_type_name(capture->type());
-                if (capture->is_lvalue()) {
-                    _scratch << " *";
+                if (auto k = _find_ray_query_captured_kernel_param_index(capture); k != -1) {
+                    iter->second.args.emplace_back(RayQueryPipelineArgument{
+                        .tag = RayQueryPipelineArgument::Tag::KERNEL_PARAM,
+                        .is_pointer = false,
+                        .mapped_index = k,
+                    });
                 } else {
-                    _scratch << " ";
+                    iter->second.any_context_capture = true;
+                    iter->second.args.emplace_back(RayQueryPipelineArgument{
+                        .tag = RayQueryPipelineArgument::Tag::CONTEXT_CAPTURE,
+                        .is_pointer = capture->is_lvalue(),
+                        .mapped_index = 0,// to fill
+                    });
+                    // collect the non-kernel argument indices
+                    auto t = capture->type();
+                    LUISA_ASSERT(t != nullptr, "Captured argument type is null.");
+                    auto type_align = t->is_resource() || t->is_custom() ? 16u : t->alignment();
+                    context.emplace_back(ContextCapture{
+                        .type = t,
+                        .arg_index = i,
+                        .type_align = static_cast<short>(type_align),
+                    });
                 }
-                _scratch << "m" << i << ";";
+            }
+            // sort the non-kernel argument indices according to their size
+            std::stable_sort(context.begin(), context.end(), [](auto lhs, auto rhs) noexcept {
+                return rhs.type_align < lhs.type_align;
+            });
+            for (auto i = 0u; i < context.size(); i++) {
+                auto arg = context[i].arg_index;
+                iter->second.args[arg].mapped_index = static_cast<int>(i);
+            }
+        }
+        // emit context struct
+        _scratch << "struct LCRayQueryCtx" << iter->second.index << "{";
+        if (!context.empty()) {
+            for (auto i = 0u; i < context.size(); i++) {
+                auto t = context[i].type;
+                _scratch << "\n  ";
+                _emit_type_name(t);
+                _scratch << " m" << i << ";";
             }
             _scratch << "\n";
         }
@@ -1057,9 +1121,7 @@ void CUDACodegenXIR::_preprocess_ray_query_pipelines(luisa::span<const xir::RayQ
 void CUDACodegenXIR::_postprocess_ray_query_pipelines(luisa::span<const xir::RayQueryPipelineInst *const> pipelines) noexcept {
     for (auto p : pipelines) {
         // retrieve the pipeline info
-        auto info = _ray_query_pipeline_info.at(p);
-        // emit the triangle wrapper functions
-        auto captures = p->captured_argument_uses();
+        auto &&info = _ray_query_pipeline_info.at(p);
         using namespace std::string_view_literals;
         for (auto [f, signature] : {
                  std::make_pair(p->on_surface_function(), "LUISA_DECL_RAY_QUERY_TRIANGLE_IMPL"sv),
@@ -1068,16 +1130,22 @@ void CUDACodegenXIR::_postprocess_ray_query_pipelines(luisa::span<const xir::Ray
             _scratch << signature << "(" << info.index << ") {\n"
                      << "  LCIntersectionResult result{};\n";
             if (f != nullptr) {
-                if (!captures.empty()) {
+                if (info.any_context_capture) {
                     _scratch << "  /* decode ray query context */\n"
-                             << "  auto ctx = *static_cast<LCRayQueryCtx" << info.index << " *>(ctx_in);\n";
+                             << "  auto ctx = static_cast<LCRayQueryCtx" << info.index << " *>(ctx_in);\n";
                 }
                 _scratch << "  /* invoke ray query pipeline */\n"
                          << "  ";
                 _emit_value_name(f);
                 _scratch << "(result";
-                for (auto i = 0u; i < captures.size(); i++) {
-                    _scratch << ", ctx.m" << i;
+                for (auto arg : info.args) {
+                    _scratch << ", ";
+                    if (arg.is_pointer) { _scratch << "&"; }
+                    switch (arg.tag) {
+                        case RayQueryPipelineArgument::Tag::CONTEXT_CAPTURE: _scratch << "(ctx->m"; break;
+                        case RayQueryPipelineArgument::Tag::KERNEL_PARAM: _scratch << "(params.m"; break;
+                    }
+                    _scratch << arg.mapped_index << ")";
                 }
                 _scratch << ");\n";
             }
