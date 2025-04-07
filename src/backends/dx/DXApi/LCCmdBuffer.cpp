@@ -1269,7 +1269,6 @@ void LCCmdBuffer::Present(
     auto alloc = queue.CreateAllocator(maxAlloc);
     {
         std::lock_guard lck{mtx};
-        tracker->listType = alloc->Type();
         // swapchain->frameIndex = swapchain->swapChain->GetCurrentBackBufferIndex();
         auto &&rt = &swapchain->m_renderTargets[swapchain->frameIndex];
         swapchain->frameIndex += 1;
@@ -1277,11 +1276,32 @@ void LCCmdBuffer::Present(
         auto cb = alloc->GetBuffer();
         auto bd = cb->Build();
         auto cmdList = cb->CmdList();
-        tracker->Record(
-            EnhancedBarrierTracker::ResourceView(rt), EnhancedBarrierTracker::Usage::CopyDest);
-        tracker->Record(
-            EnhancedBarrierTracker::ResourceView(img), EnhancedBarrierTracker::Usage::CopySource);
-        tracker->UpdateState(bd);
+        {
+            D3D12_RESOURCE_BARRIER barriers[2];
+            D3D12_RESOURCE_BARRIER &img_barrier = barriers[0];
+            D3D12_RESOURCE_BARRIER &rt_barrier = barriers[1];
+
+            rt_barrier = D3D12_RESOURCE_BARRIER{
+                .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
+                .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE};
+            img_barrier = D3D12_RESOURCE_BARRIER{
+                .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
+                .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE};
+            rt_barrier.Transition.pResource = rt->GetResource();
+            rt_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+            rt_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
+            rt_barrier.Transition.Subresource = 0;
+            img_barrier.Transition.pResource = img->GetResource();
+            img_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COMMON;
+            img_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
+            img_barrier.Transition.Subresource = 0;
+            bd.GetCB()->CmdList()->ResourceBarrier(vstd::array_count(barriers), barriers);
+        }
+        // tracker->Record(
+        //     EnhancedBarrierTracker::ResourceView(rt), EnhancedBarrierTracker::Usage::CopyDest);
+        // tracker->Record(
+        //     EnhancedBarrierTracker::ResourceView(img), EnhancedBarrierTracker::Usage::CopySource);
+        // tracker->UpdateState(bd);
         D3D12_TEXTURE_COPY_LOCATION sourceLocation;
         sourceLocation.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
         sourceLocation.SubresourceIndex = 0;
@@ -1295,7 +1315,27 @@ void LCCmdBuffer::Present(
             0, 0, 0,
             &sourceLocation,
             nullptr);
-        tracker->RestoreState(bd);
+        {
+            D3D12_RESOURCE_BARRIER barriers[2];
+            D3D12_RESOURCE_BARRIER &img_barrier = barriers[0];
+            D3D12_RESOURCE_BARRIER &rt_barrier = barriers[1];
+
+            rt_barrier = D3D12_RESOURCE_BARRIER{
+                .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
+                .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE};
+            img_barrier = D3D12_RESOURCE_BARRIER{
+                .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
+                .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE};
+            rt_barrier.Transition.pResource = rt->GetResource();
+            rt_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+            rt_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+            rt_barrier.Transition.Subresource = 0;
+            img_barrier.Transition.pResource = img->GetResource();
+            img_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
+            img_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COMMON;
+            img_barrier.Transition.Subresource = 0;
+            bd.GetCB()->CmdList()->ResourceBarrier(vstd::array_count(barriers), barriers);
+        }
     }
     queue.ExecuteAndPresent(std::move(alloc), swapchain->swapChain.Get(), swapchain->vsync);
 }
