@@ -24,7 +24,7 @@ D3D12_RESOURCE_STATES EnhancedBarrierTrackerBackup::ToStates(
         if (sync & (D3D12_BARRIER_SYNC_ALL |
                     D3D12_BARRIER_SYNC_DRAW |
                     D3D12_BARRIER_SYNC_ALL_SHADING)) {
-            st |= D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+            st |= D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE;
         } else {
             if ((sync & D3D12_BARRIER_SYNC_PIXEL_SHADING) == 0) {
                 st |= D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;

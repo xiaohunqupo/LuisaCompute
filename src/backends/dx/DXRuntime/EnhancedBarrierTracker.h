@@ -35,7 +35,9 @@ public:
         IndexRead,
         RenderTarget,
         AccelInstanceBuffer,
-        ShaderRead,
+        RasterRead,
+        RasterAccelRead,
+        RasterUAV,
     };
     struct Range {
         uint64 min;

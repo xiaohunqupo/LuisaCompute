@@ -18,10 +18,12 @@ static constexpr D3D12_BARRIER_SYNC BarrierSyncMap[] = {
     D3D12_BARRIER_SYNC_DEPTH_STENCIL,                                       //DepthWrite
     D3D12_BARRIER_SYNC_EXECUTE_INDIRECT,                                    //IndirectArgs
     D3D12_BARRIER_SYNC_VERTEX_SHADING,                                      //VertexRead,
-    D3D12_BARRIER_SYNC_DRAW,                                                //  IndexRead,
+    D3D12_BARRIER_SYNC_INPUT_ASSEMBLER,                                     //  IndexRead,
     D3D12_BARRIER_SYNC_RENDER_TARGET,                                       //  RenderTarget
     D3D12_BARRIER_SYNC_BUILD_RAYTRACING_ACCELERATION_STRUCTURE,             // AccelInstanceBuffer
-    D3D12_BARRIER_SYNC_PIXEL_SHADING | D3D12_BARRIER_SYNC_NON_PIXEL_SHADING,//ShaderRead
+    D3D12_BARRIER_SYNC_PIXEL_SHADING | D3D12_BARRIER_SYNC_NON_PIXEL_SHADING,// RasterRead
+    D3D12_BARRIER_SYNC_PIXEL_SHADING | D3D12_BARRIER_SYNC_NON_PIXEL_SHADING,//RasterAccelRead
+    D3D12_BARRIER_SYNC_PIXEL_SHADING | D3D12_BARRIER_SYNC_NON_PIXEL_SHADING,//RasterUAV
 
 };
 static constexpr D3D12_BARRIER_ACCESS BarrierAccessMap[] = {
@@ -40,7 +42,9 @@ static constexpr D3D12_BARRIER_ACCESS BarrierAccessMap[] = {
     D3D12_BARRIER_ACCESS_INDEX_BUFFER,                           //  IndexRead,
     D3D12_BARRIER_ACCESS_RENDER_TARGET,                          //RenderTarget
     D3D12_BARRIER_ACCESS_SHADER_RESOURCE,                        //AccelInstanceBuffer
-    D3D12_BARRIER_ACCESS_SHADER_RESOURCE,                        //ShaderRead
+    D3D12_BARRIER_ACCESS_SHADER_RESOURCE,                        // RasterRead
+    D3D12_BARRIER_ACCESS_RAYTRACING_ACCELERATION_STRUCTURE_READ, // RasterAccelRead,
+    D3D12_BARRIER_ACCESS_UNORDERED_ACCESS,                       // RasterUAV,
 };
 static constexpr D3D12_BARRIER_LAYOUT BarrierLayoutMap[] = {
     D3D12_BARRIER_LAYOUT_SHADER_RESOURCE,    // ComputeRead,
@@ -58,7 +62,9 @@ static constexpr D3D12_BARRIER_LAYOUT BarrierLayoutMap[] = {
     D3D12_BARRIER_LAYOUT_UNDEFINED,          //  IndexRead,
     D3D12_BARRIER_LAYOUT_RENDER_TARGET,      //RenderTarget
     D3D12_BARRIER_LAYOUT_UNDEFINED,          //AccelInstanceBuffer
-    D3D12_BARRIER_LAYOUT_SHADER_RESOURCE     //ShaderRead
+    D3D12_BARRIER_LAYOUT_SHADER_RESOURCE,    // RasterRead
+    D3D12_BARRIER_LAYOUT_UNDEFINED,          // RasterAccelRead,
+    D3D12_BARRIER_LAYOUT_UNORDERED_ACCESS,   // RasterUAV,
 };
 
 }// namespace detail
