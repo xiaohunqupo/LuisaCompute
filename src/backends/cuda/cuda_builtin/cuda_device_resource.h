@@ -2059,10 +2059,10 @@ struct LCIntersectionResult {
 };
 
 #define LUISA_DECL_RAY_QUERY_PROCEDURAL_IMPL(index) \
-    [[nodiscard]] LCIntersectionResult lc_ray_query_procedural_intersection_##index(void *ctx_in) noexcept
+    [[nodiscard]] __device__ __forceinline__ LCIntersectionResult lc_ray_query_procedural_intersection_##index(void *ctx_in) noexcept
 
 #define LUISA_DECL_RAY_QUERY_TRIANGLE_IMPL(index) \
-    [[nodiscard]] LCIntersectionResult lc_ray_query_triangle_intersection_##index(void *ctx_in) noexcept
+    [[nodiscard]] __device__ __forceinline__ LCIntersectionResult lc_ray_query_triangle_intersection_##index(void *ctx_in) noexcept
 
 #define LC_RAY_QUERY_PROCEDURAL_CANDIDATE_HIT(q) lc_ray_query_procedural_candidate()
 #define LC_RAY_QUERY_TRIANGLE_CANDIDATE_HIT(q) lc_ray_query_triangle_candidate()
