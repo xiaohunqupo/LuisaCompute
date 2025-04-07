@@ -522,7 +522,7 @@ void CUDACodegenXIR::_emit_global_constants(luisa::unordered_set<const xir::Cons
     });
     for (auto c : constants) {
         _emit_metadata(c->metadata_list(), 0);
-        _scratch << "__constant__ LC_CONSTANT lc_ubyte ";
+        _scratch << "__constant__ alignas(16) LC_CONSTANT lc_ubyte ";
         _emit_value_name(c, false);
         auto n = c->type()->size();
         _scratch << "[" << n << "] = /* ";
@@ -1810,7 +1810,7 @@ void CUDACodegenXIR::_emit_hoisted_lexical_scope_breakers() noexcept {
 
 void CUDACodegenXIR::_emit_callable_definition(const xir::CallableFunction *callable) noexcept {
     // emit function signature
-    _scratch << "__device__ inline ";
+    _scratch << "__forceinline__ __device__ ";
     _emit_type_name(callable->type());
     _scratch << " ";
     _emit_value_name(callable);
@@ -1846,7 +1846,7 @@ void CUDACodegenXIR::_emit_ray_query_callback_definition(const xir::CallableFunc
     // emit function signature
     // note: the function signature should already have been validated by
     // `_is_ray_query_callback_function` so we do not need to check it again
-    _scratch << "__device__ inline void ";
+    _scratch << "__forceinline__ __device__ void ";
     _emit_value_name(callable);
     // the first argument should be replaced by the ray query result
     _scratch << "(LCIntersectionResult &result";
