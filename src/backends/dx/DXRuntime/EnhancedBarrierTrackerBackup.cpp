@@ -3,7 +3,8 @@
 namespace lc::dx {
 D3D12_RESOURCE_STATES EnhancedBarrierTrackerBackup::ToStates(
     D3D12_BARRIER_SYNC sync,
-    D3D12_BARRIER_ACCESS access) {
+    D3D12_BARRIER_ACCESS access,
+    D3D12_BARRIER_LAYOUT layout) {
     auto state = D3D12_RESOURCE_STATE_COMMON;
     if ((access & (D3D12_BARRIER_ACCESS_CONSTANT_BUFFER | D3D12_BARRIER_ACCESS_VERTEX_BUFFER)) != 0) {
         state |= D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
@@ -61,7 +62,38 @@ D3D12_RESOURCE_STATES EnhancedBarrierTrackerBackup::ToStates(
         state |= D3D12_RESOURCE_STATE_VIDEO_PROCESS_READ;
     if ((access & D3D12_BARRIER_ACCESS_VIDEO_PROCESS_WRITE) != 0)
         state |= D3D12_RESOURCE_STATE_VIDEO_PROCESS_WRITE;
-
+    switch (layout) {
+        case D3D12_BARRIER_LAYOUT_PRESENT: {
+            state |= D3D12_RESOURCE_STATE_PRESENT;
+        } break;
+        case D3D12_BARRIER_LAYOUT_GENERIC_READ: {
+            state |= D3D12_RESOURCE_STATE_GENERIC_READ;
+        } break;
+        case D3D12_BARRIER_LAYOUT_RENDER_TARGET: {
+            state |= D3D12_RESOURCE_STATE_RENDER_TARGET;
+        } break;
+        case D3D12_BARRIER_LAYOUT_UNORDERED_ACCESS: {
+            state |= D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+        } break;
+        case D3D12_BARRIER_LAYOUT_DEPTH_STENCIL_WRITE: {
+            state |= D3D12_RESOURCE_STATE_DEPTH_WRITE;
+        } break;
+        case D3D12_BARRIER_LAYOUT_DEPTH_STENCIL_READ: {
+            state |= D3D12_RESOURCE_STATE_DEPTH_READ;
+        } break;
+        case D3D12_BARRIER_LAYOUT_COPY_SOURCE: {
+            state |= D3D12_RESOURCE_STATE_COPY_SOURCE;
+        } break;
+        case D3D12_BARRIER_LAYOUT_COPY_DEST: {
+            state |= D3D12_RESOURCE_STATE_COPY_DEST;
+        } break;
+        case D3D12_BARRIER_LAYOUT_RESOLVE_SOURCE: {
+            state |= D3D12_RESOURCE_STATE_RESOLVE_SOURCE;
+        } break;
+        case D3D12_BARRIER_LAYOUT_RESOLVE_DEST: {
+            state |= D3D12_RESOURCE_STATE_RESOLVE_DEST;
+        } break;
+    }
     switch (listType) {
         case D3D12_COMMAND_LIST_TYPE_COMPUTE: {
             state &= ~D3D12_RESOURCE_STATE_INDEX_BUFFER;
@@ -85,8 +117,8 @@ void EnhancedBarrierTrackerBackup::UpdateResourceState(Resource const *resPtr, R
         auto &bf = state.layer_states.get<0>();
         D3D12_RESOURCE_BARRIER &barrier = barriers.emplace_back();
         barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-        auto before_state = bf.first_time ? resPtr->GetInitState() : ToStates(bf.before_sync, bf.before_access);
-        auto after_state = ToStates(bf.after_sync, bf.after_access);
+        auto before_state = bf.first_time ? resPtr->GetInitState() : ToStates(bf.before_sync, bf.before_access, D3D12_BARRIER_LAYOUT_UNDEFINED);
+        auto after_state = ToStates(bf.after_sync, bf.after_access, D3D12_BARRIER_LAYOUT_UNDEFINED);
         if (before_state == after_state) {
             barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
             barrier.UAV.pResource = resPtr->GetResource();
@@ -110,8 +142,8 @@ void EnhancedBarrierTrackerBackup::UpdateResourceState(Resource const *resPtr, R
             i.level_require_update = false;
             D3D12_RESOURCE_BARRIER &barrier = barriers.emplace_back();
             barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-            auto before_state = i.first_time ? resPtr->GetInitState() : ToStates(i.before_sync, i.before_access);
-            auto after_state = ToStates(i.after_sync, i.after_access);
+            auto before_state = i.first_time ? resPtr->GetInitState() : ToStates(i.before_sync, i.before_access, i.before_layout);
+            auto after_state = ToStates(i.after_sync, i.after_access, i.after_layout);
             if (before_state == after_state) {
                 barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
                 barrier.UAV.pResource = resPtr->GetResource();
@@ -156,7 +188,7 @@ void EnhancedBarrierTrackerBackup::RestoreState(CommandBufferBuilder const &cmdB
         if (state.layer_states.index() == 0) {
             auto &bf = state.layer_states.get<0>();
             if (bf.before_access == D3D12_BARRIER_ACCESS_COMMON || bf.first_time) continue;
-            auto before_state = ToStates(bf.before_sync, bf.before_access);
+            auto before_state = ToStates(bf.before_sync, bf.before_access, D3D12_BARRIER_LAYOUT_UNDEFINED);
             auto after_state = resPtr->GetInitState();
             if (before_state == after_state) continue;
             D3D12_RESOURCE_BARRIER &barrier = barriers.emplace_back();
@@ -172,7 +204,7 @@ void EnhancedBarrierTrackerBackup::RestoreState(CommandBufferBuilder const &cmdB
             for (auto idx : vstd::range(vec.size())) {
                 auto &i = vec[idx];
                 if (!i.level_inited || i.first_time) continue;
-                auto before_state = ToStates(i.before_sync, i.before_access);
+                auto before_state = ToStates(i.before_sync, i.before_access, i.before_layout);
                 auto after_state = resPtr->GetInitState();
                 if (before_state == after_state) continue;
                 D3D12_RESOURCE_BARRIER &barrier = barriers.emplace_back();
