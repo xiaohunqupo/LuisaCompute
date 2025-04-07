@@ -100,7 +100,7 @@ if __name__ == "__main__":
             print(f"using lc_{t} = {native_t};", file=file)
         print(file=file)
         print('''template<typename T>
-[[nodiscard]] __device__ inline auto lc_undef() noexcept {
+[[nodiscard]] __device__ inline auto lc_undef_value() noexcept {
     T x;
     return x;
 }

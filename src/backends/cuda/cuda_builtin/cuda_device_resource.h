@@ -14,7 +14,7 @@ __device__ void lc_assume(bool) noexcept {}
 #define lc_assume(...) __builtin_assume(__VA_ARGS__)
 #endif
 
-[[noreturn]] void lc_trap() noexcept { asm("trap;"); }
+[[noreturn]] void lc_trap() noexcept { asm volatile("trap;"); }
 
 template<typename T = void>
 [[noreturn]] __device__ T lc_unreachable(
