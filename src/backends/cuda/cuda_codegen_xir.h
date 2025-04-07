@@ -54,6 +54,7 @@ private:
 
 private:
     [[nodiscard]] static bool _should_emit_global_constant(const xir::Constant *c) noexcept;
+    [[nodiscard]] bool _is_ray_query_callback_function(const xir::CallableFunction *f) const noexcept;
     [[nodiscard]] bool _is_builtin_type(const Type *t) const noexcept;
     void _emit_type_name(const Type *type) noexcept;
     void _emit_type_definition(const Type *type, luisa::unordered_set<const Type *> &defined_types) noexcept;
@@ -65,11 +66,13 @@ private:
     void _emit_kernel_definition(const xir::KernelFunction *kernel, luisa::span<const Function::Binding> bindings) noexcept;
     void _emit_hoisted_lexical_scope_breakers() noexcept;
     void _emit_callable_definition(const xir::CallableFunction *callable) noexcept;
+    void _emit_ray_query_callback_definition(const xir::CallableFunction *callable) noexcept;
     void _emit_instructions(const xir::InstructionList &inst_list, int indent) noexcept;
     void _emit_metadata(const xir::MetadataList &md_list, int indent) const noexcept;
     void _emit_indent(int indent) const noexcept;
     void _emit_access_chain(const Type *base_type, luisa::span<const xir::Use *const> chain) noexcept;
     void _emit_result_value_eq(const xir::Instruction *inst) noexcept;
+    void _emit_ray_query_pipeline_inst(const xir::RayQueryPipelineInst *inst, int indent) noexcept;
     void _emit_if_inst(const xir::IfInst *inst, int indent) noexcept;
     void _emit_switch_inst(const xir::SwitchInst *inst, int indent) noexcept;
     void _emit_loop_inst(const xir::LoopInst *inst, int indent) noexcept;
@@ -86,6 +89,27 @@ private:
     void _emit_conditional_branch_inst(const xir::ConditionalBranchInst *inst) noexcept;
     void _emit_operand_list(luisa::span<const xir::Use *const> operands) noexcept;
     void _emit_intrinsic_call(luisa::string_view name, const xir::Instruction *inst) noexcept;
+
+    // ray query pipelines
+    struct RayQueryPipelineArgument {
+        enum struct Tag : uint8_t {
+            CONTEXT_CAPTURE,
+            KERNEL_PARAM,
+        };
+        Tag tag;
+        bool is_pointer;
+        int mapped_index;
+    };
+    struct RayQueryPipelineInfo {
+        uint32_t index;
+        bool any_context_capture{false};
+        luisa::vector<RayQueryPipelineArgument> args;
+    };
+    luisa::unordered_map<const xir::RayQueryPipelineInst *, RayQueryPipelineInfo> _ray_query_pipeline_info;
+    [[nodiscard]] int _find_ray_query_captured_kernel_param_index(const xir::Value *capture) const noexcept;
+    void _preprocess_ray_query_pipelines(luisa::span<const xir::RayQueryPipelineInst *const> pipelines) noexcept;
+    void _postprocess_ray_query_pipelines(luisa::span<const xir::RayQueryPipelineInst *const> pipelines,
+                                          luisa::span<const Function::Binding> bindings) noexcept;
 
     template<typename F>
     void _with_control_flow(const xir::Instruction *inst, F &&f) noexcept {
