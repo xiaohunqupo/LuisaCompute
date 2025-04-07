@@ -11,7 +11,7 @@ using lc_long = long long;
 using lc_ulong = unsigned long long;
 
 template<typename T>
-[[nodiscard]] __device__ inline auto lc_undef() noexcept {
+[[nodiscard]] __device__ inline auto lc_undef_value() noexcept {
     T x;
     return x;
 }

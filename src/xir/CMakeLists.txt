@@ -8,6 +8,7 @@ set(LUISA_COMPUTE_XIR_SOURCES
         instruction.cpp
         metadata.cpp
         module.cpp
+        op.cpp
         pool.cpp
         special_register.cpp
         undefined.cpp
@@ -32,7 +33,6 @@ set(LUISA_COMPUTE_XIR_SOURCES
         instructions/if.cpp
         instructions/load.cpp
         instructions/loop.cpp
-        op.cpp
         instructions/outline.cpp
         instructions/phi.cpp
         instructions/print.cpp
@@ -66,10 +66,11 @@ set(LUISA_COMPUTE_XIR_SOURCES
         passes/sroa.cpp
         passes/trace_gep.cpp
         passes/aggregate_field_bitmask.cpp
+        passes/early_return_elimination.cpp
         passes/pointer_usage.cpp
+        passes/lex_scope_analysis.cpp
         passes/local_store_forward.cpp
         passes/local_load_elimination.cpp
-        passes/early_return_elimination.cpp
         passes/lower_ray_query_loop.cpp
         passes/mem2reg.cpp
         passes/autodiff.cpp

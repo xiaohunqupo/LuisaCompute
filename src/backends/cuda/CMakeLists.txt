@@ -46,7 +46,6 @@ if (CUDAToolkit_FOUND)
             luisa-compute-vulkan-swapchain
             luisa-compute-xir
             reproc reproc++)
-    target_precompile_headers(luisa-compute-backend-cuda PRIVATE pch.h)
 
     find_library(CUDA_DEVICE_RUNTIME_LIBRARY cudadevrt ${CUDAToolkit_LIBRARY_DIR})
     add_custom_command(TARGET luisa-compute-backend-cuda POST_BUILD

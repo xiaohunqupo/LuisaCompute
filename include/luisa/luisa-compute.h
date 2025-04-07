@@ -253,6 +253,7 @@
 #include <luisa/xir/passes/dce.h>
 #include <luisa/xir/passes/dom_tree.h>
 #include <luisa/xir/passes/early_return_elimination.h>
+#include <luisa/xir/passes/lex_scope_analysis.h>
 #include <luisa/xir/passes/local_load_elimination.h>
 #include <luisa/xir/passes/local_store_forward.h>
 #include <luisa/xir/passes/lower_ray_query_loop.h>

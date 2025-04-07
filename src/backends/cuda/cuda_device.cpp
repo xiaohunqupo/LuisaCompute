@@ -4,11 +4,10 @@
 #include <thread>
 #include <cstdlib>
 
-#include <nvtx3/nvToolsExtCuda.h>
-
 #include <luisa/core/clock.h>
 #include <luisa/core/binary_io.h>
 #include <luisa/core/string_scratch.h>
+#include <luisa/core/logging.h>
 #include <luisa/runtime/rhi/sampler.h>
 #include <luisa/runtime/bindless_array.h>
 #include <luisa/runtime/dispatch_buffer.h>
@@ -743,7 +742,8 @@ ShaderCreationInfo CUDADevice::create_shader(const ShaderOption &option, Functio
             auto xir_module = luisa_cuda_backend_translate_ast_to_xir(kernel, option);
             Clock clk;
             CUDACodegenXIR codegen{scratch, !_cudadevrt_library.empty()};
-            codegen.emit(xir_module.get(), _compiler->device_library(), option.native_include);
+            codegen.emit(xir_module.get(), kernel.bound_arguments(),
+                         _compiler->device_library(), option.native_include);
             LUISA_INFO("CUDA Codegen XIR generated source in {} ms.", clk.toc());
             // dump for debugging
             {
