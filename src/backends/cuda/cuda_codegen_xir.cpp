@@ -448,7 +448,7 @@ void CUDACodegenXIR::_emit_value_name(const xir::Value *value, bool is_use) noex
     LUISA_DEBUG_ASSERT(value != nullptr, "Value is null.");
     switch (value->derived_value_tag()) {
         case xir::DerivedValueTag::UNDEFINED: {
-            _scratch << "(lc_undef<";
+            _scratch << "(lc_undef_value<";
             _emit_type_name(value->type());
             _scratch << ">())";
             break;
