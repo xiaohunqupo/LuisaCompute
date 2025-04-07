@@ -282,7 +282,7 @@ void CUDACodegenXIR::_emit_type_name(const Type *type) noexcept {
 }
 
 void CUDACodegenXIR::_emit_type_definition(const Type *type, luisa::unordered_set<const Type *> &defined_types) noexcept {
-    if (!defined_types.emplace(type).second) { return; }
+    if (type == nullptr || !defined_types.emplace(type).second) { return; }
     switch (type->tag()) {
         case Type::Tag::STRUCTURE: {
             auto members = type->members();
