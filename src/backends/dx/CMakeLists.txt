@@ -48,23 +48,11 @@ if (WIN32)
         endif ()
     endforeach ()
 
-    # download Agility SDK
-    include(FetchContent)
-    FetchContent_Declare(DirectX12AgilitySDK
-            URL https://www.nuget.org/api/v2/package/Microsoft.Direct3D.D3D12/1.615.1
-            URL_HASH MD5=4be5fc7366fb1ccc1645c39c3c1901fe)
-    FetchContent_MakeAvailable(DirectX12AgilitySDK)
-    set(DirectX12AgilitySDK_INCLUDE_DIR "${directx12agilitysdk_SOURCE_DIR}/build/native/include")
-    set(DirectX12AgilitySDK_LIBRARY_DIR "${directx12agilitysdk_SOURCE_DIR}/build/native/bin/x64")
-
     luisa_compute_add_backend(dx
             SOURCES ${LC_BACKEND_DX_SOURCES}
             SUPPORT_DIR ${LUISA_COMPUTE_DX_SDK_DIR})
     target_precompile_headers(luisa-compute-backend-dx PRIVATE pch.h)
-    target_include_directories(luisa-compute-backend-dx PRIVATE
-            ${DirectX12AgilitySDK_INCLUDE_DIR}
-            ${DirectX12AgilitySDK_INCLUDE_DIR}/d3dx12
-            ${CMAKE_CURRENT_SOURCE_DIR})
+    target_include_directories(luisa-compute-backend-dx PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(luisa-compute-backend-dx PRIVATE D3D12 d3dcompiler dxgi DirectML)
     target_compile_definitions(luisa-compute-backend-dx PRIVATE UNICODE)
     if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -73,15 +61,6 @@ if (WIN32)
                 m128_f32=vector4_f32
                 m128_u32=vector4_u32)
     endif ()
-
-    # copy files
-    add_custom_target(luisa-compute-backend-dx-copy-agility-sdk ALL
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${DirectX12AgilitySDK_LIBRARY_DIR}"
-            "$<TARGET_FILE_DIR:luisa-compute-backend-dx>/")
-    add_dependencies(luisa-compute-backend-dx luisa-compute-backend-dx-copy-agility-sdk)
-    install(DIRECTORY ${DirectX12AgilitySDK_LIBRARY_DIR}/
-            DESTINATION ${CMAKE_INSTALL_BINDIR}/)
 
     # for inter-op
     find_package(CUDAToolkit 11.7 QUIET)
