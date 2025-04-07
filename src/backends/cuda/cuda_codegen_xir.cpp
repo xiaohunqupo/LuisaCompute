@@ -352,7 +352,7 @@ void CUDACodegenXIR::_emit_kernel_params_struct(const xir::KernelFunction *kerne
     _scratch << "\n  alignas(16) lc_uint4 ls_kid;";
     _scratch << "\n};\n\n";
     if (_requires_optix) {// optix requires __constant__ params
-        _scratch << "extern \"C\" { __constant__ Params params = {}; }\n\n";
+        _scratch << "extern \"C\" __constant__ Params params;\n\n";
     }
 }
 
