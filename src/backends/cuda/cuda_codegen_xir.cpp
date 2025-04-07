@@ -567,13 +567,15 @@ void CUDACodegenXIR::_emit_ray_query_pipeline_inst(const xir::RayQueryPipelineIn
         _emit_value_name(inst);
         _scratch << "_ctx = {};\n";
         for (auto i = 0u; i < info.args.size(); i++) {
-            _emit_indent(indent + 1);
-            _emit_value_name(inst);
-            _scratch << "_ctx.m" << info.args[i].mapped_index << " = ";
-            if (info.args[i].is_pointer) { _scratch << "*"; }
-            _scratch << "(";
-            _emit_value_name(inst->captured_argument(i));
-            _scratch << ");\n";
+            if (info.args[i].tag == RayQueryPipelineArgument::Tag::CONTEXT_CAPTURE) {
+                _emit_indent(indent + 1);
+                _emit_value_name(inst);
+                _scratch << "_ctx.m" << info.args[i].mapped_index << " = ";
+                if (info.args[i].is_pointer) { _scratch << "*"; }
+                _scratch << "(";
+                _emit_value_name(inst->captured_argument(i));
+                _scratch << ");\n";
+            }
         }
         _emit_indent(indent);
     }
@@ -1045,7 +1047,44 @@ void CUDACodegenXIR::_emit_intrinsic_call(luisa::string_view name, const xir::In
 }
 
 int CUDACodegenXIR::_find_ray_query_captured_kernel_param_index(const xir::Value *capture) const noexcept {
-    return -1;
+    // try to find out if the captured argument is a kernel parameter
+    // if so, return the index of the kernel parameter
+    // otherwise, return -1
+
+    if (!capture->isa<xir::Argument>() || capture->isa<xir::ReferenceArgument>()) {
+        // if captured value is not an argument or is a reference argument, skip
+        return -1;
+    }
+    // we can safely cast to argument and find its index in the parent function
+    auto argument = static_cast<const xir::Argument *>(capture);
+    auto parent = argument->parent_function();
+    auto arg_index = [argument, parent] {
+        for (auto i = 0; i < parent->arguments().size(); i++) {
+            if (parent->arguments()[i] == argument) { return i; }
+        }
+        LUISA_ERROR_WITH_LOCATION("Cannot find argument index for captured value.");
+    }();
+    // if the argument is a kernel parameter, we can return its index
+    if (parent->isa<xir::KernelFunction>()) { return arg_index; }
+    // must be a callable function otherwise
+    LUISA_ASSERT(parent->isa<xir::CallableFunction>(), "Parent function is not a kernel or callable function.");
+    // find all uses of the callable and check if they all point to the same kernel parameter
+    auto kernel_param_index = -1;
+    for (auto &&use : parent->use_list()) {
+        if (auto user = use.user(); user != nullptr && user->isa<xir::CallInst>()) {
+            if (auto in_arg = _find_ray_query_captured_kernel_param_index(
+                    static_cast<const xir::CallInst *>(user)->argument(arg_index));
+                in_arg != -1) {
+                if (kernel_param_index == -1) { kernel_param_index = in_arg; }
+                if (kernel_param_index != in_arg) { return -1; }
+            } else {
+                return -1;
+            }
+        } else {
+            return -1;
+        }
+    }
+    return kernel_param_index;
 }
 
 void CUDACodegenXIR::_preprocess_ray_query_pipelines(luisa::span<const xir::RayQueryPipelineInst *const> pipelines) noexcept {
