@@ -478,7 +478,7 @@ void CUDACodegenXIR::_emit_value_name(const xir::Value *value, bool is_use) noex
                     _emit_type_name(c->type());
                     _scratch << ">(";
                 }
-                _scratch << "c" << get_global_index(value);
+                _scratch << "constant_" << get_global_index(value);
                 if (is_use) {
                     _scratch << "))";
                 }
@@ -1810,7 +1810,11 @@ void CUDACodegenXIR::_emit_hoisted_lexical_scope_breakers() noexcept {
 
 void CUDACodegenXIR::_emit_callable_definition(const xir::CallableFunction *callable) noexcept {
     // emit function signature
-    _scratch << "__forceinline__ __device__ ";
+    _scratch << "extern \"C\" ";
+    if (callable->arguments().size() >= 8u) {
+        _scratch << "__forceinline__ ";// nvcc can be stupid with inlining
+    }
+    _scratch << "__device__ ";
     _emit_type_name(callable->type());
     _scratch << " ";
     _emit_value_name(callable);
@@ -1846,7 +1850,7 @@ void CUDACodegenXIR::_emit_ray_query_callback_definition(const xir::CallableFunc
     // emit function signature
     // note: the function signature should already have been validated by
     // `_is_ray_query_callback_function` so we do not need to check it again
-    _scratch << "__forceinline__ __device__ void ";
+    _scratch << "extern \"C\" __forceinline__ __device__ void ";
     _emit_value_name(callable);
     // the first argument should be replaced by the ray query result
     _scratch << "(LCIntersectionResult &result";
