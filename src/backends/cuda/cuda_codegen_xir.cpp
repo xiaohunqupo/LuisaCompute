@@ -338,13 +338,12 @@ void CUDACodegenXIR::_emit_type_definitions(luisa::unordered_set<const Type *> u
 void CUDACodegenXIR::_emit_kernel_params_struct(const xir::KernelFunction *kernel) noexcept {
     // declare the kernel argument struct
     _scratch << "struct alignas(16) Params {";
-    for (auto arg : kernel->arguments()) {
+    for (auto i = 0u; i < kernel->arguments().size(); i++) {
+        auto arg = kernel->arguments()[i];
         LUISA_ASSERT(!arg->is_reference(), "Reference argument is not supported.");
         _scratch << "\n  alignas(16) ";
         _emit_type_name(arg->type());
-        _scratch << " ";
-        _emit_value_name(arg);
-        _scratch << ";";
+        _scratch << " m" << i << ";";
     }
     if (_requires_printing) {
         _scratch << "\n  alignas(16) LCPrintBuffer print_buffer;";
@@ -1628,12 +1627,10 @@ void CUDACodegenXIR::_emit_kernel_definition(const xir::KernelFunction *kernel,
     }
     // decode the kernel arguments
     _scratch << "\n\n  /* kernel arguments */";
-    for (auto arg : kernel->arguments()) {
+    for (auto i = 0u; i < kernel->arguments().size(); i++) {
         _scratch << "\n  auto const ";
-        _emit_value_name(arg);
-        _scratch << " = params.";
-        _emit_value_name(arg);
-        _scratch << ";";
+        _emit_value_name(kernel->arguments()[i]);
+        _scratch << " = params.m" << i << ";";
     }
     if (!_requires_optix && _requires_printing) {
         _scratch << "\n  auto const print_buffer = params.print_buffer;";
