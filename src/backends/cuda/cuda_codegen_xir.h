@@ -108,7 +108,8 @@ private:
     luisa::unordered_map<const xir::RayQueryPipelineInst *, RayQueryPipelineInfo> _ray_query_pipeline_info;
     [[nodiscard]] int _find_ray_query_captured_kernel_param_index(const xir::Value *capture) const noexcept;
     void _preprocess_ray_query_pipelines(luisa::span<const xir::RayQueryPipelineInst *const> pipelines) noexcept;
-    void _postprocess_ray_query_pipelines(luisa::span<const xir::RayQueryPipelineInst *const> pipelines) noexcept;
+    void _postprocess_ray_query_pipelines(luisa::span<const xir::RayQueryPipelineInst *const> pipelines,
+                                          luisa::span<const Function::Binding> bindings) noexcept;
 
     template<typename F>
     void _with_control_flow(const xir::Instruction *inst, F &&f) noexcept {

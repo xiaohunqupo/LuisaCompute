@@ -1157,7 +1157,8 @@ void CUDACodegenXIR::_preprocess_ray_query_pipelines(luisa::span<const xir::RayQ
     }
 }
 
-void CUDACodegenXIR::_postprocess_ray_query_pipelines(luisa::span<const xir::RayQueryPipelineInst *const> pipelines) noexcept {
+void CUDACodegenXIR::_postprocess_ray_query_pipelines(luisa::span<const xir::RayQueryPipelineInst *const> pipelines,
+                                                      luisa::span<const Function::Binding> bindings) noexcept {
     for (auto p : pipelines) {
         // retrieve the pipeline info
         auto &&info = _ray_query_pipeline_info.at(p);
@@ -1173,6 +1174,16 @@ void CUDACodegenXIR::_postprocess_ray_query_pipelines(luisa::span<const xir::Ray
                     _scratch << "  /* decode ray query context */\n"
                              << "  auto ctx = static_cast<LCRayQueryCtx" << info.index << " *>(ctx_in);\n";
                 }
+                // generate compiler hints
+                for (auto i = 0u; i < bindings.size(); i++) {
+                    if (auto binding = luisa::get_if<Function::TextureBinding>(&bindings[i]);
+                        binding != nullptr && info.args[i].tag == RayQueryPipelineArgument::Tag::KERNEL_PARAM) {
+                        auto surface = reinterpret_cast<CUDATexture *>(binding->handle)->binding(binding->level);
+                        // generate hints for the underlying storage
+                        _scratch << "  lc_assume(params.m" << i << ".surface.storage == " << surface.storage << ");\n";
+                    }
+                }
+                // invoke the ray query callback
                 _scratch << "  /* invoke ray query pipeline */\n"
                          << "  ";
                 _emit_value_name(f);
@@ -1953,7 +1964,7 @@ void CUDACodegenXIR::emit(const xir::Module *module,
     }
 
     // finalize the ray query pipelines
-    _postprocess_ray_query_pipelines(analysis.ray_query_pipelines);
+    _postprocess_ray_query_pipelines(analysis.ray_query_pipelines, bindings);
 
     // emit indirect dispatch kernel if allowed
     if (_allow_indirect_dispatch && !_requires_optix) {
