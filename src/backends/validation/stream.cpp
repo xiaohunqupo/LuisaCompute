@@ -97,6 +97,7 @@ void Stream::check_compete() {
                                 detail::usage_name(iter.second.usage),
                                 get_name());
                             break;
+                        default: break;
                     }
                 }
             }
