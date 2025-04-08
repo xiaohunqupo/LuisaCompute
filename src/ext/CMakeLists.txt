@@ -1,5 +1,8 @@
 add_library(luisa-compute-ext INTERFACE)
 
+find_package(Threads REQUIRED)
+target_link_libraries(luisa-compute-ext INTERFACE Threads::Threads)
+
 add_custom_target(luisa-compute-ext-copy ALL
         COMMENT "Copy necessary files for third-party libraries")
 add_dependencies(luisa-compute-ext-copy luisa-compute-ext)

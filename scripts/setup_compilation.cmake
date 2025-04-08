@@ -1,5 +1,3 @@
-find_package(Threads REQUIRED)
-
 if (APPLE)
     if (LUISA_COMPUTE_ENABLE_METAL OR LUISA_COMPUTE_ENABLE_GUI)
         enable_language(OBJC)
@@ -16,8 +14,11 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(BUILD_SHARED_LIBS ON)
 
 # We need Metal 3 so macOS 13+ is required
-if (APPLE AND CMAKE_OSX_DEPLOYMENT_TARGET VERSION_LESS 13)
-    set(CMAKE_OSX_DEPLOYMENT_TARGET "13" CACHE STRING "Minimum OS X deployment version")
+if (APPLE)
+    if (NOT CMAKE_OSX_DEPLOYMENT_TARGET OR CMAKE_OSX_DEPLOYMENT_TARGET VERSION_LESS 13)
+        set(CMAKE_OSX_DEPLOYMENT_TARGET "13" CACHE STRING "Minimum OS X deployment version")
+    endif ()
+    message(STATUS "macOS deployment target: ${CMAKE_OSX_DEPLOYMENT_TARGET}")
 endif ()
 
 if (CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64" OR

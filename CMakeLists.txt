@@ -13,6 +13,9 @@ set(CMAKE_POLICY_DEFAULT_CMP0135 NEW)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# set basic compilation options
+include(scripts/setup_compilation.cmake)
+
 project(LuisaCompute LANGUAGES C CXX VERSION 0.4.0)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
@@ -64,8 +67,7 @@ if (LUISA_COMPUTE_ENABLE_CUDA)
     option(LUISA_COMPUTE_DOWNLOAD_NVCOMP "Download the nvCOMP library for CUDA GPU decompression" OFF)
 endif ()
 
-# basic set-up for compilers
-include(scripts/setup_compilation.cmake)
+# setup the build output directories
 include(scripts/setup_output_dirs.cmake)
 
 # rpath

@@ -14,7 +14,7 @@ if (LLVM_FOUND AND embree_FOUND)
     message(STATUS "Build with fallback backend (LLVM ${LLVM_VERSION}, Embree ${embree_VERSION})")
 
     set(LUISA_COMPUTE_ENABLE_FALLBACK ON)
-    set(LC_BACKEND_FALLBACK_SRC
+    set(LUISA_FALLBACK_BACKEND_SOURCES
             fallback_device.cpp
             fallback_device_api.cpp
             fallback_device_api_ir_module.cpp
@@ -37,7 +37,7 @@ if (LLVM_FOUND AND embree_FOUND)
             fallback_tex_compress.cpp
     )
 
-    luisa_compute_add_backend(fallback SOURCES ${LC_BACKEND_FALLBACK_SRC})
+    luisa_compute_add_backend(fallback SOURCES ${LUISA_FALLBACK_BACKEND_SOURCES})
 
     # exclude codegen from unity build since it's too big
     set_source_files_properties(fallback_codegen.cpp PROPERTIES UNITY_BUILD OFF)
