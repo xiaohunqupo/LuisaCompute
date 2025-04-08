@@ -15,6 +15,11 @@ set(CMAKE_C_EXTENSIONS OFF)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(BUILD_SHARED_LIBS ON)
 
+# We need Metal 3 so macOS 13+ is required
+if (APPLE AND CMAKE_OSX_DEPLOYMENT_TARGET VERSION_LESS 13)
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "13" CACHE STRING "Minimum OS X deployment version")
+endif ()
+
 if (CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64" OR
         CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
     # disabled for compatibility with older CPUs
