@@ -117,6 +117,13 @@ add_library(half INTERFACE)
 target_include_directories(half INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/half/include>)
 target_link_libraries(luisa-compute-ext INTERFACE half)
 luisa_compute_install_extension(half HEADER_FILES half/include/half.hpp)
+if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 20.0)
+    target_compile_options(half INTERFACE
+            -Wno-invalid-specialization
+            -Wno-deprecated-literal-operator
+            -Wno-elaborated-enum-base
+    )
+endif ()
 
 # reproc
 set(REPROC_DEVELOP OFF CACHE BOOL "" FORCE)

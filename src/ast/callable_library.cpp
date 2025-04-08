@@ -345,11 +345,10 @@ void CallableLibrary::ser_value(Expression const &t, luisa::vector<std::byte> &v
         case Expression::Tag::TYPE_ID:
             ser_value(*static_cast<TypeIDExpr const *>(&t), vec);
             break;
-        case Expression::Tag::STRING_ID:
-        case Expression::Tag::CPUCUSTOM:
-        case Expression::Tag::GPUCUSTOM:
-            LUISA_ERROR("Un-supported.");
-            break;
+        case Expression::Tag::STRING_ID: [[fallthrough]];
+        case Expression::Tag::CPUCUSTOM: [[fallthrough]];
+        case Expression::Tag::GPUCUSTOM: [[fallthrough]];
+        case Expression::Tag::FUNC_REF: LUISA_NOT_IMPLEMENTED();
     }
 }
 

@@ -184,7 +184,7 @@ void FunctionBuilder::assign(const Expression *lhs, const Expression *rhs) noexc
                 assign(local_var, expr);
                 return local_var;
             };
-            auto access_chain_decode = [&](auto &&access_chain_decode, Expression const *expr) -> Expression const * {
+            auto access_chain_decode = [&](auto &&self, Expression const *expr) -> Expression const * {
                 switch (expr->tag()) {
                     case Expression::Tag::MEMBER: {
                         auto mem = static_cast<MemberExpr const *>(expr);
@@ -192,7 +192,7 @@ void FunctionBuilder::assign(const Expression *lhs, const Expression *rhs) noexc
                             LUISA_ERROR("Can not use multiple swizzle write.");
                         }
                         auto mem_self = mem->self();
-                        auto new_self = access_chain_decode(access_chain_decode, mem_self);
+                        auto new_self = self(self, mem_self);
                         if (new_self != mem_self) {
                             return member(new_self->type(), new_self, mem->member_index());
                         }
@@ -200,18 +200,17 @@ void FunctionBuilder::assign(const Expression *lhs, const Expression *rhs) noexc
                     }
                     case Expression::Tag::ACCESS: {
                         auto access_expr = static_cast<AccessExpr const *>(expr);
-                        auto new_range = access_chain_decode(access_chain_decode, access_expr->range());
+                        auto new_range = self(self, access_expr->range());
                         if (non_trivial(access_expr->index())) {
                             return access(access_expr->type(), new_range, temp_var(access_expr->index()));
-                        } else if (new_range != access_expr->range()) {
+                        }
+                        if (new_range != access_expr->range()) {
                             return access(access_expr->type(), new_range, access_expr->index());
                         }
                         return access_expr;
                     }
                     case Expression::Tag::REF: return expr;
-                    default:
-                        LUISA_ERROR("Invalid swizzle");
-                        break;
+                    default: LUISA_ERROR("Invalid swizzle");
                 }
                 return nullptr;
             };
@@ -1115,6 +1114,8 @@ const Expression *FunctionBuilder::_internalize(const Expression *expr) noexcept
             case Expression::Tag::GPUCUSTOM:
                 LUISA_ERROR_WITH_LOCATION(
                     "Cannot internalize GPU custom expression.");
+            case Expression::Tag::FUNC_REF: LUISA_ERROR_WITH_LOCATION(
+                "Cannot internalize function reference expression.");
         }
         LUISA_ERROR_WITH_LOCATION("Invalid expression to internalize.");
     }();

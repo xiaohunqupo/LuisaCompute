@@ -847,9 +847,13 @@ private:
             case Expression::Tag::TYPE_ID: _convert_type_id_expr(j, static_cast<const TypeIDExpr *>(expr)); break;
             case Expression::Tag::STRING_ID: _convert_string_id_expr(j, static_cast<const StringIDExpr *>(expr)); break;
             case Expression::Tag::CPUCUSTOM: _convert_cpu_custom_expr(j, static_cast<const CpuCustomOpExpr *>(expr)); break;
-            case Expression::Tag::GPUCUSTOM: LUISA_NOT_IMPLEMENTED();
+            case Expression::Tag::GPUCUSTOM: LUISA_NOT_IMPLEMENTED("GPU custom op is not supported yet."); break;
+            case Expression::Tag::FUNC_REF: _convert_func_ref_expr(j, static_cast<const FuncRefExpr *>(expr)); break;
         }
         return j;
+    }
+    void _convert_func_ref_expr(JSON &j, const FuncRefExpr *expr) noexcept {
+        j["func"] = _function_index(Function{expr->func()});
     }
     void _convert_unary_expr(JSON &j, const UnaryExpr *expr) noexcept {
         j["operand"] = _convert_expr(expr->operand());

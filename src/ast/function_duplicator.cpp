@@ -247,6 +247,12 @@ private:
             }
             case Expression::Tag::CPUCUSTOM: LUISA_NOT_IMPLEMENTED();
             case Expression::Tag::GPUCUSTOM: LUISA_NOT_IMPLEMENTED();
+            case Expression::Tag::FUNC_REF: {
+                auto e = static_cast<const FuncRefExpr *>(original);
+                auto f = _duplicate(*e->func());
+                copy = fb->func_ref(f->function());
+                break;
+            }
         }
         _contexts.back()->expr_map.emplace(original, copy);
         return copy;
