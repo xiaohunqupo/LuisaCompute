@@ -123,6 +123,9 @@ public:
         D3D12_BARRIER_LAYOUT layout);
     // fallback
     void Record(
+        ResourceView const &res,
+        D3D12_RESOURCE_STATES state);
+    void Record(
         Resource const *res,
         Range range,
         D3D12_RESOURCE_STATES state);

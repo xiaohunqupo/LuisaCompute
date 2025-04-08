@@ -645,9 +645,9 @@ private:
         if (_dispatch_layer >= _max_dispatch_blocks.size()) {
             _max_dispatch_blocks.resize(_dispatch_layer + 1);
         }
-        while (_max_dispatch_blocks[_dispatch_layer] + max_disp_size > max_allowed_dispatch_size) {
+        while (_max_dispatch_blocks[_dispatch_layer] > 0 && _max_dispatch_blocks[_dispatch_layer] + max_disp_size > max_allowed_dispatch_size) {
             _dispatch_layer++;
-            if(_dispatch_layer == _max_dispatch_blocks.size()){
+            if (_dispatch_layer == _max_dispatch_blocks.size()) {
                 _max_dispatch_blocks.emplace_back(0);
                 break;
             }
@@ -829,7 +829,7 @@ public:
             }
             while (_max_dispatch_blocks[_dispatch_layer] + max_disp_size > max_allowed_dispatch_size) {
                 _dispatch_layer++;
-                if(_dispatch_layer == _max_dispatch_blocks.size()){
+                if (_dispatch_layer == _max_dispatch_blocks.size()) {
                     _max_dispatch_blocks.emplace_back(0);
                     break;
                 }

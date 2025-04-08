@@ -208,14 +208,43 @@ public:
         }
     };
     void visit(const DXCustomCmd *cmd) noexcept {
+        auto get_resource_view = [&](auto&& i){
+            return luisa::visit(
+                [&]<typename T>(T const &t) -> EnhancedBarrierTracker::ResourceView {
+                    using PureT = std::remove_cvref_t<T>;
+                    if constexpr (std::is_same_v<PureT, Argument::Buffer>) {
+                        return EnhancedBarrierTracker::ResourceView{
+                            BufferView{
+                                static_cast<Buffer const *>(reinterpret_cast<Resource const *>(t.handle)),
+                                t.offset,
+                                t.size}};
+                    } else if constexpr (std::is_same_v<PureT, Argument::Texture>) {
+                        return EnhancedBarrierTracker::ResourceView{
+                            EnhancedBarrierTracker::TexView{
+                                static_cast<TextureBase const *>(reinterpret_cast<Resource const *>(t.handle)),
+                                t.level}};
+                    } else {
+                        auto buffer = static_cast<BindlessArray const *>(reinterpret_cast<Resource const *>(t.handle))->BindlessBuffer();
+                        return EnhancedBarrierTracker::ResourceView{
+                            BufferView{
+                                buffer,
+                                0,
+                                buffer->GetByteSize()}};
+                    }
+                },
+                i.resource);
+        };
         for (auto &&i : cmd->get_resource_usages()) {
-            uint64_t handle =
-                luisa::visit(
-                    [](auto &&t) -> uint64_t {
-                        return t.handle;
-                    },
-                    i.resource);
-            stateTracker->Record(reinterpret_cast<Resource const *>(handle), EnhancedBarrierTracker::Range{}, i.required_state);
+            auto res_view = get_resource_view(i);
+            stateTracker->Record(res_view, i.required_state);
+        }
+        for (auto &&i : cmd->get_enhanced_resource_usages()) {
+            auto res_view = get_resource_view(i);
+            stateTracker->Record(
+                res_view,
+                i.sync,
+                i.access,
+                i.texture_layout);
         }
     }
     void visit(const BufferUploadCommand *cmd) noexcept override {
