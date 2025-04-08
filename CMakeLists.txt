@@ -59,6 +59,14 @@ endif ()
 # validate the options
 include(scripts/validate_options.cmake)
 
+# enable objc and objcxx for Apple platforms
+if (APPLE)
+    if (LUISA_COMPUTE_ENABLE_METAL OR LUISA_COMPUTE_ENABLE_GUI)
+        enable_language(OBJC)
+        enable_language(OBJCXX)
+    endif ()
+endif ()
+
 # Open Image Denoise
 option(LUISA_COMPUTE_DOWNLOAD_OIDN "Download OpenImageDenoise for denoiser extension" OFF)
 
