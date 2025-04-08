@@ -47,6 +47,8 @@ private:
 
     struct CurrentFunction {
         llvm::Function *func = nullptr;
+        llvm::BasicBlock *exit_block = nullptr;
+        llvm::Value *coro_token = nullptr;
         luisa::unordered_map<const xir::Value *, llvm::Value *> value_map;
         luisa::unordered_set<const llvm::BasicBlock *> translated_basic_blocks;
         luisa::vector<const xir::PhiInst *> phi_nodes;
@@ -104,6 +106,19 @@ private:
         }
         _special_register_usages.emplace(f, usage);
         return usage;
+    }
+
+    // check if the kernel requires block synchronization, which would require coroutine
+    [[nodiscard]] bool _analyze_requires_sync_block(const xir::KernelFunction *kernel) noexcept {
+        auto requires_sync_block = false;
+        kernel->traverse_instructions([&](const xir::Instruction *inst) noexcept {
+            if (inst->isa<xir::ThreadGroupInst>() &&
+                static_cast<const xir::ThreadGroupInst *>(inst)->op() ==
+                    xir::ThreadGroupOp::SYNCHRONIZE_BLOCK) {
+                requires_sync_block = true;// TODO: we should early break the traversal here
+            }
+        });
+        return requires_sync_block;
     }
 
 private:
@@ -2822,8 +2837,15 @@ private:
 
     [[nodiscard]] llvm::Value *_translate_thread_group_inst(CurrentFunction &current, IRBuilder &b,
                                                             const xir::ThreadGroupInst *inst) noexcept {
+        // SER translates to no-op
         if (inst->op() == xir::ThreadGroupOp::SHADER_EXECUTION_REORDER) {
             return nullptr;
+        }
+        // sync block is only allowed in kernel
+        if (inst->op() == xir::ThreadGroupOp::SYNCHRONIZE_BLOCK) {
+            LUISA_ASSERT(inst->parent_function()->isa<xir::KernelFunction>(),
+                         "Synchronize block is only allowed in kernel.");
+            // TODO
         }
         LUISA_NOT_IMPLEMENTED();
     }
@@ -2910,6 +2932,18 @@ private:
             }
             case xir::DerivedInstructionTag::RETURN: {
                 auto return_inst = static_cast<const xir::ReturnInst *>(inst);
+                // a kernel has a merged exit block for easier handling of block synchronization (simulated with coroutines)
+                if (return_inst->parent_function()->isa<xir::KernelFunction>()) {
+                    LUISA_DEBUG_ASSERT(return_inst->return_value() == nullptr,
+                                       "Kernel function should not have a return value.");
+                    if (current.exit_block == nullptr) {
+                        current.exit_block = llvm::BasicBlock::Create(_llvm_context, "exit", current.func);
+                        IRBuilder exit_builder{current.exit_block};
+                        exit_builder.CreateRetVoid();
+                    }
+                    return b.CreateBr(current.exit_block);
+                }
+                // other functions just return in place
                 if (auto ret_val = return_inst->return_value()) {
                     auto llvm_ret_val = _lookup_value(current, b, ret_val);
                     return b.CreateRet(llvm_ret_val);
@@ -3140,8 +3174,10 @@ private:
         auto function_name = luisa::format("kernel.main", luisa::string_view{llvm_kernel->getName()});
         auto llvm_wrapper_type = llvm::FunctionType::get(llvm_void_type, {llvm_ptr_type, llvm_ptr_type}, false);
         auto llvm_wrapper_function = llvm::Function::Create(llvm_wrapper_type, llvm::Function::ExternalLinkage, llvm::Twine{function_name}, _llvm_module);
-        llvm_wrapper_function->getArg(0)->setName("launch.params");
-        llvm_wrapper_function->getArg(1)->setName("launch.config");
+        auto llvm_kernel_params = llvm_wrapper_function->getArg(0);
+        auto llvm_kernel_config = llvm_wrapper_function->getArg(1);
+        llvm_kernel_params->setName("launch.params");
+        llvm_kernel_config->setName("launch.config");
         _llvm_functions.emplace(f, llvm_wrapper_function);
 
         // create the entry block for the wrapper function
@@ -3297,6 +3333,10 @@ private:
             llvm_ptr_i->moveBefore(&llvm_first_inst);
         }
         return llvm_wrapper_function;
+    }
+
+    [[nodiscard]] llvm::Function *_translate_kernel_function_coro(const xir::KernelFunction *f) noexcept {
+        return nullptr;
     }
 
     [[nodiscard]] llvm::Function *_translate_function_definition(const xir::FunctionDefinition *f,
