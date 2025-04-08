@@ -46,6 +46,8 @@ if (LLVM_FOUND AND embree_FOUND)
             luisa-compute-xir
             luisa-compute-vulkan-swapchain
             embree)
+    separate_arguments(LLVM_DEFINITIONS_LIST NATIVE_COMMAND ${LLVM_DEFINITIONS})
+    target_compile_definitions(luisa-compute-backend-fallback PRIVATE ${LLVM_DEFINITIONS_LIST})
 
     target_compile_definitions(luisa-compute-backend-fallback PRIVATE
             LUISA_COMPUTE_FALLBACK_EMBREE_VERSION=${embree_VERSION_MAJOR})
@@ -75,7 +77,7 @@ if (LLVM_FOUND AND embree_FOUND)
     endif ()
 
     # LLVM
-    target_include_directories(luisa-compute-backend-fallback PRIVATE ${LLVM_INCLUDE_DIRS})
+    target_include_directories(luisa-compute-backend-fallback AFTER PRIVATE ${LLVM_INCLUDE_DIRS})
     llvm_map_components_to_libnames(LLVM_LIBS core executionengine support orcjit nativecodegen irreader passes analysis coroutines)
     if (UNIX AND NOT APPLE)
         # check if the libraries exist

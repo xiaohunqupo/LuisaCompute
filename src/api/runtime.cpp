@@ -342,7 +342,7 @@ LUISA_EXPORT_API void luisa_compute_device_destroy(LCDevice device) LUISA_NOEXCE
     auto handle = reinterpret_cast<DeviceInterface *>(device._0)->shared_from_this();
     LUISA_ASSERT(handle.use_count() == 2u, "Should have exactly 2 references.");
     luisa::shared_ptr<DeviceInterface> _copy;
-    std::memcpy(&_copy, &handle, sizeof(luisa::shared_ptr<DeviceInterface>));
+    std::memcpy(static_cast<void *>(&_copy), &handle, sizeof(luisa::shared_ptr<DeviceInterface>));
 }
 
 LUISA_EXPORT_API void *luisa_compute_device_native_handle(LCDevice device) LUISA_NOEXCEPT {
