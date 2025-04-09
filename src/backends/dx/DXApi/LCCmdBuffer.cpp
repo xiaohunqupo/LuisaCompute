@@ -152,25 +152,23 @@ public:
         }
         void operator()(Argument::BindlessArray const &bf) {
             auto arr = reinterpret_cast<BindlessArray *>(bf.handle);
-            vstd::fixed_vector<std::pair<Resource const *, size_t>, 16> writeMap;
-            {
-                arr->Lock();
-                auto unlocker = vstd::scope_exit([&] {
-                    arr->Unlock();
-                });
-                for (auto &&i : self->stateTracker->WriteStateMap()) {
-                    if (arr->IsPtrInBindless(reinterpret_cast<size_t>(i.first))) {
-                        writeMap.emplace_back(i.first, i.second);
-                    }
+            vstd::fixed_vector<vstd::HashMap<Resource const *, size_t>::Index, 16> writeMap;
+            auto &write_state_map = self->stateTracker->WriteStateMap();
+            arr->Lock();
+            for (auto iter = write_state_map.begin(); iter != write_state_map.end(); ++iter) {
+                auto &i = *iter;
+                if (arr->IsPtrInBindless(reinterpret_cast<size_t>(i.first))) {
+                    writeMap.emplace_back(write_state_map.get_index(iter));
                 }
             }
-            if (!writeMap.empty()) {
-                for (auto &&i : writeMap) {
-                    self->stateTracker->Record(
-                        i.first,
-                        EnhancedBarrierTracker::Range(0, i.second),
-                        read_usage);
-                }
+            arr->Unlock();
+
+            for (auto &&iter : writeMap) {
+                self->stateTracker->Record(
+                    iter.key(),
+                    EnhancedBarrierTracker::Range(0, iter.value()),
+                    read_usage);
+                write_state_map.remove(iter);
             }
             self->stateTracker->Record(
                 BufferView(arr->BindlessBuffer()),
@@ -208,14 +206,43 @@ public:
         }
     };
     void visit(const DXCustomCmd *cmd) noexcept {
+        auto get_resource_view = [&](auto &&i) {
+            return luisa::visit(
+                [&]<typename T>(T const &t) -> EnhancedBarrierTracker::ResourceView {
+                    using PureT = std::remove_cvref_t<T>;
+                    if constexpr (std::is_same_v<PureT, Argument::Buffer>) {
+                        return EnhancedBarrierTracker::ResourceView{
+                            BufferView{
+                                static_cast<Buffer const *>(reinterpret_cast<Resource const *>(t.handle)),
+                                t.offset,
+                                t.size}};
+                    } else if constexpr (std::is_same_v<PureT, Argument::Texture>) {
+                        return EnhancedBarrierTracker::ResourceView{
+                            EnhancedBarrierTracker::TexView{
+                                static_cast<TextureBase const *>(reinterpret_cast<Resource const *>(t.handle)),
+                                t.level}};
+                    } else {
+                        auto buffer = static_cast<BindlessArray const *>(reinterpret_cast<Resource const *>(t.handle))->BindlessBuffer();
+                        return EnhancedBarrierTracker::ResourceView{
+                            BufferView{
+                                buffer,
+                                0,
+                                buffer->GetByteSize()}};
+                    }
+                },
+                i.resource);
+        };
         for (auto &&i : cmd->get_resource_usages()) {
-            uint64_t handle =
-                luisa::visit(
-                    [](auto &&t) -> uint64_t {
-                        return t.handle;
-                    },
-                    i.resource);
-            stateTracker->Record(reinterpret_cast<Resource const *>(handle), EnhancedBarrierTracker::Range{}, i.required_state);
+            auto res_view = get_resource_view(i);
+            stateTracker->Record(res_view, i.required_state);
+        }
+        for (auto &&i : cmd->get_enhanced_resource_usages()) {
+            auto res_view = get_resource_view(i);
+            stateTracker->Record(
+                res_view,
+                i.sync,
+                i.access,
+                i.texture_layout);
         }
     }
     void visit(const BufferUploadCommand *cmd) noexcept override {
@@ -1368,6 +1395,13 @@ void LCCmdBuffer::CompressBC(
     float alphaImportance,
     GpuAllocator *allocator,
     size_t maxAlloc) {
+    if (!tracker) {
+        if (device->use_enhanced_barrier) {
+            tracker = luisa::make_unique<EnhancedBarrierTrackerImpl>();
+        } else {
+            tracker = luisa::make_unique<EnhancedBarrierTrackerBackup>();
+        }
+    }
     alphaImportance = std::max<float>(std::min<float>(alphaImportance, 1), 0);// clamp<float>(alphaImportance, 0, 1);
     struct BCCBuffer {
         uint g_mip_level;
@@ -1442,7 +1476,7 @@ void LCCmdBuffer::CompressBC(
                     uint3(dispatchCount, 1, 1),
                     {prop, 4});
             };
-            constexpr uint MAX_BLOCK_BATCH = 1024u * 512u;
+            constexpr uint MAX_BLOCK_BATCH = 1024u * 32u;
             if (isHDR)//bc6
             {
                 BufferView err1Buffer{&backBuffer};

@@ -9,24 +9,24 @@ namespace detail {
 constexpr D3D12_BARRIER_SYNC LUISA_DX12_BARRIER_SYNC_INPUT_INDEX = static_cast<D3D12_BARRIER_SYNC>(0x4);// 0x04
 
 static constexpr D3D12_BARRIER_SYNC BarrierSyncMap[] = {
-    D3D12_BARRIER_SYNC_COMPUTE_SHADING,                                     // ComputeRead,
-    D3D12_BARRIER_SYNC_COMPUTE_SHADING,                                     // ComputeAccelRead,
-    D3D12_BARRIER_SYNC_COMPUTE_SHADING,                                     // ComputeUAV,
-    D3D12_BARRIER_SYNC_COPY,                                                // CopySource,
-    D3D12_BARRIER_SYNC_COPY,                                                // CopyDest,
-    D3D12_BARRIER_SYNC_BUILD_RAYTRACING_ACCELERATION_STRUCTURE,             // BuildAccel,
-    D3D12_BARRIER_SYNC_COPY_RAYTRACING_ACCELERATION_STRUCTURE,              // CopyAccelSrc
-    D3D12_BARRIER_SYNC_COPY_RAYTRACING_ACCELERATION_STRUCTURE,              // CopyAccelDst
-    D3D12_BARRIER_SYNC_DEPTH_STENCIL,                                       //DepthRead
-    D3D12_BARRIER_SYNC_DEPTH_STENCIL,                                       //DepthWrite
-    D3D12_BARRIER_SYNC_EXECUTE_INDIRECT,                                    //IndirectArgs
-    D3D12_BARRIER_SYNC_VERTEX_SHADING,                                      //VertexRead,
-    LUISA_DX12_BARRIER_SYNC_INPUT_INDEX,                                     //  IndexRead,
-    D3D12_BARRIER_SYNC_RENDER_TARGET,                                       //  RenderTarget
-    D3D12_BARRIER_SYNC_BUILD_RAYTRACING_ACCELERATION_STRUCTURE,             // AccelInstanceBuffer
-    static_cast<D3D12_BARRIER_SYNC>(D3D12_BARRIER_SYNC_PIXEL_SHADING | D3D12_BARRIER_SYNC_NON_PIXEL_SHADING),// RasterRead
-    static_cast<D3D12_BARRIER_SYNC>(D3D12_BARRIER_SYNC_PIXEL_SHADING | D3D12_BARRIER_SYNC_NON_PIXEL_SHADING),//RasterAccelRead
-    static_cast<D3D12_BARRIER_SYNC>(D3D12_BARRIER_SYNC_PIXEL_SHADING | D3D12_BARRIER_SYNC_NON_PIXEL_SHADING),//RasterUAV
+    D3D12_BARRIER_SYNC_COMPUTE_SHADING,                                                                   // ComputeRead,
+    D3D12_BARRIER_SYNC_COMPUTE_SHADING,                                                                   // ComputeAccelRead,
+    D3D12_BARRIER_SYNC_COMPUTE_SHADING,                                                                   // ComputeUAV,
+    D3D12_BARRIER_SYNC_COPY,                                                                              // CopySource,
+    D3D12_BARRIER_SYNC_COPY,                                                                              // CopyDest,
+    D3D12_BARRIER_SYNC_BUILD_RAYTRACING_ACCELERATION_STRUCTURE,                                           // BuildAccel,
+    D3D12_BARRIER_SYNC_COPY_RAYTRACING_ACCELERATION_STRUCTURE,                                            // CopyAccelSrc
+    D3D12_BARRIER_SYNC_COPY_RAYTRACING_ACCELERATION_STRUCTURE,                                            // CopyAccelDst
+    D3D12_BARRIER_SYNC_DEPTH_STENCIL,                                                                     //DepthRead
+    D3D12_BARRIER_SYNC_DEPTH_STENCIL,                                                                     //DepthWrite
+    D3D12_BARRIER_SYNC_EXECUTE_INDIRECT,                                                                  //IndirectArgs
+    D3D12_BARRIER_SYNC_VERTEX_SHADING,                                                                    //VertexRead,
+    LUISA_DX12_BARRIER_SYNC_INPUT_INDEX,                                                                  //  IndexRead,
+    D3D12_BARRIER_SYNC_RENDER_TARGET,                                                                     //  RenderTarget
+    D3D12_BARRIER_SYNC_BUILD_RAYTRACING_ACCELERATION_STRUCTURE,                                           // AccelInstanceBuffer
+    static_cast<D3D12_BARRIER_SYNC>(D3D12_BARRIER_SYNC_PIXEL_SHADING | D3D12_BARRIER_SYNC_VERTEX_SHADING),// RasterRead
+    static_cast<D3D12_BARRIER_SYNC>(D3D12_BARRIER_SYNC_PIXEL_SHADING | D3D12_BARRIER_SYNC_VERTEX_SHADING),//RasterAccelRead
+    static_cast<D3D12_BARRIER_SYNC>(D3D12_BARRIER_SYNC_PIXEL_SHADING | D3D12_BARRIER_SYNC_VERTEX_SHADING),//RasterUAV
 };
 
 static constexpr D3D12_BARRIER_ACCESS BarrierAccessMap[] = {
@@ -145,15 +145,12 @@ void EnhancedBarrierTracker::Record(
             break;
     }
 }
-
-void EnhancedBarrierTracker::Record(
-    Resource const *res,
-    Range range,
-    D3D12_RESOURCE_STATES state) {
-
-    D3D12_BARRIER_SYNC sync{D3D12_BARRIER_SYNC_NONE};
-    D3D12_BARRIER_ACCESS access{D3D12_BARRIER_ACCESS_COMMON};
-    D3D12_BARRIER_LAYOUT layout{D3D12_BARRIER_LAYOUT_COMMON};
+namespace detail {
+static void LegacyBarrierToEnhanced(
+    D3D12_RESOURCE_STATES state,
+    D3D12_BARRIER_SYNC &sync,
+    D3D12_BARRIER_ACCESS &access,
+    D3D12_BARRIER_LAYOUT &layout) {
     if (state == D3D12_RESOURCE_STATE_COMMON) {
         sync = D3D12_BARRIER_SYNC_ALL;
     }
@@ -171,7 +168,7 @@ void EnhancedBarrierTracker::Record(
         layout = D3D12_BARRIER_LAYOUT_RENDER_TARGET;
     }
     if ((state & D3D12_RESOURCE_STATE_UNORDERED_ACCESS) != 0) {
-        sync |= D3D12_BARRIER_SYNC_COMPUTE_SHADING;
+        sync |= D3D12_BARRIER_SYNC_ALL_SHADING;
         access |= D3D12_BARRIER_ACCESS_UNORDERED_ACCESS;
         layout = D3D12_BARRIER_LAYOUT_UNORDERED_ACCESS;
     }
@@ -263,13 +260,44 @@ void EnhancedBarrierTracker::Record(
         access |= D3D12_BARRIER_ACCESS_VIDEO_ENCODE_WRITE;
         layout = D3D12_BARRIER_LAYOUT_VIDEO_ENCODE_WRITE;
     }
+}
+}// namespace detail
+void EnhancedBarrierTracker::Record(
+    ResourceView const &res,
+    D3D12_RESOURCE_STATES state) {
+    D3D12_BARRIER_SYNC sync{D3D12_BARRIER_SYNC_NONE};
+    D3D12_BARRIER_ACCESS access{D3D12_BARRIER_ACCESS_COMMON};
+    D3D12_BARRIER_LAYOUT layout{D3D12_BARRIER_LAYOUT_COMMON};
+    detail::LegacyBarrierToEnhanced(
+        state,
+        sync,
+        access,
+        layout);
+    Record(
+        res,
+        sync,
+        access,
+        layout);
+}
+void EnhancedBarrierTracker::Record(
+    Resource const *res,
+    Range range,
+    D3D12_RESOURCE_STATES state) {
+
+    D3D12_BARRIER_SYNC sync{D3D12_BARRIER_SYNC_NONE};
+    D3D12_BARRIER_ACCESS access{D3D12_BARRIER_ACCESS_COMMON};
+    D3D12_BARRIER_LAYOUT layout{D3D12_BARRIER_LAYOUT_COMMON};
+    detail::LegacyBarrierToEnhanced(
+        state,
+        sync,
+        access,
+        layout);
     Record(
         res,
         range,
         sync,
         access,
         layout);
-    //TODO
 }
 void EnhancedBarrierTracker::Record(
     ResourceView const &res,
@@ -559,7 +587,8 @@ namespace detail {
 void FilterAccess(
     D3D12_COMMAND_LIST_TYPE type,
     D3D12_BARRIER_SYNC &sync,
-    D3D12_BARRIER_ACCESS &access) {
+    D3D12_BARRIER_ACCESS &access,
+    D3D12_BARRIER_LAYOUT& layout) {
     switch (type) {
         case D3D12_COMMAND_LIST_TYPE_COMPUTE: {
             sync &= ~D3D12_BARRIER_SYNC_DRAW;
@@ -577,6 +606,7 @@ void FilterAccess(
         case D3D12_COMMAND_LIST_TYPE_COPY: {
             sync &= (D3D12_BARRIER_SYNC_ALL | D3D12_BARRIER_SYNC_COPY | D3D12_BARRIER_SYNC_COPY_RAYTRACING_ACCELERATION_STRUCTURE);
             access &= (D3D12_BARRIER_ACCESS_COPY_DEST | D3D12_BARRIER_ACCESS_COPY_SOURCE | D3D12_BARRIER_ACCESS_RESOLVE_DEST | D3D12_BARRIER_ACCESS_RESOLVE_SOURCE);
+            layout = D3D12_BARRIER_LAYOUT_COMMON;
         } break;
     }
 }
@@ -588,8 +618,9 @@ void EnhancedBarrierTrackerImpl::BarrierFilter(D3D12_BUFFER_BARRIER &barrier) {
     if (barrier.AccessAfter == D3D12_BARRIER_ACCESS_COMMON && barrier.SyncAfter == D3D12_BARRIER_SYNC_NONE) {
         barrier.SyncAfter = D3D12_BARRIER_SYNC_ALL;
     }
-    detail::FilterAccess(listType, barrier.SyncBefore, barrier.AccessBefore);
-    detail::FilterAccess(listType, barrier.SyncAfter, barrier.AccessAfter);
+    D3D12_BARRIER_LAYOUT layout;
+    detail::FilterAccess(listType, barrier.SyncBefore, barrier.AccessBefore, layout);
+    detail::FilterAccess(listType, barrier.SyncAfter, barrier.AccessAfter, layout);
 }
 void EnhancedBarrierTrackerImpl::BarrierFilter(D3D12_TEXTURE_BARRIER &barrier) {
     if (barrier.AccessBefore == D3D12_BARRIER_ACCESS_COMMON && barrier.SyncBefore == D3D12_BARRIER_SYNC_NONE) {
@@ -598,8 +629,8 @@ void EnhancedBarrierTrackerImpl::BarrierFilter(D3D12_TEXTURE_BARRIER &barrier) {
     if (barrier.AccessAfter == D3D12_BARRIER_ACCESS_COMMON && barrier.SyncAfter == D3D12_BARRIER_SYNC_NONE) {
         barrier.SyncAfter = D3D12_BARRIER_SYNC_ALL;
     }
-    detail::FilterAccess(listType, barrier.SyncBefore, barrier.AccessBefore);
-    detail::FilterAccess(listType, barrier.SyncAfter, barrier.AccessAfter);
+    detail::FilterAccess(listType, barrier.SyncBefore, barrier.AccessBefore, barrier.LayoutBefore);
+    detail::FilterAccess(listType, barrier.SyncAfter, barrier.AccessAfter, barrier.LayoutAfter);
 }
 EnhancedBarrierTracker::EnhancedBarrierTracker() = default;
 EnhancedBarrierTracker::~EnhancedBarrierTracker() = default;

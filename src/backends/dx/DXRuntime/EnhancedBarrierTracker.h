@@ -111,7 +111,7 @@ protected:
     vstd::vector<std::pair<Resource const *, ResourceStates *>> current_update_states;
     vstd::HashMap<Resource const *, size_t /* size */> writeStateMap;
 public:
-    vstd::HashMap<Resource const *, size_t> const &WriteStateMap() const {
+    vstd::HashMap<Resource const *, size_t> &WriteStateMap() {
         return writeStateMap;
     }
     EnhancedBarrierTracker();
@@ -122,6 +122,9 @@ public:
         D3D12_BARRIER_ACCESS access,
         D3D12_BARRIER_LAYOUT layout);
     // fallback
+    void Record(
+        ResourceView const &res,
+        D3D12_RESOURCE_STATES state);
     void Record(
         Resource const *res,
         Range range,
