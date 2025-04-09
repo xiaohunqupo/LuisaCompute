@@ -152,25 +152,23 @@ public:
         }
         void operator()(Argument::BindlessArray const &bf) {
             auto arr = reinterpret_cast<BindlessArray *>(bf.handle);
-            vstd::fixed_vector<std::pair<Resource const *, size_t>, 16> writeMap;
-            {
-                arr->Lock();
-                auto unlocker = vstd::scope_exit([&] {
-                    arr->Unlock();
-                });
-                for (auto &&i : self->stateTracker->WriteStateMap()) {
-                    if (arr->IsPtrInBindless(reinterpret_cast<size_t>(i.first))) {
-                        writeMap.emplace_back(i.first, i.second);
-                    }
+            vstd::fixed_vector<vstd::HashMap<Resource const *, size_t>::Index, 16> writeMap;
+            auto &write_state_map = self->stateTracker->WriteStateMap();
+            arr->Lock();
+            for (auto iter = write_state_map.begin(); iter != write_state_map.end(); ++iter) {
+                auto &i = *iter;
+                if (arr->IsPtrInBindless(reinterpret_cast<size_t>(i.first))) {
+                    writeMap.emplace_back(write_state_map.get_index(iter));
                 }
             }
-            if (!writeMap.empty()) {
-                for (auto &&i : writeMap) {
-                    self->stateTracker->Record(
-                        i.first,
-                        EnhancedBarrierTracker::Range(0, i.second),
-                        read_usage);
-                }
+            arr->Unlock();
+
+            for (auto &&iter : writeMap) {
+                self->stateTracker->Record(
+                    iter.key(),
+                    EnhancedBarrierTracker::Range(0, iter.value()),
+                    read_usage);
+                write_state_map.remove(iter);
             }
             self->stateTracker->Record(
                 BufferView(arr->BindlessBuffer()),
@@ -208,7 +206,7 @@ public:
         }
     };
     void visit(const DXCustomCmd *cmd) noexcept {
-        auto get_resource_view = [&](auto&& i){
+        auto get_resource_view = [&](auto &&i) {
             return luisa::visit(
                 [&]<typename T>(T const &t) -> EnhancedBarrierTracker::ResourceView {
                     using PureT = std::remove_cvref_t<T>;

@@ -113,21 +113,33 @@ D3D12_RESOURCE_STATES EnhancedBarrierTrackerBackup::ToStates(
 void EnhancedBarrierTrackerBackup::UpdateResourceState(Resource const *resPtr, ResourceStates &state) {
     state.require_update = false;
     bool is_write = false;
+    auto disp = vstd::scope_exit([&]() {
+        if (is_write) {
+            writeStateMap.emplace(resPtr, state.size);
+        } else {
+            writeStateMap.remove(resPtr);
+        }
+    });
     if (state.layer_states.index() == 0) {
+        D3D12_RESOURCE_BARRIER barrier{};
         auto &bf = state.layer_states.get<0>();
-        D3D12_RESOURCE_BARRIER &barrier = barriers.emplace_back();
-        barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
         auto before_state = bf.first_time ? resPtr->GetInitState() : ToStates(bf.before_sync, bf.before_access, D3D12_BARRIER_LAYOUT_UNDEFINED);
         auto after_state = ToStates(bf.after_sync, bf.after_access, D3D12_BARRIER_LAYOUT_UNDEFINED);
-        if (before_state == after_state) {
+        bool emplace = true;
+        if (before_state == after_state && (before_state & (D3D12_RESOURCE_STATE_UNORDERED_ACCESS |
+                                                            D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE)) != 0) {
             barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
             barrier.UAV.pResource = resPtr->GetResource();
-        } else {
+        } else if (before_state != after_state) {
             barrier.Transition.Subresource = UINT32_MAX;
             barrier.Transition.pResource = resPtr->GetResource();
             barrier.Transition.StateBefore = before_state;
             barrier.Transition.StateAfter = after_state;
+        } else {
+            emplace = false;
         }
+        if (emplace)
+            barriers.emplace_back(barrier);
         is_write |= (bf.after_access & detail::write_access) != 0;
         bf.before_sync = bf.after_sync;
         bf.after_sync = D3D12_BARRIER_SYNC_NONE;
@@ -136,23 +148,28 @@ void EnhancedBarrierTrackerBackup::UpdateResourceState(Resource const *resPtr, R
         bf.first_time = false;
     } else {
         auto &vec = state.layer_states.get<1>();
+        bool setted = false;
         for (auto idx : vstd::range(vec.size())) {
             auto &i = vec[idx];
             if (!i.level_require_update) continue;
             i.level_require_update = false;
-            D3D12_RESOURCE_BARRIER &barrier = barriers.emplace_back();
-            barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+            D3D12_RESOURCE_BARRIER barrier{};
             auto before_state = i.first_time ? resPtr->GetInitState() : ToStates(i.before_sync, i.before_access, i.before_layout);
             auto after_state = ToStates(i.after_sync, i.after_access, i.after_layout);
-            if (before_state == after_state) {
+            bool emplace = true;
+            if (before_state == after_state && (before_state & D3D12_RESOURCE_STATE_UNORDERED_ACCESS) != 0) {
                 barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
                 barrier.UAV.pResource = resPtr->GetResource();
-            } else {
+            } else if (before_state != after_state) {
                 barrier.Transition.Subresource = idx;
                 barrier.Transition.pResource = resPtr->GetResource();
                 barrier.Transition.StateBefore = before_state;
                 barrier.Transition.StateAfter = after_state;
+            } else {
+                emplace = false;
             }
+            if (emplace)
+                barriers.emplace_back(barrier);
             is_write |= (i.after_access & detail::write_access) != 0;
             i.before_sync = i.after_sync;
             i.after_sync = D3D12_BARRIER_SYNC_NONE;
@@ -161,11 +178,6 @@ void EnhancedBarrierTrackerBackup::UpdateResourceState(Resource const *resPtr, R
             i.before_layout = i.after_layout;
             i.first_time = false;
         }
-    }
-    if (is_write) {
-        writeStateMap.emplace(resPtr, state.size);
-    } else {
-        writeStateMap.remove(resPtr);
     }
 }
 

@@ -9,24 +9,24 @@ namespace detail {
 constexpr D3D12_BARRIER_SYNC LUISA_DX12_BARRIER_SYNC_INPUT_INDEX = static_cast<D3D12_BARRIER_SYNC>(0x4);// 0x04
 
 static constexpr D3D12_BARRIER_SYNC BarrierSyncMap[] = {
-    D3D12_BARRIER_SYNC_COMPUTE_SHADING,                                                                      // ComputeRead,
-    D3D12_BARRIER_SYNC_COMPUTE_SHADING,                                                                      // ComputeAccelRead,
-    D3D12_BARRIER_SYNC_COMPUTE_SHADING,                                                                      // ComputeUAV,
-    D3D12_BARRIER_SYNC_COPY,                                                                                 // CopySource,
-    D3D12_BARRIER_SYNC_COPY,                                                                                 // CopyDest,
-    D3D12_BARRIER_SYNC_BUILD_RAYTRACING_ACCELERATION_STRUCTURE,                                              // BuildAccel,
-    D3D12_BARRIER_SYNC_COPY_RAYTRACING_ACCELERATION_STRUCTURE,                                               // CopyAccelSrc
-    D3D12_BARRIER_SYNC_COPY_RAYTRACING_ACCELERATION_STRUCTURE,                                               // CopyAccelDst
-    D3D12_BARRIER_SYNC_DEPTH_STENCIL,                                                                        //DepthRead
-    D3D12_BARRIER_SYNC_DEPTH_STENCIL,                                                                        //DepthWrite
-    D3D12_BARRIER_SYNC_EXECUTE_INDIRECT,                                                                     //IndirectArgs
-    D3D12_BARRIER_SYNC_VERTEX_SHADING,                                                                       //VertexRead,
-    LUISA_DX12_BARRIER_SYNC_INPUT_INDEX,                                                                     //  IndexRead,
-    D3D12_BARRIER_SYNC_RENDER_TARGET,                                                                        //  RenderTarget
-    D3D12_BARRIER_SYNC_BUILD_RAYTRACING_ACCELERATION_STRUCTURE,                                              // AccelInstanceBuffer
-    static_cast<D3D12_BARRIER_SYNC>(D3D12_BARRIER_SYNC_PIXEL_SHADING | D3D12_BARRIER_SYNC_NON_PIXEL_SHADING),// RasterRead
-    static_cast<D3D12_BARRIER_SYNC>(D3D12_BARRIER_SYNC_PIXEL_SHADING | D3D12_BARRIER_SYNC_NON_PIXEL_SHADING),//RasterAccelRead
-    static_cast<D3D12_BARRIER_SYNC>(D3D12_BARRIER_SYNC_PIXEL_SHADING | D3D12_BARRIER_SYNC_NON_PIXEL_SHADING),//RasterUAV
+    D3D12_BARRIER_SYNC_COMPUTE_SHADING,                                                                   // ComputeRead,
+    D3D12_BARRIER_SYNC_COMPUTE_SHADING,                                                                   // ComputeAccelRead,
+    D3D12_BARRIER_SYNC_COMPUTE_SHADING,                                                                   // ComputeUAV,
+    D3D12_BARRIER_SYNC_COPY,                                                                              // CopySource,
+    D3D12_BARRIER_SYNC_COPY,                                                                              // CopyDest,
+    D3D12_BARRIER_SYNC_BUILD_RAYTRACING_ACCELERATION_STRUCTURE,                                           // BuildAccel,
+    D3D12_BARRIER_SYNC_COPY_RAYTRACING_ACCELERATION_STRUCTURE,                                            // CopyAccelSrc
+    D3D12_BARRIER_SYNC_COPY_RAYTRACING_ACCELERATION_STRUCTURE,                                            // CopyAccelDst
+    D3D12_BARRIER_SYNC_DEPTH_STENCIL,                                                                     //DepthRead
+    D3D12_BARRIER_SYNC_DEPTH_STENCIL,                                                                     //DepthWrite
+    D3D12_BARRIER_SYNC_EXECUTE_INDIRECT,                                                                  //IndirectArgs
+    D3D12_BARRIER_SYNC_VERTEX_SHADING,                                                                    //VertexRead,
+    LUISA_DX12_BARRIER_SYNC_INPUT_INDEX,                                                                  //  IndexRead,
+    D3D12_BARRIER_SYNC_RENDER_TARGET,                                                                     //  RenderTarget
+    D3D12_BARRIER_SYNC_BUILD_RAYTRACING_ACCELERATION_STRUCTURE,                                           // AccelInstanceBuffer
+    static_cast<D3D12_BARRIER_SYNC>(D3D12_BARRIER_SYNC_PIXEL_SHADING | D3D12_BARRIER_SYNC_VERTEX_SHADING),// RasterRead
+    static_cast<D3D12_BARRIER_SYNC>(D3D12_BARRIER_SYNC_PIXEL_SHADING | D3D12_BARRIER_SYNC_VERTEX_SHADING),//RasterAccelRead
+    static_cast<D3D12_BARRIER_SYNC>(D3D12_BARRIER_SYNC_PIXEL_SHADING | D3D12_BARRIER_SYNC_VERTEX_SHADING),//RasterUAV
 };
 
 static constexpr D3D12_BARRIER_ACCESS BarrierAccessMap[] = {

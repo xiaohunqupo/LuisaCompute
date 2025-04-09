@@ -111,7 +111,7 @@ protected:
     vstd::vector<std::pair<Resource const *, ResourceStates *>> current_update_states;
     vstd::HashMap<Resource const *, size_t /* size */> writeStateMap;
 public:
-    vstd::HashMap<Resource const *, size_t> const &WriteStateMap() const {
+    vstd::HashMap<Resource const *, size_t> &WriteStateMap() {
         return writeStateMap;
     }
     EnhancedBarrierTracker();
