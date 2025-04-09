@@ -1395,6 +1395,13 @@ void LCCmdBuffer::CompressBC(
     float alphaImportance,
     GpuAllocator *allocator,
     size_t maxAlloc) {
+    if (!tracker) {
+        if (device->use_enhanced_barrier) {
+            tracker = luisa::make_unique<EnhancedBarrierTrackerImpl>();
+        } else {
+            tracker = luisa::make_unique<EnhancedBarrierTrackerBackup>();
+        }
+    }
     alphaImportance = std::max<float>(std::min<float>(alphaImportance, 1), 0);// clamp<float>(alphaImportance, 0, 1);
     struct BCCBuffer {
         uint g_mip_level;
@@ -1469,7 +1476,7 @@ void LCCmdBuffer::CompressBC(
                     uint3(dispatchCount, 1, 1),
                     {prop, 4});
             };
-            constexpr uint MAX_BLOCK_BATCH = 1024u * 512u;
+            constexpr uint MAX_BLOCK_BATCH = 1024u * 32u;
             if (isHDR)//bc6
             {
                 BufferView err1Buffer{&backBuffer};
