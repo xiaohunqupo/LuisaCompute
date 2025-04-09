@@ -587,7 +587,8 @@ namespace detail {
 void FilterAccess(
     D3D12_COMMAND_LIST_TYPE type,
     D3D12_BARRIER_SYNC &sync,
-    D3D12_BARRIER_ACCESS &access) {
+    D3D12_BARRIER_ACCESS &access,
+    D3D12_BARRIER_LAYOUT& layout) {
     switch (type) {
         case D3D12_COMMAND_LIST_TYPE_COMPUTE: {
             sync &= ~D3D12_BARRIER_SYNC_DRAW;
@@ -605,6 +606,7 @@ void FilterAccess(
         case D3D12_COMMAND_LIST_TYPE_COPY: {
             sync &= (D3D12_BARRIER_SYNC_ALL | D3D12_BARRIER_SYNC_COPY | D3D12_BARRIER_SYNC_COPY_RAYTRACING_ACCELERATION_STRUCTURE);
             access &= (D3D12_BARRIER_ACCESS_COPY_DEST | D3D12_BARRIER_ACCESS_COPY_SOURCE | D3D12_BARRIER_ACCESS_RESOLVE_DEST | D3D12_BARRIER_ACCESS_RESOLVE_SOURCE);
+            layout = D3D12_BARRIER_LAYOUT_COMMON;
         } break;
     }
 }
@@ -616,8 +618,9 @@ void EnhancedBarrierTrackerImpl::BarrierFilter(D3D12_BUFFER_BARRIER &barrier) {
     if (barrier.AccessAfter == D3D12_BARRIER_ACCESS_COMMON && barrier.SyncAfter == D3D12_BARRIER_SYNC_NONE) {
         barrier.SyncAfter = D3D12_BARRIER_SYNC_ALL;
     }
-    detail::FilterAccess(listType, barrier.SyncBefore, barrier.AccessBefore);
-    detail::FilterAccess(listType, barrier.SyncAfter, barrier.AccessAfter);
+    D3D12_BARRIER_LAYOUT layout;
+    detail::FilterAccess(listType, barrier.SyncBefore, barrier.AccessBefore, layout);
+    detail::FilterAccess(listType, barrier.SyncAfter, barrier.AccessAfter, layout);
 }
 void EnhancedBarrierTrackerImpl::BarrierFilter(D3D12_TEXTURE_BARRIER &barrier) {
     if (barrier.AccessBefore == D3D12_BARRIER_ACCESS_COMMON && barrier.SyncBefore == D3D12_BARRIER_SYNC_NONE) {
@@ -626,8 +629,8 @@ void EnhancedBarrierTrackerImpl::BarrierFilter(D3D12_TEXTURE_BARRIER &barrier) {
     if (barrier.AccessAfter == D3D12_BARRIER_ACCESS_COMMON && barrier.SyncAfter == D3D12_BARRIER_SYNC_NONE) {
         barrier.SyncAfter = D3D12_BARRIER_SYNC_ALL;
     }
-    detail::FilterAccess(listType, barrier.SyncBefore, barrier.AccessBefore);
-    detail::FilterAccess(listType, barrier.SyncAfter, barrier.AccessAfter);
+    detail::FilterAccess(listType, barrier.SyncBefore, barrier.AccessBefore, barrier.LayoutBefore);
+    detail::FilterAccess(listType, barrier.SyncAfter, barrier.AccessAfter, barrier.LayoutAfter);
 }
 EnhancedBarrierTracker::EnhancedBarrierTracker() = default;
 EnhancedBarrierTracker::~EnhancedBarrierTracker() = default;
