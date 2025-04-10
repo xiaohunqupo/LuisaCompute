@@ -93,6 +93,7 @@ static void luisa_coro_reset_counter() noexcept {
 
 [[nodiscard]] static void *luisa_coro_alloc(size_t size) noexcept {
     thread_local std::byte buffer[4_M];
+    size = luisa::align(size, 2u * sizeof(intptr_t));
     auto n = (luisa_coro_buffer_counter() += size);
     LUISA_ASSERT(n <= sizeof(buffer), "Coroutine buffer overflow.");
     return buffer + n - size;
