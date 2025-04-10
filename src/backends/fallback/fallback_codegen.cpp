@@ -3610,7 +3610,7 @@ private:
 
         b.SetInsertPoint(destroy_loop_exit);
         b.CreateRetVoid();
-        return nullptr;
+        return llvm_wrapper.func;
     }
 
     [[nodiscard]] llvm::Function *_translate_function_definition(const xir::FunctionDefinition *f,
