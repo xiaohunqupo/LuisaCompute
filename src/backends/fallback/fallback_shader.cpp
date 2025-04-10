@@ -82,6 +82,24 @@ namespace luisa::compute::fallback {
 [[nodiscard]] static float luisa_fallback_atan2_f32(float a, float b) noexcept { return std::atan2(a, b); }
 [[nodiscard]] static double luisa_fallback_atan2_f64(double a, double b) noexcept { return std::atan2(a, b); }
 
+[[nodiscard]] static size_t &luisa_coro_buffer_counter() noexcept {
+    thread_local size_t counter = 0u;
+    return counter;
+}
+
+static void luisa_coro_reset_counter() noexcept {
+    luisa_coro_buffer_counter() = 0u;
+}
+
+[[nodiscard]] static void *luisa_coro_alloc(size_t size) noexcept {
+    thread_local std::byte buffer[4_M];
+    auto n = (luisa_coro_buffer_counter() += size);
+    LUISA_ASSERT(n <= sizeof(buffer), "Coroutine buffer overflow.");
+    return buffer + n - size;
+}
+
+static void luisa_coro_free(void *ptr) noexcept { /* do nothing */ }
+
 static void luisa_fallback_assert(bool condition, const char *message) noexcept {
     if (!condition) { LUISA_ERROR_WITH_LOCATION("Assertion failed: {}.", message); }
 }
@@ -216,6 +234,10 @@ FallbackShader::FallbackShader(FallbackDevice *device, const ShaderOption &optio
     map_symbol("luisa.atan2.f16", &luisa_fallback_atan2_f16);
     map_symbol("luisa.atan2.f32", &luisa_fallback_atan2_f32);
     map_symbol("luisa.atan2.f64", &luisa_fallback_atan2_f64);
+
+    // luisa.coro.alloc and luisa.coro.free
+    map_symbol("luisa.coro.alloc", &luisa_coro_alloc);
+    map_symbol("luisa.coro.free", &luisa_coro_free);
 
     // assert
     map_symbol("luisa.assert", &luisa_fallback_assert);
@@ -501,6 +523,7 @@ void FallbackShader::dispatch(FallbackCommandQueue *queue, luisa::unique_ptr<Sha
             .block_size = {block_size[0], block_size[1], block_size[2]},
         };
         auto launch_params = dispatch_buffer.argument_buffer();
+        luisa_coro_reset_counter();
         current_device_log_callback = queue->log_callback() ? &queue->log_callback() : nullptr;
         config->kernel(launch_params, &launch_config);
         current_device_log_callback = nullptr;

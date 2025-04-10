@@ -49,6 +49,9 @@ private:
         llvm::Function *func = nullptr;
         llvm::BasicBlock *exit_block = nullptr;
         llvm::Value *coro_token = nullptr;
+        llvm::Value *coro_handle = nullptr;
+        llvm::BasicBlock *coro_suspend_block = nullptr;
+        llvm::BasicBlock *coro_cleanup_block = nullptr;
         luisa::unordered_map<const xir::Value *, llvm::Value *> value_map;
         luisa::unordered_set<const llvm::BasicBlock *> translated_basic_blocks;
         luisa::vector<const xir::PhiInst *> phi_nodes;
@@ -2875,8 +2878,22 @@ private:
         if (inst->op() == xir::ThreadGroupOp::SYNCHRONIZE_BLOCK) {
             LUISA_ASSERT(inst->parent_function()->isa<xir::KernelFunction>(),
                          "Synchronize block is only allowed in kernel.");
+            // %signal = call i8 @llvm.coro.suspend(token none, i1 false)
+            auto llvm_i8_type = b.getInt8Ty();
+            auto llvm_i8_one = b.getInt8(1);
+            auto llvm_i8_zero = b.getInt8(0);
+            auto llvm_i1_false = b.getInt1(false);
+            auto llvm_token_none = llvm::ConstantTokenNone::get(_llvm_context);
+            auto llvm_signal = b.CreateIntrinsic(llvm_i8_type, llvm::Intrinsic::coro_suspend, {llvm_token_none, llvm_i1_false});
+            // switch %signal, label %llvm_coro_suspend_block, [i8 0, label %llvm_coro_resume_block,
+            //                                                  i8 1, label %llvm_coro_cleanup_block]
+            auto llvm_coro_resume_block = llvm::BasicBlock::Create(_llvm_context, "coro.resume", current.func);
+            auto llvm_coro_switch = b.CreateSwitch(llvm_signal, current.coro_suspend_block, 2);
+            llvm_coro_switch->addCase(llvm_i8_zero, llvm_coro_resume_block);
+            llvm_coro_switch->addCase(llvm_i8_one, current.coro_cleanup_block);
+            // llvm_coro_resume_block:
+            b.SetInsertPoint(llvm_coro_resume_block);
             return nullptr;
-            // TODO
         }
         LUISA_NOT_IMPLEMENTED();
     }
@@ -3149,8 +3166,8 @@ private:
     void _translate_instructions_in_basic_block(CurrentFunction &current, llvm::BasicBlock *llvm_bb, const xir::BasicBlock *bb) noexcept {
         if (bb == nullptr) { return; }
         if (current.translated_basic_blocks.emplace(llvm_bb).second) {
+            IRBuilder b{llvm_bb};
             for (auto &inst : bb->instructions()) {
-                IRBuilder b{llvm_bb};
                 auto llvm_value = _translate_instruction(current, b, &inst);
                 auto [_, success] = current.value_map.emplace(&inst, llvm_value);
                 LUISA_ASSERT(success, "Instruction already translated.");
@@ -3202,7 +3219,7 @@ private:
         //   ret;
 
         // create the kernel function
-        auto llvm_kernel = _translate_function_definition(f, llvm::Function::PrivateLinkage, "kernel");
+        auto llvm_kernel = _translate_function_definition(f, llvm::Function::PrivateLinkage, "kernel", false);
 
         // create the wrapper function
         auto llvm_void_type = llvm::Type::getVoidTy(_llvm_context);
@@ -3372,13 +3389,19 @@ private:
     }
 
     [[nodiscard]] llvm::Function *_translate_kernel_function_coro(const xir::KernelFunction *f) noexcept {
-        return nullptr;
+        return _translate_function_definition(f, llvm::Function::ExternalLinkage, "kernel", true);
     }
 
     [[nodiscard]] llvm::Function *_translate_function_definition(const xir::FunctionDefinition *f,
                                                                  llvm::Function::LinkageTypes linkage,
-                                                                 llvm::StringRef default_name) noexcept {
+                                                                 llvm::StringRef default_name,
+                                                                 bool requires_block_sync) noexcept {
         auto llvm_ret_type = _translate_type(f->type(), true);
+        auto llvm_ptr_type = llvm::PointerType::get(_llvm_context, 0);
+        if (requires_block_sync) {// block synchronization requires a coroutine, which always returns a pointer to the coroutine frame
+            LUISA_ASSERT(llvm_ret_type->isVoidTy(), "Block synchronization requires void return type.");
+            llvm_ret_type = llvm_ptr_type;
+        }
         llvm::SmallVector<llvm::Type *, 64u> llvm_arg_types;
         for (auto arg : f->arguments()) {
             if (arg->is_reference()) {
@@ -3433,8 +3456,122 @@ private:
                 current.builtin_variables[builtin] = &llvm_arg;
             }
         }
-        // translate body
-        static_cast<void>(_translate_basic_block(current, f->body_block()));
+        // if block synchronization is required, we need to create a coroutine
+        if (requires_block_sync) {
+
+            // add `presplitcoroutine` attribute to the function
+            llvm_func->addFnAttr(llvm::Attribute::PresplitCoroutine);
+
+            // some llvm types and constants for convenience
+            auto llvm_token_type = llvm::Type::getTokenTy(_llvm_context);
+            auto llvm_void_type = llvm::Type::getVoidTy(_llvm_context);
+            auto llvm_i1_type = llvm::Type::getInt1Ty(_llvm_context);
+            auto llvm_i8_type = llvm::Type::getInt8Ty(_llvm_context);
+            auto llvm_i64_type = llvm::Type::getInt64Ty(_llvm_context);
+            auto llvm_i32_zero = llvm::ConstantInt::get(llvm_i32_type, 0);
+            auto llvm_token_none = llvm::ConstantTokenNone::get(_llvm_context);
+            auto llvm_ptr_null = llvm::ConstantPointerNull::get(llvm_ptr_type);
+            auto llvm_i1_true = llvm::ConstantInt::get(llvm_i1_type, 1);
+            auto llvm_i1_false = llvm::ConstantInt::get(llvm_i1_type, 0);
+
+            // coro.entry:
+            auto entry_block = llvm::BasicBlock::Create(_llvm_context, "coro.entry", llvm_func);
+            IRBuilder coro_builder{entry_block};
+            //   %id = call token @llvm.coro.id(i32 0, ptr null, ptr null, ptr null)
+            current.coro_token = coro_builder.CreateIntrinsic(
+                llvm_token_type, llvm::Intrinsic::coro_id,
+                {llvm_i32_zero, llvm_ptr_null, llvm_ptr_null, llvm_ptr_null});
+            //   if (i1 @llvm.coro.alloc(token %id)) { br coro.dyn.alloc } else { br coro.begin }
+            auto llvm_requires_dyn_alloc = coro_builder.CreateIntrinsic(
+                llvm_i1_type, llvm::Intrinsic::coro_alloc, {current.coro_token});
+            auto llvm_coro_dyn_alloc_block = llvm::BasicBlock::Create(_llvm_context, "coro.dyn.alloc", llvm_func);
+            auto llvm_coro_begin_block = llvm::BasicBlock::Create(_llvm_context, "coro.begin", llvm_func);
+            coro_builder.CreateCondBr(llvm_requires_dyn_alloc, llvm_coro_dyn_alloc_block, llvm_coro_begin_block);
+
+            // coro.dyn.alloc:
+            coro_builder.SetInsertPoint(llvm_coro_dyn_alloc_block);
+            //   %size = call i32 @llvm.coro.size.i32()
+            auto llvm_coro_size = coro_builder.CreateIntrinsic(
+                llvm_i32_type, llvm::Intrinsic::coro_size, {});
+            //   %alloc = call ptr @luisa.coro.alloc(i64 %size)
+            auto llvm_coro_size_i64 = coro_builder.CreateZExt(llvm_coro_size, llvm_i64_type);
+            auto llvm_luisa_coro_alloc = _llvm_module->getOrInsertFunction(
+                "luisa.coro.alloc", llvm::FunctionType::get(llvm_ptr_type, {llvm_i64_type}, false));
+            auto llvm_dyn_coro_handle = coro_builder.CreateCall(llvm_luisa_coro_alloc, {llvm_coro_size_i64});
+            //   br coro.begin
+            coro_builder.CreateBr(llvm_coro_begin_block);
+
+            // coro.begin:
+            coro_builder.SetInsertPoint(llvm_coro_begin_block);
+            //   %frame = phi ptr [ %alloc, coro.dyn.alloc ], [ null, entry ]
+            auto llvm_coro_frame = coro_builder.CreatePHI(llvm_ptr_type, 2);
+            llvm_coro_frame->addIncoming(llvm_dyn_coro_handle, llvm_coro_dyn_alloc_block);
+            llvm_coro_frame->addIncoming(llvm_ptr_null, entry_block);
+            //   %handle = call ptr @llvm.coro.begin(token %id, ptr %frame)
+            current.coro_handle = coro_builder.CreateIntrinsic(
+                llvm_ptr_type, llvm::Intrinsic::coro_begin, {current.coro_token, llvm_coro_frame});
+            // will br func.body later
+
+            // now we create the coroutine exit block (i.e., final suspend)
+            current.exit_block = llvm::BasicBlock::Create(_llvm_context, "coro.exit", llvm_func);
+
+            // coro.exit:
+            coro_builder.SetInsertPoint(current.exit_block);
+            //   %signal = call i8 @llvm.coro.suspend(token none, i1 true)
+            auto llvm_coro_signal = coro_builder.CreateIntrinsic(
+                llvm_i8_type, llvm::Intrinsic::coro_suspend, {llvm_token_none, llvm_i1_true});
+            // switch i8 %signal, label %coro.suspend [i8 0, label %coro.unreachable
+            //                                         i8 1, label %coro.cleanup]
+            current.coro_suspend_block = llvm::BasicBlock::Create(_llvm_context, "coro.suspend", llvm_func);
+            current.coro_cleanup_block = llvm::BasicBlock::Create(_llvm_context, "coro.cleanup", llvm_func);
+            auto llvm_coro_unreachable_block = llvm::BasicBlock::Create(_llvm_context, "coro.unreachable", llvm_func);
+            auto llvm_coro_switch = coro_builder.CreateSwitch(llvm_coro_signal, current.coro_suspend_block, 2);
+            llvm_coro_switch->addCase(llvm::ConstantInt::get(llvm_i8_type, 0), llvm_coro_unreachable_block);
+            llvm_coro_switch->addCase(llvm::ConstantInt::get(llvm_i8_type, 1), current.coro_cleanup_block);
+
+            // coro.unreachable:
+            coro_builder.SetInsertPoint(llvm_coro_unreachable_block);
+            //   unreachable
+            coro_builder.CreateUnreachable();
+
+            // coro.cleanup:
+            coro_builder.SetInsertPoint(current.coro_cleanup_block);
+            //   %mem = call ptr @llvm.coro.free(token %id, ptr %hdl)
+            auto llvm_coro_mem = coro_builder.CreateIntrinsic(
+                llvm_ptr_type, llvm::Intrinsic::coro_free,
+                {current.coro_token, current.coro_handle});
+            //   if (%mem != null) { br coro.dyn.free } else { br coro.suspend }
+            auto llvm_coro_dyn_free_block = llvm::BasicBlock::Create(_llvm_context, "coro.dyn.free", llvm_func);
+            auto llvm_coro_free_cond = coro_builder.CreateICmpNE(llvm_coro_mem, llvm_ptr_null);
+            coro_builder.CreateCondBr(llvm_coro_free_cond, llvm_coro_dyn_free_block, current.coro_suspend_block);
+
+            // coro.dyn.free:
+            coro_builder.SetInsertPoint(llvm_coro_dyn_free_block);
+            //   call void @luisa.coro.free(ptr %mem)
+            auto llvm_luisa_coro_free = _llvm_module->getOrInsertFunction(
+                "luisa.coro.free", llvm::FunctionType::get(llvm_void_type, {llvm_ptr_type}, false));
+            coro_builder.CreateCall(llvm_luisa_coro_free, {llvm_coro_mem});
+            //   br coro.suspend
+            coro_builder.CreateBr(current.coro_suspend_block);
+
+            // coro.suspend:
+            coro_builder.SetInsertPoint(current.coro_suspend_block);
+            //   %unused = call i1 @llvm.coro.end(ptr %hdl, i1 false, token none)
+            auto llvm_coro_end = coro_builder.CreateIntrinsic(
+                llvm_i1_type, llvm::Intrinsic::coro_end,
+                {current.coro_handle, llvm_i1_false, llvm_token_none});
+            // ret ptr %hdl
+            coro_builder.CreateRet(current.coro_handle);
+
+            // finally we can create the function body and br to it
+            auto llvm_func_body_block = _translate_basic_block(current, f->body_block());
+            coro_builder.SetInsertPoint(llvm_coro_begin_block);
+            coro_builder.CreateBr(llvm_func_body_block);
+
+        } else {// otherwise, we may translate the body directly
+            static_cast<void>(_translate_basic_block(current, f->body_block()));
+        }
+
         // fill the phi nodes
         {
             IRBuilder b{_llvm_context};
@@ -3449,6 +3586,7 @@ private:
                 }
             }
         }
+
         // we should hoist all alloca instructions to the beginning of the function
         {
             luisa::vector<llvm::AllocaInst *> alloca_insts;
@@ -3472,7 +3610,7 @@ private:
     }
 
     [[nodiscard]] llvm::Function *_translate_callable_function(const xir::CallableFunction *f) noexcept {
-        return _translate_function_definition(f, llvm::Function::PrivateLinkage, "callable");
+        return _translate_function_definition(f, llvm::Function::PrivateLinkage, "callable", false);
     }
 
     [[nodiscard]] llvm::Function *_translate_function(const xir::Function *f) noexcept {
@@ -3481,8 +3619,12 @@ private:
         }
         auto llvm_func = [&] {
             switch (f->derived_function_tag()) {
-                case xir::DerivedFunctionTag::KERNEL:
-                    return _translate_kernel_function(static_cast<const xir::KernelFunction *>(f));
+                case xir::DerivedFunctionTag::KERNEL: {
+                    auto k = static_cast<const xir::KernelFunction *>(f);
+                    return _analyze_requires_sync_block(k) ?
+                               _translate_kernel_function_coro(k) :
+                               _translate_kernel_function(k);
+                }
                 case xir::DerivedFunctionTag::CALLABLE:
                     return _translate_callable_function(static_cast<const xir::CallableFunction *>(f));
                 case xir::DerivedFunctionTag::EXTERNAL: LUISA_NOT_IMPLEMENTED();
