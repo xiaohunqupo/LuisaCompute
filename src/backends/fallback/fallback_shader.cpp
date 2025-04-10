@@ -108,72 +108,9 @@ struct FallbackShaderLaunchConfig {
 
 FallbackShader::FallbackShader(FallbackDevice *device, const ShaderOption &option, Function kernel) noexcept {
 
+    _initialize_target_machine_jit(option);
+
     LUISA_VERBOSE("======= Fallback Backend JIT Shader Compilation =======");
-
-    // build JIT engine
-    ::llvm::orc::LLJITBuilder jit_builder;
-    if (auto host = ::llvm::orc::JITTargetMachineBuilder::detectHost()) {
-        ::llvm::TargetOptions options;
-        if (option.enable_fast_math) {
-            options.UnsafeFPMath = true;
-            options.NoInfsFPMath = true;
-            options.NoNaNsFPMath = true;
-            options.NoSignedZerosFPMath = true;
-            options.ApproxFuncFPMath = true;
-        }
-        options.NoTrappingFPMath = true;
-        options.AllowFPOpFusion = ::llvm::FPOpFusion::Fast;
-        options.EnableIPRA = false;// true causes crash
-        options.StackSymbolOrdering = true;
-#ifndef NDEBUG
-        options.TrapUnreachable = true;
-#else
-        options.TrapUnreachable = false;
-#endif
-        options.EnableMachineFunctionSplitter = true;
-        options.EnableMachineOutliner = false;
-        options.NoTrapAfterNoreturn = true;
-        host->setOptions(options);
-        host->setCodeGenOptLevel(::llvm::CodeGenOptLevel::Aggressive);
-#ifdef __aarch64__
-        host->addFeatures({"+neon"});
-#endif
-        LUISA_VERBOSE("LLVM JIT target: triplet = {}, features = {}.",
-                      host->getTargetTriple().str(), host->getFeatures().getString());
-        if (auto machine = host->createTargetMachine()) {
-            _target_machine = std::move(machine.get());
-        } else {
-            ::llvm::handleAllErrors(machine.takeError(), [&](const ::llvm::ErrorInfoBase &e) {
-                LUISA_WARNING_WITH_LOCATION("JITTargetMachineBuilder::createTargetMachine(): {}.", e.message());
-            });
-            LUISA_ERROR_WITH_LOCATION("Failed to create target machine.");
-        }
-        jit_builder.setJITTargetMachineBuilder(std::move(*host));
-    } else {
-        ::llvm::handleAllErrors(host.takeError(), [&](const ::llvm::ErrorInfoBase &e) {
-            LUISA_WARNING_WITH_LOCATION("JITTargetMachineBuilder::detectHost(): {}.", e.message());
-        });
-        LUISA_ERROR_WITH_LOCATION("Failed to detect host.");
-    }
-
-    if (auto expected_jit = jit_builder.create()) {
-        _jit = std::move(expected_jit.get());
-    } else {
-        ::llvm::handleAllErrors(expected_jit.takeError(), [](const ::llvm::ErrorInfoBase &err) {
-            LUISA_WARNING_WITH_LOCATION("LLJITBuilder::create(): {}", err.message());
-        });
-        LUISA_ERROR_WITH_LOCATION("Failed to create LLJIT.");
-    }
-
-    // if (auto generator = ::llvm::orc::DynamicLibrarySearchGenerator::GetForCurrentProcess(
-    //         _jit->getDataLayout().getGlobalPrefix())) {
-    //     _jit->getMainJITDylib().addGenerator(std::move(generator.get()));
-    // } else {
-    //     ::llvm::handleAllErrors(generator.takeError(), [](const ::llvm::ErrorInfoBase &err) {
-    //         LUISA_WARNING_WITH_LOCATION("DynamicLibrarySearchGenerator::GetForCurrentProcess(): {}", err.message());
-    //     });
-    //     LUISA_ERROR_WITH_LOCATION("Failed to add generator.");
-    // }
 
     _block_size = kernel.block_size();
     _build_bound_arguments(kernel.bound_arguments());
@@ -565,6 +502,65 @@ void FallbackShader::dispatch(FallbackCommandQueue *queue, luisa::unique_ptr<Sha
 }
 
 FallbackShader::~FallbackShader() noexcept = default;
+
+void FallbackShader::_initialize_target_machine_jit(const ShaderOption &option) noexcept {
+
+    // build JIT engine
+    ::llvm::orc::LLJITBuilder jit_builder;
+    if (auto host = ::llvm::orc::JITTargetMachineBuilder::detectHost()) {
+        ::llvm::TargetOptions options;
+        if (option.enable_fast_math) {
+            options.UnsafeFPMath = true;
+            options.NoInfsFPMath = true;
+            options.NoNaNsFPMath = true;
+            options.NoSignedZerosFPMath = true;
+            options.ApproxFuncFPMath = true;
+        }
+        options.NoTrappingFPMath = true;
+        options.AllowFPOpFusion = ::llvm::FPOpFusion::Fast;
+        options.EnableIPRA = false;// true causes crash
+        options.StackSymbolOrdering = true;
+        options.EmulatedTLS = true;
+#ifndef NDEBUG
+        options.TrapUnreachable = true;
+#else
+        options.TrapUnreachable = false;
+#endif
+        options.EnableMachineFunctionSplitter = true;
+        options.EnableMachineOutliner = false;
+        options.NoTrapAfterNoreturn = true;
+        host->setOptions(options);
+        host->setCodeGenOptLevel(::llvm::CodeGenOptLevel::Aggressive);
+#ifdef __aarch64__
+        host->addFeatures({"+neon"});
+#endif
+        LUISA_VERBOSE("LLVM JIT target: triplet = {}, features = {}.",
+                      host->getTargetTriple().str(), host->getFeatures().getString());
+        if (auto machine = host->createTargetMachine()) {
+            _target_machine = std::move(machine.get());
+        } else {
+            ::llvm::handleAllErrors(machine.takeError(), [&](const ::llvm::ErrorInfoBase &e) {
+                LUISA_WARNING_WITH_LOCATION("JITTargetMachineBuilder::createTargetMachine(): {}.", e.message());
+            });
+            LUISA_ERROR_WITH_LOCATION("Failed to create target machine.");
+        }
+        jit_builder.setJITTargetMachineBuilder(std::move(*host));
+    } else {
+        ::llvm::handleAllErrors(host.takeError(), [&](const ::llvm::ErrorInfoBase &e) {
+            LUISA_WARNING_WITH_LOCATION("JITTargetMachineBuilder::detectHost(): {}.", e.message());
+        });
+        LUISA_ERROR_WITH_LOCATION("Failed to detect host.");
+    }
+
+    if (auto expected_jit = jit_builder.create()) {
+        _jit = std::move(expected_jit.get());
+    } else {
+        ::llvm::handleAllErrors(expected_jit.takeError(), [](const ::llvm::ErrorInfoBase &err) {
+            LUISA_WARNING_WITH_LOCATION("LLJITBuilder::create(): {}", err.message());
+        });
+        LUISA_ERROR_WITH_LOCATION("Failed to create LLJIT.");
+    }
+}
 
 void FallbackShader::_build_bound_arguments(luisa::span<const Function::Binding> bindings) noexcept {
     _bound_arguments.reserve(bindings.size());

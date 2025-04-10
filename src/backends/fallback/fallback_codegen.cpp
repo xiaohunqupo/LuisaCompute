@@ -127,6 +127,7 @@ private:
     luisa::unordered_map<const Type *, luisa::unique_ptr<LLVMStruct>> _llvm_struct_types;
     luisa::unordered_map<const xir::Constant *, llvm::Constant *> _llvm_constants;
     luisa::unordered_map<const xir::Function *, llvm::Function *> _llvm_functions;
+    luisa::unordered_map<const xir::AllocaInst *, llvm::GlobalVariable *> _llvm_smem_variables;
     FallbackCodeGenFeedback::PrintInstMap _print_inst_map;
 
 private:
@@ -2062,25 +2063,55 @@ private:
         return b.CreateCall(llvm_func, {llvm_query_object, llvm_capture.second, llvm_on_surface_func_wrapper, llvm_on_procedural_func_wrapper});
     }
 
+    [[nodiscard]] llvm::GlobalVariable *_find_or_create_smem(const xir::AllocaInst *a) noexcept {
+        // otherwise, we need to create a thread-local variable
+        auto n = _llvm_smem_variables.size();
+        auto llvm_type = _translate_type(a->type(), true);
+        auto &llvm_smem = _llvm_smem_variables[a];
+        if (llvm_smem == nullptr) {
+            llvm_smem = llvm::cast<llvm::GlobalVariable>(_llvm_module->getOrInsertGlobal(
+                luisa::format("luisa.smem.{}", n), llvm_type));
+            LUISA_ASSERT(llvm_smem != nullptr, "Failed to create shared memory variable.");
+            llvm_smem->setInitializer(llvm::UndefValue::get(llvm_type));
+            llvm_smem->setThreadLocal(true);
+            llvm_smem->setDSOLocal(true);
+            llvm_smem->setUnnamedAddr(llvm::GlobalVariable::UnnamedAddr::Local);
+            llvm_smem->setLinkage(llvm::GlobalValue::PrivateLinkage);
+        }
+        return llvm_smem;
+    }
+
     [[nodiscard]] llvm::Value *_translate_atomic_op(CurrentFunction &current, IRBuilder &b,
                                                     const char *op_name, const xir::AtomicInst *inst,
                                                     bool byte_address = false) noexcept {
         auto value_count = inst->value_count();
-        auto buffer = inst->base();
-        LUISA_ASSERT(buffer->type()->is_buffer(), "Invalid buffer type.");
-        auto buffer_elem_type = buffer->type()->element();
-        LUISA_ASSERT(buffer_elem_type != nullptr, "Invalid buffer element type.");
         auto indices = inst->index_uses();
-        auto slot = indices.front()->value();
-        indices = indices.subspan(1);
-        auto llvm_elem_ptr = _get_buffer_element_ptr(current, b, buffer, slot, byte_address);
-        if (byte_address) {
-            LUISA_ASSERT(2 + value_count == inst->operand_count(), "Invalid atomic operation.");
-        }
-        if (!indices.empty()) {
-            llvm_elem_ptr = _translate_gep(current, b, inst->type(),
-                                           buffer_elem_type, llvm_elem_ptr, indices);
-        }
+        auto llvm_elem_ptr = [&] {
+            auto base = inst->base();
+            LUISA_ASSERT(base != nullptr && base->type() != nullptr, "Invalid atomic operation base.");
+            if (base->type()->is_buffer()) {
+                LUISA_ASSERT(base->type()->is_buffer(), "Invalid buffer type.");
+                auto buffer_elem_type = base->type()->element();
+                LUISA_ASSERT(buffer_elem_type != nullptr, "Invalid buffer element type.");
+                auto slot = indices.front()->value();
+                auto llvm_elem = _get_buffer_element_ptr(current, b, base, slot, byte_address);
+                indices = indices.subspan(1);
+                if (byte_address) {
+                    LUISA_ASSERT(2 + value_count == inst->operand_count(), "Invalid atomic operation.");
+                }
+                if (!indices.empty()) {
+                    llvm_elem = _translate_gep(current, b, inst->type(),
+                                               buffer_elem_type, llvm_elem, indices);
+                }
+                return llvm_elem;
+            }
+            // otherwise, it's a shared memory atomic operation
+            LUISA_ASSERT(base->isa<xir::AllocaInst>() && static_cast<const xir::AllocaInst *>(base)->is_shared(),
+                         "Invalid shared memory atomic operation base.");
+            auto llvm_smem = _find_or_create_smem(static_cast<const xir::AllocaInst *>(base));
+            return _translate_gep(current, b, inst->type(),
+                                  base->type(), llvm_smem, indices);
+        }();
         auto llvm_func_name = [&] {
             switch (inst->type()->tag()) {
                 case Type::Tag::INT32: return luisa::format("luisa.atomic.{}.int", op_name);
@@ -2845,6 +2876,7 @@ private:
         if (inst->op() == xir::ThreadGroupOp::SYNCHRONIZE_BLOCK) {
             LUISA_ASSERT(inst->parent_function()->isa<xir::KernelFunction>(),
                          "Synchronize block is only allowed in kernel.");
+            return nullptr;
             // TODO
         }
         LUISA_NOT_IMPLEMENTED();
@@ -2960,6 +2992,11 @@ private:
                 return b.CreatePHI(llvm_type, phi_inst->incoming_count());
             }
             case xir::DerivedInstructionTag::ALLOCA: {
+                // shared memory should be hoisted to global thread-local variables
+                if (auto a = static_cast<const xir::AllocaInst *>(inst); a->op() == xir::AllocaOp::SHARED) {
+                    return _find_or_create_smem(a);
+                }
+                // otherwise we may directly allocate the variable in the stack
                 auto llvm_type = _translate_type(inst->type(), false);
                 auto llvm_inst = b.CreateAlloca(llvm_type);
                 auto alignment = _get_type_alignment(inst->type());
