@@ -3578,6 +3578,7 @@ private:
         llvm_handle_array->moveBefore(llvm_wrapper.entry_block->begin());
         llvm_alive_mask->moveBefore(llvm_wrapper.entry_block->begin());
 
+        // return
         b.SetInsertPoint(exit_block);
         b.CreateRetVoid();
         return llvm_wrapper.func;
