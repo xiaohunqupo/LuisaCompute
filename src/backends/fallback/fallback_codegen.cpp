@@ -2074,8 +2074,6 @@ private:
             LUISA_ASSERT(llvm_smem != nullptr, "Failed to create shared memory variable.");
             llvm_smem->setInitializer(llvm::UndefValue::get(llvm_type));
             llvm_smem->setThreadLocal(true);
-            llvm_smem->setDSOLocal(true);
-            llvm_smem->setUnnamedAddr(llvm::GlobalVariable::UnnamedAddr::Local);
             llvm_smem->setLinkage(llvm::GlobalValue::PrivateLinkage);
         }
         return llvm_smem;
@@ -2084,6 +2082,17 @@ private:
     [[nodiscard]] llvm::Value *_translate_atomic_op(CurrentFunction &current, IRBuilder &b,
                                                     const char *op_name, const xir::AtomicInst *inst,
                                                     bool byte_address = false) noexcept {
+        auto llvm_func_name = [&] {
+            switch (inst->type()->tag()) {
+                case Type::Tag::INT32: return luisa::format("luisa.atomic.{}.int", op_name);
+                case Type::Tag::UINT32: return luisa::format("luisa.atomic.{}.uint", op_name);
+                case Type::Tag::INT64: return luisa::format("luisa.atomic.{}.long", op_name);
+                case Type::Tag::UINT64: return luisa::format("luisa.atomic.{}.ulong", op_name);
+                case Type::Tag::FLOAT32: return luisa::format("luisa.atomic.{}.float", op_name);
+                default: break;
+            }
+            LUISA_ERROR_WITH_LOCATION("Unsupported atomic operation value type: {}.", inst->type()->description());
+        }();
         auto value_count = inst->value_count();
         auto indices = inst->index_uses();
         auto llvm_elem_ptr = [&] {
@@ -2108,20 +2117,10 @@ private:
             // otherwise, it's a shared memory atomic operation
             LUISA_ASSERT(base->isa<xir::AllocaInst>() && static_cast<const xir::AllocaInst *>(base)->is_shared(),
                          "Invalid shared memory atomic operation base.");
+            llvm_func_name.append(".smem");
             auto llvm_smem = _find_or_create_smem(static_cast<const xir::AllocaInst *>(base));
             return _translate_gep(current, b, inst->type(),
                                   base->type(), llvm_smem, indices);
-        }();
-        auto llvm_func_name = [&] {
-            switch (inst->type()->tag()) {
-                case Type::Tag::INT32: return luisa::format("luisa.atomic.{}.int", op_name);
-                case Type::Tag::UINT32: return luisa::format("luisa.atomic.{}.uint", op_name);
-                case Type::Tag::INT64: return luisa::format("luisa.atomic.{}.long", op_name);
-                case Type::Tag::UINT64: return luisa::format("luisa.atomic.{}.ulong", op_name);
-                case Type::Tag::FLOAT32: return luisa::format("luisa.atomic.{}.float", op_name);
-                default: break;
-            }
-            LUISA_ERROR_WITH_LOCATION("Unsupported atomic operation value type: {}.", inst->type()->description());
         }();
         auto llvm_func = _llvm_module->getFunction(llvm::StringRef{llvm_func_name});
         LUISA_ASSERT(llvm_func != nullptr && llvm_func->arg_size() == 1 + value_count, "Invalid atomic operation function.");

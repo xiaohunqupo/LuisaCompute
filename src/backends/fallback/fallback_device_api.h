@@ -18,6 +18,7 @@ using uint16_t = unsigned short;
 using uint32_t = unsigned int;
 using uint64_t = unsigned long long;
 using size_t = unsigned long long;
+using MotionInstanceTransform = luisa::compute::MotionInstanceTransform;
 #endif
 
 extern "C" {
