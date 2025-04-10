@@ -3438,7 +3438,7 @@ private:
         b.SetInsertPoint(llvm_loop_merge_block);
         b.CreateRetVoid();
 
-        // fix phi node and return
+        // fix the phi node and return
         llvm_i->addIncoming(b.getInt32(0), llvm_wrapper.entry_block);
         llvm_i->addIncoming(llvm_next_i, llvm_loop_update_block);
         return llvm_wrapper.func;
@@ -3448,13 +3448,168 @@ private:
 
         // entry:
         //   ...
-        //   %coro.frames = alloca [ ptr x thread_count ];
+        //   %coro.frames = alloca [ ptr x thread_count ]
         //   store zeroinitializer, %coro.frames
-        //
+        // init.head:
+        //   i = phi (0, next_i)
+        //   invoke_index = ...
+        //   cond_br (invoke_index.in_range, init.body, init.update)
+        // init.body:
+        //   coro.frams[i] = call kernel
+        //   br init.update
+        // init.update:
+        //   next_i = i + 1
+        //   cond_br i < thread_count, init.head, init.done
+        // init.done:
 
         auto llvm_kernel = _translate_function_definition(f, llvm::Function::PrivateLinkage, "kernel", true);
         auto llvm_wrapper = _create_kernel_wrapper(f);
 
+        IRBuilder b{llvm_wrapper.entry_block};
+
+        // useful types and constants
+        auto llvm_ptr_type = llvm::PointerType::get(_llvm_context, 0);
+        auto llvm_ptr_null = llvm::ConstantPointerNull::get(llvm_ptr_type);
+        auto llvm_void_type = llvm::Type::getVoidTy(_llvm_context);
+        auto llvm_i1_type = llvm::Type::getInt1Ty(_llvm_context);
+        auto llvm_i8_type = llvm::IntegerType::get(_llvm_context, 8);
+        auto llvm_i32_type = llvm::IntegerType::get(_llvm_context, 32);
+
+        // create the handle array
+
+        auto llvm_any_alive_alloca = b.CreateAlloca(llvm_i8_type);
+        auto llvm_handle_array = b.CreateAlloca(llvm_ptr_type, llvm_wrapper.thread_count, "coro.handle.array");
+        llvm_handle_array->setName("coro.handle.array");
+        auto llvm_handle_array_size = b.CreateMul(
+            llvm_wrapper.thread_count, b.getInt32(sizeof(intptr_t)), "size.bytes", true, true);
+        b.CreateMemSet(llvm_handle_array, b.getInt8(0), llvm_handle_array_size, llvm::Align{sizeof(intptr_t)});
+        auto llvm_alive_mask = b.CreateAlloca(llvm_i8_type, llvm_wrapper.thread_count, "coro.alive");
+        b.CreateMemSet(llvm_alive_mask, b.getInt8(0), llvm_wrapper.thread_count, llvm::Align{sizeof(int8_t)});
+
+        llvm_any_alive_alloca->moveBefore(llvm_wrapper.entry_block->begin());
+        llvm_handle_array->moveBefore(llvm_wrapper.entry_block->begin());
+        llvm_alive_mask->moveBefore(llvm_wrapper.entry_block->begin());
+
+        // initialize loop
+        auto init_loop_head = llvm::BasicBlock::Create(_llvm_context, "init.loop.head", llvm_wrapper.func);
+        auto init_loop_body = llvm::BasicBlock::Create(_llvm_context, "init.loop.body", llvm_wrapper.func);
+        auto init_loop_update = llvm::BasicBlock::Create(_llvm_context, "init.loop.update", llvm_wrapper.func);
+        auto init_loop_exit = llvm::BasicBlock::Create(_llvm_context, "init.loop.exit", llvm_wrapper.func);
+        b.CreateBr(init_loop_head);
+        {
+            // init loop head
+            b.SetInsertPoint(init_loop_head);
+            auto llvm_i = b.CreatePHI(llvm_i32_type, 2, "init.loop.i");
+            auto llvm_index = _compute_kernel_invoke_index(llvm_wrapper, b, llvm_i);
+            b.CreateCondBr(llvm_index.in_range, init_loop_body, init_loop_update);
+
+            // init loop body
+            b.SetInsertPoint(init_loop_body);
+            auto llvm_handle = _invoke_kernel_function(llvm_wrapper, llvm_kernel, b, llvm_index);
+            auto llvm_handle_ptr = b.CreateInBoundsGEP(llvm_ptr_type, llvm_handle_array, llvm_i);
+            b.CreateStore(llvm_handle, llvm_handle_ptr);
+            auto llvm_alive_ptr = b.CreateInBoundsGEP(llvm_i8_type, llvm_alive_mask, llvm_i);
+            b.CreateStore(b.getInt8(1), llvm_alive_ptr);
+            b.CreateBr(init_loop_update);
+
+            // init loop update
+            b.SetInsertPoint(init_loop_update);
+            auto llvm_next_i = b.CreateAdd(llvm_i, b.getInt32(1), "init.loop.i.next", true, true);
+            auto llvm_init_loop_cond = b.CreateICmpULT(llvm_next_i, llvm_wrapper.thread_count, "init.loop.cond");
+            b.CreateCondBr(llvm_init_loop_cond, init_loop_head, init_loop_exit);
+
+            // fix the phi node
+            llvm_i->addIncoming(b.getInt32(0), llvm_wrapper.entry_block);
+            llvm_i->addIncoming(llvm_next_i, init_loop_update);
+        }
+
+        // resume loop
+        auto resume_loop_prehead = llvm::BasicBlock::Create(_llvm_context, "resume.loop.prehead", llvm_wrapper.func);
+        auto resume_loop_head = llvm::BasicBlock::Create(_llvm_context, "resume.loop.head", llvm_wrapper.func);
+        auto resume_loop_body = llvm::BasicBlock::Create(_llvm_context, "resume.loop.body", llvm_wrapper.func);
+        auto resume_loop_invoke = llvm::BasicBlock::Create(_llvm_context, "resume.loop.invoke", llvm_wrapper.func);
+        auto resume_loop_remove = llvm::BasicBlock::Create(_llvm_context, "resume.loop.remove", llvm_wrapper.func);
+        auto resume_loop_update = llvm::BasicBlock::Create(_llvm_context, "resume.loop.update", llvm_wrapper.func);
+        auto resume_loop_exit = llvm::BasicBlock::Create(_llvm_context, "resume.loop.exit", llvm_wrapper.func);
+
+        // main loop that checks all coroutine instances until they all done
+        b.SetInsertPoint(init_loop_exit);
+        b.CreateBr(resume_loop_prehead);
+
+        b.SetInsertPoint(resume_loop_prehead);
+        b.CreateStore(b.getInt8(0), llvm_any_alive_alloca);
+        b.CreateBr(resume_loop_head);
+        {
+            // resume loop head
+            b.SetInsertPoint(resume_loop_head);
+            auto llvm_i = b.CreatePHI(llvm_i32_type, 2, "resume.loop.i");
+            auto llvm_alive_ptr = b.CreateInBoundsGEP(llvm_i8_type, llvm_alive_mask, llvm_i);
+            auto llvm_alive = b.CreateLoad(llvm_i8_type, llvm_alive_ptr);
+            auto llvm_alive_is_zero = b.CreateICmpEQ(llvm_alive, b.getInt8(0), "alive.is.zero");
+            b.CreateCondBr(llvm_alive_is_zero, resume_loop_update, resume_loop_body);
+
+            b.SetInsertPoint(resume_loop_body);
+            auto llvm_handle_ptr = b.CreateInBoundsGEP(llvm_ptr_type, llvm_handle_array, llvm_i);
+            auto llvm_handle = b.CreateLoad(llvm_ptr_type, llvm_handle_ptr);
+            auto llvm_handle_is_done = b.CreateIntrinsic(llvm_i1_type, llvm::Intrinsic::coro_done, {llvm_handle});
+            b.CreateCondBr(llvm_handle_is_done, resume_loop_remove, resume_loop_invoke);
+
+            b.SetInsertPoint(resume_loop_invoke);
+            b.CreateIntrinsic(llvm_void_type, llvm::Intrinsic::coro_resume, {llvm_handle});
+            b.CreateStore(b.getInt8(1), llvm_any_alive_alloca);
+            b.CreateBr(resume_loop_update);
+
+            b.SetInsertPoint(resume_loop_remove);
+            b.CreateStore(b.getInt8(0), llvm_alive_ptr);
+            b.CreateBr(resume_loop_update);
+
+            // resume loop update
+            b.SetInsertPoint(resume_loop_update);
+            auto llvm_next_i = b.CreateAdd(llvm_i, b.getInt32(1), "resume.loop.i.next", true, true);
+            auto llvm_resume_loop_cond = b.CreateICmpULT(llvm_next_i, llvm_wrapper.thread_count, "resume.loop.cond");
+            b.CreateCondBr(llvm_resume_loop_cond, resume_loop_head, resume_loop_exit);
+
+            // fix the phi node
+            llvm_i->addIncoming(b.getInt32(0), resume_loop_prehead);
+            llvm_i->addIncoming(llvm_next_i, resume_loop_update);
+        }
+
+        // destroy loop
+        auto destroy_loop_head = llvm::BasicBlock::Create(_llvm_context, "destroy.loop.head", llvm_wrapper.func);
+        auto destroy_loop_body = llvm::BasicBlock::Create(_llvm_context, "destroy.loop.body", llvm_wrapper.func);
+        auto destroy_loop_update = llvm::BasicBlock::Create(_llvm_context, "destroy.loop.update", llvm_wrapper.func);
+        auto destroy_loop_exit = llvm::BasicBlock::Create(_llvm_context, "destroy.loop.exit", llvm_wrapper.func);
+
+        b.SetInsertPoint(resume_loop_exit);
+        auto llvm_any_alive = b.CreateLoad(llvm_i8_type, llvm_any_alive_alloca);
+        auto llvm_any_alive_is_zero = b.CreateICmpEQ(llvm_any_alive, b.getInt8(0));
+        b.CreateCondBr(llvm_any_alive_is_zero, destroy_loop_head, resume_loop_prehead);
+        {
+            // destroy loop head
+            b.SetInsertPoint(destroy_loop_head);
+            auto llvm_i = b.CreatePHI(llvm_i32_type, 2, "destroy.loop.i");
+            auto llvm_handle_ptr = b.CreateInBoundsGEP(llvm_ptr_type, llvm_handle_array, llvm_i);
+            auto llvm_handle = b.CreateLoad(llvm_ptr_type, llvm_handle_ptr);
+            auto llvm_handle_is_null = b.CreateICmpNE(llvm_handle, llvm_ptr_null, "handle.is.null");
+            b.CreateCondBr(llvm_handle_is_null, destroy_loop_update, destroy_loop_body);
+
+            b.SetInsertPoint(destroy_loop_body);
+            b.CreateIntrinsic(llvm_void_type, llvm::Intrinsic::coro_destroy, {llvm_handle});
+            b.CreateBr(destroy_loop_update);
+
+            // destroy loop update
+            b.SetInsertPoint(destroy_loop_update);
+            auto llvm_next_i = b.CreateAdd(llvm_i, b.getInt32(1), "destroy.loop.i.next", true, true);
+            auto llvm_destroy_loop_cond = b.CreateICmpULT(llvm_next_i, llvm_wrapper.thread_count, "destroy.loop.cond");
+            b.CreateCondBr(llvm_destroy_loop_cond, destroy_loop_head, destroy_loop_exit);
+
+            // fix the phi node
+            llvm_i->addIncoming(b.getInt32(0), resume_loop_exit);
+            llvm_i->addIncoming(llvm_next_i, destroy_loop_update);
+        }
+
+        b.SetInsertPoint(destroy_loop_exit);
+        b.CreateRetVoid();
         return nullptr;
     }
 
