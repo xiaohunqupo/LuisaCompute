@@ -3208,6 +3208,8 @@ private:
         //   /* assume(block_size == f.block_size) */
         //   dispatch_size = config->dispatch_size;
         //   thread_count = block_size.x * block_size.y * block_size.z;
+        //   ...
+        // }
 
         auto llvm_void_type = llvm::Type::getVoidTy(_llvm_context);
         auto llvm_ptr_type = llvm::PointerType::get(_llvm_context, 0);
@@ -3374,25 +3376,12 @@ private:
     }
 
     [[nodiscard]] llvm::Function *_translate_kernel_function(const xir::KernelFunction *f) noexcept {
-        // create a wrapper function for the kernel with the following template:
-        // struct Params { params... };
-        // struct LaunchConfig {
-        //   uint3 block_id;
-        //   uint3 dispatch_size;
-        //   uint3 block_size;
-        // };
         // void kernel_wrapper(Params *params, LaunchConfig *config) {
         // entry:
-        //   block_id = config->block_id;
-        //   block_size = config->block_size;
-        //   /* assume(block_size == f.block_size) */
-        //   dispatch_size = config->dispatch_size;
-        //   thread_count = block_size.x * block_size.y * block_size.z;
-        //   pi = alloca i32;
-        //   store 0, pi;
+        //   ...
         //   br loop;
         // loop:
-        //   i = load pi;
+        //   i = phi (0, next_i);
         //   thread_id_x = i % block_size.x;
         //   thread_id_y = (i / block_size.x) % block_size.y;
         //   thread_id_z = i / (block_size.x * block_size.y);
@@ -3405,10 +3394,10 @@ private:
         //   br update;
         // update:
         //   next_i = i + 1;
-        //   store next_i, pi;
         //   br next_i < thread_count, loop, merge;
         // merge:
         //   ret;
+        // }
 
         // create the kernel function
         auto llvm_kernel = _translate_function_definition(f, llvm::Function::PrivateLinkage, "kernel", false);
@@ -3418,9 +3407,6 @@ private:
 
         // thread-in-block loop
         IRBuilder b{llvm_wrapper.entry_block};
-        auto llvm_ptr_i = b.CreateAlloca(b.getInt32Ty(), nullptr, "loop.i.ptr");
-        b.CreateStore(b.getInt32(0), llvm_ptr_i);
-        llvm_ptr_i->moveBefore(llvm_wrapper.entry_block->begin());
 
         // loop head
         auto llvm_loop_block = llvm::BasicBlock::Create(_llvm_context, "loop.head", llvm_wrapper.func);
@@ -3428,7 +3414,7 @@ private:
         b.SetInsertPoint(llvm_loop_block);
 
         // compute thread id
-        auto llvm_i = b.CreateLoad(b.getInt32Ty(), llvm_ptr_i, "loop.i");
+        auto llvm_i = b.CreatePHI(b.getInt32Ty(), 2, "loop.i");
         auto llvm_invoke_index = _compute_kernel_invoke_index(llvm_wrapper, b, llvm_i);
 
         // branch
@@ -3444,7 +3430,6 @@ private:
         // loop update
         b.SetInsertPoint(llvm_loop_update_block);
         auto llvm_next_i = b.CreateNUWAdd(llvm_i, b.getInt32(1), "loop.i.next");
-        b.CreateStore(llvm_next_i, llvm_ptr_i);
         auto llvm_loop_cond = b.CreateICmpULT(llvm_next_i, llvm_wrapper.thread_count, "loop.cond");
         auto llvm_loop_merge_block = llvm::BasicBlock::Create(_llvm_context, "loop.merge", llvm_wrapper.func);
         b.CreateCondBr(llvm_loop_cond, llvm_loop_block, llvm_loop_merge_block);
@@ -3452,11 +3437,25 @@ private:
         // loop merge
         b.SetInsertPoint(llvm_loop_merge_block);
         b.CreateRetVoid();
+
+        // fix phi node and return
+        llvm_i->addIncoming(b.getInt32(0), llvm_wrapper.entry_block);
+        llvm_i->addIncoming(llvm_next_i, llvm_loop_update_block);
         return llvm_wrapper.func;
     }
 
     [[nodiscard]] llvm::Function *_translate_kernel_function_coro(const xir::KernelFunction *f) noexcept {
-        return _translate_function_definition(f, llvm::Function::ExternalLinkage, "kernel", true);
+
+        // entry:
+        //   ...
+        //   %coro.frames = alloca [ ptr x thread_count ];
+        //   store zeroinitializer, %coro.frames
+        //
+
+        auto llvm_kernel = _translate_function_definition(f, llvm::Function::PrivateLinkage, "kernel", true);
+        auto llvm_wrapper = _create_kernel_wrapper(f);
+
+        return nullptr;
     }
 
     [[nodiscard]] llvm::Function *_translate_function_definition(const xir::FunctionDefinition *f,
