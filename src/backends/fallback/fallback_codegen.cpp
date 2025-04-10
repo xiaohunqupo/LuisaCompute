@@ -3478,8 +3478,6 @@ private:
         // create the handle array
         auto llvm_any_alive_alloca = b.CreateAlloca(llvm_i8_type);
         auto llvm_handle_array = b.CreateAlloca(llvm_ptr_type, llvm_wrapper.thread_count, "coro.handle.array");
-        auto llvm_alive_mask = b.CreateAlloca(llvm_i8_type, llvm_wrapper.thread_count, "coro.alive");
-        llvm_alive_mask->setAlignment(llvm::Align{16u});
 
         // initialize loop
         auto init_loop_head = llvm::BasicBlock::Create(_llvm_context, "init.loop.head", llvm_wrapper.func);
@@ -3492,9 +3490,7 @@ private:
             b.SetInsertPoint(init_loop_head);
             auto llvm_i = b.CreatePHI(llvm_i32_type, 2, "init.loop.i");
             auto llvm_handle_ptr = b.CreateInBoundsGEP(llvm_ptr_type, llvm_handle_array, llvm_i);
-            auto llvm_alive_ptr = b.CreateInBoundsGEP(llvm_i8_type, llvm_alive_mask, llvm_i);
             b.CreateStore(llvm_ptr_null, llvm_handle_ptr);
-            b.CreateStore(b.getInt8(0), llvm_alive_ptr);
             auto llvm_index = _compute_kernel_invoke_index(llvm_wrapper, b, llvm_i);
             b.CreateCondBr(llvm_index.in_range, init_loop_body, init_loop_update);
 
@@ -3502,7 +3498,6 @@ private:
             b.SetInsertPoint(init_loop_body);
             auto llvm_handle = _invoke_kernel_function(llvm_wrapper, llvm_kernel, b, llvm_index);
             b.CreateStore(llvm_handle, llvm_handle_ptr);
-            b.CreateStore(b.getInt8(1), llvm_alive_ptr);
             b.CreateBr(init_loop_update);
 
             // init loop update
@@ -3536,14 +3531,12 @@ private:
             // resume loop head
             b.SetInsertPoint(resume_loop_head);
             auto llvm_i = b.CreatePHI(llvm_i32_type, 2, "resume.loop.i");
-            auto llvm_alive_ptr = b.CreateInBoundsGEP(llvm_i8_type, llvm_alive_mask, llvm_i);
-            auto llvm_alive = b.CreateLoad(llvm_i8_type, llvm_alive_ptr);
-            auto llvm_alive_is_zero = b.CreateICmpEQ(llvm_alive, b.getInt8(0), "alive.is.zero");
-            b.CreateCondBr(llvm_alive_is_zero, resume_loop_update, resume_loop_body);
-
-            b.SetInsertPoint(resume_loop_body);
             auto llvm_handle_ptr = b.CreateInBoundsGEP(llvm_ptr_type, llvm_handle_array, llvm_i);
             auto llvm_handle = b.CreateLoad(llvm_ptr_type, llvm_handle_ptr);
+            auto llvm_handle_is_null = b.CreateICmpEQ(llvm_handle, llvm_ptr_null);
+            b.CreateCondBr(llvm_handle_is_null, resume_loop_update, resume_loop_body);
+
+            b.SetInsertPoint(resume_loop_body);
             auto llvm_handle_is_done = b.CreateIntrinsic(llvm_i1_type, llvm::Intrinsic::coro_done, {llvm_handle});
             b.CreateCondBr(llvm_handle_is_done, resume_loop_destroy, resume_loop_invoke);
 
@@ -3554,7 +3547,7 @@ private:
 
             b.SetInsertPoint(resume_loop_destroy);
             b.CreateIntrinsic(llvm_void_type, llvm::Intrinsic::coro_destroy, {llvm_handle});
-            b.CreateStore(b.getInt8(0), llvm_alive_ptr);
+            b.CreateStore(llvm_ptr_null, llvm_handle_ptr);
             b.CreateBr(resume_loop_update);
 
             // resume loop update
@@ -3576,7 +3569,6 @@ private:
         // hoist allocated variables to the entry block
         llvm_any_alive_alloca->moveBefore(llvm_wrapper.entry_block->begin());
         llvm_handle_array->moveBefore(llvm_wrapper.entry_block->begin());
-        llvm_alive_mask->moveBefore(llvm_wrapper.entry_block->begin());
 
         // return
         b.SetInsertPoint(exit_block);
