@@ -3476,15 +3476,10 @@ private:
         auto llvm_i32_type = llvm::IntegerType::get(_llvm_context, 32);
 
         // create the handle array
-
         auto llvm_any_alive_alloca = b.CreateAlloca(llvm_i8_type);
         auto llvm_handle_array = b.CreateAlloca(llvm_ptr_type, llvm_wrapper.thread_count, "coro.handle.array");
         auto llvm_alive_mask = b.CreateAlloca(llvm_i8_type, llvm_wrapper.thread_count, "coro.alive");
         llvm_alive_mask->setAlignment(llvm::Align{16u});
-
-        llvm_any_alive_alloca->moveBefore(llvm_wrapper.entry_block->begin());
-        llvm_handle_array->moveBefore(llvm_wrapper.entry_block->begin());
-        llvm_alive_mask->moveBefore(llvm_wrapper.entry_block->begin());
 
         // initialize loop
         auto init_loop_head = llvm::BasicBlock::Create(_llvm_context, "init.loop.head", llvm_wrapper.func);
@@ -3577,6 +3572,11 @@ private:
         auto llvm_any_alive = b.CreateLoad(llvm_i8_type, llvm_any_alive_alloca);
         auto llvm_any_alive_is_zero = b.CreateICmpEQ(llvm_any_alive, b.getInt8(0));
         b.CreateCondBr(llvm_any_alive_is_zero, exit_block, resume_loop_pre);
+
+        // hoist allocated variables to the entry block
+        llvm_any_alive_alloca->moveBefore(llvm_wrapper.entry_block->begin());
+        llvm_handle_array->moveBefore(llvm_wrapper.entry_block->begin());
+        llvm_alive_mask->moveBefore(llvm_wrapper.entry_block->begin());
 
         b.SetInsertPoint(exit_block);
         b.CreateRetVoid();
@@ -3795,7 +3795,7 @@ private:
             // move alloca instructions to the beginning of the function
             auto &llvm_entry = llvm_func->getEntryBlock();
             for (auto inst : alloca_insts) {
-                inst->moveBefore(&llvm_entry.front());
+                inst->moveBefore(llvm_entry.begin());
             }
         }
         // return
