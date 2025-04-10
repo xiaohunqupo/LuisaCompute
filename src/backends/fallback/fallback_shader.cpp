@@ -108,7 +108,13 @@ struct FallbackShaderLaunchConfig {
 
 FallbackShader::FallbackShader(FallbackDevice *device, const ShaderOption &option, Function kernel) noexcept {
 
-    _initialize_target_machine_jit(option);
+    _initialize_target_machine_jit(
+        option, !kernel.shared_variables().empty() ||
+                    std::any_of(kernel.custom_callables().begin(),
+                                kernel.custom_callables().end(),
+                                [](auto &&callable) noexcept {
+                                    return !callable->shared_variables().empty();
+                                }));
 
     LUISA_VERBOSE("======= Fallback Backend JIT Shader Compilation =======");
 
@@ -503,7 +509,7 @@ void FallbackShader::dispatch(FallbackCommandQueue *queue, luisa::unique_ptr<Sha
 
 FallbackShader::~FallbackShader() noexcept = default;
 
-void FallbackShader::_initialize_target_machine_jit(const ShaderOption &option) noexcept {
+void FallbackShader::_initialize_target_machine_jit(const ShaderOption &option, bool requires_smem) noexcept {
 
     // build JIT engine
     ::llvm::orc::LLJITBuilder jit_builder;
@@ -520,7 +526,7 @@ void FallbackShader::_initialize_target_machine_jit(const ShaderOption &option) 
         options.AllowFPOpFusion = ::llvm::FPOpFusion::Fast;
         options.EnableIPRA = false;// true causes crash
         options.StackSymbolOrdering = true;
-        options.EmulatedTLS = true;
+        options.EmulatedTLS = requires_smem;
 #ifndef NDEBUG
         options.TrapUnreachable = true;
 #else
