@@ -64,6 +64,8 @@ static const bool LUISA_SHOULD_DUMP_ASM = [] {
     return false;
 }();
 
+extern "C" void *__emutls_get_address(void *);
+
 namespace luisa::compute::fallback {
 
 [[nodiscard]] static luisa::half luisa_fallback_asin_f16(luisa::half x) noexcept { return ::half_float::asin(x); }
@@ -239,6 +241,9 @@ FallbackShader::FallbackShader(FallbackDevice *device, const ShaderOption &optio
     // luisa.coro.alloc and luisa.coro.free
     map_symbol("luisa.coro.alloc", &luisa_coro_alloc);
     map_symbol("luisa.coro.free", &luisa_coro_free);
+
+    // __emutls_get_address
+    map_symbol("__emutls_get_address", &__emutls_get_address);
 
     // assert
     map_symbol("luisa.assert", &luisa_fallback_assert);
