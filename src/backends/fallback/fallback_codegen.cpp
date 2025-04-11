@@ -471,7 +471,7 @@ private:
             auto ptr_type = llvm::PointerType::get(_llvm_context, 0);
             return llvm::ConstantPointerNull::get(ptr_type);
         }
-        return b.CreateGlobalStringPtr(s);
+        return b.CreateGlobalString(s);
     }
 
     [[nodiscard]] llvm::Value *_translate_gep(CurrentFunction &current, IRBuilder &b,
@@ -3089,8 +3089,7 @@ private:
                 auto assert_func_type = llvm::FunctionType::get(llvm_void_type, {llvm_condition->getType(), llvm_message->getType()}, false);
                 auto external_assert = _llvm_module->getOrInsertFunction("luisa.assert", assert_func_type);
                 auto external_assert_signature = llvm::cast<llvm::Function>(external_assert.getCallee());
-                external_assert_signature->addFnAttr(llvm::Attribute::NoCapture);
-                external_assert_signature->addFnAttr(llvm::Attribute::ReadOnly);
+                external_assert_signature->setOnlyReadsMemory();
                 return b.CreateCall(external_assert, {llvm_condition, llvm_message});
             }
             case xir::DerivedInstructionTag::ASSUME: {
