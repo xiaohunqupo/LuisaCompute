@@ -2282,10 +2282,11 @@ private:
             }
             case xir::ArithmeticOp::ABS: {
                 auto llvm_x = _lookup_value(current, b, inst->operand(0u));
-                auto llvm_intrinsic = llvm_x->getType()->isFPOrFPVectorTy() ?
-                                          llvm::Intrinsic::fabs :
-                                          llvm::Intrinsic::abs;
-                return b.CreateUnaryIntrinsic(llvm_intrinsic, llvm_x);
+                if (llvm_x->getType()->isIntOrIntVectorTy()) {
+                    auto llvm_false = llvm::ConstantInt::getFalse(_llvm_context);
+                    return b.CreateBinaryIntrinsic(llvm::Intrinsic::abs, llvm_x, llvm_false);
+                }
+                return b.CreateUnaryIntrinsic(llvm::Intrinsic::fabs, llvm_x);
             }
             case xir::ArithmeticOp::MIN: {
                 auto llvm_x = _lookup_value(current, b, inst->operand(0u));
