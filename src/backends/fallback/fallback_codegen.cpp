@@ -2078,7 +2078,7 @@ private:
         auto &llvm_smem = _llvm_smem_variables[a];
         if (llvm_smem == nullptr) {
             llvm_smem = llvm::cast<llvm::GlobalVariable>(_llvm_module->getOrInsertGlobal(
-                luisa::format("luisa.smem.{}", n), llvm_type));
+                luisa::string_view{luisa::format("luisa.smem.{}", n)}, llvm_type));
             LUISA_ASSERT(llvm_smem != nullptr, "Failed to create shared memory variable.");
             llvm_smem->setInitializer(llvm::UndefValue::get(llvm_type));
             llvm_smem->setThreadLocal(true);
