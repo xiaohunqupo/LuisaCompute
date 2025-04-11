@@ -54,6 +54,7 @@ private:
         llvm::BasicBlock *coro_cleanup_block = nullptr;
         luisa::unordered_map<const xir::Value *, llvm::Value *> value_map;
         luisa::unordered_set<const llvm::BasicBlock *> translated_basic_blocks;
+        luisa::unordered_map<llvm::BasicBlock *, llvm::BasicBlock *> phi_incoming_overrides;
         luisa::vector<const xir::PhiInst *> phi_nodes;
 
         // builtin variables
@@ -2892,6 +2893,9 @@ private:
             auto llvm_coro_switch = b.CreateSwitch(llvm_signal, current.coro_suspend_block, 2);
             llvm_coro_switch->addCase(llvm_i8_zero, llvm_coro_resume_block);
             llvm_coro_switch->addCase(llvm_i8_one, current.coro_cleanup_block);
+            // record the override to redirect phi_incoming
+            auto [_, success] = current.phi_incoming_overrides.emplace(b.GetInsertBlock(), llvm_coro_resume_block);
+            LUISA_ASSERT(success, "Failed to override phi incoming block which is already set.");
             // llvm_coro_suspend_block:
             b.SetInsertPoint(llvm_coro_resume_block);
             return nullptr;
@@ -3772,8 +3776,14 @@ private:
                 b.SetInsertPoint(llvm_phi);
                 for (auto i = 0u; i < phi->incoming_count(); i++) {
                     auto incoming = phi->incoming(i);
-                    auto llvm_incoming_block = _find_or_create_basic_block(current, incoming.block);
                     auto llvm_incoming_value = _lookup_value(current, b, incoming.value);
+                    auto llvm_incoming_block = _find_or_create_basic_block(current, incoming.block);
+                    // handle incoming block redirections due to block synchronization
+                    for (;;) {
+                        auto iter = current.phi_incoming_overrides.find(llvm_incoming_block);
+                        if (iter == current.phi_incoming_overrides.end()) { break; }
+                        llvm_incoming_block = iter->second;
+                    }
                     llvm_phi->addIncoming(llvm_incoming_value, llvm_incoming_block);
                 }
             }
