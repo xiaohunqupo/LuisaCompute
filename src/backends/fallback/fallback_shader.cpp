@@ -29,6 +29,7 @@
 #include <luisa/xir/passes/local_load_elimination.h>
 #include <luisa/xir/passes/mem2reg.h>
 #include <luisa/xir/passes/lower_ray_query_loop.h>
+#include <luisa/xir/passes/reg2mem.h>
 
 #include "../common/shader_print_formatter.h"
 
@@ -167,19 +168,22 @@ FallbackShader::FallbackShader(FallbackDevice *device, const ShaderOption &optio
         f << xir::xir_to_text_translate(xir_module.get(), true);
     }
     auto rq_lower_info = xir::lower_ray_query_loop_pass_run_on_module(xir_module.get());
+    auto reg2mem_info = xir::reg2mem_pass_run_on_module(xir_module.get());
     LUISA_VERBOSE("XIR optimization done in {} ms: "
                   "forwarded {} store instruction(s), "
                   "eliminated {} load instruction(s), "
                   "promoted {} alloca instruction(s) with {} load and {} store instruction(s) removed and {} phi node(s) inserted, "
                   "removed {} + {} + {} = {} dead instruction(s), "
-                  "lowered {} ray query loop(s).",
+                  "lowered {} ray query loop(s), "
+                  "lowered {} phi node(s).",
                   opt_clk.toc(),
                   store_forward_info.forwarded_instructions.size(),
                   load_elim_info.eliminated_instructions.size(),
                   mem2reg_info.promoted_alloca_instructions.size(), mem2reg_info.removed_load_instructions.size(), mem2reg_info.removed_store_instructions.size(), mem2reg_info.inserted_phi_instructions.size(),
                   dce1_info.removed_instructions.size(), dce2_info.removed_instructions.size(), dce3_info.removed_instructions.size(),
                   dce1_info.removed_instructions.size() + dce2_info.removed_instructions.size() + dce3_info.removed_instructions.size(),
-                  rq_lower_info.lowered_loops.size());
+                  rq_lower_info.lowered_loops.size(),
+                  reg2mem_info.lowered_phi_nodes.size());
 
     // dump for debugging
     if (LUISA_SHOULD_DUMP_XIR) {
