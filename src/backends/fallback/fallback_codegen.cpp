@@ -190,6 +190,10 @@ private:
         LUISA_ERROR_WITH_LOCATION("Invalid type: {}.", t->description());
     }
 
+    static void _move_llvm_inst_to_block_begin(llvm::Instruction *inst, llvm::BasicBlock *block) noexcept {
+        inst->moveBefore(*block, block->begin());
+    }
+
     [[nodiscard]] LLVMStruct *_translate_struct_type(const Type *t) noexcept {
         auto iter = _llvm_struct_types.try_emplace(t, nullptr).first;
         if (iter->second) { return iter->second.get(); }
@@ -3450,7 +3454,7 @@ private:
         b.CreateRetVoid();
 
         // hoist the alloca to the entry block and return the kernel wrapper
-        llvm_i_alloca->moveBefore(llvm_wrapper.entry_block->begin());
+        _move_llvm_inst_to_block_begin(llvm_i_alloca, llvm_wrapper.entry_block);
         return llvm_wrapper.func;
     }
 
@@ -3575,10 +3579,10 @@ private:
         b.CreateCondBr(llvm_any_alive_is_zero, exit_block, resume_loop_pre);
 
         // hoist allocated variables to the entry block
-        llvm_any_alive_alloca->moveBefore(llvm_wrapper.entry_block->begin());
-        llvm_handle_array->moveBefore(llvm_wrapper.entry_block->begin());
-        init_loop_i_alloca->moveBefore(llvm_wrapper.entry_block->begin());
-        resume_loop_i_alloca->moveBefore(llvm_wrapper.entry_block->begin());
+        _move_llvm_inst_to_block_begin(llvm_any_alive_alloca, llvm_wrapper.entry_block);
+        _move_llvm_inst_to_block_begin(llvm_handle_array, llvm_wrapper.entry_block);
+        _move_llvm_inst_to_block_begin(init_loop_i_alloca, llvm_wrapper.entry_block);
+        _move_llvm_inst_to_block_begin(resume_loop_i_alloca, llvm_wrapper.entry_block);
 
         // return
         b.SetInsertPoint(exit_block);
@@ -3804,7 +3808,7 @@ private:
             // move alloca instructions to the beginning of the function
             auto &llvm_entry = llvm_func->getEntryBlock();
             for (auto inst : alloca_insts) {
-                inst->moveBefore(llvm_entry.begin());
+                _move_llvm_inst_to_block_begin(inst, &llvm_entry);
             }
         }
         // return
