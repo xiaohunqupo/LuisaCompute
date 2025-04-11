@@ -3380,8 +3380,10 @@ private:
         // entry:
         //   ...
         //   br loop;
+        //   i = alloca i32
+        //   store 0, i
         // loop:
-        //   i = phi (0, next_i);
+        //   load i
         //   thread_id_x = i % block_size.x;
         //   thread_id_y = (i / block_size.x) % block_size.y;
         //   thread_id_z = i / (block_size.x * block_size.y);
@@ -3394,6 +3396,7 @@ private:
         //   br update;
         // update:
         //   next_i = i + 1;
+        //   store next_i, i
         //   br next_i < thread_count, loop, merge;
         // merge:
         //   ret;
@@ -3407,6 +3410,8 @@ private:
 
         // thread-in-block loop
         IRBuilder b{llvm_wrapper.entry_block};
+        auto llvm_i_alloca = b.CreateAlloca(b.getInt32Ty(), nullptr, "loop.i.alloca");
+        b.CreateStore(b.getInt32(0), llvm_i_alloca);
 
         // loop head
         auto llvm_loop_block = llvm::BasicBlock::Create(_llvm_context, "loop.head", llvm_wrapper.func);
@@ -3414,7 +3419,7 @@ private:
         b.SetInsertPoint(llvm_loop_block);
 
         // compute thread id
-        auto llvm_i = b.CreatePHI(b.getInt32Ty(), 2, "loop.i");
+        auto llvm_i = b.CreateLoad(b.getInt32Ty(), llvm_i_alloca, "loop.i");
         auto llvm_invoke_index = _compute_kernel_invoke_index(llvm_wrapper, b, llvm_i);
 
         // branch
@@ -3430,6 +3435,7 @@ private:
         // loop update
         b.SetInsertPoint(llvm_loop_update_block);
         auto llvm_next_i = b.CreateNUWAdd(llvm_i, b.getInt32(1), "loop.i.next");
+        b.CreateStore(llvm_next_i, llvm_i_alloca);
         auto llvm_loop_cond = b.CreateICmpULT(llvm_next_i, llvm_wrapper.thread_count, "loop.cond");
         auto llvm_loop_merge_block = llvm::BasicBlock::Create(_llvm_context, "loop.merge", llvm_wrapper.func);
         b.CreateCondBr(llvm_loop_cond, llvm_loop_block, llvm_loop_merge_block);
@@ -3438,9 +3444,8 @@ private:
         b.SetInsertPoint(llvm_loop_merge_block);
         b.CreateRetVoid();
 
-        // fix the phi node and return
-        llvm_i->addIncoming(b.getInt32(0), llvm_wrapper.entry_block);
-        llvm_i->addIncoming(llvm_next_i, llvm_loop_update_block);
+        // hoist the alloca to the entry block and return the kernel wrapper
+        llvm_i_alloca->moveBefore(llvm_wrapper.entry_block->begin());
         return llvm_wrapper.func;
     }
 
@@ -3480,6 +3485,8 @@ private:
         auto llvm_handle_array = b.CreateAlloca(llvm_ptr_type, llvm_wrapper.thread_count, "coro.handle.array");
 
         // initialize loop
+        auto init_loop_i_alloca = b.CreateAlloca(llvm_i32_type, nullptr, "init.loop.i");
+        b.CreateStore(b.getInt32(0), init_loop_i_alloca);
         auto init_loop_head = llvm::BasicBlock::Create(_llvm_context, "init.loop.head", llvm_wrapper.func);
         auto init_loop_body = llvm::BasicBlock::Create(_llvm_context, "init.loop.body", llvm_wrapper.func);
         auto init_loop_update = llvm::BasicBlock::Create(_llvm_context, "init.loop.update", llvm_wrapper.func);
@@ -3488,7 +3495,7 @@ private:
         {
             // init loop head
             b.SetInsertPoint(init_loop_head);
-            auto llvm_i = b.CreatePHI(llvm_i32_type, 2, "init.loop.i");
+            auto llvm_i = b.CreateLoad(llvm_i32_type, init_loop_i_alloca, "init.loop.i");
             auto llvm_handle_ptr = b.CreateInBoundsGEP(llvm_ptr_type, llvm_handle_array, llvm_i);
             b.CreateStore(llvm_ptr_null, llvm_handle_ptr);
             auto llvm_index = _compute_kernel_invoke_index(llvm_wrapper, b, llvm_i);
@@ -3503,12 +3510,9 @@ private:
             // init loop update
             b.SetInsertPoint(init_loop_update);
             auto llvm_next_i = b.CreateAdd(llvm_i, b.getInt32(1), "init.loop.i.next", true, true);
+            b.CreateStore(llvm_next_i, init_loop_i_alloca);
             auto llvm_init_loop_cond = b.CreateICmpULT(llvm_next_i, llvm_wrapper.thread_count, "init.loop.cond");
             b.CreateCondBr(llvm_init_loop_cond, init_loop_head, init_loop_exit);
-
-            // fix the phi node
-            llvm_i->addIncoming(b.getInt32(0), llvm_wrapper.entry_block);
-            llvm_i->addIncoming(llvm_next_i, init_loop_update);
         }
 
         // resume loop
@@ -3525,12 +3529,14 @@ private:
         b.CreateBr(resume_loop_pre);
 
         b.SetInsertPoint(resume_loop_pre);
+        auto resume_loop_i_alloca = b.CreateAlloca(llvm_i32_type, nullptr, "resume.loop.i");
+        b.CreateStore(b.getInt32(0), resume_loop_i_alloca);
         b.CreateStore(b.getInt8(0), llvm_any_alive_alloca);
         b.CreateBr(resume_loop_head);
         {
             // resume loop head
             b.SetInsertPoint(resume_loop_head);
-            auto llvm_i = b.CreatePHI(llvm_i32_type, 2, "resume.loop.i");
+            auto llvm_i = b.CreateLoad(llvm_i32_type, resume_loop_i_alloca, "resume.loop.i");
             auto llvm_handle_ptr = b.CreateInBoundsGEP(llvm_ptr_type, llvm_handle_array, llvm_i);
             auto llvm_handle = b.CreateLoad(llvm_ptr_type, llvm_handle_ptr);
             auto llvm_handle_is_null = b.CreateICmpEQ(llvm_handle, llvm_ptr_null);
@@ -3553,12 +3559,9 @@ private:
             // resume loop update
             b.SetInsertPoint(resume_loop_update);
             auto llvm_next_i = b.CreateAdd(llvm_i, b.getInt32(1), "resume.loop.i.next", true, true);
+            b.CreateStore(llvm_next_i, resume_loop_i_alloca);
             auto llvm_resume_loop_cond = b.CreateICmpULT(llvm_next_i, llvm_wrapper.thread_count, "resume.loop.cond");
             b.CreateCondBr(llvm_resume_loop_cond, resume_loop_head, resume_loop_post);
-
-            // fix the phi node
-            llvm_i->addIncoming(b.getInt32(0), resume_loop_pre);
-            llvm_i->addIncoming(llvm_next_i, resume_loop_update);
         }
         auto exit_block = llvm::BasicBlock::Create(_llvm_context, "exit", llvm_wrapper.func);
         b.SetInsertPoint(resume_loop_post);
@@ -3569,6 +3572,8 @@ private:
         // hoist allocated variables to the entry block
         llvm_any_alive_alloca->moveBefore(llvm_wrapper.entry_block->begin());
         llvm_handle_array->moveBefore(llvm_wrapper.entry_block->begin());
+        init_loop_i_alloca->moveBefore(llvm_wrapper.entry_block->begin());
+        resume_loop_i_alloca->moveBefore(llvm_wrapper.entry_block->begin());
 
         // return
         b.SetInsertPoint(exit_block);
