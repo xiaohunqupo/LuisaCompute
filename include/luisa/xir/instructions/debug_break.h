@@ -9,8 +9,7 @@ class LC_XIR_API DebugBreakInst : public DerivedInstruction<DebugBreakInst, Deri
 public:
     using Evaluate = const void * /* pointer to evaluated data */
         (*)(void * /* backend context */, size_t /* index */) noexcept;
-    using Trap = void (*)() noexcept;
-    using Callback = void (*)(void * /* backend context */, Evaluate, Trap);
+    using Callback = void (*)(void * /* backend context */, Evaluate);
 
 private:
     Callback _callback;

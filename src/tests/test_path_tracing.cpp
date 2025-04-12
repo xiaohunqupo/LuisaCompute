@@ -159,7 +159,6 @@ int main(int argc, char *argv[]) {
         set_name("cosine_sample_hemisphere");
         Float r = sqrt(u.x);
         Float phi = 2.0f * constants::pi * u.y;
-        $debug_break(r, phi);
         return make_float3(r * cos(phi), r * sin(phi), sqrt(1.0f - u.x));
     };
 

@@ -264,6 +264,12 @@ FallbackShader::FallbackShader(FallbackDevice *device, const ShaderOption &optio
         }
     }
 
+    // bind debug callback functions
+    for (auto &&[callback, llvm_symbol] : codegen_feedback.debug_callback_map) {
+        map_symbol(llvm_symbol.c_str(), callback);
+        LUISA_INFO("Mapping debug callback: {} -> {}", reinterpret_cast<void *>(callback), llvm_symbol);
+    }
+
     // define symbols
     if (auto error = _jit->getMainJITDylib().define(
             ::llvm::orc::absoluteSymbols(std::move(symbol_map)))) {

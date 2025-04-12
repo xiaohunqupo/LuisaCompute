@@ -2801,15 +2801,12 @@ private:
         auto llvm_ptr_type = llvm::PointerType::get(_llvm_context, 0);
         auto llvm_i64_type = llvm::IntegerType::get(_llvm_context, 64);
         auto llvm_struct_type = llvm::StructType::get(_llvm_context, llvm_arg_types);
-        // declare a callback function: (ptr struct, ptr eval_func, ptr trap_func) -> void
+        // declare a callback function: (ptr struct, ptr eval_func) -> void
         auto llvm_callback_type = llvm::FunctionType::get(
-            b.getVoidTy(), {llvm_ptr_type, llvm_ptr_type, llvm_ptr_type}, false);
+            b.getVoidTy(), {llvm_ptr_type, llvm_ptr_type}, false);
         auto llvm_callback = llvm::Function::Create(
-            llvm_callback_type, llvm::Function::PrivateLinkage,
-            "luisa.debug.break.callback", _llvm_module);
+            llvm_callback_type, llvm::Function::ExternalLinkage, "luisa.debug.break.callback", _llvm_module);
         {
-            llvm_callback->setOnlyAccessesArgMemory();
-            llvm_callback->setOnlyReadsMemory();
             llvm_callback->setDoesNotThrow();
             llvm_callback->setDoesNotRecurse();
             llvm_callback->setMustProgress();
@@ -2820,8 +2817,7 @@ private:
         auto llvm_eval_func_type = llvm::FunctionType::get(
             llvm_ptr_type, {llvm_ptr_type, llvm_i64_type}, false);
         auto llvm_eval_func = llvm::Function::Create(
-            llvm_eval_func_type, llvm::Function::PrivateLinkage,
-            "luisa.debug.break.eval", _llvm_module);
+            llvm_eval_func_type, llvm::Function::PrivateLinkage, "luisa.debug.break.eval", _llvm_module);
         {
             auto llvm_body = llvm::BasicBlock::Create(_llvm_context, "body", llvm_eval_func);
             IRBuilder b{llvm_body};
@@ -2835,14 +2831,12 @@ private:
                 llvm_switch->addCase(llvm_case_value, llvm_case_block);
                 b.SetInsertPoint(llvm_case_block);
                 auto llvm_arg_ptr = b.CreateStructGEP(llvm_struct_type, llvm_struct_ptr, i);
-                auto llvm_arg = b.CreateLoad(llvm_arg_types[i], llvm_arg_ptr);
-                b.CreateRet(llvm_arg);
+                b.CreateRet(llvm_arg_ptr);
             }
             b.SetInsertPoint(llvm_unreachable_block);
             b.CreateUnreachable();
         }
-        // get the trap function
-        auto llvm_trap_func = _llvm_module->getFunction("luisa.debug.break.trap");
+
         // store the arguments in a struct
         auto llvm_struct_alloca = b.CreateAlloca(llvm_struct_type);
         b.CreateLifetimeStart(llvm_struct_alloca);
@@ -2850,9 +2844,10 @@ private:
             auto llvm_arg_ptr = b.CreateStructGEP(llvm_struct_type, llvm_struct_alloca, i);
             b.CreateStore(llvm_args[i], llvm_arg_ptr);
         }
-
-
-        return nullptr;
+        // invoke the callback
+        auto llvm_call = b.CreateCall(llvm_callback, {llvm_struct_alloca, llvm_eval_func});
+        b.CreateLifetimeEnd(llvm_struct_alloca);
+        return llvm_call;
     }
 
     [[nodiscard]] llvm::Value *_translate_print_inst(CurrentFunction &current, IRBuilder &b,

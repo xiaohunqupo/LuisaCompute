@@ -522,7 +522,7 @@ class LC_AST_API DebugBreakStmt : public Statement {
 public:
     using Evaluator = const void *(void * /* backend context */, size_t index) noexcept;
     using Trapper = void() noexcept;
-    using Wrapper = void(void * /* backend context */, Evaluator *, Trapper *);
+    using Wrapper = void(void * /* backend context */, Evaluator *);
 
 private:
     Wrapper *_wrapper;
