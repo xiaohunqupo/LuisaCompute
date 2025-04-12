@@ -16,6 +16,8 @@ __device__ void lc_assume(bool) noexcept {}
 
 [[noreturn]] void lc_trap() noexcept { asm volatile("trap;"); }
 
+void lc_debug_break() noexcept {/* currently do nothing */}
+
 template<typename T = void>
 [[noreturn]] __device__ T lc_unreachable(
     const char *file, int line) noexcept {

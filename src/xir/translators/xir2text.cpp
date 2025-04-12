@@ -25,6 +25,7 @@
 #include <luisa/xir/instructions/outline.h>
 #include <luisa/xir/instructions/phi.h>
 #include <luisa/xir/instructions/print.h>
+#include <luisa/xir/instructions/debug_break.h>
 #include <luisa/xir/instructions/ray_query.h>
 #include <luisa/xir/instructions/raster_discard.h>
 #include <luisa/xir/instructions/return.h>
@@ -424,6 +425,20 @@ private:
         _emit_operands(inst);
     }
 
+    void _emit_debug_break_inst(const DebugBreakInst *inst) noexcept {
+        _main << "debug_break";
+        auto n = inst->operand_count();
+        for (auto i = 0; i < n; i++) {
+            auto w = inst->watch(i);
+            LUISA_DEBUG_ASSERT(w.value != nullptr && !w.identifier.empty(),
+                               "Debug break watch value must not be null.");
+            _main << " (";
+            _emit_string_escaped(_main, w.identifier);
+            _main << ", " << _value_ident(w.value) << ")";
+            if (i != n - 1) { _main << ","; }
+        }
+    }
+
     void _emit_branch_inst(const BranchInst *inst) noexcept {
         LUISA_DEBUG_ASSERT(inst->target_block() != nullptr,
                            "Branch target block must not be null.");
@@ -573,6 +588,9 @@ private:
                 break;
             case DerivedInstructionTag::RESOURCE_WRITE:
                 _emit_resource_write_inst(static_cast<const ResourceWriteInst *>(inst));
+                break;
+            case DerivedInstructionTag::DEBUG_BREAK:
+                _emit_debug_break_inst(static_cast<const DebugBreakInst *>(inst));
                 break;
         }
         _main << ";";

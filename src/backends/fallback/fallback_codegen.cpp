@@ -2785,6 +2785,11 @@ private:
         LUISA_ERROR_WITH_LOCATION("Invalid cast operation.");
     }
 
+    [[nodiscard]] llvm::Value *_translate_debug_break_inst(CurrentFunction &current, IRBuilder &b,
+                                                           const xir::DebugBreakInst *inst) noexcept {
+        return b.CreateIntrinsic(llvm::Intrinsic::debugtrap, {}, {});
+    }
+
     [[nodiscard]] llvm::Value *_translate_print_inst(CurrentFunction &current, IRBuilder &b,
                                                      const xir::PrintInst *inst) noexcept {
         // create argument struct
@@ -3087,6 +3092,10 @@ private:
             case xir::DerivedInstructionTag::PRINT: {
                 auto print_inst = static_cast<const xir::PrintInst *>(inst);
                 return _translate_print_inst(current, b, print_inst);
+            }
+            case xir::DerivedInstructionTag::DEBUG_BREAK: {
+                auto debug_break_inst = static_cast<const xir::DebugBreakInst *>(inst);
+                return _translate_debug_break_inst(current, b, debug_break_inst);
             }
             case xir::DerivedInstructionTag::ASSERT: {
                 auto assert_inst = static_cast<const xir::AssertInst *>(inst);

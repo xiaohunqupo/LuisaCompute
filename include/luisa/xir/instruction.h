@@ -58,10 +58,11 @@ enum struct DerivedInstructionTag {
     AUTODIFF_INTRINSIC,
 
     /* other instructions */
-    CALL, // user or external function calls
-    CAST, // type casts
-    PRINT,// kernel print
-    CLOCK,// kernel clock
+    CALL,       // user or external function calls
+    CAST,       // type casts
+    PRINT,      // kernel print
+    CLOCK,      // kernel clock
+    DEBUG_BREAK,// kernel debug break
 
     ASSERT,// assertion
     ASSUME,// assumption
@@ -103,6 +104,7 @@ enum struct DerivedInstructionTag {
         case DerivedInstructionTag::CAST: return "cast"sv;
         case DerivedInstructionTag::PRINT: return "print"sv;
         case DerivedInstructionTag::CLOCK: return "clock"sv;
+        case DerivedInstructionTag::DEBUG_BREAK: return "debug_break"sv;
         case DerivedInstructionTag::ASSERT: return "assert"sv;
         case DerivedInstructionTag::ASSUME: return "assume"sv;
         case DerivedInstructionTag::OUTLINE: return "outline"sv;

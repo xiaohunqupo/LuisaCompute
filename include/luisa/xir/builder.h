@@ -21,6 +21,7 @@
 #include <luisa/xir/instructions/outline.h>
 #include <luisa/xir/instructions/phi.h>
 #include <luisa/xir/instructions/print.h>
+#include <luisa/xir/instructions/debug_break.h>
 #include <luisa/xir/instructions/ray_query.h>
 #include <luisa/xir/instructions/raster_discard.h>
 #include <luisa/xir/instructions/return.h>
@@ -113,6 +114,8 @@ public:
 
     PrintInst *print(luisa::string format, luisa::span<Value *const> values) noexcept;
     PrintInst *print(luisa::string format, std::initializer_list<Value *> values) noexcept;
+
+    DebugBreakInst *debug_break(DebugBreakInst::Callback callback = nullptr) noexcept;
 
     AllocaInst *alloca_(const Type *type, AllocaOp space) noexcept;
     AllocaInst *alloca_local(const Type *type) noexcept;

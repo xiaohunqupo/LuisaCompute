@@ -1114,7 +1114,12 @@ private:
                 }
                 case Statement::Tag::DEBUG_BREAK: {
                     auto ast_debug_break = static_cast<const DebugBreakStmt *>(car);
-                    // TODO: implement
+                    auto debug_break = _commented(b.debug_break(ast_debug_break->wrapper()));
+                    debug_break->reserve_watches(ast_debug_break->watches().size());
+                    for (auto &&ast_watch : ast_debug_break->watches()) {
+                        auto watch_value = _translate_expression(b, ast_watch.expr, true);
+                        debug_break->add_watch(ast_watch.identifier, watch_value);
+                    }
                     break;
                 }
             }

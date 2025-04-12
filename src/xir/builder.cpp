@@ -114,6 +114,10 @@ PrintInst *XIRBuilder::print(luisa::string format, std::initializer_list<Value *
     return _create_and_append_instruction<PrintInst>(_insertion_point->parent_block(), std::move(format), luisa::span{values.begin(), values.end()});
 }
 
+DebugBreakInst *XIRBuilder::debug_break(DebugBreakInst::Callback callback) noexcept {
+    return _create_and_append_instruction<DebugBreakInst>(_insertion_point->parent_block(), callback);
+}
+
 AllocaInst *XIRBuilder::alloca_(const Type *type, AllocaOp space) noexcept {
     return _create_and_append_instruction<AllocaInst>(_insertion_point->parent_block(), type, space);
 }

@@ -29,6 +29,7 @@ set(LUISA_COMPUTE_XIR_SOURCES
         instructions/cast.cpp
         instructions/clock.cpp
         instructions/continue.cpp
+        instructions/debug_break.cpp
         instructions/gep.cpp
         instructions/if.cpp
         instructions/load.cpp

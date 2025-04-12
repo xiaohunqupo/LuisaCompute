@@ -789,6 +789,10 @@ void CUDACodegenXIR::_emit_instructions(const xir::InstructionList &inst_list, i
                 _scratch << "});";
                 break;
             }
+            case xir::DerivedInstructionTag::DEBUG_BREAK: {
+                _scratch << "lc_debug_break();";
+                break;
+            }
             case xir::DerivedInstructionTag::CLOCK: {
                 emit_result_value_eq();
                 _scratch << "clock64();";
