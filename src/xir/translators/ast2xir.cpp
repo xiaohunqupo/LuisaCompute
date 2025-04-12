@@ -1112,6 +1112,11 @@ private:
                     _commented(b.print(luisa::string{ast_print->format()}, args));
                     break;
                 }
+                case Statement::Tag::DEBUG_BREAK: {
+                    auto ast_debug_break = static_cast<const DebugBreakStmt *>(car);
+
+                    break;
+                }
             }
             // update the statement list
             stmts = cdr;

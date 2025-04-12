@@ -16,6 +16,7 @@
 
 // Runtime depends on AST but this file is header only.
 #include <luisa/runtime/rhi/curve_basis.h>
+
 namespace luisa {
 class MemorySanitizer;
 }// namespace luisa
@@ -413,6 +414,8 @@ public:
     [[nodiscard]] AutoDiffStmt *autodiff_() noexcept;
     /// Add print statement
     void print_(luisa::string format, luisa::span<const Expression *const> args) noexcept;
+    /// Add debug break statement
+    void debug_break_(DebugBreakStmt::Wrapper wrapper, luisa::vector<DebugBreakStmt::Watch> watches) noexcept;
 
     // For autodiff use only
     [[nodiscard]] const Statement *pop_stmt() noexcept;

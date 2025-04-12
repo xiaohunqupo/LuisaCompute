@@ -948,6 +948,7 @@ private:
             case Statement::Tag::RAY_QUERY: _convert_ray_query_stmt(j, static_cast<const RayQueryStmt *>(stmt)); break;
             case Statement::Tag::AUTO_DIFF: _convert_autodiff_stmt(j, static_cast<const AutoDiffStmt *>(stmt)); break;
             case Statement::Tag::PRINT: _convert_print_stmt(j, static_cast<const PrintStmt *>(stmt)); break;
+            case Statement::Tag::DEBUG_BREAK: LUISA_NOT_IMPLEMENTED("Debug break statement is not supported.");
         }
         return j;
     }
@@ -959,7 +960,11 @@ private:
             JSON::Array a;
             a.reserve(stmt->statements().size());
             for (auto &&s : stmt->statements()) {
-                a.emplace_back(_convert_stmt(s));
+                if (s->tag() != Statement::Tag::DEBUG_BREAK) {
+                    a.emplace_back(_convert_stmt(s));
+                } else {
+                    LUISA_WARNING_WITH_LOCATION("Ignoring debug break statement.");
+                }
             }
             return a;
         }();

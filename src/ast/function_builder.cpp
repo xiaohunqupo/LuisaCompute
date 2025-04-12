@@ -815,10 +815,12 @@ const CallExpr *FunctionBuilder::call(const Type *type, Function custom, luisa::
     }
     return expr;
 }
+
 const CpuCustomOpExpr *FunctionBuilder::call(const Type *type, void (*f)(void *, void *), void (*dtor)(void *), void *data, const Expression *arg) noexcept {
     auto expr = _create_expression<CpuCustomOpExpr>(type, f, dtor, data, arg);
     return expr;
 }
+
 void FunctionBuilder::call(CallOp call_op, luisa::span<const Expression *const> args) noexcept {
     _void_expr(call(nullptr, call_op, args));
 }
@@ -847,6 +849,13 @@ void FunctionBuilder::print_(luisa::string format,
         std::move(format),
         std::move(internalized_args));
     _requires_printing = true;
+}
+
+void FunctionBuilder::debug_break_(DebugBreakStmt::Wrapper wrapper, luisa::vector<DebugBreakStmt::Watch> watches) noexcept {
+    for (auto &&w : watches) {
+        w.expr = _internalize(w.expr);
+    }
+    _create_and_append_statement<DebugBreakStmt>(std::move(wrapper), std::move(watches));
 }
 
 void FunctionBuilder::set_block_size(uint3 size) noexcept {

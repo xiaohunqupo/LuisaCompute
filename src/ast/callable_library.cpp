@@ -618,8 +618,10 @@ void CallableLibrary::ser_value(Statement const &t, luisa::vector<std::byte> &ve
         case Statement::Tag::PRINT:
             ser_value(*static_cast<PrintStmt const *>(&t), vec);
             break;
-        default:
-            break;
+        case Statement::Tag::BREAK: break;
+        case Statement::Tag::CONTINUE: break;
+        case Statement::Tag::DEBUG_BREAK:
+            LUISA_NOT_IMPLEMENTED("Debug break statement serialization is not implemented.");
     }
 }
 template<>
@@ -672,8 +674,8 @@ Statement *CallableLibrary::deser_value(std::byte const *&ptr, DeserPackage &pac
             return create_stmt.template operator()<AutoDiffStmt>();
         case Statement::Tag::PRINT:
             return create_stmt.template operator()<PrintStmt>();
-        default:
-            return nullptr;
+        case Statement::Tag::DEBUG_BREAK:
+            LUISA_NOT_IMPLEMENTED("Debug break statement deserialization is not implemented.");
     }
 }
 template<>
@@ -737,6 +739,8 @@ void CallableLibrary::deser_ptr(Statement *obj, std::byte const *&ptr, DeserPack
         case Statement::Tag::PRINT:
             create_stmt.template operator()<PrintStmt>();
             break;
+        case Statement::Tag::DEBUG_BREAK:
+            LUISA_NOT_IMPLEMENTED("Debug break statement deserialization is not implemented.");
     }
 }
 

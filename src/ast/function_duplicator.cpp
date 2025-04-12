@@ -34,9 +34,9 @@ private:
         _hoisted;
 
 private:
-    void _collect_leaked_variables(luisa::unordered_set<const Expression *> &collected,
-                                   luisa::unordered_set<const FunctionBuilder *> &visited,
-                                   const FunctionBuilder &f) noexcept {
+    static void _collect_leaked_variables(luisa::unordered_set<const Expression *> &collected,
+                                          luisa::unordered_set<const FunctionBuilder *> &visited,
+                                          const FunctionBuilder &f) noexcept {
         if (!visited.emplace(&f).second) { return; }
         traverse_expressions<true>(
             f.body(),
@@ -106,8 +106,8 @@ private:
                 auto &&a = f.arguments()[i];
                 auto &&b = f.bound_arguments()[i];
                 auto copy = luisa::visit(
-                    [&](auto &&bb) noexcept -> const RefExpr * {
-                        using T = std::remove_cvref_t<decltype(bb)>;
+                    [&]<typename B>(B &&bb) noexcept -> const RefExpr * {
+                        using T = std::remove_cvref_t<B>;
                         if constexpr (std::is_same_v<T, Function::BufferBinding>) {
                             return fb->buffer_binding(a.type(), bb.handle, bb.offset, bb.size);
                         } else if constexpr (std::is_same_v<T, Function::TextureBinding>) {
@@ -383,6 +383,17 @@ private:
                 args.reserve(s->arguments().size());
                 for (auto arg : s->arguments()) { args.emplace_back(_dup_expr(arg)); }
                 fb->print_(luisa::string{s->format()}, args);
+                break;
+            }
+            case Statement::Tag::DEBUG_BREAK: {
+                auto s = static_cast<const DebugBreakStmt *>(stmt);
+                luisa::vector<DebugBreakStmt::Watch> watches;
+                watches.reserve(s->watches().size());
+                for (auto &&watch : s->watches()) {
+                    auto e = _dup_expr(watch.expr);
+                    watches.emplace_back(e, watch.identifier);
+                }
+                fb->debug_break_(s->wrapper(), watches);
                 break;
             }
         }

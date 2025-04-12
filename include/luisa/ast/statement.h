@@ -34,7 +34,8 @@ public:
         COMMENT,
         RAY_QUERY,
         AUTO_DIFF,
-        PRINT
+        PRINT,
+        DEBUG_BREAK,
     };
 
 private:
@@ -75,6 +76,7 @@ class RayQueryStmt;
 class AutoDiffStmt;
 
 class PrintStmt;
+class DebugBreakStmt;
 
 struct LC_AST_API StmtVisitor {
     virtual void visit(const BreakStmt *) = 0;
@@ -93,6 +95,7 @@ struct LC_AST_API StmtVisitor {
     virtual void visit(const RayQueryStmt *) = 0;
     virtual void visit(const AutoDiffStmt *stmt);
     virtual void visit(const PrintStmt *stmt);
+    virtual void visit(const DebugBreakStmt *stmt);
     virtual ~StmtVisitor() noexcept = default;
 };
 
@@ -513,6 +516,36 @@ public:
     LUISA_STATEMENT_COMMON()
 };
 
+class LC_AST_API DebugBreakStmt : public Statement {
+    friend class CallableLibrary;
+
+public:
+    struct Watch {
+        const Expression *expr{nullptr};
+        luisa::string identifier;
+    };
+    using Evaluator = void * /* pointer to evaluated data */
+        (void * /* backend context */, const char * /* ident */) noexcept;
+    using Trapper = void() noexcept;
+    using Wrapper = luisa::function<void(void * /* backend context */, Evaluator *, Trapper *)>;
+
+private:
+    Wrapper _wrapper;
+    luisa::vector<Watch> _watches;
+
+private:
+    [[nodiscard]] uint64_t _compute_hash() const noexcept override;
+
+private:
+    DebugBreakStmt() noexcept = default;// for Maxwell's dear CallableLibrary
+
+public:
+    DebugBreakStmt(Wrapper wrapper, luisa::vector<Watch> watches) noexcept;
+    [[nodiscard]] auto &wrapper() const noexcept { return _wrapper; }
+    [[nodiscard]] auto watches() const noexcept { return luisa::span{_watches}; }
+    LUISA_STATEMENT_COMMON()
+};
+
 #undef LUISA_STATEMENT_COMMON
 
 // helper function for easy traversal over the ASTs
@@ -623,6 +656,13 @@ void traverse_expressions(
         case Statement::Tag::PRINT: {
             auto print_stmt = static_cast<const PrintStmt *>(stmt);
             for (auto arg : print_stmt->arguments()) { do_visit(arg); }
+            break;
+        }
+        case Statement::Tag::DEBUG_BREAK: {
+            auto debug_stmt = static_cast<const DebugBreakStmt *>(stmt);
+            for (auto watch : debug_stmt->watches()) {
+                if (auto expr = watch.expr) { do_visit(expr); }
+            }
             break;
         }
     }
