@@ -140,7 +140,6 @@ private:
         _llvm_struct_types.clear();
         _llvm_constants.clear();
         _llvm_functions.clear();
-        _print_inst_map.clear();
         _tls_offset = 0u;
     }
 
@@ -1104,7 +1103,6 @@ private:
         if (auto decl = llvm::dyn_cast<llvm::Function>(f.getCallee())) {
             // mark that the function is pure: mustprogress nocallback nofree nosync nounwind speculatable willreturn memory(none)
             decl->addFnAttr(llvm::Attribute::NoCallback);
-            decl->addFnAttr(llvm::Attribute::NoUnwind);
             decl->setMustProgress();
             decl->setDoesNotFreeMemory();
             decl->setNoSync();
@@ -1181,7 +1179,6 @@ private:
         if (auto decl = llvm::dyn_cast<llvm::Function>(f.getCallee())) {
             // mark that the function is pure: mustprogress nocallback nofree nosync nounwind speculatable willreturn memory(none)
             decl->addFnAttr(llvm::Attribute::NoCallback);
-            decl->addFnAttr(llvm::Attribute::NoUnwind);
             decl->setMustProgress();
             decl->setDoesNotFreeMemory();
             decl->setNoSync();
@@ -2837,13 +2834,13 @@ private:
         auto fmt_id = static_cast<uint64_t>(_print_inst_map.size());
         _print_inst_map.emplace_back(inst, llvm_print_func->getName());
         llvm_print_func->setCallingConv(llvm::CallingConv::C);
+        llvm_print_func->addFnAttr(llvm::Attribute::NoCallback);
         llvm_print_func->setNoSync();
         llvm_print_func->setMustProgress();
         llvm_print_func->setWillReturn();
         llvm_print_func->setDoesNotThrow();
         llvm_print_func->setOnlyAccessesInaccessibleMemOrArgMem();
         llvm_print_func->setDoesNotFreeMemory();
-        llvm_print_func->setUWTableKind(llvm::UWTableKind::None);
         for (auto &&llvm_print_arg : llvm_print_func->args()) {
             if (llvm_print_arg.getType()->isPointerTy()) {
                 llvm_print_arg.addAttr(llvm::Attribute::NoCapture);
@@ -3010,17 +3007,18 @@ private:
                     auto llvm_func = _llvm_module->getOrInsertFunction(
                         "luisa.shared.memory", llvm::FunctionType::get(llvm_ptr_type, {}, false));
                     // mark that this function is pure and speculatable
-                    auto llvm_func_signature = llvm::cast<llvm::Function>(llvm_func.getCallee());
-                    llvm_func_signature->setDoesNotAccessMemory();
-                    llvm_func_signature->setDoesNotThrow();
-                    llvm_func_signature->setDoesNotFreeMemory();
-                    llvm_func_signature->setWillReturn();
-                    llvm_func_signature->setSpeculatable();
-                    llvm_func_signature->setDoesNotRecurse();
-                    llvm_func_signature->setNoSync();
-                    llvm_func_signature->setMustProgress();
-                    llvm_func_signature->addFnAttr(llvm::Attribute::NoCallback);
-                    llvm_func_signature->setUWTableKind(llvm::UWTableKind::None);
+                    {
+                        auto llvm_func_signature = llvm::cast<llvm::Function>(llvm_func.getCallee());
+                        llvm_func_signature->setDoesNotAccessMemory();
+                        llvm_func_signature->setDoesNotThrow();
+                        llvm_func_signature->setDoesNotFreeMemory();
+                        llvm_func_signature->setWillReturn();
+                        llvm_func_signature->setSpeculatable();
+                        llvm_func_signature->setDoesNotRecurse();
+                        llvm_func_signature->setNoSync();
+                        llvm_func_signature->setMustProgress();
+                        llvm_func_signature->addFnAttr(llvm::Attribute::NoCallback);
+                    }
                     auto llvm_shared_memory = b.CreateCall(llvm_func);
                     // find offset into shared memory
                     auto align = std::max<size_t>(_get_type_alignment(inst->type()), 16u);
@@ -3667,7 +3665,8 @@ private:
         if (requires_block_sync) {
 
             // add `presplitcoroutine` attribute to the function
-            llvm_func->addFnAttr(llvm::Attribute::PresplitCoroutine);
+            llvm_func->setPresplitCoroutine();
+            llvm_func->setCoroDestroyOnlyWhenComplete();
 
             // some llvm types and constants for convenience
             auto llvm_token_type = llvm::Type::getTokenTy(_llvm_context);
@@ -3704,6 +3703,18 @@ private:
             auto llvm_coro_size_i64 = coro_builder.CreateZExt(llvm_coro_size, llvm_i64_type);
             auto llvm_luisa_coro_alloc = _llvm_module->getOrInsertFunction(
                 "luisa.coro.alloc", llvm::FunctionType::get(llvm_ptr_type, {llvm_i64_type}, false));
+            {
+                auto llvm_luisa_coro_alloc_func = llvm::cast<llvm::Function>(llvm_luisa_coro_alloc.getCallee());
+                llvm_luisa_coro_alloc_func->addFnAttr(llvm::Attribute::NoCallback);
+                llvm_luisa_coro_alloc_func->setNoSync();
+                llvm_luisa_coro_alloc_func->setDoesNotThrow();
+                llvm_luisa_coro_alloc_func->setDoesNotRecurse();
+                llvm_luisa_coro_alloc_func->setDoesNotFreeMemory();
+                llvm_luisa_coro_alloc_func->setOnlyAccessesInaccessibleMemory();
+                llvm_luisa_coro_alloc_func->setWillReturn();
+                llvm_luisa_coro_alloc_func->setMustProgress();
+                llvm_luisa_coro_alloc_func->setReturnDoesNotAlias();
+            }
             auto llvm_dyn_coro_handle = coro_builder.CreateCall(llvm_luisa_coro_alloc, {llvm_coro_size_i64});
             //   br coro.begin
             coro_builder.CreateBr(llvm_coro_begin_block);
