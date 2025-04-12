@@ -15,7 +15,6 @@ if (LLVM_FOUND AND embree_FOUND)
 
     set(LUISA_COMPUTE_ENABLE_FALLBACK ON)
     set(LUISA_FALLBACK_BACKEND_SOURCES
-            emutls.c
             fallback_device.cpp
             fallback_device_api.cpp
             fallback_device_api_ir_module.cpp

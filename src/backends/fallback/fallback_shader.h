@@ -48,7 +48,7 @@ private:
     std::unique_ptr<::llvm::TargetMachine> _target_machine;
 
 private:
-    void _initialize_target_machine_jit(const ShaderOption &option, bool requires_smem) noexcept;
+    void _initialize_target_machine_jit(const ShaderOption &option) noexcept;
     void _build_bound_arguments(luisa::span<const Function::Binding> bindings) noexcept;
 
 public:

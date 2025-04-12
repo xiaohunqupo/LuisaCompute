@@ -64,8 +64,6 @@ static const bool LUISA_SHOULD_DUMP_ASM = [] {
     return false;
 }();
 
-extern "C" void *__emutls_get_address(void *);
-
 namespace luisa::compute::fallback {
 
 [[nodiscard]] static luisa::half luisa_fallback_asin_f16(luisa::half x) noexcept { return ::half_float::asin(x); }
@@ -94,7 +92,7 @@ static void luisa_coro_reset_counter() noexcept {
 }
 
 [[nodiscard]] static void *luisa_coro_alloc(size_t size) noexcept {
-    thread_local std::byte buffer[4_M];
+    thread_local std::byte buffer[luisa::compute::fallback::max_thread_frame_size];
     size = luisa::align(size, 2u * sizeof(intptr_t));
     auto n = (luisa_coro_buffer_counter() += size);
     LUISA_ASSERT(n <= sizeof(buffer), "Coroutine buffer overflow.");
@@ -102,6 +100,11 @@ static void luisa_coro_reset_counter() noexcept {
 }
 
 static void luisa_coro_free(void *ptr) noexcept { /* do nothing */ }
+
+static void *luisa_shared_memory() noexcept {
+    static thread_local std::byte buffer[luisa::compute::fallback::max_shared_memory_size];
+    return buffer;
+}
 
 static void luisa_fallback_assert(bool condition, const char *message) noexcept {
     if (!condition) { LUISA_ERROR_WITH_LOCATION("Assertion failed: {}.", message); }
@@ -130,12 +133,7 @@ struct FallbackShaderLaunchConfig {
 FallbackShader::FallbackShader(FallbackDevice *device, const ShaderOption &option, Function kernel) noexcept {
 
     _initialize_target_machine_jit(
-        option, !kernel.shared_variables().empty() ||
-                    std::any_of(kernel.custom_callables().begin(),
-                                kernel.custom_callables().end(),
-                                [](auto &&callable) noexcept {
-                                    return !callable->shared_variables().empty();
-                                }));
+        option);
 
     LUISA_VERBOSE("======= Fallback Backend JIT Shader Compilation =======");
 
@@ -242,8 +240,8 @@ FallbackShader::FallbackShader(FallbackDevice *device, const ShaderOption &optio
     map_symbol("luisa.coro.alloc", &luisa_coro_alloc);
     map_symbol("luisa.coro.free", &luisa_coro_free);
 
-    // __emutls_get_address
-    map_symbol("__emutls_get_address", &__emutls_get_address);
+    // emulated shared memory
+    map_symbol("luisa.shared.memory", &luisa_shared_memory);
 
     // assert
     map_symbol("luisa.assert", &luisa_fallback_assert);
@@ -538,7 +536,7 @@ void FallbackShader::dispatch(FallbackCommandQueue *queue, luisa::unique_ptr<Sha
 
 FallbackShader::~FallbackShader() noexcept = default;
 
-void FallbackShader::_initialize_target_machine_jit(const ShaderOption &option, bool requires_smem) noexcept {
+void FallbackShader::_initialize_target_machine_jit(const ShaderOption &option) noexcept {
 
     // build JIT engine
     ::llvm::orc::LLJITBuilder jit_builder;
@@ -555,7 +553,6 @@ void FallbackShader::_initialize_target_machine_jit(const ShaderOption &option, 
         options.AllowFPOpFusion = ::llvm::FPOpFusion::Fast;
         options.EnableIPRA = false;// true causes crash
         options.StackSymbolOrdering = true;
-        options.EmulatedTLS = requires_smem;
 #ifndef NDEBUG
         options.TrapUnreachable = true;
 #else

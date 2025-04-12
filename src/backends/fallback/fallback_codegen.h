@@ -14,6 +14,9 @@ class Module;
 
 namespace luisa::compute::fallback {
 
+constexpr auto max_thread_frame_size = 4_M;
+constexpr auto max_shared_memory_size = 1_M;
+
 struct FallbackCodeGenFeedback {
     using PrintInstMap = luisa::vector<std::pair<
         const xir::PrintInst *,

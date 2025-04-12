@@ -131,8 +131,8 @@ private:
     luisa::unordered_map<const Type *, luisa::unique_ptr<LLVMStruct>> _llvm_struct_types;
     luisa::unordered_map<const xir::Constant *, llvm::Constant *> _llvm_constants;
     luisa::unordered_map<const xir::Function *, llvm::Function *> _llvm_functions;
-    luisa::unordered_map<const xir::AllocaInst *, llvm::GlobalVariable *> _llvm_smem_variables;
     FallbackCodeGenFeedback::PrintInstMap _print_inst_map;
+    size_t _tls_offset = 0u;
 
 private:
     void _reset() noexcept {
@@ -140,6 +140,8 @@ private:
         _llvm_struct_types.clear();
         _llvm_constants.clear();
         _llvm_functions.clear();
+        _print_inst_map.clear();
+        _tls_offset = 0u;
     }
 
 private:
@@ -2071,22 +2073,6 @@ private:
         return b.CreateCall(llvm_func, {llvm_query_object, llvm_capture.second, llvm_on_surface_func_wrapper, llvm_on_procedural_func_wrapper});
     }
 
-    [[nodiscard]] llvm::GlobalVariable *_find_or_create_smem(const xir::AllocaInst *a) noexcept {
-        // otherwise, we need to create a thread-local variable
-        auto n = _llvm_smem_variables.size();
-        auto llvm_type = _translate_type(a->type(), true);
-        auto &llvm_smem = _llvm_smem_variables[a];
-        if (llvm_smem == nullptr) {
-            llvm_smem = llvm::cast<llvm::GlobalVariable>(_llvm_module->getOrInsertGlobal(
-                luisa::string_view{luisa::format("luisa.smem.{}", n)}, llvm_type));
-            LUISA_ASSERT(llvm_smem != nullptr, "Failed to create shared memory variable.");
-            llvm_smem->setInitializer(llvm::UndefValue::get(llvm_type));
-            llvm_smem->setThreadLocal(true);
-            llvm_smem->setLinkage(llvm::GlobalValue::PrivateLinkage);
-        }
-        return llvm_smem;
-    }
-
     [[nodiscard]] llvm::Value *_translate_atomic_op(CurrentFunction &current, IRBuilder &b,
                                                     const char *op_name, const xir::AtomicInst *inst,
                                                     bool byte_address = false) noexcept {
@@ -2126,7 +2112,7 @@ private:
             LUISA_ASSERT(base->isa<xir::AllocaInst>() && static_cast<const xir::AllocaInst *>(base)->is_shared(),
                          "Invalid shared memory atomic operation base.");
             llvm_func_name.append(".smem");
-            auto llvm_smem = _find_or_create_smem(static_cast<const xir::AllocaInst *>(base));
+            auto llvm_smem = _lookup_value(current, b, base);
             return _translate_gep(current, b, inst->type(),
                                   base->type(), llvm_smem, indices);
         }();
@@ -3019,7 +3005,30 @@ private:
             case xir::DerivedInstructionTag::ALLOCA: {
                 // shared memory should be hoisted to global thread-local variables
                 if (auto a = static_cast<const xir::AllocaInst *>(inst); a->op() == xir::AllocaOp::SHARED) {
-                    return _find_or_create_smem(a);
+                    // call luisa.shared.memory() to get the shared memory base address
+                    auto llvm_ptr_type = llvm::PointerType::get(_llvm_context, 0);
+                    auto llvm_func = _llvm_module->getOrInsertFunction(
+                        "luisa.shared.memory", llvm::FunctionType::get(llvm_ptr_type, {}, false));
+                    // mark that this function is pure and speculatable
+                    auto llvm_func_signature = llvm::cast<llvm::Function>(llvm_func.getCallee());
+                    llvm_func_signature->setDoesNotAccessMemory();
+                    llvm_func_signature->setDoesNotThrow();
+                    llvm_func_signature->setDoesNotFreeMemory();
+                    llvm_func_signature->setWillReturn();
+                    llvm_func_signature->setSpeculatable();
+                    llvm_func_signature->setDoesNotRecurse();
+                    llvm_func_signature->setNoSync();
+                    llvm_func_signature->setMustProgress();
+                    llvm_func_signature->addFnAttr(llvm::Attribute::NoCallback);
+                    llvm_func_signature->setUWTableKind(llvm::UWTableKind::None);
+                    auto llvm_shared_memory = b.CreateCall(llvm_func);
+                    // find offset into shared memory
+                    auto align = std::max<size_t>(_get_type_alignment(inst->type()), 16u);
+                    auto size = luisa::align(_get_type_size(inst->type()), align);
+                    auto offset = luisa::align(_tls_offset, align);
+                    _tls_offset += size;
+                    LUISA_ASSERT(_tls_offset <= max_shared_memory_size, "Shared memory size exceeds limit.");
+                    return b.CreateInBoundsPtrAdd(llvm_shared_memory, b.getInt64(offset));
                 }
                 // otherwise we may directly allocate the variable in the stack
                 auto llvm_type = _translate_type(inst->type(), false);
