@@ -158,4 +158,36 @@ namespace luisa::compute::dsl_detail {
                  .append(::luisa::compute::dsl_detail::format_source_location(__FILE__, __LINE__)) \
                  .append("]"))
 
+#define LUISA_COMPUTE_DSL_DEVICE_DEBUG_WATCH_ADD(x)                                     \
+    static_assert(::luisa::compute::is_var_v<decltype(x)>,                              \
+                  "Only DSL variables are allowed for evaluation in device debug.");    \
+    using _device_debug_type_##x = ::luisa::compute::expr_value_t<decltype(x)>;         \
+    _device_debug_watches.emplace_back(::luisa::compute::detail::extract_expression(x), \
+                                       ::luisa::string{#x});
+
+#define LUISA_COMPUTE_DSL_DEVICE_DEBUG_WATCH_EVAL(x)       \
+    auto x = *static_cast<const _device_debug_type_##x *>( \
+        _device_debug_eval(_device_debug_ctx, #x));
+
+// device debug
+#define $debug_break(...)                                                                              \
+    do {                                                                                               \
+        auto dispatch_id = ::luisa::compute::dispatch_id();                                            \
+        ::luisa::vector<::luisa::compute::DebugBreakStmt::Watch> _device_debug_watches;                \
+        _device_debug_watches.reserve(                                                                 \
+            ([](auto &&...args) noexcept { return sizeof...(args); })(                                 \
+                dispatch_id __VA_OPT__(, ) __VA_ARGS__));                                              \
+        LUISA_MAP(LUISA_COMPUTE_DSL_DEVICE_DEBUG_WATCH_ADD,                                            \
+                  dispatch_id __VA_OPT__(, ) __VA_ARGS__)                                              \
+        using Eval = ::luisa::compute::DebugBreakStmt::Evaluator;                                      \
+        using Trap = ::luisa::compute::DebugBreakStmt::Trapper;                                        \
+        ::luisa::compute::detail::FunctionBuilder::current()->debug_break_(                            \
+            [](void *_device_debug_ctx, Eval *_device_debug_eval, Trap *_device_debug_trap) noexcept { \
+                LUISA_MAP(LUISA_COMPUTE_DSL_DEVICE_DEBUG_WATCH_EVAL,                                   \
+                          dispatch_id __VA_OPT__(, ) __VA_ARGS__)                                      \
+                _device_debug_trap();                                                                  \
+            },                                                                                         \
+            std::move(_device_debug_watches));                                                         \
+    } while (false)
+
 #endif

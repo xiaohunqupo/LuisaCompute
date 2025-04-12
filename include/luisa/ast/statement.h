@@ -524,13 +524,13 @@ public:
         const Expression *expr{nullptr};
         luisa::string identifier;
     };
-    using Evaluator = void * /* pointer to evaluated data */
+    using Evaluator = const void * /* pointer to evaluated data */
         (void * /* backend context */, const char * /* ident */) noexcept;
     using Trapper = void() noexcept;
-    using Wrapper = luisa::function<void(void * /* backend context */, Evaluator *, Trapper *)>;
+    using Wrapper = void(void * /* backend context */, Evaluator *, Trapper *);
 
 private:
-    Wrapper _wrapper;
+    Wrapper *_wrapper;
     luisa::vector<Watch> _watches;
 
 private:
@@ -540,8 +540,8 @@ private:
     DebugBreakStmt() noexcept = default;// for Maxwell's dear CallableLibrary
 
 public:
-    DebugBreakStmt(Wrapper wrapper, luisa::vector<Watch> watches) noexcept;
-    [[nodiscard]] auto &wrapper() const noexcept { return _wrapper; }
+    DebugBreakStmt(Wrapper *wrapper, luisa::vector<Watch> watches) noexcept;
+    [[nodiscard]] auto wrapper() const noexcept { return _wrapper; }
     [[nodiscard]] auto watches() const noexcept { return luisa::span{_watches}; }
     LUISA_STATEMENT_COMMON()
 };

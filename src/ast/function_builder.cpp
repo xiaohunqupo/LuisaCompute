@@ -851,7 +851,7 @@ void FunctionBuilder::print_(luisa::string format,
     _requires_printing = true;
 }
 
-void FunctionBuilder::debug_break_(DebugBreakStmt::Wrapper wrapper, luisa::vector<DebugBreakStmt::Watch> watches) noexcept {
+void FunctionBuilder::debug_break_(DebugBreakStmt::Wrapper *wrapper, luisa::vector<DebugBreakStmt::Watch> watches) noexcept {
     for (auto &&w : watches) {
         w.expr = _internalize(w.expr);
     }

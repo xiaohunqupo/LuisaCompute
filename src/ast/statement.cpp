@@ -116,8 +116,8 @@ uint64_t DebugBreakStmt::_compute_hash() const noexcept {
     return h;
 }
 
-DebugBreakStmt::DebugBreakStmt(Wrapper wrapper, luisa::vector<Watch> watches) noexcept
-    : _wrapper{std::move(wrapper)}, _watches{std::move(watches)} {}
+DebugBreakStmt::DebugBreakStmt(Wrapper *wrapper, luisa::vector<Watch> watches) noexcept
+    : Statement{Tag::DEBUG_BREAK}, _wrapper{wrapper}, _watches{std::move(watches)} {}
 
 void StmtVisitor::visit(const AutoDiffStmt *stmt) {
     // reports error by default since it should be
