@@ -169,7 +169,7 @@ namespace luisa::compute::dsl_detail {
         _device_debug_eval(_device_debug_ctx, _device_debug_watch_index++));
 
 // device debug
-#define $debug_break(...)                                                            \
+#define $debug_break_on(TRAP_FUNC, ...)                                              \
     do {                                                                             \
         auto dispatch_id = ::luisa::compute::dispatch_id();                          \
         ::luisa::vector<const ::luisa::compute::Expression *> _device_debug_watches; \
@@ -185,10 +185,13 @@ namespace luisa::compute::dsl_detail {
                 LUISA_MAP(LUISA_COMPUTE_DSL_DEVICE_DEBUG_WATCH_EVAL,                 \
                           dispatch_id __VA_OPT__(, ) __VA_ARGS__)                    \
                 [dispatch_id __VA_OPT__(, ) __VA_ARGS__] {                           \
-                    LUISA_DEBUG_TRAP();                                              \
+                    TRAP_FUNC;                                                       \
                 }();                                                                 \
             },                                                                       \
             std::move(_device_debug_watches));                                       \
     } while (false)
+
+#define $debug_break(...) \
+    $debug_break_on(LUISA_DEBUG_TRAP(), __VA_ARGS__)
 
 #endif
