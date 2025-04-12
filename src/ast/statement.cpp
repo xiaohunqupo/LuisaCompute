@@ -110,13 +110,12 @@ PrintStmt::PrintStmt(luisa::string fmt, luisa::vector<const Expression *> args) 
 uint64_t DebugBreakStmt::_compute_hash() const noexcept {
     auto h = hash64_default_seed;
     for (auto &&w : _watches) {
-        h = luisa::hash_value(w.identifier, h);
-        h = luisa::hash_value(w.expr->hash(), h);
+        h = luisa::hash_value(w->hash(), h);
     }
     return h;
 }
 
-DebugBreakStmt::DebugBreakStmt(Wrapper *wrapper, luisa::vector<Watch> watches) noexcept
+DebugBreakStmt::DebugBreakStmt(Wrapper *wrapper, luisa::vector<const Expression *> watches) noexcept
     : Statement{Tag::DEBUG_BREAK}, _wrapper{wrapper}, _watches{std::move(watches)} {}
 
 void StmtVisitor::visit(const AutoDiffStmt *stmt) {

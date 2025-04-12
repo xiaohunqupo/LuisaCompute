@@ -132,6 +132,7 @@ private:
     luisa::unordered_map<const xir::Constant *, llvm::Constant *> _llvm_constants;
     luisa::unordered_map<const xir::Function *, llvm::Function *> _llvm_functions;
     FallbackCodeGenFeedback::PrintInstMap _print_inst_map;
+    FallbackCodeGenFeedback::DebugCallbackMap _debug_callback_map;
     size_t _tls_offset = 0u;
 
 private:
@@ -2787,7 +2788,71 @@ private:
 
     [[nodiscard]] llvm::Value *_translate_debug_break_inst(CurrentFunction &current, IRBuilder &b,
                                                            const xir::DebugBreakInst *inst) noexcept {
-        return b.CreateIntrinsic(llvm::Intrinsic::debugtrap, {}, {});
+        llvm::SmallVector<llvm::Value *, 8> llvm_args;
+        llvm::SmallVector<llvm::Type *, 8> llvm_arg_types;
+        llvm_args.reserve(inst->operand_count());
+        llvm_arg_types.reserve(inst->operand_count());
+        for (auto use : inst->operand_uses()) {
+            LUISA_ASSERT(use->value() != nullptr && use->value()->type() != nullptr,
+                         "Invalid operand for debug break.");
+            llvm_args.emplace_back(_lookup_value(current, b, use->value()));
+            llvm_arg_types.emplace_back(llvm_args.back()->getType());
+        }
+        auto llvm_ptr_type = llvm::PointerType::get(_llvm_context, 0);
+        auto llvm_i64_type = llvm::IntegerType::get(_llvm_context, 64);
+        auto llvm_struct_type = llvm::StructType::get(_llvm_context, llvm_arg_types);
+        // declare a callback function: (ptr struct, ptr eval_func, ptr trap_func) -> void
+        auto llvm_callback_type = llvm::FunctionType::get(
+            b.getVoidTy(), {llvm_ptr_type, llvm_ptr_type, llvm_ptr_type}, false);
+        auto llvm_callback = llvm::Function::Create(
+            llvm_callback_type, llvm::Function::PrivateLinkage,
+            "luisa.debug.break.callback", _llvm_module);
+        {
+            llvm_callback->setOnlyAccessesArgMemory();
+            llvm_callback->setOnlyReadsMemory();
+            llvm_callback->setDoesNotThrow();
+            llvm_callback->setDoesNotRecurse();
+            llvm_callback->setMustProgress();
+            llvm_callback->setWillReturn();
+            _debug_callback_map.emplace_back(inst->callback(), llvm_callback->getName().str());
+        }
+        // create a evaluation function: (ptr struct, i64 index) -> GEP(struct, index)
+        auto llvm_eval_func_type = llvm::FunctionType::get(
+            llvm_ptr_type, {llvm_ptr_type, llvm_i64_type}, false);
+        auto llvm_eval_func = llvm::Function::Create(
+            llvm_eval_func_type, llvm::Function::PrivateLinkage,
+            "luisa.debug.break.eval", _llvm_module);
+        {
+            auto llvm_body = llvm::BasicBlock::Create(_llvm_context, "body", llvm_eval_func);
+            IRBuilder b{llvm_body};
+            auto llvm_struct_ptr = llvm_eval_func->getArg(0);
+            auto llvm_arg_index = llvm_eval_func->getArg(1);
+            auto llvm_unreachable_block = llvm::BasicBlock::Create(_llvm_context, "unreachable", llvm_eval_func);
+            auto llvm_switch = b.CreateSwitch(llvm_arg_index, llvm_unreachable_block, llvm_args.size());
+            for (auto i = 0u; i < llvm_args.size(); i++) {
+                auto llvm_case_value = b.getInt64(i);
+                auto llvm_case_block = llvm::BasicBlock::Create(_llvm_context, "", llvm_eval_func);
+                llvm_switch->addCase(llvm_case_value, llvm_case_block);
+                b.SetInsertPoint(llvm_case_block);
+                auto llvm_arg_ptr = b.CreateStructGEP(llvm_struct_type, llvm_struct_ptr, i);
+                auto llvm_arg = b.CreateLoad(llvm_arg_types[i], llvm_arg_ptr);
+                b.CreateRet(llvm_arg);
+            }
+            b.SetInsertPoint(llvm_unreachable_block);
+            b.CreateUnreachable();
+        }
+        // get the trap function
+        auto llvm_trap_func = _llvm_module->getFunction("luisa.debug.break.trap");
+        // store the arguments in a struct
+        auto llvm_struct_alloca = b.CreateAlloca(llvm_struct_type);
+        b.CreateLifetimeStart(llvm_struct_alloca);
+        for (auto i = 0u; i < llvm_args.size(); i++) {
+            auto llvm_arg_ptr = b.CreateStructGEP(llvm_struct_type, llvm_struct_alloca, i);
+            b.CreateStore(llvm_args[i], llvm_arg_ptr);
+        }
+
+
+        return nullptr;
     }
 
     [[nodiscard]] llvm::Value *_translate_print_inst(CurrentFunction &current, IRBuilder &b,
@@ -3883,7 +3948,10 @@ public:
         _llvm_module = llvm_module;
         _translate_module(module);
         _reset();
-        return {.print_inst_map = std::exchange(_print_inst_map, {})};
+        return {
+            .print_inst_map = std::exchange(_print_inst_map, {}),
+            .debug_callback_map = std::exchange(_debug_callback_map, {}),
+        };
     }
 };
 

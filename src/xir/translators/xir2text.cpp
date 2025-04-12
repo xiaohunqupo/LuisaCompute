@@ -426,17 +426,8 @@ private:
     }
 
     void _emit_debug_break_inst(const DebugBreakInst *inst) noexcept {
-        _main << "debug_break";
-        auto n = inst->operand_count();
-        for (auto i = 0; i < n; i++) {
-            auto w = inst->watch(i);
-            LUISA_DEBUG_ASSERT(w.value != nullptr && !w.identifier.empty(),
-                               "Debug break watch value must not be null.");
-            _main << " (";
-            _emit_string_escaped(_main, w.identifier);
-            _main << ", " << _value_ident(w.value) << ")";
-            if (i != n - 1) { _main << ","; }
-        }
+        _main << "debug_break ";
+        _emit_operands(inst);
     }
 
     void _emit_branch_inst(const BranchInst *inst) noexcept {

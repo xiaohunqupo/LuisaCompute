@@ -387,11 +387,10 @@ private:
             }
             case Statement::Tag::DEBUG_BREAK: {
                 auto s = static_cast<const DebugBreakStmt *>(stmt);
-                luisa::vector<DebugBreakStmt::Watch> watches;
+                luisa::vector<const Expression *> watches;
                 watches.reserve(s->watches().size());
-                for (auto &&watch : s->watches()) {
-                    auto e = _dup_expr(watch.expr);
-                    watches.emplace_back(e, watch.identifier);
+                for (auto watch : s->watches()) {
+                    watches.emplace_back(_dup_expr(watch));
                 }
                 fb->debug_break_(s->wrapper(), watches);
                 break;

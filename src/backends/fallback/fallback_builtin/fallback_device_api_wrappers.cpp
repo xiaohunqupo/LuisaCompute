@@ -1064,4 +1064,8 @@ LUISA_FALLBACK_WRAPPER float luisa_fallback_wrapper_atomic_fetch_max_float_smem(
     return tmp;
 }
 
+LUISA_FALLBACK_WRAPPER void luisa_fallback_wrapper_debug_break_trap() noexcept {
+    __builtin_debugtrap();
+}
+
 }

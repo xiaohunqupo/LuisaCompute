@@ -520,18 +520,13 @@ class LC_AST_API DebugBreakStmt : public Statement {
     friend class CallableLibrary;
 
 public:
-    struct Watch {
-        const Expression *expr{nullptr};
-        luisa::string identifier;
-    };
-    using Evaluator = const void * /* pointer to evaluated data */
-        (void * /* backend context */, const char * /* ident */) noexcept;
+    using Evaluator = const void *(void * /* backend context */, size_t index) noexcept;
     using Trapper = void() noexcept;
     using Wrapper = void(void * /* backend context */, Evaluator *, Trapper *);
 
 private:
     Wrapper *_wrapper;
-    luisa::vector<Watch> _watches;
+    luisa::vector<const Expression *> _watches;
 
 private:
     [[nodiscard]] uint64_t _compute_hash() const noexcept override;
@@ -540,7 +535,7 @@ private:
     DebugBreakStmt() noexcept = default;// for Maxwell's dear CallableLibrary
 
 public:
-    DebugBreakStmt(Wrapper *wrapper, luisa::vector<Watch> watches) noexcept;
+    DebugBreakStmt(Wrapper *wrapper, luisa::vector<const Expression *> watches) noexcept;
     [[nodiscard]] auto wrapper() const noexcept { return _wrapper; }
     [[nodiscard]] auto watches() const noexcept { return luisa::span{_watches}; }
     LUISA_STATEMENT_COMMON()
@@ -660,9 +655,7 @@ void traverse_expressions(
         }
         case Statement::Tag::DEBUG_BREAK: {
             auto debug_stmt = static_cast<const DebugBreakStmt *>(stmt);
-            for (auto watch : debug_stmt->watches()) {
-                if (auto expr = watch.expr) { do_visit(expr); }
-            }
+            for (auto watch : debug_stmt->watches()) { do_visit(watch); }
             break;
         }
     }
