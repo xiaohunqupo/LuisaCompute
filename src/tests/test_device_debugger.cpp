@@ -14,8 +14,16 @@ struct MyStruct {
 
 LUISA_STRUCT(MyStruct, a, b) {};
 
-void my_trap() {
+// custom trap function with parameters
+void my_trap(auto p, auto s, auto v, auto coord) {
+    // You may do something with printing here
+    LUISA_INFO("my_trap: p = {}, s = {}, v = {}, coord = {}", p, s, v, coord);
+    // Please place a break point here with your IDE
+}
 
+// custom trap function without parameters
+void foo() {
+    // Please place a break point here with your IDE
 }
 
 int main(int argc, char *argv[]) {
@@ -28,17 +36,18 @@ int main(int argc, char *argv[]) {
     Kernel2D kernel = [&]() noexcept {
         UInt2 coord = dispatch_id().xy();
         $if (coord.x == 1) {
-            $debug_break(coord);
+            $debug_break(coord);// programmable break point with __debugbreak-like intrinsics
         };
         $if (coord.x == coord.y) {
             Float2 v = make_float2(coord) / make_float2(dispatch_size().xy());
             Var<MyStruct> s;
             s.a = v;
             s.b = coord;
-            $debug_break_on(my_trap(), s, v, coord);
+            $debug_break_on(s, v, coord, my_trap(dispatch_id, s, v, coord));// break point with custom trap function (note dispatch_id is always captured for convenience)
             $outline {
                 device_log("s = {} at {}", s, dispatch_id());
             };
+            $debug_break_on(foo());// custom trap function but without parameters (useful for use with interactive debuggers so you can control the break point during debugging)
         };
     };
     auto shader = device.compile(kernel);
