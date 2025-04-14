@@ -660,7 +660,9 @@ void CUDACodegenXIR::_emit_instructions(const xir::InstructionList &inst_list, i
                 auto loop = _find_innermost_loop();
                 LUISA_ASSERT(loop != nullptr, "Break instruction is not in a loop.");
                 if (loop->isa<xir::LoopInst>()) {
-                    _scratch << "/* break inside generic loop */ { loop_break = true; break; }";
+                    _scratch << "/* break inside generic loop */ { loop_break_";
+                    _emit_value_name(loop);
+                    _scratch << " = true; break; }";
                 } else {
                     _scratch << "break;";
                 }
@@ -1002,7 +1004,9 @@ void CUDACodegenXIR::_emit_loop_inst(const xir::LoopInst *inst, int indent) noex
     // body
     _scratch << "/* generic loop body */\n";
     _emit_indent(indent + 1);
-    _scratch << "bool loop_break = false;\n";
+    _scratch << "bool loop_break_";
+    _emit_value_name(inst);
+    _scratch << " = false;\n";
     _emit_indent(indent + 1);
     _scratch << "do {\n";
     if (auto body_block = inst->body_block(); body_block != nullptr && !body_block->instructions().empty()) {
@@ -1011,7 +1015,9 @@ void CUDACodegenXIR::_emit_loop_inst(const xir::LoopInst *inst, int indent) noex
     _emit_indent(indent + 1);
     _scratch << "} while (false);\n";
     _emit_indent(indent + 1);
-    _scratch << "if (loop_break) { break; }\n";
+    _scratch << "if (loop_break_";
+    _emit_value_name(inst);
+    _scratch << ") { break; }\n";
     // update
     if (auto update_block = inst->update_block(); update_block != nullptr && !update_block->instructions().empty()) {
         _emit_indent(indent + 1);
