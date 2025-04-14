@@ -661,7 +661,6 @@ void CUDACodegenXIR::_emit_instructions(const xir::InstructionList &inst_list, i
                 LUISA_ASSERT(loop != nullptr, "Break instruction is not in a loop.");
                 if (loop->isa<xir::LoopInst>()) {
                     _scratch << "/* break inside generic loop */ { loop_break = true; break; }";
-                    _emit_indent(indent);
                 } else {
                     _scratch << "break;";
                 }
