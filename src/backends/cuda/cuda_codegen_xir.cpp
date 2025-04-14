@@ -998,7 +998,7 @@ void CUDACodegenXIR::_emit_loop_inst(const xir::LoopInst *inst, int indent) noex
     // update
     if (auto update_block = inst->update_block(); update_block != nullptr && !update_block->instructions().empty()) {
         auto any_continue_user = [&] {
-            for (auto &&use : inst->use_list()) {
+            for (auto &&use : update_block->use_list()) {
                 if (auto user = use.user(); user != nullptr && user->isa<xir::ContinueInst>()) {
                     return true;
                 }
@@ -1007,7 +1007,7 @@ void CUDACodegenXIR::_emit_loop_inst(const xir::LoopInst *inst, int indent) noex
         }();
         if (any_continue_user) {// we need to emit a label for continue
             _emit_indent(indent);
-            _emit_value_name(inst->update_block());
+            _emit_value_name(update_block);
             _scratch << ": /* generic loop update */\n";
         } else {// happily we can omit the label
             _emit_indent(indent + 1);
