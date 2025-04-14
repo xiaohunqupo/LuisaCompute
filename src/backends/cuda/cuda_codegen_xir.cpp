@@ -660,17 +660,18 @@ void CUDACodegenXIR::_emit_instructions(const xir::InstructionList &inst_list, i
                 auto loop = _find_innermost_loop();
                 LUISA_ASSERT(loop != nullptr, "Break instruction is not in a loop.");
                 if (loop->isa<xir::LoopInst>()) {
-                    _scratch << "loop_break = true;\n";
+                    _scratch << "/* break inside generic loop */ { loop_break = true; break; }";
                     _emit_indent(indent);
+                } else {
+                    _scratch << "break;";
                 }
-                _scratch << "break;";
                 break;
             }
             case xir::DerivedInstructionTag::CONTINUE: {
                 auto loop = _find_innermost_loop();
                 LUISA_ASSERT(loop != nullptr, "Continue instruction is not in a loop.");
                 if (loop->isa<xir::LoopInst>()) {
-                    _scratch << "break;";
+                    _scratch << "/* continue inside generic loop */ break;";
                 } else {
                     _scratch << "continue;";
                 }
