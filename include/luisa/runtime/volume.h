@@ -59,9 +59,8 @@ private:
                          detail::volume_size_zero_error();
                      }
                      return device->create_texture(
-                         pixel_storage_to_format<T>(storage), 3u,
-                         size.x, size.y, size.z,
-                         detail::max_mip_levels(size, mip_levels),
+                         pixel_storage_to_format<T>(storage), 3u, size.x, size.y, size.z,
+                         detail::max_mip_levels(size, mip_levels), nullptr,
                          simultaneous_access, allow_raster_target);
                  }(),
                  storage, size, mip_levels} {}

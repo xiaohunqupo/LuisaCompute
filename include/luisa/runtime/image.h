@@ -69,14 +69,13 @@ private:
                         detail::image_size_zero_error();
                     }
                     return device->create_texture(
-                        pixel_storage_to_format<T>(storage), 2u,
-                        size.x, size.y, 1u,
-                        detail::max_mip_levels(make_uint3(size, 1u), mip_levels),
+                        pixel_storage_to_format<T>(storage), 2u, size.x, size.y, 1u,
+                        detail::max_mip_levels(make_uint3(size, 1u), mip_levels), nullptr,
                         simultaneous_access, allow_raster_target);
-        }(),
-        storage, size, mip_levels} {}
+                }(),
+                storage, size, mip_levels} {}
 
-    Image(DeviceInterface *device, PixelStorage storage, void* external_native_handle, uint2 size,
+    Image(DeviceInterface *device, PixelStorage storage, void *external_native_handle, uint2 size,
           uint mip_levels, bool simultaneous_access = false, bool allow_raster_target = false) noexcept
         : Image{device,
                 [&] {
@@ -84,13 +83,11 @@ private:
                         detail::image_size_zero_error();
                     }
                     return device->create_texture(
-                        pixel_storage_to_format<T>(storage), 2u,
-                        size.x, size.y, 1u,
-                        detail::max_mip_levels(make_uint3(size, 1u), mip_levels),
-                        simultaneous_access, allow_raster_target,
-                        external_native_handle);
-        }(),
-        storage, size, mip_levels} {}
+                        pixel_storage_to_format<T>(storage), 2u, size.x, size.y, 1u,
+                        detail::max_mip_levels(make_uint3(size, 1u), mip_levels), external_native_handle,
+                        simultaneous_access, allow_raster_target);
+                }(),
+                storage, size, mip_levels} {}
 
 public:
     Image() noexcept = default;
