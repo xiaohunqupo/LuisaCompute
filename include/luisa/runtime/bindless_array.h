@@ -79,6 +79,7 @@ public:
     BindlessArray() noexcept = default;
     ~BindlessArray() noexcept override;
     using Resource::operator bool;
+    using Resource::release;
     BindlessArray(BindlessArray &&) noexcept;
     BindlessArray(BindlessArray const &) noexcept = delete;
     BindlessArray &operator=(BindlessArray &&rhs) noexcept {

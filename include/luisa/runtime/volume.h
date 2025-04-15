@@ -79,6 +79,7 @@ public:
         return *this;
     }
     Volume &operator=(Volume const &) noexcept = delete;
+    using Resource::release;
     // properties
     [[nodiscard]] auto mip_levels() const noexcept {
         _check_is_valid();
