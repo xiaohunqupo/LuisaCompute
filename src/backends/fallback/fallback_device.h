@@ -49,7 +49,7 @@ public:
     uint compute_warp_size() const noexcept override;
     BufferCreationInfo create_buffer(const Type *element, size_t elem_count, void *external_memory) noexcept override;
     BufferCreationInfo create_buffer(const ir::CArc<ir::Type> *element, size_t elem_count, void *external_memory) noexcept override;
-    ResourceCreationInfo create_texture(PixelFormat format, uint dimension, uint width, uint height, uint depth, uint mipmap_levels, bool simultaneous_access, bool allow_raster_target) noexcept override;
+    ResourceCreationInfo create_texture(PixelFormat format, uint dimension, uint width, uint height, uint depth, uint mipmap_levels, bool simultaneous_access, bool allow_raster_target, byte* external_buffer) noexcept override;
     ResourceCreationInfo create_stream(StreamTag stream_tag) noexcept override;
     void dispatch(uint64_t stream_handle, CommandList &&list) noexcept override;
     void set_stream_log_callback(uint64_t stream_handle, const StreamLogCallback &callback) noexcept override;
