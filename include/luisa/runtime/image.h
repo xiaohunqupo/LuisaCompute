@@ -82,6 +82,7 @@ public:
         if (*this) { device()->destroy_texture(handle()); }
     }
     using Resource::operator bool;
+    using Resource::release;
     Image(Image &&) noexcept = default;
     Image(Image const &) noexcept = delete;
     Image &operator=(Image &&rhs) noexcept {

@@ -256,6 +256,7 @@ public:
     [[nodiscard]] explicit operator bool() const noexcept { return valid(); }
     void set_name(luisa::string_view name) const noexcept;
     void dispose() noexcept;
+    ResourceCreationInfo release() noexcept;
 };
 
 }// namespace luisa::compute

@@ -175,6 +175,13 @@ public:
         _check_is_valid();
         return reinterpret_cast<const detail::BufferExprProxy<Buffer<T>> *>(this);
     }
+    BufferCreationInfo release() noexcept {
+        return BufferCreationInfo{
+            Resource::release(),
+            _element_stride,
+            _size * sizeof(T)
+        };
+    }
 };
 
 // BufferView represents a reference to a Buffer. Use a BufferView that referenced to a destructed Buffer is an undefined behavior.
