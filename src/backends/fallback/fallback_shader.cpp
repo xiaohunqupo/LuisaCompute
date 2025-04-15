@@ -28,6 +28,7 @@
 #include <luisa/xir/passes/local_store_forward.h>
 #include <luisa/xir/passes/local_load_elimination.h>
 #include <luisa/xir/passes/mem2reg.h>
+#include <luisa/xir/passes/promote_ref_arg.h>
 #include <luisa/xir/passes/lower_ray_query_loop.h>
 
 #include "../common/shader_print_formatter.h"
@@ -159,6 +160,7 @@ FallbackShader::FallbackShader(FallbackDevice *device, const ShaderOption &optio
     auto store_forward_info = xir::local_store_forward_pass_run_on_module(xir_module.get());
     auto load_elim_info = xir::local_load_elimination_pass_run_on_module(xir_module.get());
     auto dce2_info = xir::dce_pass_run_on_module(xir_module.get());
+    auto promote_arg_info = xir::promote_ref_arg_pass_run_on_module(xir_module.get());
     auto mem2reg_info = xir::mem2reg_pass_run_on_module(xir_module.get());
     auto dce3_info = xir::dce_pass_run_on_module(xir_module.get());
     if (LUISA_SHOULD_DUMP_XIR) {
@@ -172,6 +174,7 @@ FallbackShader::FallbackShader(FallbackDevice *device, const ShaderOption &optio
                   "eliminated {} load instruction(s), "
                   "promoted {} alloca instruction(s) with {} load and {} store instruction(s) removed and {} phi node(s) inserted, "
                   "removed {} + {} + {} = {} dead instruction(s), "
+                  "promoted {} reference argument(s), "
                   "lowered {} ray query loop(s).",
                   opt_clk.toc(),
                   store_forward_info.forwarded_instructions.size(),
@@ -179,6 +182,7 @@ FallbackShader::FallbackShader(FallbackDevice *device, const ShaderOption &optio
                   mem2reg_info.promoted_alloca_instructions.size(), mem2reg_info.removed_load_instructions.size(), mem2reg_info.removed_store_instructions.size(), mem2reg_info.inserted_phi_instructions.size(),
                   dce1_info.removed_instructions.size(), dce2_info.removed_instructions.size(), dce3_info.removed_instructions.size(),
                   dce1_info.removed_instructions.size() + dce2_info.removed_instructions.size() + dce3_info.removed_instructions.size(),
+                  promote_arg_info.promoted_ref_args.size(),
                   rq_lower_info.lowered_loops.size());
 
     // dump for debugging
