@@ -76,8 +76,8 @@ private:
         }(),
         storage, size, mip_levels} {}
 
-    Image(DeviceInterface *device, PixelStorage storage, uint2 size, byte* data,
-          uint mip_levels = 1u, bool simultaneous_access = false, bool allow_raster_target = false) noexcept
+    Image(DeviceInterface *device, PixelStorage storage, void* external_native_handle, uint2 size,
+          uint mip_levels, bool simultaneous_access = false, bool allow_raster_target = false) noexcept
         : Image{device,
                 [&] {
                     if (size.x == 0 || size.y == 0) [[unlikely]] {
@@ -87,7 +87,8 @@ private:
                         pixel_storage_to_format<T>(storage), 2u,
                         size.x, size.y, 1u,
                         detail::max_mip_levels(make_uint3(size, 1u), mip_levels),
-                        simultaneous_access, allow_raster_target, data);
+                        simultaneous_access, allow_raster_target,
+                        external_native_handle);
         }(),
         storage, size, mip_levels} {}
 
