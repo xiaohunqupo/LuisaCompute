@@ -89,7 +89,7 @@ static constexpr const std::array ewa_filter_weight_lut{
 }// namespace detail
 
 FallbackTexture::FallbackTexture(PixelStorage storage, uint dim, uint3 size, uint levels) noexcept
-    : _storage{storage}, _mip_levels{levels}, _dimension{dim} {
+    : _storage{static_cast<uint16_t>(storage)}, _mip_levels{levels}, _dimension{dim}, _is_external{false} {
     if (_dimension == 2u) {
         _pixel_stride_shift = std::bit_width(static_cast<uint>(pixel_storage_size(storage, make_uint3(1u)))) - 1u;
         if (storage == PixelStorage::BC6 || storage == PixelStorage::BC7) {
@@ -124,9 +124,9 @@ FallbackTexture::FallbackTexture(PixelStorage storage, uint dim, uint3 size, uin
         _data = luisa::allocate_with_allocator<std::byte>(static_cast<size_t>(size_pixels) << _pixel_stride_shift);
     }
 }
-FallbackTexture::FallbackTexture(PixelStorage storage, uint dim, uint3 size, uint levels, std::byte *external_buffer)  noexcept
-    : _storage{storage}, _mip_levels{levels}, _dimension{dim} {
-    this->external = true;
+
+FallbackTexture::FallbackTexture(PixelStorage storage, uint dim, uint3 size, uint levels, std::byte *external_buffer) noexcept
+    : _storage{static_cast<uint16_t>(storage)}, _mip_levels{levels}, _dimension{dim}, _is_external{true} {
     if (_dimension == 2u) {
         _pixel_stride_shift = std::bit_width(static_cast<uint>(pixel_storage_size(storage, make_uint3(1u)))) - 1u;
         if (storage == PixelStorage::BC6 || storage == PixelStorage::BC7) {
@@ -163,7 +163,7 @@ FallbackTexture::FallbackTexture(PixelStorage storage, uint dim, uint3 size, uin
 }
 
 FallbackTexture::~FallbackTexture() noexcept {
-    if (!external) {
+    if (!_is_external) {
         luisa::deallocate_with_allocator(_data);
     }
 }
@@ -171,7 +171,7 @@ FallbackTexture::~FallbackTexture() noexcept {
 FallbackTextureView FallbackTexture::view(uint level) const noexcept {
     auto size = luisa::max(make_uint3(_size[0], _size[1], _size[2]) >> level, 1u);
     return FallbackTextureView{_data + (static_cast<size_t>(_mip_offsets[level]) << _pixel_stride_shift),
-                               _dimension, size.x, size.y, size.z, _storage, _pixel_stride_shift};
+                               _dimension, size.x, size.y, size.z, storage(), _pixel_stride_shift};
 }
 
 // template<typename T>
