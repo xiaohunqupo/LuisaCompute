@@ -225,7 +225,7 @@ ResourceCreationInfo LCDevice::create_texture(
     uint width,
     uint height,
     uint depth,
-    uint mipmap_levels, bool simultaneous_access, bool allow_raster_target) noexcept {
+    uint mipmap_levels, bool simultaneous_access, bool allow_raster_target, luisa::byte* external_buffer) noexcept {
     if (allow_raster_target) {
         if (simultaneous_access) {
             LUISA_INFO("DX do not allow simultaneous access texture as render target, set simultaneous_access = false");
