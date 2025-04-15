@@ -120,7 +120,7 @@ void Device::destroy_buffer(uint64_t handle) noexcept {
 ResourceCreationInfo Device::create_texture(
     PixelFormat format, uint dimension,
     uint width, uint height, uint depth,
-    uint mipmap_levels, bool simultaneous_access, bool allow_raster_target) noexcept {
+    uint mipmap_levels, bool simultaneous_access, bool allow_raster_target, byte* external_buffer) noexcept {
     auto tex = _native->create_texture(format, dimension, width, height, depth, mipmap_levels, simultaneous_access, allow_raster_target);
     new Texture{tex.handle, dimension, simultaneous_access, uint3(0, 0, 0), format};
     return tex;

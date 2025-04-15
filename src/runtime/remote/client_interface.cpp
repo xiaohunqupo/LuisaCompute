@@ -53,7 +53,7 @@ void ClientInterface::destroy_buffer(uint64_t handle) noexcept {
 ResourceCreationInfo ClientInterface::create_texture(
     PixelFormat format, uint dimension,
     uint width, uint height, uint depth,
-    uint mipmap_levels, bool simultaneous_access, bool allow_raster_target) noexcept {
+    uint mipmap_levels, bool simultaneous_access, bool allow_raster_target, byte* external_buffer) noexcept {
 
     ResourceCreationInfo r;
     r.handle = _flag++;

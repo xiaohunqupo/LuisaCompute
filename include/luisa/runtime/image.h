@@ -73,8 +73,23 @@ private:
                         size.x, size.y, 1u,
                         detail::max_mip_levels(make_uint3(size, 1u), mip_levels),
                         simultaneous_access, allow_raster_target);
-                }(),
-                storage, size, mip_levels} {}
+        }(),
+        storage, size, mip_levels} {}
+
+    Image(DeviceInterface *device, PixelStorage storage, uint2 size, byte* data,
+          uint mip_levels = 1u, bool simultaneous_access = false, bool allow_raster_target = false) noexcept
+        : Image{device,
+                [&] {
+                    if (size.x == 0 || size.y == 0) [[unlikely]] {
+                        detail::image_size_zero_error();
+                    }
+                    return device->create_texture(
+                        pixel_storage_to_format<T>(storage), 2u,
+                        size.x, size.y, 1u,
+                        detail::max_mip_levels(make_uint3(size, 1u), mip_levels),
+                        simultaneous_access, allow_raster_target, data);
+        }(),
+        storage, size, mip_levels} {}
 
 public:
     Image() noexcept = default;

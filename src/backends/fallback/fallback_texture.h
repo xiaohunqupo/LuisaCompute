@@ -301,9 +301,10 @@ private:
     uint _mip_levels : 8u;               // 19B
     uint _dimension : 8u;                // 20B
     std::array<uint, 15u> _mip_offsets{};// 80B
-
+    bool external{false};
 public:
     FallbackTexture(PixelStorage storage, uint dim, uint3 size, uint levels) noexcept;
+    FallbackTexture(PixelStorage storage, uint dim, uint3 size, uint levels, std::byte* external_buffer) noexcept;
     ~FallbackTexture() noexcept;
     FallbackTexture(FallbackTexture &&) noexcept = delete;
     FallbackTexture(const FallbackTexture &) noexcept = delete;

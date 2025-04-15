@@ -162,14 +162,26 @@ BufferCreationInfo FallbackDevice::create_buffer(const ir::CArc<ir::Type> *eleme
 #endif
 }
 
-ResourceCreationInfo FallbackDevice::create_texture(PixelFormat format, uint dimension, uint width, uint height, uint depth, uint mipmap_levels, bool simultaneous_access, bool allow_raster_target) noexcept {
-    auto texture = luisa::new_with_allocator<FallbackTexture>(
-        pixel_format_to_storage(format), dimension,
-        make_uint3(width, height, depth), mipmap_levels);
-    return {
-        .handle = reinterpret_cast<uint64_t>(texture),
-        .native_handle = texture->native_handle(),
-    };
+ResourceCreationInfo FallbackDevice::create_texture(PixelFormat format, uint dimension, uint width, uint height, uint depth, uint mipmap_levels, bool simultaneous_access, bool allow_raster_target, byte* external_buffer) noexcept {
+
+    if (external_buffer == nullptr) {
+        auto texture = luisa::new_with_allocator<FallbackTexture>(
+            pixel_format_to_storage(format), dimension,
+            make_uint3(width, height, depth), mipmap_levels);
+        return {
+            .handle = reinterpret_cast<uint64_t>(texture),
+            .native_handle = texture->native_handle(),
+        };
+    }
+    else {
+        auto texture = luisa::new_with_allocator<FallbackTexture>(
+            pixel_format_to_storage(format), dimension,
+            make_uint3(width, height, depth), mipmap_levels, reinterpret_cast<std::byte*>(external_buffer));
+        return {
+            .handle = reinterpret_cast<uint64_t>(texture),
+            .native_handle = texture->native_handle(),
+        };
+    }
 }
 
 ResourceCreationInfo FallbackDevice::create_stream(StreamTag stream_tag) noexcept {
