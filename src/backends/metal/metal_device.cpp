@@ -310,8 +310,10 @@ void MetalDevice::destroy_buffer(uint64_t handle) noexcept {
 }
 
 ResourceCreationInfo MetalDevice::create_texture(PixelFormat format, uint dimension,
-                                                 uint width, uint height, uint depth, uint mipmap_levels,
-                                                 bool allow_simultaneous_access, bool allow_raster_target, byte* external_buffer) noexcept {
+                                                 uint width, uint height, uint depth,
+                                                 uint mipmap_levels, void *external_native_handle,
+                                                 bool allow_simultaneous_access, bool allow_raster_target) noexcept {
+    LUISA_ASSERT(external_native_handle == nullptr, "Not implemented.");
     return with_autorelease_pool([=, this] {
         auto texture = new_with_allocator<MetalTexture>(
             _handle, format, dimension, width, height, depth,

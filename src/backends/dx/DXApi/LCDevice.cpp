@@ -225,7 +225,11 @@ ResourceCreationInfo LCDevice::create_texture(
     uint width,
     uint height,
     uint depth,
-    uint mipmap_levels, bool simultaneous_access, bool allow_raster_target, luisa::byte* external_buffer) noexcept {
+    uint mipmap_levels,
+    void *external_native_handle,
+    bool simultaneous_access,
+    bool allow_raster_target) noexcept {
+    LUISA_ASSERT(external_native_handle == nullptr, "Importing external textures is not supported on DirectX.");
     if (allow_raster_target) {
         if (simultaneous_access) {
             LUISA_INFO("DX do not allow simultaneous access texture as render target, set simultaneous_access = false");

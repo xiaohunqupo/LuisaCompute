@@ -397,7 +397,8 @@ void CUDADevice::destroy_buffer(uint64_t handle) noexcept {
     });
 }
 
-ResourceCreationInfo CUDADevice::create_texture(PixelFormat format, uint dimension, uint width, uint height, uint depth, uint mipmap_levels, bool simultaneous_access, bool allow_raster_target, byte* external_buffer) noexcept {
+ResourceCreationInfo CUDADevice::create_texture(PixelFormat format, uint dimension, uint width, uint height, uint depth, uint mipmap_levels, void *external_native_handle, bool simultaneous_access, bool allow_raster_target) noexcept {
+    LUISA_ASSERT(external_native_handle == nullptr, "Not implemented.");
     auto p = with_handle([=] {
         auto array_format = cuda_array_format(format);
         auto channels = pixel_format_channel_count(format);
