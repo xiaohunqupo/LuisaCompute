@@ -137,16 +137,18 @@ struct PhiInsertionAndRenaming {
                 auto block = work_list.back();
                 work_list.pop_back();
                 for (auto frontier : analysis.dom.node(block)->frontiers()) {
-                    if (auto iter = block_to_phi.try_emplace(frontier->block(), nullptr).first; iter->second == nullptr) {
-                        // insert the phi node
-                        XIRBuilder b;
-                        b.set_insertion_point(frontier->block()->instructions().head_sentinel());
-                        auto phi = b.phi(type);
-                        iter->second = phi;
-                        inserted.emplace_back(phi);
-                        info.inserted_phi_instructions.emplace(phi);
-                        // add the block to the work list to compute the closure
-                        work_list.emplace_back(frontier->block());
+                    if (auto fb = frontier->block(); analysis.live_in_blocks.contains(fb)) {
+                        if (auto iter = block_to_phi.try_emplace(fb, nullptr).first; iter->second == nullptr) {
+                            // insert the phi node
+                            XIRBuilder b;
+                            b.set_insertion_point(fb->instructions().head_sentinel());
+                            auto phi = b.phi(type);
+                            iter->second = phi;
+                            inserted.emplace_back(phi);
+                            info.inserted_phi_instructions.emplace(phi);
+                            // add the block to the work list to compute the closure
+                            work_list.emplace_back(fb);
+                        }
                     }
                 }
             }
