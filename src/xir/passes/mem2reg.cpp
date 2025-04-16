@@ -132,7 +132,9 @@ struct PhiInsertionAndRenaming {
         {
             luisa::fixed_vector<BasicBlock *, 64u> work_list;
             work_list.reserve(analysis.def_blocks.size());
-            for (auto [def_block, _] : analysis.def_blocks) { work_list.emplace_back(def_block); }
+            for (auto [def_block, _] : analysis.def_blocks) {
+                work_list.emplace_back(def_block);
+            }
             while (!work_list.empty()) {
                 auto block = work_list.back();
                 work_list.pop_back();
@@ -146,10 +148,6 @@ struct PhiInsertionAndRenaming {
                             iter->second = phi;
                             inserted.emplace_back(phi);
                             info.inserted_phi_instructions.emplace(phi);
-                            // replace the loads in the same block with the phi node
-                            if (auto load_iter = analysis.use_blocks.find(fb); load_iter != analysis.use_blocks.end()) {
-                                replace_load_with_value(load_iter->second, phi, info);
-                            }
                             // add the block to the work list to compute the closure
                             work_list.emplace_back(fb);
                         }
@@ -159,16 +157,18 @@ struct PhiInsertionAndRenaming {
         }
         // other loads must be dominated by some def/phi block, or it must contain undefined value
         for (auto [use_block, load_inst] : analysis.use_blocks) {
-            if (!info.removed_load_instructions.contains(load_inst)) {
-                if (auto node = analysis.dom.node_or_null(use_block); node != nullptr && node != analysis.dom.root()) {
-                    // we walk the dom tree to find the value that dominates the use block
-                    auto dom_value = find_dom_value_from_block(node->parent()->block(), type, analysis);
-                    replace_load_with_value(load_inst, dom_value, info);
-                } else {
-                    // otherwise we have to use an undefined value
-                    auto undef = use_block->parent_module()->create_undefined(type);
-                    replace_load_with_value(load_inst, undef, info);
-                }
+            LUISA_DEBUG_ASSERT(!info.removed_load_instructions.contains(load_inst), "Invalid state.");
+            if (auto phi_iter = block_to_phi.find(use_block); phi_iter != block_to_phi.end()) {
+                // if we have a phi node in the use block, we can replace the load with it
+                replace_load_with_value(load_inst, phi_iter->second, info);
+            } else if (auto node = analysis.dom.node_or_null(use_block); node != nullptr && node != analysis.dom.root()) {
+                // otherwise, we walk the dom tree to find the value that dominates the use block
+                auto dom_value = find_dom_value_from_block(node->parent()->block(), type, analysis);
+                replace_load_with_value(load_inst, dom_value, info);
+            } else {
+                // otherwise we have to use an undefined value
+                auto undef = use_block->parent_module()->create_undefined(type);
+                replace_load_with_value(load_inst, undef, info);
             }
         }
         // now the alloca should have no load uses but only store uses, check it
