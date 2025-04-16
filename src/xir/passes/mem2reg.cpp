@@ -109,9 +109,9 @@ struct PhiInsertionAndRenaming {
     // the following fields are used across the processing of different alloca's
     luisa::vector<PhiInst *> inserted;
 
-    [[nodiscard]] Value *find_dom_value_for_use_block(BasicBlock *use_block, const Type *type,
-                                                      const AllocaAnalysis &analysis) noexcept {
-        for (auto node = analysis.dom.node_or_null(use_block); node != nullptr; node = node->parent()) {
+    [[nodiscard]] Value *find_dom_value_from_block(BasicBlock *block, const Type *type,
+                                                   const AllocaAnalysis &analysis) noexcept {
+        for (auto node = analysis.dom.node_or_null(block); node != nullptr; node = node->parent()) {
             // store must have higher priority than phi nodes as it's closer to the use block
             if (auto iter = analysis.def_blocks.find(node->block()); iter != analysis.def_blocks.end()) {
                 return iter->second->value();
@@ -122,31 +122,31 @@ struct PhiInsertionAndRenaming {
             }
         }
         // if no dominant value found, get an undef value
-        return use_block->parent_module()->create_undefined(type);
+        return block->parent_module()->create_undefined(type);
     }
 
     void place_phi_nodes(AllocaInst *inst, const AllocaAnalysis &analysis, Mem2RegInfo &info) noexcept {
         // insert new phi nodes by traversing the closure of dominance frontiers of the def blocks
         block_to_phi.clear();
         auto type = inst->type();
-        luisa::fixed_vector<BasicBlock *, 64u> work_list;
-        work_list.reserve(analysis.def_blocks.size());
-        for (auto [def_block, _] : analysis.def_blocks) { work_list.emplace_back(def_block); }
-        while (!work_list.empty()) {
-            auto block = work_list.back();
-            work_list.pop_back();
-            for (auto frontier : analysis.dom.node(block)->frontiers()) {
-                if (auto fb = frontier->block(); analysis.live_in_blocks.contains(fb)) {
-                    if (auto iter = block_to_phi.try_emplace(fb, nullptr).first; iter->second == nullptr) {
+        {
+            luisa::fixed_vector<BasicBlock *, 64u> work_list;
+            work_list.reserve(analysis.def_blocks.size());
+            for (auto [def_block, _] : analysis.def_blocks) { work_list.emplace_back(def_block); }
+            while (!work_list.empty()) {
+                auto block = work_list.back();
+                work_list.pop_back();
+                for (auto frontier : analysis.dom.node(block)->frontiers()) {
+                    if (auto iter = block_to_phi.try_emplace(frontier->block(), nullptr).first; iter->second == nullptr) {
                         // insert the phi node
                         XIRBuilder b;
-                        b.set_insertion_point(fb->instructions().head_sentinel());
+                        b.set_insertion_point(frontier->block()->instructions().head_sentinel());
                         auto phi = b.phi(type);
                         iter->second = phi;
                         inserted.emplace_back(phi);
                         info.inserted_phi_instructions.emplace(phi);
                         // add the block to the work list to compute the closure
-                        work_list.emplace_back(fb);
+                        work_list.emplace_back(frontier->block());
                     }
                 }
             }
@@ -159,7 +159,7 @@ struct PhiInsertionAndRenaming {
                     replace_load_with_value(load_inst, phi_iter->second, info);
                 } else if (auto node = analysis.dom.node_or_null(use_block); node != nullptr && node != analysis.dom.root()) {
                     // otherwise we walk the dom tree to find the value that dominates the use block
-                    auto dom_value = find_dom_value_for_use_block(node->parent()->block(), type, analysis);
+                    auto dom_value = find_dom_value_from_block(node->parent()->block(), type, analysis);
                     replace_load_with_value(load_inst, dom_value, info);
                 } else {
                     auto undef = use_block->parent_module()->create_undefined(type);
@@ -179,7 +179,7 @@ struct PhiInsertionAndRenaming {
             auto phi_block = mapping.first;
             auto phi_inst = mapping.second;
             phi_block->traverse_predecessors(false, [&](BasicBlock *pred) noexcept {
-                auto dom_value = find_dom_value_for_use_block(pred, type, analysis);
+                auto dom_value = find_dom_value_from_block(pred, type, analysis);
                 phi_inst->add_incoming(dom_value, pred);
             });
         }
