@@ -161,9 +161,9 @@ struct PhiInsertionAndRenaming {
             if (auto phi_iter = block_to_phi.find(use_block); phi_iter != block_to_phi.end()) {
                 // if we have a phi node in the use block, we can replace the load with it
                 replace_load_with_value(load_inst, phi_iter->second, info);
-            } else if (auto node = analysis.dom.node_or_null(use_block); node != nullptr && node != analysis.dom.root()) {
+            } else if (auto parent = analysis.dom.immediate_dominator(use_block)) {
                 // otherwise, we walk the dom tree to find the value that dominates the use block
-                auto dom_value = find_dom_value_from_block(node->parent()->block(), type, analysis);
+                auto dom_value = find_dom_value_from_block(parent, type, analysis);
                 replace_load_with_value(load_inst, dom_value, info);
             } else {
                 // otherwise we have to use an undefined value

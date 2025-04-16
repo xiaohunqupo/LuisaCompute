@@ -74,7 +74,7 @@ int main(int argc, char *argv[]) {
         return hit;
     };
 
-    auto shader2 = device.compile<1>([&](AccelVar accel, BufferVar<CommittedHit> hits, UInt mask) noexcept {
+    auto shader2 = device.compile<1>([&](AccelVar accel, BufferVar<CommittedHit> hits, UInt mask, BufferUInt buffer) noexcept {
         Var<CommittedHit> hit;
         hit->inst = ~0u;
         $while (true) {
@@ -101,6 +101,11 @@ int main(int argc, char *argv[]) {
                 hits->write(0u, hit);
             };
         };
+        auto v = def(0u);
+        $if (true) {
+            v = 1u;
+        };
+        buffer->write(0u, v);
         // $if (mask != 0u) {
         //     $if (!hit->miss()) {
         //         hits->write(0u, hit);
