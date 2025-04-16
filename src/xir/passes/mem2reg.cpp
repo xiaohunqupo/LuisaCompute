@@ -39,6 +39,7 @@ struct AllocaAnalysis {
     void analyze(AllocaInst *inst) noexcept {
         def_blocks.clear();
         use_blocks.clear();
+        live_in_blocks.clear();
         // find def and use blocks
         for (auto &&use : inst->use_list()) {
             if (auto user = use.user()) {
@@ -61,7 +62,6 @@ struct AllocaAnalysis {
             }
         }
         // compute live-in blocks
-        live_in_blocks.clear();
         luisa::fixed_vector<BasicBlock *, 64u> work_list;
         work_list.reserve(use_blocks.size());
         for (auto [use_block, load] : use_blocks) {
@@ -146,6 +146,10 @@ struct PhiInsertionAndRenaming {
                             iter->second = phi;
                             inserted.emplace_back(phi);
                             info.inserted_phi_instructions.emplace(phi);
+                            // replace the loads in the same block with the phi node
+                            if (auto load_iter = analysis.use_blocks.find(fb); load_iter != analysis.use_blocks.end()) {
+                                replace_load_with_value(load_iter->second, phi, info);
+                            }
                             // add the block to the work list to compute the closure
                             work_list.emplace_back(fb);
                         }
@@ -153,17 +157,15 @@ struct PhiInsertionAndRenaming {
                 }
             }
         }
-        // each of the use blocks must be dominated by some def/phi block, or it must contain undefined value
+        // other loads must be dominated by some def/phi block, or it must contain undefined value
         for (auto [use_block, load_inst] : analysis.use_blocks) {
             if (!info.removed_load_instructions.contains(load_inst)) {
-                if (auto phi_iter = block_to_phi.find(use_block); phi_iter != block_to_phi.end()) {
-                    // we have a phi node in the same block so we can replace the load with it
-                    replace_load_with_value(load_inst, phi_iter->second, info);
-                } else if (auto node = analysis.dom.node_or_null(use_block); node != nullptr && node != analysis.dom.root()) {
-                    // otherwise we walk the dom tree to find the value that dominates the use block
+                if (auto node = analysis.dom.node_or_null(use_block); node != nullptr && node != analysis.dom.root()) {
+                    // we walk the dom tree to find the value that dominates the use block
                     auto dom_value = find_dom_value_from_block(node->parent()->block(), type, analysis);
                     replace_load_with_value(load_inst, dom_value, info);
                 } else {
+                    // otherwise we have to use an undefined value
                     auto undef = use_block->parent_module()->create_undefined(type);
                     replace_load_with_value(load_inst, undef, info);
                 }
