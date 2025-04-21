@@ -41,6 +41,9 @@ public:
     CommandList &append(luisa::unique_ptr<Command> &&cmd) noexcept;
     CommandList &add_callback(luisa::move_only_function<void()> &&callback) noexcept;
     CommandList &add_range(CommandList &&cmdlist) noexcept;
+    CommandList &operator<<(CommandList &&cmdlist) noexcept {
+        return add_range(std::move(cmdlist));
+    }
     void clear() noexcept;
     [[nodiscard]] auto commands() const noexcept { return luisa::span{_commands}; }
     [[nodiscard]] auto callbacks() const noexcept { return luisa::span{_callbacks}; }

@@ -8,6 +8,7 @@ class LC_TENSOR_API TensorBuilder {
 
     luisa::Pool<TensorData, false, false> _tensor_pool;
     luisa::vector<TensorData *> _allocated_tensor;
+    luisa::vector<TensorData *> _arguments;
     luisa::vector<ScopeExpr *> _expr_stack;
     ScopeExpr _root_expr;
     struct Stack {
@@ -28,6 +29,9 @@ public:
     [[nodiscard]] luisa::span<TensorData *const> allocated_tensor() const noexcept {
         return {_allocated_tensor};
     }
+    [[nodiscard]] luisa::span<TensorData *const> arguments() const noexcept {
+        return {_arguments};
+    }
     [[nodiscard]] auto current_scope() noexcept { return _expr_stack.back(); }
     static void set_thd_local(TensorBuilder *builder);
     static TensorBuilder *get_thd_local();
@@ -40,6 +44,9 @@ public:
     TensorData *allocate_tensor(
         luisa::span<size_t const> sizes,
         TensorElementType element_type) noexcept;
+    void push_argument(TensorData *data) noexcept {
+        _arguments.emplace_back(data);
+    }
     void push_scope() noexcept;
     void pop_scope() noexcept;
     TensorBuilder() noexcept;
