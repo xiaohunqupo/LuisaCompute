@@ -325,12 +325,14 @@ public:
     Shader &operator=(Shader &&rhs) noexcept = default;
     Shader &operator=(Shader const &) noexcept = delete;
     using Resource::operator bool;
+    [[nodiscard]] static constexpr uint arg_count() noexcept {
+        return (0u + ... + detail::shader_argument_encode_count<Args>::value);
+    }
 
     [[nodiscard]] auto operator()(detail::prototype_to_shader_invocation_t<Args>... args) const noexcept {
         _check_is_valid();
         using invoke_type = detail::ShaderInvoke<dimension>;
-        auto arg_count = (0u + ... + detail::shader_argument_encode_count<Args>::value);
-        invoke_type invoke{handle(), arg_count, _uniform_size};
+        invoke_type invoke{handle(), arg_count(), _uniform_size};
         static_cast<void>((invoke << ... << args));
         return invoke;
     }

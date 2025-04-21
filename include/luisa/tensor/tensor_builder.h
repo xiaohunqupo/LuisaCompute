@@ -26,6 +26,8 @@ class LC_TENSOR_API TensorBuilder {
     void deallocate_tensor(TensorData *tensor) noexcept;
 
 public:
+    auto &root_expr() noexcept { return _root_expr; }
+    auto const &root_expr() const noexcept { return _root_expr; }
     [[nodiscard]] luisa::span<TensorData *const> allocated_tensor() const noexcept {
         return {_allocated_tensor};
     }

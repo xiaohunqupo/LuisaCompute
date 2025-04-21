@@ -353,6 +353,13 @@ int main(int argc, char *argv[]) {
            << make_zero(input_to_hidden_weight_delta) << make_zero(hidden_to_out_weight_delta) << synchronize();
     // compute out
     float hidden_weight;
+    /*
+    ComputeDispatchCmdEncoder dispatcher{
+        raytracing_shader.handle(),
+        raytracing_shader.arg_count(),
+        ShaderDispatchCmdEncoder::compute_uniform_size(raytracing_kernel.function()->unbound_arguments())};
+        
+    */
     for (int i = 0; i < 5000; ++i) {
         stream << make_lcg(input_buffer)
                << tar_buffer.copy_from(input_buffer)

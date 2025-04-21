@@ -24,13 +24,12 @@ class LC_TENSOR_API ExprTopo {
     void mark_depend(
         TensorExpr *depended,
         TensorExpr *depending) noexcept;
-    luisa::vector<TensorExpr *> _topo_sort() noexcept;
+public:
+    auto const &tensor_depend() const noexcept { return luisa::span{_tensor_depends}; }
+    luisa::vector<TensorExpr *> topo_sort() noexcept;
     ExprTopo(luisa::span<TensorExpr *const> exprs, size_t tensor_count) noexcept;
     ExprTopo() noexcept;
 
-public:
-    static luisa::vector<TensorExpr *> topo_sort(
-        luisa::span<TensorExpr *const> exprs, size_t tensor_count) noexcept;
     ExprTopo(ExprTopo const &) = delete;
     ExprTopo(ExprTopo &&) = delete;
     ~ExprTopo() noexcept;

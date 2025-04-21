@@ -7,28 +7,27 @@
 namespace luisa::compute {
 class TensorInterface;
 namespace detail {
-template<typename Ret, typename... Args>
+template<template<typename...> typename Object, typename ExtraTypes, typename Ret, typename... Args>
 struct ObjType {
-    template<template<typename...> typename Object, typename... ExtraTypes>
-    using Type = typename Object<ExtraTypes..., Ret, Args...>;
+    using Type = Object<ExtraTypes, Ret, Args...>;
 };
-template<typename T>
+template<template<typename...> typename Object, typename ExtraTypes, typename T>
 struct member_func_meta;
 
-template<typename Ret, typename Class, typename... Args>
-struct member_func_meta<Ret (Class::*)(Args...) const> : ObjType<Ret, Args...> {
+template<template<typename...> typename Object, typename ExtraTypes, typename Ret, typename Class, typename... Args>
+struct member_func_meta<Object, ExtraTypes, Ret (Class::*)(Args...) const> : ObjType<Object, ExtraTypes, Ret, Args...> {
     static constexpr bool is_const = true;
 };
-template<typename Ret, typename Class, typename... Args>
-struct member_func_meta<Ret (Class::*)(Args...)> : ObjType<Ret, Args...> {
+template<template<typename...> typename Object, typename ExtraTypes, typename Ret, typename Class, typename... Args>
+struct member_func_meta<Object, ExtraTypes, Ret (Class::*)(Args...)> : ObjType<Object, ExtraTypes, Ret, Args...> {
     static constexpr bool is_const = false;
 };
-template<typename Ret, typename Class, typename... Args>
-struct member_func_meta<Ret (Class::*)(Args...) const noexcept> : ObjType<Ret, Args...> {
+template<template<typename...> typename Object, typename ExtraTypes, typename Ret, typename Class, typename... Args>
+struct member_func_meta<Object, ExtraTypes, Ret (Class::*)(Args...) const noexcept> : ObjType<Object, ExtraTypes, Ret, Args...> {
     static constexpr bool is_const = true;
 };
-template<typename Ret, typename Class, typename... Args>
-struct member_func_meta<Ret (Class::*)(Args...) noexcept> : ObjType<Ret, Args...> {
+template<template<typename...> typename Object, typename ExtraTypes, typename Ret, typename Class, typename... Args>
+struct member_func_meta<Object, ExtraTypes, Ret (Class::*)(Args...) noexcept> : ObjType<Object, ExtraTypes, Ret, Args...> {
     static constexpr bool is_const = false;
 };
 }// namespace detail
@@ -115,7 +114,7 @@ public:
         _kernel_ptr = _tensor_interface->compile_kernel(std::move(r));
     }
     template<typename... ExecArgs>
-        requires (sizeof...(Args) == sizeof...(ExecArgs) && !(detail::AnyMap<luisa::compute::is_buffer_or_view, true>::template Run<std::remove_cvref_t<ExecArgs>...>()))
+        requires(sizeof...(Args) == sizeof...(ExecArgs) && !(detail::AnyMap<luisa::compute::is_buffer_or_view, true>::template Run<std::remove_cvref_t<ExecArgs>...>()))
     void execute(CommandList &cmdlist, ExecArgs const &...args) noexcept {
         auto to_desc = []<typename T>(T const &arg) -> Argument::Buffer {
             if constexpr (is_buffer_view_v<T>) {
@@ -152,7 +151,9 @@ template<typename Lambda>
 static auto load_tensor(
     TensorInterface *tensor_interface,
     Lambda &&lambda) noexcept {
-    using KernelType = typename detail::member_func_meta<decltype(&std::remove_cvref_t<decltype(lambda)>::operator())>::Type<TensorKernel, Lambda>;
+    using FuncType = decltype(&std::remove_cvref_t<decltype(lambda)>::operator());
+    using MemberFuncMeta = typename detail::member_func_meta<TensorKernel, Lambda, FuncType>;
+    using KernelType = MemberFuncMeta::Type;
     return KernelType{tensor_interface, std::forward<Lambda>(lambda)};
 }
 

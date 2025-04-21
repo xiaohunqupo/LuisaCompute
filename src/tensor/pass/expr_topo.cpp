@@ -45,13 +45,7 @@ ExprTopo::ExprTopo(luisa::span<TensorExpr *const> exprs, size_t tensor_count) no
 
 ExprTopo::ExprTopo() noexcept = default;
 
-luisa::vector<TensorExpr *> ExprTopo::topo_sort(
-    luisa::span<TensorExpr *const> exprs, size_t tensor_count) noexcept {
-    ExprTopo topo(exprs, tensor_count);
-    return topo._topo_sort();
-}
-
-luisa::vector<TensorExpr *> ExprTopo::_topo_sort() noexcept {
+luisa::vector<TensorExpr *> ExprTopo::topo_sort() noexcept {
     luisa::vector<TensorExpr *> r;
     luisa::fixed_vector<ExprDependency *, 16> stack;
     r.reserve(_expr_depends.size());
