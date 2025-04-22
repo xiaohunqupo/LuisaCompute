@@ -47,6 +47,7 @@ GEMMExpr::GEMMExpr(
     uint64_t idx,
     TensorData *lhs_tensor,
     TensorData *rhs_tensor,
+    TensorData *out_tensor,
     FusedActivation const &fused_activation,
     TensorElementType out_type) noexcept
     : BaseClass(idx),
@@ -61,7 +62,13 @@ GEMMExpr::GEMMExpr(
         LUISA_ERROR("GEMM matrix group-batch size mismatch");
     }
     auto sizes = {(size_t)desire_out_size.x, (size_t)desire_out_size.y, (size_t)group_size};
-    output_tensor = TensorBuilder::get_thd_local()->allocate_tensor(sizes, out_type);
+    for (size_t i = 0; i < sizes.size(); ++i) {
+        if (out_tensor->get_size(i) != sizes.begin()[i]) {
+            LUISA_ERROR("Output dimension dismatch.");
+        }
+    }
+    output_tensor = out_tensor;
+    // output_tensor = TensorBuilder::get_thd_local()->allocate_tensor(sizes, out_type);
 }
 
 ConvExpr::ConvExpr(
@@ -125,18 +132,17 @@ TestExpr::TestExpr(
       name(name) {
 }
 
-
-Tensor Tensor::gemm(
+void Tensor::gemm(
     Tensor const &lhs,
     Tensor const &rhs,
-    FusedActivation const &activation,
-    TensorElementType out_type) noexcept {
+    Tensor const &out,
+    FusedActivation const &activation) noexcept {
     auto expr = TensorBuilder::get_thd_local()->current_scope()->allocate_expr<GEMMExpr>(
         lhs.data(),
         rhs.data(),
+        out.data(),
         activation,
-        out_type);
-    return Tensor{expr->output_tensor, true};
+        out.data()->element_type());
 }
 
 Tensor Tensor::conv_1d(

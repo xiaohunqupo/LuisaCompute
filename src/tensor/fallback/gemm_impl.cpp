@@ -70,7 +70,6 @@ DispatchPack<T> gemm_kernel(uint2 lhs_matrix_size, uint2 rhs_matrix_size, uint m
                 r += Float(ReadTex(lhs, lhs_global_offset + lhs_size.y * i + id.y));
             }
         }
-        r = 1.f / (1.f + exp(-r));
         // TDOO: fused activation
         WriteTex(output,
                  output_global_offset + size.y * id.x + id.y,

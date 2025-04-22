@@ -109,7 +109,8 @@ public:
         }
         auto r = luisa::make_unique<TensorBuilder>();
         TensorBuilder::set_thd_local(r.get());
-        _lambda(detail::tensor_kernel_type<Args>::_forward(std::forward<typename detail::tensor_kernel_type<Args>::Type>(args))...);
+        auto tensors = std::tuple<std::remove_cvref_t<Args>...>{detail::tensor_kernel_type<Args>::_forward(std::forward<typename detail::tensor_kernel_type<Args>::Type>(args))...};
+        std::apply(_lambda, std::move(tensors));
         TensorBuilder::set_thd_local(nullptr);
         _kernel_ptr = _tensor_interface->compile_kernel(std::move(r));
     }

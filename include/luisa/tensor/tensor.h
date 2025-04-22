@@ -93,11 +93,11 @@ public:
     [[nodiscard]] static Tensor one(TensorElementType element_type, luisa::span<const size_t> sizes) noexcept;
     [[nodiscard]] static Tensor zero(TensorElementType element_type, luisa::span<const size_t> sizes) noexcept;
 
-    [[nodiscard]] static Tensor gemm(
+    [[nodiscard]] static void gemm(
         Tensor const &lhs,
         Tensor const &rhs,
-        FusedActivation const &activation,
-        TensorElementType out_type) noexcept;
+        Tensor const &out,
+        FusedActivation const &activation) noexcept;
 
     [[nodiscard]] static Tensor conv_1d(
         Tensor const &input,
