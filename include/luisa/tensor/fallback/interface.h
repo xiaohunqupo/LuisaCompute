@@ -10,7 +10,7 @@ struct FallbackTensorKenel {
     luisa::vector<luisa::unique_ptr<ITensorExprExecutor>> executors;
     luisa::vector<size_t> tensor_sub_nodes;
     BufferCreationInfo tensor_buffer;
-    FallbackTensorKenel(luisa::unique_ptr<TensorBuilder> &&tensor_builder);
+    FallbackTensorKenel(DeviceInterface* device, luisa::unique_ptr<TensorBuilder> &&tensor_builder);
     ~FallbackTensorKenel();
     void check(luisa::span<Argument::Buffer const> tensors);
 };

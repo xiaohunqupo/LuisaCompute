@@ -6,8 +6,8 @@
 #include <luisa/tensor/fallback/gemm_impl.h>
 
 namespace luisa::compute {
-FallbackTensorKenel::FallbackTensorKenel(luisa::unique_ptr<TensorBuilder> &&t_args)
-    : tensor_builder(std::move(t_args)) {
+FallbackTensorKenel::FallbackTensorKenel(DeviceInterface* device, luisa::unique_ptr<TensorBuilder> &&t_args)
+    :device(device), tensor_builder(std::move(t_args)) {
     expr_topo.init(tensor_builder->root_expr().expressions, tensor_builder->allocated_tensor().size());
     auto sorted_tensors = expr_topo.topo_sort();
     executors.reserve(sorted_tensors.size());
@@ -92,9 +92,7 @@ void FallbackTensorKenel::check(luisa::span<Argument::Buffer const> tensors) {
     }
 }
 void *FallbackTensorInterface::compile_kernel(luisa::unique_ptr<TensorBuilder> &&tensor_builder) noexcept {
-    auto k = luisa::new_with_allocator<FallbackTensorKenel>(std::move(tensor_builder));
-    k->device = device();
-    return k;
+    return luisa::new_with_allocator<FallbackTensorKenel>(device(), std::move(tensor_builder));
 }
 void FallbackTensorInterface::destroy_kernel(void *kernel_ptr) noexcept {
     luisa::delete_with_allocator(static_cast<FallbackTensorKenel *>(kernel_ptr));
@@ -115,6 +113,7 @@ void FallbackTensorInterface::execute(
     void *kernel_ptr,
     luisa::span<Argument::Buffer const> tensors) noexcept {
     auto kernel = static_cast<FallbackTensorKenel *>(kernel_ptr);
+    kernel->device = device();
     kernel->check(tensors);
     luisa::unordered_map<TensorData *, Argument::Buffer> arguments;
     for (size_t idx = 0; idx < tensors.size(); ++idx) {

@@ -19,15 +19,17 @@ int main(int argc, char *argv[]) {
         interface.get(),
         [&](Tensor t0,
             Tensor t1) {
-
+                // TODO: how can we get out_tensor
+            auto out_tensor = Tensor::gemm(t0, t1, FusedActivation::relu(), TensorElementType::Float32);
         });
     kernel.compile(
         TensorDescriptor{
-            std::initializer_list<size_t>{1024, 1ull, 1ull},
+            std::initializer_list<size_t>{4ull, 4ull, 1ull},
             TensorElementType::Float32},
-        TensorDescriptor{std::initializer_list<size_t>{1024, 1ull, 1ull}, TensorElementType::Float32});
-    auto b0 = device.create_buffer<float>(1024);
-    auto b1 = device.create_buffer<float>(1024);
+        TensorDescriptor{std::initializer_list<size_t>{4ull, 4ull, 1ull}, TensorElementType::Float32});
+    auto b0 = device.create_buffer<float>(16);
+    auto b1 = device.create_buffer<float>(16);
     CommandList cmdlist;
     kernel.execute(cmdlist, b0, b1);
+    stream << cmdlist.commit() << synchronize();
 }

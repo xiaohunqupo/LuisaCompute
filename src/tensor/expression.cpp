@@ -38,7 +38,7 @@ static_assert(std::is_trivially_destructible_v<TensorData>, "Tensor data must be
 ScopeExpr::ScopeExpr(uint64_t idx) noexcept : BaseClass(idx) {
 }
 ScopeExpr::~ScopeExpr() noexcept {
-    for (auto &i : expressions) {
+    for (auto i : expressions) {
         std::destroy_at(i);
     }
 }

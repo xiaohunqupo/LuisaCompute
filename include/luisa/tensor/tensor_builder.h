@@ -10,7 +10,6 @@ class LC_TENSOR_API TensorBuilder {
     luisa::vector<TensorData *> _allocated_tensor;
     luisa::vector<TensorData *> _arguments;
     luisa::vector<ScopeExpr *> _expr_stack;
-    ScopeExpr _root_expr;
     struct Stack {
         luisa::unique_ptr<std::byte> ptr;
         size_t size;
@@ -22,6 +21,7 @@ class LC_TENSOR_API TensorBuilder {
             : ptr(ptr), size(size), offset(offset) {}
     };
     luisa::vector<Stack> _stack_allocator;
+    ScopeExpr _root_expr;
     size_t _allocated_absolute_size = 0;
     void deallocate_tensor(TensorData *tensor) noexcept;
 
