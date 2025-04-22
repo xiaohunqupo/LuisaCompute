@@ -9,7 +9,9 @@ void ExprTopo::mark_depend(
     _expr_depends[depended->idx()].depending_self_exprs.emplace_back(depending);
 }
 
-ExprTopo::ExprTopo(luisa::span<TensorExpr *const> exprs, size_t tensor_count) noexcept {
+void ExprTopo::init(luisa::span<TensorExpr *const> exprs, size_t tensor_count) noexcept {
+    _expr_depends.clear();
+    _tensor_depends.clear();
     _expr_depends.resize(exprs.size());
     for (size_t i = 0; i < exprs.size(); ++i) {
         _expr_depends[i].self = exprs[i];
@@ -47,6 +49,7 @@ ExprTopo::ExprTopo() noexcept = default;
 
 luisa::vector<TensorExpr *> ExprTopo::topo_sort() noexcept {
     luisa::vector<TensorExpr *> r;
+    if (_expr_depends.empty()) return r;
     luisa::fixed_vector<ExprDependency *, 16> stack;
     r.reserve(_expr_depends.size());
     for (auto &i : _expr_depends) {

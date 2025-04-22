@@ -27,7 +27,7 @@ class LC_TENSOR_API ExprTopo {
 public:
     auto const &tensor_depend() const noexcept { return luisa::span{_tensor_depends}; }
     luisa::vector<TensorExpr *> topo_sort() noexcept;
-    ExprTopo(luisa::span<TensorExpr *const> exprs, size_t tensor_count) noexcept;
+    void init(luisa::span<TensorExpr *const> exprs, size_t tensor_count) noexcept;
     ExprTopo() noexcept;
 
     ExprTopo(ExprTopo const &) = delete;

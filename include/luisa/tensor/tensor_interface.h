@@ -4,7 +4,7 @@
 #include <luisa/runtime/rhi/argument.h>
 namespace luisa::compute {
 class TensorBuilder;
-class LC_TENSOR_API TensorInterface {
+class TensorInterface {
 private:
     DeviceInterface *_device;
 
@@ -23,5 +23,6 @@ public:
         luisa::span<Argument::Buffer const> tensors) noexcept = 0;
 
     [[nodiscard]] DeviceInterface *device() const noexcept { return _device; }
+    LC_TENSOR_API static luisa::unique_ptr<TensorInterface> create_fallback_backend(Device& device);
 };
 }// namespace luisa::compute

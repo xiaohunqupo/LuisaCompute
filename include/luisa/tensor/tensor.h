@@ -12,6 +12,30 @@ enum struct TensorElementType : uint8_t {
     Float32,
     Float64,
 };
+constexpr size_t tensor_element_size(TensorElementType type) {
+    switch (type) {
+        case TensorElementType::Float16:
+            return 2;
+        case TensorElementType::Float32:
+            return 4;
+        case TensorElementType::Float64:
+            return 8;
+        default:
+            return 0;
+    }
+}
+constexpr size_t tensor_element_align(TensorElementType type) {
+    switch (type) {
+        case TensorElementType::Float16:
+            return 2;
+        case TensorElementType::Float32:
+            return 4;
+        case TensorElementType::Float64:
+            return 8;
+        default:
+            return 0;
+    }
+}
 class LC_TENSOR_API TensorData {
     luisa::span<size_t const> _sizes;
     TensorElementType _type;
