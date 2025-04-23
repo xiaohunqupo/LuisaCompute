@@ -20,7 +20,8 @@ public:
     [[nodiscard]] virtual void execute(
         CommandList& cmdlist,
         void *kernel_ptr,
-        luisa::span<Argument::Buffer const> tensors) noexcept = 0;
+        luisa::span<Argument::Buffer const> arguments,
+        luisa::vector<BufferCreationInfo>& outputs) noexcept = 0;
 
     [[nodiscard]] DeviceInterface *device() const noexcept { return _device; }
     LC_TENSOR_API static luisa::unique_ptr<TensorInterface> create_fallback_backend(Device& device);

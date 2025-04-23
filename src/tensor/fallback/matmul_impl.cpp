@@ -1,4 +1,4 @@
-#include <luisa/tensor/fallback/gemm_impl.h>
+#include <luisa/tensor/fallback/matmul_impl.h>
 #include <luisa/dsl/sugar.h>
 #include <luisa/runtime/rhi/device_interface.h>
 namespace luisa::compute {
@@ -78,7 +78,7 @@ DispatchPack<T> gemm_kernel(uint2 lhs_matrix_size, uint2 rhs_matrix_size, uint m
     return {kernel, make_uint3(min_batch_size, size.yx())};
 }
 }// namespace gemm_detail
-GemmImpl::GemmImpl(
+MatMulImpl::MatMulImpl(
     DeviceInterface *device,
     GEMMExpr *expr)
     : device(device),
@@ -108,10 +108,10 @@ GemmImpl::GemmImpl(
         } break;
     }
 }
-GemmImpl::~GemmImpl() {
+MatMulImpl::~MatMulImpl() {
     device->destroy_shader(shader_handle);
 }
-void GemmImpl::execute(FallbackTensorCallback *callback, CommandList &cmdlist) const {
+void MatMulImpl::execute(FallbackTensorCallback *callback, CommandList &cmdlist) const {
     auto lhs_buffer = callback->get_tensor_buffer(expr->lhs_tensor);
     auto rhs_buffer = callback->get_tensor_buffer(expr->rhs_tensor);
     auto output_buffer = callback->get_tensor_buffer(expr->output_tensor);

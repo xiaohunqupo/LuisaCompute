@@ -10,6 +10,7 @@ struct FallbackTensorKernel {
     luisa::vector<luisa::unique_ptr<ITensorExprExecutor>> executors;
     luisa::vector<size_t> tensor_sub_nodes;
     BufferCreationInfo tensor_buffer;
+    luisa::vector<BufferCreationInfo> outputs;
 
     explicit FallbackTensorKernel(DeviceInterface *device, luisa::unique_ptr<TensorBuilder> &&t_args);
     ~FallbackTensorKernel();
@@ -25,7 +26,8 @@ public:
     void execute(
         CommandList &cmdlist,
         void *kernel_ptr,
-        luisa::span<Argument::Buffer const> tensors) noexcept override;
+        luisa::span<Argument::Buffer const> arguments,
+        luisa::vector<BufferCreationInfo>& outputs) noexcept override;
 };
 
 }// namespace luisa::compute
