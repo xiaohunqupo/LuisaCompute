@@ -86,11 +86,6 @@ struct tensor_kernel_type<Tensor> {
 
 template<typename Lambda, typename Ret, typename... Args>
 struct TensorKernel {
-    static_assert(luisa::always_false_v<Ret>, "Tensor kernel must not have return value.");
-};
-
-template<typename Lambda, typename... Args>
-class TensorKernel<Lambda, void, Args...> {
     Lambda _lambda;
     TensorInterface *_tensor_interface;
     void *_kernel_ptr{nullptr};
@@ -110,13 +105,20 @@ public:
         auto r = luisa::make_unique<TensorBuilder>();
         TensorBuilder::set_thd_local(r.get());
         auto tensors = std::tuple<std::remove_cvref_t<Args>...>{detail::tensor_kernel_type<Args>::_forward(std::forward<typename detail::tensor_kernel_type<Args>::Type>(args))...};
-        std::apply(_lambda, std::move(tensors));
+        using RetType = decltype(std::apply(_lambda, std::move(tensors)));
+        if constexpr (std::is_same_v<RetType, void>) {
+            std::apply(_lambda, std::move(tensors));
+        } else if constexpr (std::is_same_v<RetType, Tensor>) {
+            auto ret_tensor = std::apply(_lambda, std::move(tensors));
+            ;
+            r->push_output(ret_tensor.data());
+        }
         TensorBuilder::set_thd_local(nullptr);
         _kernel_ptr = _tensor_interface->compile_kernel(std::move(r));
     }
     template<typename... ExecArgs>
         requires(sizeof...(Args) == sizeof...(ExecArgs) && !(detail::AnyMap<luisa::compute::is_buffer_or_view, true>::template Run<std::remove_cvref_t<ExecArgs>...>()))
-    void execute(CommandList &cmdlist, ExecArgs const &...args) noexcept {
+    luisa::vector<BufferView<float4>> execute(CommandList &cmdlist, ExecArgs const &...args) noexcept {
         auto to_desc = []<typename T>(T const &arg) -> Argument::Buffer {
             if constexpr (is_buffer_view_v<T>) {
                 return Argument::Buffer{
@@ -131,7 +133,20 @@ public:
             }
         };
         auto tensors = {to_desc(args)...};
-        _tensor_interface->execute(cmdlist, _kernel_ptr, luisa::span<Argument::Buffer const>{tensors.begin(), tensors.size()});
+        luisa::vector<BufferCreationInfo> buffer_handles;
+        luisa::vector<BufferView<float4>> buffers;
+        _tensor_interface->execute(cmdlist, _kernel_ptr, luisa::span<Argument::Buffer const>{tensors.begin(), tensors.size()}, buffer_handles);
+        buffers.reserve(buffer_handles.size());
+        for (auto &i : buffer_handles) {
+            buffers.emplace_back(
+                i.native_handle,
+                i.handle,
+                sizeof(float4),
+                0,
+                i.total_size_bytes / sizeof(float4),
+                i.total_size_bytes);
+        }
+        return buffers;
     }
     // template<typename... Args>
     //     requires (detail::AnyMap<luisa::compute::is_buffer_or_view, true>::template Run<std::remove_cvref_t<Args>...>())

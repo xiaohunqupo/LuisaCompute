@@ -4,7 +4,7 @@
 
 #include <luisa/core/stl/unordered_map.h>
 #include <luisa/runtime/rhi/device_interface.h>
-#include <luisa/tensor/fallback/gemm_impl.h>
+#include <luisa/tensor/fallback/matmul_impl.h>
 
 #include <luisa/core/logging.h>
 
@@ -20,6 +20,9 @@ FallbackTensorKernel::FallbackTensorKernel(DeviceInterface *device, luisa::uniqu
     luisa::vector<std::pair<FirstFit::Node *, size_t>> allocated_nodes(tensor_sub_nodes.size());
     luisa::vector<FirstFit::Node *> remove_nodes;
     for (auto &i : tensor_builder->arguments()) {
+        allocated_nodes[i->idx()].second = std::numeric_limits<size_t>::max();
+    }
+    for (auto &i : tensor_builder->outputs()) {
         allocated_nodes[i->idx()].second = std::numeric_limits<size_t>::max();
     }
     // Accumulate ref-count
@@ -62,23 +65,32 @@ FallbackTensorKernel::FallbackTensorKernel(DeviceInterface *device, luisa::uniqu
         }
         remove_nodes.clear();
         if (buffer_size_bytes > 0)
-            tensor_buffer = device->create_buffer(Type::of<float4>(), buffer_size_bytes / sizeof(float4), nullptr);
+            tensor_buffer = device->create_buffer(Type::of<float4>(), std::max<size_t>(1, buffer_size_bytes / sizeof(float4)), nullptr);
         else
             tensor_buffer.invalidate();
         // Make executors
         switch (i->tag()) {
             case TensorExpr::Tag::EGEMMExpr: {
-                executors.emplace_back(luisa::make_unique<GemmImpl>(device, static_cast<GEMMExpr *>(i)));
+                executors.emplace_back(luisa::make_unique<MatMulImpl>(device, static_cast<GEMMExpr *>(i)));
             } break;
             default: {
                 LUISA_ERROR("Expr not supported.");
             } break;
         }
     }
+    auto output_size = tensor_builder->outputs().size();
+    outputs.reserve(output_size);
+    for (size_t idx = 0; idx < output_size; ++idx) {
+        auto tensor = tensor_builder->outputs()[idx];
+        auto &buffer = outputs.emplace_back(device->create_buffer(Type::of<float4>(), std::max<size_t>(tensor->size_bytes() / sizeof(float4), 1ull), nullptr));
+    }
 }
 FallbackTensorKernel::~FallbackTensorKernel() {
     if (tensor_buffer.handle != invalid_resource_handle)
         device->destroy_buffer(tensor_buffer.handle);
+    for (auto &i : outputs) {
+        device->destroy_buffer(i.handle);
+    }
 }
 void FallbackTensorKernel::check(luisa::span<Argument::Buffer const> tensors) const {
     auto args = tensor_builder->arguments();
@@ -115,16 +127,32 @@ Argument::Buffer FallbackTensorCallback::get_tensor_buffer(TensorData *data) {
 void FallbackTensorInterface::execute(
     CommandList &cmdlist,
     void *kernel_ptr,
-    luisa::span<Argument::Buffer const> tensors) noexcept {
+    luisa::span<Argument::Buffer const> arguments,
+    luisa::vector<BufferCreationInfo> &outputs) noexcept {
     auto kernel = static_cast<FallbackTensorKernel *>(kernel_ptr);
     kernel->device = device();
-    kernel->check(tensors);
-    luisa::unordered_map<TensorData *, Argument::Buffer> arguments;
-    for (size_t idx = 0; idx < tensors.size(); ++idx) {
-        arguments.try_emplace(kernel->tensor_builder->arguments()[idx], tensors[idx]);
+    kernel->check(arguments);
+    luisa::unordered_map<TensorData *, Argument::Buffer> arg_map;
+    LUISA_ASSERT(arguments.size() == kernel->tensor_builder->arguments().size(), "Argument size mismatch.");
+    outputs.clear();
+    luisa::vector_resize(outputs, kernel->outputs.size());
+    std::memcpy(outputs.data(), kernel->outputs.data(), outputs.size_bytes());
+    for (size_t idx = 0; idx < arguments.size(); ++idx) {
+        arg_map.try_emplace(kernel->tensor_builder->arguments()[idx], arguments[idx]);
     }
+    for (size_t idx = 0; idx < outputs.size(); ++idx) {
+        auto tensor = kernel->tensor_builder->outputs()[idx];
+        auto buffer = kernel->outputs[idx];
+        arg_map.try_emplace(
+            tensor,
+            Argument::Buffer{
+                .handle = buffer.handle,
+                .offset = 0,
+                .size = buffer.total_size_bytes});
+    }
+
     FallbackTensorCallback callback;
-    callback.args = &arguments;
+    callback.args = &arg_map;
     callback.kernel = kernel;
     for (auto &i : kernel->executors) {
         i->execute(&callback, cmdlist);

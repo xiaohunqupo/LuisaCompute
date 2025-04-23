@@ -127,9 +127,7 @@ public:
         uint64_t idx,
         TensorData *lhs_tensor,
         TensorData *rhs_tensor,
-        TensorData *output_tensor,
-        FusedActivation const &fused_activation,
-        TensorElementType out_type) noexcept;
+        FusedActivation const &fused_activation) noexcept;
     void get_tensors(vstd::FuncRef<void(TensorData *, Usage usage)> callback) noexcept override {
         callback(lhs_tensor, Usage::READ);
         callback(rhs_tensor, Usage::READ);

@@ -18,20 +18,17 @@ int main(int argc, char *argv[]) {
     auto kernel = load_tensor(
         interface.get(),
         [&](Tensor t0,
-            Tensor t1,
-            Tensor out) {
+            Tensor t1) {
             // TODO: how can we get out_tensor
-            Tensor::gemm(t0, t1, out, FusedActivation::relu());
+            return Tensor::matmul(t0, t1, FusedActivation::relu());
         });
     kernel.compile(
         TensorDescriptor{
             std::initializer_list<size_t>{4ull, 4ull, 1ull},
             TensorElementType::Float32},
-        TensorDescriptor{std::initializer_list<size_t>{4ull, 4ull, 1ull}, TensorElementType::Float32},
         TensorDescriptor{std::initializer_list<size_t>{4ull, 4ull, 1ull}, TensorElementType::Float32});
     auto b0 = device.create_buffer<float>(16);
     auto b1 = device.create_buffer<float>(16);
-    auto bout = device.create_buffer<float>(16);
     CommandList cmdlist;
     float4x4 sb = make_float4x4(
         1, 2, 3, 4,
@@ -45,7 +42,8 @@ int main(int argc, char *argv[]) {
         1, 2, 3, 4);
     float4x4 result;
     cmdlist << b0.copy_from(&sb) << b1.copy_from(&sb1);
-    kernel.execute(cmdlist, b0, b1, bout);
+    auto outs = kernel.execute(cmdlist, b0, b1);
+    auto bout = outs[0];
     cmdlist << bout.copy_to(&result);
     stream << cmdlist.commit() << synchronize();
     LUISA_INFO("{}", result);
