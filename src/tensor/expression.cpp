@@ -2,6 +2,9 @@
 #include <luisa/tensor/tensor_builder.h>
 #include <luisa/tensor/kernel.h>
 #include <luisa/vstl/common.h>
+
+#include <luisa/core/logging.h>// FOR INFO ERROR
+
 namespace luisa::compute {
 /////////////// Static assert
 static_assert(std::is_trivially_destructible_v<TensorData>, "Tensor data must be trivially destructible.");

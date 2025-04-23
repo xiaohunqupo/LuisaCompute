@@ -77,8 +77,8 @@ class LC_TENSOR_API Tensor {
     bool _contained;
 
 public:
-    Tensor(TensorData *data,
-           bool contained = true) noexcept;
+    explicit Tensor(TensorData *data,
+                    bool contained = true) noexcept;
     Tensor(Tensor &&rhs) noexcept;
     ~Tensor() noexcept;
     Tensor &operator=(Tensor &&rhs) noexcept {

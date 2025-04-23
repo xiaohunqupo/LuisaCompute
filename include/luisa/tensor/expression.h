@@ -38,7 +38,7 @@ class TensorExpr {
     //     [[nodiscard]] auto next() const noexcept { return _next; }
 public:
     virtual void get_tensors(vstd::FuncRef<void(TensorData *, Usage usage)> callback) noexcept = 0;
-    TensorExpr(uint64_t idx) noexcept : _idx(idx) {}
+    explicit TensorExpr(uint64_t idx) noexcept : _idx(idx) {}
     enum struct Tag : uint32_t {
 #define LUISA_MAKE_TENSOR_EXPR_TAG(Cmd) E##Cmd,
         LUISA_MAP(LUISA_MAKE_TENSOR_EXPR_TAG, LUISA_COMPUTE_TENSOR_EXPRRESSIONS)
@@ -55,7 +55,7 @@ class TensorExprCRTPDerive : public TensorExpr {
 protected:
     using BaseClass = typename TensorExprCRTPDerive<Derive, _tag>;
 public:
-    TensorExprCRTPDerive(uint64_t idx) noexcept : TensorExpr(idx) {}
+    explicit TensorExprCRTPDerive(uint64_t idx) noexcept : TensorExpr(idx) {}
     Tag tag() noexcept override {
         return _tag;
     }
@@ -73,7 +73,7 @@ public:
     };
     luisa::vector<Arg> arguments;
     luisa::vector<TensorExpr *> expressions;
-    ScopeExpr(uint64_t idx) noexcept;
+    explicit ScopeExpr(uint64_t idx) noexcept;
     ~ScopeExpr() noexcept;
     template<typename T, typename... Args>
         requires(std::is_base_of_v<TensorExpr, T> && luisa::is_constructible_v<T, uint64_t, Args && ...>)

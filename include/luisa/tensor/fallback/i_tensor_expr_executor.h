@@ -4,10 +4,10 @@
 #include <luisa/tensor/expression.h>
 #include <luisa/runtime/rhi/argument.h>
 namespace luisa::compute {
-struct FallbackTensorKenel;
+struct FallbackTensorKernel;
 struct FallbackTensorCallback {
     luisa::unordered_map<TensorData *, Argument::Buffer> *args;
-    FallbackTensorKenel *kernel;
+    FallbackTensorKernel *kernel;
     Argument::Buffer get_tensor_buffer(TensorData *data);
 };
 struct ITensorExprExecutor {
