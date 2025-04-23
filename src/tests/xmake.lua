@@ -2,7 +2,7 @@ local enable_gui = get_config("enable_gui")
 -- TEST MAIN with doctest
 ------------------------------------
 
-local function lc_add_app(appname, folder, name)
+local function lc_add_app(appname, folder, name, deps)
     target(appname)
     _config_project({
         project_kind = "binary"
@@ -20,14 +20,13 @@ local function lc_add_app(appname, folder, name)
         match_str = path.join(name, "**.cpp")
     end
     add_files(path.join("next", folder, match_str))
+
+    -- basic defs
     add_deps("lc-runtime", "lc-dsl", "lc-vstl", "stb-image", "lc-backends-dummy")
-    if get_config("enable_ir") then
-        add_deps("lc-ir")
-        add_deps("lc-rust")
-    end
-    if get_config("enable_gui") then
-        add_deps("lc-gui")
-    end
+    -- extra deps 
+    add_deps(deps)
+
+    -- extra defs 
     if get_config("dx_backend") then
         add_defines("LUISA_TEST_DX_BACKEND")
     end
@@ -40,10 +39,12 @@ local function lc_add_app(appname, folder, name)
     if get_config("metal_backend") then
         add_defines("LUISA_TEST_METAL_BACKEND")
     end
+
     target_end()
 end
 
 -- temp test suites
+lc_add_app("test_next_tensor", "test", "tensor") -- tensor test
 lc_add_app("test_feat", "test", "feat") -- core feature test
 lc_add_app("test_ext_core", "test", "ext/core") -- core extensions
 -- extensions for different backends
@@ -59,8 +60,8 @@ end
 if get_config("enable_gui") then
     add_defines("ENABLE_DISPLAY")
     -- example app 
-    lc_add_app("gallery", "example", "gallery") -- demo
-    lc_add_app("tutorial", "example", "use") -- basic use tutorial
+    lc_add_app("gallery", "example", "gallery", {"lc-gui"}) -- demo
+    lc_add_app("tutorial", "example", "use", {"lc-gui"}) -- basic use tutorial
 end
 -- all test requires more stable dependencies
 -- lc_add_app("test_all", "test", "all") -- all test
@@ -101,6 +102,7 @@ if get_config("enable_ir") then
     test_proj('test_autodiff')
     test_proj('test_autodiff_full')
 end
+
 test_proj("test_helloworld")
 test_proj("test_ast")
 test_proj("test_atomic")

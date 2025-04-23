@@ -1,4 +1,6 @@
 #pragma once
+#include <cstdint>
+
 namespace luisa::compute {
 struct FusedActivation {
     enum class Type : uint32_t {
@@ -29,7 +31,7 @@ struct FusedActivation {
         : type(type), param1(param1), param2(param2) {}
 
     static FusedActivation none() noexcept {
-        return FusedActivation();
+        return {};
     }
 
     static FusedActivation elu(float alpha = 1.0f) noexcept {

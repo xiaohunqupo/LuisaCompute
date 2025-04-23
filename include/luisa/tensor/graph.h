@@ -1,13 +1,15 @@
 #pragma once
+#include "luisa/runtime/byte_buffer.h"
 #include <luisa/core/dll_export.h>
 #include <luisa/runtime/rhi/resource.h>
+
 namespace luisa::compute {
 class TensorBuilder;
 class TensorExt;
 class LC_TENSOR_API Graph : public Resource {
     TensorExt *_ext;
 public:
-    Graph(TensorExt *ext, TensorBuilder &&builder) noexcept;
+    explicit Graph(TensorExt *ext, TensorBuilder &&builder) noexcept;
     Graph() noexcept;
     ~Graph() noexcept;
     Graph(Graph const &) = delete;

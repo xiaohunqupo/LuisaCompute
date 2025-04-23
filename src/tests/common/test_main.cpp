@@ -18,7 +18,9 @@ int argc() noexcept { return static_cast<int>(args.size()); }
 const char *const *argv() noexcept { return args.data(); }
 
 static luisa::vector<const char *> _backends;
-int backends_to_test_count() noexcept { return _backends.size(); }
+int backends_to_test_count() noexcept {
+    return static_cast<int>(std::min<size_t>(_backends.size(), static_cast<size_t>(std::numeric_limits<int>::max())));
+}
 const char *const *backends_to_test() noexcept {
     return _backends.data();
 }
