@@ -5,12 +5,13 @@
 #include <luisa/core/stl/unordered_map.h>
 #include <luisa/runtime/rhi/device_interface.h>
 #include <luisa/tensor/fallback/matmul_impl.h>
+#include <luisa/tensor/fallback/set_value_impl.h>
 
 #include <luisa/core/logging.h>
 
 namespace luisa::compute {
 
-FallbackTensorKernel::FallbackTensorKernel(DeviceInterface *device, luisa::unique_ptr<TensorBuilder> &&t_args)
+FallbackTensorKernel::FallbackTensorKernel(DeviceInterface *device, ShaderManager *shader_manager, luisa::unique_ptr<TensorBuilder> &&t_args)
     : device(device), tensor_builder(std::move(t_args)) {
     expr_topo.init(tensor_builder->root_expr().expressions, tensor_builder->allocated_tensor().size());
     auto sorted_tensors = expr_topo.topo_sort();
@@ -71,7 +72,10 @@ FallbackTensorKernel::FallbackTensorKernel(DeviceInterface *device, luisa::uniqu
         // Make executors
         switch (i->tag()) {
             case TensorExpr::Tag::EGEMMExpr: {
-                executors.emplace_back(luisa::make_unique<MatMulImpl>(device, static_cast<GEMMExpr *>(i)));
+                executors.emplace_back(luisa::make_unique<MatMulImpl>(device, shader_manager, static_cast<GEMMExpr *>(i)));
+            } break;
+            case TensorExpr::Tag::ESetValueExpr: {
+                executors.emplace_back(luisa::make_unique<SetValueImpl>(device, shader_manager, static_cast<SetValueExpr *>(i)));
             } break;
             default: {
                 LUISA_ERROR("Expr not supported.");
@@ -108,7 +112,7 @@ void FallbackTensorKernel::check(luisa::span<Argument::Buffer const> tensors) co
     }
 }
 void *FallbackTensorInterface::compile_kernel(luisa::unique_ptr<TensorBuilder> &&tensor_builder) noexcept {
-    return luisa::new_with_allocator<FallbackTensorKernel>(device(), std::move(tensor_builder));
+    return luisa::new_with_allocator<FallbackTensorKernel>(device(), &shader_manager, std::move(tensor_builder));
 }
 void FallbackTensorInterface::destroy_kernel(void *kernel_ptr) noexcept {
     luisa::delete_with_allocator(static_cast<FallbackTensorKernel *>(kernel_ptr));
@@ -154,6 +158,7 @@ void FallbackTensorInterface::execute(
     FallbackTensorCallback callback;
     callback.args = &arg_map;
     callback.kernel = kernel;
+    callback.shader_manager = &shader_manager;
     for (auto &i : kernel->executors) {
         i->execute(&callback, cmdlist);
     }

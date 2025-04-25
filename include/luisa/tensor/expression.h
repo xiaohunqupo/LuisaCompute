@@ -2,6 +2,7 @@
 #include <luisa/tensor/tensor.h>
 #include <luisa/ast/usage.h>
 #include <luisa/vstl/functional.h>
+#include <luisa/core/stl/variant.h>
 #include <luisa/tensor/fused_activation.h>
 namespace luisa::compute {
 // clang-format off
@@ -86,15 +87,31 @@ public:
 };
 class LUISA_TENSOR_EXPR_CLASS_INHERIT(SetValueExpr) {
 public:
+    struct BinaryBlob {
+        void *ptr;
+        vstd::func_ptr_t<void(void *)> disposer;
+    };
     TensorData *tensor_data;
-    uint value;
+    using ValueType = luisa::variant<
+        BinaryBlob,
+        uint64_t>;
+    ValueType value;
     SetValueExpr(
         uint64_t idx,
         TensorData *tensor_data,
-        uint32_t value) noexcept
+        uint64_t value) noexcept
         : BaseClass(idx),
           tensor_data(tensor_data),
           value(value) {}
+    SetValueExpr(
+        uint64_t idx,
+        TensorData *tensor_data,
+        void *ptr,
+        vstd::func_ptr_t<void(void *)> disposer) noexcept
+        : BaseClass(idx),
+          tensor_data(tensor_data),
+          value(BinaryBlob{ptr, disposer}) {}
+    ~SetValueExpr() noexcept;
     void get_tensors(vstd::FuncRef<void(TensorData *, Usage usage)> callback) noexcept override {
         callback(tensor_data, Usage::WRITE);
     }

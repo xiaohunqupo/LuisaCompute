@@ -5,11 +5,11 @@ struct MatMulImpl : ITensorExprExecutor {
     uint3 dispatch_size;
     size_t uniform_size;
     uint64_t shader_handle;
-    DeviceInterface *device;
-        GEMMExpr* expr;
+    GEMMExpr *expr;
     MatMulImpl(
         DeviceInterface *device,
-        GEMMExpr* expr);
+        ShaderManager *shader_manager,
+        GEMMExpr *expr);
     ~MatMulImpl();
     void execute(FallbackTensorCallback *callback, CommandList &cmdlist) const override;
 };

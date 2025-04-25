@@ -15,21 +15,6 @@ int main(int argc, char *argv[]) {
     auto device = ctx.create_device("dx");
     auto stream = device.create_stream();
     auto interface = TensorInterface::create_fallback_backend(device);
-    auto kernel = load_tensor(
-        interface.get(),
-        [&](Tensor t0,
-            Tensor t1) {
-            // TODO: how can we get out_tensor
-            return Tensor::matmul(t0, t1, FusedActivation::relu());
-        });
-    kernel.compile(
-        TensorDescriptor{
-            std::initializer_list<size_t>{4ull, 4ull, 1ull},
-            TensorElementType::Float32},
-        TensorDescriptor{std::initializer_list<size_t>{4ull, 4ull, 1ull}, TensorElementType::Float32});
-    auto b0 = device.create_buffer<float>(16);
-    auto b1 = device.create_buffer<float>(16);
-    CommandList cmdlist;
     float4x4 sb = make_float4x4(
         1, 2, 3, 4,
         5, 6, 7, 8,
@@ -40,8 +25,25 @@ int main(int argc, char *argv[]) {
         50, 60, 70, 80,
         1, 2, 3, 4,
         1, 2, 3, 4);
+    auto kernel = load_tensor(
+        interface.get(),
+        [&](Tensor t0,
+            Tensor t1) {
+            // TODO: how can we get out_tensor
+            Tensor::init_tensor(t0, &sb, nullptr);
+            Tensor::init_tensor(t1, &sb1, nullptr);
+            return Tensor::matmul(t0, t1, FusedActivation::relu());
+        });
+    kernel.compile(
+        TensorDescriptor{
+            std::initializer_list<size_t>{4ull, 4ull, 1ull},
+            TensorElementType::Float32},
+        TensorDescriptor{std::initializer_list<size_t>{4ull, 4ull, 1ull}, TensorElementType::Float32});
+    auto b0 = device.create_buffer<float>(16);
+    auto b1 = device.create_buffer<float>(16);
+    CommandList cmdlist;
+
     float4x4 result;
-    cmdlist << b0.copy_from(&sb) << b1.copy_from(&sb1);
     auto outs = kernel.execute(cmdlist, b0, b1);
     auto bout = outs[0];
     cmdlist << bout.copy_to(&result);

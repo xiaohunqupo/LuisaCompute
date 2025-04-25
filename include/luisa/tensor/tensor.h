@@ -97,6 +97,13 @@ public:
         Tensor const &lhs,
         Tensor const &rhs,
         FusedActivation const &activation) noexcept;
+    [[nodiscard]] static void init_tensor(
+        Tensor const &input,
+        uint64_t value) noexcept;
+    [[nodiscard]] static void init_tensor(
+        Tensor const &input,
+        void *ptr,
+        void (*disposer)(void *)) noexcept;
 
     [[nodiscard]] static Tensor conv_1d(
         Tensor const &input,

@@ -205,4 +205,31 @@ Tensor Tensor::conv_3d(
     return Tensor{expr->out_tensor, true};
 }
 
+void Tensor::init_tensor(
+    Tensor const &input,
+    uint64_t value) noexcept {
+    TensorBuilder::get_thd_local()->current_scope()->allocate_expr<SetValueExpr>(
+        input.data(),
+        value);
+}
+
+void Tensor::init_tensor(
+    Tensor const &input,
+    void *ptr,
+    void (*disposer)(void *)) noexcept {
+    TensorBuilder::get_thd_local()->current_scope()->allocate_expr<SetValueExpr>(
+        input.data(),
+        ptr,
+        disposer);
+}
+
+SetValueExpr::~SetValueExpr() noexcept {
+    if (value.index() == 0) {
+        auto &&v = luisa::get<0>(value);
+        if (v.disposer) {
+            v.disposer(v.ptr);
+        }
+    }
+}
+
 }// namespace luisa::compute
