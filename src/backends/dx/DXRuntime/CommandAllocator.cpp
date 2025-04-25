@@ -84,10 +84,14 @@ void CommandAllocator::Execute(
 }
 void CommandAllocator::ExecuteAndPresent(CommandQueue *queue, ID3D12Fence *fence, uint64 fenceIndex, IDXGISwapChain *swapchain, bool vsync) {
     auto present = [&]() {
+        HRESULT present_hresult;
         if (vsync) {
-            ThrowIfFailed(swapchain->Present(1, 0));
+            present_hresult = swapchain->Present(1, 0);
         } else {
-            ThrowIfFailed(swapchain->Present(0, DXGI_PRESENT_ALLOW_TEARING | DXGI_PRESENT_DO_NOT_WAIT));
+            present_hresult = swapchain->Present(0, DXGI_PRESENT_ALLOW_TEARING | DXGI_PRESENT_DO_NOT_WAIT);
+        }
+        if(present_hresult != S_OK) {
+            LUISA_WARNING("Present failed.");
         }
     };
     ID3D12CommandList *cmdList = cbuffer->CmdList();
