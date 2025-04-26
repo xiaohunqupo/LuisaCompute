@@ -12,7 +12,23 @@ enum struct TensorElementType : uint8_t {
     Float32,
     Float64,
 };
-constexpr size_t tensor_element_size(TensorElementType type) {
+template<typename T>
+constexpr TensorElementType get_tensor_elem_type() {
+    if constexpr (std::is_same_v<T, half>) {
+        return TensorElementType::Float16;
+    } else if constexpr (std::is_same_v<T, float>) {
+        return TensorElementType::Float32;
+    } else if constexpr (std::is_same_v<T, double>) {
+        return TensorElementType::Float64;
+    } else {
+        static_assert(luisa::always_false_v<T>, "Bad type.");
+    }
+}
+template<typename T>
+concept valid_tensor_elem_type = requires() {
+    get_tensor_elem_type<T>();
+};
+constexpr uint64_t tensor_element_size(TensorElementType type) {
     switch (type) {
         case TensorElementType::Float16:
             return 2;
@@ -24,7 +40,7 @@ constexpr size_t tensor_element_size(TensorElementType type) {
             return 0;
     }
 }
-constexpr size_t tensor_element_align(TensorElementType type) {
+constexpr uint64_t tensor_element_align(TensorElementType type) {
     switch (type) {
         case TensorElementType::Float16:
             return 2;
@@ -37,13 +53,13 @@ constexpr size_t tensor_element_align(TensorElementType type) {
     }
 }
 class LC_TENSOR_API TensorData {
-    luisa::span<size_t const> _sizes;
+    luisa::span<uint64_t const> _sizes;
     TensorElementType _type;
     uint64_t _idx;
-    size_t _size_bytes;
+    uint64_t _size_bytes;
 
 public:
-    TensorData(luisa::span<size_t const> sizes,
+    TensorData(luisa::span<uint64_t const> sizes,
                TensorElementType element_type,
                uint64_t uid) noexcept;
     TensorData(TensorData &&rhs) noexcept;
@@ -53,14 +69,14 @@ public:
     [[nodiscard]] uint64_t idx() const noexcept {
         return _idx;
     }
-    [[nodiscard]] size_t get_size(uint dimension) const noexcept {
+    [[nodiscard]] uint64_t get_size(uint dimension) const noexcept {
         if (dimension >= _sizes.size()) return 1;
         return _sizes[dimension];
     }
-    [[nodiscard]] size_t dimension() const noexcept {
+    [[nodiscard]] uint64_t dimension() const noexcept {
         return _sizes.size();
     }
-    [[nodiscard]] size_t size_bytes() const noexcept {
+    [[nodiscard]] uint64_t size_bytes() const noexcept {
         return _size_bytes;
     }
     [[nodiscard]] TensorElementType element_type() const noexcept {
@@ -75,6 +91,7 @@ class LC_TENSOR_API Tensor {
 
     TensorData *_data;
     bool _contained;
+    [[nodiscard]] void _create(TensorElementType element_type, luisa::span<const uint64_t> sizes, Argument::Buffer buffer) noexcept;
 
 public:
     explicit Tensor(TensorData *data,
@@ -87,11 +104,40 @@ public:
         std::destroy_at(this);
         new (this) Tensor(std::move(rhs));
     }
+    template<typename T>
+        requires(luisa::compute::is_buffer_or_view_v<T> && valid_tensor_elem_type<luisa::compute::buffer_element_t<T>>)
+    Tensor(T const &t, luisa::span<const uint64_t> sizes) noexcept {
+        Argument::Buffer bf{
+            .handle = t.handle(),
+            .size = t.size_bytes()};
+        if constexpr (luisa::compute::is_buffer_v<T>) {
+            bf.offset = 0;
+        } else {
+            bf.offset = t.offset_bytes();
+        }
+        _create(get_tensor_elem_type<luisa::compute::buffer_element_t<T>>(), sizes, bf);
+    }
+    template<typename T>
+        requires(luisa::compute::is_buffer_or_view_v<T> && valid_tensor_elem_type<luisa::compute::buffer_element_t<T>>)
+    Tensor(T const &t, std::initializer_list<const uint64_t> sizes) noexcept
+        : Tensor(t, luisa::span{sizes.begin(), sizes.size()}) {
+    }
+    template<typename T>
+        requires(luisa::compute::is_buffer_or_view_v<T> && valid_tensor_elem_type<luisa::compute::buffer_element_t<T>>)
+    Tensor(T const &t) noexcept {
+        Argument::Buffer bf{
+            .handle = t.handle(),
+            .size = t.size_bytes()};
+        if constexpr (luisa::compute::is_buffer_v<T>) {
+            bf.offset = 0;
+        } else {
+            bf.offset = t.offset_bytes();
+        }
+        uint64_t size = t.size_bytes();
+        _create(get_tensor_elem_type<luisa::compute::buffer_element_t<T>>(), {&size, 1});
+    }
     [[nodiscard]] auto data() const noexcept { return _data; }
     void dispose() noexcept;
-
-    [[nodiscard]] static Tensor one(TensorElementType element_type, luisa::span<const size_t> sizes) noexcept;
-    [[nodiscard]] static Tensor zero(TensorElementType element_type, luisa::span<const size_t> sizes) noexcept;
 
     [[nodiscard]] static Tensor matmul(
         Tensor const &lhs,
@@ -141,17 +187,17 @@ public:
 //     bool _requires_grad = false;
 //     bool _reserve_memory = false;
 //     bool _dirty = false;
-//     std::array<size_t, 3> _shape;
-//     std::array<size_t, 3> _stride;
+//     std::array<uint64_t, 3> _shape;
+//     std::array<uint64_t, 3> _stride;
 //     luisa::optional<Buffer<T>> _buffer;
 //     luisa::optional<Var<T>> _var;
 // public:
-//     using shape_type = std::array<size_t, 3>;
+//     using shape_type = std::array<uint64_t, 3>;
 //     using value_type = T;
 
 // private:
-//     static size_t compute_size(shape_type s) {
-//         size_t size = 1;
+//     static uint64_t compute_size(shape_type s) {
+//         uint64_t size = 1;
 //         for (auto i : s) {
 //             size *= i;
 //         }
@@ -186,14 +232,14 @@ public:
 //         return DTensor<T>{device};
 //     }
 
-//     // template<size_t... Is>
+//     // template<uint64_t... Is>
 //     // [[nodiscard]] Tensor<T, Dim + sizeof...(Is)> repeat(Is...) {
 //     //     // TODO: implement
 //     //     return Tensor<T, Dim>{device};
 //     // }
 // };
 
-// template<class R, size_t Dim, class... Ts>
+// template<class R, uint64_t Dim, class... Ts>
 // Tensor<R, Dim> map(const Tensor<Ts, Dim> &... ts) noexcept {
 //     // TODO: implement
 // }

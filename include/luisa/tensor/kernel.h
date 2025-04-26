@@ -33,16 +33,16 @@ struct member_func_meta<Object, ExtraTypes, Ret (Class::*)(Args...) noexcept> : 
 }// namespace detail
 
 struct TensorDescriptor {
-    luisa::fixed_vector<size_t, 4> _sizes;
+    luisa::fixed_vector<uint64_t, 4> _sizes;
     TensorElementType _type;
     TensorDescriptor(
-        std::initializer_list<size_t> dimensions,
+        std::initializer_list<uint64_t> dimensions,
         TensorElementType type) noexcept : _type(type) {
         _sizes.resize_uninitialized(dimensions.size());
         std::memcpy(_sizes.data(), dimensions.begin(), _sizes.size_bytes());
     }
     TensorDescriptor(
-        luisa::span<size_t const> dimensions,
+        luisa::span<uint64_t const> dimensions,
         TensorElementType type) noexcept : _type(type) {
         _sizes.resize_uninitialized(dimensions.size());
         std::memcpy(_sizes.data(), dimensions.data(), _sizes.size_bytes());
@@ -117,7 +117,7 @@ public:
         _kernel_ptr = _tensor_interface->compile_kernel(std::move(r));
     }
     template<typename... ExecArgs>
-        requires(sizeof...(Args) == sizeof...(ExecArgs) && !(detail::AnyMap<luisa::compute::is_buffer_or_view, true>::template Run<std::remove_cvref_t<ExecArgs>...>()))
+        requires(sizeof...(Args) == sizeof...(ExecArgs) && (sizeof...(Args) == 0 || !(detail::AnyMap<luisa::compute::is_buffer_or_view, true>::template Run<std::remove_cvref_t<ExecArgs>...>())))
     luisa::vector<BufferView<float4>> execute(CommandList &cmdlist, ExecArgs const &...args) noexcept {
         auto to_desc = []<typename T>(T const &arg) -> Argument::Buffer {
             if constexpr (is_buffer_view_v<T>) {
@@ -132,10 +132,14 @@ public:
                     arg.size_bytes()};
             }
         };
-        auto tensors = {to_desc(args)...};
         luisa::vector<BufferCreationInfo> buffer_handles;
         luisa::vector<BufferView<float4>> buffers;
-        _tensor_interface->execute(cmdlist, _kernel_ptr, luisa::span<Argument::Buffer const>{tensors.begin(), tensors.size()}, buffer_handles);
+        if constexpr (sizeof...(Args) > 0) {
+            auto tensors = {to_desc(args)...};
+            _tensor_interface->execute(cmdlist, _kernel_ptr, luisa::span<Argument::Buffer const>{tensors.begin(), tensors.size()}, buffer_handles);
+        } else {
+            _tensor_interface->execute(cmdlist, _kernel_ptr, luisa::span<Argument::Buffer const>{}, buffer_handles);
+        }
         buffers.reserve(buffer_handles.size());
         for (auto &i : buffer_handles) {
             buffers.emplace_back(

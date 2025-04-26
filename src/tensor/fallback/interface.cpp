@@ -18,21 +18,21 @@ FallbackTensorKernel::FallbackTensorKernel(DeviceInterface *device, ShaderManage
     executors.reserve(sorted_tensors.size());
     FirstFit first_fit(1ull << 48ull, 16ull);
     tensor_sub_nodes.resize(tensor_builder->allocated_tensor().size());
-    luisa::vector<std::pair<FirstFit::Node *, size_t>> allocated_nodes(tensor_sub_nodes.size());
+    luisa::vector<std::pair<FirstFit::Node *, uint64_t>> allocated_nodes(tensor_sub_nodes.size());
     luisa::vector<FirstFit::Node *> remove_nodes;
     for (auto &i : tensor_builder->arguments()) {
-        allocated_nodes[i->idx()].second = std::numeric_limits<size_t>::max();
+        allocated_nodes[i->idx()].second = std::numeric_limits<uint64_t>::max();
     }
     for (auto &i : tensor_builder->outputs()) {
-        allocated_nodes[i->idx()].second = std::numeric_limits<size_t>::max();
+        allocated_nodes[i->idx()].second = std::numeric_limits<uint64_t>::max();
     }
     // Accumulate ref-count
-    size_t buffer_size_bytes = 0;
+    uint64_t buffer_size_bytes = 0;
     for (auto &i : sorted_tensors) {
         auto func = [&](TensorData *tensor_data, Usage usage) {
             auto &node = allocated_nodes[tensor_data->idx()];
             // This is an input tensor, no need allocate
-            if (node.second == std::numeric_limits<size_t>::max()) {
+            if (node.second == std::numeric_limits<uint64_t>::max()) {
                 return;
             }
             node.second++;
@@ -44,7 +44,7 @@ FallbackTensorKernel::FallbackTensorKernel(DeviceInterface *device, ShaderManage
         auto func = [&](TensorData *tensor_data, Usage usage) {
             auto &node = allocated_nodes[tensor_data->idx()];
             // This is an input tensor, no need allocate
-            if (node.second == std::numeric_limits<size_t>::max()) {
+            if (node.second == std::numeric_limits<uint64_t>::max()) {
                 return;
             }
             if (!node.first) {
@@ -66,7 +66,7 @@ FallbackTensorKernel::FallbackTensorKernel(DeviceInterface *device, ShaderManage
         }
         remove_nodes.clear();
         if (buffer_size_bytes > 0)
-            tensor_buffer = device->create_buffer(Type::of<float4>(), std::max<size_t>(1, buffer_size_bytes / sizeof(float4)), nullptr);
+            tensor_buffer = device->create_buffer(Type::of<float4>(), std::max<uint64_t>(1, buffer_size_bytes / sizeof(float4)), nullptr);
         else
             tensor_buffer.invalidate();
         // Make executors
@@ -84,9 +84,9 @@ FallbackTensorKernel::FallbackTensorKernel(DeviceInterface *device, ShaderManage
     }
     auto output_size = tensor_builder->outputs().size();
     outputs.reserve(output_size);
-    for (size_t idx = 0; idx < output_size; ++idx) {
+    for (uint64_t idx = 0; idx < output_size; ++idx) {
         auto tensor = tensor_builder->outputs()[idx];
-        auto &buffer = outputs.emplace_back(device->create_buffer(Type::of<float4>(), std::max<size_t>(tensor->size_bytes() / sizeof(float4), 1ull), nullptr));
+        auto &buffer = outputs.emplace_back(device->create_buffer(Type::of<float4>(), std::max<uint64_t>(tensor->size_bytes() / sizeof(float4), 1ull), nullptr));
     }
 }
 FallbackTensorKernel::~FallbackTensorKernel() {
@@ -101,11 +101,11 @@ void FallbackTensorKernel::check(luisa::span<Argument::Buffer const> tensors) co
     if (tensors.size() != args.size()) {
         LUISA_ERROR("Argument size dismatch.");
     }
-    for (size_t i = 0; i < args.size(); ++i) {
+    for (uint64_t i = 0; i < args.size(); ++i) {
         if (args[i]->size_bytes() != tensors[i].size) {
             LUISA_ERROR("Argument {} size {} dismatch with dest {}.", i, tensors[i].size, args[i]->size_bytes());
         }
-        size_t align = tensor_element_align(args[i]->element_type());
+        uint64_t align = tensor_element_align(args[i]->element_type());
         if ((tensors[i].offset & (align - 1)) != 0) {
             LUISA_ERROR("Argument {} with offset {} should be align to {}", i, tensors[i].offset, align);
         }
@@ -137,14 +137,15 @@ void FallbackTensorInterface::execute(
     kernel->device = device();
     kernel->check(arguments);
     luisa::unordered_map<TensorData *, Argument::Buffer> arg_map;
+    arg_map.reserve(arguments.size() + outputs.size() + kernel->tensor_builder->captured_arguments().size());
     LUISA_ASSERT(arguments.size() == kernel->tensor_builder->arguments().size(), "Argument size mismatch.");
     outputs.clear();
     luisa::vector_resize(outputs, kernel->outputs.size());
     std::memcpy(outputs.data(), kernel->outputs.data(), outputs.size_bytes());
-    for (size_t idx = 0; idx < arguments.size(); ++idx) {
+    for (uint64_t idx = 0; idx < arguments.size(); ++idx) {
         arg_map.try_emplace(kernel->tensor_builder->arguments()[idx], arguments[idx]);
     }
-    for (size_t idx = 0; idx < outputs.size(); ++idx) {
+    for (uint64_t idx = 0; idx < outputs.size(); ++idx) {
         auto tensor = kernel->tensor_builder->outputs()[idx];
         auto buffer = kernel->outputs[idx];
         arg_map.try_emplace(
@@ -153,6 +154,9 @@ void FallbackTensorInterface::execute(
                 .handle = buffer.handle,
                 .offset = 0,
                 .size = buffer.total_size_bytes});
+    }
+    for (auto &i : kernel->tensor_builder->captured_arguments()) {
+        arg_map.try_emplace(i.first, i.second);
     }
 
     FallbackTensorCallback callback;

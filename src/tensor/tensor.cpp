@@ -4,7 +4,7 @@
 #include <luisa/core/logging.h>
 
 namespace luisa::compute {
-TensorData::TensorData(luisa::span<size_t const> sizes,
+TensorData::TensorData(luisa::span<uint64_t const> sizes,
                        TensorElementType element_type,
                        uint64_t uid) noexcept
     : _type(element_type),
@@ -21,12 +21,12 @@ TensorData::TensorData(luisa::span<size_t const> sizes,
             _size_bytes = 8;
             break;
     }
-    auto new_sizes = TensorBuilder::get_thd_local()->allocate_array<size_t>(sizes.size());
-    for (size_t idx = 0; idx != sizes.size(); ++idx) {
+    auto new_sizes = TensorBuilder::get_thd_local()->allocate_array<uint64_t>(sizes.size());
+    for (uint64_t idx = 0; idx != sizes.size(); ++idx) {
         new_sizes[idx] = sizes[idx];
         _size_bytes *= sizes[idx];
     }
-    _sizes = luisa::span<size_t const>{new_sizes, sizes.size()};
+    _sizes = luisa::span<uint64_t const>{new_sizes, sizes.size()};
 }
 
 TensorData::TensorData(TensorData &&rhs) noexcept = default;
@@ -59,7 +59,7 @@ void TensorBuilder::deallocate_tensor(TensorData *tensor) noexcept {
     // TODO: record deallocate
 }
 TensorData *TensorBuilder::allocate_tensor(
-    luisa::span<size_t const> sizes,
+    luisa::span<uint64_t const> sizes,
     TensorElementType element_type) noexcept {
     // TODO: record allocate
     auto id = _allocated_tensor.size();
@@ -85,7 +85,7 @@ void TensorBuilder::pop_scope() noexcept {
 TensorBuilder::~TensorBuilder() noexcept {
     LUISA_ASSERT(_expr_stack.size() == 1, "Un-poped scope lefted.");
 }
-void *TensorBuilder::allocate_stack(size_t size_bytes, size_t alignment) noexcept {
+void *TensorBuilder::allocate_stack(uint64_t size_bytes, uint64_t alignment) noexcept {
     for (auto &i : _stack_allocator) {
         auto aligned_offset = (i.offset + alignment - 1ull) & (~(alignment - 1ull));
         if (i.size - aligned_offset >= size_bytes) {
@@ -94,7 +94,7 @@ void *TensorBuilder::allocate_stack(size_t size_bytes, size_t alignment) noexcep
             return result;
         }
     }
-    size_t init_size = 65536ull;
+    uint64_t init_size = 65536ull;
     if (!_stack_allocator.empty()) {
         init_size = _stack_allocator.back().size * 2;
     }
@@ -104,6 +104,18 @@ void *TensorBuilder::allocate_stack(size_t size_bytes, size_t alignment) noexcep
             init_size,
             size_bytes)
         .ptr.get();
+}
+
+void Tensor::_create(TensorElementType element_type, luisa::span<const uint64_t> sizes, Argument::Buffer buffer) noexcept {
+    uint64_t size = tensor_element_size(element_type);
+    for (auto &i : sizes) {
+        size *= i;
+    }
+    LUISA_ASSERT(size == buffer.size);
+    auto builder = TensorBuilder::get_thd_local();
+    _data = builder->allocate_tensor(sizes, element_type);
+    _contained = true;
+    builder->push_captured_arguments(_data, buffer);
 }
 
 TensorBuilder *TensorBuilder::get_thd_local() {

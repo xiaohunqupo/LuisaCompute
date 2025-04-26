@@ -65,7 +65,7 @@ GEMMExpr::GEMMExpr(
     if (lhs_tensor->element_type() != rhs_tensor->element_type()) [[unlikely]] {
         LUISA_ERROR("Element type mismatch.");
     }
-    auto sizes = {(size_t)desire_out_size.x, (size_t)desire_out_size.y, (size_t)group_size};
+    auto sizes = {(uint64_t)desire_out_size.x, (uint64_t)desire_out_size.y, (uint64_t)group_size};
     output_tensor = TensorBuilder::get_thd_local()->allocate_tensor(sizes, lhs_tensor->element_type());
 }
 
@@ -93,12 +93,12 @@ ConvExpr::ConvExpr(
     vstd::push_back_all(this->dilation, dilation);
     vstd::push_back_all(this->start_paddings, start_paddings);
     vstd::push_back_all(this->end_paddings, end_paddings);
-    size_t filter_len = 1;
+    uint64_t filter_len = 1;
     for (auto &i : filter_size) {
         filter_len *= i;
     }
     LUISA_ERROR("Weight tensor width {} must be same as input filter size {}", weight_tensor->get_size(0), filter_len);
-    luisa::fixed_vector<size_t, 4> out_tensor_sizes;
+    luisa::fixed_vector<uint64_t, 4> out_tensor_sizes;
     for (auto i : vstd::range(dim)) {
         if (start_paddings[i] > filter_size[i] ||
             end_paddings[i] > filter_size[i]) [[unlikely]] {
@@ -219,8 +219,7 @@ void Tensor::init_tensor(
     void (*disposer)(void *)) noexcept {
     TensorBuilder::get_thd_local()->current_scope()->allocate_expr<SetValueExpr>(
         input.data(),
-        ptr,
-        disposer);
+        SetValueExpr::BinaryBlob{ptr, disposer});
 }
 
 SetValueExpr::~SetValueExpr() noexcept {

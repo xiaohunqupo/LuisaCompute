@@ -99,18 +99,10 @@ public:
     SetValueExpr(
         uint64_t idx,
         TensorData *tensor_data,
-        uint64_t value) noexcept
+        ValueType const& value) noexcept
         : BaseClass(idx),
           tensor_data(tensor_data),
           value(value) {}
-    SetValueExpr(
-        uint64_t idx,
-        TensorData *tensor_data,
-        void *ptr,
-        vstd::func_ptr_t<void(void *)> disposer) noexcept
-        : BaseClass(idx),
-          tensor_data(tensor_data),
-          value(BinaryBlob{ptr, disposer}) {}
     ~SetValueExpr() noexcept;
     void get_tensors(vstd::FuncRef<void(TensorData *, Usage usage)> callback) noexcept override {
         callback(tensor_data, Usage::WRITE);

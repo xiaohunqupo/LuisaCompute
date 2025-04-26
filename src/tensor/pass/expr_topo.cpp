@@ -9,11 +9,11 @@ void ExprTopo::mark_depend(
     _expr_depends[depended->idx()].depending_self_exprs.emplace_back(depending);
 }
 
-void ExprTopo::init(luisa::span<TensorExpr *const> exprs, size_t tensor_count) noexcept {
+void ExprTopo::init(luisa::span<TensorExpr *const> exprs, uint64_t tensor_count) noexcept {
     _expr_depends.clear();
     _tensor_depends.clear();
     _expr_depends.resize(exprs.size());
-    for (size_t i = 0; i < exprs.size(); ++i) {
+    for (uint64_t i = 0; i < exprs.size(); ++i) {
         _expr_depends[i].self = exprs[i];
     }
     _tensor_depends.resize(tensor_count);
