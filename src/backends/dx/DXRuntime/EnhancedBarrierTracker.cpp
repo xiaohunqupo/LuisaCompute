@@ -5,7 +5,6 @@
 #include "EnhancedBarrierTrackerImpl.h"
 namespace lc::dx {
 namespace detail {
-
 constexpr D3D12_BARRIER_SYNC LUISA_DX12_BARRIER_SYNC_INPUT_INDEX = static_cast<D3D12_BARRIER_SYNC>(0x4);// 0x04
 
 static constexpr D3D12_BARRIER_SYNC BarrierSyncMap[] = {
@@ -70,6 +69,28 @@ static constexpr D3D12_BARRIER_LAYOUT BarrierLayoutMap[] = {
     D3D12_BARRIER_LAYOUT_UNDEFINED,          // RasterAccelRead,
     D3D12_BARRIER_LAYOUT_UNORDERED_ACCESS,   // RasterUAV,
 };
+static std::pair<D3D12_BARRIER_ACCESS, D3D12_BARRIER_LAYOUT> combine(
+    std::pair<D3D12_BARRIER_ACCESS, D3D12_BARRIER_LAYOUT> first,
+    std::pair<D3D12_BARRIER_ACCESS, D3D12_BARRIER_LAYOUT> second) {
+    D3D12_BARRIER_ACCESS access = D3D12_BARRIER_ACCESS_COMMON;
+    D3D12_BARRIER_LAYOUT layout = D3D12_BARRIER_LAYOUT_COMMON;
+    bool first_is_write = first.first & detail::write_access != 0;
+    bool second_is_write = second.first & detail::write_access != 0;
+    if (first_is_write && second_is_write) {
+        LUISA_ERROR("Shader error, can not be writen in different way in same pass.");
+    }
+    if (first_is_write) {
+        access = first.first;
+        layout = first.second;
+    } else if (second_is_write) {
+        access = second.first;
+        layout = second.second;
+    } else {
+        access = first.first | second.first;
+    }
+    layout = (first.second == second.second) ? first.second : D3D12_BARRIER_LAYOUT_COMMON;
+    return {access, layout};
+}
 
 static D3D12_BARRIER_LAYOUT filter_layout(D3D12_BARRIER_LAYOUT last_layout, D3D12_BARRIER_ACCESS access) {
     switch (last_layout) {
@@ -426,9 +447,12 @@ void EnhancedBarrierTracker::Record(
                 //     }
                 // }
                 // vec.emplace_back(new_range);
-                vec.before_access |= new_range.before_access;
-                vec.after_access |= new_range.after_access;
-                vec.before_sync |= new_range.before_sync;
+                // vec.before_access |= new_range.before_access;
+                // vec.before_sync |= new_range.before_sync;
+                auto result = detail::combine(
+                    {vec.after_access, D3D12_BARRIER_LAYOUT_COMMON},
+                    {new_range.after_access, D3D12_BARRIER_LAYOUT_COMMON});
+                vec.after_access = result.first;
                 vec.after_sync |= new_range.after_sync;
             } else {
                 LUISA_DEBUG_ASSERT(resRange.index() == 1);
@@ -440,12 +464,16 @@ void EnhancedBarrierTracker::Record(
                 }
                 tex_range.level_require_update = true;
                 tex_range.after_sync |= sync;
-                tex_range.after_access |= access;
+                // tex_range.after_access |= access;
                 if ((access & (D3D12_BARRIER_ACCESS_RENDER_TARGET |
                                D3D12_BARRIER_ACCESS_DEPTH_STENCIL_WRITE)) != 0) {
                     allow_simul_access = false;
                 }
-                tex_range.after_layout = allow_simul_access ? D3D12_BARRIER_LAYOUT_COMMON : layout;
+                auto result = detail::combine(
+                    {tex_range.after_access, tex_range.after_layout},
+                    {access, allow_simul_access ? D3D12_BARRIER_LAYOUT_COMMON : layout});
+                tex_range.after_access = result.first;
+                tex_range.after_layout = result.second;
             }
         });
 }

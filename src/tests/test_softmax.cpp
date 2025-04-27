@@ -10,37 +10,36 @@
 
 using namespace luisa;
 using namespace luisa::compute;
-
+template<typename T>
 struct DispatchPack {
-    Kernel2D<void(Buffer<float>)> kernel;
-    uint2 dispatch_size;
+    Kernel1D<void(Buffer<T>)> kernel;
+    uint dispatch_size;
 };
-DispatchPack softmax_kernel(uint2 size) {
-    if (size.x > 2048) {
-        LUISA_ERROR("Softmax size can not be larger than 2048");
-    }
-    if (any(size == 0u)) {
-        LUISA_ERROR("Softmax size can not be 0");
-    }
-    auto block_size = next_pow2(size.x);
-    block_size = std::max<uint>(block_size / 2u, 32u);
-    auto kernel = Kernel2D([=](BufferVar<float> input) {
+template<typename T>
+struct BatchDispatchPack {
+    Kernel1D<void(Buffer<T>, Buffer<T>, uint, bool)> calc_sum;
+    Kernel1D<void(Buffer<T>, Buffer<T>)> final;
+};
+template<typename T>
+BatchDispatchPack<T> batch_softmax_kernel(uint2 size) {
+    auto batch = Kernel1D([=](BufferVar<T> input, BufferVar<T> output, UInt size, Bool compute_exp) {
+        auto block_size = 1024;
         set_block_size(block_size, 1, 1);
         Shared<float> shared_arr(block_size);
         auto thd_id = thread_id().x;
         Float value;
-        auto id = dispatch_id().x * 2;
-        $if (id < size.x) {
-            value = exp(Float(input.read(id + size.x * dispatch_id().y)));
+        auto id = dispatch_id().x;
+        $if (id < size) {
+            $if (compute_exp) {
+                value = exp(Float(input.read(id)));
+            }
+            $else {
+                value = Float(input.read(id));
+            };
         }
         $else {
             value = 0.0f;
         };
-        id += 1;
-        $if (id < size.x) {
-            value += exp(Float(input.read(id + size.x * dispatch_id().y)));
-        };
-        id -= 1;
         shared_arr[thd_id] = value;
         UInt thd_size = block_size / 2u;
         sync_block();
@@ -55,39 +54,87 @@ DispatchPack softmax_kernel(uint2 size) {
             thd_size /= 2u;
             sync_block();
         };
-        auto write_func = [&]() {
-            $if (id < size.x) {
-                auto write_id = id + size.x * dispatch_id().y;
-                input.write(write_id, exp(Float(input.read(write_id))) / shared_arr[0]);
-            };
+        $if (thd_id == 0) {
+            output.write(block_id().x, shared_arr[0]);
         };
-        write_func();
-        id += 1;
-        write_func();
+    });
+    auto final = Kernel1D([=](BufferVar<T> buffer, BufferVar<T> sum_buffer) {
+        auto id = dispatch_id().x;
+        buffer.write(id, exp(buffer.read(id)) / sum_buffer.read(0u));
+    });
+    return BatchDispatchPack<T>{
+        std::move(batch),
+        std::move(final)};
+}
+
+template<typename T>
+DispatchPack<T> softmax_kernel(uint2 size) {
+    if (size.x > 1024) {
+        LUISA_ERROR("Softmax size can not be larger than 2048");
+    }
+    if (any(size == 0u)) {
+        LUISA_ERROR("Softmax size can not be 0");
+    }
+    auto block_size = next_pow2(size.x);
+    block_size = std::max<uint>(block_size, 32u);
+    auto kernel = Kernel1D([=](BufferVar<T> input) {
+        set_block_size(block_size, 1, 1);
+        Shared<float> shared_arr(block_size);
+        auto thd_id = thread_id().x;
+        Float value;
+        auto id = dispatch_id().x;
+        $if (id < size.x) {
+            value = exp(Float(input.read(id)));
+        }
+        $else {
+            value = 0.0f;
+        };
+        shared_arr[thd_id] = value;
+        UInt thd_size = block_size / 2u;
+        sync_block();
+        $while (thd_size > 0) {
+            $if (thd_id < thd_size) {
+                value = shared_arr[thd_id * 2] + shared_arr[thd_id * 2 + 1];
+            };
+            sync_block();
+            $if (thd_id < thd_size) {
+                shared_arr[thd_id] = value;
+            };
+            thd_size /= 2u;
+            sync_block();
+        };
+        $if (id < size.x) {
+            auto write_id = id;
+            input.write(write_id, (exp(Float(input.read(write_id))) / shared_arr[0]).template cast<T>());
+        };
     });
     return DispatchPack{
         .kernel = std::move(kernel),
-        .dispatch_size = uint2((size.x + block_size - 1u) & (~(block_size - 1u)), size.y)};
+        .dispatch_size = (size.x + block_size - 1u) & (~(block_size - 1u))};
 }
 
 int main(int argc, char *argv[]) {
     auto ctx = Context(argv[0]);
     auto device = ctx.create_device("dx");
     auto stream = device.create_stream();
-    const auto size = 3;
-    auto pack = softmax_kernel(uint2(size, 1));
-    auto shader = device.compile(pack.kernel);
+    const auto size = 1024 * 3;
+    auto pack = batch_softmax_kernel<float>(uint2(size, 1));
+    auto sum_shader = device.compile(pack.calc_sum);
+    auto final_shader = device.compile(pack.final);
     auto buffer = device.create_buffer<float>(size);
+    auto temp_buffer = device.create_buffer<float>(size / 1024);
     luisa::vector<float> f(size);
-    f[0] = 2.0;
-    f[1] = 1.0;
-    f[2] = 0.1;
-    stream << buffer.copy_from(f.data()) << shader(buffer).dispatch(pack.dispatch_size) << buffer.copy_to(f.data()) << synchronize();
-    float sum = 0;
-    for (int i = 0; i < size; ++i) {
-        sum += f[i];
-        LUISA_INFO("{}", f[i]);
+    for (auto &i : f) {
+        i = 1.0f;
     }
+    float sum;
+    stream << buffer.copy_from(f.data())
+           << sum_shader(buffer, temp_buffer, size, true).dispatch(size)
+           << sum_shader(temp_buffer, temp_buffer, temp_buffer.size(), false).dispatch(1024)
+           << final_shader(buffer, temp_buffer).dispatch(size)
+           << buffer.view(0, 1).copy_to(&sum)
+           << synchronize();
+    
     LUISA_INFO("sum {}", sum);
     return 0;
 }

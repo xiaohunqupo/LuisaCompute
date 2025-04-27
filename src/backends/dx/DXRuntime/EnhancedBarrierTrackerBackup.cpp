@@ -11,12 +11,7 @@ D3D12_RESOURCE_STATES EnhancedBarrierTrackerBackup::ToStates(
     }
     if ((access & D3D12_BARRIER_ACCESS_INDEX_BUFFER) != 0)
         state |= D3D12_RESOURCE_STATE_INDEX_BUFFER;
-    if ((access & D3D12_BARRIER_ACCESS_RENDER_TARGET) != 0)
-        state |= D3D12_RESOURCE_STATE_RENDER_TARGET;
-    if ((access & D3D12_BARRIER_ACCESS_UNORDERED_ACCESS) != 0)
-        state |= D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-    if ((access & D3D12_BARRIER_ACCESS_DEPTH_STENCIL_WRITE) != 0)
-        state |= D3D12_RESOURCE_STATE_DEPTH_WRITE;
+
     if ((access & D3D12_BARRIER_ACCESS_DEPTH_STENCIL_READ) != 0)
         state |= D3D12_RESOURCE_STATE_DEPTH_READ;
     if ((access & D3D12_BARRIER_ACCESS_SHADER_RESOURCE) != 0) {
@@ -34,12 +29,10 @@ D3D12_RESOURCE_STATES EnhancedBarrierTrackerBackup::ToStates(
         }
         state |= st;
     }
-    if ((access & D3D12_BARRIER_ACCESS_STREAM_OUTPUT) != 0)
-        state |= D3D12_RESOURCE_STATE_STREAM_OUT;
+
     if ((access & D3D12_BARRIER_ACCESS_INDIRECT_ARGUMENT) != 0)
         state |= D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT;
-    if ((access & D3D12_BARRIER_ACCESS_COPY_DEST) != 0)
-        state |= D3D12_RESOURCE_STATE_COPY_DEST;
+
     if ((access & D3D12_BARRIER_ACCESS_COPY_SOURCE) != 0)
         state |= D3D12_RESOURCE_STATE_COPY_SOURCE;
     if ((access & D3D12_BARRIER_ACCESS_RESOLVE_DEST) != 0)
@@ -62,6 +55,7 @@ D3D12_RESOURCE_STATES EnhancedBarrierTrackerBackup::ToStates(
         state |= D3D12_RESOURCE_STATE_VIDEO_PROCESS_READ;
     if ((access & D3D12_BARRIER_ACCESS_VIDEO_PROCESS_WRITE) != 0)
         state |= D3D12_RESOURCE_STATE_VIDEO_PROCESS_WRITE;
+
     switch (layout) {
         case D3D12_BARRIER_LAYOUT_PRESENT: {
             state |= D3D12_RESOURCE_STATE_PRESENT;
@@ -73,7 +67,7 @@ D3D12_RESOURCE_STATES EnhancedBarrierTrackerBackup::ToStates(
             state |= D3D12_RESOURCE_STATE_RENDER_TARGET;
         } break;
         case D3D12_BARRIER_LAYOUT_UNORDERED_ACCESS: {
-            state |= D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+            state = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
         } break;
         case D3D12_BARRIER_LAYOUT_DEPTH_STENCIL_WRITE: {
             state |= D3D12_RESOURCE_STATE_DEPTH_WRITE;
@@ -94,6 +88,16 @@ D3D12_RESOURCE_STATES EnhancedBarrierTrackerBackup::ToStates(
             state |= D3D12_RESOURCE_STATE_RESOLVE_DEST;
         } break;
     }
+    if ((access & D3D12_BARRIER_ACCESS_COPY_DEST) != 0)
+        state = D3D12_RESOURCE_STATE_COPY_DEST;
+    if ((access & D3D12_BARRIER_ACCESS_STREAM_OUTPUT) != 0)
+        state = D3D12_RESOURCE_STATE_STREAM_OUT;
+    if ((access & D3D12_BARRIER_ACCESS_RENDER_TARGET) != 0)
+        state = D3D12_RESOURCE_STATE_RENDER_TARGET;
+    if ((access & D3D12_BARRIER_ACCESS_UNORDERED_ACCESS) != 0)
+        state = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+    if ((access & D3D12_BARRIER_ACCESS_DEPTH_STENCIL_WRITE) != 0)
+        state = D3D12_RESOURCE_STATE_DEPTH_WRITE;
     switch (listType) {
         case D3D12_COMMAND_LIST_TYPE_COMPUTE: {
             state &= ~D3D12_RESOURCE_STATE_INDEX_BUFFER;
