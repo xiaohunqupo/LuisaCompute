@@ -74,9 +74,9 @@ static std::pair<D3D12_BARRIER_ACCESS, D3D12_BARRIER_LAYOUT> combine(
     std::pair<D3D12_BARRIER_ACCESS, D3D12_BARRIER_LAYOUT> second) {
     D3D12_BARRIER_ACCESS access = D3D12_BARRIER_ACCESS_COMMON;
     D3D12_BARRIER_LAYOUT layout = D3D12_BARRIER_LAYOUT_COMMON;
-    bool first_is_write = first.first & detail::write_access != 0;
-    bool second_is_write = second.first & detail::write_access != 0;
-    if (first_is_write && second_is_write) {
+    bool first_is_write = (first.first & detail::write_access) != 0;
+    bool second_is_write = (second.first & detail::write_access) != 0;
+    if (first_is_write && second_is_write && (first.first != second.first)) {
         LUISA_ERROR("Shader error, can not be writen in different way in same pass.");
     }
     if (first_is_write) {
@@ -88,7 +88,6 @@ static std::pair<D3D12_BARRIER_ACCESS, D3D12_BARRIER_LAYOUT> combine(
     } else {
         access = first.first | second.first;
     }
-    layout = (first.second == second.second) ? first.second : D3D12_BARRIER_LAYOUT_COMMON;
     return {access, layout};
 }
 
