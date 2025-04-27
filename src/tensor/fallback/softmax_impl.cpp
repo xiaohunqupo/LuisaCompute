@@ -127,8 +127,8 @@ SoftmaxImpl::SoftmaxImpl(
                   auto shader = device->create_shader(ShaderOption{}, Function{kernel.kernel.function().get()});
                   return ShaderManager::ShaderDispatch{
                       shader.handle,
-                      .desired_dispatch_size = uint3(kernel.dispatch_size, 1, 1),
-                      .uniform_size = ShaderDispatchCmdEncoder::compute_uniform_size(kernel.kernel.function()->unbound_arguments())};
+                      uint3(kernel.dispatch_size, 1, 1),
+                      ShaderDispatchCmdEncoder::compute_uniform_size(kernel.kernel.function()->unbound_arguments())};
               };
               auto ptr = shader_manager->add_shader(
                   TensorExpr::Tag::ESoftmaxExpr,
@@ -164,8 +164,8 @@ SoftmaxImpl::SoftmaxImpl(
                       }
                       return ShaderManager::ShaderDispatch{
                           shader.handle,
-                          .desired_dispatch_size = uint3(1, 1, 1),
-                          .uniform_size = ShaderDispatchCmdEncoder::compute_uniform_size(func.unbound_arguments())};
+                          uint3(1, 1, 1),
+                          ShaderDispatchCmdEncoder::compute_uniform_size(func.unbound_arguments())};
                   });
               tp.user_id = 2;
               auto final_ptr = shader_manager->add_shader(
@@ -187,8 +187,8 @@ SoftmaxImpl::SoftmaxImpl(
                       }
                       return ShaderManager::ShaderDispatch{
                           shader.handle,
-                          .desired_dispatch_size = uint3(1, 1, 1),
-                          .uniform_size = ShaderDispatchCmdEncoder::compute_uniform_size(func.unbound_arguments())};
+                          uint3(1, 1, 1),
+                          ShaderDispatchCmdEncoder::compute_uniform_size(func.unbound_arguments())};
                   });
               return LargeBatchShader{batch_ptr, final_ptr};
           }
