@@ -119,15 +119,11 @@ ConvExpr::ConvExpr(
     out_tensor = TensorBuilder::get_thd_local()->allocate_tensor(out_tensor_sizes, out_type);
 }
 
-TestExpr::TestExpr(
+SoftmaxExpr::SoftmaxExpr(
     uint64_t idx,
-    TensorData *input,
-    TensorData *output,
-    luisa::string_view name) noexcept
+    TensorData *input) noexcept
     : BaseClass(idx),
-      input(input),
-      output(output),
-      name(name) {
+      input(input) {
 }
 
 Tensor Tensor::matmul(

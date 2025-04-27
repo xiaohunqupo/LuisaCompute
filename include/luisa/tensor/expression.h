@@ -12,7 +12,7 @@ namespace luisa::compute {
     LCGRandExpr,                        \
     GEMMExpr,                           \
     ConvExpr,                           \
-    TestExpr
+    SoftmaxExpr
 // clang-format on
 
 #define LUISA_MAKE_TENSOR_EXPR_DECL(CMD) class CMD;
@@ -173,19 +173,14 @@ public:
     static luisa::variant<TensorData *, luisa::string> get_output_tensor(TensorData *input_tensor, TensorData *filter_tensor) noexcept;
 };
 
-class LC_TENSOR_API LUISA_TENSOR_EXPR_CLASS_INHERIT(TestExpr) {
+class LC_TENSOR_API LUISA_TENSOR_EXPR_CLASS_INHERIT(SoftmaxExpr) {
 public:
     TensorData *input;
-    TensorData *output;
-    luisa::string_view name;
-    TestExpr(
+    SoftmaxExpr(
         uint64_t idx,
-        TensorData *input,
-        TensorData *output,
-        luisa::string_view name) noexcept;
+        TensorData *input) noexcept;
     void get_tensors(vstd::FuncRef<void(TensorData *, Usage usage)> callback) noexcept override {
-        callback(input, Usage::READ);
-        callback(output, Usage::WRITE);
+        callback(input, Usage::WRITE);
     }
 };
 

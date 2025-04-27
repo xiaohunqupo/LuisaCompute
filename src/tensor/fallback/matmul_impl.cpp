@@ -108,36 +108,28 @@ MatMulImpl::MatMulImpl(
         .min_batch_size = min_batch_size,
         .batch = uint(lhs_batch ? 1 : 0) | uint(rhs_batch ? 2 : 0),
         .activation = expr->fused_activation};
+    auto bind_shader = [&]<typename T>() {
+        auto disp_pack = shader_manager->add_shader(
+            TensorExpr::Tag::EGEMMExpr,
+            vstd::MD5{{reinterpret_cast<uint8_t const *>(&key), sizeof(key)}},
+            [&]() {
+                auto disp_pack = gemm_detail::gemm_kernel<T>(lhs_matrix_size, rhs_matrix_size, min_batch_size, lhs_batch, rhs_batch, expr->fused_activation);
+                auto create_info = device->create_shader(ShaderOption{}, Function{disp_pack.kernel.function().get()});
+                return ShaderManager::ShaderDispatch{
+                    create_info.handle,
+                    disp_pack.dispatch_size,
+                    ShaderDispatchCmdEncoder::compute_uniform_size(disp_pack.kernel.function()->unbound_arguments())};
+            });
+        set_disp_pack(disp_pack);
+    };
     switch (expr->lhs_tensor->element_type()) {
         case TensorElementType::Float16: {
             key.type = 0;
-            auto disp_pack = shader_manager->add_shader(
-                TensorExpr::Tag::EGEMMExpr,
-                vstd::MD5{{reinterpret_cast<uint8_t const *>(&key), sizeof(key)}},
-                [&]() {
-                    auto disp_pack = gemm_detail::gemm_kernel<half>(lhs_matrix_size, rhs_matrix_size, min_batch_size, lhs_batch, rhs_batch, expr->fused_activation);
-                    auto create_info = device->create_shader(ShaderOption{}, Function{disp_pack.kernel.function().get()});
-                    return ShaderManager::ShaderDispatch{
-                        create_info.handle,
-                        disp_pack.dispatch_size,
-                        ShaderDispatchCmdEncoder::compute_uniform_size(disp_pack.kernel.function()->unbound_arguments())};
-                });
-            set_disp_pack(disp_pack);
+            bind_shader.template operator()<half>();
         } break;
         case TensorElementType::Float32: {
             key.type = 1;
-            auto disp_pack = shader_manager->add_shader(
-                TensorExpr::Tag::EGEMMExpr,
-                vstd::MD5{{reinterpret_cast<uint8_t const *>(&key), sizeof(key)}},
-                [&]() {
-                    auto disp_pack = gemm_detail::gemm_kernel<float>(lhs_matrix_size, rhs_matrix_size, min_batch_size, lhs_batch, rhs_batch, expr->fused_activation);
-                    auto create_info = device->create_shader(ShaderOption{}, Function{disp_pack.kernel.function().get()});
-                    return ShaderManager::ShaderDispatch{
-                        create_info.handle,
-                        disp_pack.dispatch_size,
-                        ShaderDispatchCmdEncoder::compute_uniform_size(disp_pack.kernel.function()->unbound_arguments())};
-                });
-            set_disp_pack(disp_pack);
+            bind_shader.template operator()<float>();
         } break;
         default: {
             LUISA_ERROR("Only float 16 and float 32 supported.");

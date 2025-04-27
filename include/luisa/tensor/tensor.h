@@ -7,7 +7,7 @@
 #include <luisa/tensor/fused_activation.h>
 namespace luisa::compute {
 
-enum struct TensorElementType : uint8_t {
+enum struct TensorElementType : uint32_t {
     Float16,
     Float32,
     Float64,
