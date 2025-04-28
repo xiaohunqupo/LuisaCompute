@@ -2,6 +2,7 @@
 #include <Resource/BindProperty.h>
 #include <Resource/TextureBase.h>
 #include <DXRuntime/DxPtr.h>
+#include <DXRuntime/EnhancedBarrierTracker.h>
 namespace lc::dx {
 class CommandAllocator;
 class Resource;
@@ -127,6 +128,24 @@ public:
     CommandBuffer(CommandBuffer &&v);
     CommandBufferBuilder Build() const { return CommandBufferBuilder(this); }
     KILL_COPY_CONSTRUCT(CommandBuffer)
+};
+struct GraphicsCmdlistBarrierCallback : public BarrierCallback {
+    ID3D12GraphicsCommandList *cmdlist;
+    GraphicsCmdlistBarrierCallback(CommandBufferBuilder &builder) : cmdlist(builder.GetCB()->CmdList()) {}
+    void Barrier(
+        UINT32 NumBarrierGroups,
+        const D3D12_BARRIER_GROUP *pBarrierGroups) {
+        ComPtr<ID3D12GraphicsCommandList7> new_cmdlist;
+        if (cmdlist->QueryInterface(IID_PPV_ARGS(&new_cmdlist)) != S_OK) {
+            LUISA_ERROR("Bad command-list");
+        }
+        new_cmdlist->Barrier(NumBarrierGroups, pBarrierGroups);
+    }
+    void ResourceBarrier(
+        UINT NumBarriers,
+        D3D12_RESOURCE_BARRIER *pBarriers) {
+        cmdlist->ResourceBarrier(NumBarriers, pBarriers);
+    }
 };
 
 }// namespace lc::dx

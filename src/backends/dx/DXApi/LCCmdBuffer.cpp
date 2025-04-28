@@ -495,7 +495,8 @@ public:
     vstd::vector<ButtomCompactCmd> *updateAccel;
     vstd::vector<D3D12_VERTEX_BUFFER_VIEW> *vbv;
     BottomAccelData *bottomAccelData;
-    vstd::func_ptr_t<void(Device *, CommandBufferBuilder *)> after_custom_cmd{};
+    vstd::func_ptr_t<void(Device *, CommandBufferBuilder *)>
+        after_custom_cmd{};
 
     void visit(const BufferUploadCommand *cmd) noexcept override {
 #ifdef LCDX_ENABLE_WINPIX
@@ -616,6 +617,7 @@ public:
         }
     };
     void visit(const ShaderDispatchCommand *cmd) noexcept override {
+        GraphicsCmdlistBarrierCallback barrier_callback(*bd);
 #ifdef LCDX_ENABLE_WINPIX
         PIXBeginEvent(bd->GetCB()->CmdList(), get_pix_color(), "Shader dispatch");
         auto dispose_pix = vstd::scope_exit([&]() {
@@ -655,7 +657,7 @@ public:
                 stateTracker->Record(
                     BufferView(count_buffer.buffer, count_buffer.offset, count_buffer.byteSize),
                     EnhancedBarrierTracker::Usage::CopyDest);
-                stateTracker->UpdateState(*bd);
+                stateTracker->UpdateState(&barrier_callback);
                 bd->CopyBuffer(upload_buffer.buffer, count_buffer.buffer, upload_buffer.offset, count_buffer.offset, sizeof(uint));
                 stateTracker->Record(
                     BufferView(count_buffer.buffer, count_buffer.offset, count_buffer.byteSize),
@@ -663,7 +665,7 @@ public:
                 stateTracker->Record(
                     BufferView(data_buffer.buffer, count_buffer.offset, count_buffer.byteSize),
                     EnhancedBarrierTracker::Usage::ComputeUAV);
-                stateTracker->UpdateState(*bd);
+                stateTracker->UpdateState(&barrier_callback);
                 bindProps->emplace_back(count_buffer);
                 bindProps->emplace_back(data_buffer);
             }
@@ -700,7 +702,7 @@ public:
             stateTracker->Record(
                 BufferView(data_buffer.buffer, count_buffer.offset, count_buffer.byteSize),
                 EnhancedBarrierTracker::Usage::CopySource);
-            stateTracker->UpdateState(*bd);
+            stateTracker->UpdateState(&barrier_callback);
             bd->CopyBuffer(count_buffer.buffer, readback_count_buffer.buffer, count_buffer.offset, readback_count_buffer.offset, sizeof(uint));
             bd->CopyBuffer(data_buffer.buffer, readback_buffer.buffer, data_buffer.offset, readback_buffer.offset, data_buffer.byteSize);
             alloc->ExecuteAfterComplete([logger = this->logger, shader, readback_count_buffer, readback_buffer]() {
@@ -1170,6 +1172,7 @@ void LCCmdBuffer::Execute(
         };
         auto cmdBuffer = allocator->GetBuffer();
         auto cmdBuilder = cmdBuffer->Build();
+        GraphicsCmdlistBarrierCallback barrier_callback(cmdBuilder);
         if (!tracker) {
             if (device->use_enhanced_barrier) {
                 tracker = luisa::make_unique<EnhancedBarrierTrackerImpl>();
@@ -1255,7 +1258,7 @@ void LCCmdBuffer::Execute(
                 visitor.argBuffer = uploadBuffer;
             }
             tracker->UpdateState(
-                cmdBuilder);
+                &barrier_callback);
             visitor.bufferVec = ppVisitor.argVecs->data();
             // Execute commands
             for (auto i = lst; i != nullptr; i = i->p_next) {
@@ -1267,7 +1270,7 @@ void LCCmdBuffer::Execute(
                 tracker->Record(
                     BufferView(accelScratchBuffer),
                     EnhancedBarrierTracker::Usage::CopySource);
-                tracker->UpdateState(cmdBuilder);
+                tracker->UpdateState(&barrier_callback);
                 for (auto &&i : updateAccel) {
                     i.accel.visit([&](auto &&p) {
                         p->FinalCopy(
@@ -1278,7 +1281,7 @@ void LCCmdBuffer::Execute(
                                 i.size));
                     });
                 }
-                tracker->RestoreState(cmdBuilder);
+                tracker->RestoreState(&barrier_callback);
                 auto localUpdateAccel = std::move(updateAccel);
                 lck.unlock();
                 queue.ForceSync(
@@ -1292,7 +1295,7 @@ void LCCmdBuffer::Execute(
                 lck.lock();
             }
         }
-        tracker->RestoreState(cmdBuilder);
+        tracker->RestoreState(&barrier_callback);
     }
 
     if (funcs.empty()) {
@@ -1446,6 +1449,7 @@ void LCCmdBuffer::CompressBC(
             // auto bufferReadState = tracker->ReadState(ResourceReadUsage::Srv);
             auto cmdBuffer = alloc->GetBuffer();
             auto cmdBuilder = cmdBuffer->Build();
+            GraphicsCmdlistBarrierCallback barrier_callback(cmdBuilder);
             ID3D12DescriptorHeap *h[2] = {
                 device->globalHeap->GetHeap(),
                 device->samplerHeap->GetHeap()};
@@ -1465,7 +1469,7 @@ void LCCmdBuffer::CompressBC(
                 tracker->Record(
                     outBuffer,
                     EnhancedBarrierTracker::Usage::ComputeUAV);
-                tracker->UpdateState(cmdBuilder);
+                tracker->UpdateState(&barrier_callback);
                 BindProperty prop[4];
                 prop[0] = cbuffer;
                 prop[1] = DescriptorHeapView(device->globalHeap.get(), rt->GetGlobalSRVIndex());
@@ -1567,7 +1571,7 @@ void LCCmdBuffer::CompressBC(
                 }
             }
             tracker->Record(outBuffer, EnhancedBarrierTracker::Usage::CopySource);
-            tracker->RestoreState(cmdBuilder);
+            tracker->RestoreState(&barrier_callback);
         }
         if (batch == batchNum - 1) {
             vstd::vector<vstd::function<void()>> callbacks;

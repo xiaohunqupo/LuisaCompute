@@ -14,8 +14,8 @@ protected:
     void BarrierFilter(D3D12_BUFFER_BARRIER &barrier);
     void BarrierFilter(D3D12_TEXTURE_BARRIER &barrier);
 public:
-    void UpdateState(CommandBufferBuilder const &cmdBuffer) override;
-    void RestoreState(CommandBufferBuilder const &cmdBuffer) override;
+    void UpdateState(BarrierCallback *cmdBuffer) override;
+    void RestoreState(BarrierCallback *cmdBuffer) override;
     EnhancedBarrierTrackerImpl();
     ~EnhancedBarrierTrackerImpl();
 };

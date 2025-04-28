@@ -87,6 +87,24 @@ D3D12_RESOURCE_STATES EnhancedBarrierTrackerBackup::ToStates(
         case D3D12_BARRIER_LAYOUT_RESOLVE_DEST: {
             state |= D3D12_RESOURCE_STATE_RESOLVE_DEST;
         } break;
+        case D3D12_BARRIER_LAYOUT_VIDEO_DECODE_READ: {
+            state |= D3D12_RESOURCE_STATE_VIDEO_DECODE_READ;
+        } break;
+        case D3D12_BARRIER_LAYOUT_VIDEO_DECODE_WRITE: {
+            state |= D3D12_RESOURCE_STATE_VIDEO_DECODE_WRITE;
+        } break;
+        case D3D12_BARRIER_LAYOUT_VIDEO_PROCESS_READ: {
+            state |= D3D12_RESOURCE_STATE_VIDEO_PROCESS_READ;
+        } break;
+        case D3D12_BARRIER_LAYOUT_VIDEO_PROCESS_WRITE: {
+            state |= D3D12_RESOURCE_STATE_VIDEO_PROCESS_WRITE;
+        } break;
+        case D3D12_BARRIER_LAYOUT_VIDEO_ENCODE_READ: {
+            state |= D3D12_RESOURCE_STATE_VIDEO_ENCODE_READ;
+        } break;
+        case D3D12_BARRIER_LAYOUT_VIDEO_ENCODE_WRITE: {
+            state |= D3D12_RESOURCE_STATE_VIDEO_ENCODE_WRITE;
+        } break;
     }
     if ((access & D3D12_BARRIER_ACCESS_COPY_DEST) != 0)
         state = D3D12_RESOURCE_STATE_COPY_DEST;
@@ -185,16 +203,16 @@ void EnhancedBarrierTrackerBackup::UpdateResourceState(Resource const *resPtr, R
     }
 }
 
-void EnhancedBarrierTrackerBackup::UpdateState(CommandBufferBuilder const &cmdBuffer) {
+void EnhancedBarrierTrackerBackup::UpdateState(BarrierCallback *cmdBuffer) {
     barriers.clear();
     for (auto &i : current_update_states) {
         UpdateResourceState(i.first, *i.second);
     }
     current_update_states.clear();
     if (!barriers.empty())
-        cmdBuffer.GetCB()->CmdList()->ResourceBarrier(barriers.size(), barriers.data());
+        cmdBuffer->ResourceBarrier(barriers.size(), barriers.data());
 }
-void EnhancedBarrierTrackerBackup::RestoreState(CommandBufferBuilder const &cmdBuffer) {
+void EnhancedBarrierTrackerBackup::RestoreState(BarrierCallback *cmdBuffer) {
     barriers.clear();
     writeStateMap.clear();
     current_update_states.clear();
@@ -235,7 +253,7 @@ void EnhancedBarrierTrackerBackup::RestoreState(CommandBufferBuilder const &cmdB
     }
     frameStates.clear();
     if (!barriers.empty())
-        cmdBuffer.GetCB()->CmdList()->ResourceBarrier(barriers.size(), barriers.data());
+        cmdBuffer->ResourceBarrier(barriers.size(), barriers.data());
 }
 EnhancedBarrierTrackerBackup::EnhancedBarrierTrackerBackup() {}
 EnhancedBarrierTrackerBackup::~EnhancedBarrierTrackerBackup() {}

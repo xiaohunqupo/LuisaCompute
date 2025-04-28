@@ -149,12 +149,13 @@ void set_custom_logger(CustomLoggerCallback &&callback) noexcept {
 }
 namespace detail {
 void custom_log(luisa::string &&str, level_enum level) noexcept {
-    logger(std::move(str), level);
+    if (luisa::to_underlying(level) >= luisa::to_underlying(default_level))
+        logger(std::move(str), level);
 }
+}// namespace detail
 void set_custom_logger_flush(CustomLoggerFlushCallback &&callback) noexcept {
     logger_flush = std::move(callback);
 }
-}// namespace detail
 /// Set log level as verbose
 void log_level_verbose() noexcept {
     default_level = level_enum::debug;

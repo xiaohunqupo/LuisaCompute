@@ -26,6 +26,12 @@ static constexpr D3D12_BARRIER_SYNC BarrierSyncMap[] = {
     static_cast<D3D12_BARRIER_SYNC>(D3D12_BARRIER_SYNC_PIXEL_SHADING | D3D12_BARRIER_SYNC_VERTEX_SHADING),// RasterRead
     static_cast<D3D12_BARRIER_SYNC>(D3D12_BARRIER_SYNC_PIXEL_SHADING | D3D12_BARRIER_SYNC_VERTEX_SHADING),//RasterAccelRead
     static_cast<D3D12_BARRIER_SYNC>(D3D12_BARRIER_SYNC_PIXEL_SHADING | D3D12_BARRIER_SYNC_VERTEX_SHADING),//RasterUAV
+    D3D12_BARRIER_SYNC_VIDEO_ENCODE,                                                                      //VideoEncodeRead,
+    D3D12_BARRIER_SYNC_VIDEO_ENCODE,                                                                      //VideoEncodeWrite,
+    D3D12_BARRIER_SYNC_VIDEO_PROCESS,                                                                     //VideoProcessRead,
+    D3D12_BARRIER_SYNC_VIDEO_PROCESS,                                                                     //VideoProcessWrite,
+    D3D12_BARRIER_SYNC_VIDEO_DECODE,                                                                      //VideoDecodeRead,
+    D3D12_BARRIER_SYNC_VIDEO_DECODE,                                                                      //VideoDecodeWrite,
 };
 
 static constexpr D3D12_BARRIER_ACCESS BarrierAccessMap[] = {
@@ -47,6 +53,12 @@ static constexpr D3D12_BARRIER_ACCESS BarrierAccessMap[] = {
     D3D12_BARRIER_ACCESS_SHADER_RESOURCE,                        // RasterRead
     D3D12_BARRIER_ACCESS_RAYTRACING_ACCELERATION_STRUCTURE_READ, // RasterAccelRead,
     D3D12_BARRIER_ACCESS_UNORDERED_ACCESS,                       // RasterUAV,
+    D3D12_BARRIER_ACCESS_VIDEO_ENCODE_READ,                      //VideoEncodeRead,
+    D3D12_BARRIER_ACCESS_VIDEO_ENCODE_WRITE,                     //VideoEncodeWrite,
+    D3D12_BARRIER_ACCESS_VIDEO_PROCESS_READ,                     //VideoProcessRead,
+    D3D12_BARRIER_ACCESS_VIDEO_PROCESS_WRITE,                    //VideoProcessWrite,
+    D3D12_BARRIER_ACCESS_VIDEO_DECODE_READ,                      //VideoDecodeRead,
+    D3D12_BARRIER_ACCESS_VIDEO_DECODE_WRITE,                     //VideoDecodeWrite,
 };
 
 static constexpr D3D12_BARRIER_LAYOUT BarrierLayoutMap[] = {
@@ -68,6 +80,12 @@ static constexpr D3D12_BARRIER_LAYOUT BarrierLayoutMap[] = {
     D3D12_BARRIER_LAYOUT_SHADER_RESOURCE,    // RasterRead
     D3D12_BARRIER_LAYOUT_UNDEFINED,          // RasterAccelRead,
     D3D12_BARRIER_LAYOUT_UNORDERED_ACCESS,   // RasterUAV,
+    D3D12_BARRIER_LAYOUT_VIDEO_ENCODE_READ,  //VideoEncodeRead,
+    D3D12_BARRIER_LAYOUT_VIDEO_ENCODE_WRITE, //VideoEncodeWrite,
+    D3D12_BARRIER_LAYOUT_VIDEO_PROCESS_READ, //VideoProcessRead,
+    D3D12_BARRIER_LAYOUT_VIDEO_PROCESS_WRITE,//VideoProcessWrite,
+    D3D12_BARRIER_LAYOUT_VIDEO_DECODE_READ,  //VideoDecodeRead,
+    D3D12_BARRIER_LAYOUT_VIDEO_DECODE_WRITE, //VideoDecodeWrite,
 };
 static std::pair<D3D12_BARRIER_ACCESS, D3D12_BARRIER_LAYOUT> combine(
     std::pair<D3D12_BARRIER_ACCESS, D3D12_BARRIER_LAYOUT> first,
@@ -533,7 +551,7 @@ void EnhancedBarrierTrackerImpl::UpdateResourceState(Resource const *resPtr, Res
     }
 }
 
-void EnhancedBarrierTrackerImpl::UpdateState(CommandBufferBuilder const &cmdBuffer) {
+void EnhancedBarrierTrackerImpl::UpdateState(BarrierCallback *cmdBuffer) {
     bufferBarriers.clear();
     texBarriers.clear();
     for (auto &&i : current_update_states) {
@@ -560,11 +578,10 @@ void EnhancedBarrierTrackerImpl::UpdateState(CommandBufferBuilder const &cmdBuff
         v.pBufferBarriers = bufferBarriers.data();
     }
     if (!barriers.empty()) {
-        auto cmdlist = cmdBuffer.GetCB()->NextCmdList();
-        cmdlist->Barrier(barriers.size(), barriers.data());
+        cmdBuffer->Barrier(barriers.size(), barriers.data());
     }
 }
-void EnhancedBarrierTrackerImpl::RestoreState(CommandBufferBuilder const &cmdBuffer) {
+void EnhancedBarrierTrackerImpl::RestoreState(BarrierCallback *cmdBuffer) {
     current_update_states.clear();
     writeStateMap.clear();
     bufferBarriers.clear();
@@ -626,8 +643,7 @@ void EnhancedBarrierTrackerImpl::RestoreState(CommandBufferBuilder const &cmdBuf
         v.pBufferBarriers = bufferBarriers.data();
     }
     if (!barriers.empty()) {
-        auto cmdlist = cmdBuffer.GetCB()->NextCmdList();
-        cmdlist->Barrier(barriers.size(), barriers.data());
+        cmdBuffer->Barrier(barriers.size(), barriers.data());
     }
     frameStates.clear();
 }

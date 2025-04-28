@@ -7,8 +7,16 @@ namespace lc::dx {
 namespace detail {
 static constexpr D3D12_BARRIER_ACCESS write_access = D3D12_BARRIER_ACCESS_RENDER_TARGET | D3D12_BARRIER_ACCESS_UNORDERED_ACCESS | D3D12_BARRIER_ACCESS_DEPTH_STENCIL_WRITE | D3D12_BARRIER_ACCESS_STREAM_OUTPUT | D3D12_BARRIER_ACCESS_COPY_DEST | D3D12_BARRIER_ACCESS_RESOLVE_DEST | D3D12_BARRIER_ACCESS_RAYTRACING_ACCELERATION_STRUCTURE_WRITE | D3D12_BARRIER_ACCESS_VIDEO_DECODE_WRITE | D3D12_BARRIER_ACCESS_VIDEO_PROCESS_WRITE | D3D12_BARRIER_ACCESS_VIDEO_ENCODE_WRITE;
 }// namespace detail
-class CommandBufferBuilder;
 class TopAccel;
+class BarrierCallback {
+public:
+    virtual void Barrier(
+        UINT32 NumBarrierGroups,
+        const D3D12_BARRIER_GROUP *pBarrierGroups) = 0;
+    virtual void ResourceBarrier(
+        UINT NumBarriers,
+        D3D12_RESOURCE_BARRIER *pBarriers) = 0;
+};
 class EnhancedBarrierTracker : public vstd::IOperatorNewBase {
 public:
     struct TexView {
@@ -38,6 +46,12 @@ public:
         RasterRead,
         RasterAccelRead,
         RasterUAV,
+        VideoEncodeRead,
+        VideoEncodeWrite,
+        VideoProcessRead,
+        VideoProcessWrite,
+        VideoDecodeRead,
+        VideoDecodeWrite,
     };
     struct Range {
         uint64 min;
@@ -144,7 +158,7 @@ public:
         D3D12_BARRIER_ACCESS access,
         D3D12_BARRIER_LAYOUT layout);
 
-    virtual void UpdateState(CommandBufferBuilder const &cmdBuffer) = 0;
-    virtual void RestoreState(CommandBufferBuilder const &cmdBuffer) = 0;
+    virtual void UpdateState(BarrierCallback *cmdBuffer) = 0;
+    virtual void RestoreState(BarrierCallback *cmdBuffer) = 0;
 };
 }// namespace lc::dx

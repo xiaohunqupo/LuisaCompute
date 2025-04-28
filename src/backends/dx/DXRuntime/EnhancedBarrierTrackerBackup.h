@@ -11,8 +11,8 @@ protected:
         D3D12_BARRIER_LAYOUT layout);
 
 public:
-    void UpdateState(CommandBufferBuilder const &cmdBuffer) override;
-    void RestoreState(CommandBufferBuilder const &cmdBuffer) override;
+    void UpdateState(BarrierCallback *cmdBuffer) override;
+    void RestoreState(BarrierCallback *cmdBuffer) override;
     EnhancedBarrierTrackerBackup();
     ~EnhancedBarrierTrackerBackup();
 };

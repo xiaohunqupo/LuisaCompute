@@ -87,7 +87,8 @@ bool TopAccel::GenerateNewBuffer(
             tracker.Record(
                 BufferView(newBuffer),
                 EnhancedBarrierTracker::Usage::CopyDest);
-            tracker.UpdateState(builder);
+            GraphicsCmdlistBarrierCallback callback(builder);
+            tracker.UpdateState(&callback);
             builder.CopyBuffer(
                 oldBuffer.get(),
                 newBuffer,
@@ -307,7 +308,8 @@ void TopAccel::Build(
         tracker.Record(
             BufferView(instBuffer.get(), 0, instBuffer->GetByteSize()),
             EnhancedBarrierTracker::Usage::AccelInstanceBuffer);
-        tracker.UpdateState(builder);
+        GraphicsCmdlistBarrierCallback callback(builder);
+        tracker.UpdateState(&callback);
         topLevelBuildDesc.ScratchAccelerationStructureData = scratchBuffer->buffer->GetAddress() + scratchBuffer->offset;
         if (RequireCompact()) {
             D3D12_RAYTRACING_ACCELERATION_STRUCTURE_POSTBUILD_INFO_DESC postInfo;
