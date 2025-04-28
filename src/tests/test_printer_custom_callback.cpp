@@ -1,3 +1,8 @@
+#ifdef LUISA_CUSTOM_LOGGER
+// TODO: tests
+int main() {
+}
+#else
 #include "spdlog/sinks/stdout_color_sinks.h"
 
 #include <memory>
@@ -74,3 +79,4 @@ int main(int argc, char *argv[]) {
     stream << shader().dispatch(128u, 128u)
            << synchronize();
 }
+#endif

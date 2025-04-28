@@ -37,6 +37,11 @@ on_load(function(target)
         target:add("defines", "_CRT_SECURE_NO_WARNINGS")
     end
     target:add("deps", "eastl", "spdlog", "lc-check-winsdk")
+    if get_config("spdlog_only_fmt") then -- Use no spdlog
+        target:add("defines", "LUISA_CUSTOM_LOGGER", {
+            public = true
+        })
+    end
     local marl_path = path.join(os.scriptdir(), "../ext/marl")
     if (not get_config("external_marl")) and (os.exists(marl_path)) then
         target:add("defines", "MARL_DLL", {

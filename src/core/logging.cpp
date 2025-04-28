@@ -3,8 +3,13 @@
 #pragma warning(disable : 4996)
 #endif
 
+#ifndef LUISA_CUSTOM_LOGGER
 #include <spdlog/sinks/base_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
+#else
+#include <iostream>
+#include <mutex>
+#endif
 
 #if defined(_MSC_VER)
 #pragma warning(pop)
@@ -14,10 +19,10 @@
 #include <luisa/core/stl/functional.h>
 #include <luisa/core/magic_enum.h>
 #include <luisa/rust/api_types.h>
-#include <iostream>
 
 namespace luisa {
 
+#ifndef LUISA_CUSTOM_LOGGER
 namespace detail {
 
 static std::mutex LOGGER_MUTEX;
@@ -119,5 +124,57 @@ void log_level_warning() noexcept { detail::default_logger().set_level(spdlog::l
 void log_level_error() noexcept { detail::default_logger().set_level(spdlog::level::err); }
 
 void log_flush() noexcept { detail::default_logger().flush(); }
+#else
+static level_enum default_level =
+#ifdef NDEBUG
+    level_enum::debug
+#else
+    level_enum::info
+#endif
+    ;
+static CustomLoggerCallback logger = []() {
+    return [](luisa::string &&str, level_enum level) {
+        static std::mutex global_log_mtx;
+        std::lock_guard lck{global_log_mtx};
+        std::cout << str << std::endl;
+    };
+}();
+static CustomLoggerFlushCallback logger_flush = []() {
+    return []() {
+        std::cout << std::endl;
+    };
+}();
+void set_custom_logger(CustomLoggerCallback &&callback) noexcept {
+    logger = std::move(callback);
+}
+namespace detail {
+void custom_log(luisa::string &&str, level_enum level) noexcept {
+    logger(std::move(str), level);
+}
+void set_custom_logger_flush(CustomLoggerFlushCallback &&callback) noexcept {
+    logger_flush = std::move(callback);
+}
+}// namespace detail
+/// Set log level as verbose
+void log_level_verbose() noexcept {
+    default_level = level_enum::debug;
+}
+/// Set log level as info
+void log_level_info() noexcept {
+    default_level = level_enum::info;
+}
+/// Set log level as warning
+void log_level_warning() noexcept {
+    default_level = level_enum::warn;
+}
+/// Set log level as error
+void log_level_error() noexcept {
+    default_level = level_enum::err;
+}
 
+/// flush the logs
+void log_flush() noexcept {
+    logger_flush();
+}
+#endif
 }// namespace luisa

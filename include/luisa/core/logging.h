@@ -5,7 +5,11 @@
 #pragma warning(disable : 4996)
 #endif
 
+#ifndef LUISA_CUSTOM_LOGGER
 #include <spdlog/spdlog.h>
+#else
+#include <luisa/core/stl/memory.h>
+#endif
 
 #if defined(_MSC_VER)
 #pragma warning(pop)
@@ -20,12 +24,29 @@
 struct LCLoggerMessage;
 
 namespace luisa {
-
+#ifndef LUISA_CUSTOM_LOGGER
 using spdlog::logger;
 using log_level = spdlog::level::level_enum;
+#else
+enum level_enum : int {
+    trace = 0,
+    debug = 1,
+    info = 2,
+    warn = 3,
+    err = 4,
+    critical = 5,
+    off = 6,
+    n_levels
+};
+using CustomLoggerCallback = luisa::move_only_function<void(luisa::string &&str, level_enum level)>;
+using CustomLoggerFlushCallback = luisa::move_only_function<void()>;
+LC_CORE_API void set_custom_logger(CustomLoggerCallback &&callback) noexcept;
+LC_CORE_API void set_custom_logger_flush(CustomLoggerFlushCallback &&callback) noexcept;
+#endif
 
 namespace detail {
 
+#ifndef LUISA_CUSTOM_LOGGER
 [[nodiscard]] LC_CORE_API luisa::logger &default_logger() noexcept;
 
 [[deprecated("Please use `luisa::default_logger_set_sink`")]]
@@ -40,28 +61,42 @@ LC_CORE_API spdlog::sink_ptr create_sink_with_callback(
     luisa::function<void(const char *level,
                          const char *message)>
         callback) noexcept;
-
+#else
+LC_CORE_API void custom_log(luisa::string &&str, level_enum level) noexcept;
+#endif
 }// namespace detail
 
 template<typename... Args>
 void log_verbose(Args &&...args) noexcept {
+#ifndef LUISA_CUSTOM_LOGGER
     detail::default_logger().debug(std::forward<Args>(args)...);
+#else
+    detail::custom_log(luisa::format(args...), level_enum::debug);
+#endif
 }
 
 template<typename... Args>
 void log_info(Args &&...args) noexcept {
+#ifndef LUISA_CUSTOM_LOGGER
     detail::default_logger().info(std::forward<Args>(args)...);
+#else
+    detail::custom_log(luisa::format(args...), level_enum::info);
+#endif
 }
 
 template<typename... Args>
 void log_warning(Args &&...args) noexcept {
+#ifndef LUISA_CUSTOM_LOGGER
     detail::default_logger().warn(std::forward<Args>(args)...);
+#else
+    detail::custom_log(luisa::format(args...), level_enum::warn);
+#endif
 }
 
 template<typename... Args>
 [[noreturn]] LUISA_FORCE_INLINE void log_error(Args &&...args) noexcept {
     std::string error_message;
-    if constexpr(sizeof...(args) == 1u) {
+    if constexpr (sizeof...(args) == 1u) {
         error_message = std::string{std::forward<Args>(args)...};
     } else {
         error_message = fmt::format(std::forward<Args>(args)...);
@@ -72,10 +107,13 @@ template<typename... Args>
         fmt::format_to(std::back_inserter(error_message),
                        FMT_STRING("\n    {:>2} {}"), i, t);
     }
+#ifndef LUISA_CUSTOM_LOGGER
     detail::default_logger().error(error_message);
+#else
+    detail::custom_log(luisa::format(args...), level_enum::err);
+#endif
     std::abort();
 }
-
 /// Set log level as verbose
 LC_CORE_API void log_level_verbose() noexcept;
 /// Set log level as info

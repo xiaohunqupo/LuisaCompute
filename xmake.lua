@@ -186,6 +186,11 @@ option("lc_xrepo_dir")
 set_default(false)
 set_showmenu(true)
 option_end()
+
+option("spdlog_only_fmt")
+set_default(false)
+set_showmenu(true)
+option_end()
 -- pre-defined options end
 -- try options.lua
 if path.absolute(os.projectdir()) == path.absolute(os.scriptdir()) and os.exists("scripts/options.lua") then
