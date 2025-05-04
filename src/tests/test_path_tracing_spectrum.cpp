@@ -28,133 +28,55 @@ LUISA_STRUCT(Onb, tangent, binormal, normal) {
 };
 
 struct complex {
-    //! Real part and imaginary part
-    float x, y;
+    float real, imag;
 };
 
 using Complex = Var<complex>;
 
-LUISA_STRUCT(complex, x, y) {
+LUISA_STRUCT(complex, real, imag) {
     [[nodiscard]] inline Complex conjugate() const noexcept {
-        return def<complex>(x, -y);
+        return def<complex>(real, -imag);
     }
     [[nodiscard]] inline Float abs_square() const noexcept {
-        return x * x + y * y;
-    }
-    [[nodiscard]] inline Complex reciprocal() {
-        auto factor = 1.0f / abs_square();
-        return def<complex>(x * factor, -y * factor);
+        return real * real + imag * imag;
     }
 };
 
 [[nodiscard]] inline Complex operator-(Complex z) {
-    return def<complex>(-z.x, -z.y);
+    return def<complex>(-z.real, -z.imag);
 }
 /*!	This operator implements complex addition.*/
 [[nodiscard]] inline Complex operator+(Complex lhs, Complex rhs) {
-    return def<complex>(lhs.x + rhs.x, lhs.y + rhs.y);
+    return def<complex>(lhs.real + rhs.real, lhs.imag + rhs.imag);
 }
 /*!	This operator implements complex subtraction.*/
 [[nodiscard]] inline Complex operator-(Complex lhs, Complex rhs) {
-    return def<complex>(lhs.x - rhs.x, lhs.y - rhs.y);
+    return def<complex>(lhs.real - rhs.real, lhs.imag - rhs.imag);
 }
 /*!	This operator implements complex multiplication.*/
 [[nodiscard]] inline Complex operator*(Complex lhs, Complex rhs) {
-    return def<complex>(lhs.x * rhs.x - lhs.y * rhs.y, lhs.x * rhs.y + lhs.y * rhs.x);
+    return def<complex>(lhs.real * rhs.real - lhs.imag * rhs.imag, lhs.real * rhs.imag + lhs.imag * rhs.real);
 }
 /*!	This operator implements mixed real complex addition.*/
 [[nodiscard]] inline Complex operator+(Float lhs, Complex rhs) {
-    return def<complex>(lhs + rhs.x, rhs.y);
+    return def<complex>(lhs + rhs.real, rhs.imag);
 }
 /*!	This operator implements  mixed real complex multiplication.*/
 [[nodiscard]] inline Complex operator*(Float lhs, Complex rhs) {
-    return def<complex>(lhs * rhs.x, lhs * rhs.y);
+    return def<complex>(lhs * rhs.real, lhs * rhs.imag);
 }
 /*!	This operator implements mixed real complex addition.*/
 [[nodiscard]] inline Complex operator+(float lhs, Complex rhs) {
-    return def<complex>(lhs + rhs.x, rhs.y);
+    return def<complex>(lhs + rhs.real, rhs.imag);
 }
 /*!	This operator implements  mixed real complex multiplication.*/
 [[nodiscard]] inline Complex operator*(float lhs, Complex rhs) {
-    return def<complex>(lhs * rhs.x, lhs * rhs.y);
+    return def<complex>(lhs * rhs.real, lhs * rhs.imag);
 }
 [[nodiscard]] inline Complex operator/(Complex numerator, Complex denominator) {
     auto factor = 1.0f / denominator->abs_square();
-    return def<complex>((numerator.x * denominator.x + numerator.y * denominator.y) * factor, (-numerator.x * denominator.y + numerator.y * denominator.x) * factor);
+    return def<complex>((numerator.real * denominator.real + numerator.imag * denominator.imag) * factor, (-numerator.real * denominator.imag + numerator.imag * denominator.real) * factor);
 }
-
-class Grid3D {
-    /*! This utility function template reads the binary data of an object from a
-	stream.*/
-    template<class PlainOldDataType>
-    static void readPlainOldData(PlainOldDataType &rOutData, std::istream &rInputStream) {
-        rInputStream.read(reinterpret_cast<char *>(&rOutData), sizeof(PlainOldDataType));
-    }
-
-public:
-    /*! Initializes this grid to cover the given cuboid using the given
-		resolution. The initial data is undefined.*/
-    Grid3D(std::array<std::size_t, 3> resolution, std::array<float, 3> cuboidMin, std::array<float, 3> cuboidMax) : m_resolution(resolution), m_sliceSize(m_resolution[0] * m_resolution[1]),
-                                                                                                                    m_data(resolution[0] * resolution[1] * resolution[2]) {}
-    /*! Loads this grid from a binary input stream that was previously written
-		by store().*/
-    Grid3D(std::istream &rInputStream) : m_resolution({0, 0, 0}) {
-        std::size_t version;
-        readPlainOldData<std::size_t>(version, rInputStream);
-        if (version != 0) {
-            return;
-        }
-        readPlainOldData(m_resolution, rInputStream);
-        std::array<float, 3> m_cuboidMin, m_cuboidMax;
-        readPlainOldData(m_cuboidMin, rInputStream);
-        readPlainOldData(m_cuboidMax, rInputStream);
-        m_data.resize(getCellCount());
-        rInputStream.read(reinterpret_cast<char *>(m_data.data()), sizeof(std::array<float, 3>) * m_data.size());
-        m_sliceSize = m_resolution[0] * m_resolution[1];
-    }
-
-    /*! \return The resolution along each axis.*/
-    inline const std::array<std::size_t, 3> &getResolution() const {
-        return m_resolution;
-    }
-    /*! \return The total number of voxels/cells/data samples in this grid.*/
-    inline std::size_t getCellCount() const {
-        return m_resolution[0] * m_resolution[1] * m_resolution[2];
-    }
-    /*! \return The index triple that corresponds to the given flat index.*/
-    inline std::array<std::size_t, 3> unravelIndex(std::size_t flatIndex) const {
-        std::size_t z = flatIndex / m_sliceSize;
-        flatIndex -= z * m_sliceSize;
-        return {
-            flatIndex % m_resolution[0],
-            flatIndex / m_resolution[0],
-            z};
-    }
-    /*! \return The flat index that corresponds to the given index triple.*/
-    inline std::size_t ravelMultiIndex(const std::array<std::size_t, 3> &rMultiIndex) const {
-        return rMultiIndex[0] + rMultiIndex[1] * m_resolution[0] + rMultiIndex[2] * m_sliceSize;
-    }
-    /*! \return The data at the given flat index.*/
-    inline std::array<float, 3> &operator[](std::size_t flatIndex) {
-        return m_data[flatIndex];
-    }
-    /*! \return The data at the given flat index. It may be modified.*/
-    inline const std::array<float, 3> &operator[](std::size_t flatIndex) const {
-        return m_data[flatIndex];
-    }
-    /*! Provides read-only access to the raw data of the cells. Indices for the
-		vector are flat indices.*/
-    const luisa::vector<std::array<float, 3>> &getData() const {
-        return m_data;
-    }
-
-private:
-    /*! The number of voxels along each of the three axes.*/
-    std::array<std::size_t, 3> m_resolution;
-    /*! The product m_resolution[0]*m_resolution[1].*/
-    std::size_t m_sliceSize;
-    luisa::vector<std::array<float, 3>> m_data;
-};
 
 void trigonometricToExponentialMomentsReal3(std::array<Complex, 3> &pOutExponentialMoment, Float3 pTrigonometricMoment) {
     auto zerothMomentPhase = pi * pTrigonometricMoment.x - pi_over_two;
@@ -166,19 +88,19 @@ void trigonometricToExponentialMomentsReal3(std::array<Complex, 3> &pOutExponent
 }
 
 void levinsonsAlgorithm3(std::array<Complex, 3> &pOutSolution, std::array<Complex, 3> &pFirstColumn) {
-    pOutSolution[0] = def<complex>(1.0f / (pFirstColumn[0].x), 0.0f);
-    auto dotProduct = pOutSolution[0].x * pFirstColumn[1];
+    pOutSolution[0] = def<complex>(1.0f / (pFirstColumn[0].real), 0.0f);
+    auto dotProduct = pOutSolution[0].real * pFirstColumn[1];
     auto factor = 1.0f / (1.0f - dotProduct->abs_square());
-    auto flippedSolution1 = def<complex>(pOutSolution[0].x, 0.0f);
-    pOutSolution[0] = def<complex>(factor * pOutSolution[0].x, 0.0f);
-    pOutSolution[1] = factor * (-flippedSolution1.x * dotProduct);
-    dotProduct = pOutSolution[0].x * pFirstColumn[2] + pOutSolution[1] * pFirstColumn[1];
+    auto flippedSolution1 = def<complex>(pOutSolution[0].real, 0.0f);
+    pOutSolution[0] = def<complex>(factor * pOutSolution[0].real, 0.0f);
+    pOutSolution[1] = factor * (-flippedSolution1.real * dotProduct);
+    dotProduct = pOutSolution[0].real * pFirstColumn[2] + pOutSolution[1] * pFirstColumn[1];
     factor = 1.0f / (1.0f - dotProduct->abs_square());
     flippedSolution1 = pOutSolution[1]->conjugate();
-    auto flippedSolution2 = def<complex>(pOutSolution[0].x, 0.0f);
-    pOutSolution[0] = def<complex>(factor * pOutSolution[0].x, 0.0f);
+    auto flippedSolution2 = def<complex>(pOutSolution[0].real, 0.0f);
+    pOutSolution[0] = def<complex>(factor * pOutSolution[0].real, 0.0f);
     pOutSolution[1] = factor * (pOutSolution[1] - flippedSolution1 * dotProduct);
-    pOutSolution[2] = factor * (-flippedSolution2.x * dotProduct);
+    pOutSolution[2] = factor * (-flippedSolution2.real * dotProduct);
 }
 
 void computeAutocorrelation3(std::array<Complex, 3> &pOutAutocorrelation, std::array<Complex, 3> &pSignal) {
@@ -189,9 +111,9 @@ void computeAutocorrelation3(std::array<Complex, 3> &pOutAutocorrelation, std::a
 
 Float3 computeImaginaryCorrelation3(std::array<Complex, 3> &pLHS, std::array<Complex, 3> &pRHS) {
     Float3 pOutCorrelation;
-    pOutCorrelation.x = pLHS[0].x * pRHS[0].y + pLHS[0].y * pRHS[0].x + pLHS[1].x * pRHS[1].y + pLHS[1].y * pRHS[1].x + pLHS[2].x * pRHS[2].y + pLHS[2].y * pRHS[2].x;
-    pOutCorrelation.y = pLHS[1].x * pRHS[0].y + pLHS[1].y * pRHS[0].x + pLHS[2].x * pRHS[1].y + pLHS[2].y * pRHS[1].x;
-    pOutCorrelation.z = pLHS[2].x * pRHS[0].y + pLHS[2].y * pRHS[0].x;
+    pOutCorrelation.x = pLHS[0].real * pRHS[0].imag + pLHS[0].imag * pRHS[0].real + pLHS[1].real * pRHS[1].imag + pLHS[1].imag * pRHS[1].real + pLHS[2].real * pRHS[2].imag + pLHS[2].imag * pRHS[2].real;
+    pOutCorrelation.y = pLHS[1].real * pRHS[0].imag + pLHS[1].imag * pRHS[0].real + pLHS[2].real * pRHS[1].imag + pLHS[2].imag * pRHS[1].real;
+    pOutCorrelation.z = pLHS[2].real * pRHS[0].imag + pLHS[2].imag * pRHS[0].real;
     return pOutCorrelation;
 }
 
@@ -207,7 +129,7 @@ Float3 prepareReflectanceSpectrumLagrangeReal3(Float3 pTrigonometricMoment) {
     computeAutocorrelation3(pAutocorrelation, pEvaluationPolynomial);
     pExponentialMoment[0] = 0.5f * pExponentialMoment[0];
     auto pOutLagrangeMultiplier = computeImaginaryCorrelation3(pAutocorrelation, pExponentialMoment);
-    auto normalizationFactor = 1.0f / (pi * pEvaluationPolynomial[0].x);
+    auto normalizationFactor = 1.0f / (pi * pEvaluationPolynomial[0].real);
     pOutLagrangeMultiplier *= normalizationFactor;
     return pOutLagrangeMultiplier;
 }
@@ -215,7 +137,7 @@ Float3 prepareReflectanceSpectrumLagrangeReal3(Float3 pTrigonometricMoment) {
 Float evaluateReflectanceSpectrumLagrangeReal3(Float phase, Float3 pLagrangeMultiplier) {
     auto conjCirclePoint = def<complex>(cos(-phase), sin(-phase));
     auto conjCirclePoint2 = conjCirclePoint * conjCirclePoint;
-    auto result = pLagrangeMultiplier.y * conjCirclePoint.x + pLagrangeMultiplier.z * conjCirclePoint2.x;
+    auto result = pLagrangeMultiplier.y * conjCirclePoint.real + pLagrangeMultiplier.z * conjCirclePoint2.real;
     return atan(2.0f * result + pLagrangeMultiplier.x) * inv_pi + 0.5f;
 }
 
@@ -383,7 +305,7 @@ int main(int argc, char *argv[]) {
            << synchronize();
 
     constexpr const float wavelength_min = 360;
-    constexpr const float wavelength_max = 760;
+    constexpr const float wavelength_max = 830;
 
     BindlessArray lut_heap = device.create_bindless_array();
     luisa::function<uint()> lut_indexer = [index = 0]() mutable { return index++; };
@@ -393,20 +315,18 @@ int main(int argc, char *argv[]) {
     constexpr auto fourier_cmin = -inv_pi;
     constexpr auto fourier_cmax = inv_pi;
     {
-        std::ifstream lut_path{"SRGBToFourierEven.dat", std::ios_base::binary};
-        Grid3D lut_data{lut_path};
-        std::vector<uint32_t> packed_lut(lut_data.getCellCount());
-        auto lut_resolution = make_uint3(lut_data.getResolution()[0], lut_data.getResolution()[1], lut_data.getResolution()[2]);
-
-        for (size_t i = 0; i < packed_lut.size(); ++i) {
-            uint32_t r10 = static_cast<uint32_t>(lut_data[i][0] * 1023.0f + 0.5f);
-            uint32_t g10 = static_cast<uint32_t>(((lut_data[i][1] - fourier_cmin) / (fourier_cmax - fourier_cmin)) * 1023.0f + 0.5f);
-            uint32_t b10 = static_cast<uint32_t>(((lut_data[i][2] - fourier_cmin) / (fourier_cmax - fourier_cmin)) * 1023.0f + 0.5f);
-            uint32_t a2 = 3;
-            packed_lut[i] = (r10 & 0x3FF) | ((g10 & 0x3FF) << 10) | ((b10 & 0x3FF) << 20) | ((a2 & 0x3) << 30);
-        }
+        std::ifstream lut_file{"SRGBToFourierEvenPacked.dat", std::ios_base::binary};
+        struct {
+            size_t version, x, y, z;
+        } header;
+        lut_file.read(reinterpret_cast<char *>(&header), sizeof(header));
+        assert(header.version == 0);
+        auto lut_resolution = make_uint3(header.x, header.y, header.z);
+        auto buffer_size = sizeof(uint) * lut_resolution.x * lut_resolution.y * lut_resolution.z;
+        auto lut_data = std::make_unique_for_overwrite<char[]>(buffer_size);
+        lut_file.read(reinterpret_cast<char *>(lut_data.get()), buffer_size);
         srgb_to_fourier_even = device.create_volume<float>(PixelStorage::R10G10B10A2, lut_resolution);
-        stream << lut_heap.emplace_on_update(SRGB_TO_FOURIER_EVEN, srgb_to_fourier_even, Sampler::linear_linear_mirror()).update() << srgb_to_fourier_even.copy_from(packed_lut.data())
+        stream << lut_heap.emplace_on_update(SRGB_TO_FOURIER_EVEN, srgb_to_fourier_even, Sampler::linear_linear_mirror()).update() << srgb_to_fourier_even.copy_from(lut_data.get())
                << synchronize();
     }
 
@@ -439,10 +359,12 @@ int main(int argc, char *argv[]) {
     uint ILLUM_D65 = lut_indexer();
     Image<float> illum_d65;
     {
-        uint lut_resolution = size_t(wavelength_max - wavelength_min) / 10 + 1;
+        uint step = 10;
+        uint lut_resolution = uint(wavelength_max - wavelength_min) / step + 1;
         luisa::vector<float> lut_data(lut_resolution);
+        auto &start = test::spectrum::CIE_std_illum_D65.front();
         for (size_t i = 0; i < lut_resolution; i++) {
-            lut_data[i] = test::spectrum::CIE_std_illum_D65[size_t(wavelength_min) - 300 + i * 10].second;
+            lut_data[i] = (1.0f / 98.8900106203f) * test::spectrum::CIE_std_illum_D65[size_t(wavelength_min) - start.first + i * step].second;
         }
         illum_d65 = device.create_image<float>(PixelStorage::FLOAT1, make_uint2(lut_resolution, 1));
         stream << lut_heap.emplace_on_update(ILLUM_D65, illum_d65, Sampler::linear_linear_mirror()).update() << illum_d65.copy_from(lut_data.data())
@@ -452,7 +374,8 @@ int main(int argc, char *argv[]) {
     uint BMESE_PHASE = lut_indexer();
     Image<float> bmese_phase;
     {
-        uint lut_resolution = size_t(wavelength_max - wavelength_min) / 5 + 1;
+        uint step = 5;
+        uint lut_resolution = uint(wavelength_max - wavelength_min) / step + 1;
         luisa::vector<float> lut_data(lut_resolution);
         for (size_t i = 0; i < lut_resolution; i++) {
             lut_data[i] = test::spectrum::BMESE_wavelength_to_phase[i].second;
@@ -492,7 +415,7 @@ int main(int argc, char *argv[]) {
         auto lut = lut_heap->tex2d(ILLUM_D65);
         auto size = cast<float>(lut.size().x);
         auto radiance = lut.sample(make_float2((lambda - wavelength_min) / (wavelength_max - wavelength_min) * ((size - 1.0f) / size) + 0.5f / size, 0.5f)).x;
-        return (1.0f / 98.8900106203f) * radiance;
+        return radiance;
     };
 
     Callable sample_xyz = [&](Float dx) noexcept {
@@ -577,13 +500,13 @@ int main(int argc, char *argv[]) {
         Float ry = lcg(state);
         Float2 pixel = (make_float2(coord) + make_float2(rx, ry)) / frame_size * 2.0f - 1.0f;
         Float3 radiance = def(make_float3(0.0f));
-        Bool use_spectrum = dispatch_id().x > (dispatch_size_x() / 2);
+        Bool use_spectrum = (block_id().x / 4 + block_id().y / 4) % 2 == 1;
 
         $for (i, spp_per_dispatch) {
             Var<Ray> ray = generate_ray(pixel * make_float2(1.0f, -1.0f));
 
             Float3 lambda = sample_xyz(lcg(state));
-            Float3 light_emission = make_float3(17.0f, 12.0f, 4.0f);
+            Float3 light_emission = def(make_float3(17.0f, 12.0f, 4.0f));
             $if (use_spectrum) {
                 auto max_emission = max(max(light_emission.x, light_emission.y), light_emission.z);
                 auto lagrange = lsrgb_to_lagrange(light_emission / max_emission);
