@@ -588,7 +588,7 @@ int main(int argc, char *argv[]) {
                 // rr
                 Float l = dot(make_float3(0.212671f, 0.715160f, 0.072169f), beta);
                 $if (use_spectrum) {
-                    l = beta.y;
+                    l = (beta.x + beta.y + beta.z) * (1.0f / 3.0f);
                 };
                 $if (l == 0.0f) { $break; };
                 Float q = max(l, 0.05f);
