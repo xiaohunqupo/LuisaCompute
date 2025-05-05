@@ -362,7 +362,7 @@ int main(int argc, char *argv[]) {
         uint step = 10;
         uint lut_resolution = uint(wavelength_max - wavelength_min) / step + 1;
         luisa::vector<float> lut_data(lut_resolution);
-        auto &start = test::spectrum::CIE_std_illum_D65.front();
+        auto &start = test::spectrum::CIE_std_illum_D65[0];
         for (size_t i = 0; i < lut_resolution; i++) {
             lut_data[i] = (1.0f / 98.8900106203f) * test::spectrum::CIE_std_illum_D65[size_t(wavelength_min) - start.first + i * step].second;
         }

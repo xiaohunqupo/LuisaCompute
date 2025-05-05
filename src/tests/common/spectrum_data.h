@@ -5,7 +5,7 @@
 namespace luisa::test::spectrum {
 // from https://cie.co.at/data-tables
 
-auto CIE_xyz_1931_2deg = std::array{
+std::pair<int, luisa::float3> CIE_xyz_1931_2deg[]{
     std::pair{360, luisa::float3{0.000129900000, 0.0000039170000, 0.000606100000}},
     std::pair{361, luisa::float3{0.000145847000, 0.0000043935810, 0.000680879200}},
     std::pair{362, luisa::float3{0.000163802100, 0.0000049296040, 0.000765145600}},
@@ -478,7 +478,7 @@ auto CIE_xyz_1931_2deg = std::array{
     std::pair{829, luisa::float3{0.000001341977, 0.0000004846123, 0.000000000000}},
     std::pair{830, luisa::float3{0.000001251141, 0.0000004518100, 0.000000000000}},
 };
-auto CIE_std_illum_D65 = std::array{
+std::pair<int, float> CIE_std_illum_D65[]{
     std::pair{300, float{0.0341}},
     std::pair{301, float{0.36014}},
     std::pair{302, float{0.68618}},
@@ -1013,7 +1013,7 @@ auto CIE_std_illum_D65 = std::array{
 };
 
 // from https://doi.org/10.1145/3306346.3322964
-auto BMESE_wavelength_to_phase = std::array{
+std::pair<int, float> BMESE_wavelength_to_phase[]{
     std::pair{360, float{-3.141592654e+00f}},
     std::pair{365, float{-3.141592654e+00f}},
     std::pair{370, float{-3.141592654e+00f}},
