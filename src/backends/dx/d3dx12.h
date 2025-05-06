@@ -23,6 +23,8 @@ using lcdx_pchar = LPCWSTR;
 using lcdx_pchar = LPCSTR;
 #endif
 namespace lc::dx {
+void process_dxgi_error(HRESULT hr);
+
 #define LUISA_MAKE_VECTOR_TYPES(T) \
     using T##2 = luisa::T##2;      \
     using T##3 = luisa::T##3;      \
@@ -3208,8 +3210,8 @@ inline vstd::wstring AnsiToWString(const vstd::string &str) {
     MultiByteToWideChar(CP_ACP, 0, str.c_str(), -1, buffer, 512);
     return vstd::wstring(buffer);
 }
-
 inline const char *d3d12_error_name(HRESULT hr) {
+    lc::dx::process_dxgi_error(hr);
     switch (hr) {
         case D3D12_ERROR_ADAPTER_NOT_FOUND: return "D3D12_ERROR_ADAPTER_NOT_FOUND";
         case D3D12_ERROR_DRIVER_VERSION_MISMATCH: return "D3D12_ERROR_DRIVER_VERSION_MISMATCH";

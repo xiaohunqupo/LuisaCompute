@@ -10,6 +10,9 @@
 #include <luisa/runtime/context.h>
 
 namespace lc::dx {
+#ifndef NDEBUG
+static ID3D12Device *last_device_handle = nullptr;
+#endif
 DirectXHeap DXAllocatorImpl::AllocateBufferHeap(
     luisa::string_view name,
     uint64_t targetSizeInBytes,
@@ -147,12 +150,19 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
             // Enable the debug layer (requires the Graphics Tools "optional feature").
             // NOTE: Enabling the debug layer after device creation will invalidate the active device.
             {
+                last_device_handle = device.Get();
                 ComPtr<ID3D12Debug> debugController;
                 if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController)))) {
                     debugController->EnableDebugLayer();
 
                     // Enable additional debug layers.
                     dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
+                }
+                ComPtr<ID3D12DeviceRemovedExtendedDataSettings1> pDredSettings;
+                if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&pDredSettings)))) {
+                    // Turn on AutoBreadcrumbs and Page Fault reporting
+                    pDredSettings->SetAutoBreadcrumbsEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
+                    pDredSettings->SetPageFaultEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
                 }
             }
 #endif
@@ -302,5 +312,48 @@ uint Device::waveSize() const {
     D3D12_FEATURE_DATA_D3D12_OPTIONS1 waveOption;
     ThrowIfFailed(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS1, &waveOption, sizeof(waveOption)));
     return waveOption.WaveLaneCountMin;
+}
+void process_dxgi_error(HRESULT hr) {
+#ifndef NDEBUG
+    if (hr != DXGI_ERROR_DEVICE_REMOVED || hr != DXGI_ERROR_DEVICE_HUNG || hr != DXGI_ERROR_DEVICE_RESET) {
+        return;
+    }
+    if (!last_device_handle) {
+        return;
+    }
+    auto pDevice = last_device_handle;
+    last_device_handle = nullptr;
+    ComPtr<ID3D12DeviceRemovedExtendedData1> pDred;
+    ThrowIfFailed(pDevice->QueryInterface(IID_PPV_ARGS(&pDred)));
+
+    D3D12_DRED_AUTO_BREADCRUMBS_OUTPUT1 DredAutoBreadcrumbsOutput;
+    D3D12_DRED_PAGE_FAULT_OUTPUT DredPageFaultOutput;
+    ThrowIfFailed(pDred->GetAutoBreadcrumbsOutput1(&DredAutoBreadcrumbsOutput));
+    ThrowIfFailed(pDred->GetPageFaultAllocationOutput(&DredPageFaultOutput));
+    luisa::string result;
+    auto node = DredAutoBreadcrumbsOutput.pHeadAutoBreadcrumbNode;
+    while (node) {
+        if (node->pCommandListDebugNameA) {
+            result += luisa::format("Command list debug name: {}\n", node->pCommandListDebugNameA);
+        }
+        if (node->pCommandQueueDebugNameA) {
+            result += luisa::format("Command queue debug name: {}\n", node->pCommandQueueDebugNameA);
+        }
+        node = node->pNext;
+    }
+    result += luisa::format("page fault VA: {}\n", DredPageFaultOutput.PageFaultVA);
+
+    for (auto node = DredPageFaultOutput.pHeadExistingAllocationNode; node != nullptr; node = node->pNext) {
+        if (node->ObjectNameA) {
+            result += luisa::format("Exists object name {}\n", node->ObjectNameA);
+        }
+    }
+    for (auto node = DredPageFaultOutput.pHeadRecentFreedAllocationNode; node != nullptr; node = node->pNext) {
+        if (node->ObjectNameA) {
+            result += luisa::format("Freed object name {}\n", node->ObjectNameA);
+        }
+    }
+    LUISA_ERROR("{}", result);
+#endif
 }
 }// namespace lc::dx

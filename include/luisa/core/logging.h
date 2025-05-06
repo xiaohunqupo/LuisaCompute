@@ -109,10 +109,10 @@ template<typename... Args>
     }
 #ifndef LUISA_CUSTOM_LOGGER
     detail::default_logger().error(error_message);
+    std::abort();
 #else
     detail::custom_log(luisa::format(args...), level_enum::err);
 #endif
-    std::abort();
 }
 /// Set log level as verbose
 LC_CORE_API void log_level_verbose() noexcept;
