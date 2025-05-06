@@ -64,6 +64,14 @@ LC_CORE_API spdlog::sink_ptr create_sink_with_callback(
 #else
 LC_CORE_API void custom_log(luisa::string &&str, level_enum level) noexcept;
 #endif
+template<typename T>
+luisa::string to_string(T &&t) {
+    if constexpr (std::is_same_v<T, luisa::string>) {
+        return std::forward<T>(t);
+    } else {
+        return luisa::string{std::forward<T>(t)};
+    }
+}
 }// namespace detail
 
 template<typename... Args>
@@ -71,7 +79,11 @@ void log_verbose(Args &&...args) noexcept {
 #ifndef LUISA_CUSTOM_LOGGER
     detail::default_logger().debug(std::forward<Args>(args)...);
 #else
-    detail::custom_log(luisa::format(args...), level_enum::debug);
+    if constexpr (sizeof...(args) == 1) {
+        detail::custom_log(luisa::detail::to_string(args...), level_enum::debug);
+    } else {
+        detail::custom_log(luisa::format(args...), level_enum::debug);
+    }
 #endif
 }
 
@@ -80,7 +92,11 @@ void log_info(Args &&...args) noexcept {
 #ifndef LUISA_CUSTOM_LOGGER
     detail::default_logger().info(std::forward<Args>(args)...);
 #else
-    detail::custom_log(luisa::format(args...), level_enum::info);
+    if constexpr (sizeof...(args) == 1) {
+        detail::custom_log(luisa::detail::to_string(args...), level_enum::info);
+    } else {
+        detail::custom_log(luisa::format(args...), level_enum::info);
+    }
 #endif
 }
 
@@ -89,7 +105,11 @@ void log_warning(Args &&...args) noexcept {
 #ifndef LUISA_CUSTOM_LOGGER
     detail::default_logger().warn(std::forward<Args>(args)...);
 #else
-    detail::custom_log(luisa::format(args...), level_enum::warn);
+    if constexpr (sizeof...(args) == 1) {
+        detail::custom_log(luisa::detail::to_string(args...), level_enum::warn);
+    } else {
+        detail::custom_log(luisa::format(args...), level_enum::warn);
+    }
 #endif
 }
 
@@ -111,7 +131,11 @@ template<typename... Args>
     detail::default_logger().error(error_message);
     std::abort();
 #else
-    detail::custom_log(luisa::format(args...), level_enum::err);
+    if constexpr (sizeof...(args) == 1) {
+        detail::custom_log(luisa::detail::to_string(args...), level_enum::err);
+    } else {
+        detail::custom_log(luisa::format(args...), level_enum::err);
+    }
 #endif
 }
 /// Set log level as verbose
