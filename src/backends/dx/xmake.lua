@@ -37,7 +37,7 @@ on_load(function(target)
         end
     end
 end)
-set_pcxxheader("pch.h")
+set_pcxxheader("lc_dx_pch.h")
 add_rules('lc_install_sdk', {
     libnames = {'dx_sdk'}
 })

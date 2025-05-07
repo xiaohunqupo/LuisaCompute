@@ -46,7 +46,7 @@ add_library(luisa-compute-runtime SHARED ${LUISA_COMPUTE_RUNTIME_SOURCES})
 target_link_libraries(luisa-compute-runtime
         PUBLIC luisa-compute-ast luisa-compute-ir
         PRIVATE luisa-compute-vstl luisa-compute-ext-lmdb luisa-compute-ext-stb)
-target_precompile_headers(luisa-compute-runtime PRIVATE pch.h)
+target_precompile_headers(luisa-compute-runtime PRIVATE lc_runtime_pch.h)
 
 target_compile_definitions(luisa-compute-runtime PRIVATE LC_RUNTIME_EXPORT_DLL=1)
 set_target_properties(luisa-compute-runtime PROPERTIES

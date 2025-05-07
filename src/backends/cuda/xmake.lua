@@ -59,7 +59,7 @@ if get_config("cuda_ext_lcub") then
     add_deps("luisa-compute-cuda-ext-lcub")
 end
 
-set_pcxxheader("pch.h")
+set_pcxxheader("lc_cuda_pch.h")
 add_headerfiles("*.h", "../common/default_binary_io.h")
 on_load(function(target)
     local src_path = os.scriptdir()

@@ -15,7 +15,7 @@ else
     })
 end
 add_deps("lc-core", "lmdb")
-set_pcxxheader("pch.h")
+set_pcxxheader("lc_vstl_pch.h")
 add_headerfiles("../../include/luisa/vstl/**.h")
 add_files("**.cpp")
 if is_plat("windows") then

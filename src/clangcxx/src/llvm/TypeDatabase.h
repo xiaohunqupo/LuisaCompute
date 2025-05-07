@@ -13,7 +13,11 @@ template<typename... Args>
             FMT_STRING("\n    {:>2} [0x{:012x}]: {} :: {} + {}"sv),
             i, t.address, t.module, t.symbol, t.offset));
     }
+#ifndef LUISA_CUSTOM_LOGGER
     luisa::detail::default_logger().error("{}", error_message);
+#else
+    luisa::detail::custom_log(luisa::format("{}", error_message), luisa::level_enum::err);
+#endif
     exit(1);
 }
 struct TypeDatabase {
@@ -29,11 +33,11 @@ struct TypeDatabase {
     [[nodiscard]] clang::ASTContext *GetASTContext() { return astContext; }
     [[nodiscard]] const clang::ASTContext *GetASTContext() const { return astContext; }
 
-    void SetFunctionThis(const compute::detail::FunctionBuilder* _this, const compute::RefExpr* fb);
-    const luisa::compute::RefExpr* GetFunctionThis(const compute::detail::FunctionBuilder* fb) const;
+    void SetFunctionThis(const compute::detail::FunctionBuilder *_this, const compute::RefExpr *fb);
+    const luisa::compute::RefExpr *GetFunctionThis(const compute::detail::FunctionBuilder *fb) const;
 
-    void DumpWithLocation(const clang::Stmt* stmt);
-    void DumpWithLocation(const clang::Decl* decl);
+    void DumpWithLocation(const clang::Stmt *stmt);
+    void DumpWithLocation(const clang::Decl *decl);
 
     // luisa::unordered_map<luisa::string, const luisa::compute::RefExpr *> globals;
     luisa::shared_ptr<compute::detail::FunctionBuilder> kernel_builder;
@@ -49,7 +53,7 @@ protected:
     const luisa::compute::Type *RecordAsBuiltinType(const clang::QualType Ty);
     const luisa::compute::Type *RecordAsStuctureType(const clang::QualType Ty);
 
-    void commentSourceLoc(compute::detail::FunctionBuilder* fb, const luisa::string &prefix, const clang::SourceLocation &loc);
+    void commentSourceLoc(compute::detail::FunctionBuilder *fb, const luisa::string &prefix, const clang::SourceLocation &loc);
     const luisa::compute::Type *findType(const clang::QualType Ty);
     bool tryEmplaceFieldType(const clang::QualType Ty, const clang::RecordDecl *decl, luisa::vector<const luisa::compute::Type *> &types);
     bool registerType(clang::QualType Ty, const luisa::compute::Type *type);
@@ -73,7 +77,7 @@ public:
         luisa::function<void()> Begin = []() {};
         luisa::function<void()> End = []() {};
     };
-    [[nodiscard]] Commenter CommentStmt(compute::detail::FunctionBuilder* fb, const clang::Stmt *stmt);
+    [[nodiscard]] Commenter CommentStmt(compute::detail::FunctionBuilder *fb, const clang::Stmt *stmt);
 };
 
-};
+};// namespace luisa::clangcxx

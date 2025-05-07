@@ -31,7 +31,7 @@ _config_project({
 	project_kind = "shared",
 	enable_exception = true
 })
-set_pcxxheader("pch.h")
+set_pcxxheader("lcpy_pch.h")
 add_cxflags("/bigobj", {
 	tools = "cl"
 })
