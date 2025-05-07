@@ -112,6 +112,7 @@ void log_warning(Args &&...args) noexcept {
     }
 #endif
 }
+LC_CORE_API void log_flush() noexcept;
 
 template<typename... Args>
 [[noreturn]] LUISA_FORCE_INLINE void log_error(Args &&...args) noexcept {
@@ -129,14 +130,15 @@ template<typename... Args>
     }
 #ifndef LUISA_CUSTOM_LOGGER
     detail::default_logger().error(error_message);
-    std::abort();
 #else
     if constexpr (sizeof...(args) == 1) {
         detail::custom_log(luisa::detail::to_string(args...), level_enum::err);
     } else {
         detail::custom_log(luisa::format(args...), level_enum::err);
     }
+    log_flush();
 #endif
+    std::abort();
 }
 /// Set log level as verbose
 LC_CORE_API void log_level_verbose() noexcept;
@@ -148,7 +150,6 @@ LC_CORE_API void log_level_warning() noexcept;
 LC_CORE_API void log_level_error() noexcept;
 
 /// flush the logs
-LC_CORE_API void log_flush() noexcept;
 
 }// namespace luisa
 
