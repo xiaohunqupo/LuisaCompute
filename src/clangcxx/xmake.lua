@@ -3,7 +3,7 @@ if not is_mode("debug") then
     _config_project({
         project_kind = "shared"
     })
-    set_pcxxheader("src/pch.h")
+    set_pcxxheader("src/lc_clangcxx_pch.h")
     add_headerfiles("../../include/luisa/clangcxx/**.h")
     add_files("src/**.cpp")
     on_load(function(target, opt)

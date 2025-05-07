@@ -5,7 +5,7 @@ _config_project({
 })
 add_deps("lc-vstl")
 add_files("**.cpp")
-set_pcxxheader("pch.h")
+set_pcxxheader("lc_hlsl_pch.h")
 add_headerfiles("*.h")
 if get_config("lc_xrepo_dir") then
     add_packages("zlib", {

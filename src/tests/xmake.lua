@@ -7,7 +7,7 @@ local function lc_add_app(appname, folder, name, deps)
     _config_project({
         project_kind = "binary"
     })
-    set_pcxxheader("pch.h")
+    set_pcxxheader("lc_test_pch.h")
     add_files("common/test_main.cpp")
     add_files("common/test_math_util.cpp")
     add_includedirs("./", {
@@ -184,11 +184,11 @@ if not is_mode("debug") then
     if get_config("enable_clangcxx") then
         test_proj("test_clang_cxx", true, function()
             add_deps("lc-clangcxx")
-            set_pcxxheader("pch.h")
+            set_pcxxheader("lc_test_pch.h")
         end)
         test_proj("test_path_tracing_clangcxx", true, function()
             add_deps("lc-clangcxx")
-            set_pcxxheader("pch.h")
+            set_pcxxheader("lc_test_pch.h")
         end)
         target("clangcxx_compiler")
         _config_project({
@@ -196,7 +196,7 @@ if not is_mode("debug") then
         })
         add_files("clangcxx_compiler.cpp")
         add_deps("lc-runtime", "lc-vstl", "lc-backends-dummy", "lc-clangcxx")
-        set_pcxxheader("pch.h")
+        set_pcxxheader("lc_test_pch.h")
         target_end()
     end
 end
@@ -265,7 +265,7 @@ end
 -- includes("amd")
 if get_config("dx_backend") and enable_fsr3 then
     test_proj("test_fsr3", true, function()
-        set_pcxxheader("pch.h")
+        set_pcxxheader("lc_test_pch.h")
         on_load(function(target)
             local function rela(p)
                 return path.relative(path.absolute(p, os.scriptdir()), os.projectdir())

@@ -3,7 +3,7 @@ _config_project({
 	project_kind = "static",
 	batch_size = 16
 })
-set_pcxxheader("pch.h")
+set_pcxxheader("lc_dsl_pch.h")
 add_deps("lc-ast", "lc-runtime")
 add_headerfiles("../../include/luisa/dsl/**.h")
 add_files("**.cpp")

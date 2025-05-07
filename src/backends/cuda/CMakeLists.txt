@@ -34,6 +34,7 @@ if (CUDAToolkit_FOUND)
             default_binary_io.cpp)
 
     luisa_compute_add_backend(cuda SOURCES ${LUISA_COMPUTE_CUDA_SOURCES})
+    target_precompile_headers(luisa-compute-backend-cuda PRIVATE lc_cuda_pch.h)
 
     # extensions
     target_sources(luisa-compute-backend-cuda PRIVATE
