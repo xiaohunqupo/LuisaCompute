@@ -131,12 +131,13 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
             info.Revision = desc.Revision;
             return vstd::MD5{vstd::span<uint8_t const>{reinterpret_cast<uint8_t const *>(&info), sizeof(AdapterInfo)}};
         };
-
+        bool use_dred = false;
         luisa::optional<DirectXDeviceConfigExt::ExternalDevice> extDevice;
         luisa::optional<DirectXDeviceConfigExt::GPUAllocatorSettings> allocSettings;
         if (deviceSettings) {
             extDevice = deviceSettings->CreateExternalDevice();
             allocSettings = deviceSettings->GetGPUAllocatorSettings();
+            use_dred = deviceSettings->UseDRED();
         }
         if (extDevice) {
             device = {static_cast<ID3D12Device5 *>(extDevice->device), false};
@@ -164,29 +165,31 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
                 // Turn on AutoBreadcrumbs and Page Fault reporting
                 pDredSettings->SetAutoBreadcrumbsEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
                 pDredSettings->SetPageFaultEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
-            #ifdef __ID3D12DeviceRemovedExtendedDataSettings1_INTERFACE_DEFINED__
+#ifdef __ID3D12DeviceRemovedExtendedDataSettings1_INTERFACE_DEFINED__
                 ComPtr<ID3D12DeviceRemovedExtendedDataSettings1> pDredSettings1;
                 if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&pDredSettings1)))) {
                     pDredSettings1->SetBreadcrumbContextEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
                 }
-            #endif
+#endif
                 LUISA_WARNING("DRED settings enable");
             } else {
                 LUISA_WARNING("DRED settings disable");
             }
-#else
-    #ifdef __ID3D12DeviceRemovedExtendedDataSettings2_INTERFACE_DEFINED__
-            ComPtr<ID3D12DeviceRemovedExtendedDataSettings2> pDredSettings2;
-            if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&pDredSettings2)))) {
-                pDredSettings2->SetAutoBreadcrumbsEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
-                pDredSettings2->SetPageFaultEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
-                pDredSettings2->UseMarkersOnlyAutoBreadcrumbs(true);
-                LUISA_WARNING("LightweightDRED settings enable");
-            } else {
-                LUISA_WARNING("LightweightDRED settings disable");
-            }
-    #endif
 #endif
+            if (use_dred) {
+#ifdef __ID3D12DeviceRemovedExtendedDataSettings2_INTERFACE_DEFINED__
+                last_device_handle = device.Get();
+                ComPtr<ID3D12DeviceRemovedExtendedDataSettings2> pDredSettings2;
+                if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&pDredSettings2)))) {
+                    pDredSettings2->SetAutoBreadcrumbsEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
+                    pDredSettings2->SetPageFaultEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
+                    pDredSettings2->UseMarkersOnlyAutoBreadcrumbs(true);
+                    LUISA_WARNING("LightweightDRED settings enable");
+                } else {
+                    LUISA_WARNING("LightweightDRED settings disable");
+                }
+#endif
+            }
             ThrowIfFailed(CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(dxgiFactory.GetAddressOf())));
             luisa::vector<luisa::string> device_names;
             backend_device_names(device_names);
@@ -308,7 +311,6 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
             LUISA_WARNING("Enhanced barrier not supported, please update your Windows or GPU driver");
         }
     }
-    last_device_handle = device.Get();
 }
 bool Device::SupportMeshShader() const {
     D3D12_FEATURE_DATA_D3D12_OPTIONS7 featureData = {};
@@ -337,7 +339,7 @@ uint Device::waveSize() const {
 }
 void process_dxgi_error(HRESULT hr) {
     // Should match all values from D3D12_AUTO_BREADCRUMB_OP
-    static const wchar_t* OpNames[] {
+    static const wchar_t *OpNames[]{
         L"SetMarker",
         L"BeginEvent",
         L"EndEvent",
@@ -382,11 +384,10 @@ void process_dxgi_error(HRESULT hr) {
         L"ExecuteExtensionCommand",
         L"DispatchMesh",
         L"EncodeFrame",
-        L"ResolveEncoderOutputMetadata"
-    };
+        L"ResolveEncoderOutputMetadata"};
     static_assert(std::size(OpNames) == D3D12_AUTO_BREADCRUMB_OP_RESOLVEENCODEROUTPUTMETADATA + 1, "OpNames array length mismatch");
     // Should match all valid values from D3D12_DRED_ALLOCATION_TYPE
-    static const wchar_t* AllocTypesNames[] {
+    static const wchar_t *AllocTypesNames[]{
         L"CommandQueue",
         L"CommandAllocator",
         L"PipelineState",
@@ -394,14 +395,14 @@ void process_dxgi_error(HRESULT hr) {
         L"Fence",
         L"DescriptorHeap",
         L"Heap",
-        L"Unknown",				// Unknown type - missing enum value in D3D12_DRED_ALLOCATION_TYPE
+        L"Unknown",// Unknown type - missing enum value in D3D12_DRED_ALLOCATION_TYPE
         L"QueryHeap",
         L"CommandSignature",
         L"PipelineLibrary",
         L"VideoDecoder",
-        L"Unknown",				// Unknown type - missing enum value in D3D12_DRED_ALLOCATION_TYPE
+        L"Unknown",// Unknown type - missing enum value in D3D12_DRED_ALLOCATION_TYPE
         L"VideoProcessor",
-        L"Unknown",				// Unknown type - missing enum value in D3D12_DRED_ALLOCATION_TYPE
+        L"Unknown",// Unknown type - missing enum value in D3D12_DRED_ALLOCATION_TYPE
         L"Resource",
         L"Pass",
         L"CryptoSession",
@@ -418,8 +419,8 @@ void process_dxgi_error(HRESULT hr) {
         L"VideoExtensionCommand",
     };
     static_assert(std::size(AllocTypesNames) == D3D12_DRED_ALLOCATION_TYPE_VIDEO_EXTENSION_COMMAND - D3D12_DRED_ALLOCATION_TYPE_COMMAND_QUEUE + 1, "AllocTypes array length mismatch");
-    auto GetBreadcrumbContexts = [](const D3D12_AUTO_BREADCRUMB_NODE1* Node) {
-        return luisa::span<D3D12_DRED_BREADCRUMB_CONTEXT>{ Node->pBreadcrumbContexts, Node->BreadcrumbContextsCount };
+    auto GetBreadcrumbContexts = [](const D3D12_AUTO_BREADCRUMB_NODE1 *Node) {
+        return luisa::span<D3D12_DRED_BREADCRUMB_CONTEXT>{Node->pBreadcrumbContexts, Node->BreadcrumbContextsCount};
     };
 
     if (hr != DXGI_ERROR_DEVICE_REMOVED && hr != DXGI_ERROR_DEVICE_HUNG && hr != DXGI_ERROR_DEVICE_RESET) {
@@ -447,7 +448,7 @@ void process_dxgi_error(HRESULT hr) {
     result += L"DRED: Last tracked GPU operations:\n";
 
     luisa::wstring ContextStr;
-    luisa::unordered_map<int32, const wchar_t*> ContextStrings;
+    luisa::unordered_map<int32, const wchar_t *> ContextStrings;
     int TracedCommandLists = 0;
     auto node = DredAutoBreadcrumbsOutput.pHeadAutoBreadcrumbNode;
     while (node && node->pLastBreadcrumbValue) {
@@ -464,7 +465,7 @@ void process_dxgi_error(HRESULT hr) {
             int32 FirstOp = std::max(LastCompletedOp - 100, 0);
             int32 LastOp = std::min(LastCompletedOp + 20, int32(node->BreadcrumbCount) - 1);
             ContextStrings.clear();
-            for (const D3D12_DRED_BREADCRUMB_CONTEXT& Context : GetBreadcrumbContexts(node)) {
+            for (const D3D12_DRED_BREADCRUMB_CONTEXT &Context : GetBreadcrumbContexts(node)) {
                 ContextStrings.emplace(Context.BreadcrumbIndex, Context.pContextString);
             }
             for (int32 Op = FirstOp; Op <= LastOp; ++Op) {
@@ -472,8 +473,7 @@ void process_dxgi_error(HRESULT hr) {
                 auto OpContextStr = ContextStrings.find(Op);
                 if (OpContextStr) {
                     ContextStr += OpContextStr->second;
-                }
-                else {
+                } else {
                     ContextStr.clear();
                 }
                 luisa::wstring OpName = (BreadcrumbOp < std::size(OpNames)) ? OpNames[BreadcrumbOp] : L"Unknown Op";
