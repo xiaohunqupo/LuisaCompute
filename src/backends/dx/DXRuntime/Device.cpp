@@ -8,7 +8,6 @@
 #include <Shader/ComputeShader.h>
 #include <luisa/core/logging.h>
 #include <luisa/runtime/context.h>
-#include <format>
 
 namespace lc::dx {
 static ID3D12Device *last_device_handle = nullptr;
@@ -454,12 +453,12 @@ void process_dxgi_error(HRESULT hr) {
         int32 LastCompletedOp = *node->pLastBreadcrumbValue;
         if (LastCompletedOp != node->BreadcrumbCount && LastCompletedOp != 0) {
             if (node->pCommandListDebugNameW) {
-                result += std::format(L"Command list debug name: {}\n", node->pCommandListDebugNameW);
+                result += luisa::format<luisa::wstring>(L"Command list debug name: {}\n", node->pCommandListDebugNameW);
             }
             if (node->pCommandQueueDebugNameW) {
-                result += std::format(L"Command queue debug name: {}\n", node->pCommandQueueDebugNameW);
+                result += luisa::format<luisa::wstring>(L"Command queue debug name: {}\n", node->pCommandQueueDebugNameW);
             }
-            result += std::format(L"DRED: {} completed of {}\n", LastCompletedOp, node->BreadcrumbCount);
+            result += luisa::format<luisa::wstring>(L"DRED: {} completed of {}\n", LastCompletedOp, node->BreadcrumbCount);
             TracedCommandLists++;
             int32 FirstOp = std::max(LastCompletedOp - 100, 0);
             int32 LastOp = std::min(LastCompletedOp + 20, int32(node->BreadcrumbCount) - 1);
@@ -477,7 +476,7 @@ void process_dxgi_error(HRESULT hr) {
                 }
                 luisa::wstring OpName = (BreadcrumbOp < std::size(OpNames)) ? OpNames[BreadcrumbOp] : L"Unknown Op";
                 luisa::wstring State = Op < LastCompletedOp ? L"[ok]" : (Op == LastCompletedOp ? L"[Active]" : L"[ ]");
-                result += std::format(L"\t{} Op: {}, {} {} {}\n", State, Op, OpName, ContextStr, (Op + 1 == LastCompletedOp) ? L" - LAST COMPLETED" : L"");
+                result += luisa::format<luisa::wstring>(L"\t{} Op: {}, {} {} {}\n", State, Op, OpName, ContextStr, (Op + 1 == LastCompletedOp) ? L" - LAST COMPLETED" : L"");
             }
         }
         node = node->pNext;
@@ -485,18 +484,18 @@ void process_dxgi_error(HRESULT hr) {
     if (TracedCommandLists == 0) {
         result += L"DRED: No command list found with active outstanding operations (all finished or not started yet)\n";
     }
-    result += std::format(L"page fault VA: {}\n", DredPageFaultOutput.PageFaultVA);
+    result += luisa::format<luisa::wstring>(L"page fault VA: {}\n", DredPageFaultOutput.PageFaultVA);
 
     for (auto node = DredPageFaultOutput.pHeadExistingAllocationNode; node != nullptr; node = node->pNext) {
         if (node->ObjectNameW) {
-            result += std::format(L"Exists object name {}\n", node->ObjectNameW);
+            result += luisa::format<luisa::wstring>(L"Exists object name {}\n", node->ObjectNameW);
         }
     }
     for (auto node = DredPageFaultOutput.pHeadRecentFreedAllocationNode; node != nullptr; node = node->pNext) {
         if (node->ObjectNameW) {
-            result += std::format(L"Freed object name {}\n", node->ObjectNameW);
+            result += luisa::format<luisa::wstring>(L"Freed object name {}\n", node->ObjectNameW);
         }
     }
-    LUISA_WARNING(std::string(result.begin(), result.end()));
+    LUISA_WARNING(luisa::string(result.begin(), result.end()));
 }
 }// namespace lc::dx
