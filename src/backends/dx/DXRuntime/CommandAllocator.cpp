@@ -92,6 +92,10 @@ void CommandAllocator::ExecuteAndPresent(CommandQueue *queue, ID3D12Fence *fence
         }
         if(present_hresult != S_OK) {
             LUISA_WARNING("Present failed.");
+
+            if (present_hresult == DXGI_ERROR_DEVICE_REMOVED || present_hresult == DXGI_ERROR_DEVICE_HUNG || present_hresult == DXGI_ERROR_DEVICE_RESET) {
+                ThrowIfFailed(present_hresult);
+            }
         }
     };
     ID3D12CommandList *cmdList = cbuffer->CmdList();
