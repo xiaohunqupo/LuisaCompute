@@ -74,6 +74,7 @@ void Stream::check_compete() {
                         detail::usage_name(iter.second.usage),
                         get_name());
                 } else {
+#ifndef NDEBUG
                     switch (res->tag()) {
                         case Resource::Tag::BUFFER:
                         case Resource::Tag::TEXTURE:
@@ -89,7 +90,7 @@ void Stream::check_compete() {
                         case Resource::Tag::SPARSE_TEXTURE:
                         case Resource::Tag::SPARSE_BUFFER_HEAP:
                         case Resource::Tag::SPARSE_TEXTURE_HEAP:
-                            LUISA_WARNING(
+                            luisa::log_verbose(
                                 "Simultaneous-accessible resource {} is used to be {} by {} and {} by {} simultaneously.",
                                 res->get_name(),
                                 detail::usage_name(stream_iter.second.usage),
@@ -99,6 +100,7 @@ void Stream::check_compete() {
                             break;
                         default: break;
                     }
+#endif
                 }
             }
         }
