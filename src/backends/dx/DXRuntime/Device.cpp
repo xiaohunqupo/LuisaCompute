@@ -9,7 +9,6 @@
 #include <luisa/core/logging.h>
 #include <luisa/runtime/context.h>
 #include <format>
-#include <iostream>
 
 namespace lc::dx {
 static ID3D12Device *last_device_handle = nullptr;
@@ -178,12 +177,11 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
 #endif
             if (use_dred) {
 #ifdef __ID3D12DeviceRemovedExtendedDataSettings2_INTERFACE_DEFINED__
-                last_device_handle = device.Get();
                 ComPtr<ID3D12DeviceRemovedExtendedDataSettings2> pDredSettings2;
                 if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&pDredSettings2)))) {
                     pDredSettings2->SetAutoBreadcrumbsEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
                     pDredSettings2->SetPageFaultEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
-                    pDredSettings2->UseMarkersOnlyAutoBreadcrumbs(true);
+                    pDredSettings2->UseMarkersOnlyAutoBreadcrumbs(true); // LightweightDRED
                     LUISA_WARNING("LightweightDRED settings enable");
                 } else {
                     LUISA_WARNING("LightweightDRED settings disable");
@@ -311,6 +309,7 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
             LUISA_WARNING("Enhanced barrier not supported, please update your Windows or GPU driver");
         }
     }
+    last_device_handle = device.Get();
 }
 bool Device::SupportMeshShader() const {
     D3D12_FEATURE_DATA_D3D12_OPTIONS7 featureData = {};
@@ -423,9 +422,9 @@ void process_dxgi_error(HRESULT hr) {
         return luisa::span<D3D12_DRED_BREADCRUMB_CONTEXT>{Node->pBreadcrumbContexts, Node->BreadcrumbContextsCount};
     };
 
-    if (hr != DXGI_ERROR_DEVICE_REMOVED && hr != DXGI_ERROR_DEVICE_HUNG && hr != DXGI_ERROR_DEVICE_RESET) {
-        return;
-    }
+    //if (hr != DXGI_ERROR_DEVICE_REMOVED && hr != DXGI_ERROR_DEVICE_HUNG && hr != DXGI_ERROR_DEVICE_RESET) {
+    //    return;
+    //}
     if (!last_device_handle) {
         return;
     }
@@ -498,7 +497,6 @@ void process_dxgi_error(HRESULT hr) {
             result += std::format(L"Freed object name {}\n", node->ObjectNameW);
         }
     }
-    std::wcout << result << std::endl;
-    LUISA_ERROR("D3D12 Device Removed");
+    LUISA_WARNING(std::string(result.begin(), result.end()));
 }
 }// namespace lc::dx
