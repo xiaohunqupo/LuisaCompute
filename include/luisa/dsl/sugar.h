@@ -98,9 +98,10 @@ namespace luisa::compute::dsl_detail {
         ::luisa::compute::dsl_detail::format_source_location(__FILE__, __LINE__), \
         ([&] __VA_ARGS__)})
 
-#define $break ::luisa::compute::break_()
-#define $continue ::luisa::compute::continue_()
-#define $return(...) ::luisa::compute::return_(__VA_ARGS__)
+#define $break ::luisa::compute::dsl::break_()
+#define $continue ::luisa::compute::dsl::continue_()
+#define $return(...) ::luisa::compute::dsl::return_(__VA_ARGS__)
+#define $unreachable ::luisa::compute::dsl::unreachable()
 
 #define $if(...)                                                                  \
     ::luisa::compute::detail::IfStmtBuilder::create_with_comment(                 \

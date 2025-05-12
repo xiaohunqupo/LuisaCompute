@@ -136,7 +136,9 @@ void eliminate_instructions_in_unreachable_blocks(const luisa::unordered_set<Bas
     for (auto b : blocks) {
         // replace the terminator with an unreachable instruction if it's not already
         if (!is_block_terminated_by_unreachable(b)) {
-            b->terminator()->remove_self();
+            auto old_terminator = b->terminator();
+            old_terminator->remove_self();
+            info.removed_instructions.emplace(old_terminator);
             xir::XIRBuilder builder;
             builder.set_insertion_point(b);
             builder.unreachable_();
@@ -230,7 +232,7 @@ void eliminate_unreachable_blocks_in_function(Function *function, DCEInfo &info)
         });
         luisa::unordered_set<BasicBlock *> unreachable;
         for (auto b : reachable) {
-            // let's find out instructions users' blocks that are not in the reachable set
+            // let's find out instruction users' blocks that are not in the reachable set
             b->traverse_instructions([&](Instruction *inst) noexcept {
                 for (auto &&use : inst->use_list()) {
                     if (auto user = use.user(); user != nullptr && user->isa<Instruction>()) {
@@ -297,6 +299,7 @@ void fix_phi_nodes_in_function(Function *function, luisa::vector<PhiInst *> &phi
                         valid_incomings.emplace_back(incoming);
                     }
                 }
+                LUISA_ASSERT(valid_incomings.size() == predecessors.size());
                 phi->set_incoming_count(valid_incomings.size());
                 for (auto i = 0u; i < valid_incomings.size(); i++) {
                     auto incoming = valid_incomings[i];

@@ -97,13 +97,14 @@ luisa_compute_install(xir)
 
 if (LUISA_COMPUTE_ENABLE_XIR_TESTS)
 
-    add_executable(test_aggregate_field_bitmasks tests/test_aggregate_field_bitmasks.cpp)
-    target_link_libraries(test_aggregate_field_bitmasks PRIVATE luisa-compute-xir)
+    function(luisa_compute_xir_add_test name)
+        add_executable(xir_test_${name} tests/test_${name}.cpp)
+        target_link_libraries(xir_test_${name} PRIVATE luisa::compute)
+    endfunction()
 
-    add_executable(test_mem2reg tests/test_mem2reg.cpp)
-    target_link_libraries(test_mem2reg PRIVATE luisa::compute)
-
-    add_executable(test_debug_printer tests/test_debug_printer.cpp)
-    target_link_libraries(test_debug_printer PRIVATE luisa::compute)
+    luisa_compute_xir_add_test(aggregate_field_bitmasks)
+    luisa_compute_xir_add_test(mem2reg)
+    luisa_compute_xir_add_test(debug_printer)
+    luisa_compute_xir_add_test(dce)
 
 endif ()

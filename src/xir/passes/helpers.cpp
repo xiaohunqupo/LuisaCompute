@@ -38,23 +38,29 @@ bool remove_redundant_phi_instruction(PhiInst *phi) noexcept {
         }
         return false;
     };
-    auto all_same = true;
-    auto any_undef = false;
+    auto all_same_except_undef = true;
+    auto undef_incoming = static_cast<Value *>(nullptr);
     auto same_incoming = static_cast<Value *>(nullptr);
+    // check if all incoming values are the same
     for (auto value_use : phi->incoming_value_uses()) {
-        auto value = value_use->value();
-        LUISA_DEBUG_ASSERT(value != nullptr, "Invalid incoming value.");
-        if (same_incoming == nullptr || same_incoming->isa<Undefined>()) { same_incoming = value; }
-        if (value->isa<Undefined>()) {
-            any_undef = true;
-        } else if (same_incoming != value) {
-            all_same = false;
-            break;
+        LUISA_DEBUG_ASSERT(value_use->value() != nullptr, "Invalid incoming value.");
+        if (auto value = value_use->value(); value->isa<Undefined>()) {
+            undef_incoming = value;
+        } else {
+            // if we haven't seen any incoming value yet, set it as the same incoming
+            if (same_incoming == nullptr) { same_incoming = value; }
+            // otherwise, check if the current incoming value is the same as the previous one
+            if (same_incoming != value) {
+                all_same_except_undef = false;
+                break;
+            }
         }
     }
-    if (all_same && (!any_undef || is_invariant(same_incoming))) {
+    if (all_same_except_undef && is_invariant(same_incoming)) {
         if (same_incoming != nullptr) {
             phi->replace_all_uses_with(same_incoming);
+        } else if (undef_incoming != nullptr) {
+            phi->replace_all_uses_with(undef_incoming);
         } else {
             LUISA_DEBUG_ASSERT(phi->use_list().empty(), "Invalid phi node.");
         }

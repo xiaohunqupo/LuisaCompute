@@ -41,7 +41,7 @@ if __name__ == '__main__':
         print("Usage: visualize_cfg.py <xir_file>")
         exit(1)
     graphs = parse_control_flow_graphs_from_xir(argv[1])
-    graph = graphviz.Digraph(format='pdf')
+    graph = graphviz.Digraph(format='svg')
     for graph_desc in graphs:
         function = graph_desc['function'].replace("%", "func.")
         with graph.subgraph(name=f"cluster_{function}") as subgraph:
