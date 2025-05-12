@@ -363,9 +363,11 @@ Device::~Device() {
     exts.clear();
 }
 void Device::set_name(luisa::compute::Resource::Tag resource_tag, uint64_t resource_handle, luisa::string_view name) noexcept {
-
     RWResource::get<RWResource>(resource_handle)->name = name;
     _native->set_name(resource_tag, resource_handle, name);
+}
+luisa::string_view Device::get_name(uint64_t resource_handle) const noexcept {
+    return RWResource::get<RWResource>(resource_handle)->name;
 }
 void Device::check_stream(uint64_t stream, StreamFunc func, uint64_t custom_cmd_id) {
     auto stream_ptr = RWResource::get<RWResource>(stream, "stream");

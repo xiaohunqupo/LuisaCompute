@@ -188,6 +188,7 @@ public:
     [[nodiscard]] virtual luisa::string query(luisa::string_view property) noexcept { return {}; }
     [[nodiscard]] virtual DeviceExtension *extension(luisa::string_view name) noexcept { return nullptr; }
     virtual void set_name(luisa::compute::Resource::Tag resource_tag, uint64_t resource_handle, luisa::string_view name) noexcept = 0;
+    [[nodiscard]] virtual luisa::string_view get_name(uint64_t resource_handle) const noexcept { return {}; }
 
     // sparse buffer
     [[nodiscard]] virtual SparseBufferCreationInfo create_sparse_buffer(const Type *element, size_t elem_count) noexcept {

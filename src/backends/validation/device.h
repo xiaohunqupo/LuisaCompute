@@ -103,7 +103,7 @@ public:
     luisa::string query(luisa::string_view property) noexcept override;
     DeviceExtension *extension(luisa::string_view name) noexcept override;
     void set_name(luisa::compute::Resource::Tag resource_tag, uint64_t resource_handle, luisa::string_view name) noexcept override;
-
+    luisa::string_view get_name(uint64_t resource_handle) const noexcept override;
     // sparse buffer
     [[nodiscard]] SparseBufferCreationInfo create_sparse_buffer(const Type *element, size_t elem_count) noexcept override;
 
