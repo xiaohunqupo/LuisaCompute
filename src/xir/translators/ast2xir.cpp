@@ -22,6 +22,7 @@ public:
     struct Current {
         FunctionDefinition *f{nullptr};
         const ASTFunction *ast{nullptr};
+        const RayQueryStmt *rq{nullptr};
         BreakContinueTarget break_continue_target;
         luisa::unordered_map<Variable, Value *> variables;
         luisa::vector<const CommentStmt *> comments;
@@ -1005,6 +1006,8 @@ private:
     void _translate_ray_query_stmt(XIRBuilder &b, const RayQueryStmt *ast_ray_query, luisa::span<const Statement *const> cdr) noexcept {
         // we do not support break/continue in ray query statement
         auto old_break_continue_target = std::exchange(_current.break_continue_target, {});
+        LUISA_ASSERT(_current.rq == nullptr, "Nested ray query statements are not supported.");
+        _current.rq = ast_ray_query;
         // create the ray query loop
         auto loop_inst = _commented(b.ray_query_loop());
         auto dispatch_block = loop_inst->create_dispatch_block();
@@ -1028,6 +1031,7 @@ private:
         }
         // merge block
         _current.break_continue_target = old_break_continue_target;
+        _current.rq = nullptr;
         b.set_insertion_point(merge_block);
         _translate_statements(b, cdr);
     }
@@ -1048,6 +1052,7 @@ private:
                     return static_cast<void>(_commented(b.continue_(continue_target)));
                 }
                 case Statement::Tag::RETURN: {
+                    LUISA_ASSERT(_current.rq == nullptr, "Return statement inside ray query is not supported.");
                     if (auto ast_expr = static_cast<const ReturnStmt *>(car)->expression()) {
                         auto value = _translate_expression(b, ast_expr, true);
                         return static_cast<void>(_commented(b.return_(value)));

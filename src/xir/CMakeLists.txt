@@ -106,5 +106,6 @@ if (LUISA_COMPUTE_ENABLE_XIR_TESTS)
     luisa_compute_xir_add_test(mem2reg)
     luisa_compute_xir_add_test(debug_printer)
     luisa_compute_xir_add_test(dce)
+    luisa_compute_xir_add_test(ray_query)
 
 endif ()
