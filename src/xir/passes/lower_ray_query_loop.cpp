@@ -279,6 +279,9 @@ static void lower_ray_query_loop(Function *function, RayQueryLoopInst *loop, Ray
     b.set_insertion_point(loop->prev());
     auto loop_parent_block = loop->parent_block();
     auto pipeline = b.ray_query_pipeline(subgraph.query_object, on_surface, on_procedural, captured_args);
+    // remove the loop and record the change
+    loop->remove_self();
+    info.lowered_loops.emplace(loop, pipeline);
     // load the out values and replace the uses
     auto out_variables = luisa::span{captured_args}.subspan(capture_list.in_values.size());
     for (auto i = 0u; i < capture_list.out_values.size(); i++) {
@@ -309,9 +312,6 @@ static void lower_ray_query_loop(Function *function, RayQueryLoopInst *loop, Ray
         inst->remove_self();
         b.append(inst);
     }
-    // remove the loop and record the change
-    loop->remove_self();
-    info.lowered_loops.emplace(loop, pipeline);
 }
 
 static void collect_blocks_in_ray_query_dispatch_branch(BasicBlock *block, BasicBlock *dispatch_block,
