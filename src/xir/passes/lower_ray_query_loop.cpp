@@ -305,6 +305,7 @@ static void lower_ray_query_loop(Function *function, RayQueryLoopInst *loop, Ray
     // move the instructions from the merge block to the loop parent block
     while (!merge_block->instructions().empty()) {
         auto inst = &merge_block->instructions().front();
+        LUISA_ASSERT(!inst->isa<PhiInst>(), "Invalid phi instruction in merge block.");
         inst->remove_self();
         b.append(inst);
     }
