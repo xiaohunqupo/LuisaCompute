@@ -277,6 +277,7 @@ static void lower_ray_query_loop(Function *function, RayQueryLoopInst *loop, Ray
     // create ray query pipeline
     XIRBuilder b;
     b.set_insertion_point(loop->prev());
+    auto loop_parent_block = loop->parent_block();
     auto pipeline = b.ray_query_pipeline(subgraph.query_object, on_surface, on_procedural, captured_args);
     // load the out values and replace the uses
     auto out_variables = luisa::span{captured_args}.subspan(capture_list.in_values.size());
@@ -287,17 +288,28 @@ static void lower_ray_query_loop(Function *function, RayQueryLoopInst *loop, Ray
         out_value->add_comment("load from ray query output alloca");
         old_out_value->replace_all_uses_with(out_value);
     }
-    // remove the loop and move up instructions from the merge block
-    loop->remove_self();
-    luisa::vector<Instruction *> merge_instructions;
-    for (auto &&inst : merge_block->instructions()) {
-        merge_instructions.emplace_back(&inst);
-    }
-    for (auto inst : merge_instructions) {
+    // rewrite the PHI nodes in merge block's successors
+    merge_block->traverse_successors(false, [&](BasicBlock *succ) noexcept {
+        LUISA_ASSERT(succ != merge_block, "Invalid successor.");
+        succ->traverse_instructions([&](Instruction *inst) noexcept {
+            if (inst->isa<PhiInst>()) {
+                auto phi = static_cast<PhiInst *>(inst);
+                for (auto i = 0u; i < phi->incoming_count(); i++) {
+                    if (auto incoming = phi->incoming(i); incoming.block == merge_block) {
+                        phi->set_incoming(i, incoming.value, loop_parent_block);
+                    }
+                }
+            }
+        });
+    });
+    // move the instructions from the merge block to the loop parent block
+    while (!merge_block->instructions().empty()) {
+        auto inst = &merge_block->instructions().front();
         inst->remove_self();
         b.append(inst);
     }
-    // record the change
+    // remove the loop and record the change
+    loop->remove_self();
     info.lowered_loops.emplace(loop, pipeline);
 }
 
