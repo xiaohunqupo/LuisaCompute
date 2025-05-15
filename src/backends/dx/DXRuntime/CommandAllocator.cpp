@@ -90,7 +90,7 @@ void CommandAllocator::ExecuteAndPresent(CommandQueue *queue, ID3D12Fence *fence
         } else {
             present_hresult = swapchain->Present(0, DXGI_PRESENT_ALLOW_TEARING | DXGI_PRESENT_DO_NOT_WAIT);
         }
-        if(present_hresult != S_OK) {
+        if (present_hresult != S_OK) {
             LUISA_WARNING("Present failed.");
 
             if (present_hresult == DXGI_ERROR_DEVICE_REMOVED || present_hresult == DXGI_ERROR_DEVICE_HUNG || present_hresult == DXGI_ERROR_DEVICE_RESET) {
@@ -154,6 +154,9 @@ CommandAllocator::CommandAllocator(
     cbuffer.create(
         device,
         this);
+    ThrowIfFailed(
+        allocator->Reset());
+    cbuffer->Reset();
     uploadAllocator.visitor.self = this;
     defaultAllocator.visitor.self = this;
     readbackAllocator.visitor.self = this;

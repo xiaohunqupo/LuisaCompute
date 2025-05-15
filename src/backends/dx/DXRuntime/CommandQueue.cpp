@@ -173,12 +173,10 @@ void CommandQueue::ExecuteCallbacks(AllocatorPtr &&alloc, vstd::vector<vstd::fun
     waitCv.notify_one();
 }
 void CommandQueue::ExecuteEmpty(AllocatorPtr &&alloc) {
-    alloc->Reset(this);
     allocatorPool.push(std::move(alloc));
 }
 
 void CommandQueue::ExecuteEmptyCallbacks(AllocatorPtr &&alloc, vstd::vector<vstd::function<void()>> &&callbacks) {
-    alloc->Reset(this);
     allocatorPool.push(std::move(alloc));
     auto curFrame = ++lastFrame;
     mtx.lock();
