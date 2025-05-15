@@ -1185,6 +1185,7 @@ void LCCmdBuffer::Execute(
         ppVisitor.stateTracker = tracker.get();
         visitor.bd = &cmdBuilder;
         ppVisitor.bd = &cmdBuilder;
+        reorder.clear();
         for (auto &&command : commands) {
             // if (command->tag() == Command::Tag::EBindlessArrayUpdateCommand) {
             //     auto cmd = static_cast<BindlessArrayUpdateCommand const *>(command.get());
@@ -1193,9 +1194,6 @@ void LCCmdBuffer::Execute(
             command->accept(reorder);
         }
         auto cmdLists = reorder.command_lists();
-        auto clearReorder = vstd::scope_exit([&] {
-            reorder.clear();
-        });
         ID3D12DescriptorHeap *h[2] = {
             device->globalHeap->GetHeap(),
             device->samplerHeap->GetHeap()};
@@ -1216,7 +1214,8 @@ void LCCmdBuffer::Execute(
             auto size = 0;
             for (auto i = lst; i != nullptr; i = i->p_next) {
                 size += 1;
-                i->cmd->accept(ppVisitor);
+                if (i->cmd)
+                    i->cmd->accept(ppVisitor);
             }
             // command->accept(ppVisitor);
             visitor.bottomAccelData = ppVisitor.bottomAccelDatas->data();
