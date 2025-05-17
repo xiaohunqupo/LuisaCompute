@@ -1,4 +1,4 @@
-# LuisaCompute
+# LuisaCompute [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/LuisaGroup/LuisaCompute)
 
 ![teaser](https://user-images.githubusercontent.com/7614925/195987646-fe932ebe-ca6e-4d6e-ab2a-203bcfd3d559.jpg)
 
