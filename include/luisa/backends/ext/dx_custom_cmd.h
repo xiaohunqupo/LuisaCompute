@@ -33,6 +33,32 @@ public:
             : resource{std::forward<Arg>(resource)},
               required_state{required_state} {}
     };
+    enum class EnhancedResourceUsageType : uint {
+        ComputeRead,
+        ComputeAccelRead,
+        ComputeUAV,
+        CopySource,
+        CopyDest,
+        BuildAccel,
+        CopyAccelSrc,
+        CopyAccelDst,
+        DepthRead,
+        DepthWrite,
+        IndirectArgs,
+        VertexRead,
+        IndexRead,
+        RenderTarget,
+        AccelInstanceBuffer,
+        RasterRead,
+        RasterAccelRead,
+        RasterUAV,
+        VideoEncodeRead,
+        VideoEncodeWrite,
+        VideoProcessRead,
+        VideoProcessWrite,
+        VideoDecodeRead,
+        VideoDecodeWrite,
+    };
     struct EnhancedResourceUsage {
         ResourceHandle resource;
         D3D12_BARRIER_SYNC sync;
@@ -51,6 +77,11 @@ public:
               texture_layout{texture_layout} {
             LUISA_ASSERT((this->resource.index() == 1) == (texture_layout != D3D12_BARRIER_LAYOUT_UNDEFINED), "Buffer must not have valid layout and texture must have a defined layout");
         }
+        template<typename Arg>
+            requires(luisa::is_constructible_v<ResourceHandle, Arg &&>)
+        EnhancedResourceUsage(
+            Arg &&resource,
+            EnhancedResourceUsageType type);
     };
 
 private:
@@ -174,4 +205,97 @@ public:
     }
 };
 
+namespace dx_detail {
+
+static constexpr D3D12_BARRIER_SYNC BarrierSyncMap[] = {
+    D3D12_BARRIER_SYNC_COMPUTE_SHADING,                                                                   // ComputeRead,
+    D3D12_BARRIER_SYNC_COMPUTE_SHADING,                                                                   // ComputeAccelRead,
+    D3D12_BARRIER_SYNC_COMPUTE_SHADING,                                                                   // ComputeUAV,
+    D3D12_BARRIER_SYNC_COPY,                                                                              // CopySource,
+    D3D12_BARRIER_SYNC_COPY,                                                                              // CopyDest,
+    D3D12_BARRIER_SYNC_BUILD_RAYTRACING_ACCELERATION_STRUCTURE,                                           // BuildAccel,
+    D3D12_BARRIER_SYNC_COPY_RAYTRACING_ACCELERATION_STRUCTURE,                                            // CopyAccelSrc
+    D3D12_BARRIER_SYNC_COPY_RAYTRACING_ACCELERATION_STRUCTURE,                                            // CopyAccelDst
+    D3D12_BARRIER_SYNC_DEPTH_STENCIL,                                                                     //DepthRead
+    D3D12_BARRIER_SYNC_DEPTH_STENCIL,                                                                     //DepthWrite
+    D3D12_BARRIER_SYNC_EXECUTE_INDIRECT,                                                                  //IndirectArgs
+    D3D12_BARRIER_SYNC_VERTEX_SHADING,                                                                    //VertexRead,
+    static_cast<D3D12_BARRIER_SYNC>(0x4),                                                                 //  IndexRead,
+    D3D12_BARRIER_SYNC_RENDER_TARGET,                                                                     //  RenderTarget
+    D3D12_BARRIER_SYNC_BUILD_RAYTRACING_ACCELERATION_STRUCTURE,                                           // AccelInstanceBuffer
+    static_cast<D3D12_BARRIER_SYNC>(D3D12_BARRIER_SYNC_PIXEL_SHADING | D3D12_BARRIER_SYNC_VERTEX_SHADING),// RasterRead
+    static_cast<D3D12_BARRIER_SYNC>(D3D12_BARRIER_SYNC_PIXEL_SHADING | D3D12_BARRIER_SYNC_VERTEX_SHADING),//RasterAccelRead
+    static_cast<D3D12_BARRIER_SYNC>(D3D12_BARRIER_SYNC_PIXEL_SHADING | D3D12_BARRIER_SYNC_VERTEX_SHADING),//RasterUAV
+    D3D12_BARRIER_SYNC_VIDEO_ENCODE,                                                                      //VideoEncodeRead,
+    D3D12_BARRIER_SYNC_VIDEO_ENCODE,                                                                      //VideoEncodeWrite,
+    D3D12_BARRIER_SYNC_VIDEO_PROCESS,                                                                     //VideoProcessRead,
+    D3D12_BARRIER_SYNC_VIDEO_PROCESS,                                                                     //VideoProcessWrite,
+    D3D12_BARRIER_SYNC_VIDEO_DECODE,                                                                      //VideoDecodeRead,
+    D3D12_BARRIER_SYNC_VIDEO_DECODE,                                                                      //VideoDecodeWrite,
+};
+
+static constexpr D3D12_BARRIER_ACCESS BarrierAccessMap[] = {
+    D3D12_BARRIER_ACCESS_SHADER_RESOURCE,                        // ComputeRead,
+    D3D12_BARRIER_ACCESS_RAYTRACING_ACCELERATION_STRUCTURE_READ, // ComputeAccelRead,
+    D3D12_BARRIER_ACCESS_UNORDERED_ACCESS,                       // ComputeUAV,
+    D3D12_BARRIER_ACCESS_COPY_SOURCE,                            // CopySource,
+    D3D12_BARRIER_ACCESS_COPY_DEST,                              // CopyDest,
+    D3D12_BARRIER_ACCESS_RAYTRACING_ACCELERATION_STRUCTURE_WRITE,// BuildAccel,
+    D3D12_BARRIER_ACCESS_COPY_SOURCE,                            // CopyAccelSrc
+    D3D12_BARRIER_ACCESS_RAYTRACING_ACCELERATION_STRUCTURE_WRITE,// CopyAccelDst
+    D3D12_BARRIER_ACCESS_DEPTH_STENCIL_READ,                     //DepthRead
+    D3D12_BARRIER_ACCESS_DEPTH_STENCIL_WRITE,                    //DepthWrite
+    D3D12_BARRIER_ACCESS_INDIRECT_ARGUMENT,                      // IndirectArgs
+    D3D12_BARRIER_ACCESS_VERTEX_BUFFER,                          //VertexRead,
+    D3D12_BARRIER_ACCESS_INDEX_BUFFER,                           //  IndexRead,
+    D3D12_BARRIER_ACCESS_RENDER_TARGET,                          //RenderTarget
+    D3D12_BARRIER_ACCESS_SHADER_RESOURCE,                        //AccelInstanceBuffer
+    D3D12_BARRIER_ACCESS_SHADER_RESOURCE,                        // RasterRead
+    D3D12_BARRIER_ACCESS_RAYTRACING_ACCELERATION_STRUCTURE_READ, // RasterAccelRead,
+    D3D12_BARRIER_ACCESS_UNORDERED_ACCESS,                       // RasterUAV,
+    D3D12_BARRIER_ACCESS_VIDEO_ENCODE_READ,                      //VideoEncodeRead,
+    D3D12_BARRIER_ACCESS_VIDEO_ENCODE_WRITE,                     //VideoEncodeWrite,
+    D3D12_BARRIER_ACCESS_VIDEO_PROCESS_READ,                     //VideoProcessRead,
+    D3D12_BARRIER_ACCESS_VIDEO_PROCESS_WRITE,                    //VideoProcessWrite,
+    D3D12_BARRIER_ACCESS_VIDEO_DECODE_READ,                      //VideoDecodeRead,
+    D3D12_BARRIER_ACCESS_VIDEO_DECODE_WRITE,                     //VideoDecodeWrite,
+};
+
+static constexpr D3D12_BARRIER_LAYOUT BarrierLayoutMap[] = {
+    D3D12_BARRIER_LAYOUT_SHADER_RESOURCE,    // ComputeRead,
+    D3D12_BARRIER_LAYOUT_UNDEFINED,          // ComputeAccelRead,
+    D3D12_BARRIER_LAYOUT_UNORDERED_ACCESS,   // ComputeUAV,
+    D3D12_BARRIER_LAYOUT_COPY_SOURCE,        // CopySource,
+    D3D12_BARRIER_LAYOUT_COPY_DEST,          // CopyDest,
+    D3D12_BARRIER_LAYOUT_UNDEFINED,          // BuildAccel,
+    D3D12_BARRIER_LAYOUT_UNDEFINED,          // CopyAccelSrc
+    D3D12_BARRIER_LAYOUT_UNDEFINED,          // CopyAccelDst
+    D3D12_BARRIER_LAYOUT_DEPTH_STENCIL_READ, //DepthRead
+    D3D12_BARRIER_LAYOUT_DEPTH_STENCIL_WRITE,//DepthWrite
+    D3D12_BARRIER_LAYOUT_UNDEFINED,          // DepthWrite
+    D3D12_BARRIER_LAYOUT_UNDEFINED,          //VertexRead,
+    D3D12_BARRIER_LAYOUT_UNDEFINED,          //  IndexRead,
+    D3D12_BARRIER_LAYOUT_RENDER_TARGET,      //RenderTarget
+    D3D12_BARRIER_LAYOUT_UNDEFINED,          //AccelInstanceBuffer
+    D3D12_BARRIER_LAYOUT_SHADER_RESOURCE,    // RasterRead
+    D3D12_BARRIER_LAYOUT_UNDEFINED,          // RasterAccelRead,
+    D3D12_BARRIER_LAYOUT_UNORDERED_ACCESS,   // RasterUAV,
+    D3D12_BARRIER_LAYOUT_VIDEO_ENCODE_READ,  //VideoEncodeRead,
+    D3D12_BARRIER_LAYOUT_VIDEO_ENCODE_WRITE, //VideoEncodeWrite,
+    D3D12_BARRIER_LAYOUT_VIDEO_PROCESS_READ, //VideoProcessRead,
+    D3D12_BARRIER_LAYOUT_VIDEO_PROCESS_WRITE,//VideoProcessWrite,
+    D3D12_BARRIER_LAYOUT_VIDEO_DECODE_READ,  //VideoDecodeRead,
+    D3D12_BARRIER_LAYOUT_VIDEO_DECODE_WRITE, //VideoDecodeWrite,
+};
+}// namespace dx_detail
+template<typename Arg>
+    requires(luisa::is_constructible_v<DXCustomCmd::ResourceHandle, Arg &&>)
+inline DXCustomCmd::EnhancedResourceUsage::EnhancedResourceUsage(
+    Arg &&resource,
+    EnhancedResourceUsageType type)
+    : resource{std::forward<Arg>(resource)},
+      sync(dx_detail::BarrierSyncMap[luisa::to_underlying(type)]),
+      access(dx_detail::BarrierAccessMap[luisa::to_underlying(type)]),
+      texture_layout(dx_detail::BarrierLayoutMap[luisa::to_underlying(type)]) {
+}
 }// namespace luisa::compute

@@ -180,7 +180,7 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
                 if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&pDredSettings2)))) {
                     pDredSettings2->SetAutoBreadcrumbsEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
                     pDredSettings2->SetPageFaultEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
-                    pDredSettings2->UseMarkersOnlyAutoBreadcrumbs(true); // LightweightDRED
+                    pDredSettings2->UseMarkersOnlyAutoBreadcrumbs(true);// LightweightDRED
                     LUISA_WARNING("LightweightDRED settings enable");
                 } else {
                     LUISA_WARNING("LightweightDRED settings disable");
@@ -306,6 +306,20 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
         }
         if (!use_enhanced_barrier) [[unlikely]] {
             LUISA_WARNING("Enhanced barrier not supported, please update your Windows or GPU driver");
+        }
+    } else {
+        if (deviceSettings) {
+            deviceSettings->ReadbackDX12Device(
+                nullptr,
+                nullptr,
+                nullptr,
+                nullptr,
+                fileIo,
+                gDxcCompiler->compiler(),
+                gDxcCompiler->library(),
+                gDxcCompiler->utils(),
+                nullptr,
+                nullptr);
         }
     }
     last_device_handle = device.Get();
