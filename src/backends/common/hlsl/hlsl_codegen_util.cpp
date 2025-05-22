@@ -1497,7 +1497,7 @@ protected:
     }
 };
 
-void CodegenUtility::CodegenFunction(Function func, vstd::StringBuilder &result, bool cbufferNonEmpty) {
+void CodegenUtility::CodegenFunction(Function func, vstd::StringBuilder &result, bool cbufferNonEmpty, bool codegen_self) {
     auto codegenOneFunc = [&](Function func) {
         auto constants = func.constants();
         for (auto &&i : constants) {
@@ -1581,10 +1581,18 @@ void main(uint3 thdId:SV_GroupThreadId,uint3 dspId:SV_DispatchThreadID,uint3 grp
         }
         codegenOneFunc(func);
     };
-    callable(callable, func);
+    if (codegen_self)
+        callable(callable, func);
+    else {
+        for (auto &&i : func.custom_callables()) {
+            if (callableMap.emplace(i->hash()).second) {
+                callable(callable, i->function());
+            }
+        }
+    }
 }
 void CodegenUtility::CodegenVertex(Function vert, vstd::StringBuilder &result, bool cBufferNonEmpty) {
-    CodegenFunction(vert, result, cBufferNonEmpty);
+    CodegenFunction(vert, result, cBufferNonEmpty, false);
     auto args = vert.arguments();
     vstd::StringBuilder retName;
     auto retType = vert.return_type();
@@ -1621,7 +1629,7 @@ void CodegenUtility::CodegenVertex(Function vert, vstd::StringBuilder &result, b
 void CodegenUtility::CodegenPixel(Function pixel, vstd::StringBuilder &result, bool cBufferNonEmpty) {
     opt->isPixelShader = true;
     auto resetPixelShaderKey = vstd::scope_exit([&] { opt->isPixelShader = false; });
-    CodegenFunction(pixel, result, cBufferNonEmpty);
+    CodegenFunction(pixel, result, cBufferNonEmpty, false);
     vstd::StringBuilder retName;
     auto retType = pixel.return_type();
     GetTypeName(*retType, retName, Usage::READ);
@@ -2123,7 +2131,7 @@ CodegenResult CodegenUtility::Codegen(
     finalResult << native_code << "\n//"sv;
     static_cast<void>(vstd::to_string(custom_mask));
     finalResult << '\n';
-    CodegenFunction(kernel, codegenData, nonEmptyCbuffer);
+    CodegenFunction(kernel, codegenData, nonEmptyCbuffer, true);
 
     opt->funcType = CodegenStackData::FuncType::Callable;
     auto argRange = vstd::make_ite_range(kernel.arguments()).i_range();
@@ -2292,7 +2300,13 @@ uint obj_id:register(b0);
     opt->appdataId = -1;
     // TODO: gen vertex data
     codegenData << "#elif defined(PS)\n"sv;
-    opt->argOffset = vert_args.size() - 1;
+    size_t vert_arg_offset = 0;
+    for (auto &i : vert_args.subspan(1)) {
+        if (detail::IsCBuffer(i.tag())) {
+            vert_arg_offset += 1;
+        }
+    }
+    opt->argOffset = vert_arg_offset;
     // TODO: gen pixel data
     CodegenPixel(pixelFunc, codegenData, nonEmptyCbuffer);
     codegenData << "#endif\n"sv;
