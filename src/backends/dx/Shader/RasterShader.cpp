@@ -370,11 +370,11 @@ void RasterShader::SaveRaster(
         false);
 
     if (compResult.vertex.is_type_of<vstd::string>()) [[unlikely]] {
-        LUISA_ERROR("DXC compile vertex-shader error: {}", compResult.vertex.get<1>());
+        LUISA_WARNING("DXC compile vertex-shader error: {}", compResult.vertex.get<1>());
         return;
     }
     if (compResult.pixel.is_type_of<vstd::string>()) [[unlikely]] {
-        LUISA_ERROR("DXC compile pixel-shader error: {}", compResult.pixel.get<1>());
+        LUISA_WARNING("DXC compile pixel-shader error: {}", compResult.pixel.get<1>());
         return;
     }
     auto kernelArgs = RasterShaderDetail::GetKernelArgs(vertexKernel, pixelKernel);

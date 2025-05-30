@@ -33,8 +33,9 @@
 #include "llvm/Support/Path.h"
 
 #include <filesystem>
-#include <iostream>
-
+#if _WIN32
+#include <Windows.h>
+#endif
 using namespace clang::tooling;
 using namespace llvm;
 using namespace luisa::clangcxx;
@@ -66,6 +67,31 @@ llvm::Error OptionsParser::init(int &argc, const char **argv,
                                 llvm::cl::NumOccurrencesFlag OccurrencesFlag,
                                 cl::OptionCategory &Category,
                                 const char *Overview) {
+    struct ProcessMutex {
+#if _WIN32
+        HANDLE mtx = 0;
+#endif
+        ProcessMutex() {
+        }
+        void lock() {
+#if _WIN32
+            mtx = OpenMutex(MUTEX_ALL_ACCESS, false, TEXT("luisa_win_clang_mtx"));
+            if (mtx == NULL) {
+                mtx = CreateMutex(nullptr, true, TEXT("luisa_win_clang_mtx"));
+            } else {
+                WaitForSingleObject(mtx, 0xFFFFFFFF);
+            }
+#endif
+        }
+        void unlock() {
+#if _WIN32
+            if (mtx) {
+                ReleaseMutex(mtx);
+                mtx = nullptr;
+            }
+#endif
+        }
+    };
     static cl::list<std::string> SourcePaths(
         cl::Positional, cl::desc("<source0> [... <sourceN>]"), OccurrencesFlag,
         cl::cat(Category), cl::sub(cl::SubCommand::getAll()));
@@ -79,10 +105,8 @@ llvm::Error OptionsParser::init(int &argc, const char **argv,
         "extra-arg-before",
         cl::desc("Additional argument to prepend to the compiler command line"),
         cl::cat(Category), cl::sub(cl::SubCommand::getAll()));
-
     cl::ResetAllOptionOccurrences();
     cl::HideUnrelatedOptions(Category);
-
     std::string ErrorMessage;
     const char *const *DoubleDash = std::find(argv, argv + argc, StringRef("--"));
     if (DoubleDash != argv + argc) {
@@ -97,20 +121,24 @@ llvm::Error OptionsParser::init(int &argc, const char **argv,
             Compilations = FixedCompilationDatabase::loadFromBuffer(".", (*File)->getBuffer(), ErrorMessage);
             argc = DoubleDash - argv;
         } else {
-            Compilations = FixedCompilationDatabase::loadFromCommandLine(argc, argv, ErrorMessage);
+            int my_argc = argc - 2;
+            ProcessMutex process_mtx;
+            process_mtx.lock();
+            Compilations = FixedCompilationDatabase::loadFromCommandLine(my_argc, argv + 2, ErrorMessage);
+            process_mtx.unlock();
+            argc = my_argc + 2;
         }
     }
     if (!ErrorMessage.empty())
         ErrorMessage.append("\n");
-
     llvm::raw_string_ostream OS(ErrorMessage);
     // Stop initializing if command-line option parsing failed.
     if (!cl::ParseCommandLineOptions(argc, argv, Overview, &OS)) {
         OS.flush();
         return llvm::make_error<llvm::StringError>(ErrorMessage, llvm::inconvertibleErrorCode());
     }
-    cl::PrintOptionValues();
 
+    cl::PrintOptionValues();
     // Not loaded, try parse from commandline
     SourcePathList = SourcePaths;
     if (SourcePaths.empty()) {
@@ -118,11 +146,9 @@ llvm::Error OptionsParser::init(int &argc, const char **argv,
         auto testFile = thisFile.parent_path().parent_path().parent_path().parent_path() / "tests" / "test.cpp";
         SourcePathList.emplace_back(testFile.string());
     }
-
     if (SourcePathList.empty()) {
         return llvm::Error::success();
     }
-
     // TODO: Create CompilationDatabase
     if (!Compilations) {
         Compilations = std::make_unique<FixedCompilationDatabase>(".", std::vector<std::string>());

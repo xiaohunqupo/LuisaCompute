@@ -17,6 +17,9 @@ on_load(function(target)
         target:add("links", "WinPixEventRuntime")
         target:add("defines", "LCDX_ENABLE_WINPIX")
     end
+    if get_config("enable_dxagsdk") then
+        target:add("defines", "LCDX_ENABLE_AGILITY_SDK")
+    end
     if get_config("lc_backend_lto") then
         target:set("policy", "build.optimization.lto", true)
         if get_config("lc_toolchain") == "llvm" then

@@ -4,11 +4,6 @@ set_policy("build.ccache", not is_plat("windows"))
 set_policy("check.auto_ignore_flags", false)
 -- pre-defined options
 -- enable mimalloc as default allocator: https://github.com/LuisaGroup/mimalloc
-option("enable_custom_malloc")
-set_values(true, false)
-set_default(false)
-set_showmenu(true)
-option_end()
 option("enable_mimalloc")
 set_values(true, false)
 set_default(true)
@@ -39,24 +34,20 @@ set_default(false)
 set_showmenu(true)
 option_end()
 
-option("enable_win_pix")
-set_values(true, false)
-set_default(false)
-set_showmenu(true)
-option_end()
-
 -- enable Vulkan backend
 option("vk_support")
 set_values(true, false)
 set_default(true)
 set_showmenu(true)
 option_end()
+
 option("vk_backend")
 set_values(true, false)
 -- TODO: vulkan backend not ready
 set_default(false)
 set_showmenu(true)
 option_end()
+
 option("toy_c_backend")
 set_values(true, false)
 set_default(false)
@@ -153,19 +144,8 @@ option("sdk_dir")
 set_default(false)
 set_showmenu(true)
 option_end()
--- external_marl
-option("external_marl")
-set_values(true, false)
-set_default(false)
-set_showmenu(true)
-option_end()
-option("lc_toolchain")
-set_values(true, false)
-set_default(false)
-set_showmenu(true)
-option_end()
 
-option("lc_backend_lto")
+option("lc_toolchain")
 set_values(true, false)
 set_default(false)
 set_showmenu(true)
@@ -182,15 +162,6 @@ set_default(false)
 set_showmenu(true)
 option_end()
 
-option("lc_xrepo_dir")
-set_default(false)
-set_showmenu(true)
-option_end()
-
-option("spdlog_only_fmt")
-set_default(false)
-set_showmenu(true)
-option_end()
 -- pre-defined options end
 -- try options.lua
 if path.absolute(os.projectdir()) == path.absolute(os.scriptdir()) and os.exists("scripts/options.lua") then

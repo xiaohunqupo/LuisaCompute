@@ -3,6 +3,7 @@
 #include <cstdio>
 
 #include <luisa/core/stl/memory.h>
+#include <luisa/core/stl/functional.h>
 #include <luisa/core/stl/string.h>
 #include <luisa/core/stl/filesystem.h>
 
@@ -11,22 +12,22 @@ namespace luisa {
 class BinaryBlob {
     std::byte *_ptr{nullptr};
     size_t _size{0};
-    void (*_disposer)(void *){nullptr};
+    luisa::move_only_function<void(void*)> _disposer;
 
 public:
     BinaryBlob() noexcept = default;
     BinaryBlob(
         std::byte *ptr,
         size_t size,
-        void (*disposer)(void *)) noexcept
+        luisa::move_only_function<void(void*)> &&disposer) noexcept
         : _ptr{ptr},
           _size{size},
-          _disposer{disposer} {}
+          _disposer{std::move(disposer)} {}
     BinaryBlob(BinaryBlob const &) noexcept = delete;
     BinaryBlob(BinaryBlob &&rhs) noexcept
         : _ptr{rhs._ptr},
           _size{rhs._size},
-          _disposer{rhs._disposer} {
+          _disposer{std::move(rhs._disposer)} {
         rhs._ptr = nullptr;
         rhs._size = 0;
         rhs._disposer = nullptr;
