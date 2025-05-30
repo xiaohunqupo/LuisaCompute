@@ -261,10 +261,8 @@ class Managed : public Base {
 
 public:
     static_assert(std::same_as<std::remove_cv_t<T>, T>);
-    using derived_type = T;
-    using base_type = Base;
-    using super_type = Managed;
-    using base_type::base_type;
+    using Super = Managed;
+    using Base::Base;
 
 public:
     [[nodiscard]] auto lock() noexcept {
