@@ -9,7 +9,7 @@ void BasicBlock::_do_traverse_predecessors(bool exclude_self, void *ctx, void (*
 #endif
     // we can find all predecessors by traversing all users of the block and find their containing blocks
     for (auto &&use : use_list()) {
-        auto user = use.user();
+        auto user = use->user();
         LUISA_ASSERT(user != nullptr && user->isa<Instruction>(), "Invalid user of basic block.");
         auto user_block = static_cast<Instruction *>(user)->parent_block();
         LUISA_DEBUG_ASSERT(user_block != nullptr, "Invalid parent block.");

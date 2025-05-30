@@ -116,7 +116,7 @@ static void run_transpose_gep_pass_on_function(Function *function, TransposeGEPI
             gep_loads.clear();
             gep_stores.clear();
             for (auto &&use : gep->use_list()) {
-                if (auto user = use.user()) {
+                if (auto user = use->user()) {
                     LUISA_DEBUG_ASSERT(user->isa<Instruction>(), "Invalid user.");
                     switch (static_cast<Instruction *>(user)->derived_instruction_tag()) {
                         case DerivedInstructionTag::LOAD: {

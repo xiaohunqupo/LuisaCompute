@@ -1,5 +1,6 @@
 #pragma once
 
+#include <luisa/core/managed_ptr.h>
 #include <luisa/xir/value.h>
 
 namespace luisa::compute::xir {
@@ -9,7 +10,7 @@ class BasicBlock;
 class LC_XIR_API User : public Value {
 
 private:
-    luisa::vector<Use *> _operands;
+    luisa::vector<ManagedPtr<Use>> _operands;
 
 protected:
     [[nodiscard]] virtual bool _should_add_self_to_operand_use_lists() const noexcept = 0;

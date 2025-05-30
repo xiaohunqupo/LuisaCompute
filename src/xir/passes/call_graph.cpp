@@ -9,7 +9,7 @@ namespace luisa::compute::xir {
 inline void CallGraph::_add_function(Function *f) noexcept {
     auto any_caller = false;
     for (auto &&use : f->use_list()) {
-        if (auto user = use.user(); user != nullptr && user->isa<CallInst>()) {
+        if (auto user = use->user(); user != nullptr && user->isa<CallInst>()) {
             auto call = static_cast<CallInst *>(user);
             auto caller = call->parent_function()->definition();
             LUISA_DEBUG_ASSERT(caller != nullptr, "Invalid caller.");

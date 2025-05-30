@@ -122,7 +122,7 @@ static void forward_single_store_to_loads_on_function(FunctionDefinition *functi
         for (auto [alloca_inst, count] : store_count) {
             if (count == 1u) {
                 for (auto &&use : alloca_inst->use_list()) {
-                    if (auto user = use.user(); user->isa<StoreInst>()) {
+                    if (auto user = use->user(); user->isa<StoreInst>()) {
                         auto store_inst = static_cast<StoreInst *>(user);
                         if (store_inst->variable() == alloca_inst) {// only consider stores to the entire alloca
                             single_store.emplace(alloca_inst, store_inst);

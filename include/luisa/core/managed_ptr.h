@@ -287,4 +287,18 @@ template<typename T, typename... Args>
     return p;
 }
 
+template<typename T>
+[[nodiscard]] luisa::span<T *> to_unowned_span(luisa::span<ManagedPtr<T>> managed_span) noexcept {
+    auto data = managed_span.data();
+    auto size = managed_span.size();
+    return {reinterpret_cast<T **>(data), size};
+}
+
+template<typename T>
+[[nodiscard]] luisa::span<const T *const> to_unowned_span(luisa::span<const ManagedPtr<T>> managed_span) noexcept {
+    auto data = managed_span.data();
+    auto size = managed_span.size();
+    return {reinterpret_cast<const T *const *>(data), size};
+}
+
 }// namespace luisa

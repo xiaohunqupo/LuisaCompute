@@ -231,8 +231,8 @@ void XIRDebugPrinter::emit_value_debug_info(luisa::string &s, const Value *value
         if (!value->use_list().empty()) {
             any_info = true;
             s.append("users = {"sv);
-            for (auto &use : value->use_list()) {
-                emit_value_name(s, use.user());
+            for (auto use : value->use_list()) {
+                emit_value_name(s, use->user());
                 s.append(", "sv);
             }
             s.pop_back();

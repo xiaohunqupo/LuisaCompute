@@ -155,7 +155,7 @@ bool CUDACodegenXIR::_is_ray_query_callback_function(const xir::CallableFunction
     auto any_rq_user = false;
     auto all_rq_user = true;
     for (auto &&use : f->use_list()) {
-        if (auto user = use.user(); user != nullptr && user->isa<xir::RayQueryPipelineInst>()) {
+        if (auto user = use->user(); user != nullptr && user->isa<xir::RayQueryPipelineInst>()) {
             any_rq_user = true;
         } else {
             all_rq_user = false;
@@ -1084,7 +1084,7 @@ int CUDACodegenXIR::_find_ray_query_captured_kernel_param_index(const xir::Value
     // find all uses of the callable and check if they all point to the same kernel parameter
     auto kernel_param_index = -1;
     for (auto &&use : parent->use_list()) {
-        if (auto user = use.user(); user != nullptr && user->isa<xir::CallInst>()) {
+        if (auto user = use->user(); user != nullptr && user->isa<xir::CallInst>()) {
             if (auto in_arg = _find_ray_query_captured_kernel_param_index(
                     static_cast<const xir::CallInst *>(user)->argument(arg_index));
                 in_arg != -1) {

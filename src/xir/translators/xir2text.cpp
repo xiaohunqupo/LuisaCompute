@@ -177,7 +177,7 @@ private:
         if (_debug_info && !uses.empty()) {
             ss << "// users:";
             for (auto &&u : uses) {
-                ss << " " << _value_ident(u.user());
+                ss << " " << _value_ident(u->user());
             }
         }
     }

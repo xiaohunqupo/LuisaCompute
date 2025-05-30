@@ -19,7 +19,7 @@ namespace detail {
     // otherwise, we check if all users of the callable are CallInst (non-call instructions
     // such as RayQueryPipelineInst may not allow changes to callee functions' signatures)
     for (auto &&use : f->use_list()) {
-        if (auto user = use.user(); user != nullptr && !user->isa<CallInst>()) {
+        if (auto user = use->user(); user != nullptr && !user->isa<CallInst>()) {
             return false;
         }
     }
@@ -44,7 +44,7 @@ static void traverse_call_graph_post_order(Function *f, const CallGraph &call_gr
 
 [[nodiscard]] static bool is_pointer_readonly(Value *p) noexcept {
     for (auto &&use : p->use_list()) {
-        if (auto user = use.user()) {
+        if (auto user = use->user()) {
             LUISA_DEBUG_ASSERT(user->isa<Instruction>(), "Invalid user.");
             switch (static_cast<Instruction *>(user)->derived_instruction_tag()) {
                 case DerivedInstructionTag::LOAD: /* fine to check the next user */ break;
@@ -100,7 +100,7 @@ static void promote_ref_args_in_function(CallableFunction *f, PromoteRefArgInfo 
     }
     // replace the call site arguments with load instructions
     for (auto &&use : f->use_list()) {
-        if (auto user = use.user(); user != nullptr && user->isa<CallInst>()) {
+        if (auto user = use->user(); user != nullptr && user->isa<CallInst>()) {
             auto call = static_cast<CallInst *>(user);
             XIRBuilder b;
             b.set_insertion_point(call->prev());

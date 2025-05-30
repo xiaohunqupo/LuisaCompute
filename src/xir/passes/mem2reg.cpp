@@ -17,8 +17,8 @@ namespace detail {
     if (inst->op() != AllocaOp::LOCAL) { return false; }
     // check if it's used as reference in other instructions than load/store
     for (auto &&use : inst->use_list()) {
-        LUISA_DEBUG_ASSERT(use.user() != nullptr && use.user()->isa<Instruction>(), "Invalid user.");
-        if (auto user_inst = static_cast<Instruction *>(use.user());
+        LUISA_DEBUG_ASSERT(use->user() != nullptr && use->user()->isa<Instruction>(), "Invalid user.");
+        if (auto user_inst = static_cast<Instruction *>(use->user());
             !user_inst->isa<LoadInst>() && !user_inst->isa<StoreInst>()) {
             return false;
         }
@@ -42,7 +42,7 @@ struct AllocaAnalysis {
         live_in_blocks.clear();
         // find def and use blocks
         for (auto &&use : inst->use_list()) {
-            if (auto user = use.user()) {
+            if (auto user = use->user()) {
                 LUISA_DEBUG_ASSERT(user->isa<Instruction>(), "Invalid user.");
                 switch (auto user_inst = static_cast<Instruction *>(user); user_inst->derived_instruction_tag()) {
                     case DerivedInstructionTag::LOAD: {
@@ -173,7 +173,7 @@ struct PhiInsertionAndRenaming {
         }
         // now the alloca should have no load uses but only store uses, check it
         for (auto &&use : inst->use_list()) {
-            if (auto user = use.user()) {
+            if (auto user = use->user()) {
                 LUISA_ASSERT(user->isa<StoreInst>(), "Invalid user.");
             }
         }
@@ -222,7 +222,7 @@ static void simplify_single_block_store_load(AllocaInst *inst, AllocaStoreLoadSe
     // collect load/store instructions concerning the alloca
     seq.clear();
     for (auto &&use : inst->use_list()) {
-        if (auto user = use.user()) {
+        if (auto user = use->user()) {
             if (user->isa<LoadInst>() || user->isa<StoreInst>()) {
                 auto user_inst = static_cast<Instruction *>(user);
                 auto parent_block = user_inst->parent_block();
@@ -267,7 +267,7 @@ static void simplify_single_block_store_load(AllocaInst *inst, AllocaStoreLoadSe
     // if we find the alloca now is stored to only, we can remove it
     auto all_store = true;
     for (auto &&use : inst->use_list()) {
-        if (auto user = use.user(); user != nullptr && !user->isa<StoreInst>()) {
+        if (auto user = use->user(); user != nullptr && !user->isa<StoreInst>()) {
             all_store = false;
             break;
         }
@@ -275,7 +275,7 @@ static void simplify_single_block_store_load(AllocaInst *inst, AllocaStoreLoadSe
     if (all_store) {
         // remove all users
         while (!inst->use_list().empty()) {
-            remove_store(static_cast<StoreInst *>(inst->use_list().front().user()), info);
+            remove_store(static_cast<StoreInst *>(inst->use_list().front()->user()), info);
         }
         // remove self
         remove_alloca(inst, info);

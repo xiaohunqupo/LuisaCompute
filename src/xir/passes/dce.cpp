@@ -17,7 +17,7 @@ static void eliminate_dead_code_in_function(Function *function, DCEInfo &info) n
                 return value != nullptr && (!value->isa<Instruction>() || !dead.contains(static_cast<Instruction *>(value)));
             };
             for (auto &&use : inst->use_list()) {
-                if (is_live(use.value())) {
+                if (is_live(use->value())) {
                     return false;// not all users are dead
                 }
             }
@@ -75,7 +75,7 @@ static void eliminate_dead_code_in_function(Function *function, DCEInfo &info) n
 [[nodiscard]] static bool is_pointer_write_only(luisa::unordered_set<Instruction *> &known, Instruction *inst) noexcept {
     if (known.contains(inst)) { return true; }
     for (auto &&use : inst->use_list()) {
-        if (auto user = use.user()) {
+        if (auto user = use->user()) {
             if (!user->isa<Instruction>()) { return false; }
             switch (auto user_inst = static_cast<Instruction *>(user);
                     user_inst->derived_instruction_tag()) {
@@ -103,7 +103,7 @@ static void eliminate_dead_code_in_function(Function *function, DCEInfo &info) n
 static void collect_inst_and_users_recursive(Instruction *inst, luisa::unordered_set<Instruction *> &collected) noexcept {
     if (collected.emplace(inst).second) {
         for (auto &&use : inst->use_list()) {
-            if (auto user = use.user()) {
+            if (auto user = use->user()) {
                 LUISA_ASSERT(user->isa<Instruction>(), "Only instruction can be user.");
                 collect_inst_and_users_recursive(static_cast<Instruction *>(user), collected);
             }
@@ -252,7 +252,7 @@ void eliminate_unreachable_blocks_in_function(Function *function, DCEInfo &info)
             // let's find out instruction users' blocks that are not in the reachable set
             b->traverse_instructions([&](Instruction *inst) noexcept {
                 for (auto &&use : inst->use_list()) {
-                    if (auto user = use.user(); user != nullptr && user->isa<Instruction>()) {
+                    if (auto user = use->user(); user != nullptr && user->isa<Instruction>()) {
                         if (auto user_block = static_cast<Instruction *>(user)->parent_block();
                             user_block != nullptr && !reachable.contains(user_block)) {
                             unreachable.emplace(user_block);

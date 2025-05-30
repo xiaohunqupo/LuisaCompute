@@ -22,7 +22,7 @@ void Instruction::_add_self_to_operand_use_lists() noexcept {
     for (auto use : operand_uses()) {
         LUISA_DEBUG_ASSERT(!use->is_linked(), "Use already linked.");
         if (auto value = use->value()) {
-            use->add_to_list(value->use_list());
+            value->use_list().push_front(use->lock());
         }
     }
 }

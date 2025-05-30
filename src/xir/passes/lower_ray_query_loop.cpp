@@ -69,7 +69,7 @@ static void collect_ray_query_loop_capture_list_in_inst(Instruction *inst, const
                                                         RayQueryLoopCaptureList &list) noexcept {
     // check if any user of the value is outside the loop
     for (auto &&use : inst->use_list()) {
-        if (auto user = use.user(); user != nullptr && !internal.contains(user)) {
+        if (auto user = use->user(); user != nullptr && !internal.contains(user)) {
             list.out_values.emplace_back(inst);
             break;
         }
@@ -328,10 +328,10 @@ static void replace_phi_uses_with_local_load_in_blocks(BasicBlock *block, PhiIns
     if (block != nullptr) {
         luisa::fixed_vector<Use *, 64u> local_uses;
         for (auto &&use : phi->use_list()) {
-            if (auto user = use.user()) {
+            if (auto user = use->user()) {
                 LUISA_DEBUG_ASSERT(user->isa<Instruction>(), "Invalid user.");
                 if (auto user_inst = static_cast<Instruction *>(user); collected_blocks.contains(user_inst->parent_block())) {
-                    local_uses.emplace_back(&use);
+                    local_uses.emplace_back(use);
                 }
             }
         }
@@ -400,7 +400,7 @@ static void lower_phi_nodes_in_loop_dispatch_block(FunctionDefinition *f, RayQue
             replace_phi_uses_with_local_load_in_blocks(procedural_block, phi, phi_alloca, procedural_blocks);
 #ifndef NDEBUG
             for (auto &&use : phi->use_list()) {
-                if (auto user = use.user()) {
+                if (auto user = use->user()) {
                     LUISA_DEBUG_ASSERT(user->isa<Instruction>(), "Invalid user.");
                     auto user_block = static_cast<Instruction *>(user)->parent_block();
                     LUISA_DEBUG_ASSERT(!surface_blocks.contains(user_block) && !procedural_blocks.contains(user_block),
