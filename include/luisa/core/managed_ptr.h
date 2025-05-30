@@ -228,7 +228,7 @@ public:
 
     template<typename U>
         requires requires(T *lhs, U *rhs) { lhs == rhs; }
-    [[nodiscard]] auto operator==(const ManagedPtr<U> &rhs) const noexcept {
+    [[nodiscard]] bool operator==(const ManagedPtr<U> &rhs) const noexcept {
         return get() == rhs.get();
     }
 
