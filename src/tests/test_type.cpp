@@ -66,12 +66,20 @@ struct Interface : public concepts::Noncopyable {
 };
 
 template<typename T>
-requires concepts::container<T> void foo(T &&) noexcept {}
+    requires concepts::container<T>
+void foo(T &&) noexcept {}
 
 struct Impl : public Interface {};
 
-class Something : public luisa::Managed<Something> {
+class Something : public luisa::Managed<Something> {};
 
+struct SomeNode : public luisa::ManagedIntrusiveNode<SomeNode, Something> {
+    int value;
+    explicit SomeNode(int v = -1) noexcept : value{v} {}
+};
+
+struct SomeForwardNode : public luisa::ManagedIntrusiveForwardNode<SomeForwardNode, Something> {
+    int value;
 };
 
 std::string_view tag_name(Type::Tag tag) noexcept {
@@ -185,5 +193,26 @@ int main() {
     {
         luisa::ManagedPtr<const Something> bad = std::move(sth);
     }
-}
 
+    LUISA_INFO("Begin managed intrusive list test...");
+    {
+        luisa::ManagedIntrusiveList<SomeNode> list;
+        auto n1 = list.push_front(make_managed<SomeNode>(1));// [1]
+        auto n2 = list.push_back(make_managed<SomeNode>(2)); // [1, 2]
+        auto n3 = list.push_front(make_managed<SomeNode>(3));// [3, 1, 2]
+        auto n4 = list.push_back(make_managed<SomeNode>(4)); // [3, 1, 2, 4]
+        {
+            auto rm_n2 = n2->remove_self();// [3, 1, 4]
+        }
+        auto n5 = n3->insert_after_self(make_managed<SomeNode>(5)); // [3, 5, 1, 4]
+        auto n6 = n5->insert_before_self(make_managed<SomeNode>(6));// [3, 6, 5, 1, 4]
+        {
+            auto rm_n3 = n3->remove_self();// [6, 5, 1, 4]
+            auto rm_n4 = n4->remove_self();// [6, 5, 1]
+        }
+        for (auto n : list) {
+            LUISA_INFO("Node value: {}", n->value);
+        }
+    }
+    LUISA_INFO("End managed intrusive list test...");
+}

@@ -77,8 +77,13 @@ struct ManagedPtrLowLevelOp {
 
 template<typename T>
 class ManagedPtr : public ManagedPtr<const T> {
+
+    template<typename U>
+    friend class ManagedPtr;
+
 public:
     ManagedPtr() noexcept = default;
+    ManagedPtr(nullptr_t) noexcept {}
     ~ManagedPtr() noexcept = default;
 
     ManagedPtr(const ManagedPtr &) noexcept = default;
@@ -86,24 +91,64 @@ public:
     ManagedPtr &operator=(ManagedPtr &&) noexcept = default;
     ManagedPtr &operator=(const ManagedPtr &) noexcept = default;
 
+    ManagedPtr &operator=(nullptr_t) noexcept {
+        ManagedPtr<const T>::operator=(nullptr);
+        return *this;
+    }
+
     ManagedPtr(const ManagedPtr<const T> &) noexcept = delete;
     ManagedPtr(ManagedPtr<const T> &&) noexcept = delete;
     ManagedPtr &operator=(ManagedPtr<const T> &&) noexcept = delete;
     ManagedPtr &operator=(const ManagedPtr<const T> &) noexcept = delete;
 
+    template<typename U>
+        requires(!std::is_const_v<U> && std::derived_from<U, T>)
+    ManagedPtr(ManagedPtr<U> &&other) noexcept
+        : ManagedPtr<const T>{std::move(other)} {}
+
+    template<typename U>
+        requires(!std::is_const_v<U> && std::derived_from<U, T>)
+    ManagedPtr(const ManagedPtr<U> &other) noexcept
+        : ManagedPtr<const T>{other} {}
+
+    template<typename U>
+        requires(!std::is_const_v<U> && std::derived_from<U, T>)
+    ManagedPtr &operator=(ManagedPtr<U> &&other) noexcept {
+        ManagedPtr<const T>::operator=(std::move(other));
+        return *this;
+    }
+
+    template<typename U>
+        requires(!std::is_const_v<U> && std::derived_from<U, T>)
+    ManagedPtr &operator=(const ManagedPtr<U> &other) noexcept {
+        ManagedPtr<const T>::operator=(other);
+        return *this;
+    }
+
     [[nodiscard]] T *get() const noexcept { return const_cast<T *>(ManagedPtr<const T>::get()); }
     [[nodiscard]] T *operator->() const noexcept { return get(); }
     [[nodiscard]] T &operator*() const noexcept { return *get(); }
+
+    template<typename U>
+        requires requires(T *p) { static_cast<U *>(p); }
+    [[nodiscard]] auto into() && noexcept {
+        ManagedPtr<U> p;
+        p.reset(static_cast<std::remove_const_t<U> *>(this->transfer()));
+        return p;
+    }
 };
 
 template<typename T>
 class ManagedPtr<const T> {
 
+    template<typename U>
+    friend class ManagedPtr;
+
 private:
     static_assert(std::derived_from<T, detail::ManagedObject>);
     T *_object{nullptr};
 
-private:
+protected:
     friend detail::ManagedPtrLowLevelOp;
     [[nodiscard]] T *transfer() noexcept {
         return std::exchange(_object, nullptr);
@@ -115,6 +160,7 @@ private:
 
 public:
     ManagedPtr() noexcept = default;
+    ManagedPtr(nullptr_t) noexcept {}
     ~ManagedPtr() noexcept { reset(); }
     ManagedPtr(ManagedPtr &&other) noexcept {
         reset(other.transfer());
@@ -138,6 +184,40 @@ public:
         return *this;
     }
 
+    ManagedPtr &operator=(nullptr_t) noexcept {
+        reset();
+        return *this;
+    }
+
+    // from derived ManagedPtr<const T>
+    template<typename U>
+        requires std::derived_from<std::remove_const_t<U>, T>
+    ManagedPtr(ManagedPtr<U> &&other) noexcept {
+        reset(other.transfer());
+    }
+    template<typename U>
+        requires std::derived_from<std::remove_const_t<U>, T>
+    ManagedPtr(const ManagedPtr<U> &other) noexcept {
+        reset(luisa::detail::ManagedPtrLowLevelOp::
+                  retain(const_cast<T *>(other.get())));
+    }
+    template<typename U>
+        requires std::derived_from<std::remove_const_t<U>, T>
+    ManagedPtr &operator=(ManagedPtr<U> &&other) noexcept {
+        if (other.get() != this->get()) {
+            reset(other.transfer());
+        }
+        return *this;
+    }
+    template<typename U>
+        requires std::derived_from<std::remove_const_t<U>, T>
+    ManagedPtr &operator=(const ManagedPtr<U> &other) noexcept {
+        if (auto p = const_cast<T *>(other.get()); p != this->get()) {
+            reset(luisa::detail::ManagedPtrLowLevelOp::retain(p));
+        }
+        return *this;
+    }
+
 public:
     [[nodiscard]] const T *get() const noexcept { return _object; }
     [[nodiscard]] const T *operator->() const noexcept { return get(); }
@@ -145,6 +225,20 @@ public:
     [[nodiscard]] explicit operator bool() const noexcept { return _object != nullptr; }
     [[nodiscard]] bool operator==(const T *rhs) const noexcept { return get() == rhs; }
     [[nodiscard]] bool operator==(const ManagedPtr &rhs) const noexcept { return get() == rhs.get(); }
+
+    template<typename U>
+        requires requires(T *lhs, U *rhs) { lhs == rhs; }
+    [[nodiscard]] auto operator==(const ManagedPtr<U> &rhs) const noexcept {
+        return get() == rhs.get();
+    }
+
+    template<typename U>
+        requires requires(T *p) { static_cast<const U *>(p); }
+    [[nodiscard]] auto into() && noexcept {
+        ManagedPtr<const U> p;
+        p.reset(static_cast<std::remove_const_t<U> *>(this->transfer()));
+        return p;
+    }
 };
 
 template<typename T, typename Base = detail::ManagedObject>

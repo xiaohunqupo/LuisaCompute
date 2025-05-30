@@ -9,7 +9,8 @@ namespace luisa {
 template<typename Node, typename SentinelNode = Node>
 class ManagedIntrusiveList : public concepts::Noncopyable {
 
-    static_assert(std::derived_from<SentinelNode, Node>);
+    static_assert(std::is_base_of_v<Node, SentinelNode>);
+    static_assert(std::is_base_of_v<detail::ManagedObject, Node>);
 
 private:
     template<typename T, typename Advance>
@@ -48,29 +49,31 @@ private:
     };
 
 private:
-    ManagedPtr<Node> _head_sentinel{nullptr};
-    Node *_tail_sentinel{nullptr};
+    ManagedPtr<detail::ManagedObject> _head_sentinel;
+    detail::ManagedObject *_tail_sentinel{nullptr};
 
 public:
     template<typename... Args>
     explicit ManagedIntrusiveList(Args... args) noexcept {
         _head_sentinel = make_managed<SentinelNode>(args...);
-        _head_sentinel->_prev = nullptr;
-        _head_sentinel->_next = make_managed<SentinelNode>(args...);
-        _tail_sentinel = _head_sentinel->_next.get();
+        head_sentinel()->_prev = nullptr;
+        _tail_sentinel = (head_sentinel()->_next = make_managed<SentinelNode>(args...)).get();
+        tail_sentinel()->_prev = head_sentinel();
+        tail_sentinel()->_next = nullptr;
     }
     ~ManagedIntrusiveList() noexcept {
         while (!empty()) {
             static_cast<void>(pop_front());
         }
+        _head_sentinel = nullptr; // release the head sentinel
     }
 
 public:// accessors
-    [[nodiscard]] auto head_sentinel() noexcept -> Node * { return _head_sentinel.get(); }
-    [[nodiscard]] auto head_sentinel() const noexcept -> const Node * { return _head_sentinel.get(); }
-    [[nodiscard]] auto tail_sentinel() noexcept -> Node * { return _tail_sentinel; }
-    [[nodiscard]] auto tail_sentinel() const noexcept -> const Node * { return _tail_sentinel; }
-    [[nodiscard]] auto empty() const noexcept -> bool { return _head_sentinel->next() == _tail_sentinel; }
+    [[nodiscard]] auto head_sentinel() noexcept -> Node * { return static_cast<Node *>(_head_sentinel.get()); }
+    [[nodiscard]] auto head_sentinel() const noexcept -> const Node * { return static_cast<const Node *>(_head_sentinel.get()); }
+    [[nodiscard]] auto tail_sentinel() noexcept -> Node * { return static_cast<Node *>(_tail_sentinel); }
+    [[nodiscard]] auto tail_sentinel() const noexcept -> const Node * { return static_cast<const Node *>(_tail_sentinel); }
+    [[nodiscard]] auto empty() const noexcept -> bool { return head_sentinel()->next() == tail_sentinel(); }
     [[nodiscard]] auto front() noexcept -> Node * {
         assert(!empty() && "Cannot access front of an empty list.");
         return head_sentinel()->next();
@@ -99,8 +102,8 @@ public:// iterators
     [[nodiscard]] auto crend() const noexcept { return this->rend(); }
 
 public:// modifiers
-    void push_front(ManagedPtr<Node> node) noexcept { head_sentinel()->insert_after_self(std::move(node)); }
-    void push_back(ManagedPtr<Node> node) noexcept { tail_sentinel()->insert_before_self(std::move(node)); }
+    auto push_front(ManagedPtr<Node> node) noexcept -> Node * { return head_sentinel()->insert_after_self(std::move(node)); }
+    auto push_back(ManagedPtr<Node> node) noexcept -> Node * { return tail_sentinel()->insert_before_self(std::move(node)); }
     auto pop_front() noexcept -> ManagedPtr<Node> { return front()->remove_self(); }
     auto pop_back() noexcept -> ManagedPtr<Node> { return back()->remove_self(); }
 };
@@ -113,20 +116,19 @@ class ManagedIntrusiveNode : public Base {
 
 public:
     using Super = ManagedIntrusiveNode;
-    static_assert(std::derived_from<Base, detail::ManagedObject>);
 
 protected:
     using Base::Base;
 
 private:
-    T *_prev{nullptr};
-    ManagedPtr<T> _next{nullptr};
+    detail::ManagedObject *_prev{nullptr};
+    ManagedPtr<detail::ManagedObject> _next;
 
 public:
-    [[nodiscard]] auto prev() noexcept -> T * { return _prev; }
-    [[nodiscard]] auto prev() const noexcept -> const T * { return _prev; }
-    [[nodiscard]] auto next() noexcept -> T * { return _next.get(); }
-    [[nodiscard]] auto next() const noexcept -> const T * { return _next.get(); }
+    [[nodiscard]] auto prev() noexcept -> T * { return static_cast<T *>(_prev); }
+    [[nodiscard]] auto prev() const noexcept -> const T * { return static_cast<const T *>(_prev); }
+    [[nodiscard]] auto next() noexcept -> T * { return static_cast<T *>(_next.get()); }
+    [[nodiscard]] auto next() const noexcept -> const T * { return static_cast<const T *>(_next.get()); }
     [[nodiscard]] auto is_linked() const noexcept -> bool { return _prev != nullptr && _next != nullptr; }
     [[nodiscard]] auto is_head_sentinel() const noexcept -> bool { return _prev == nullptr; }
     [[nodiscard]] auto is_tail_sentinel() const noexcept -> bool { return _next == nullptr; }
@@ -136,37 +138,40 @@ public:
     virtual auto remove_self() noexcept -> ManagedPtr<T> {
         if (!is_linked()) [[unlikely]] { return nullptr; }
         assert(!is_sentinel() && "Cannot remove a sentinel node.");
-        assert(_prev->next() == this && "Node is not linked correctly.");
-        assert(_next->prev() == this && "Node is not linked correctly.");
+        assert(prev()->next() == this && "Node is not linked correctly.");
+        assert(next()->prev() == this && "Node is not linked correctly.");
         // process the previous node first before we nullify the pointers
-        _next->_prev = _prev;
+        next()->_prev = _prev;
         // we should hold self to prevent being a dangling pointer
-        auto self = std::exchange(_prev->_next, std::move(_next));
+        auto self = std::exchange(prev()->_next, std::move(_next)).template into<T>();
         assert(_next == nullptr && "Next pointer should be null after removal.");
         // nullify the pointers
         _prev = nullptr;
         return self;
     }
-    virtual void insert_before_self(ManagedPtr<T> node) noexcept {
+    virtual auto insert_before_self(ManagedPtr<T> node) noexcept -> T * {
         assert(!node->is_linked() && "Inserting a linked node into a list.");
         assert(!is_head_sentinel() && "Inserting before a head sentinel.");
         // get a pointer to the node being inserted before moving it
         auto p_node = node.get();
         p_node->_prev = _prev;
-        auto self = std::exchange(_prev->_next, std::move(node));
+        auto self = std::exchange(prev()->_next, std::move(node));
         p_node->_next = std::move(self);
         _prev = p_node;
+        return p_node;
     }
-    virtual void insert_after_self(ManagedPtr<T> node) noexcept {
+    virtual auto insert_after_self(ManagedPtr<T> node) noexcept -> T * {
         assert(!node->is_linked() && "Inserting a linked node into a list.");
         assert(!is_tail_sentinel() && "Inserting after a tail sentinel.");
         // insert after self <==> insert before the next node
-        _next->insert_before_self(std::move(node));
+        return next()->insert_before_self(std::move(node));
     }
 };
 
 template<typename Node>
 class ManagedIntrusiveForwardList {
+
+    static_assert(std::is_base_of_v<detail::ManagedObject, Node>);
 
 private:
     template<typename T>
@@ -196,7 +201,7 @@ private:
     };
 
 private:
-    ManagedPtr<Node> _head{nullptr};
+    ManagedPtr<detail::ManagedObject> _head{nullptr};
 
 public:
     ManagedIntrusiveForwardList() noexcept = default;
@@ -214,7 +219,7 @@ public:// accessors
     [[nodiscard]] auto empty() const noexcept -> bool { return _head == nullptr; }
     [[nodiscard]] auto front() noexcept -> Node * {
         assert(!empty() && "Cannot access front of an empty list.");
-        return _head;
+        return static_cast<Node *>(_head.get());
     }
     [[nodiscard]] auto front() const noexcept -> const Node * {
         return const_cast<ManagedIntrusiveForwardList *>(this)->front();
@@ -230,7 +235,8 @@ public:// iterators
     [[nodiscard]] auto cend() const noexcept { return this->end(); }
 
 public:// modifiers
-    void push_front(ManagedPtr<Node> node) noexcept {
+    auto push_front(ManagedPtr<Node> node) noexcept -> Node * {
+        auto p_node = node.get();
         assert(node->_next == nullptr && node->_prev_next == nullptr && "Node is already linked.");
         auto new_head = node.get();
         if (auto old_head = std::exchange(_head, std::move(node))) {
@@ -238,6 +244,7 @@ public:// modifiers
             new_head->_next = std::move(old_head);
         }
         new_head->_prev_next = &_head;
+        return p_node;
     }
     auto pop_front() noexcept -> ManagedPtr<Node> { return front()->remove_self(); }
 };
@@ -245,28 +252,27 @@ public:// modifiers
 template<typename T, typename Base = detail::ManagedObject>
 class ManagedIntrusiveForwardNode : public Base {
 
-    template<typename, typename>
+    template<typename>
     friend class ManagedIntrusiveForwardList;
 
 public:
     using Super = ManagedIntrusiveForwardNode;
-    static_assert(std::derived_from<Base, detail::ManagedObject>);
 
 protected:
     using Base::Base;
 
 private:
-    ManagedPtr<T> _next{nullptr};      // pointer to the next node
-    ManagedPtr<T> *_prev_next{nullptr};// pointer to the next pointer of the previous node
+    ManagedPtr<detail::ManagedObject> _next;               // pointer to the next node
+    ManagedPtr<detail::ManagedObject> *_prev_next{nullptr};// pointer to the next pointer of the previous node
 
 public:
-    [[nodiscard]] auto next() noexcept -> T * { return _next.get(); }
-    [[nodiscard]] auto next() const noexcept -> const T * { return _next.get(); }
+    [[nodiscard]] auto next() noexcept -> T * { return static_cast<T *>(_next.get()); }
+    [[nodiscard]] auto next() const noexcept -> const T * { return static_cast<const T *>(_next.get()); }
     [[nodiscard]] auto is_linked() const noexcept -> bool { return _prev_next != nullptr; }
     virtual auto remove_self() noexcept -> ManagedPtr<T> {
         if (!is_linked()) [[unlikely]] { return nullptr; }
-        if (_next != nullptr) { _next->_prev_next = _prev_next; }
-        auto self = std::exchange(*_prev_next, std::move(_next));
+        if (_next != nullptr) { next()->_prev_next = _prev_next; }
+        auto self = std::exchange(*_prev_next, std::move(_next)).into<T>();
         assert(self == this && "The node being removed is not the same as the current node.");
         assert(self->_next == nullptr && "Next pointer should be null after removal.");
         _prev_next = nullptr;// nullify the pointer to the next pointer of the previous node
