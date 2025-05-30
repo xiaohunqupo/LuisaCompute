@@ -264,6 +264,16 @@ public:
         return static_cast<ManagedPtr<const T>>(
             const_cast<Managed *>(this)->lock());
     }
+    template<typename U>
+        requires std::derived_from<std::remove_const_t<U>, T>
+    [[nodiscard]] auto lock_into() noexcept {
+        return lock().template into<U>();
+    }
+    template<typename U>
+        requires std::derived_from<std::remove_const_t<U>, T>
+    [[nodiscard]] auto lock_into() const noexcept {
+        return lock().template into<const U>();
+    }
 };
 
 template<typename T, typename... Args>

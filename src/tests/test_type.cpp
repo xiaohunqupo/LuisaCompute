@@ -196,7 +196,8 @@ int main() {
     }
 
     {
-        luisa::ManagedPtr<const Something> bad = std::move(sth);
+        luisa::ManagedPtr<const luisa::detail::ManagedObject> bad = std::move(sth);
+        auto worse = std::move(bad).into<Something>();
     }
 
     LUISA_INFO("Begin managed intrusive list test...");
@@ -230,7 +231,7 @@ int main() {
     LUISA_INFO("Begin managed intrusive forward list test...");
     {
         luisa::ManagedIntrusiveForwardList<SomeForwardNode> list;
-        auto n1 = list.push_front(make_managed<SomeForwardNode>(1));// [1]
+        auto n1 = list.push_front(make_managed<SomeForwardNode>(1)->lock_into<SomeForwardNode>());// [1]
         auto n2 = list.push_front(make_managed<SomeForwardNode>(2));// [2, 1]
         auto n3 = list.push_front(make_managed<SomeForwardNode>(3));// [3, 2, 1]
         auto n4 = list.push_front(make_managed<SomeForwardNode>(4));// [4, 3, 2, 1]
