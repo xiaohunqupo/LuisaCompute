@@ -73,13 +73,17 @@ struct Impl : public Interface {};
 
 class Something : public luisa::Managed<Something> {};
 
-struct SomeNode : public luisa::ManagedIntrusiveNode<SomeNode, Something> {
+struct SomeValue : Something {
     int value;
-    explicit SomeNode(int v = -1) noexcept : value{v} {}
+    explicit SomeValue(int v = -1) noexcept : value{v} {}
 };
 
-struct SomeForwardNode : public luisa::ManagedIntrusiveForwardNode<SomeForwardNode, Something> {
-    int value;
+struct SomeNode : public luisa::ManagedIntrusiveNode<SomeNode, SomeValue> {
+    using Super::Super;
+};
+
+struct SomeForwardNode : public luisa::ManagedIntrusiveForwardNode<SomeForwardNode, SomeValue> {
+    using Super::Super;
 };
 
 std::string_view tag_name(Type::Tag tag) noexcept {
@@ -203,16 +207,53 @@ int main() {
         auto n4 = list.push_back(make_managed<SomeNode>(4)); // [3, 1, 2, 4]
         {
             auto rm_n2 = n2->remove_self();// [3, 1, 4]
+            LUISA_ASSERT(!rm_n2->is_linked(), "Node should be unlinked after removal.");
         }
         auto n5 = n3->insert_after_self(make_managed<SomeNode>(5)); // [3, 5, 1, 4]
         auto n6 = n5->insert_before_self(make_managed<SomeNode>(6));// [3, 6, 5, 1, 4]
         {
             auto rm_n3 = n3->remove_self();// [6, 5, 1, 4]
+            LUISA_ASSERT(!rm_n3->is_linked(), "Node should be unlinked after removal.");
             auto rm_n4 = n4->remove_self();// [6, 5, 1]
+            LUISA_ASSERT(!rm_n4->is_linked(), "Node should be unlinked after removal.");
         }
-        for (auto n : list) {
-            LUISA_INFO("Node value: {}", n->value);
+        for (auto node : list) {
+            LUISA_INFO("Node value: {}", node->value);
+        }
+        for (auto iter = list.crbegin(); iter != list.crend(); ++iter) {
+            LUISA_INFO("Reverse Node value: {}", (*iter)->value);
         }
     }
     LUISA_INFO("End managed intrusive list test...");
+
+    LUISA_INFO("Begin managed intrusive forward list test...");
+    {
+        luisa::ManagedIntrusiveForwardList<SomeForwardNode> list;
+        auto n1 = list.push_front(make_managed<SomeForwardNode>(1));// [1]
+        auto n2 = list.push_front(make_managed<SomeForwardNode>(2));// [2, 1]
+        auto n3 = list.push_front(make_managed<SomeForwardNode>(3));// [3, 2, 1]
+        auto n4 = list.push_front(make_managed<SomeForwardNode>(4));// [4, 3, 2, 1]
+        {
+            auto rm_n2 = n2->remove_self();// [4, 3, 1]
+            LUISA_ASSERT(!rm_n2->is_linked(), "Node should be unlinked after removal.");
+        }
+        auto n5 = list.push_front(make_managed<SomeForwardNode>(5));// [5, 4, 3, 1]
+        auto n6 = list.push_front(make_managed<SomeForwardNode>(6));// [6, 5, 4, 3, 1]
+        {
+            auto rm_n1 = n1->remove_self();// [6, 5, 4, 3]
+            LUISA_ASSERT(!rm_n1->is_linked(), "Node should be unlinked after removal.");
+            auto rm_n6 = n6->remove_self();// [5, 4, 3]
+            LUISA_ASSERT(!rm_n6->is_linked(), "Node should be unlinked after removal.");
+        }
+        auto n7 = list.push_front(make_managed<SomeForwardNode>(7));// [7, 5, 4, 3]
+        auto n8 = list.push_front(make_managed<SomeForwardNode>(8));// [8, 7, 5, 4, 3]
+        {
+            auto rm_n5 = n5->remove_self();// [8, 7, 4, 3]
+            LUISA_ASSERT(!rm_n5->is_linked(), "Node should be unlinked after removal.");
+        }
+        for (auto node : list) {
+            LUISA_INFO("Node value: {}", node->value);
+        }
+    }
+    LUISA_INFO("End managed intrusive forward list test...");
 }

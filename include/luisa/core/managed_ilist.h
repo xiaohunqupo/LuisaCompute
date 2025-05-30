@@ -239,7 +239,7 @@ public:// modifiers
         auto p_node = node.get();
         assert(node->_next == nullptr && node->_prev_next == nullptr && "Node is already linked.");
         auto new_head = node.get();
-        if (auto old_head = std::exchange(_head, std::move(node))) {
+        if (auto old_head = std::exchange(_head, std::move(node)).template into<Node>()) {
             old_head->_prev_next = &new_head->_next;
             new_head->_next = std::move(old_head);
         }
@@ -273,7 +273,7 @@ public:
         if (!is_linked()) [[unlikely]] { return nullptr; }
         if (_next != nullptr) { next()->_prev_next = _prev_next; }
         auto self = std::exchange(*_prev_next, std::move(_next)).into<T>();
-        assert(self == this && "The node being removed is not the same as the current node.");
+        assert(self.get() == this && "The node being removed is not the same as the current node.");
         assert(self->_next == nullptr && "Next pointer should be null after removal.");
         _prev_next = nullptr;// nullify the pointer to the next pointer of the previous node
         return self;
