@@ -108,11 +108,13 @@ public:// modifiers
     auto pop_back() noexcept -> ManagedPtr<Node> { return back()->remove_self(); }
 };
 
-template<typename T, typename Base = detail::ManagedObject>
+template<typename T, typename Base = Managed<T>>
 class ManagedIntrusiveNode : public Base {
 
     template<typename, typename>
     friend class ManagedIntrusiveList;
+
+    static_assert(std::is_base_of_v<detail::ManagedObject, Base>);
 
 public:
     using Super = ManagedIntrusiveNode;
@@ -251,11 +253,13 @@ public:// modifiers
     auto pop_front() noexcept -> ManagedPtr<Node> { return front()->remove_self(); }
 };
 
-template<typename T, typename Base = detail::ManagedObject>
+template<typename T, typename Base = Managed<T>>
 class ManagedIntrusiveForwardNode : public Base {
 
     template<typename>
     friend class ManagedIntrusiveForwardList;
+
+    static_assert(std::is_base_of_v<detail::ManagedObject, Base>);
 
 public:
     using Super = ManagedIntrusiveForwardNode;
