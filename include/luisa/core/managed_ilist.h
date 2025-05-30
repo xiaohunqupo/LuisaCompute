@@ -272,7 +272,7 @@ public:
     virtual auto remove_self() noexcept -> ManagedPtr<T> {
         if (!is_linked()) [[unlikely]] { return nullptr; }
         if (_next != nullptr) { next()->_prev_next = _prev_next; }
-        auto self = std::exchange(*_prev_next, std::move(_next)).into<T>();
+        auto self = std::exchange(*_prev_next, std::move(_next)).template into<T>();
         assert(self.get() == this && "The node being removed is not the same as the current node.");
         assert(self->_next == nullptr && "Next pointer should be null after removal.");
         _prev_next = nullptr;// nullify the pointer to the next pointer of the previous node
