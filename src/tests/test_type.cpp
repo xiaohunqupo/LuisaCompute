@@ -76,6 +76,7 @@ class Something : public luisa::Managed<Something> {};
 struct SomeValue : Something {
     int value;
     explicit SomeValue(int v = -1) noexcept : value{v} {}
+    ~SomeValue() noexcept override { LUISA_INFO("SomeValue destroyed with value: {}", value); }
 };
 
 struct SomeNode : public luisa::ManagedIntrusiveNode<SomeNode, SomeValue> {
