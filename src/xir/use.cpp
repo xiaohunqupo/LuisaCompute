@@ -10,6 +10,7 @@ Use::Use(User *user, Value *value) noexcept : _user{user}, _value{value} {
 }
 
 void Use::set_value(Value *value) noexcept {
+    validate_canary();
     _value = value;
 }
 

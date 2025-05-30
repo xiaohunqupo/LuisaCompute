@@ -178,7 +178,6 @@ int main() {
     auto sth = luisa::make_managed<Something>();
     sth = sth;
     sth = std::move(sth);
-    sth->set_managed_id(123);
     {
         auto another = sth;
         luisa::ManagedPtr<const Something> good = std::move(another);

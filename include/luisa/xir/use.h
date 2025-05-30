@@ -17,10 +17,21 @@ private:
 public:
     explicit Use(User *user, Value *value = nullptr) noexcept;
     void set_value(Value *value) noexcept;
-    [[nodiscard]] auto value() noexcept { return _value; }
-    [[nodiscard]] auto value() const noexcept { return const_cast<const Value *>(_value); }
-    [[nodiscard]] auto user() noexcept { return _user; }
-    [[nodiscard]] auto user() const noexcept { return const_cast<const User *>(_user); }
+
+    [[nodiscard]] auto value() noexcept {
+        validate_canary();
+        return _value;
+    }
+    [[nodiscard]] auto value() const noexcept {
+        return const_cast<const Value *>(_value);
+    }
+    [[nodiscard]] auto user() noexcept {
+        validate_canary();
+        return _user;
+    }
+    [[nodiscard]] auto user() const noexcept {
+        return const_cast<const User *>(_user);
+    }
 };
 
 using UseList = ManagedIntrusiveForwardList<Use>;

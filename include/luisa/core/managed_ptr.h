@@ -3,6 +3,10 @@
 #include <atomic>
 #include <luisa/core/stl/memory.h>
 
+#ifndef NDEBUG
+#define LUISA_MANAGED_OBJECT_CANARY 0xDEADBEEF
+#endif
+
 namespace luisa {
 
 template<typename T>
@@ -16,11 +20,23 @@ class ManagedObject {
 
 private:
     std::atomic<int32_t> _ref_count;
-    uint32_t _managed_id;
+#ifdef LUISA_MANAGED_OBJECT_CANARY
+    uint32_t _canary{LUISA_MANAGED_OBJECT_CANARY};
+#endif
 
 public:
-    explicit ManagedObject(uint32_t m_id = 0u) noexcept : _ref_count{1}, _managed_id{m_id} {}
-    virtual ~ManagedObject() = default;
+    ManagedObject() noexcept : _ref_count{1} {}
+#ifdef LUISA_MANAGED_OBJECT_CANARY
+    virtual ~ManagedObject() noexcept { _canary = 0u; }
+    void validate_canary() const noexcept {
+        assert(_canary == LUISA_MANAGED_OBJECT_CANARY &&
+               "ManagedObject canary has been corrupted, "
+               "object is likely already destroyed.");
+    }
+#else
+    virtual ~ManagedObject() noexcept = default;
+    void validate_canary() const noexcept { /* no canary to validate in release mode */ }
+#endif
     ManagedObject(ManagedObject &&) = delete;
     ManagedObject(const ManagedObject &) = delete;
     ManagedObject &operator=(ManagedObject &&) = delete;
@@ -29,19 +45,17 @@ public:
 private:
     friend ManagedPtrLowLevelOp;
     ManagedObject *do_retain() noexcept {
+        validate_canary();
         [[maybe_unused]] auto old_refcount = _ref_count.fetch_add(1, std::memory_order_relaxed);
         assert(old_refcount > 0 && "Retained object is likely already destroyed.");
         return this;
     }
     void do_release() noexcept {
+        validate_canary();
         auto old_refcount = _ref_count.fetch_sub(1, std::memory_order_acq_rel);
         assert(old_refcount > 0 && "Releasing object is likely already destroyed.");
         if (old_refcount == 1) { luisa::delete_with_allocator(this); }
     }
-
-public:
-    [[nodiscard]] auto managed_id() const noexcept { return _managed_id; }
-    void set_managed_id(uint32_t m_id) noexcept { _managed_id = m_id; }
 };
 
 struct ManagedPtrLowLevelOp {
