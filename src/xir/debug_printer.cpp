@@ -422,28 +422,28 @@ void XIRDebugPrinter::emit_module(luisa::string &s, const Module *module) noexce
 void XIRDebugPrinter::emit_metadata_list(luisa::string &s, const MetadataList &metadata) noexcept {
     if (!metadata.empty()) {
         s.append("[["sv);
-        for (auto &md : metadata) {
-            switch (md.derived_metadata_tag()) {
+        for (auto md : metadata) {
+            switch (md->derived_metadata_tag()) {
                 case DerivedMetadataTag::NAME: {
-                    auto name_md = static_cast<const NameMD *>(&md);
+                    auto name_md = static_cast<const NameMD *>(md);
                     luisa::format_to(std::back_inserter(s), "name = {:?}, ",
                                      name_md->name());
                     break;
                 }
                 case DerivedMetadataTag::LOCATION: {
-                    auto loc_md = static_cast<const LocationMD *>(&md);
+                    auto loc_md = static_cast<const LocationMD *>(md);
                     luisa::format_to(std::back_inserter(s), "location = ({:?}, {}), ",
                                      loc_md->file().string(), loc_md->line());
                     break;
                 }
                 case DerivedMetadataTag::COMMENT: {
-                    auto comment_md = static_cast<const CommentMD *>(&md);
+                    auto comment_md = static_cast<const CommentMD *>(md);
                     luisa::format_to(std::back_inserter(s), "comment = {:?}, ",
                                      comment_md->comment());
                     break;
                 }
                 case DerivedMetadataTag::CURVE_BASIS: {
-                    auto curve_md = static_cast<const CurveBasisMD *>(&md);
+                    auto curve_md = static_cast<const CurveBasisMD *>(md);
                     s.append("curve_basis = ("sv);
                     auto any_basis = false;
                     if (curve_md->curve_basis_set().test(CurveBasis::PIECEWISE_LINEAR)) {

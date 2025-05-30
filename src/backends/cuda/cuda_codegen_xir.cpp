@@ -834,24 +834,24 @@ void CUDACodegenXIR::_emit_instructions(const xir::InstructionList &inst_list, i
 }
 
 void CUDACodegenXIR::_emit_metadata(const xir::MetadataList &md_list, int indent) const noexcept {
-    for (auto &&md : md_list) {
+    for (auto md : md_list) {
         _emit_indent(indent);
         _scratch << "// ";
-        switch (md.derived_metadata_tag()) {
+        switch (md->derived_metadata_tag()) {
             case xir::DerivedMetadataTag::NAME: {
-                auto name_md = static_cast<const xir::NameMD *>(&md);
+                auto name_md = static_cast<const xir::NameMD *>(md);
                 _scratch << luisa::format("name: {:?}",
                                           name_md->name());
                 break;
             }
             case xir::DerivedMetadataTag::LOCATION: {
-                auto loc_md = static_cast<const xir::LocationMD *>(&md);
+                auto loc_md = static_cast<const xir::LocationMD *>(md);
                 _scratch << luisa::format("location: {:?}, line {}",
                                           loc_md->file().string(), loc_md->line());
                 break;
             }
             case xir::DerivedMetadataTag::COMMENT: {
-                auto comment_md = static_cast<const xir::CommentMD *>(&md);
+                auto comment_md = static_cast<const xir::CommentMD *>(md);
                 for (auto c : comment_md->comment()) {
                     if (c == '\n') {
                         _scratch << "\n";
@@ -865,7 +865,7 @@ void CUDACodegenXIR::_emit_metadata(const xir::MetadataList &md_list, int indent
                 break;
             }
             case xir::DerivedMetadataTag::CURVE_BASIS: {
-                auto bases = static_cast<const xir::CurveBasisMD *>(&md)->curve_basis_set();
+                auto bases = static_cast<const xir::CurveBasisMD *>(md)->curve_basis_set();
                 _scratch << "curve basis:";
                 if (bases.none()) {
                     _scratch << " none";

@@ -90,11 +90,11 @@ public:// iterators
     using ConstIterator = IteratorBase<const Node, ForwardAdvance>;
     using ReverseIterator = IteratorBase<Node, BackwardAdvance>;
     using ConstReverseIterator = IteratorBase<const Node, BackwardAdvance>;
-    [[nodiscard]] auto begin() noexcept -> Iterator { return Iterator{front()}; }
-    [[nodiscard]] auto begin() const noexcept -> ConstIterator { return ConstIterator{front()}; }
+    [[nodiscard]] auto begin() noexcept -> Iterator { return Iterator{head_sentinel()->next()}; }
+    [[nodiscard]] auto begin() const noexcept -> ConstIterator { return ConstIterator{head_sentinel()->next()}; }
     [[nodiscard]] auto end() const noexcept -> luisa::default_sentinel_t { return luisa::default_sentinel; }
-    [[nodiscard]] auto rbegin() noexcept -> ReverseIterator { return ReverseIterator{back()}; }
-    [[nodiscard]] auto rbegin() const noexcept -> ConstReverseIterator { return ConstReverseIterator{back()}; }
+    [[nodiscard]] auto rbegin() noexcept -> ReverseIterator { return ReverseIterator{tail_sentinel()->prev()}; }
+    [[nodiscard]] auto rbegin() const noexcept -> ConstReverseIterator { return ConstReverseIterator{tail_sentinel()->prev()}; }
     [[nodiscard]] auto rend() const noexcept -> luisa::default_sentinel_t { return luisa::default_sentinel; }
     [[nodiscard]] auto cbegin() const noexcept { return this->begin(); }
     [[nodiscard]] auto cend() const noexcept { return this->end(); }
@@ -217,9 +217,11 @@ public:
 
 public:// accessors
     [[nodiscard]] auto empty() const noexcept -> bool { return _head == nullptr; }
+    [[nodiscard]] auto head() noexcept -> Node * { return static_cast<Node *>(_head.get()); }
+    [[nodiscard]] auto head() const noexcept -> const Node * { return static_cast<const Node *>(_head.get()); }
     [[nodiscard]] auto front() noexcept -> Node * {
         assert(!empty() && "Cannot access front of an empty list.");
-        return static_cast<Node *>(_head.get());
+        return head();
     }
     [[nodiscard]] auto front() const noexcept -> const Node * {
         return const_cast<ManagedIntrusiveForwardList *>(this)->front();
@@ -228,8 +230,8 @@ public:// accessors
 public:// iterators
     using Iterator = IteratorBase<Node>;
     using ConstIterator = IteratorBase<const Node>;
-    [[nodiscard]] auto begin() noexcept -> Iterator { return Iterator{front()}; }
-    [[nodiscard]] auto begin() const noexcept -> ConstIterator { return ConstIterator{front()}; }
+    [[nodiscard]] auto begin() noexcept -> Iterator { return Iterator{head()}; }
+    [[nodiscard]] auto begin() const noexcept -> ConstIterator { return ConstIterator{head()}; }
     [[nodiscard]] auto end() const noexcept -> luisa::default_sentinel_t { return luisa::default_sentinel; }
     [[nodiscard]] auto cbegin() const noexcept { return this->begin(); }
     [[nodiscard]] auto cend() const noexcept { return this->end(); }

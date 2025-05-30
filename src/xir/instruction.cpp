@@ -29,11 +29,10 @@ void Instruction::_add_self_to_operand_use_lists() noexcept {
 
 Instruction *Instruction::clone_with_metadata(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept {
     auto cloned = this->clone(b, resolver);
-    auto pool = cloned->pool();
-    for (auto &md : metadata_list()) {
-        auto new_md = md.clone(pool);
+    for (auto md : metadata_list()) {
+        auto new_md = md->clone();
         LUISA_DEBUG_ASSERT(new_md != nullptr, "Failed to clone metadata.");
-        new_md->add_to_list(cloned->metadata_list());
+        cloned->metadata_list().push_front(std::move(new_md));
     }
     return cloned;
 }

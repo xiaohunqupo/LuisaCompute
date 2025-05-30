@@ -501,9 +501,8 @@ private:
             return b.call(expr->type(), ArithmeticOp::AGGREGATE, args);
         };
         auto curve_bases_marked = [&](xir::Instruction *inst) noexcept {
-            auto pool = inst->pool();
-            auto md = pool->create<CurveBasisMD>(pool, expr->curve_basis_set());
-            md->add_to_list(inst->metadata_list());
+            inst->metadata_list().push_front(
+                luisa::make_managed<CurveBasisMD>(expr->curve_basis_set()));
             return inst;
         };
         // builtin function

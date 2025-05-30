@@ -763,37 +763,37 @@ private:
         for (auto &f : module->function_list()) { _emit_function(&f); }
     }
 
-    static void _emit_name_metadata(StringScratch &s, const NameMD &m) noexcept {
-        s << "name = " << m.name();
+    static void _emit_name_metadata(StringScratch &s, const NameMD *m) noexcept {
+        s << "name = " << m->name();
     }
 
-    static void _emit_location_metadata(StringScratch &s, const LocationMD &m) noexcept {
+    static void _emit_location_metadata(StringScratch &s, const LocationMD *m) noexcept {
         s << "location = (";
-        _emit_string_escaped(s, m.file().string());
-        s << ", " << m.line() << ")";
+        _emit_string_escaped(s, m->file().string());
+        s << ", " << m->line() << ")";
     }
 
-    static void _emit_comment_metadata(StringScratch &s, const CommentMD &m) noexcept {
+    static void _emit_comment_metadata(StringScratch &s, const CommentMD *m) noexcept {
         s << "comment = ";
-        _emit_string_escaped(s, m.comment());
+        _emit_string_escaped(s, m->comment());
     }
 
-    static void _emit_curve_basis_metadata(StringScratch &s, const CurveBasisMD &m) noexcept {
+    static void _emit_curve_basis_metadata(StringScratch &s, const CurveBasisMD *m) noexcept {
         s << "curve_basis = {";
         auto any_basis = false;
-        if (m.curve_basis_set().test(CurveBasis::PIECEWISE_LINEAR)) {
+        if (m->curve_basis_set().test(CurveBasis::PIECEWISE_LINEAR)) {
             any_basis = true;
             s << "piecewise_linear, ";
         }
-        if (m.curve_basis_set().test(CurveBasis::CUBIC_BSPLINE)) {
+        if (m->curve_basis_set().test(CurveBasis::CUBIC_BSPLINE)) {
             any_basis = true;
             s << "cubic_bspline, ";
         }
-        if (m.curve_basis_set().test(CurveBasis::CATMULL_ROM)) {
+        if (m->curve_basis_set().test(CurveBasis::CATMULL_ROM)) {
             any_basis = true;
             s << "catmull_rom, ";
         }
-        if (m.curve_basis_set().test(CurveBasis::BEZIER)) {
+        if (m->curve_basis_set().test(CurveBasis::BEZIER)) {
             any_basis = true;
             s << "bezier, ";
         }
@@ -807,19 +807,19 @@ private:
     template<typename T>
     static void _emit_metadata_list(StringScratch &s, const T &m) noexcept {
         s << "[";
-        for (auto &item : m) {
-            switch (item.derived_metadata_tag()) {
+        for (auto item : m) {
+            switch (item->derived_metadata_tag()) {
                 case DerivedMetadataTag::NAME:
-                    _emit_name_metadata(s, static_cast<const NameMD &>(item));
+                    _emit_name_metadata(s, static_cast<const NameMD *>(item));
                     break;
                 case DerivedMetadataTag::LOCATION:
-                    _emit_location_metadata(s, static_cast<const LocationMD &>(item));
+                    _emit_location_metadata(s, static_cast<const LocationMD *>(item));
                     break;
                 case DerivedMetadataTag::COMMENT:
-                    _emit_comment_metadata(s, static_cast<const CommentMD &>(item));
+                    _emit_comment_metadata(s, static_cast<const CommentMD *>(item));
                     break;
                 case DerivedMetadataTag::CURVE_BASIS:
-                    _emit_curve_basis_metadata(s, static_cast<const CurveBasisMD &>(item));
+                    _emit_curve_basis_metadata(s, static_cast<const CurveBasisMD *>(item));
                     break;
                 default: LUISA_NOT_IMPLEMENTED();
             }
