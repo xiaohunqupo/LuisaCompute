@@ -21,7 +21,7 @@ class ManagedObject {
 private:
     std::atomic<int32_t> _ref_count;
 #ifdef LUISA_MANAGED_OBJECT_CANARY
-    uint32_t _canary{LUISA_MANAGED_OBJECT_CANARY};
+    volatile uint32_t _canary{LUISA_MANAGED_OBJECT_CANARY};
 #endif
 
 public:
