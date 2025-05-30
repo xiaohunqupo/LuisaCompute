@@ -37,7 +37,7 @@ public:
     derived_metadata_tag() const noexcept final { return static_derived_metadata_tag(); }
 
     [[nodiscard]] ManagedPtr<Derived> clone_into() const noexcept {
-        return Metadata::clone().into<Derived>();
+        return Metadata::clone().template into<Derived>();
     }
 };
 
