@@ -1,6 +1,8 @@
 #pragma once
 
 #include <atomic>
+
+#include <luisa/core/stl/hash.h>
 #include <luisa/core/stl/memory.h>
 
 #ifndef NDEBUG
@@ -312,5 +314,25 @@ template<typename T>
     auto size = managed_span.size();
     return {reinterpret_cast<const T *const *>(data), size};
 }
+
+template<typename T>
+struct hash<ManagedPtr<const T>> : hash<const T *> {
+    using is_avalanching = void;
+    using is_transparent = void;
+    [[nodiscard]] constexpr uint64_t
+    operator()(const ManagedPtr<const T> &ptr,
+               uint64_t seed = hash64_default_seed) const noexcept {
+        return hash<const T *>::operator()(ptr.get(), seed);
+    }
+};
+
+template<typename T>
+struct hash<ManagedPtr<T>> : hash<ManagedPtr<const T>> {
+    [[nodiscard]] constexpr uint64_t
+    operator()(const ManagedPtr<T> &ptr,
+               uint64_t seed = hash64_default_seed) const noexcept {
+        return hash<ManagedPtr<const T>>::operator()(ptr, seed);
+    }
+};
 
 }// namespace luisa

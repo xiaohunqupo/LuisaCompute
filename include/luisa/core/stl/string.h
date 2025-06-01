@@ -30,7 +30,7 @@ using std::wstring_view;
 template<typename Char, typename CharTraits>
 struct basic_string_hash {
     using is_transparent = void;// to enable heterogeneous lookup
-    using is_avalaunching = void;
+    using is_avalanching = void;
     [[nodiscard]] uint64_t operator()(std::basic_string_view<Char, CharTraits> s,
                                       uint64_t seed = hash64_default_seed) const noexcept {
         return hash64(s.data(), s.size() * sizeof(Char), seed);

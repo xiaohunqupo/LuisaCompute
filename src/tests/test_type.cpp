@@ -199,6 +199,8 @@ int main() {
         auto worse = std::move(bad).into<Something>();
     }
 
+    luisa::unordered_set<luisa::ManagedPtr<Something>> set;
+
     LUISA_INFO("Begin managed intrusive list test...");
     {
         luisa::ManagedIntrusiveList<SomeNode> list;

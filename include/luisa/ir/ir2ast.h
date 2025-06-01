@@ -14,7 +14,7 @@ class LC_IR_API IR2AST {
 public:
     template<typename T>
     struct BoxedSliceHash {
-        using is_avalaunching = void;
+        using is_avalanching = void;
         [[nodiscard]] auto operator()(ir::CBoxedSlice<T> slice) const noexcept {
             return luisa::hash64(slice.ptr, slice.len * sizeof(T), hash64_default_seed);
         }

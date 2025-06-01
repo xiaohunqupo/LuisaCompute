@@ -15,7 +15,7 @@ template<typename T>
                                 std::is_enum<T>,
                                 std::is_same<T, half>>
 struct hash<T> {
-    using is_avalaunching = void;
+    using is_avalanching = void;
     [[nodiscard]] constexpr uint64_t operator()(T value, uint64_t seed = hash64_default_seed) const noexcept {
         return hash64(&value, sizeof(T), seed);
     }
@@ -24,7 +24,7 @@ struct hash<T> {
 template<typename T>
     requires requires(const T v) { v.hash(); }
 struct hash<T> {
-    using is_avalaunching = void;
+    using is_avalanching = void;
     [[nodiscard]] constexpr uint64_t operator()(const T &value) const noexcept {
         return value.hash();
     }
