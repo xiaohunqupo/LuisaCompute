@@ -316,7 +316,8 @@ on_load(function(target)
             })
         end
     end
-    if _get_or("no_rtti",  not (get_config("lc_use_rtti") or get_config("_lc_enable_py"))) then
+    local use_rtti = _get_or("rtti", false)
+    if _get_or("no_rtti",  not (use_rtti or get_config("lc_use_rtti") or get_config("_lc_enable_py"))) then
         target:add("cxflags", "/GR-", {
             tools = {"clang_cl", "cl"}
         })
@@ -325,6 +326,10 @@ on_load(function(target)
         })
         target:add("cxflags", "-fno-rtti", {
             tools = {"gcc"}
+        })
+    else
+        target:add("cxflags", "/GR", {
+            tools = {"clang_cl", "cl"}
         })
     end
 end)
