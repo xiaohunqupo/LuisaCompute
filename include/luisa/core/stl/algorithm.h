@@ -10,6 +10,8 @@
 
 namespace luisa {
 
+using std::swap;
+
 #ifdef LUISA_USE_SYSTEM_STL
 using std::transform;
 using std::swap;
@@ -19,14 +21,18 @@ using eastl::transform;
 using eastl::swap;
 using eastl::binary_search;
 #endif
-template<pdqsort_detail::LinearIterable Iter>
-inline void sort(Iter begin, Iter end) {
-    pdqsort(begin, end);
+
+template<typename Begin, typename End>
+void sort(Begin &&begin, End &&end) noexcept {
+    pdqsort(std::forward<Begin>(begin),
+            std::forward<End>(end));
 }
 
-template<pdqsort_detail::LinearIterable Iter, pdqsort_detail::CompareFunc<Iter> Compare>
-inline void sort(Iter begin, Iter end, Compare comp) {
-    pdqsort(begin, end, comp);
+template<typename Begin, typename End, typename Compare>
+void sort(Begin &&begin, End &&end, Compare &&comp) noexcept {
+    pdqsort(std::forward<Begin>(begin),
+            std::forward<End>(end),
+            std::forward<Compare>(comp));
 }
 
 }// namespace luisa
