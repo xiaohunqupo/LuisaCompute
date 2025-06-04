@@ -328,12 +328,12 @@ struct hash<ManagedPtr<T>> {
     template<typename U>
     [[nodiscard]] constexpr uint64_t
     operator()(const ManagedPtr<U> &ptr, uint64_t seed = hash64_default_seed) const noexcept {
-        return hash<U *>::operator()(ptr.get(), seed);
+        return hash<U *>{}(ptr.get(), seed);
     }
     template<typename U>
     [[nodiscard]] constexpr uint64_t
     operator()(U *ptr, uint64_t seed = hash64_default_seed) const noexcept {
-        return hash<U *>::operator()(ptr, seed);
+        return hash<U *>{}(ptr, seed);
     }
 };
 
