@@ -169,13 +169,13 @@ FallbackShader::FallbackShader(FallbackDevice *device, const ShaderOption &optio
         f << xir::xir_to_text_translate(xir_module.get(), true);
     }
     auto rq_lower_info = xir::lower_ray_query_loop_pass_run_on_module(xir_module.get());
-    LUISA_VERBOSE("XIR optimization done in {} ms: "
-                  "forwarded {} store instruction(s), "
-                  "eliminated {} load instruction(s), "
-                  "promoted {} alloca instruction(s) with {} load and {} store instruction(s) removed and {} phi node(s) inserted, "
-                  "removed {} + {} + {} = {} dead instruction(s) and {} + {} + {} = {} dead block(s), "
-                  "promoted {} reference argument(s), "
-                  "lowered {} ray query loop(s).",
+    LUISA_VERBOSE("XIR optimization done in {} ms:\n"
+                  "    forwarded {} store instruction(s),\n"
+                  "    eliminated {} load instruction(s),\n"
+                  "    promoted {} alloca instruction(s) with {} load and {} store instruction(s) removed and {} phi node(s) inserted,\n"
+                  "    removed {} + {} + {} = {} dead instruction(s) and {} + {} + {} = {} dead block(s),\n"
+                  "    promoted {} reference argument(s),\n"
+                  "    lowered {} ray query loop(s).",
                   opt_clk.toc(),
                   store_forward_info.removed_load_count,
                   load_elim_info.removed_load_count,
