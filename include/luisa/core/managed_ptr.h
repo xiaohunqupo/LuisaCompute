@@ -238,15 +238,23 @@ public:
     [[nodiscard]] const T *get() const noexcept { return _object; }
     [[nodiscard]] const T *operator->() const noexcept { return get(); }
     [[nodiscard]] const T &operator*() const noexcept { return *get(); }
-    [[nodiscard]] explicit operator bool() const noexcept { return _object != nullptr; }
-    [[nodiscard]] bool operator==(const T *rhs) const noexcept { return get() == rhs; }
-    [[nodiscard]] bool operator==(const ManagedPtr &rhs) const noexcept { return get() == rhs.get(); }
+
+    [[nodiscard]] bool is_engaged() const noexcept { return _object != nullptr; }
+    [[nodiscard]] explicit operator bool() const noexcept { return is_engaged(); }
+
+    template<typename U>
+        requires requires(T *lhs, U *rhs) { lhs == rhs; }
+    [[nodiscard]] bool operator==(const U *rhs) const noexcept {
+        return get() == rhs;
+    }
 
     template<typename U>
         requires requires(T *lhs, U *rhs) { lhs == rhs; }
     [[nodiscard]] bool operator==(const ManagedPtr<U> &rhs) const noexcept {
         return get() == rhs.get();
     }
+
+    [[nodiscard]] bool operator==(nullptr_t) const { return !is_engaged(); }
 
     template<typename U>
         requires requires(T *p) { static_cast<const U *>(p); }
@@ -316,22 +324,16 @@ template<typename T>
 }
 
 template<typename T>
-struct hash<ManagedPtr<const T>> : hash<const T *> {
-    using is_avalanching = void;
-    using is_transparent = void;
+struct hash<ManagedPtr<T>> {
+    template<typename U>
     [[nodiscard]] constexpr uint64_t
-    operator()(const ManagedPtr<const T> &ptr,
-               uint64_t seed = hash64_default_seed) const noexcept {
-        return hash<const T *>::operator()(ptr.get(), seed);
+    operator()(const ManagedPtr<U> &ptr, uint64_t seed = hash64_default_seed) const noexcept {
+        return hash<U *>::operator()(ptr.get(), seed);
     }
-};
-
-template<typename T>
-struct hash<ManagedPtr<T>> : hash<ManagedPtr<const T>> {
+    template<typename U>
     [[nodiscard]] constexpr uint64_t
-    operator()(const ManagedPtr<T> &ptr,
-               uint64_t seed = hash64_default_seed) const noexcept {
-        return hash<ManagedPtr<const T>>::operator()(ptr, seed);
+    operator()(U *ptr, uint64_t seed = hash64_default_seed) const noexcept {
+        return hash<U *>::operator()(ptr, seed);
     }
 };
 

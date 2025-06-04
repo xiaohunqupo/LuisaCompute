@@ -87,23 +87,31 @@ struct AllocaAnalysis {
 };
 
 struct Mem2RegPassContext {
-    luisa::unordered_set<luisa::ManagedPtr<Instruction>> removed;
+
+private:
+    luisa::vector<ManagedPtr<Instruction>> _lifetime_holder;
+
+public:
+    luisa::unordered_set<Instruction *> removed;
+    void mark_as_removed(ManagedPtr<Instruction> i) noexcept {
+        removed.emplace(_lifetime_holder.emplace_back(std::move(i)).get());
+    }
 };
 
 static void replace_load_with_value(LoadInst *load_inst, Value *value,
                                     Mem2RegPassContext &ctx, Mem2RegInfo &info) noexcept {
     load_inst->replace_all_uses_with(value);
-    ctx.removed.emplace(load_inst->remove_self());
+    ctx.mark_as_removed(load_inst->remove_self());
     info.removed_load_count++;
 }
 
 static void remove_store(StoreInst *store_inst, Mem2RegPassContext &ctx, Mem2RegInfo &info) noexcept {
-    ctx.removed.emplace(store_inst->remove_self());
+    ctx.mark_as_removed(store_inst->remove_self());
     info.removed_store_count++;
 }
 
 static void remove_alloca(AllocaInst *alloca_inst, Mem2RegPassContext &ctx, Mem2RegInfo &info) noexcept {
-    ctx.removed.emplace(alloca_inst->remove_self());
+    ctx.mark_as_removed(alloca_inst->remove_self());
     info.promoted_alloca_count++;
 }
 
