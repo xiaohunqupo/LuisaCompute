@@ -312,6 +312,9 @@ static void lower_ray_query_loop(Function *function, RayQueryLoopInst *loop, Ray
         LUISA_ASSERT(!inst->isa<PhiInst>(), "Invalid phi instruction in merge block.");
         b.append(inst->remove_self());
     }
+    // add an unreachable instruction to the merge block
+    b.set_insertion_point(merge_block);
+    b.unreachable_();
 }
 
 static void collect_blocks_in_ray_query_dispatch_branch(BasicBlock *block, BasicBlock *dispatch_block,

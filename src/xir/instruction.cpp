@@ -44,7 +44,7 @@ ManagedPtr<Instruction> Instruction::remove_self() noexcept {
 
 Instruction *Instruction::insert_before_self(ManagedPtr<Instruction> node) noexcept {
     auto p = Super::insert_before_self(std::move(node));
-    p->_set_parent_block(prev()->parent_block());
+    p->_set_parent_block(this->parent_block());
     p->_add_self_to_operand_use_lists();
     return p;
 }
