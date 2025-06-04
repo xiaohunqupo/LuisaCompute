@@ -67,6 +67,7 @@ public:
 
     [[nodiscard]] DerivedValueTag
     derived_value_tag() const noexcept final {
+        Base::validate_canary();
         return static_derived_value_tag();
     }
 };
