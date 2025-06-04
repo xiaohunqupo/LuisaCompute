@@ -350,7 +350,7 @@ void XIRBuilder::set_insertion_point(Instruction *insertion_point) noexcept {
 
 void XIRBuilder::set_insertion_point(BasicBlock *block) noexcept {
     LUISA_ASSERT(block != nullptr, "Insertion point block cannot be null.");
-    set_insertion_point(block->instructions().back());
+    set_insertion_point(block->instructions().tail_sentinel()->prev());
 }
 
 }// namespace luisa::compute::xir

@@ -48,7 +48,7 @@ BasicBlock::BasicBlock(Function *function) noexcept
     : Super{function, nullptr}, _instructions{this} {}
 
 bool BasicBlock::is_terminated() const noexcept {
-    return _instructions.back()->is_terminator();
+    return !_instructions.empty() && _instructions.back()->is_terminator();
 }
 
 TerminatorInstruction *BasicBlock::terminator() noexcept {

@@ -141,10 +141,8 @@ public:
     }
 
     ManagedPtr<Instruction> remove_self() noexcept override;
-    ManagedPtr<Instruction> replace_self_with(ManagedPtr<Instruction> node) noexcept;
-
     Instruction *insert_before_self(ManagedPtr<Instruction> node) noexcept override;
-    Instruction *insert_after_self(ManagedPtr<Instruction> node) noexcept override;
+    ManagedPtr<Instruction> replace_self_with(ManagedPtr<Instruction> node) noexcept;
 
     [[nodiscard]] virtual bool is_terminator() const noexcept { return false; }
 

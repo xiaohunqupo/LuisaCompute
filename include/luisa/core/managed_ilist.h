@@ -168,7 +168,7 @@ public:
         _prev = p_node;
         return p_node;
     }
-    virtual auto insert_after_self(ManagedPtr<T> node) noexcept -> T * {
+    auto insert_after_self(ManagedPtr<T> node) noexcept -> T * {
         assert(!node->is_linked() && "Inserting a linked node into a list.");
         assert(!is_tail_sentinel() && "Inserting after a tail sentinel.");
         // insert after self <==> insert before the next node
