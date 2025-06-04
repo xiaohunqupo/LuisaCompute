@@ -84,7 +84,7 @@ jobs:
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
       - name: "Configure and Build"
         run: |
-          export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
+          export PATH="$PATH:/opt/homebrew/opt/llvm/bin"
           if [ "${{ matrix.compiler }}" = "homebrew-clang" ]; then
             export CC=/opt/homebrew/opt/llvm/bin/clang
             export CXX=/opt/homebrew/opt/llvm/bin/clang++
