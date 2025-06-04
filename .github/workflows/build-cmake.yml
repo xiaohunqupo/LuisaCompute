@@ -9,7 +9,7 @@ jobs:
       matrix:
         compiler: [ gcc, clang ]
         config: [ Release, Debug ]
-        include:
+        platform:
           - os: ubuntu-24.04
             arch: x86_64
             cuda-keyring: x86_64
@@ -17,8 +17,8 @@ jobs:
             arch: aarch64
             cuda-keyring: sbsa
 
-    name: ${{ matrix.config }} / ${{ matrix.os }} / ${{ matrix.arch }} / ${{ matrix.compiler }}
-    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.config }} / ${{ matrix.platform.os }} / ${{ matrix.platform.arch }} / ${{ matrix.compiler }}
+    runs-on: ${{ matrix.platform.os }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -33,7 +33,7 @@ jobs:
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
       - name: "Install CUDA Keyring"
         run: |
-          wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/${{ matrix.cuda-keyring }}/cuda-keyring_1.1-1_all.deb
+          wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/${{ matrix.platform.cuda-keyring }}/cuda-keyring_1.1-1_all.deb
           sudo apt-get -y remove --purge -s '*cuda*' '*nvidia*'
           sudo dpkg -i cuda-keyring_1.1-1_all.deb
       - name: "Setup CUDA"
