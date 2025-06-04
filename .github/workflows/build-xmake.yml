@@ -75,7 +75,7 @@ jobs:
           else
             xmake f -p macosx --toolchain=clang -m ${{ matrix.config }} --mm=clang --mxx=clang++ --metal_backend=true --enable_dsl=true --enable_gui=true --enable_unity_build=false --enable_tests=true --enable_mimalloc=false --check -c -y
           fi
-          xmake -v
+          xmake
 
   build-windows:
     strategy:

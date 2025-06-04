@@ -94,7 +94,7 @@ jobs:
           fi
           export SDKROOT=$(xcrun --show-sdk-path)
           cmake -S . -B build -G Ninja -D LUISA_COMPUTE_ENABLE_RUST=OFF -D LUISA_COMPUTE_ENABLE_REMOTE=OFF -D LUISA_COMPUTE_ENABLE_CPU=OFF -D CMAKE_BUILD_TYPE=${{ matrix.config }} -D LUISA_COMPUTE_ENABLE_UNITY_BUILD=OFF
-          cmake --build build -v
+          cmake --build build
       - name: "Install"
         run: |
           if [ "${{ matrix.config }}" = "Release" ]; then
@@ -144,7 +144,7 @@ jobs:
             set CXX=${{ matrix.compiler }}
           )
           cmake -S . -G Ninja -B build -D LUISA_COMPUTE_ENABLE_RUST=OFF -D LUISA_COMPUTE_ENABLE_REMOTE=OFF -D LUISA_COMPUTE_ENABLE_CPU=OFF -D CMAKE_BUILD_TYPE=${{ matrix.config }}
-          cmake --build build -v
+          cmake --build build
       - name: "Install"
         run: |
           cmake --install build --prefix dist -v
