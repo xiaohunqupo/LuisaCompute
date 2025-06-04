@@ -47,7 +47,8 @@ public:
         uint shaderModel,
         vstd::string_view fileName,
         CacheType cacheType,
-        bool enableUnsafeMath);
+        bool enableUnsafeMath,
+        bool debug);
     static void SaveCompute(
         luisa::BinaryIO const *fileIo,
         luisa::compute::Profiler *profiler,
@@ -56,7 +57,8 @@ public:
         uint3 blockSize,
         uint shaderModel,
         vstd::string_view fileName,
-        bool enableUnsafeMath);
+        bool enableUnsafeMath,
+        bool debug);
     static ComputeShader *LoadPresetCompute(
         luisa::BinaryIO const *fileIo,
         luisa::compute::Profiler *profiler,
