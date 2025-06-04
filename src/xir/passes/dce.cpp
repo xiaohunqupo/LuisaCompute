@@ -137,6 +137,7 @@ void eliminate_instructions_in_unreachable_blocks(const luisa::unordered_set<Bas
             auto inst = b->instructions().front();
             if (inst->isa<UnreachableInst>()) { break; }
             inst->remove_self();
+            info.removed_inst_count++;
         }
         if (!b->is_terminated()) {
             XIRBuilder builder;
