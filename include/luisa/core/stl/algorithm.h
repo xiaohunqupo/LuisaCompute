@@ -14,11 +14,9 @@ using std::swap;
 
 #ifdef LUISA_USE_SYSTEM_STL
 using std::transform;
-using std::swap;
 using std::binary_search;
 #else
 using eastl::transform;
-using eastl::swap;
 using eastl::binary_search;
 #endif
 
