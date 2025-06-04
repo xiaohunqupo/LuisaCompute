@@ -9,9 +9,7 @@ set(LUISA_COMPUTE_XIR_SOURCES
         metadata.cpp
         module.cpp
         op.cpp
-        pool.cpp
         special_register.cpp
-        undefined.cpp
         use.cpp
         user.cpp
         value.cpp

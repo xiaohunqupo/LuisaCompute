@@ -36,17 +36,17 @@ static void run_local_store_forward_on_basic_block(luisa::unordered_set<BasicBlo
     while (visited.emplace(block).second) {
 
         // process the instructions in the block
-        for (auto &&inst : block->instructions()) {
-            switch (inst.derived_instruction_tag()) {
+        for (auto inst : block->instructions()) {
+            switch (inst->derived_instruction_tag()) {
                 case DerivedInstructionTag::LOAD: {
-                    auto load = static_cast<LoadInst *>(&inst);
+                    auto load = static_cast<LoadInst *>(inst);
                     if (auto iter = latest_stores.find(load->variable()); iter != latest_stores.end()) {
                         removable_loads.emplace(load, iter->second);
                     }
                     break;
                 }
                 case DerivedInstructionTag::STORE: {
-                    auto store = static_cast<StoreInst *>(&inst);
+                    auto store = static_cast<StoreInst *>(inst);
                     // if this is a store to (part of) a local alloca, we might be able to forward it
                     if (auto pointer = store->variable(); invalidate_interfering_stores(pointer)) {
                         latest_stores[pointer] = store;
@@ -58,7 +58,7 @@ static void run_local_store_forward_on_basic_block(luisa::unordered_set<BasicBlo
                     break;
                 }
                 default: {// for other instructions, we invalidate possibly interfering stores
-                    for (auto op_use : inst.operand_uses()) {
+                    for (auto op_use : inst->operand_uses()) {
                         invalidate_interfering_stores(op_use->value());
                     }
                     break;
@@ -84,7 +84,7 @@ static void run_local_store_forward_on_basic_block(luisa::unordered_set<BasicBlo
     for (auto [load, store] : removable_loads) {
         load->replace_all_uses_with(store->value());
         load->remove_self();
-        info.forwarded_instructions.emplace(load, store);
+        info.removed_load_count++;
     }
 }
 
@@ -201,7 +201,7 @@ static void forward_single_store_to_loads_on_function(FunctionDefinition *functi
         load->replace_all_uses_with(value);
         load->remove_self();
         // record the elimination
-        info.forwarded_instructions.emplace(load, store);
+        info.removed_load_count++;
     }
 }
 
@@ -224,8 +224,8 @@ LocalStoreForwardInfo local_store_forward_pass_run_on_function(Function *functio
 
 LocalStoreForwardInfo local_store_forward_pass_run_on_module(Module *module) noexcept {
     LocalStoreForwardInfo info;
-    for (auto &&f : module->function_list()) {
-        detail::run_local_store_forward_on_function(&f, info);
+    for (auto f : module->function_list()) {
+        detail::run_local_store_forward_on_function(f, info);
     }
     return info;
 }

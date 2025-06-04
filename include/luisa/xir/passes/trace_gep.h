@@ -20,7 +20,7 @@ namespace luisa::compute::xir {
 class GEPInst;
 
 struct TraceGEPInfo {
-    luisa::vector<GEPInst *> traced_geps;
+    size_t traced_gep_count{0u};
 };
 
 LC_XIR_API TraceGEPInfo trace_gep_pass_run_on_function(Function *function) noexcept;

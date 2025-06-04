@@ -37,27 +37,27 @@ Instruction *Instruction::clone_with_metadata(XIRBuilder &b, InstructionCloneVal
     return cloned;
 }
 
-void Instruction::remove_self() noexcept {
-    Super::remove_self();
+ManagedPtr<Instruction> Instruction::remove_self() noexcept {
     _remove_self_from_operand_use_lists();
+    return Super::remove_self();
 }
 
-void Instruction::insert_before_self(Instruction *node) noexcept {
-    Super::insert_before_self(node);
+ManagedPtr<Instruction> Instruction::replace_self_with(ManagedPtr<Instruction> node) noexcept {
+    replace_all_uses_with(node.get());
+    insert_before_self(std::move(node));
+    return remove_self();
+}
+
+Instruction *Instruction::insert_before_self(ManagedPtr<Instruction> node) noexcept {
     node->_add_self_to_operand_use_lists();
-    node->_set_parent_block(parent_block());
+    node->_set_parent_block(this->parent_block());
+    return Super::insert_before_self(node);
 }
 
-void Instruction::insert_after_self(Instruction *node) noexcept {
-    Super::insert_after_self(node);
+Instruction *Instruction::insert_after_self(ManagedPtr<Instruction> node) noexcept {
     node->_add_self_to_operand_use_lists();
-    node->_set_parent_block(parent_block());
-}
-
-void Instruction::replace_self_with(Instruction *node) noexcept {
-    replace_all_uses_with(node);
-    insert_before_self(node);
-    remove_self();
+    node->_set_parent_block(this->parent_block());
+    return Super::insert_after_self(node);
 }
 
 const ControlFlowMerge *Instruction::control_flow_merge() const noexcept {
@@ -159,8 +159,7 @@ const BasicBlock *ConditionalBranchTerminatorInstruction::false_block() const no
 
 void ControlFlowMerge::set_merge_block(BasicBlock *block) noexcept {
     [[maybe_unused]] auto base = _base_instruction();
-    LUISA_DEBUG_ASSERT(block == nullptr || (block->parent_function() == base->parent_function() &&
-                                            block->pool() == base->pool()),
+    LUISA_DEBUG_ASSERT(block == nullptr || block->parent_function() == base->parent_function(),
                        "Invalid merge block.");
     _merge_block = block;
 }

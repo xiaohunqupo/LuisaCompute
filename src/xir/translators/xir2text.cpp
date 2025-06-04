@@ -116,8 +116,8 @@ private:
     void _traverse_values_in_basic_block(const BasicBlock *bb) noexcept {
         if (!_value_uid_map.contains(bb)) {// to avoid infinite recursion in loops
             static_cast<void>(_value_uid(bb));
-            for (auto &inst : bb->instructions()) {
-                _traverse_value_in_instruction(&inst);
+            for (auto inst : bb->instructions()) {
+                _traverse_value_in_instruction(inst);
             }
         }
     }
@@ -132,12 +132,12 @@ private:
     }
 
     void _traverse_values_in_module(const Module *module) noexcept {
-        for (auto &c : module->constant_list()) {
-            static_cast<void>(_value_uid(&c));
+        for (auto c : module->constant_list()) {
+            static_cast<void>(_value_uid(c));
         }
-        for (auto &f : module->function_list()) {
-            static_cast<void>(_value_uid(&f));
-            _traverse_values_in_function(&f);
+        for (auto f : module->function_list()) {
+            static_cast<void>(_value_uid(f));
+            _traverse_values_in_function(f);
         }
     }
 
@@ -601,7 +601,7 @@ private:
             _emit_basic_block_use_and_pred_debug_info(_main, b);
             _main << "\n";
             for (auto &&inst : b->instructions()) {
-                _emit_instruction(&inst, indent + 1);
+                _emit_instruction(inst, indent + 1);
             }
             _emit_indent(indent);
             _main << "}";
@@ -759,8 +759,8 @@ private:
             _prelude << "\n";
         }
         _prelude << "module;\n\n";// TODO: metadata
-        for (auto &c : module->constant_list()) { _emit_constant(&c); }
-        for (auto &f : module->function_list()) { _emit_function(&f); }
+        for (auto c : module->constant_list()) { _emit_constant(c); }
+        for (auto f : module->function_list()) { _emit_function(f); }
     }
 
     static void _emit_name_metadata(StringScratch &s, const NameMD *m) noexcept {

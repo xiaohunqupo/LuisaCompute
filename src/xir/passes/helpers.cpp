@@ -107,8 +107,7 @@ void hoist_alloca_instructions_to_entry_block(FunctionDefinition *f) noexcept {
         XIRBuilder b;
         b.set_insertion_point(f->body_block()->instructions().head_sentinel());
         for (auto inst : collected) {
-            inst->remove_self();
-            b.append(inst);
+            b.append(inst->remove_self());
         }
     }
 }

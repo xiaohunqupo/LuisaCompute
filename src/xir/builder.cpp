@@ -9,15 +9,14 @@ XIRBuilder::XIRBuilder() noexcept = default;
 template<typename T, typename... Args>
 auto XIRBuilder::_create_and_append_instruction(Args &&...args) noexcept -> T * {
     LUISA_DEBUG_ASSERT(_insertion_point != nullptr, "Invalid insertion point.");
-    LUISA_DEBUG_ASSERT(_pool != nullptr, "Invalid pool.");
-    auto inst = _pool->create<T>(std::forward<Args>(args)...);
-    append(inst);
-    return inst;
+    auto inst = luisa::make_managed<T>(std::forward<Args>(args)...);
+    return static_cast<T *>(append(std::move(inst)));
 }
 
-void XIRBuilder::append(Instruction *inst) noexcept {
-    _insertion_point->insert_after_self(inst);
-    set_insertion_point(inst);
+Instruction *XIRBuilder::append(ManagedPtr<Instruction> inst) noexcept {
+    auto p = _insertion_point->insert_after_self(std::move(inst));
+    set_insertion_point(p);
+    return p;
 }
 
 IfInst *XIRBuilder::if_(Value *cond) noexcept {
@@ -347,12 +346,11 @@ AtomicInst *XIRBuilder::atomic_compare_exchange(const Type *type, Value *base,
 
 void XIRBuilder::set_insertion_point(Instruction *insertion_point) noexcept {
     _insertion_point = insertion_point;
-    _pool = insertion_point->pool();
 }
 
 void XIRBuilder::set_insertion_point(BasicBlock *block) noexcept {
-    auto instruction = block ? block->instructions().tail_sentinel()->prev() : nullptr;
-    set_insertion_point(instruction);
+    LUISA_ASSERT(block != nullptr, "Insertion point block cannot be null.");
+    set_insertion_point(block->instructions().back());
 }
 
 }// namespace luisa::compute::xir

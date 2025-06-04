@@ -48,12 +48,12 @@ BasicBlock::BasicBlock(Function *function) noexcept
     : Super{function, nullptr}, _instructions{this} {}
 
 bool BasicBlock::is_terminated() const noexcept {
-    return _instructions.back().is_terminator();
+    return _instructions.back()->is_terminator();
 }
 
 TerminatorInstruction *BasicBlock::terminator() noexcept {
     LUISA_DEBUG_ASSERT(is_terminated(), "Basic block is not terminated.");
-    return static_cast<TerminatorInstruction *>(&_instructions.back());
+    return static_cast<TerminatorInstruction *>(_instructions.back());
 }
 
 const TerminatorInstruction *BasicBlock::terminator() const noexcept {

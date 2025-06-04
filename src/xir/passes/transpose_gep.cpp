@@ -52,7 +52,7 @@ static void transpose_load_gep(LoadInst *load, TransposeGEPInfo &info) noexcept 
     auto extract = b.call(load->type(), ArithmeticOp::EXTRACT, gep_chain);
     load->replace_all_uses_with(extract);
     load->remove_self();
-    info.transposed_load_instructions.emplace(load, extract);
+    info.transposed_load_count++;
 }
 
 // Store(GEP(agg, indices...), elem) => Store(agg, Insert(Load(agg), elem, indices...))
@@ -68,14 +68,14 @@ static void transpose_store_gep(StoreInst *store, TransposeGEPInfo &info) noexce
     auto insert = b.call(alloca_inst->type(), ArithmeticOp::INSERT, gep_chain);
     auto store_insert = b.store(alloca_inst, insert);
     store->remove_self();
-    info.transposed_store_instructions.emplace(store, store_insert);
+    info.transposed_store_count++;
 }
 
 static void run_transpose_gep_pass_on_function(Function *function, TransposeGEPInfo &info) noexcept {
     if (auto def = function->definition()) {
         // run the trace gep pass first to ensure that no nested GEP chains exist
-        if (auto trace_gep_info = trace_gep_pass_run_on_function(def); !trace_gep_info.traced_geps.empty()) {
-            LUISA_VERBOSE("Traced {} GEP chain(s) in transpose_gep pass.", trace_gep_info.traced_geps.size());
+        if (auto trace_gep_info = trace_gep_pass_run_on_function(def); trace_gep_info.traced_gep_count != 0u) {
+            LUISA_VERBOSE("Traced {} GEP chain(s) in transpose_gep pass.", trace_gep_info.traced_gep_count);
         }
         // run the pass
         luisa::vector<GEPInst *> geps;
@@ -149,8 +149,8 @@ TransposeGEPInfo transpose_gep_pass_run_on_function(Function *function) noexcept
 
 TransposeGEPInfo transpose_gep_pass_run_on_module(Module *module) noexcept {
     TransposeGEPInfo info;
-    for (auto &&f : module->function_list()) {
-        detail::run_transpose_gep_pass_on_function(&f, info);
+    for (auto f : module->function_list()) {
+        detail::run_transpose_gep_pass_on_function(f, info);
     }
     return info;
 }

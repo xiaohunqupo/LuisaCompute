@@ -32,14 +32,20 @@ enum struct DerivedSpecialRegisterTag {
     return "unknown"sv;
 }
 
-class LC_XIR_API SpecialRegister : public IntrusiveForwardNode<SpecialRegister, DerivedGlobalValue<SpecialRegister, DerivedValueTag::SPECIAL_REGISTER>> {
+class LC_XIR_API SpecialRegister : public DerivedGlobalValue<SpecialRegister, DerivedValueTag::SPECIAL_REGISTER> {
 public:
     SpecialRegister(Module *module, const Type *type) noexcept : Super{module, type} {}
     [[nodiscard]] virtual DerivedSpecialRegisterTag derived_special_register_tag() const noexcept = 0;
     LUISA_XIR_DEFINED_ISA_METHOD(SpecialRegister, special_register)
 };
 
-using SpecialRegisterList = IntrusiveForwardList<SpecialRegister>;
+class LC_XIR_API SentinelSpecialRegister final : public SpecialRegister {
+public:
+    explicit SentinelSpecialRegister(Module *module) noexcept;
+    [[nodiscard]] DerivedSpecialRegisterTag derived_special_register_tag() const noexcept override;
+};
+
+using SpecialRegisterList = ManagedIntrusiveList<SpecialRegister, SentinelSpecialRegister>;
 
 namespace detail {
 

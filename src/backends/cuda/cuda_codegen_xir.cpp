@@ -338,12 +338,15 @@ void CUDACodegenXIR::_emit_type_definitions(luisa::unordered_set<const Type *> u
 void CUDACodegenXIR::_emit_kernel_params_struct(const xir::KernelFunction *kernel) noexcept {
     // declare the kernel argument struct
     _scratch << "struct alignas(16) Params {";
-    for (auto i = 0u; i < kernel->arguments().size(); i++) {
-        auto arg = kernel->arguments()[i];
-        LUISA_ASSERT(!arg->is_reference(), "Reference argument is not supported.");
-        _scratch << "\n  alignas(16) ";
-        _emit_type_name(arg->type());
-        _scratch << " m" << i << ";";
+    {
+        auto i = 0u;
+        for (auto arg : kernel->arguments()) {
+            LUISA_ASSERT(!arg->is_reference(), "Reference argument is not supported.");
+            _scratch << "\n  alignas(16) ";
+            _emit_type_name(arg->type());
+            _scratch << " m" << i << ";";
+            i++;
+        }
     }
     if (_requires_printing) {
         _scratch << "\n  alignas(16) LCPrintBuffer print_buffer;";
@@ -615,39 +618,39 @@ void CUDACodegenXIR::_emit_ray_query_pipeline_inst(const xir::RayQueryPipelineIn
 }
 
 void CUDACodegenXIR::_emit_instructions(const xir::InstructionList &inst_list, int indent) noexcept {
-    for (auto &&inst : inst_list) {
-        _emit_metadata(inst.metadata_list(), indent);
+    for (auto inst : inst_list) {
+        _emit_metadata(inst->metadata_list(), indent);
         _emit_indent(indent);
-        auto emit_result_value_eq = [&] { _emit_result_value_eq(&inst); };
-        switch (inst.derived_instruction_tag()) {
+        auto emit_result_value_eq = [&] { _emit_result_value_eq(inst); };
+        switch (inst->derived_instruction_tag()) {
             case xir::DerivedInstructionTag::IF: {
-                _with_control_flow(&inst, [&] {
-                    _emit_if_inst(static_cast<const xir::IfInst *>(&inst), indent);
+                _with_control_flow(inst, [&] {
+                    _emit_if_inst(static_cast<const xir::IfInst *>(inst), indent);
                 });
                 break;
             }
             case xir::DerivedInstructionTag::SWITCH: {
-                _with_control_flow(&inst, [&] {
-                    _emit_switch_inst(static_cast<const xir::SwitchInst *>(&inst), indent);
+                _with_control_flow(inst, [&] {
+                    _emit_switch_inst(static_cast<const xir::SwitchInst *>(inst), indent);
                 });
                 break;
             }
             case xir::DerivedInstructionTag::LOOP: {
-                _with_control_flow(&inst, [&] {
-                    _emit_loop_inst(static_cast<const xir::LoopInst *>(&inst), indent);
+                _with_control_flow(inst, [&] {
+                    _emit_loop_inst(static_cast<const xir::LoopInst *>(inst), indent);
                 });
                 break;
             }
             case xir::DerivedInstructionTag::SIMPLE_LOOP: {
-                _with_control_flow(&inst, [&] {
-                    _emit_simple_loop_inst(static_cast<const xir::SimpleLoopInst *>(&inst), indent);
+                _with_control_flow(inst, [&] {
+                    _emit_simple_loop_inst(static_cast<const xir::SimpleLoopInst *>(inst), indent);
                 });
                 break;
             }
-            case xir::DerivedInstructionTag::BRANCH: _emit_branch_inst(static_cast<const xir::BranchInst *>(&inst)); break;
-            case xir::DerivedInstructionTag::CONDITIONAL_BRANCH: _emit_conditional_branch_inst(static_cast<const xir::ConditionalBranchInst *>(&inst)); break;
+            case xir::DerivedInstructionTag::BRANCH: _emit_branch_inst(static_cast<const xir::BranchInst *>(inst)); break;
+            case xir::DerivedInstructionTag::CONDITIONAL_BRANCH: _emit_conditional_branch_inst(static_cast<const xir::ConditionalBranchInst *>(inst)); break;
             case xir::DerivedInstructionTag::UNREACHABLE: {
-                if (auto &&msg = static_cast<const xir::UnreachableInst *>(&inst)->message(); !msg.empty()) {
+                if (auto &&msg = static_cast<const xir::UnreachableInst *>(inst)->message(); !msg.empty()) {
                     _scratch << "lc_unreachable_with_message(__FILE__, __LINE__, "
                              << luisa::format("{:?}", msg)
                              << ");";
@@ -679,7 +682,7 @@ void CUDACodegenXIR::_emit_instructions(const xir::InstructionList &inst_list, i
                 break;
             }
             case xir::DerivedInstructionTag::RETURN: {
-                if (auto ret = static_cast<const xir::ReturnInst *>(&inst)->return_value()) {
+                if (auto ret = static_cast<const xir::ReturnInst *>(inst)->return_value()) {
                     _scratch << "return ";
                     _emit_value_name(ret);
                     _scratch << ";";
@@ -692,40 +695,40 @@ void CUDACodegenXIR::_emit_instructions(const xir::InstructionList &inst_list, i
             case xir::DerivedInstructionTag::PHI: LUISA_ERROR_WITH_LOCATION("Phi instructions should be eliminated before codegen.");
             case xir::DerivedInstructionTag::ALLOCA: {
                 // emit the alloca variable
-                if (static_cast<const xir::AllocaInst *>(&inst)->is_shared()) {
+                if (static_cast<const xir::AllocaInst *>(inst)->is_shared()) {
                     _scratch << "__shared__ ";
                 }
-                _emit_type_name(inst.type());
+                _emit_type_name(inst->type());
                 _scratch << " ";
-                _emit_value_name(&inst);
+                _emit_value_name(inst);
                 _scratch << "_alloca;";
                 // emit the pointer to the alloca variable
                 _scratch << "\n";
                 _emit_indent(indent);
                 emit_result_value_eq();
                 _scratch << "&";
-                _emit_value_name(&inst);
+                _emit_value_name(inst);
                 _scratch << "_alloca;";
                 break;
             }
             case xir::DerivedInstructionTag::LOAD: {
                 emit_result_value_eq();
                 _scratch << "*(";
-                _emit_value_name(static_cast<const xir::LoadInst *>(&inst)->variable());
+                _emit_value_name(static_cast<const xir::LoadInst *>(inst)->variable());
                 _scratch << ");";
                 break;
             }
             case xir::DerivedInstructionTag::STORE: {
                 _scratch << "*(";
-                _emit_value_name(static_cast<const xir::StoreInst *>(&inst)->variable());
+                _emit_value_name(static_cast<const xir::StoreInst *>(inst)->variable());
                 _scratch << ") = ";
-                _emit_value_name(static_cast<const xir::StoreInst *>(&inst)->value());
+                _emit_value_name(static_cast<const xir::StoreInst *>(inst)->value());
                 _scratch << ";";
                 break;
             }
             case xir::DerivedInstructionTag::GEP: {
                 emit_result_value_eq();
-                auto gep = static_cast<const xir::GEPInst *>(&inst);
+                auto gep = static_cast<const xir::GEPInst *>(inst);
                 _scratch << "&((*(";
                 _emit_value_name(gep->base());
                 _scratch << "))";
@@ -733,26 +736,26 @@ void CUDACodegenXIR::_emit_instructions(const xir::InstructionList &inst_list, i
                 _scratch << ");";
                 break;
             }
-            case xir::DerivedInstructionTag::ATOMIC: _emit_atomic_inst(static_cast<const xir::AtomicInst *>(&inst)); break;
-            case xir::DerivedInstructionTag::ARITHMETIC: _emit_arithmetic_inst(static_cast<const xir::ArithmeticInst *>(&inst), indent); break;
-            case xir::DerivedInstructionTag::THREAD_GROUP: _emit_thread_group_inst(static_cast<const xir::ThreadGroupInst *>(&inst)); break;
-            case xir::DerivedInstructionTag::RESOURCE_QUERY: _emit_resource_query_inst(static_cast<const xir::ResourceQueryInst *>(&inst)); break;
-            case xir::DerivedInstructionTag::RESOURCE_READ: _emit_resource_read_inst(static_cast<const xir::ResourceReadInst *>(&inst)); break;
-            case xir::DerivedInstructionTag::RESOURCE_WRITE: _emit_resource_write_inst(static_cast<const xir::ResourceWriteInst *>(&inst)); break;
+            case xir::DerivedInstructionTag::ATOMIC: _emit_atomic_inst(static_cast<const xir::AtomicInst *>(inst)); break;
+            case xir::DerivedInstructionTag::ARITHMETIC: _emit_arithmetic_inst(static_cast<const xir::ArithmeticInst *>(inst), indent); break;
+            case xir::DerivedInstructionTag::THREAD_GROUP: _emit_thread_group_inst(static_cast<const xir::ThreadGroupInst *>(inst)); break;
+            case xir::DerivedInstructionTag::RESOURCE_QUERY: _emit_resource_query_inst(static_cast<const xir::ResourceQueryInst *>(inst)); break;
+            case xir::DerivedInstructionTag::RESOURCE_READ: _emit_resource_read_inst(static_cast<const xir::ResourceReadInst *>(inst)); break;
+            case xir::DerivedInstructionTag::RESOURCE_WRITE: _emit_resource_write_inst(static_cast<const xir::ResourceWriteInst *>(inst)); break;
             case xir::DerivedInstructionTag::RAY_QUERY_LOOP: LUISA_ERROR_WITH_LOCATION("Ray query loop instructions should be eliminated before codegen.");
             case xir::DerivedInstructionTag::RAY_QUERY_DISPATCH: LUISA_ERROR_WITH_LOCATION("Ray query dispatch instructions should be eliminated before codegen.");
-            case xir::DerivedInstructionTag::RAY_QUERY_OBJECT_READ: _emit_ray_query_object_read_inst(static_cast<const xir::RayQueryObjectReadInst *>(&inst)); break;
-            case xir::DerivedInstructionTag::RAY_QUERY_OBJECT_WRITE: _emit_ray_query_object_write_inst(static_cast<const xir::RayQueryObjectWriteInst *>(&inst)); break;
-            case xir::DerivedInstructionTag::RAY_QUERY_PIPELINE: _emit_ray_query_pipeline_inst(static_cast<const xir::RayQueryPipelineInst *>(&inst), indent); break;
+            case xir::DerivedInstructionTag::RAY_QUERY_OBJECT_READ: _emit_ray_query_object_read_inst(static_cast<const xir::RayQueryObjectReadInst *>(inst)); break;
+            case xir::DerivedInstructionTag::RAY_QUERY_OBJECT_WRITE: _emit_ray_query_object_write_inst(static_cast<const xir::RayQueryObjectWriteInst *>(inst)); break;
+            case xir::DerivedInstructionTag::RAY_QUERY_PIPELINE: _emit_ray_query_pipeline_inst(static_cast<const xir::RayQueryPipelineInst *>(inst), indent); break;
             case xir::DerivedInstructionTag::AUTODIFF_SCOPE: LUISA_ERROR_WITH_LOCATION("Autodiff scope instructions should be eliminated before codegen.");
             case xir::DerivedInstructionTag::AUTODIFF_INTRINSIC: LUISA_ERROR_WITH_LOCATION("Autodiff intrinsic instructions should be eliminated before codegen.");
             case xir::DerivedInstructionTag::CALL: {
                 emit_result_value_eq();
-                auto call = static_cast<const xir::CallInst *>(&inst);
+                auto call = static_cast<const xir::CallInst *>(inst);
                 _emit_value_name(call->callee());
                 _scratch << "(";
                 auto any_arg = false;
-                for (auto &&arg_use : call->argument_uses()) {
+                for (auto arg_use : call->argument_uses()) {
                     any_arg = true;
                     _emit_value_name(arg_use->value());
                     _scratch << ", ";
@@ -770,7 +773,7 @@ void CUDACodegenXIR::_emit_instructions(const xir::InstructionList &inst_list, i
             }
             case xir::DerivedInstructionTag::CAST: {
                 emit_result_value_eq();
-                auto cast = static_cast<const xir::CastInst *>(&inst);
+                auto cast = static_cast<const xir::CastInst *>(inst);
                 switch (cast->op()) {
                     case xir::CastOp::STATIC_CAST: _scratch << "static_cast<"; break;
                     case xir::CastOp::BITWISE_CAST: _scratch << "lc_bit_cast<"; break;
@@ -782,7 +785,7 @@ void CUDACodegenXIR::_emit_instructions(const xir::InstructionList &inst_list, i
                 break;
             }
             case xir::DerivedInstructionTag::PRINT: {
-                auto p = static_cast<const xir::PrintInst *>(&inst);
+                auto p = static_cast<const xir::PrintInst *>(inst);
                 auto info = _print_info.at(p);
                 _scratch << "lc_print_impl(LC_PRINT_BUFFER, ";
                 _emit_type_name(info.type);
@@ -805,7 +808,7 @@ void CUDACodegenXIR::_emit_instructions(const xir::InstructionList &inst_list, i
                 break;
             }
             case xir::DerivedInstructionTag::ASSERT: {
-                if (auto a = static_cast<const xir::AssertInst *>(&inst); a->message().empty()) {
+                if (auto a = static_cast<const xir::AssertInst *>(inst); a->message().empty()) {
                     _scratch << "lc_assert(";
                     _emit_value_name(a->condition());
                     _scratch << ");";
@@ -820,14 +823,14 @@ void CUDACodegenXIR::_emit_instructions(const xir::InstructionList &inst_list, i
             }
             case xir::DerivedInstructionTag::ASSUME: {
                 _scratch << "lc_assume(";
-                _emit_value_name(static_cast<const xir::AssumeInst *>(&inst)->condition());
+                _emit_value_name(static_cast<const xir::AssumeInst *>(inst)->condition());
                 _scratch << ");";
                 break;
             }
             case xir::DerivedInstructionTag::OUTLINE: LUISA_ERROR_WITH_LOCATION("Outline instructions should be eliminated before codegen.");
         }
         _scratch << "\n";
-        if (auto merge = inst.control_flow_merge(); merge != nullptr && merge->merge_block() != nullptr) {
+        if (auto merge = inst->control_flow_merge(); merge != nullptr && merge->merge_block() != nullptr) {
             _emit_instructions(merge->merge_block()->instructions(), indent);
         }
     }
@@ -1072,8 +1075,10 @@ int CUDACodegenXIR::_find_ray_query_captured_kernel_param_index(const xir::Value
     auto argument = static_cast<const xir::Argument *>(capture);
     auto parent = argument->parent_function();
     auto arg_index = [argument, parent] {
-        for (auto i = 0; i < parent->arguments().size(); i++) {
-            if (parent->arguments()[i] == argument) { return i; }
+        auto i = 0u;
+        for (auto parent_arg : parent->arguments()) {
+            if (parent_arg == argument) { return i; }
+            i++;
         }
         LUISA_ERROR_WITH_LOCATION("Cannot find argument index for captured value.");
     }();
@@ -1772,22 +1777,31 @@ void CUDACodegenXIR::_emit_kernel_definition(const xir::KernelFunction *kernel,
     }
     // decode the kernel arguments
     _scratch << "\n\n  /* kernel arguments */";
-    for (auto i = 0u; i < kernel->arguments().size(); i++) {
-        _scratch << "\n  auto const ";
-        _emit_value_name(kernel->arguments()[i]);
-        _scratch << " = params.m" << i << ";";
+    {
+        auto i = 0u;
+        for (auto arg : kernel->arguments()) {
+            _scratch << "\n  auto const ";
+            _emit_value_name(arg);
+            _scratch << " = params.m" << i << ";";
+            i++;
+        }
     }
     if (!_requires_optix && _requires_printing) {
         _scratch << "\n  auto const print_buffer = params.print_buffer;";
     }
     // compiler hints from bindings
-    for (auto i = 0u; i < bindings.size(); i++) {
-        if (auto binding = luisa::get_if<Function::TextureBinding>(&bindings[i])) {
-            auto surface = reinterpret_cast<CUDATexture *>(binding->handle)->binding(binding->level);
-            // generate hints for the underlying storage
-            _scratch << "\n  lc_assume(";
-            _emit_value_name(kernel->arguments().at(i));
-            _scratch << ".surface.storage == " << surface.storage << ");";
+    {
+        auto i = 0u;
+        for (auto arg : kernel->arguments()) {
+            if (i >= bindings.size()) { break; }
+            if (auto binding = luisa::get_if<Function::TextureBinding>(&bindings[i])) {
+                auto surface = reinterpret_cast<CUDATexture *>(binding->handle)->binding(binding->level);
+                // generate hints for the underlying storage
+                _scratch << "\n  lc_assume(";
+                _emit_value_name(arg);
+                _scratch << ".surface.storage == " << surface.storage << ");";
+            }
+            i++;
         }
     }
     // emit built-in variables
@@ -1838,7 +1852,7 @@ void CUDACodegenXIR::_emit_hoisted_lexical_scope_breakers() noexcept {
 void CUDACodegenXIR::_emit_callable_definition(const xir::CallableFunction *callable) noexcept {
     // emit function signature
     _scratch << "extern \"C\" ";
-    if (callable->arguments().size() >= 8u) {
+    if (callable->arguments().count_size() >= 8u) {
         _scratch << "__forceinline__ ";// nvcc can be stupid with inlining
     }
     _scratch << "__device__ ";
@@ -1882,7 +1896,8 @@ void CUDACodegenXIR::_emit_ray_query_callback_definition(const xir::CallableFunc
     // the first argument should be replaced by the ray query result
     _scratch << "(LCIntersectionResult &result";
     // emit the rest of the arguments
-    for (auto capture : luisa::span{callable->arguments()}.subspan(1)) {
+    for (auto it = ++callable->arguments().begin(); it != callable->arguments().end(); ++it) {
+        auto capture = *it;
         _scratch << ", ";
         _emit_type_name(capture->type());
         if (capture->is_reference()) {
@@ -1909,13 +1924,13 @@ void CUDACodegenXIR::emit(const xir::Module *module,
     // find the kernel function
     auto kernel = [module] {
         const xir::KernelFunction *kernel = nullptr;
-        for (auto &&f : module->function_list()) {
-            if (f.isa<xir::KernelFunction>()) {
+        for (auto f : module->function_list()) {
+            if (f->isa<xir::KernelFunction>()) {
                 LUISA_ASSERT(kernel == nullptr,
                              "CUDA codegen: expected exactly one kernel function, "
                              "found {:?}.",
-                             f.name().value_or("unknown"));
-                kernel = static_cast<const xir::KernelFunction *>(&f);
+                             f->name().value_or("unknown"));
+                kernel = static_cast<const xir::KernelFunction *>(f);
             }
         }
         LUISA_ASSERT(kernel != nullptr,

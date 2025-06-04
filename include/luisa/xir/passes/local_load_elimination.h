@@ -15,7 +15,7 @@ class Module;
 // instruction can be replaced with the recent load instruction.
 
 struct LocalLoadEliminationInfo {
-    luisa::unordered_map<LoadInst *, LoadInst *> eliminated_instructions;
+    size_t removed_load_count{0u};
 };
 
 [[nodiscard]] LC_XIR_API LocalLoadEliminationInfo local_load_elimination_pass_run_on_function(Function *function) noexcept;

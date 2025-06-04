@@ -24,27 +24,20 @@ enum struct DerivedFunctionTag {
 class Module;
 class FunctionDefinition;
 
-class LC_XIR_API Function : public IntrusiveForwardNode<Function, DerivedGlobalValue<Function, DerivedValueTag::FUNCTION>> {
+class LC_XIR_API Function : public DerivedGlobalValue<Function, DerivedValueTag::FUNCTION> {
 
 private:
-    Module *_module;
-    luisa::vector<Argument *> _arguments;
+    ArgumentList _arguments;
+    BasicBlockList _basic_blocks;
 
 public:
     explicit Function(Module *parent_module, const Type *type = nullptr) noexcept;
     [[nodiscard]] virtual DerivedFunctionTag derived_function_tag() const noexcept = 0;
 
-    void add_argument(Argument *argument) noexcept;
-    void insert_argument(size_t index, Argument *argument) noexcept;
-    void remove_argument(Argument *argument) noexcept;
-    void remove_argument(size_t index) noexcept;
-    void replace_argument(Argument *old_argument, Argument *new_argument) noexcept;
-    void replace_argument(size_t index, Argument *argument) noexcept;
-
-    Argument *create_argument(const Type *type, bool by_ref, bool should_append = true) noexcept;
-    ValueArgument *create_value_argument(const Type *type, bool should_append = true) noexcept;
-    ReferenceArgument *create_reference_argument(const Type *type, bool should_append = true) noexcept;
-    ResourceArgument *create_resource_argument(const Type *type, bool should_append = true) noexcept;
+    Argument *create_argument(const Type *type, bool by_ref) noexcept;
+    ValueArgument *create_value_argument(const Type *type) noexcept;
+    ReferenceArgument *create_reference_argument(const Type *type) noexcept;
+    ResourceArgument *create_resource_argument(const Type *type) noexcept;
 
     [[nodiscard]] BasicBlock *create_basic_block() noexcept;
 
@@ -55,6 +48,9 @@ public:
     [[nodiscard]] auto &arguments() noexcept { return _arguments; }
     [[nodiscard]] auto &arguments() const noexcept { return _arguments; }
 
+    [[nodiscard]] auto &basic_blocks() noexcept { return _basic_blocks; }
+    [[nodiscard]] auto &basic_blocks() const noexcept { return _basic_blocks; }
+
     [[nodiscard]] virtual FunctionDefinition *definition() noexcept { return nullptr; }
     [[nodiscard]] const FunctionDefinition *definition() const noexcept {
         return const_cast<Function *>(this)->definition();
@@ -63,7 +59,13 @@ public:
     LUISA_XIR_DEFINED_ISA_METHOD(Function, function)
 };
 
-using FunctionList = IntrusiveForwardList<Function>;
+class LC_XIR_API SentinelFunction final : public Function {
+public:
+    explicit SentinelFunction(Module *parent_module) noexcept;
+    [[nodiscard]] DerivedFunctionTag derived_function_tag() const noexcept override;
+};
+
+using FunctionList = ManagedIntrusiveList<Function, SentinelFunction>;
 
 template<typename Derived, DerivedFunctionTag tag, typename Base = Function>
     requires std::derived_from<Base, Function>

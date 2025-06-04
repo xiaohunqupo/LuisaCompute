@@ -33,10 +33,10 @@ static void run_local_load_elimination_on_basic_block(luisa::unordered_set<Basic
     while (visited.emplace(block).second) {
 
         // process the instructions in the block
-        for (auto &&inst : block->instructions()) {
-            switch (inst.derived_instruction_tag()) {
+        for (auto inst : block->instructions()) {
+            switch (inst->derived_instruction_tag()) {
                 case DerivedInstructionTag::LOAD: {
-                    auto load = static_cast<LoadInst *>(&inst);
+                    auto load = static_cast<LoadInst *>(inst);
                     if (auto iter = already_loaded.find(load->variable()); iter != already_loaded.end()) {
                         removable_loads.emplace(load, iter->second);
                     } else if (auto alloca_inst = trace_pointer_base_local_alloca_inst(load->variable())) {
@@ -50,7 +50,7 @@ static void run_local_load_elimination_on_basic_block(luisa::unordered_set<Basic
                     break;
                 }
                 default: {
-                    for (auto op_use : inst.operand_uses()) {
+                    for (auto op_use : inst->operand_uses()) {
                         invalidate_interfering_loads(op_use->value());
                     }
                     break;
@@ -77,7 +77,7 @@ static void run_local_load_elimination_on_basic_block(luisa::unordered_set<Basic
     for (auto [current_load, earlier_load] : removable_loads) {
         current_load->replace_all_uses_with(earlier_load);
         current_load->remove_self();
-        info.eliminated_instructions.emplace(current_load, earlier_load);
+        info.removed_load_count++;
     }
 }
 
@@ -100,8 +100,8 @@ LocalLoadEliminationInfo local_load_elimination_pass_run_on_function(Function *f
 
 LocalLoadEliminationInfo local_load_elimination_pass_run_on_module(Module *module) noexcept {
     LocalLoadEliminationInfo info;
-    for (auto &&f : module->function_list()) {
-        detail::run_local_load_elimination_on_function(&f, info);
+    for (auto f : module->function_list()) {
+        detail::run_local_load_elimination_on_function(f, info);
     }
     return info;
 }

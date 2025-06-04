@@ -38,9 +38,7 @@ static void trace_gep_instructions_in_function(Function *function, TraceGEPInfo 
             }
         });
         for (auto gep : geps) {
-            if (try_trace_gep_inst(gep)) {
-                info.traced_geps.emplace_back(gep);
-            }
+            if (try_trace_gep_inst(gep)) { info.traced_gep_count++; }
             if (gep->index_count() == 0u) {
                 gep->replace_all_uses_with(gep->base());
                 gep->remove_self();
@@ -59,8 +57,8 @@ TraceGEPInfo trace_gep_pass_run_on_function(Function *function) noexcept {
 
 TraceGEPInfo trace_gep_pass_run_on_module(Module *module) noexcept {
     TraceGEPInfo info;
-    for (auto &f : module->function_list()) {
-        detail::trace_gep_instructions_in_function(&f, info);
+    for (auto f : module->function_list()) {
+        detail::trace_gep_instructions_in_function(f, info);
     }
     return info;
 }

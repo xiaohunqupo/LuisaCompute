@@ -68,11 +68,9 @@ static void traverse_call_graph_post_order(Function *f, const CallGraph &call_gr
     return true;
 }
 
-[[nodiscard]] static ValueArgument *promote_ref_arg(CallableFunction *f, size_t index) noexcept {
-    LUISA_DEBUG_ASSERT(index < f->arguments().size() && f->arguments()[index]->is_reference());
-    auto arg = static_cast<ReferenceArgument *>(f->arguments()[index]);
-    // we need to create a new value argument with the same type as the reference argument
-    auto new_arg = f->create_value_argument(arg->type(), false);
+[[nodiscard]] static Argument *promote_ref_arg(CallableFunction *f, Argument *arg) noexcept {
+    // create a new value argument
+    auto new_arg = arg->insert_after_self(f->create_value_argument(arg->type())->remove_self());
     new_arg->add_comment("promoted reference argument");
     // we need to create a local variable to hold the value of the reference argument
     {
@@ -82,31 +80,44 @@ static void traverse_call_graph_post_order(Function *f, const CallGraph &call_gr
         b.store(local, new_arg);
         arg->replace_all_uses_with(local);
     }
-    // we need to replace the reference argument with the new value argument
-    f->replace_argument(index, new_arg);
+    // now we can remove the original reference argument
+    arg->remove_self();
     return new_arg;
 }
 
+struct PromotedArg {
+    Argument *arg;
+    size_t index;
+};
+
 static void promote_ref_args_in_function(CallableFunction *f, PromoteRefArgInfo &info) {
-    luisa::fixed_vector<size_t, 16u> promoted_arg_indices;
-    for (auto i = 0u; i < f->arguments().size(); i++) {
-        // we may only promote non-custom-type reference arguments that are read-only
-        if (auto arg = f->arguments()[i];
-            arg->is_reference() && !arg->type()->is_custom() && is_pointer_readonly(arg)) {
-            auto new_arg = promote_ref_arg(f, i);
-            promoted_arg_indices.emplace_back(i);
-            info.promoted_ref_args.emplace(static_cast<ReferenceArgument *>(arg), new_arg);
+    // collect promotable reference arguments
+    luisa::fixed_vector<PromotedArg, 16u> promoted_args;
+    {
+        auto index = 0u;
+        for (auto arg : f->arguments()) {
+            if (arg->is_reference() && !arg->type()->is_custom() && is_pointer_readonly(arg)) {
+                promoted_args.emplace_back(PromotedArg{
+                    .arg = static_cast<ReferenceArgument *>(arg),
+                    .index = index,
+                });
+            }
+            index++;
         }
     }
-    // replace the call site arguments with load instructions
-    for (auto &&use : f->use_list()) {
+    // record the number of promoted reference arguments
+    info.promoted_ref_arg_count += promoted_args.size();
+    // promote the reference arguments
+    for (auto &p : promoted_args) { p.arg = promote_ref_arg(f, p.arg); }
+    // update the call-site arguments
+    for (auto use : f->use_list()) {
         if (auto user = use->user(); user != nullptr && user->isa<CallInst>()) {
             auto call = static_cast<CallInst *>(user);
             XIRBuilder b;
             b.set_insertion_point(call->prev());
-            for (auto i : promoted_arg_indices) {
-                auto loaded = b.load(f->arguments()[i]->type(), call->argument(i));
-                call->set_argument(i, loaded);
+            for (auto p : promoted_args) {
+                auto loaded = b.load(p.arg->type(), call->argument(p.index));
+                call->set_argument(p.index, loaded);
             }
         }
     }

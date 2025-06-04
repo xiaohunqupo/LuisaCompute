@@ -36,7 +36,7 @@ static void collect_ray_query_loop_basic_blocks_post_order(BasicBlock *block, co
     // get query object from dispatch block
     auto dispatch_inst = dispatch_block->terminator();
     LUISA_DEBUG_ASSERT(dispatch_inst != nullptr &&
-                           dispatch_inst == &dispatch_block->instructions().front() &&
+                           dispatch_inst == dispatch_block->instructions().front() &&
                            dispatch_inst->isa<RayQueryDispatchInst>(),
                        "Invalid ray query loop dispatch instruction.");
     auto query_object = static_cast<RayQueryDispatchInst *>(dispatch_inst)->query_object();
@@ -106,16 +106,15 @@ static void collect_ray_query_loop_capture_list_in_inst(Instruction *inst, const
     luisa::unordered_set<Value *> known_in;
     luisa::unordered_set<Value *> internal;
     for (auto block : subgraph.reverse_post_order) {
-        for (auto &&inst : block->instructions()) {
-            internal.emplace(&inst);
+        for (auto inst : block->instructions()) {
+            internal.emplace(inst);
         }
     }
     for (auto block : subgraph.reverse_post_order) {
         for (auto &&inst : block->instructions()) {
             collect_ray_query_loop_capture_list_in_inst(
-                &inst, subgraph.query_object,
-                internal,
-                known_in, capture_list);
+                inst, subgraph.query_object,
+                internal, known_in, capture_list);
         }
     }
     return capture_list;
@@ -159,19 +158,19 @@ static BasicBlock *duplicate_basic_block_for_ray_query_loop_dispatch_branch(cons
     auto bb = static_cast<BasicBlock *>(resolver.resolve(original));
     XIRBuilder b;
     b.set_insertion_point(bb);
-    for (auto &&inst : original->instructions()) {
+    for (auto inst : original->instructions()) {
         // special case: branch to the merge block
-        if (inst.is_terminator() && inst.isa<BranchInst>() &&
-            static_cast<const BranchInst *>(&inst)->target_block() == merge) {
+        if (inst->is_terminator() && inst->isa<BranchInst>() &&
+            static_cast<const BranchInst *>(inst)->target_block() == merge) {
             b.return_void();
-        } else if (inst.isa<PhiInst>()) {
-            auto dup_phi = b.phi(inst.type());
-            phi_nodes.emplace_back(static_cast<const PhiInst *>(&inst), dup_phi);
-            resolver.emplace(&inst, dup_phi);
+        } else if (inst->isa<PhiInst>()) {
+            auto dup_phi = b.phi(inst->type());
+            phi_nodes.emplace_back(static_cast<const PhiInst *>(inst), dup_phi);
+            resolver.emplace(inst, dup_phi);
         } else {
-            auto dup_inst = inst.clone_with_metadata(b, resolver);
+            auto dup_inst = inst->clone_with_metadata(b, resolver);
             LUISA_DEBUG_ASSERT(dup_inst != nullptr, "Failed to duplicate instruction.");
-            resolver.emplace(&inst, dup_inst);
+            resolver.emplace(inst, dup_inst);
         }
     }
     return bb;
@@ -267,7 +266,7 @@ static void lower_ray_query_loop(Function *function, RayQueryLoopInst *loop, Ray
     // create variables for out values
     if (!capture_list.out_values.empty()) {
         XIRBuilder b;
-        b.set_insertion_point(&function->definition()->body_block()->instructions().front());
+        b.set_insertion_point(function->definition()->body_block()->instructions().front());
         for (auto out_value : capture_list.out_values) {
             auto variable = b.alloca_local(out_value->type());
             variable->add_comment("alloca for ray query output value");
@@ -280,8 +279,10 @@ static void lower_ray_query_loop(Function *function, RayQueryLoopInst *loop, Ray
     auto loop_parent_block = loop->parent_block();
     auto pipeline = b.ray_query_pipeline(subgraph.query_object, on_surface, on_procedural, captured_args);
     // remove the loop and record the change
-    loop->remove_self();
-    info.lowered_loops.emplace(loop, pipeline);
+    {
+        loop->remove_self();
+        info.lowered_loop_count++;
+    }
     // load the out values and replace the uses
     auto out_variables = luisa::span{captured_args}.subspan(capture_list.in_values.size());
     for (auto i = 0u; i < capture_list.out_values.size(); i++) {
@@ -307,10 +308,9 @@ static void lower_ray_query_loop(Function *function, RayQueryLoopInst *loop, Ray
     });
     // move the instructions from the merge block to the loop parent block
     while (!merge_block->instructions().empty()) {
-        auto inst = &merge_block->instructions().front();
+        auto inst = merge_block->instructions().front();
         LUISA_ASSERT(!inst->isa<PhiInst>(), "Invalid phi instruction in merge block.");
-        inst->remove_self();
-        b.append(inst);
+        b.append(inst->remove_self());
     }
 }
 
@@ -352,15 +352,15 @@ static void lower_phi_nodes_in_loop_dispatch_block(FunctionDefinition *f, RayQue
     LUISA_DEBUG_ASSERT(dispatch_block != nullptr, "Invalid dispatch block.");
     // collect phi nodes
     luisa::fixed_vector<PhiInst *, 16u> phi_nodes;
-    for (auto &&inst : dispatch_block->instructions()) {
-        switch (auto tag = inst.derived_instruction_tag()) {
+    for (auto inst : dispatch_block->instructions()) {
+        switch (auto tag = inst->derived_instruction_tag()) {
             case DerivedInstructionTag::RAY_QUERY_DISPATCH: {
-                LUISA_DEBUG_ASSERT(&inst == dispatch_block->terminator(),
+                LUISA_DEBUG_ASSERT(inst == dispatch_block->terminator(),
                                    "Invalid terminator.");
                 break;
             }
             case DerivedInstructionTag::PHI: {
-                phi_nodes.emplace_back(static_cast<PhiInst *>(&inst));
+                phi_nodes.emplace_back(static_cast<PhiInst *>(inst));
                 break;
             }
             default: LUISA_ERROR_WITH_LOCATION(
@@ -438,7 +438,8 @@ static void run_lower_ray_query_loop_pass_on_function(Function *function, RayQue
         // remove dead code after lowering using the DCE pass
         if (!loops.empty()) {
             auto dce_info = dce_pass_run_on_function(function);
-            LUISA_VERBOSE("Removed {} dead instruction(s) after lowering ray query loop(s).", dce_info.removed_instructions.size());
+            LUISA_VERBOSE("Removed {} dead instruction(s) and {} dead block(s) after lowering ray query loop(s).",
+                          dce_info.removed_inst_count, dce_info.removed_block_count);
         }
     }
 }
@@ -453,8 +454,8 @@ RayQueryLoopLowerInfo lower_ray_query_loop_pass_run_on_function(Function *functi
 
 RayQueryLoopLowerInfo lower_ray_query_loop_pass_run_on_module(Module *module) noexcept {
     RayQueryLoopLowerInfo info;
-    for (auto &&f : module->function_list()) {
-        detail::run_lower_ray_query_loop_pass_on_function(&f, info);
+    for (auto f : module->function_list()) {
+        detail::run_lower_ray_query_loop_pass_on_function(f, info);
     }
     return info;
 }

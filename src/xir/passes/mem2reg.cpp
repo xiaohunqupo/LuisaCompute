@@ -86,23 +86,30 @@ struct AllocaAnalysis {
     }
 };
 
-static void replace_load_with_value(LoadInst *load_inst, Value *value, Mem2RegInfo &info) noexcept {
+struct Mem2RegPassContext {
+    luisa::unordered_set<luisa::ManagedPtr<Instruction>> removed;
+};
+
+static void replace_load_with_value(LoadInst *load_inst, Value *value,
+                                    Mem2RegPassContext &ctx, Mem2RegInfo &info) noexcept {
     load_inst->replace_all_uses_with(value);
-    load_inst->remove_self();
-    info.removed_load_instructions.emplace(load_inst);
+    ctx.removed.emplace(load_inst->remove_self());
+    info.removed_load_count++;
 }
 
-static void remove_store(StoreInst *store_inst, Mem2RegInfo &info) noexcept {
-    store_inst->remove_self();
-    info.removed_store_instructions.emplace(store_inst);
+static void remove_store(StoreInst *store_inst, Mem2RegPassContext &ctx, Mem2RegInfo &info) noexcept {
+    ctx.removed.emplace(store_inst->remove_self());
+    info.removed_store_count++;
 }
 
-static void remove_alloca(AllocaInst *alloca_inst, Mem2RegInfo &info) noexcept {
-    alloca_inst->remove_self();
-    info.promoted_alloca_instructions.emplace(alloca_inst);
+static void remove_alloca(AllocaInst *alloca_inst, Mem2RegPassContext &ctx, Mem2RegInfo &info) noexcept {
+    ctx.removed.emplace(alloca_inst->remove_self());
+    info.promoted_alloca_count++;
 }
 
 struct PhiInsertionAndRenaming {
+
+    Mem2RegPassContext &ctx;
 
     luisa::unordered_map<BasicBlock *, PhiInst *> block_to_phi;
 
@@ -147,7 +154,6 @@ struct PhiInsertionAndRenaming {
                             auto phi = b.phi(type);
                             iter->second = phi;
                             inserted.emplace_back(phi);
-                            info.inserted_phi_instructions.emplace(phi);
                             // add the block to the work list to compute the closure
                             work_list.emplace_back(fb);
                         }
@@ -157,18 +163,18 @@ struct PhiInsertionAndRenaming {
         }
         // other loads must be dominated by some def/phi block, or it must contain undefined value
         for (auto [use_block, load_inst] : analysis.use_blocks) {
-            LUISA_DEBUG_ASSERT(!info.removed_load_instructions.contains(load_inst), "Invalid state.");
+            LUISA_DEBUG_ASSERT(!ctx.removed.contains(load_inst), "Invalid state.");
             if (auto phi_iter = block_to_phi.find(use_block); phi_iter != block_to_phi.end()) {
                 // if we have a phi node in the use block, we can replace the load with it
-                replace_load_with_value(load_inst, phi_iter->second, info);
+                replace_load_with_value(load_inst, phi_iter->second, ctx, info);
             } else if (auto parent = analysis.dom.immediate_dominator(use_block)) {
                 // otherwise, we walk the dom tree to find the value that dominates the use block
                 auto dom_value = find_dom_value_from_block(parent, type, analysis);
-                replace_load_with_value(load_inst, dom_value, info);
+                replace_load_with_value(load_inst, dom_value, ctx, info);
             } else {
                 // otherwise we have to use an undefined value
                 auto undef = use_block->parent_module()->create_undefined(type);
-                replace_load_with_value(load_inst, undef, info);
+                replace_load_with_value(load_inst, undef, ctx, info);
             }
         }
         // now the alloca should have no load uses but only store uses, check it
@@ -189,26 +195,21 @@ struct PhiInsertionAndRenaming {
         }
         // remove the stores
         for (auto [def_block, store_inst] : analysis.def_blocks) {
-            remove_store(store_inst, info);
+            remove_store(store_inst, ctx, info);
         }
         // remove the local variable (which should have no uses now) and record the promotion
         LUISA_ASSERT(inst->use_list().empty(), "Invalid state.");
-        remove_alloca(inst, info);
+        remove_alloca(inst, ctx, info);
     }
 
     void simplify_phi_nodes(Mem2RegInfo &info) noexcept {
         for (;;) {
-            auto prev_inserted_count = info.inserted_phi_instructions.size();
-            inserted.erase(std::remove_if(inserted.begin(), inserted.end(), [&](PhiInst *phi) noexcept {
-                               if (remove_redundant_phi_instruction(phi)) {
-                                   info.inserted_phi_instructions.erase(phi);
-                                   return true;
-                               }
-                               return false;
-                           }),
+            auto prev_inserted_count = inserted.size();
+            inserted.erase(std::remove_if(inserted.begin(), inserted.end(), remove_redundant_phi_instruction),
                            inserted.end());
-            if (prev_inserted_count == info.inserted_phi_instructions.size()) { break; }
+            if (inserted.size() == prev_inserted_count) { break; }
         }
+        info.inserted_phi_count += inserted.size();
     }
 };
 
@@ -218,7 +219,7 @@ using AllocaStoreLoadSequence = luisa::unordered_map<BasicBlock *, std::vector<I
 // alloca, and the load instruction must precede the store instruction if both exist
 static void simplify_single_block_store_load(AllocaInst *inst, AllocaStoreLoadSequence &seq,
                                              const luisa::unordered_map<Instruction *, uint> &inst_indices,
-                                             Mem2RegInfo &info) noexcept {
+                                             Mem2RegPassContext &ctx, Mem2RegInfo &info) noexcept {
     // collect load/store instructions concerning the alloca
     seq.clear();
     for (auto &&use : inst->use_list()) {
@@ -243,7 +244,7 @@ static void simplify_single_block_store_load(AllocaInst *inst, AllocaStoreLoadSe
             switch (store_or_load->derived_instruction_tag()) {
                 case DerivedInstructionTag::LOAD: {
                     if (last_value != nullptr) {// we can forward the last loaded/stored value to this load
-                        replace_load_with_value(static_cast<LoadInst *>(store_or_load), last_value, info);
+                        replace_load_with_value(static_cast<LoadInst *>(store_or_load), last_value, ctx, info);
                     } else {// otherwise, record this load
                         last_value = store_or_load;
                     }
@@ -252,7 +253,7 @@ static void simplify_single_block_store_load(AllocaInst *inst, AllocaStoreLoadSe
                 case DerivedInstructionTag::STORE: {
                     // we have overwritten the last store so remove it if any
                     if (last_store != nullptr) {
-                        remove_store(last_store, info);
+                        remove_store(last_store, ctx, info);
                     }
                     // record this store
                     last_store = static_cast<StoreInst *>(store_or_load);
@@ -275,10 +276,10 @@ static void simplify_single_block_store_load(AllocaInst *inst, AllocaStoreLoadSe
     if (all_store) {
         // remove all users
         while (!inst->use_list().empty()) {
-            remove_store(static_cast<StoreInst *>(inst->use_list().front()->user()), info);
+            remove_store(static_cast<StoreInst *>(inst->use_list().front()->user()), ctx, info);
         }
         // remove self
-        remove_alloca(inst, info);
+        remove_alloca(inst, ctx, info);
     }
 }
 
@@ -286,11 +287,11 @@ static void promote_alloca_instructions_in_function(Function *f, Mem2RegInfo &in
     if (auto def = f->definition()) {
         // run the transpose GEP pass first so we can possibly handle more aggregates
         if (auto transpose_gep_info = transpose_gep_pass_run_on_function(def);
-            !transpose_gep_info.transposed_load_instructions.empty() ||
-            !transpose_gep_info.transposed_store_instructions.empty()) {
+            transpose_gep_info.transposed_load_count != 0u ||
+            transpose_gep_info.transposed_store_count != 0u) {
             LUISA_VERBOSE("Transposed {} load instruction(s) and {} store instruction(s) in mem2reg pass.",
-                          transpose_gep_info.transposed_load_instructions.size(),
-                          transpose_gep_info.transposed_store_instructions.size());
+                          transpose_gep_info.transposed_load_count,
+                          transpose_gep_info.transposed_store_count);
         }
         // collect local alloca instructions that can be promoted
         luisa::vector<AllocaInst *> promotable;
@@ -316,25 +317,26 @@ static void promote_alloca_instructions_in_function(Function *f, Mem2RegInfo &in
             });
         });
         // do some simplification first
+        Mem2RegPassContext ctx;
         if (!promotable.empty()) {
             AllocaStoreLoadSequence seq;
             for (auto inst : promotable) {
-                simplify_single_block_store_load(inst, seq, inst_indices, info);
+                simplify_single_block_store_load(inst, seq, inst_indices, ctx, info);
             }
+            // erase the alloca instructions that are already removed
+            promotable.erase(
+                std::remove_if(promotable.begin(), promotable.end(), [&](AllocaInst *inst) noexcept {
+                    return ctx.removed.contains(inst);
+                }),
+                promotable.end());
         }
-        // erase the alloca instructions that are already removed
-        promotable.erase(
-            std::remove_if(promotable.begin(), promotable.end(), [&](AllocaInst *inst) noexcept {
-                return info.promoted_alloca_instructions.contains(inst);
-            }),
-            promotable.end());
         // perform the SSA rewrite pass for the remaining alloca instructions
         if (!promotable.empty()) {
             auto dom = compute_dom_tree(def);
             AllocaAnalysis analysis{.dom = dom,
                                     .inst_indices = inst_indices,
                                     .block_indices = block_indices};
-            PhiInsertionAndRenaming insertion;
+            PhiInsertionAndRenaming insertion{.ctx = ctx};
             for (auto inst : promotable) {
                 // analyze and insert phi nodes
                 analysis.analyze(inst);
@@ -355,8 +357,8 @@ Mem2RegInfo mem2reg_pass_run_on_function(Function *function) noexcept {
 
 Mem2RegInfo mem2reg_pass_run_on_module(Module *module) noexcept {
     Mem2RegInfo info;
-    for (auto &&f : module->function_list()) {
-        detail::promote_alloca_instructions_in_function(&f, info);
+    for (auto f : module->function_list()) {
+        detail::promote_alloca_instructions_in_function(f, info);
     }
     return info;
 }

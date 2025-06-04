@@ -123,7 +123,7 @@ struct InstructionCloneValueResolver {
 
 class XIRBuilder;
 
-class LC_XIR_API Instruction : public IntrusiveNode<Instruction, DerivedBlockScopeValue<Instruction, DerivedValueTag::INSTRUCTION, User>> {
+class LC_XIR_API Instruction : public DerivedBlockScopeValue<Instruction, DerivedValueTag::INSTRUCTION, User> {
 
 protected:
     void _remove_self_from_operand_use_lists() noexcept;
@@ -140,10 +140,11 @@ public:
         return luisa::string{xir::to_string(derived_instruction_tag())};
     }
 
-    void remove_self() noexcept override;
-    void insert_before_self(Instruction *node) noexcept override;
-    void insert_after_self(Instruction *node) noexcept override;
-    void replace_self_with(Instruction *node) noexcept;
+    ManagedPtr<Instruction> remove_self() noexcept override;
+    ManagedPtr<Instruction> replace_self_with(ManagedPtr<Instruction> node) noexcept;
+
+    Instruction *insert_before_self(ManagedPtr<Instruction> node) noexcept override;
+    Instruction *insert_after_self(ManagedPtr<Instruction> node) noexcept override;
 
     [[nodiscard]] virtual bool is_terminator() const noexcept { return false; }
 
@@ -160,7 +161,7 @@ public:
     [[nodiscard]] Instruction *clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
-using InstructionList = InlineIntrusiveList<Instruction, SentinelInst>;
+using InstructionList = ManagedIntrusiveList<Instruction, SentinelInst>;
 
 class LC_XIR_API TerminatorInstruction : public Instruction {
 public:

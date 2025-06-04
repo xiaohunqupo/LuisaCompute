@@ -1,5 +1,6 @@
 #pragma once
 
+#include <luisa/core/stl/vector.h>
 #include <luisa/core/managed_ptr.h>
 #include <luisa/xir/value.h>
 

@@ -19,7 +19,7 @@ class Module;
 // pass should be able to remove them if they are dead.
 
 struct LocalStoreForwardInfo {
-    luisa::unordered_map<LoadInst *, StoreInst *> forwarded_instructions;
+    size_t removed_load_count{0u};
 };
 
 [[nodiscard]] LC_XIR_API LocalStoreForwardInfo local_store_forward_pass_run_on_function(Function *function) noexcept;

@@ -53,8 +53,8 @@ static void walk_lexical_scopes_recursively(const BasicBlock *block,
                                             LexScopeStack &stack,
                                             LexScopeInfo &info) noexcept {
     if (block == nullptr) { return; }
-    for (auto &&inst : block->instructions()) {
-        for (auto op_use : inst.operand_uses()) {
+    for (auto inst : block->instructions()) {
+        for (auto op_use : inst->operand_uses()) {
             if (auto value = op_use->value(); !stack.is_in_scope(op_use->value())) {
                 if (auto op_inst = static_cast<const Instruction *>(value);
                     info.lexical_scope_breakers.emplace(op_inst).second) {
@@ -62,11 +62,11 @@ static void walk_lexical_scopes_recursively(const BasicBlock *block,
                 }
             }
         }
-        stack.define(&inst);
+        stack.define(inst);
         // recursively walk the successors if the instruction is a control flow instruction
-        switch (inst.derived_instruction_tag()) {
+        switch (inst->derived_instruction_tag()) {
             case DerivedInstructionTag::IF: {
-                auto if_inst = static_cast<const IfInst *>(&inst);
+                auto if_inst = static_cast<const IfInst *>(inst);
                 // scope of the true branch
                 stack.with_scope([&] {
                     walk_lexical_scopes_recursively(if_inst->true_block(), config, stack, info);
@@ -80,7 +80,7 @@ static void walk_lexical_scopes_recursively(const BasicBlock *block,
                 break;
             }
             case DerivedInstructionTag::SWITCH: {
-                auto switch_inst = static_cast<const SwitchInst *>(&inst);
+                auto switch_inst = static_cast<const SwitchInst *>(inst);
                 // scopes of the case blocks
                 for (auto i = 0u; i < switch_inst->case_count(); i++) {
                     stack.with_scope([&] {
@@ -96,7 +96,7 @@ static void walk_lexical_scopes_recursively(const BasicBlock *block,
                 break;
             }
             case DerivedInstructionTag::LOOP: {
-                auto loop_inst = static_cast<const LoopInst *>(&inst);
+                auto loop_inst = static_cast<const LoopInst *>(inst);
                 // scope of the loop
                 stack.with_scope([&] {
                     // prepare block should be of the loop scope
@@ -116,7 +116,7 @@ static void walk_lexical_scopes_recursively(const BasicBlock *block,
                 break;
             }
             case DerivedInstructionTag::SIMPLE_LOOP: {
-                auto simple_loop_inst = static_cast<const SimpleLoopInst *>(&inst);
+                auto simple_loop_inst = static_cast<const SimpleLoopInst *>(inst);
                 // scope of the body block
                 stack.with_scope([&] {
                     walk_lexical_scopes_recursively(simple_loop_inst->body_block(), config, stack, info);
@@ -126,9 +126,9 @@ static void walk_lexical_scopes_recursively(const BasicBlock *block,
                 break;
             }
             default: {
-                LUISA_ASSERT(inst.control_flow_merge() == nullptr,
+                LUISA_ASSERT(inst->control_flow_merge() == nullptr,
                              "Unexpected control flow {:?} in lexical scope analysis.",
-                             inst.intrinsic_identifier());
+                             inst->intrinsic_identifier());
                 break;
             }
         }

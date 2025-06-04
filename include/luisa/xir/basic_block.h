@@ -61,8 +61,8 @@ public:
 
     template<typename Visit>
     void traverse_instructions(Visit &&visit) noexcept {
-        for (auto &inst : _instructions) {
-            visit(&inst);
+        for (auto inst : _instructions) {
+            visit(inst);
         }
     }
 
@@ -74,5 +74,7 @@ public:
             });
     }
 };
+
+using BasicBlockList = ManagedIntrusiveList<BasicBlock>;
 
 }// namespace luisa::compute::xir

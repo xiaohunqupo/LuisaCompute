@@ -322,9 +322,9 @@ void XIRDebugPrinter::emit_basic_block(luisa::string &s, const BasicBlock *block
     s.append(": {"sv);
     emit_value_debug_info(s, block);
     s.append("\n"sv);
-    for (auto &inst : block->instructions()) {
+    for (auto inst : block->instructions()) {
         s.append("    "sv);
-        emit_instruction(s, &inst);
+        emit_instruction(s, inst);
         s.append("\n"sv);
     }
     luisa::format_to(std::back_inserter(s), "  }} // end of {} ",
@@ -402,19 +402,19 @@ void XIRDebugPrinter::emit_module(luisa::string &s, const Module *module) noexce
     }
     s.append("\n");
     auto any_const = false;
-    for (auto &c : module->constant_list()) {
-        if (!c.type()->is_basic()) {
+    for (auto c : module->constant_list()) {
+        if (!c->type()->is_basic()) {
             any_const = true;
             s.append("\n"sv);
-            emit_constant(s, &c);
+            emit_constant(s, c);
         }
     }
     if (any_const) {
         s.append("\n"sv);
     }
     s.append("\n"sv);
-    for (auto &f : module->function_list()) {
-        emit_function(s, &f);
+    for (auto f : module->function_list()) {
+        emit_function(s, f);
         s.append("\n\n"sv);
     }
 }

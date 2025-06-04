@@ -24,21 +24,19 @@ static void collect_reachable_callables(Function *f, luisa::unordered_set<Functi
 
 UnusedCallableRemovalInfo unused_callable_removal_pass_run_on_module(Module *module) noexcept {
     luisa::unordered_set<Function *> reachable;
-    for (auto &&f : module->function_list()) {
-        if (f.isa<KernelFunction>()) {
-            detail::collect_reachable_callables(&f, reachable);
+    for (auto f : module->function_list()) {
+        if (f->isa<KernelFunction>()) {
+            detail::collect_reachable_callables(f, reachable);
         }
     }
-    UnusedCallableRemovalInfo info;
-    for (auto &&f : module->function_list()) {
-        if (f.isa<CallableFunction>() && !reachable.contains(&f)) {
-            info.removed_callable_functions.emplace_back(static_cast<CallableFunction *>(&f));
+    luisa::vector<Function *> removable;
+    for (auto f : module->function_list()) {
+        if (f->isa<CallableFunction>() && !reachable.contains(f)) {
+            removable.emplace_back(f);
         }
     }
-    for (auto f : info.removed_callable_functions) {
-        f->remove_self();
-    }
-    return info;
+    for (auto f : removable) { f->remove_self(); }
+    return {.removed_callable_count = removable.size()};
 }
 
 }// namespace luisa::compute::xir

@@ -45,7 +45,7 @@ class RayQueryPipelineInst;
 // after other optimization passes. A DCE pass is also recommended after this pass.
 
 struct RayQueryLoopLowerInfo {
-    luisa::unordered_map<RayQueryLoopInst *, RayQueryPipelineInst *> lowered_loops;
+    size_t lowered_loop_count{0u};
 };
 
 [[nodiscard]] LC_XIR_API RayQueryLoopLowerInfo lower_ray_query_loop_pass_run_on_function(Function *function) noexcept;

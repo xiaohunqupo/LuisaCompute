@@ -198,6 +198,9 @@ Constant::Constant(Module *module, const Type *type, ctor_tag_one,
     _update_hash(std::move(hash));
 }
 
+Constant::Constant(Module *parent_module, ctor_tag_sentinel) noexcept
+    : Super{parent_module, nullptr} {}
+
 const void *Constant::data() const noexcept {
     return const_cast<Constant *>(this)->_data();
 }

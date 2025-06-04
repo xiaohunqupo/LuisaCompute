@@ -6,32 +6,34 @@
 namespace luisa::compute::xir {
 
 KernelFunction *Module::create_kernel() noexcept {
-    auto f = pool()->create<KernelFunction>(this);
-    f->add_to_list(_function_list);
-    return f;
+    auto f = luisa::make_managed<KernelFunction>(this);
+    return static_cast<KernelFunction *>(_function_list.push_back(std::move(f)));
 }
 
 CallableFunction *Module::create_callable(const Type *ret_type) noexcept {
-    auto f = pool()->create<CallableFunction>(this, ret_type);
-    f->add_to_list(_function_list);
-    return f;
+    auto f = luisa::make_managed<CallableFunction>(this, ret_type);
+    return static_cast<CallableFunction *>(_function_list.push_back(std::move(f)));
 }
 
 ExternalFunction *Module::create_external_function(const Type *ret_type) noexcept {
-    auto f = pool()->create<ExternalFunction>(this, ret_type);
-    f->add_to_list(_function_list);
-    return f;
+    auto f = luisa::make_managed<ExternalFunction>(this, ret_type);
+    return static_cast<ExternalFunction *>(_function_list.push_back(std::move(f)));
 }
 
 Constant *Module::_get_or_create_constant(const Constant &temp) noexcept {
     auto [iter, success] = _hash_to_constant.try_emplace(temp.hash(), nullptr);
     if (success) {
-        auto pooled_const = pool()->create<Constant>(this, temp.type(), temp.data(), temp.hash());
-        iter->second = pooled_const;
-        pooled_const->add_to_list(_constant_list);
+        auto pooled_const = luisa::make_managed<Constant>(this, temp.type(), temp.data(), temp.hash());
+        iter->second = _constant_list.push_back(std::move(pooled_const));
     }
     return iter->second;
 }
+
+Module::Module() noexcept
+    : _function_list{this},
+      _constant_list{this},
+      _undefined_list{this},
+      _special_register_list{this} {}
 
 Constant *Module::create_constant(const Type *type, const void *data) noexcept {
     Constant temp{this, type, data};
@@ -51,9 +53,8 @@ Constant *Module::create_constant_one(const Type *type) noexcept {
 Undefined *Module::create_undefined(const Type *type) noexcept {
     auto [iter, success] = _type_to_undefined.try_emplace(type, nullptr);
     if (success) {
-        auto undef = pool()->create<Undefined>(this, type);
-        iter->second = undef;
-        undef->add_to_list(_undefined_list);
+        auto undef = luisa::make_managed<Undefined>(this, type);
+        iter->second = _undefined_list.push_back(std::move(undef));
     }
     return iter->second;
 }
@@ -61,23 +62,22 @@ Undefined *Module::create_undefined(const Type *type) noexcept {
 SpecialRegister *Module::create_special_register(DerivedSpecialRegisterTag tag) noexcept {
     auto [iter, success] = _tag_to_special_register.try_emplace(tag, nullptr);
     if (success) {
-        auto sreg = [tag, this]() noexcept -> SpecialRegister * {
+        auto sreg = [tag, this]() noexcept -> ManagedPtr<SpecialRegister> {
             switch (tag) {
-                case DerivedSpecialRegisterTag::THREAD_ID: return pool()->create<SPR_ThreadID>(this);
-                case DerivedSpecialRegisterTag::BLOCK_ID: return pool()->create<SPR_BlockID>(this);
-                case DerivedSpecialRegisterTag::WARP_LANE_ID: return pool()->create<SPR_WarpLaneID>(this);
-                case DerivedSpecialRegisterTag::DISPATCH_ID: return pool()->create<SPR_DispatchID>(this);
-                case DerivedSpecialRegisterTag::KERNEL_ID: return pool()->create<SPR_KernelID>(this);
-                case DerivedSpecialRegisterTag::OBJECT_ID: return pool()->create<SPR_ObjectID>(this);
-                case DerivedSpecialRegisterTag::BLOCK_SIZE: return pool()->create<SPR_BlockSize>(this);
-                case DerivedSpecialRegisterTag::WARP_SIZE: return pool()->create<SPR_WarpSize>(this);
-                case DerivedSpecialRegisterTag::DISPATCH_SIZE: return pool()->create<SPR_DispatchSize>(this);
+                case DerivedSpecialRegisterTag::THREAD_ID: return luisa::make_managed<SPR_ThreadID>(this);
+                case DerivedSpecialRegisterTag::BLOCK_ID: return luisa::make_managed<SPR_BlockID>(this);
+                case DerivedSpecialRegisterTag::WARP_LANE_ID: return luisa::make_managed<SPR_WarpLaneID>(this);
+                case DerivedSpecialRegisterTag::DISPATCH_ID: return luisa::make_managed<SPR_DispatchID>(this);
+                case DerivedSpecialRegisterTag::KERNEL_ID: return luisa::make_managed<SPR_KernelID>(this);
+                case DerivedSpecialRegisterTag::OBJECT_ID: return luisa::make_managed<SPR_ObjectID>(this);
+                case DerivedSpecialRegisterTag::BLOCK_SIZE: return luisa::make_managed<SPR_BlockSize>(this);
+                case DerivedSpecialRegisterTag::WARP_SIZE: return luisa::make_managed<SPR_WarpSize>(this);
+                case DerivedSpecialRegisterTag::DISPATCH_SIZE: return luisa::make_managed<SPR_DispatchSize>(this);
                 default: break;
             }
             LUISA_ERROR_WITH_LOCATION("Unsupported special register tag.");
         }();
-        iter->second = sreg;
-        sreg->add_to_list(_special_register_list);
+        iter->second = _special_register_list.push_back(std::move(sreg));
     }
     return iter->second;
 }

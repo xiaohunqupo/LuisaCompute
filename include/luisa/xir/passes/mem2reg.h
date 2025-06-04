@@ -25,10 +25,10 @@ class PhiInst;
 // code elimination passes.
 
 struct Mem2RegInfo {
-    luisa::unordered_set<AllocaInst *> promoted_alloca_instructions;
-    luisa::unordered_set<StoreInst *> removed_store_instructions;
-    luisa::unordered_set<LoadInst *> removed_load_instructions;
-    luisa::unordered_set<PhiInst *> inserted_phi_instructions;
+    size_t promoted_alloca_count{0u};
+    size_t removed_store_count{0u};
+    size_t removed_load_count{0u};
+    size_t inserted_phi_count{0u};
 };
 
 [[nodiscard]] LC_XIR_API Mem2RegInfo mem2reg_pass_run_on_function(Function *function) noexcept;

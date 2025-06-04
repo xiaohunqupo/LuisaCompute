@@ -31,7 +31,7 @@ luisa::span<CallInst *const> CallGraph::call_edges(FunctionDefinition *f) const 
 
 CallGraph compute_call_graph(Module *module) noexcept {
     CallGraph graph;
-    for (auto &&f : module->function_list()) { graph._add_function(&f); }
+    for (auto f : module->function_list()) { graph._add_function(f); }
     return graph;
 }
 

@@ -10,7 +10,7 @@ class ValueArgument;
 class Module;
 
 struct PromoteRefArgInfo {
-    luisa::unordered_map<ReferenceArgument *, ValueArgument *> promoted_ref_args;
+    size_t promoted_ref_arg_count{0u};
 };
 
 [[nodiscard]] LC_XIR_API PromoteRefArgInfo promote_ref_arg_pass_run_on_module(Module *module) noexcept;

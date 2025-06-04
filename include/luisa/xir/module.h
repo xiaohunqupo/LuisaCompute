@@ -15,7 +15,7 @@ namespace luisa::compute::xir {
 
 class Constant;
 
-class LC_XIR_API Module final : public MetadataListMixin<PoolOwner> {
+class LC_XIR_API Module final : public MetadataListMixin {
 
 private:
     FunctionList _function_list;
@@ -32,7 +32,8 @@ private:
     [[nodiscard]] Constant *_get_or_create_constant(const Constant &temp) noexcept;
 
 public:
-    explicit Module(size_t init_pool_cap = 0u) noexcept : Super{init_pool_cap} {}
+    Module() noexcept;
+    ~Module() noexcept = default;
 
     [[nodiscard]] KernelFunction *create_kernel() noexcept;
     [[nodiscard]] CallableFunction *create_callable(const Type *ret_type) noexcept;

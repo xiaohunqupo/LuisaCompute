@@ -10,7 +10,7 @@ namespace luisa::compute::xir {
 // Information about the outlined functions will be returned.
 
 struct OutlineInfo {
-    luisa::unordered_map<OutlineInst *, Function *> outlines;
+    size_t outlined_func_count{0u};
 };
 
 LC_XIR_API OutlineInfo outline_pass_run_on_function(Module *module, Function *function) noexcept;

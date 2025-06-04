@@ -10,4 +10,11 @@ const Type *special_register_type_uint() noexcept { return Type::of<uint>(); }
 const Type *special_register_type_uint3() noexcept { return Type::of<uint3>(); }
 }// namespace detail
 
+SentinelSpecialRegister::SentinelSpecialRegister(Module *module) noexcept
+    : SpecialRegister{module, nullptr} {}
+
+DerivedSpecialRegisterTag SentinelSpecialRegister::derived_special_register_tag() const noexcept {
+    LUISA_ERROR_WITH_LOCATION("Sentinel special register should not be used.");
+}
+
 }// namespace luisa::compute::xir

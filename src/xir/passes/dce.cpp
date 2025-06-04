@@ -64,9 +64,9 @@ static void eliminate_dead_code_in_function(Function *function, DCEInfo &info) n
             if (dead.size() == prev_size) { break; }
         }
         // remove dead instructions
-        for (auto &&inst : dead) {
-            info.removed_instructions.emplace(inst);
+        for (auto inst : dead) {
             inst->remove_self();
+            info.removed_inst_count++;
         }
     }
 }
@@ -121,41 +121,14 @@ static void eliminate_dead_alloca_in_function(Function *function, DCEInfo &info)
             }
         });
         for (auto &&inst : dead) {
-            info.removed_instructions.emplace(inst);
             inst->remove_self();
+            info.removed_inst_count++;
         }
     }
 }
 
 [[nodiscard]] static bool is_block_terminated_by_unreachable(BasicBlock *block) noexcept {
     return block->terminator()->isa<UnreachableInst>();
-}
-
-void eliminate_instructions_in_unreachable_blocks(const luisa::unordered_set<BasicBlock *> &blocks, DCEInfo &info) noexcept {
-    luisa::vector<Instruction *> cache;
-    for (auto b : blocks) {
-        // replace the terminator with an unreachable instruction if it's not already
-        if (!is_block_terminated_by_unreachable(b)) {
-            auto old_terminator = b->terminator();
-            old_terminator->remove_self();
-            info.removed_instructions.emplace(old_terminator);
-            xir::XIRBuilder builder;
-            builder.set_insertion_point(b);
-            builder.unreachable_();
-        }
-        // collect all instructions in the unreachable block
-        for (auto &&inst : b->instructions()) {
-            cache.emplace_back(&inst);
-        }
-        // pop the terminator
-        cache.pop_back();
-        // remove all instructions
-        for (auto &&inst : cache) {
-            inst->remove_self();
-            info.removed_instructions.emplace(inst);
-        }
-        cache.clear();
-    }
 }
 
 void propagate_unreachable_marks_in_function(Function *function, DCEInfo &info) noexcept {
@@ -191,8 +164,11 @@ void propagate_unreachable_marks_in_function(Function *function, DCEInfo &info) 
             }
             if (unreachable.size() == prev_reachable_count) { break; }
         }
-        // eliminate all instructions in unreachable blocks
-        eliminate_instructions_in_unreachable_blocks(unreachable, info);
+        // eliminate unreachable blocks
+        for (auto block : unreachable) {
+            block->remove_self();
+            info.removed_block_count++;
+        }
     }
 }
 
@@ -293,8 +269,11 @@ void eliminate_unreachable_blocks_in_function(Function *function, DCEInfo &info)
                 default: break;
             }
         }
-        // eliminate all instructions in unreachable blocks
-        eliminate_instructions_in_unreachable_blocks(unreachable, info);
+        // eliminate unreachable blocks
+        for (auto b : unreachable) {
+            b->remove_self();
+            info.removed_block_count++;
+        }
     }
 }
 
@@ -342,17 +321,12 @@ void fix_control_flow_merges_in_function(Function *function) noexcept {
 
 static void eliminate_redundant_phi_nodes(luisa::vector<PhiInst *> &phi_nodes, DCEInfo &info) noexcept {
     for (;;) {
-        auto prev_dce_count = info.removed_instructions.size();
-        phi_nodes.erase(
-            std::remove_if(phi_nodes.begin(), phi_nodes.end(), [&](PhiInst *phi) noexcept {
-                if (remove_redundant_phi_instruction(phi)) {
-                    info.removed_instructions.emplace(phi);
-                    return true;
-                }
-                return false;
-            }),
-            phi_nodes.end());
-        if (info.removed_instructions.size() == prev_dce_count) { break; }
+        auto prev_dce_count = info.removed_inst_count;
+        phi_nodes.erase(std::remove_if(phi_nodes.begin(), phi_nodes.end(),
+                                       remove_redundant_phi_instruction),
+                        phi_nodes.end());
+        if (info.removed_inst_count == prev_dce_count) { break; }
+        info.removed_inst_count += phi_nodes.size() - prev_dce_count;
     }
 }
 
@@ -363,12 +337,12 @@ void run_dce_pass_on_function(Function *function, DCEInfo &info) noexcept {
     luisa::vector<PhiInst *> phi_nodes;
     fix_phi_nodes_in_function(function, phi_nodes);
     for (;;) {
-        auto prev_count = info.removed_instructions.size();
+        auto prev_count = info.removed_inst_count + info.removed_block_count;
         eliminate_dead_code_in_function(function, info);
         eliminate_dead_alloca_in_function(function, info);
         eliminate_redundant_phi_nodes(phi_nodes, info);
         // if we didn't remove any instruction, we are done
-        if (info.removed_instructions.size() == prev_count) { return; }
+        if (info.removed_inst_count + info.removed_block_count == prev_count) { return; }
     }
 }
 
@@ -382,8 +356,8 @@ DCEInfo dce_pass_run_on_function(Function *function) noexcept {
 
 DCEInfo dce_pass_run_on_module(Module *module) noexcept {
     DCEInfo info;
-    for (auto &&f : module->function_list()) {
-        detail::run_dce_pass_on_function(&f, info);
+    for (auto f : module->function_list()) {
+        detail::run_dce_pass_on_function(f, info);
     }
     return info;
 }

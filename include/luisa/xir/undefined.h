@@ -4,11 +4,18 @@
 
 namespace luisa::compute::xir {
 
-class LC_XIR_API Undefined final : public IntrusiveForwardNode<Undefined, DerivedGlobalValue<Undefined, DerivedValueTag::UNDEFINED>> {
+class Undefined : public DerivedGlobalValue<Undefined, DerivedValueTag::UNDEFINED> {
 public:
-    Undefined(Module *module, const Type *type) noexcept;
+    Undefined(Module *module, const Type *type) noexcept
+        : Super{module, type} {}
 };
 
-using UndefinedList = IntrusiveForwardList<Undefined>;
+class SentinelUndefined final : public Undefined {
+public:
+    explicit SentinelUndefined(Module *module) noexcept
+        : Undefined{module, nullptr} {}
+};
+
+using UndefinedList = ManagedIntrusiveList<Undefined, SentinelUndefined>;
 
 }// namespace luisa::compute::xir

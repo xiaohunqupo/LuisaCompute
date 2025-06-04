@@ -18,8 +18,8 @@ class ArithmeticInst;
 // This pass is designed to help the mem2reg pass handle aggregates.
 
 struct TransposeGEPInfo {
-    luisa::unordered_map<LoadInst *, ArithmeticInst *> transposed_load_instructions;
-    luisa::unordered_map<StoreInst *, StoreInst *> transposed_store_instructions;
+    size_t transposed_load_count{0u};
+    size_t transposed_store_count{0u};
 };
 
 [[nodiscard]] LC_XIR_API TransposeGEPInfo transpose_gep_pass_run_on_function(Function *function) noexcept;

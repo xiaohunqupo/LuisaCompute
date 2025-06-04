@@ -3,7 +3,7 @@
 #include <luisa/core/stl/optional.h>
 #include <luisa/core/stl/filesystem.h>
 #include <luisa/core/managed_ilist.h>
-#include <luisa/xir/pool.h>
+#include <luisa/xir/traits.h>
 
 namespace luisa::compute::xir {
 
@@ -53,16 +53,16 @@ LC_XIR_API void luisa_xir_metadata_list_mixin_set_location(MetadataList &list, c
 LC_XIR_API void luisa_xir_metadata_list_mixin_add_comment(MetadataList &list, std::string_view comment) noexcept;
 }// namespace detail
 
-template<typename Base>
-class MetadataListMixin : public Base {
+class MetadataListMixin {
 
 private:
     MetadataList _metadata_list;
 
-public:
-    using Super = MetadataListMixin;
-    using Base::Base;
+protected:
+    MetadataListMixin() noexcept = default;
+    ~MetadataListMixin() noexcept = default;
 
+public:
     [[nodiscard]] auto &metadata_list() noexcept { return _metadata_list; }
     [[nodiscard]] auto &metadata_list() const noexcept { return _metadata_list; }
 

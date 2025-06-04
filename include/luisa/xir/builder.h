@@ -36,7 +36,6 @@ namespace luisa::compute::xir {
 class LC_XIR_API XIRBuilder : luisa::concepts::Noncopyable {
 
 private:
-    Pool *_pool = nullptr;
     Instruction *_insertion_point = nullptr;
 
 private:
@@ -57,7 +56,7 @@ public:
     }
 
 public:
-    void append(Instruction *inst) noexcept;
+    Instruction *append(ManagedPtr<Instruction> inst) noexcept;
 
     IfInst *if_(Value *cond) noexcept;
     SwitchInst *switch_(Value *value) noexcept;

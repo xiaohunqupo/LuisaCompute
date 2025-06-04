@@ -65,7 +65,7 @@ public:
         while (!empty()) {
             static_cast<void>(pop_front());
         }
-        _head_sentinel = nullptr; // release the head sentinel
+        _head_sentinel = nullptr;// release the head sentinel
     }
 
 public:// accessors
@@ -84,6 +84,12 @@ public:// accessors
     }
     [[nodiscard]] auto front() const noexcept -> const Node * { return const_cast<ManagedIntrusiveList *>(this)->front(); }
     [[nodiscard]] auto back() const noexcept -> const Node * { return const_cast<ManagedIntrusiveList *>(this)->back(); }
+
+    [[nodiscard]] auto count_size() const noexcept -> size_t {
+        auto count = 0u;
+        for (auto _ : *this) { count++; }
+        return count;
+    }
 
 public:// iterators
     using Iterator = IteratorBase<Node, ForwardAdvance>;
@@ -227,6 +233,11 @@ public:// accessors
     }
     [[nodiscard]] auto front() const noexcept -> const Node * {
         return const_cast<ManagedIntrusiveForwardList *>(this)->front();
+    }
+    [[nodiscard]] auto count_size() const noexcept -> size_t {
+        auto count = 0u;
+        for (auto _ : *this) { count++; }
+        return count;
     }
 
 public:// iterators

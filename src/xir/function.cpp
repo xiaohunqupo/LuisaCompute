@@ -7,96 +7,50 @@
 namespace luisa::compute::xir {
 
 Function::Function(Module *module, const Type *type) noexcept
-    : Super{module, type}, _module{module} {}
+    : Super{module, type}, _arguments{this}, _basic_blocks{this} {}
 
-void Function::add_argument(Argument *argument) noexcept {
-    LUISA_DEBUG_ASSERT(argument != nullptr, "Invalid argument.");
-    LUISA_DEBUG_ASSERT(argument->pool() == pool(), "Argument and function should be in the same pool.");
-    argument->_set_parent_function(this);
-    _arguments.emplace_back(argument);
-}
-
-void Function::insert_argument(size_t index, Argument *argument) noexcept {
-    LUISA_DEBUG_ASSERT(argument != nullptr, "Invalid argument.");
-    LUISA_DEBUG_ASSERT(argument->pool() == pool(), "Argument and function should be in the same pool.");
-    argument->_set_parent_function(this);
-    _arguments.insert(_arguments.begin() + index, argument);
-}
-
-void Function::remove_argument(Argument *argument) noexcept {
-    for (auto i = 0u; i < _arguments.size(); i++) {
-        if (_arguments[i] == argument) {
-            remove_argument(i);
-            return;
-        }
-    }
-    LUISA_ERROR_WITH_LOCATION("Argument not found.");
-}
-
-void Function::remove_argument(size_t index) noexcept {
-    LUISA_ASSERT(index < _arguments.size(), "Argument index out of range.");
-    _arguments.erase(_arguments.begin() + index);
-}
-
-void Function::replace_argument(Argument *old_argument, Argument *new_argument) noexcept {
-    if (old_argument != new_argument) {
-        for (auto i = 0u; i < _arguments.size(); i++) {
-            if (_arguments[i] == old_argument) {
-                replace_argument(i, new_argument);
-                return;
-            }
-        }
-        LUISA_ERROR_WITH_LOCATION("Argument not found.");
-    }
-}
-
-void Function::replace_argument(size_t index, Argument *argument) noexcept {
-    LUISA_ASSERT(index < _arguments.size(), "Argument index out of range.");
-    LUISA_DEBUG_ASSERT(argument != nullptr, "Invalid argument.");
-    LUISA_DEBUG_ASSERT(argument->pool() == pool(), "Argument and function should be in the same pool.");
-    _arguments[index]->replace_all_uses_with(argument);
-    argument->_set_parent_function(this);
-    _arguments[index] = argument;
-}
-
-Argument *Function::create_argument(const Type *type, bool by_ref, bool should_append) noexcept {
+Argument *Function::create_argument(const Type *type, bool by_ref) noexcept {
     if (type->is_resource()) {
         LUISA_ASSERT(!by_ref, "Resource argument must not be passed by reference.");
-        return create_resource_argument(type, should_append);
+        return create_resource_argument(type);
     }
-    return by_ref ? static_cast<Argument *>(create_reference_argument(type, should_append)) :
-                    static_cast<Argument *>(create_value_argument(type, should_append));
+    return by_ref ? static_cast<Argument *>(create_reference_argument(type)) :
+                    static_cast<Argument *>(create_value_argument(type));
 }
 
-ValueArgument *Function::create_value_argument(const Type *type, bool should_append) noexcept {
+ValueArgument *Function::create_value_argument(const Type *type) noexcept {
     LUISA_ASSERT(!type->is_resource(), "Resource argument must be created with create_resource_argument.");
     LUISA_ASSERT(!type->is_custom(), "Opaque argument must be created with create_reference_argument.");
-    auto argument = pool()->create<ValueArgument>(this, type);
-    if (should_append) { add_argument(argument); }
-    return argument;
+    auto argument = luisa::make_managed<ValueArgument>(this, type);
+    return static_cast<ValueArgument *>(_arguments.push_back(std::move(argument)));
 }
 
-ReferenceArgument *Function::create_reference_argument(const Type *type, bool should_append) noexcept {
+ReferenceArgument *Function::create_reference_argument(const Type *type) noexcept {
     LUISA_ASSERT(!type->is_resource(), "Resource argument must be created with create_resource_argument.");
-    auto argument = pool()->create<ReferenceArgument>(this, type);
-    if (should_append) { add_argument(argument); }
-    return argument;
+    auto argument = luisa::make_managed<ReferenceArgument>(this, type);
+    return static_cast<ReferenceArgument *>(_arguments.push_back(std::move(argument)));
 }
 
-ResourceArgument *Function::create_resource_argument(const Type *type, bool should_append) noexcept {
+ResourceArgument *Function::create_resource_argument(const Type *type) noexcept {
     LUISA_ASSERT(type->is_resource(), "Resource argument must be created with create_resource_argument.");
-    auto argument = pool()->create<ResourceArgument>(this, type);
-    if (should_append) { add_argument(argument); }
-    return argument;
+    auto argument = luisa::make_managed<ResourceArgument>(this, type);
+    return static_cast<ResourceArgument *>(_arguments.push_back(std::move(argument)));
 }
 
 BasicBlock *Function::create_basic_block() noexcept {
-    return pool()->create<BasicBlock>(this);
+    auto block = luisa::make_managed<BasicBlock>(this);
+    return _basic_blocks.push_back(std::move(block));
+}
+
+SentinelFunction::SentinelFunction(Module *parent_module) noexcept
+    : Function{parent_module, nullptr} {}
+
+DerivedFunctionTag SentinelFunction::derived_function_tag() const noexcept {
+    LUISA_ERROR_WITH_LOCATION("Sentinel function should not be used.");
 }
 
 void FunctionDefinition::set_body_block(BasicBlock *block) noexcept {
     LUISA_DEBUG_ASSERT(block != nullptr, "Invalid body block.");
-    LUISA_DEBUG_ASSERT(block->pool() == pool(), "Block and function should be in the same pool.");
     block->_set_parent_function(this);
     _body_block = block;
 }

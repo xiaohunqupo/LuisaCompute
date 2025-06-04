@@ -14,15 +14,19 @@ enum struct DerivedArgumentTag {
 
 class LC_XIR_API Argument : public DerivedFunctionScopeValue<Argument, DerivedValueTag::ARGUMENT> {
 public:
-    Argument(Function *parent_function, const Type *type) noexcept;
+    Argument(Function *parent_function, const Type *type) noexcept : Super{parent_function, type} {}
     [[nodiscard]] virtual DerivedArgumentTag derived_argument_tag() const noexcept = 0;
-    [[nodiscard]] bool is_lvalue() const noexcept final {
-        return derived_argument_tag() == DerivedArgumentTag::REFERENCE;
-    }
+    [[nodiscard]] bool is_lvalue() const noexcept final { return derived_argument_tag() == DerivedArgumentTag::REFERENCE; }
     [[nodiscard]] auto is_value() const noexcept { return derived_argument_tag() == DerivedArgumentTag::VALUE; }
     [[nodiscard]] auto is_reference() const noexcept { return derived_argument_tag() == DerivedArgumentTag::REFERENCE; }
     [[nodiscard]] auto is_resource() const noexcept { return derived_argument_tag() == DerivedArgumentTag::RESOURCE; }
     LUISA_XIR_DEFINED_ISA_METHOD(Argument, argument)
+};
+
+class LC_XIR_API SentinelArgument final : public Argument {
+public:
+    explicit SentinelArgument(Function *parent_function) noexcept;
+    [[nodiscard]] DerivedArgumentTag derived_argument_tag() const noexcept override;
 };
 
 template<typename Derived, DerivedArgumentTag tag>
@@ -54,6 +58,6 @@ public:
     using Super::Super;
 };
 
-using ArgumentList = InlineIntrusiveList<Argument>;
+using ArgumentList = ManagedIntrusiveList<Argument, SentinelArgument>;
 
 }// namespace luisa::compute::xir

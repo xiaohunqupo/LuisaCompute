@@ -33,7 +33,8 @@ enum struct DerivedValueTag {
     return "unknown"sv;
 }
 
-class LC_XIR_API Value : public MetadataListMixin<PooledObject> {
+class LC_XIR_API Value : public Managed<Value>,
+                         public MetadataListMixin {
 
 private:
     const Type *_type;
@@ -83,7 +84,6 @@ private:
 protected:
     explicit GlobalValueModuleMixin(Module *module) noexcept;
     ~GlobalValueModuleMixin() noexcept = default;
-    [[nodiscard]] Pool *_pool_from_parent_module() noexcept;
 
 public:
     [[nodiscard]] Module *parent_module() noexcept { return _parent_module; }
@@ -92,16 +92,15 @@ public:
 
 template<typename Derived, DerivedValueTag tag, typename Base = Value>
     requires std::derived_from<Base, Value>
-class DerivedGlobalValue : public DerivedValue<Derived, tag, Base>,
+class DerivedGlobalValue : public ManagedIntrusiveNode<Derived, DerivedValue<Derived, tag, Base>>,
                            public GlobalValueModuleMixin {
 public:
     using Super = DerivedGlobalValue;
     template<typename... Args>
     explicit DerivedGlobalValue(Module *module, Args &&...args) noexcept
-        : DerivedValue<Derived, tag, Base>{std::forward<Args>(args)...},
+        : ManagedIntrusiveNode<Derived, DerivedValue<Derived, tag, Base>>{std::forward<Args>(args)...},
           GlobalValueModuleMixin{module} {}
     [[nodiscard]] bool is_global() const noexcept final { return true; }
-    [[nodiscard]] Pool *pool() noexcept final { return _pool_from_parent_module(); }
 };
 
 class LC_XIR_API LocalValueFunctionMixin {
@@ -115,7 +114,6 @@ protected:
     explicit LocalValueFunctionMixin(Function *function) noexcept;
     ~LocalValueFunctionMixin() noexcept = default;
     void _set_parent_function(Function *function) noexcept;
-    [[nodiscard]] Pool *_pool_from_parent_function() noexcept;
 
 public:
     [[nodiscard]] Function *parent_function() noexcept { return _parent_function; }
@@ -126,15 +124,14 @@ public:
 
 template<typename Derived, DerivedValueTag tag, typename Base = Value>
     requires std::derived_from<Base, Value>
-class DerivedFunctionScopeValue : public DerivedValue<Derived, tag, Base>,
+class DerivedFunctionScopeValue : public ManagedIntrusiveNode<Derived, DerivedValue<Derived, tag, Base>>,
                                   public LocalValueFunctionMixin {
 public:
     using Super = DerivedFunctionScopeValue;
     template<typename... Args>
     explicit DerivedFunctionScopeValue(Function *function, Args &&...args) noexcept
-        : DerivedValue<Derived, tag, Base>{std::forward<Args>(args)...},
+        : ManagedIntrusiveNode<Derived, DerivedValue<Derived, tag, Base>>{std::forward<Args>(args)...},
           LocalValueFunctionMixin{function} {}
-    [[nodiscard]] Pool *pool() noexcept final { return _pool_from_parent_function(); }
 };
 
 class LC_XIR_API LocalValueBlockMixin {
@@ -147,7 +144,6 @@ protected:
     explicit LocalValueBlockMixin(BasicBlock *block) noexcept;
     ~LocalValueBlockMixin() noexcept = default;
     void _set_parent_block(BasicBlock *block) noexcept;
-    [[nodiscard]] Pool *_pool_from_parent_block() noexcept;
 
 public:
     [[nodiscard]] BasicBlock *parent_block() noexcept { return _parent_block; }
@@ -160,15 +156,14 @@ public:
 
 template<typename Derived, DerivedValueTag tag, typename Base = Value>
     requires std::derived_from<Base, Value>
-class DerivedBlockScopeValue : public DerivedValue<Derived, tag, Base>,
+class DerivedBlockScopeValue : public ManagedIntrusiveNode<Derived, DerivedValue<Derived, tag, Base>>,
                                public LocalValueBlockMixin {
 public:
     using Super = DerivedBlockScopeValue;
     template<typename... Args>
     explicit DerivedBlockScopeValue(BasicBlock *block, Args &&...args) noexcept
-        : DerivedValue<Derived, tag, Base>{std::forward<Args>(args)...},
+        : ManagedIntrusiveNode<Derived, DerivedValue<Derived, tag, Base>>{std::forward<Args>(args)...},
           LocalValueBlockMixin{block} {}
-    [[nodiscard]] Pool *pool() noexcept final { return _pool_from_parent_block(); }
 };
 
 }// namespace luisa::compute::xir

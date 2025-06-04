@@ -10,7 +10,7 @@ class Function;
 class Module;
 
 struct Reg2MemInfo {
-    luisa::vector<PhiInst *> lowered_phi_nodes;
+    size_t lowered_phi_count{0u};
 };
 
 [[nodiscard]] LC_XIR_API Reg2MemInfo reg2mem_pass_run_on_function(Function *function) noexcept;

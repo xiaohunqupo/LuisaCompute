@@ -8,7 +8,8 @@ namespace luisa::compute::xir {
 // This pass is used to eliminate (trivially) dead code.
 
 struct DCEInfo {
-    luisa::unordered_set<Instruction *> removed_instructions;
+    size_t removed_inst_count{0u};
+    size_t removed_block_count{0u};
 };
 
 [[nodiscard]] LC_XIR_API DCEInfo dce_pass_run_on_function(Function *function) noexcept;

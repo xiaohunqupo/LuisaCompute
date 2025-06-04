@@ -86,19 +86,21 @@ const bool LUISA_USE_EXPERIMENTAL_XIR_CODEGEN = [] {
                   "forwarded {} store instruction(s), "
                   "eliminated {} load instruction(s), "
                   "promoted {} alloca instruction(s) with {} load and {} store instruction(s) removed and {} phi node(s) inserted, "
-                  "removed {} + {} + {} = {} dead instruction(s), "
+                  "removed {} + {} + {} = {} dead instruction(s) and {} + {} + {} = {} dead block(s), "
                   "promoted {} reference argument(s), "
                   "lowered {} ray query loop(s), "
                   "lowered {} phi node(s) to local variable(s).",
                   opt_clk.toc(),
-                  store_forward_info.forwarded_instructions.size(),
-                  load_elim_info.eliminated_instructions.size(),
-                  mem2reg_info.promoted_alloca_instructions.size(), mem2reg_info.removed_load_instructions.size(), mem2reg_info.removed_store_instructions.size(), mem2reg_info.inserted_phi_instructions.size(),
-                  dce1_info.removed_instructions.size(), dce2_info.removed_instructions.size(), dce3_info.removed_instructions.size(),
-                  dce1_info.removed_instructions.size() + dce2_info.removed_instructions.size() + dce3_info.removed_instructions.size(),
-                  promote_arg_info.promoted_ref_args.size(),
-                  rq_lower_info.lowered_loops.size(),
-                  reg2mem_info.lowered_phi_nodes.size());
+                  store_forward_info.removed_load_count,
+                  load_elim_info.removed_load_count,
+                  mem2reg_info.promoted_alloca_count, mem2reg_info.removed_load_count, mem2reg_info.removed_store_count, mem2reg_info.inserted_phi_count,
+                  dce1_info.removed_inst_count, dce2_info.removed_inst_count, dce3_info.removed_inst_count,
+                  dce1_info.removed_inst_count + dce2_info.removed_inst_count + dce3_info.removed_inst_count,
+                  dce1_info.removed_block_count, dce2_info.removed_block_count, dce3_info.removed_block_count,
+                  dce1_info.removed_block_count + dce2_info.removed_block_count + dce3_info.removed_block_count,
+                  promote_arg_info.promoted_ref_arg_count,
+                  rq_lower_info.lowered_loop_count,
+                  reg2mem_info.lowered_phi_count);
 
     // dump for debugging
     if (LUISA_SHOULD_DUMP_XIR) {

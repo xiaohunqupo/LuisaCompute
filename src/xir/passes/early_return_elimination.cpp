@@ -29,14 +29,14 @@ static void eliminate_early_return(ReturnInst *return_inst, AllocaInst *not_retu
 
 static void eliminate_early_return_in_function(Function *function, EarlyReturnEliminationInfo &info) noexcept {
     if (auto def = function->definition()) {
+        luisa::vector<ReturnInst *> early_returns;
         auto final_return = find_final_return_instruction(def);
-        auto prev_size = info.eliminated_instructions.size();
         def->traverse_basic_blocks([&](BasicBlock *block) noexcept {
             if (auto terminator = block->terminator(); terminator != final_return && terminator->isa<ReturnInst>()) {
-                info.eliminated_instructions.emplace_back(static_cast<ReturnInst *>(terminator));
+                early_returns.emplace_back(static_cast<ReturnInst *>(terminator));
             }
         });
-        if (auto early_returns = luisa::span{info.eliminated_instructions}.subspan(prev_size); !early_returns.empty()) {
+        if (!early_returns.empty()) {
             XIRBuilder b;
             // create a flag to indicate whether the function has *NOT* returned
             b.set_insertion_point(def->body_block()->instructions().head_sentinel());
@@ -51,6 +51,7 @@ static void eliminate_early_return_in_function(Function *function, EarlyReturnEl
             // eliminate early returns
             for (auto inst : early_returns) { eliminate_early_return(inst, not_returned_flag); }
         }
+        info.removed_return_count += early_returns.size();
     }
 }
 
@@ -64,8 +65,8 @@ EarlyReturnEliminationInfo early_return_elimination_pass_run_on_function(Functio
 
 EarlyReturnEliminationInfo early_return_elimination_pass_run_on_module(Module *module) noexcept {
     EarlyReturnEliminationInfo info;
-    for (auto &&f : module->function_list()) {
-        detail::eliminate_early_return_in_function(&f, info);
+    for (auto f : module->function_list()) {
+        detail::eliminate_early_return_in_function(f, info);
     }
     return info;
 }

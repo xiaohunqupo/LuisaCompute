@@ -1,7 +1,7 @@
 #pragma once
 
 #include <luisa/core/managed_ilist.h>
-#include <luisa/xir/ilist.h>
+#include <luisa/xir/traits.h>
 
 namespace luisa::compute::xir {
 

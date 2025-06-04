@@ -411,8 +411,8 @@ private:
     }
 
     void _translate_module(const xir::Module *module) noexcept {
-        for (auto &f : module->function_list()) {
-            static_cast<void>(_translate_function(&f));
+        for (auto f : module->function_list()) {
+            static_cast<void>(_translate_function(f));
         }
     }
 
@@ -1980,7 +1980,7 @@ private:
             if (!f) { return std::make_pair(nullptr, 0u); }
             if (auto def = f->definition()) {
                 if (auto t = def->body_block()->terminator();
-                    t == &def->body_block()->instructions().front() &&
+                    t == def->body_block()->instructions().front() &&
                     (t->derived_instruction_tag() == xir::DerivedInstructionTag::RETURN ||
                      t->derived_instruction_tag() == xir::DerivedInstructionTag::UNREACHABLE)) {
                     return std::make_pair(nullptr, 0u);
@@ -3251,9 +3251,9 @@ private:
         if (bb == nullptr) { return; }
         if (current.translated_basic_blocks.emplace(llvm_bb).second) {
             IRBuilder b{llvm_bb};
-            for (auto &inst : bb->instructions()) {
-                auto llvm_value = _translate_instruction(current, b, &inst);
-                auto [_, success] = current.value_map.emplace(&inst, llvm_value);
+            for (auto inst : bb->instructions()) {
+                auto llvm_value = _translate_instruction(current, b, inst);
+                auto [_, success] = current.value_map.emplace(inst, llvm_value);
                 LUISA_ASSERT(success, "Instruction already translated.");
             }
         }
@@ -3310,27 +3310,27 @@ private:
         auto llvm_entry_block = llvm::BasicBlock::Create(_llvm_context, "entry", llvm_wrapper_function);
         IRBuilder b{llvm_entry_block};
 
-        auto arg_count = f->arguments().size();
-
         // create the params struct type
         auto llvm_i8_type = llvm::Type::getInt8Ty(_llvm_context);
         llvm::SmallVector<size_t, 32u> padded_param_indices;
         llvm::SmallVector<llvm::Type *, 64u> llvm_param_types;
         constexpr auto param_alignment = 16u;
         auto param_size_accum = static_cast<size_t>(0);
-        for (auto i = 0u; i < arg_count; i++) {
-            auto arg_type = f->arguments()[i]->type();
-            LUISA_ASSERT(_get_type_alignment(arg_type) <= param_alignment, "Invalid argument alignment.");
-            auto param_offset = luisa::align(param_size_accum, param_alignment);
-            // pad if necessary
-            if (param_offset > param_size_accum) {
-                auto llvm_padding_type = llvm::ArrayType::get(llvm_i8_type, param_offset - param_size_accum);
-                llvm_param_types.emplace_back(llvm_padding_type);
+        {
+            auto i = 0u;
+            for (auto arg : f->arguments()) {
+                auto arg_type = arg->type();LUISA_ASSERT(_get_type_alignment(arg_type) <= param_alignment, "Invalid argument alignment.");
+                auto param_offset = luisa::align(param_size_accum, param_alignment);
+                // pad if necessary
+                if (param_offset > param_size_accum) {
+                    auto llvm_padding_type = llvm::ArrayType::get(llvm_i8_type, param_offset - param_size_accum);
+                    llvm_param_types.emplace_back(llvm_padding_type);
+                }
+                padded_param_indices.emplace_back(llvm_param_types.size());
+                auto param_type = _translate_type(arg_type, false);
+                llvm_param_types.emplace_back(param_type);
+                param_size_accum = param_offset + _get_type_size(arg_type);
             }
-            padded_param_indices.emplace_back(llvm_param_types.size());
-            auto param_type = _translate_type(arg_type, false);
-            llvm_param_types.emplace_back(param_type);
-            param_size_accum = param_offset + _get_type_size(arg_type);//so evil, save me please
         }
         // pad the last argument
         if (auto total_size = luisa::align(param_size_accum, param_alignment);
@@ -3342,17 +3342,21 @@ private:
         // load the params
         auto llvm_param_ptr = llvm_wrapper_function->getArg(0);
         llvm::SmallVector<llvm::Value *, 32u> llvm_args;
-        for (auto i = 0u; i < arg_count; i++) {
-            auto arg_type = f->arguments()[i]->type();
-            auto padded_index = padded_param_indices[i];
-            auto arg_name = luisa::format("arg{}", i);
-            auto llvm_gep = b.CreateStructGEP(llvm_params_struct_type, llvm_param_ptr, padded_index,
-                                              llvm::Twine{arg_name}.concat(".ptr"));
-            auto llvm_arg_type = _translate_type(arg_type, true);
-            auto llvm_arg = b.CreateAlignedLoad(llvm_arg_type, llvm_gep,
-                                                llvm::MaybeAlign{_get_type_alignment(arg_type)},
-                                                llvm::Twine{arg_name});
-            llvm_args.emplace_back(llvm_arg);
+        {
+            auto i = 0u;
+            for (auto arg : f->arguments()) {
+                auto arg_type = arg->type();
+                auto padded_index = padded_param_indices[i];
+                auto arg_name = luisa::format("arg{}", i);
+                auto llvm_gep = b.CreateStructGEP(llvm_params_struct_type, llvm_param_ptr, padded_index,
+                                                  llvm::Twine{arg_name}.concat(".ptr"));
+                auto llvm_arg_type = _translate_type(arg_type, true);
+                auto llvm_arg = b.CreateAlignedLoad(llvm_arg_type, llvm_gep,
+                                                    llvm::MaybeAlign{_get_type_alignment(arg_type)},
+                                                    llvm::Twine{arg_name});
+                llvm_args.emplace_back(llvm_arg);
+                i++;
+            }
         }
         // load the launch config
         auto llvm_builtin_storage_type = _translate_type(Type::of<uint3>(), false);
@@ -3710,26 +3714,28 @@ private:
         // create current translation context
         CurrentFunction current{.func = llvm_func};
         // map arguments
-        auto arg_index = 0u;
-        for (auto &llvm_arg : current.func->args()) {
-            auto non_builtin_count = f->arguments().size();
-            if (auto arg_i = arg_index++; arg_i < non_builtin_count) {
-                auto arg = f->arguments()[arg_i];
-                current.value_map.emplace(arg, &llvm_arg);
-            } else {// built-in variable
-                auto builtin = arg_i - non_builtin_count;
+        {
+            auto i = 0u;
+            // non-built-in arguments
+            for (auto arg : f->arguments()) {
+                current.value_map.emplace(arg, llvm_func->getArg(i));
+                i++;
+            }
+            // built-in variables
+            for (auto builtin = 0u; builtin < CurrentFunction::builtin_variable_count; builtin++) {
+                auto llvm_arg = llvm_func->getArg(i);
                 switch (builtin) {
-                    case CurrentFunction::builtin_variable_index_thread_id: llvm_arg.setName("thread_id"); break;
-                    case CurrentFunction::builtin_variable_index_block_id: llvm_arg.setName("block_id"); break;
-                    case CurrentFunction::builtin_variable_index_dispatch_id: llvm_arg.setName("dispatch_id"); break;
-                    case CurrentFunction::builtin_variable_index_block_size: llvm_arg.setName("block_size"); break;
-                    case CurrentFunction::builtin_variable_index_dispatch_size: llvm_arg.setName("dispatch_size"); break;
+                    case CurrentFunction::builtin_variable_index_thread_id: llvm_arg->setName("thread_id"); break;
+                    case CurrentFunction::builtin_variable_index_block_id: llvm_arg->setName("block_id"); break;
+                    case CurrentFunction::builtin_variable_index_dispatch_id: llvm_arg->setName("dispatch_id"); break;
+                    case CurrentFunction::builtin_variable_index_block_size: llvm_arg->setName("block_size"); break;
+                    case CurrentFunction::builtin_variable_index_dispatch_size: llvm_arg->setName("dispatch_size"); break;
                     default: LUISA_ERROR_WITH_LOCATION("Invalid builtin variable index.");
                 }
-                current.builtin_variables[builtin] = &llvm_arg;
+                current.builtin_variables[builtin] = llvm_arg;
+                i++;
             }
         }
-
         // if block synchronization is required, we need to create a coroutine
         if (requires_block_sync) {
 

@@ -4,7 +4,7 @@
 
 namespace luisa::compute::xir {
 
-class LC_XIR_API Constant final : public IntrusiveForwardNode<Constant, DerivedGlobalValue<Constant, DerivedValueTag::CONSTANT>> {
+class LC_XIR_API Constant : public DerivedGlobalValue<Constant, DerivedValueTag::CONSTANT> {
 
 private:
     union {
@@ -18,13 +18,14 @@ private:
     void _update_hash(luisa::optional<uint64_t> hash) noexcept;
     void _check_reinterpret_cast_type_size(size_t size) const noexcept;
 
-private:
+protected:
     Constant(Module *module, const Type *type) noexcept;
 
 protected:
     friend class Module;
     struct ctor_tag_zero {};
     struct ctor_tag_one {};
+    struct ctor_tag_sentinel {};
 
 public:
     Constant(Module *parent_module, const Type *type, const void *data,
@@ -33,6 +34,7 @@ public:
              luisa::optional<uint64_t> hash = luisa::nullopt) noexcept;
     Constant(Module *parent_module, const Type *type, ctor_tag_one,
              luisa::optional<uint64_t> hash = luisa::nullopt) noexcept;
+    Constant(Module *parent_module, ctor_tag_sentinel) noexcept;// for sentinel constant
     ~Constant() noexcept override;
 
     [[nodiscard]] const void *data() const noexcept;
@@ -45,6 +47,12 @@ public:
     }
 };
 
-using ConstantList = IntrusiveForwardList<Constant>;
+class SentinelConstant final : public Constant {
+public:
+    explicit SentinelConstant(Module *parent_module) noexcept
+        : Constant{parent_module, ctor_tag_sentinel{}} {}
+};
+
+using ConstantList = ManagedIntrusiveList<Constant, SentinelConstant>;
 
 }// namespace luisa::compute::xir
