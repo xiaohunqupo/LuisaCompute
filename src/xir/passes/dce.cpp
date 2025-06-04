@@ -131,6 +131,23 @@ static void eliminate_dead_alloca_in_function(Function *function, DCEInfo &info)
     return block->terminator()->isa<UnreachableInst>();
 }
 
+void eliminate_instructions_in_unreachable_blocks(const luisa::unordered_set<BasicBlock *> &blocks, DCEInfo &info) noexcept {
+    for (auto b : blocks) {
+        while (!b->instructions().empty()) {
+            auto inst = b->instructions().front();
+            if (inst->isa<UnreachableInst>()) { break; }
+            inst->remove_self();
+        }
+        if (!b->is_terminated()) {
+            XIRBuilder builder;
+            builder.set_insertion_point(b);
+            builder.unreachable_();
+        }
+        LUISA_DEBUG_ASSERT(b->terminator()->isa<UnreachableInst>(),
+                           "Block should be terminated by UnreachableInst.");
+    }
+}
+
 void propagate_unreachable_marks_in_function(Function *function, DCEInfo &info) noexcept {
     // run a backward dataflow analysis to propagate unreachable marks:
     // we should mark a block as unreachable if all its successors are marked as unreachable
@@ -165,10 +182,7 @@ void propagate_unreachable_marks_in_function(Function *function, DCEInfo &info) 
             if (unreachable.size() == prev_reachable_count) { break; }
         }
         // eliminate unreachable blocks
-        for (auto block : unreachable) {
-            block->remove_self();
-            info.removed_block_count++;
-        }
+        eliminate_instructions_in_unreachable_blocks(unreachable, info);
     }
 }
 
@@ -270,9 +284,19 @@ void eliminate_unreachable_blocks_in_function(Function *function, DCEInfo &info)
             }
         }
         // eliminate unreachable blocks
-        for (auto b : unreachable) {
-            b->remove_self();
-            info.removed_block_count++;
+        eliminate_instructions_in_unreachable_blocks(unreachable, info);
+        // now we can remove non-entry blocks without users from the function
+        {
+            work_list.clear();
+            for (auto block : definition->basic_blocks()) {
+                if (block != definition->body_block() && block->use_list().empty()) {
+                    work_list.emplace_back(block);
+                }
+            }
+            for (auto block : work_list) {
+                block->remove_self();
+                info.removed_block_count++;
+            }
         }
     }
 }
@@ -331,16 +355,18 @@ static void eliminate_redundant_phi_nodes(luisa::vector<PhiInst *> &phi_nodes, D
 }
 
 void run_dce_pass_on_function(Function *function, DCEInfo &info) noexcept {
-    propagate_unreachable_marks_in_function(function, info);
-    eliminate_unreachable_blocks_in_function(function, info);
-    fix_control_flow_merges_in_function(function);
-    luisa::vector<PhiInst *> phi_nodes;
-    fix_phi_nodes_in_function(function, phi_nodes);
     for (;;) {
         auto prev_count = info.removed_inst_count + info.removed_block_count;
+        propagate_unreachable_marks_in_function(function, info);
+        eliminate_unreachable_blocks_in_function(function, info);
+        fix_control_flow_merges_in_function(function);
+        {
+            luisa::vector<PhiInst *> phi_nodes;
+            fix_phi_nodes_in_function(function, phi_nodes);
+            eliminate_redundant_phi_nodes(phi_nodes, info);
+        }
         eliminate_dead_code_in_function(function, info);
         eliminate_dead_alloca_in_function(function, info);
-        eliminate_redundant_phi_nodes(phi_nodes, info);
         // if we didn't remove any instruction, we are done
         if (info.removed_inst_count + info.removed_block_count == prev_count) { return; }
     }
