@@ -56,7 +56,8 @@ ComputeShader *ComputeShader::CompileCompute(
     uint shaderModel,
     vstd::string_view fileName,
     CacheType cacheType,
-    bool enableUnsafeMath) {
+    bool enableUnsafeMath,
+    bool debug) {
 
     using namespace ComputeShaderDetail;
     auto CompileNewCompute = [&](bool WriteCache, vstd::string_view psoName) {
@@ -85,7 +86,7 @@ ComputeShader *ComputeShader::CompileCompute(
             true,
             shaderModel,
             enableUnsafeMath,
-            false);
+            false, debug);
         if (profiler) [[unlikely]] {
             profiler->after_compile_shader_bytecode(fileName);
         }
@@ -171,7 +172,8 @@ void ComputeShader::SaveCompute(
     uint3 blockSize,
     uint shaderModel,
     vstd::string_view fileName,
-    bool enableUnsafeMath) {
+    bool enableUnsafeMath,
+    bool debug) {
     using namespace ComputeShaderDetail;
     vstd::MD5 md5({reinterpret_cast<uint8_t const *>(str.result.data() + str.immutableHeaderSize), str.result.size() - str.immutableHeaderSize});
     if (PRINT_CODE) {
@@ -200,7 +202,7 @@ void ComputeShader::SaveCompute(
         true,
         shaderModel,
         enableUnsafeMath,
-        false);
+        false, debug);
     if (profiler) [[unlikely]] {
         profiler->after_compile_shader_bytecode(fileName);
     }

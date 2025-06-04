@@ -123,7 +123,8 @@ public:
         uint shaderModel,
         vstd::string_view fileName,
         CacheType cacheType,
-        bool enableUnsafeMath);
+        bool enableUnsafeMath,
+        bool debug);
     static void SaveRaster(
         luisa::BinaryIO const *fileIo,
         Device *device,
@@ -133,7 +134,8 @@ public:
         Function vertexKernel,
         Function pixelKernel,
         uint shaderModel,
-        bool enableUnsafeMath);
+        bool enableUnsafeMath,
+        bool debug);
     static RasterShader *LoadRaster(
         luisa::BinaryIO const *fileIo,
         Device *device,

@@ -88,18 +88,19 @@ CompileResult ShaderCompiler::compile(
     }
 }
 template<typename Vec>
-static void AddCompileFlags(Vec &args) {
+static void AddCompileFlags(Vec &args, bool debug) {
     vstd::push_back_all(
         args,
         {DXC_ARG_ALL_RESOURCES_BOUND,
-         L"-no-warnings",
          L"-enable-16bit-types",
          DXC_ARG_PACK_MATRIX_ROW_MAJOR,
-         L"-HV 2021",
-#ifndef NDEBUG
-         DXC_ARG_DEBUG
-#endif
-        });
+         DXC_ARG_AVOID_FLOW_CONTROL,
+         L"-HV 2021"});
+    if (debug) {
+        args.emplace_back(DXC_ARG_DEBUG);
+    } else {
+        args.emplace_back(L"-no-warnings");
+    }
 }
 template<typename Vec>
 static void AddUnsafeMathFlags(Vec &args) {
@@ -118,7 +119,8 @@ CompileResult ShaderCompiler::compile_compute(
     bool optimize,
     uint shaderModel,
     bool enableUnsafeMath,
-    bool spirv) {
+    bool spirv,
+    bool debug) {
 #ifndef NDEBUG
     if (shaderModel < 10) {
         LUISA_ERROR("Illegal shader model!");
@@ -129,7 +131,7 @@ CompileResult ShaderCompiler::compile_compute(
     smStr << L"cs_" << GetSM(shaderModel);
     args.emplace_back(L"/T");
     args.emplace_back(smStr.c_str());
-    AddCompileFlags(args);
+    AddCompileFlags(args, debug);
     if (spirv) {
         args.emplace_back(L"/DSPV");
         args.emplace_back(L"-spirv");
@@ -147,14 +149,15 @@ RasterBin ShaderCompiler::compile_raster(
     bool optimize,
     uint shaderModel,
     bool enableUnsafeMath,
-    bool spirv) {
+    bool spirv,
+    bool debug) {
 #ifndef NDEBUG
     if (shaderModel < 10) {
         LUISA_ERROR("Illegal shader model!");
     }
 #endif
     vstd::fixed_vector<LPCWSTR, 32> args;
-    AddCompileFlags(args);
+    AddCompileFlags(args, debug);
     if (spirv) {
         args.emplace_back(L"/DSPV");
         args.emplace_back(L"-spirv");

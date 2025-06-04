@@ -43,13 +43,15 @@ public:
         bool optimize,
         uint shaderModel,
         bool enableUnsafeMath,
-        bool spirv);
+        bool spirv,
+        bool debug);
     RasterBin compile_raster(
         vstd::string_view code,
         bool optimize,
         uint shaderModel,
         bool enableUnsafeMath,
-        bool spirv);
+        bool spirv,
+        bool debug);
     /*CompileResult CompileRayTracing(
         vstd::string_view code,
         bool optimize,

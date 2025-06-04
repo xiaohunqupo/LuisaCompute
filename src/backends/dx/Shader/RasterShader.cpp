@@ -278,7 +278,8 @@ RasterShader *RasterShader::CompileRaster(
     uint shaderModel,
     vstd::string_view fileName,
     CacheType cacheType,
-    bool enableUnsafeMath) {
+    bool enableUnsafeMath,
+    bool debug) {
     auto CompileNewCompute = [&](bool writeCache) -> RasterShader * {
         auto str = codegen();
         uint bdlsBufferCount = 0;
@@ -294,7 +295,7 @@ RasterShader *RasterShader::CompileRaster(
             str.result.view(),
             true,
             shaderModel, enableUnsafeMath,
-            false);
+            false, debug);
         if (compResult.vertex.is_type_of<vstd::string>()) [[unlikely]] {
             LUISA_ERROR("DXC compile vertex-shader error: {}", compResult.vertex.get<1>());
             return nullptr;
@@ -355,7 +356,8 @@ void RasterShader::SaveRaster(
     Function vertexKernel,
     Function pixelKernel,
     uint shaderModel,
-    bool enableUnsafeMath) {
+    bool enableUnsafeMath,
+    bool debug) {
     if (RasterShaderDetail::PRINT_CODE) {
         auto f = fopen("hlsl_output.hlsl", "ab");
         fwrite(str.result.data(), str.result.size(), 1, f);
@@ -367,7 +369,7 @@ void RasterShader::SaveRaster(
         true,
         shaderModel,
         enableUnsafeMath,
-        false);
+        false, debug);
 
     if (compResult.vertex.is_type_of<vstd::string>()) [[unlikely]] {
         LUISA_WARNING("DXC compile vertex-shader error: {}", compResult.vertex.get<1>());
