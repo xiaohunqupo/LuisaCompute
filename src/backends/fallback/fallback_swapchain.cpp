@@ -8,16 +8,14 @@
 #include "fallback_texture.h"
 #include "fallback_stream.h"
 
-extern "C" {
-void *luisa_compute_create_cpu_swapchain(uint64_t display_handle, uint64_t window_handle,
+LUISA_EXPORT_API void *luisa_compute_create_cpu_swapchain(uint64_t display_handle, uint64_t window_handle,
                                          unsigned width, unsigned height, bool allow_hdr, bool vsync,
                                          unsigned back_buffer_count) noexcept;
-uint8_t luisa_compute_cpu_swapchain_storage(void *swapchain) noexcept;
-void *luisa_compute_cpu_swapchain_native_handle(void *swapchain) noexcept;
-void luisa_compute_destroy_cpu_swapchain(void *swapchain) noexcept;
-void luisa_compute_cpu_swapchain_present(void *swapchain, const void *pixels, uint64_t size) noexcept;
-void luisa_compute_cpu_swapchain_present_with_callback(void *swapchain, void *ctx, void (*blit)(void *ctx, void *mapped_pixels)) noexcept;
-}
+LUISA_EXPORT_API uint8_t luisa_compute_cpu_swapchain_storage(void *swapchain) noexcept;
+LUISA_EXPORT_API void *luisa_compute_cpu_swapchain_native_handle(void *swapchain) noexcept;
+LUISA_EXPORT_API void luisa_compute_destroy_cpu_swapchain(void *swapchain) noexcept;
+LUISA_EXPORT_API void luisa_compute_cpu_swapchain_present(void *swapchain, const void *pixels, uint64_t size) noexcept;
+LUISA_EXPORT_API void luisa_compute_cpu_swapchain_present_with_callback(void *swapchain, void *ctx, void (*blit)(void *ctx, void *mapped_pixels)) noexcept;
 
 namespace luisa::compute::fallback {
 
