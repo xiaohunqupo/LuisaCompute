@@ -206,7 +206,7 @@ const void *Constant::data() const noexcept {
 }
 
 Constant::~Constant() noexcept {
-    if (!_is_small()) {
+    if (type() != nullptr && !_is_small()) {
         luisa::deallocate_with_allocator(static_cast<std::byte *>(_large));
     }
 }
