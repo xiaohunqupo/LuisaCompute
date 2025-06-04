@@ -9,8 +9,8 @@
 #include "fallback_stream.h"
 
 LUISA_EXPORT_API void *luisa_compute_create_cpu_swapchain(uint64_t display_handle, uint64_t window_handle,
-                                         unsigned width, unsigned height, bool allow_hdr, bool vsync,
-                                         unsigned back_buffer_count) noexcept;
+                                                          unsigned width, unsigned height, bool allow_hdr, bool vsync,
+                                                          unsigned back_buffer_count) noexcept;
 LUISA_EXPORT_API uint8_t luisa_compute_cpu_swapchain_storage(void *swapchain) noexcept;
 LUISA_EXPORT_API void *luisa_compute_cpu_swapchain_native_handle(void *swapchain) noexcept;
 LUISA_EXPORT_API void luisa_compute_destroy_cpu_swapchain(void *swapchain) noexcept;
