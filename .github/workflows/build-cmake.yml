@@ -29,7 +29,7 @@ jobs:
           wget https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
           sudo ./llvm.sh 18 all
-          sudo apt-get -y install build-essential wget cmake ninja-build uuid-dev libxinerama-dev libxcursor-dev libxi-dev libvulkan-dev
+          sudo apt-get -y install build-essential wget cmake ninja-build uuid-dev libxinerama-dev libxcursor-dev libxi-dev libvulkan-dev libembree-dev
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
       - name: "Install CUDA Keyring"
         run: |
@@ -80,13 +80,17 @@ jobs:
           submodules: recursive
       - name: "Install Dependencies"
         run: |
-          brew install llvm molten-vk ninja cmake
+          brew install llvm molten-vk ninja cmake embree
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
       - name: "Configure and Build"
         run: |
+          export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
           if [ "${{ matrix.compiler }}" = "homebrew-clang" ]; then
             export CC=/opt/homebrew/opt/llvm/bin/clang
             export CXX=/opt/homebrew/opt/llvm/bin/clang++
+          else
+            export CC=/usr/bin/clang
+            export CXX=/usr/bin/clang++
           fi
           cmake -S . -B build -G Ninja -D LUISA_COMPUTE_ENABLE_RUST=OFF -D LUISA_COMPUTE_ENABLE_REMOTE=OFF -D LUISA_COMPUTE_ENABLE_CPU=OFF -D CMAKE_BUILD_TYPE=${{ matrix.config }} -D LUISA_COMPUTE_ENABLE_UNITY_BUILD=OFF
           cmake --build build -v
