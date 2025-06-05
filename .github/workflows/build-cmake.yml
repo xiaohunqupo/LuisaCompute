@@ -88,6 +88,7 @@ jobs:
           if [ "${{ matrix.compiler }}" = "homebrew-clang" ]; then
             export CC=/opt/homebrew/opt/llvm/bin/clang
             export CXX=/opt/homebrew/opt/llvm/bin/clang++
+            export SDKROOT=$(xcrun --show-sdk-path)
           else
             export CC=/usr/bin/clang
             export CXX=/usr/bin/clang++
