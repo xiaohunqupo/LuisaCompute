@@ -5,6 +5,7 @@
 #include <luisa/xir/op.h>
 
 namespace luisa::compute::xir {
+
 class BasicBlock;
 class Function;
 
