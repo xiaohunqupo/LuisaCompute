@@ -1211,9 +1211,7 @@ void LCCmdBuffer::Execute(
             ppVisitor.bottomAccelDatas->clear();
             ppVisitor.buildAccelSize = 0;
             // Preprocess: record resources' states
-            auto size = 0;
             for (auto i = lst; i != nullptr; i = i->p_next) {
-                size += 1;
                 if (i->cmd)
                     i->cmd->accept(ppVisitor);
             }
