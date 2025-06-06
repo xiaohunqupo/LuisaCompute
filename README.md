@@ -11,7 +11,7 @@ See also [LuisaRender](https://github.com/LuisaGroup/LuisaRender) for the *rende
 
 Welcome to join the [discussion channel on Discord](https://discord.com/invite/ymYEBkUa7F)!
 
-对于中国大陆的用户，也欢迎加入我们的 QQ 群组：295618382。
+对于中国大陆的用户，也欢迎加入我们的 QQ 群组：1050189593。
 
 ## Table of Contents
 
