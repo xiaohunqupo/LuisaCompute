@@ -302,11 +302,14 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
         // Test device
         D3D12_FEATURE_DATA_D3D12_OPTIONS12 options12 = {};
         if (SUCCEEDED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS12, &options12, sizeof(options12)))) {
-            use_enhanced_barrier = options12.EnhancedBarriersSupported;
+            // use_enhanced_barrier = options12.EnhancedBarriersSupported;
+            use_enhanced_barrier = false;
         }
-        if (!use_enhanced_barrier) [[unlikely]] {
-            LUISA_WARNING("Enhanced barrier not supported, please update your Windows or GPU driver");
-        }
+        // TODO: currently there are lots of BUGS in NVIDIA's driver while using Enhanced barrier, disable it temporarily
+
+        // if (!use_enhanced_barrier) [[unlikely]] {
+        //     LUISA_WARNING("Enhanced barrier not supported, please update your Windows or GPU driver");
+        // }
     } else {
         if (deviceSettings) {
             deviceSettings->ReadbackDX12Device(
