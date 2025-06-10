@@ -33,9 +33,6 @@
 #include "llvm/Support/Path.h"
 
 #include <filesystem>
-#if _WIN32
-#include <Windows.h>
-#endif
 using namespace clang::tooling;
 using namespace llvm;
 using namespace luisa::clangcxx;
@@ -67,31 +64,6 @@ llvm::Error OptionsParser::init(int &argc, const char **argv,
                                 llvm::cl::NumOccurrencesFlag OccurrencesFlag,
                                 cl::OptionCategory &Category,
                                 const char *Overview) {
-    struct ProcessMutex {
-#if _WIN32
-        HANDLE mtx = 0;
-#endif
-        ProcessMutex() {
-        }
-        void lock() {
-#if _WIN32
-            mtx = OpenMutex(MUTEX_ALL_ACCESS, false, TEXT("luisa_win_clang_mtx"));
-            if (mtx == NULL) {
-                mtx = CreateMutex(nullptr, true, TEXT("luisa_win_clang_mtx"));
-            } else {
-                WaitForSingleObject(mtx, 0xFFFFFFFF);
-            }
-#endif
-        }
-        void unlock() {
-#if _WIN32
-            if (mtx) {
-                ReleaseMutex(mtx);
-                mtx = nullptr;
-            }
-#endif
-        }
-    };
     static cl::list<std::string> SourcePaths(
         cl::Positional, cl::desc("<source0> [... <sourceN>]"), OccurrencesFlag,
         cl::cat(Category), cl::sub(cl::SubCommand::getAll()));
@@ -122,10 +94,7 @@ llvm::Error OptionsParser::init(int &argc, const char **argv,
             argc = DoubleDash - argv;
         } else {
             int my_argc = argc - 2;
-            ProcessMutex process_mtx;
-            process_mtx.lock();
             Compilations = FixedCompilationDatabase::loadFromCommandLine(my_argc, argv + 2, ErrorMessage);
-            process_mtx.unlock();
             argc = my_argc + 2;
         }
     }
