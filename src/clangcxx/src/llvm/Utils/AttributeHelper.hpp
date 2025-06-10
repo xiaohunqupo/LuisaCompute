@@ -23,6 +23,9 @@ inline static clang::RecordDecl *GetRecordDeclFromQualType(clang::QualType Ty, b
         } else if (const auto TRT = Ty->getAs<clang::ReferenceType>()) {
             Ty = TRT->getPointeeType();
             recordDecl = Ty->getAsRecordDecl();
+        } else if (const auto *ET = Ty->getAs<clang::EnumType>()) {
+            Ty = ET->getDecl()->getIntegerType();
+            recordDecl = Ty->getAsRecordDecl();
         } else if (const auto *TDT = Ty->getAs<clang::TypedefType>()) {
             Ty = TDT->getDecl()->getUnderlyingType();
             recordDecl = Ty->getAsRecordDecl();
