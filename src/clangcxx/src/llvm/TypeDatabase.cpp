@@ -215,7 +215,12 @@ TypeDatabase::Commenter TypeDatabase::CommentStmt(compute::detail::FunctionBuild
 
 const luisa::compute::Type *TypeDatabase::RecordAsPrimitiveType(const clang::QualType Ty) {
     const luisa::compute::Type *_type = nullptr;
-    if (auto builtin = Ty->getAs<clang::BuiltinType>()) {
+    const clang::BuiltinType* builtin = Ty->getAs<clang::BuiltinType>();
+    if (auto enumType = Ty->getAs<clang::EnumType>()) {
+        builtin = enumType->getDecl()->getIntegerType()->getAs<clang::BuiltinType>();
+    }
+
+    if (builtin != nullptr) {
         // clang-format off
         switch (builtin->getKind()) {
             /*
@@ -493,7 +498,9 @@ const luisa::compute::Type *TypeDatabase::RecordType(const clang::QualType Qt, b
     clang::QualType Ty = Qt.getNonReferenceType().getDesugaredType(*astContext);
 
     // 1. PRIMITIVE
-    if (auto builtin = Ty->getAs<clang::BuiltinType>()) {
+    if (auto enumType = Ty->getAs<clang::EnumType>()) {
+        _type = RecordAsPrimitiveType(Ty);
+    } else if (auto builtin = Ty->getAs<clang::BuiltinType>()) {
         _type = RecordAsPrimitiveType(Ty);
         // if (!_type) {
         //     clangcxx_log_error("unsupported field primitive type: [{}], kind [{}]",

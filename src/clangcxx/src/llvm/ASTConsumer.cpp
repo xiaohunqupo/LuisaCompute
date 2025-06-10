@@ -359,7 +359,11 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
     const luisa::compute::Expression *FindOrTraverseAPValue(const clang::ValueDecl *cxxVar, clang::Stmt *where) {
         if (auto Cached = stack->GetConstant(cxxVar))
             return Cached;
-        if (auto Decompressed = cxxVar->getPotentiallyDecomposedVarDecl()) {
+        if (auto enumConstant = clang::dyn_cast<EnumConstantDecl>(cxxVar)) {
+            auto constant = fb->literal(Type::of<int>(), (int)enumConstant->getInitVal().getLimitedValue());
+            stack->SetConstant(cxxVar, constant);
+            return constant;
+        } else if (auto Decompressed = cxxVar->getPotentiallyDecomposedVarDecl()) {
             if (auto Evaluated = Decompressed->getEvaluatedValue()) {
                 auto VarTypeDecl = GetRecordDeclFromQualType(Decompressed->getType(), false);
                 if (auto constant = TraverseAPValue(*Evaluated, VarTypeDecl, where)) {
@@ -837,7 +841,9 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                 auto str = luisa::string(dref->getNameInfo().getName().getAsString());
                 if (auto _current = stack->GetLocal(dref->getDecl())) {
                     current = _current;
-                } else if (auto Var = dref->getDecl(); Var && llvm::isa<clang::VarDecl>(Var)) {// Value Ref
+                } else if (auto Function = dref->getDecl(); Function && llvm::isa<clang::FunctionDecl>(Function)) { // Func Ref
+                
+                } else if (auto Var = dref->getDecl(); Var && llvm::isa<clang::ValueDecl>(Var)) {// Value Ref
                     if (dref->isNonOdrUse() != NonOdrUseReason::NOUR_Unevaluated ||
                         dref->isNonOdrUse() != NonOdrUseReason::NOUR_Discarded) {
                         if (auto constant = FindOrTraverseAPValue(Var, x))
@@ -847,10 +853,12 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                             clangcxx_log_error("unfound & unresolved ref: {}", str);
                         }
                     }
-                } else if (auto value = dref->getDecl(); value && llvm::isa<clang::FunctionDecl>(value))// Func Ref
-                    ;
+                } 
                 else
+                {
+                    dref->dump();
                     clangcxx_log_error("unfound var ref: {}", str);
+                }
             } else if (auto _cxxParen = llvm::dyn_cast<ParenExpr>(x)) {
                 current = stack->GetExpr(_cxxParen->getSubExpr());
             } else if (auto implicit_cast = llvm::dyn_cast<ImplicitCastExpr>(x)) {
