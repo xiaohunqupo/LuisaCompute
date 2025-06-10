@@ -984,7 +984,6 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                     if (auto mcall = llvm::dyn_cast<clang::CXXMemberCallExpr>(x)) {
                         auto caller = stack->callers.back();
                         stack->callers.pop_back();
-
                         lcArgs.emplace_back(caller);// from -MemberExpr::isBoundMemberFunction
                     }
                     for (auto arg : call->arguments()) {
@@ -1200,6 +1199,7 @@ auto FunctionBuilderBuilder::build(const clang::FunctionDecl *S, bool allowKerne
     bool is_scope = false;
     bool is_method = false;
     bool is_lambda = false;
+    bool is_static = S->isStatic();;
     QualType methodThisType;
 
     auto params = S->parameters();
@@ -1248,7 +1248,7 @@ auto FunctionBuilderBuilder::build(const clang::FunctionDecl *S, bool allowKerne
             clangcxx_log_error("unfound this type [{}] in method [{}]",
                                Method->getParent()->getNameAsString(), S->getNameAsString());
         }
-        is_method = !is_lambda;
+        is_method = !is_lambda && !is_static;
         methodThisType = Method->getParent()->getTypeForDecl()->getCanonicalTypeUnqualified();
     }
     for (auto param : params) {
