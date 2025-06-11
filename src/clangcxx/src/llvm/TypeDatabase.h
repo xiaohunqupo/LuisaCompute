@@ -40,6 +40,7 @@ struct TypeDatabase {
     void DumpWithLocation(const clang::Decl *decl);
 
     // luisa::unordered_map<luisa::string, const luisa::compute::RefExpr *> globals;
+    luisa::vector<const clang::VarDecl*> extern_vars;
     luisa::shared_ptr<compute::detail::FunctionBuilder> kernel_builder;
     luisa::shared_ptr<compute::detail::FunctionBuilder> vertex_builder;
     luisa::shared_ptr<compute::detail::FunctionBuilder> pixel_builder;

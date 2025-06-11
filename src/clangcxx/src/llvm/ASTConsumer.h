@@ -72,6 +72,13 @@ struct GlobalVarHandler : public clang::ast_matchers::MatchFinder::MatchCallback
     TypeDatabase *db = nullptr;
 };
 
+struct ExternVarHandler : public clang::ast_matchers::MatchFinder::MatchCallback {
+    ExternVarHandler() = default;
+    void run(const MatchFinder::MatchResult &Result) final;
+
+    TypeDatabase *db = nullptr;
+};
+
 struct FunctionDeclStmtHandler : public clang::ast_matchers::MatchFinder::MatchCallback {
     FunctionDeclStmtHandler() = default;
     void run(const MatchFinder::MatchResult &Result) final;
@@ -89,6 +96,7 @@ protected:
     TypeDatabase db;
     RecordDeclStmtHandler HandlerForTypeDecl;
     GlobalVarHandler HandlerForGlobalVar;
+    ExternVarHandler HandlerForExternlVar;
     FunctionDeclStmtHandler HandlerForFuncionDecl;
     clang::ast_matchers::MatchFinder Matcher;
 };

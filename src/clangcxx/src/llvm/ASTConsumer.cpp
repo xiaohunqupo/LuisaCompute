@@ -1375,7 +1375,7 @@ auto FunctionBuilderBuilder::build(const clang::FunctionDecl *S, bool allowKerne
                 }
 
                 // collect args
-                for (auto param : params) {
+                auto collect_arg = [&] (const VarDecl* param) -> const luisa::compute::RefExpr* {
                     auto Ty = param->getType();
                     if (auto lcType = db->FindOrAddType(Ty, param->getBeginLoc())) {
                         const luisa::compute::RefExpr *local = nullptr;
@@ -1408,9 +1408,20 @@ auto FunctionBuilderBuilder::build(const clang::FunctionDecl *S, bool allowKerne
                             } break;
                         }
                         stack.SetLocal(param, local);
+                        return local;
                     } else {
                         clangcxx_log_error("unfound arg type: {}", Ty.getAsString());
                     }
+                    return nullptr;
+                };
+                luisa::vector<const clang::VarDecl*> input_params(params.begin(), params.end());
+                if (is_kernel) {
+                    for (const auto *var : db->extern_vars) {
+                        collect_arg(var);
+                    }
+                }
+                for (auto param : params) {
+                    collect_arg(param);
                 }
 
                 // ctor initializers
@@ -1465,6 +1476,17 @@ void RecordDeclStmtHandler::run(const MatchFinder::MatchResult &Result) {
         }
         if (!ignore)
             db->RecordType(Ty);
+    }
+}
+
+void ExternVarHandler::run(const MatchFinder::MatchResult &Result) {
+    if (const auto *S = Result.Nodes.getNodeAs<clang::VarDecl>("VarDecl")) {
+        bool ignore = false;
+        for (auto Anno : S->specific_attrs<clang::AnnotateAttr>())
+            ignore |= isIgnore(Anno);
+        if (!ignore && S->hasExternalStorage()) {
+            db->extern_vars.emplace_back(S);
+        }
     }
 }
 
@@ -1545,6 +1567,13 @@ ASTConsumerBase::ASTConsumerBase() {
                            unless(isExpansionInSystemHeader()))
                            .bind("VarDecl"),
                        &HandlerForGlobalVar);
+
+    HandlerForExternlVar.db = &db;
+    Matcher.addMatcher(varDecl(
+                           unless(isDefinition()),
+                           unless(isExpansionInSystemHeader()))
+                           .bind("VarDecl"),
+                       &HandlerForExternlVar);
 }
 
 ASTConsumerBase::~ASTConsumerBase() {
