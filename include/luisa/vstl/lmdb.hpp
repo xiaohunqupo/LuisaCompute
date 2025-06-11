@@ -63,6 +63,7 @@ class LC_VSTL_API LMDB {
     void _dispose() noexcept;
 
 public:
+    LMDB();
     LMDB(
         std::filesystem::path const &db_dir,
         size_t max_reader = 126ull,
@@ -75,6 +76,12 @@ public:
         std::destroy_at(this);
         std::construct_at(this, std::move(rhs));
         return *this;
+    }
+    [[nodiscard]] operator bool() const {
+        return _env != nullptr;
+    }
+    [[nodiscard]] bool operator==(std::nullptr_t) const {
+        return _env == nullptr;
     }
     [[nodiscard]] luisa::span<const std::byte> read(luisa::span<const std::byte> key) const noexcept;
     [[nodiscard]] luisa::span<const std::byte> read(luisa::string_view key) const noexcept {

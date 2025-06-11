@@ -80,6 +80,7 @@ LMDB::LMDB(LMDB &&rhs) noexcept
       _flag(rhs._flag) {
     rhs._env = nullptr;
 }
+LMDB::LMDB() = default;
 void LMDB::_dispose() noexcept {
     if (_env) {
         if (_dbi) {
