@@ -1607,9 +1607,8 @@ ASTConsumer::~ASTConsumer() {
     } else {
         if (kernel_arg_reflect) {
             *kernel_arg_reflect = std::move(db.kernel_args);
-        } else {
-            LUISA_WARNING("Not set.");
         }
+        LUISA_WARNING("{}", option.name);
         device->impl()->create_shader(option, luisa::compute::Function{db.kernel_builder.get()});
     }
 }

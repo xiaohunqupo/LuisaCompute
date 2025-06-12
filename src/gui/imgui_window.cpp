@@ -601,7 +601,7 @@ private:
                     auto clip_idx = static_cast<uint>(_clip_rects.size());
                     _clip_rects.emplace_back(make_float4(clip_min, clip_max));
                     auto tex_id = [this, cmd] {
-                        auto t = cmd->GetTexID();
+                        auto t = cmd->TexRef._TexID;
                         if (t != 0u && !_active_textures.contains(t)) {
                             LUISA_WARNING_WITH_LOCATION(
                                 "Using an unregistered texture (id = {}). "
