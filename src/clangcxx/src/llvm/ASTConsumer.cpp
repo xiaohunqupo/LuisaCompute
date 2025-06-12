@@ -150,19 +150,20 @@ void Stack::SetExpr(const clang::Stmt *stmt, const luisa::compute::Expression *e
 }
 
 const luisa::compute::Expression *Stack::GetConstant(const clang::ValueDecl *var) const {
-    if (constants.contains(var))
-        return constants.find(var)->second;
+    // disable constant cache because it triggers leaked expression check
+    // if (constants.contains(var))
+    //    return constants.find(var)->second;
     return nullptr;
 }
 
 void Stack::SetConstant(const clang::ValueDecl *var, const luisa::compute::Expression *expr) {
     if (!var)
         clangcxx_log_error("unknown error: SetConstant with nullptr!");
-    if (constants.contains(var)) {
-        var->dump();
-        clangcxx_log_error("unknown error: SetConstant with existed!");
-    }
-    constants[var] = expr;
+    // if (constants.contains(var)) {
+    //    var->dump();
+    //    clangcxx_log_error("unknown error: SetConstant with existed!");
+    //}
+    // constants[var] = expr;
 }
 
 bool Stack::isCtorExpr(const luisa::compute::Expression *expr) {
@@ -620,11 +621,8 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                 if (needCustom && !db->func_builders.contains(cxxCtor)) {
                     auto funcDecl = cxxCtor->getAsFunction();
                     auto methodDecl = llvm::dyn_cast<clang::CXXMethodDecl>(funcDecl);
-                    const auto isTemplateInstant = funcDecl->isTemplateInstantiation();
-                    if (isTemplateInstant) {
-                        FunctionBuilderBuilder fbfb(db, *stack);
-                        fbfb.build(funcDecl, false);
-                    }
+                    FunctionBuilderBuilder fbfb(db, *stack);
+                    fbfb.build(funcDecl, false);
                 }
                 luisa::vector<const luisa::compute::Expression *> lcArgs;
                 const compute::RefExpr *constructed = nullptr;
@@ -1094,11 +1092,9 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                         const auto isTemplateInstant = funcDecl->isTemplateInstantiation();
                         const auto isLambda = methodDecl && methodDecl->getParent()->isLambda();
                         if (!db->lambda_builders.contains(calleeDecl) && !db->func_builders.contains(calleeDecl)) {
-                            if (isTemplateInstant || isLambda) {
-                                FunctionBuilderBuilder fbfb(db, *stack);
-                                fbfb.build(calleeDecl->getAsFunction(), false);
-                                calleeDecl = funcDecl;
-                            }
+                            FunctionBuilderBuilder fbfb(db, *stack);
+                            fbfb.build(calleeDecl->getAsFunction(), false);
+                            calleeDecl = funcDecl;
                         }
 
                         if (auto methodDecl = llvm::dyn_cast<clang::CXXMethodDecl>(calleeDecl);
@@ -1507,33 +1503,50 @@ void GlobalVarHandler::run(const MatchFinder::MatchResult &Result) {
 
 void FunctionDeclStmtHandler::run(const MatchFinder::MatchResult &Result) {
     // The matched 'if' statement was bound to 'ifStmt'.
-    if (const auto *S = Result.Nodes.getNodeAs<clang::FunctionDecl>("FunctionDecl")) {
-        bool isLambda = false;
-        if (auto Method = llvm::dyn_cast<clang::CXXMethodDecl>(S)) {
-            isLambda = Method->getParent()->isLambda();
+    if (const auto *S = Result.Nodes.getNodeAs<clang::FunctionDecl>("FunctionDecl")) 
+    {
+        bool bIsKernel = false;
+        for (auto attr : S->specific_attrs<clang::AnnotateAttr>()) {
+            if (isKernel(attr)) 
+                bIsKernel = true;
+            if (isPixel(attr)) 
+                bIsKernel = true;
+            if (isExport(attr)) 
+                bIsKernel = true;
+            if (isVertex(attr)) 
+                bIsKernel = true;
         }
-        // lambdas & template instantiations will build at calls
-        if (!isLambda && !S->isTemplateInstantiation()) {
-            auto stack = Stack();
-            FunctionBuilderBuilder bdbd(db, stack);
-            auto result = bdbd.build(S, call_lib == nullptr);
-            const auto is_export_func = [&]() {
-                for (auto attr : S->specific_attrs<clang::AnnotateAttr>()) {
-                    if (isExport(attr)) return true;
-                }
-                return false;
-            }();
-            if (is_export_func) {
-                auto func_name = S->getName();
-                if (!call_lib) [[unlikely]] {
-                    LUISA_WARNING("This is not a ast export compilation. Function {} export attribute ignored.", func_name.str());
-                } else {
-                    call_lib->add_callable(
-                        luisa::string_view{func_name.data(), func_name.size()},
-                        result.func.shared_builder());
-                }
+
+        if (bIsKernel) 
+        {
+            bool isLambda = false;
+            if (auto Method = llvm::dyn_cast<clang::CXXMethodDecl>(S)) {
+                isLambda = Method->getParent()->isLambda();
             }
-            if (result.dimension > 0) dimension = result.dimension;
+            // lambdas & template instantiations will build at calls
+            if (!isLambda && !S->isTemplateInstantiation()) {
+                auto stack = Stack();
+                FunctionBuilderBuilder bdbd(db, stack);
+                auto result = bdbd.build(S, call_lib == nullptr);
+                const auto is_export_func = [&]() {
+                    for (auto attr : S->specific_attrs<clang::AnnotateAttr>()) {
+                        if (isExport(attr)) return true;
+                    }
+                    return false;
+                }();
+                if (is_export_func) {
+                    auto func_name = S->getName();
+                    if (!call_lib) [[unlikely]] {
+                        LUISA_WARNING("This is not a ast export compilation. Function {} export attribute ignored.", func_name.str());
+                    } else {
+                        call_lib->add_callable(
+                            luisa::string_view{func_name.data(), func_name.size()},
+                            result.func.shared_builder());
+                    }
+                }
+                if (result.dimension > 0) 
+                    dimension = result.dimension;
+            }
         }
     }
 }
