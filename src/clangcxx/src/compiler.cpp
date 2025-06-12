@@ -18,21 +18,22 @@ string path_to_string(std::filesystem::path const &path) {
 }
 }// namespace detail
 template<typename T>
-std::unique_ptr<FrontendActionFactory> newFrontendActionFactory2(luisa::compute::Device *device, compute::ShaderOption option) {
+std::unique_ptr<FrontendActionFactory> newFrontendActionFactory2(luisa::compute::Device *device, luisa::vector<BuildArgument> *kernel_arg_reflect, compute::ShaderOption option) {
     class SimpleFrontendActionFactory2 : public FrontendActionFactory {
     public:
-        SimpleFrontendActionFactory2(luisa::compute::Device *device, compute::ShaderOption &&option)
-            : device(device), option(std::move(option)) {
+        SimpleFrontendActionFactory2(luisa::compute::Device *device, luisa::vector<BuildArgument> *kernel_arg_reflect, compute::ShaderOption &&option)
+            : device(device), kernel_arg_reflect(kernel_arg_reflect), option(std::move(option)) {
         }
 
         std::unique_ptr<clang::FrontendAction> create() override {
-            return std::make_unique<T>(device, option);
+            return std::make_unique<T>(device, kernel_arg_reflect, option);
         }
 
         luisa::compute::Device *device = nullptr;
+        luisa::vector<BuildArgument> *kernel_arg_reflect = nullptr;
         compute::ShaderOption option;
     };
-    return std::unique_ptr<FrontendActionFactory>(new SimpleFrontendActionFactory2(device, std::move(option)));
+    return std::unique_ptr<FrontendActionFactory>(new SimpleFrontendActionFactory2(device, kernel_arg_reflect, std::move(option)));
 }
 
 template<typename T>
@@ -97,7 +98,8 @@ bool Compiler::create_shader(
     luisa::compute::Device &device,
     vstd::IRange<luisa::string_view> &defines,
     const std::filesystem::path &shader_path,
-    vstd::IRange<luisa::string> &include_paths) LUISA_NOEXCEPT {
+    vstd::IRange<luisa::string> &include_paths,
+    luisa::vector<BuildArgument> *kernel_arg_reflect) LUISA_NOEXCEPT {
 
     auto args_holder = compile_args(defines, shader_path, include_paths, false, false);
     luisa::vector<const char *> args;
@@ -114,7 +116,7 @@ bool Compiler::create_shader(
     }
     OptionsParser &OptionsParser = ExpectedParser.get();
     tooling::ClangTool Tool(OptionsParser.getCompilations(), OptionsParser.getSourcePathList());
-    auto factory = newFrontendActionFactory2<luisa::clangcxx::FrontendAction>(&device, option);
+    auto factory = newFrontendActionFactory2<luisa::clangcxx::FrontendAction>(&device, kernel_arg_reflect, option);
     // Callable export
     // auto factory = newFrontendActionFactory3<luisa::clangcxx::CallLibFrontendAction>(option.name);
     auto rc = Tool.run(factory.get());

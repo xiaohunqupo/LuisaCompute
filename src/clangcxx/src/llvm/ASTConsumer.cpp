@@ -17,6 +17,7 @@
 #include <luisa/dsl/sugar.h>
 #include <luisa/dsl/syntax.h>
 #include <luisa/backends/ext/raster_ext.hpp>
+#include <luisa/clangcxx/build_arguments.h>
 namespace luisa::clangcxx {
 using namespace clang;
 using namespace clang::ast_matchers;
@@ -839,8 +840,8 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                 auto str = luisa::string(dref->getNameInfo().getName().getAsString());
                 if (auto _current = stack->GetLocal(dref->getDecl())) {
                     current = _current;
-                } else if (auto Function = dref->getDecl(); Function && llvm::isa<clang::FunctionDecl>(Function)) { // Func Ref
-                
+                } else if (auto Function = dref->getDecl(); Function && llvm::isa<clang::FunctionDecl>(Function)) {// Func Ref
+
                 } else if (auto Var = dref->getDecl(); Var && llvm::isa<clang::ValueDecl>(Var)) {// Value Ref
                     if (dref->isNonOdrUse() != NonOdrUseReason::NOUR_Unevaluated ||
                         dref->isNonOdrUse() != NonOdrUseReason::NOUR_Discarded) {
@@ -851,9 +852,7 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                             clangcxx_log_error("unfound & unresolved ref: {}", str);
                         }
                     }
-                } 
-                else
-                {
+                } else {
                     dref->dump();
                     clangcxx_log_error("unfound var ref: {}", str);
                 }
@@ -1195,7 +1194,8 @@ auto FunctionBuilderBuilder::build(const clang::FunctionDecl *S, bool allowKerne
     bool is_scope = false;
     bool is_method = false;
     bool is_lambda = false;
-    bool is_static = S->isStatic();;
+    bool is_static = S->isStatic();
+    ;
     QualType methodThisType;
 
     auto params = S->parameters();
@@ -1371,9 +1371,16 @@ auto FunctionBuilderBuilder::build(const clang::FunctionDecl *S, bool allowKerne
                 }
 
                 // collect args
-                auto collect_arg = [&] (const VarDecl* param) -> const luisa::compute::RefExpr* {
+                vector<Argument> arguments;
+                auto collect_arg = [&](const VarDecl *param) -> const luisa::compute::RefExpr * {
                     auto Ty = param->getType();
+                    // if (is_kernel) {
+                    //     LUISA_WARNING("Set kernel arg. {}", luisa::string_view{});
+                    // }
                     if (auto lcType = db->FindOrAddType(Ty, param->getBeginLoc())) {
+                        if (is_kernel) {
+                            db->kernel_args.emplace_back(lcType, luisa::string{param->getName().data(), param->getName().size()});
+                        }
                         const luisa::compute::RefExpr *local = nullptr;
                         switch (lcType->tag()) {
                             case compute::Type::Tag::BUFFER:
@@ -1410,7 +1417,7 @@ auto FunctionBuilderBuilder::build(const clang::FunctionDecl *S, bool allowKerne
                     }
                     return nullptr;
                 };
-                luisa::vector<const clang::VarDecl*> input_params(params.begin(), params.end());
+                luisa::vector<const clang::VarDecl *> input_params(params.begin(), params.end());
                 if (is_kernel) {
                     for (const auto *var : db->extern_vars) {
                         collect_arg(var);
@@ -1503,22 +1510,20 @@ void GlobalVarHandler::run(const MatchFinder::MatchResult &Result) {
 
 void FunctionDeclStmtHandler::run(const MatchFinder::MatchResult &Result) {
     // The matched 'if' statement was bound to 'ifStmt'.
-    if (const auto *S = Result.Nodes.getNodeAs<clang::FunctionDecl>("FunctionDecl")) 
-    {
+    if (const auto *S = Result.Nodes.getNodeAs<clang::FunctionDecl>("FunctionDecl")) {
         bool bIsKernel = false;
         for (auto attr : S->specific_attrs<clang::AnnotateAttr>()) {
-            if (isKernel(attr)) 
+            if (isKernel(attr))
                 bIsKernel = true;
-            if (isPixel(attr)) 
+            if (isPixel(attr))
                 bIsKernel = true;
-            if (isExport(attr)) 
+            if (isExport(attr))
                 bIsKernel = true;
-            if (isVertex(attr)) 
+            if (isVertex(attr))
                 bIsKernel = true;
         }
 
-        if (bIsKernel) 
-        {
+        if (bIsKernel) {
             bool isLambda = false;
             if (auto Method = llvm::dyn_cast<clang::CXXMethodDecl>(S)) {
                 isLambda = Method->getParent()->isLambda();
@@ -1544,15 +1549,15 @@ void FunctionDeclStmtHandler::run(const MatchFinder::MatchResult &Result) {
                             result.func.shared_builder());
                     }
                 }
-                if (result.dimension > 0) 
+                if (result.dimension > 0)
                     dimension = result.dimension;
             }
         }
     }
 }
 
-ASTConsumer::ASTConsumer(luisa::compute::Device *device, compute::ShaderOption option)
-    : device(device), option(std::move(option)) {
+ASTConsumer::ASTConsumer(luisa::compute::Device *device, luisa::vector<BuildArgument> *kernel_arg_reflect, compute::ShaderOption option)
+    : device(device), option(std::move(option)), kernel_arg_reflect(kernel_arg_reflect) {
 }
 ASTCallableConsumer::ASTCallableConsumer(compute::CallableLibrary *lib) {
     HandlerForFuncionDecl.call_lib = lib;
@@ -1600,6 +1605,11 @@ ASTConsumer::~ASTConsumer() {
             clangcxx_log_error("Kernel not defined.");
         }
     } else {
+        if (kernel_arg_reflect) {
+            *kernel_arg_reflect = std::move(db.kernel_args);
+        } else {
+            LUISA_WARNING("Not set.");
+        }
         device->impl()->create_shader(option, luisa::compute::Function{db.kernel_builder.get()});
     }
 }

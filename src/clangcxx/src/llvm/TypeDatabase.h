@@ -1,6 +1,7 @@
 #pragma once
 #include "Utils/AttributeHelper.hpp"
 #include <luisa/ast/external_function.h>
+#include <luisa/clangcxx/build_arguments.h>
 namespace luisa::clangcxx {
 template<typename... Args>
 [[noreturn]] LUISA_FORCE_INLINE void clangcxx_log_error(Args &&...args) noexcept {
@@ -20,6 +21,7 @@ template<typename... Args>
 #endif
     exit(1);
 }
+
 struct TypeDatabase {
     TypeDatabase();
     ~TypeDatabase();
@@ -40,7 +42,8 @@ struct TypeDatabase {
     void DumpWithLocation(const clang::Decl *decl);
 
     // luisa::unordered_map<luisa::string, const luisa::compute::RefExpr *> globals;
-    luisa::vector<const clang::VarDecl*> extern_vars;
+    luisa::vector<BuildArgument> kernel_args;
+    luisa::vector<const clang::VarDecl *> extern_vars;
     luisa::shared_ptr<compute::detail::FunctionBuilder> kernel_builder;
     luisa::shared_ptr<compute::detail::FunctionBuilder> vertex_builder;
     luisa::shared_ptr<compute::detail::FunctionBuilder> pixel_builder;

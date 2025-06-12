@@ -46,6 +46,7 @@ struct FunctionBuilderBuilder {
     explicit FunctionBuilderBuilder(TypeDatabase *db, Stack &stack)
         : db(db), stack(stack) {}
     // return kernel dimension, 0 if not kernel
+
     struct BuildResult {
         compute::Function func;
         uint dimension;
@@ -103,10 +104,11 @@ protected:
 
 class ASTConsumer final : public ASTConsumerBase {
 public:
-    explicit ASTConsumer(luisa::compute::Device *device, compute::ShaderOption option);
+    explicit ASTConsumer(luisa::compute::Device *device, luisa::vector<BuildArgument>* kernel_arg_reflect, compute::ShaderOption option);
     ~ASTConsumer() override;
     const luisa::compute::Device *device = nullptr;
     const compute::ShaderOption option;
+    luisa::vector<BuildArgument>* kernel_arg_reflect = nullptr;
 };
 class ASTCallableConsumer final : public ASTConsumerBase {
 public:

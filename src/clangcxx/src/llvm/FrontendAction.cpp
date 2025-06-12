@@ -8,7 +8,7 @@ namespace luisa::clangcxx {
 std::unique_ptr<clang::ASTConsumer> FrontendAction::CreateASTConsumer(clang::CompilerInstance &CI, llvm::StringRef InFile) {
     auto &LO = CI.getLangOpts();
     LO.CommentOpts.ParseAllComments = true;
-    return std::make_unique<luisa::clangcxx::ASTConsumer>(device, option);
+    return std::make_unique<luisa::clangcxx::ASTConsumer>(device, kernel_arg_reflect, option);
 }
 std::unique_ptr<clang::ASTConsumer> CallLibFrontendAction::CreateASTConsumer(clang::CompilerInstance &CI, llvm::StringRef InFile) {
     auto &LO = CI.getLangOpts();
