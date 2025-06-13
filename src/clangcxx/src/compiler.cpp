@@ -18,10 +18,10 @@ string path_to_string(std::filesystem::path const &path) {
 }
 }// namespace detail
 template<typename T>
-std::unique_ptr<FrontendActionFactory> newFrontendActionFactory2(luisa::compute::Device *device, luisa::vector<BuildArgument> *kernel_arg_reflect, compute::ShaderOption option) {
+std::unique_ptr<FrontendActionFactory> newFrontendActionFactory2(luisa::compute::Device *device, ShaderReflection *kernel_arg_reflect, compute::ShaderOption option) {
     class SimpleFrontendActionFactory2 : public FrontendActionFactory {
     public:
-        SimpleFrontendActionFactory2(luisa::compute::Device *device, luisa::vector<BuildArgument> *kernel_arg_reflect, compute::ShaderOption &&option)
+        SimpleFrontendActionFactory2(luisa::compute::Device *device, ShaderReflection *kernel_arg_reflect, compute::ShaderOption &&option)
             : device(device), kernel_arg_reflect(kernel_arg_reflect), option(std::move(option)) {
         }
 
@@ -30,7 +30,7 @@ std::unique_ptr<FrontendActionFactory> newFrontendActionFactory2(luisa::compute:
         }
 
         luisa::compute::Device *device = nullptr;
-        luisa::vector<BuildArgument> *kernel_arg_reflect = nullptr;
+        ShaderReflection *kernel_arg_reflect = nullptr;
         compute::ShaderOption option;
     };
     return std::unique_ptr<FrontendActionFactory>(new SimpleFrontendActionFactory2(device, kernel_arg_reflect, std::move(option)));
@@ -99,7 +99,7 @@ bool Compiler::create_shader(
     vstd::IRange<luisa::string_view> &defines,
     const std::filesystem::path &shader_path,
     vstd::IRange<luisa::string> &include_paths,
-    luisa::vector<BuildArgument> *kernel_arg_reflect) LUISA_NOEXCEPT {
+    ShaderReflection *kernel_arg_reflect) LUISA_NOEXCEPT {
 
     auto args_holder = compile_args(defines, shader_path, include_paths, false, false);
     luisa::vector<const char *> args;

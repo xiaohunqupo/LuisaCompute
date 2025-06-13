@@ -12,14 +12,14 @@ namespace luisa::clangcxx {
 
 class FrontendAction : public clang::ASTFrontendAction {
 public:
-    FrontendAction(luisa::compute::Device *device, luisa::vector<BuildArgument> *kernel_arg_reflect, compute::ShaderOption option)
+    FrontendAction(luisa::compute::Device *device, ShaderReflection *kernel_arg_reflect, compute::ShaderOption option)
         : clang::ASTFrontendAction(), device(device), kernel_arg_reflect(kernel_arg_reflect), option(option) {
     }
 
     std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(clang::CompilerInstance &CI, llvm::StringRef InFile) final;
 
     luisa::compute::Device *device = nullptr;
-    luisa::vector<BuildArgument> *kernel_arg_reflect = nullptr;
+    ShaderReflection *kernel_arg_reflect = nullptr;
     compute::ShaderOption option;
 };
 class CallLibFrontendAction : public clang::ASTFrontendAction {

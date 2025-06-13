@@ -1207,10 +1207,13 @@ auto FunctionBuilderBuilder::build(const clang::FunctionDecl *S, bool allowKerne
             is_kernel = true;
             if (isKernel1D(Anno)) {
                 result.dimension = 1;
+                db->refl.dimension = 1;
             } else if (isKernel2D(Anno)) {
                 result.dimension = 2;
+                db->refl.dimension = 2;
             } else {
                 result.dimension = 3;
+                db->refl.dimension = 3;
             }
             getKernelSize(Anno, kernelSize.x, kernelSize.y, kernelSize.z);
         } else if (isVertex(Anno)) {
@@ -1379,7 +1382,7 @@ auto FunctionBuilderBuilder::build(const clang::FunctionDecl *S, bool allowKerne
                     // }
                     if (auto lcType = db->FindOrAddType(Ty, param->getBeginLoc())) {
                         if (is_kernel) {
-                            db->kernel_args.emplace_back(lcType, luisa::string{param->getName().data(), param->getName().size()});
+                            db->refl.kernel_args.emplace_back(lcType, luisa::string{param->getName().data(), param->getName().size()});
                         }
                         const luisa::compute::RefExpr *local = nullptr;
                         switch (lcType->tag()) {
@@ -1556,7 +1559,7 @@ void FunctionDeclStmtHandler::run(const MatchFinder::MatchResult &Result) {
     }
 }
 
-ASTConsumer::ASTConsumer(luisa::compute::Device *device, luisa::vector<BuildArgument> *kernel_arg_reflect, compute::ShaderOption option)
+ASTConsumer::ASTConsumer(luisa::compute::Device *device, ShaderReflection *kernel_arg_reflect, compute::ShaderOption option)
     : device(device), option(std::move(option)), kernel_arg_reflect(kernel_arg_reflect) {
 }
 ASTCallableConsumer::ASTCallableConsumer(compute::CallableLibrary *lib) {
@@ -1606,9 +1609,8 @@ ASTConsumer::~ASTConsumer() {
         }
     } else {
         if (kernel_arg_reflect) {
-            *kernel_arg_reflect = std::move(db.kernel_args);
+            *kernel_arg_reflect = std::move(db.refl);
         }
-        LUISA_WARNING("{}", option.name);
         device->impl()->create_shader(option, luisa::compute::Function{db.kernel_builder.get()});
     }
 }

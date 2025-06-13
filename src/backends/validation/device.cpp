@@ -25,7 +25,7 @@
 namespace lc::validation {
 
 static vstd::unordered_map<uint64_t, StreamOption> stream_options;
-static std::mutex stream_mtx;
+static luisa::spin_mutex stream_mtx;
 
 namespace {
 [[nodiscard]] auto unordered_map_key(luisa::string_view key) noexcept {

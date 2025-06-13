@@ -48,40 +48,107 @@ static constexpr uint kShaderModel = 65u;
 LCDevice::LCDevice(Context &&ctx, DeviceConfig const *settings)
     : DeviceInterface(std::move(ctx)),
       nativeDevice(Context{_ctx_impl}, settings) {
+    // no ext when headless
+    bool headless = settings && settings->headless;
+    if (!headless) {
 #ifdef LUISA_BACKEND_ENABLE_OIDN
-    exts.try_emplace(
-        DenoiserExt::name,
-        [](LCDevice *device) -> DeviceExtension * {
-            return new DXOidnDenoiserExt(device);
-        },
-        [](DeviceExtension *ext) {
-            delete static_cast<DXOidnDenoiserExt *>(ext);
-        });
+        exts.try_emplace(
+            DenoiserExt::name,
+            [](LCDevice *device) -> DeviceExtension * {
+                return new DXOidnDenoiserExt(device);
+            },
+            [](DeviceExtension *ext) {
+                delete static_cast<DXOidnDenoiserExt *>(ext);
+            });
 #endif
-    exts.try_emplace(
+        exts.try_emplace(
 #ifdef LUISA_USE_SYSTEM_STL
-        luisa::string{TexCompressExt::name},
+            luisa::string{TexCompressExt::name},
 #else
-        TexCompressExt::name,
+            TexCompressExt::name,
 #endif
-        [](LCDevice *device) -> DeviceExtension * {
-            return new DxTexCompressExt(&device->nativeDevice);
-        },
-        [](DeviceExtension *ext) {
-            delete static_cast<DxTexCompressExt *>(ext);
-        });
-    exts.try_emplace(
+            [](LCDevice *device) -> DeviceExtension * {
+                return new DxTexCompressExt(&device->nativeDevice);
+            },
+            [](DeviceExtension *ext) {
+                delete static_cast<DxTexCompressExt *>(ext);
+            });
+        exts.try_emplace(
 #ifdef LUISA_USE_SYSTEM_STL
-        luisa::string{NativeResourceExt::name},
+            luisa::string{NativeResourceExt::name},
 #else
-        NativeResourceExt::name,
+            NativeResourceExt::name,
 #endif
-        [](LCDevice *device) -> DeviceExtension * {
-            return new DxNativeResourceExt(device, &device->nativeDevice);
-        },
-        [](DeviceExtension *ext) {
-            delete static_cast<DxNativeResourceExt *>(ext);
-        });
+            [](LCDevice *device) -> DeviceExtension * {
+                return new DxNativeResourceExt(device, &device->nativeDevice);
+            },
+            [](DeviceExtension *ext) {
+                delete static_cast<DxNativeResourceExt *>(ext);
+            });
+        exts.try_emplace(
+#ifdef LUISA_USE_SYSTEM_STL
+            luisa::string{DStorageExt::name},
+#else
+            DStorageExt::name,
+#endif
+            [](LCDevice *device) -> DeviceExtension * {
+                return new DStorageExtImpl(device->context().runtime_directory(), device);
+            },
+            [](DeviceExtension *ext) {
+                delete static_cast<DStorageExtImpl *>(ext);
+            });
+        exts.try_emplace(
+#ifdef LUISA_USE_SYSTEM_STL
+            luisa::string{DirectMLExt::name},
+#else
+            DirectMLExt::name,
+#endif
+            [](LCDevice *device) -> DeviceExtension * {
+                return new DxDirectMLExt(device);
+            },
+            [](DeviceExtension *ext) {
+                delete static_cast<DxDirectMLExt *>(ext);
+            });
+        exts.try_emplace(
+#ifdef LUISA_USE_SYSTEM_STL
+            luisa::string{DXHDRExt::name},
+#else
+            DXHDRExt::name,
+#endif
+            [](LCDevice *device) -> DeviceExtension * {
+                return new DXHDRExtImpl(device);
+            },
+            [](DeviceExtension *ext) {
+                delete static_cast<DXHDRExtImpl *>(ext);
+            });
+#ifdef LCDX_ENABLE_CUDA
+        exts.try_emplace(
+#ifdef LUISA_USE_SYSTEM_STL
+            luisa::string{DxCudaInterop::name},
+#else
+            DxCudaInterop::name,
+#endif
+            [](LCDevice *device) -> DeviceExtension * {
+                return new DxCudaInteropImpl(*device);
+            },
+            [](DeviceExtension *ext) {
+                delete static_cast<DxCudaInteropImpl *>(ext);
+            });
+#endif
+        exts.try_emplace(
+#ifdef LUISA_USE_SYSTEM_STL
+            luisa::string{PinnedMemoryExt::name},
+#else
+            PinnedMemoryExt::name,
+#endif
+            [](LCDevice *device) -> DeviceExtension * {
+                return new DxPinnedMemoryExt(device);
+            },
+            [](DeviceExtension *ext) {
+                delete static_cast<DxPinnedMemoryExt *>(ext);
+            });
+    }
+
     exts.try_emplace(
 #ifdef LUISA_USE_SYSTEM_STL
         luisa::string{RasterExt::name},
@@ -93,68 +160,6 @@ LCDevice::LCDevice(Context &&ctx, DeviceConfig const *settings)
         },
         [](DeviceExtension *ext) {
             delete static_cast<DxRasterExt *>(ext);
-        });
-    exts.try_emplace(
-#ifdef LUISA_USE_SYSTEM_STL
-        luisa::string{DStorageExt::name},
-#else
-        DStorageExt::name,
-#endif
-        [](LCDevice *device) -> DeviceExtension * {
-            return new DStorageExtImpl(device->context().runtime_directory(), device);
-        },
-        [](DeviceExtension *ext) {
-            delete static_cast<DStorageExtImpl *>(ext);
-        });
-    exts.try_emplace(
-#ifdef LUISA_USE_SYSTEM_STL
-        luisa::string{DirectMLExt::name},
-#else
-        DirectMLExt::name,
-#endif
-        [](LCDevice *device) -> DeviceExtension * {
-            return new DxDirectMLExt(device);
-        },
-        [](DeviceExtension *ext) {
-            delete static_cast<DxDirectMLExt *>(ext);
-        });
-    exts.try_emplace(
-#ifdef LUISA_USE_SYSTEM_STL
-        luisa::string{DXHDRExt::name},
-#else
-        DXHDRExt::name,
-#endif
-        [](LCDevice *device) -> DeviceExtension * {
-            return new DXHDRExtImpl(device);
-        },
-        [](DeviceExtension *ext) {
-            delete static_cast<DXHDRExtImpl *>(ext);
-        });
-#ifdef LCDX_ENABLE_CUDA
-    exts.try_emplace(
-#ifdef LUISA_USE_SYSTEM_STL
-        luisa::string{DxCudaInterop::name},
-#else
-        DxCudaInterop::name,
-#endif
-        [](LCDevice *device) -> DeviceExtension * {
-            return new DxCudaInteropImpl(*device);
-        },
-        [](DeviceExtension *ext) {
-            delete static_cast<DxCudaInteropImpl *>(ext);
-        });
-#endif
-    exts.try_emplace(
-#ifdef LUISA_USE_SYSTEM_STL
-        luisa::string{PinnedMemoryExt::name},
-#else
-        PinnedMemoryExt::name,
-#endif
-        [](LCDevice *device) -> DeviceExtension * {
-            return new DxPinnedMemoryExt(device);
-        },
-        [](DeviceExtension *ext) {
-            delete static_cast<DxPinnedMemoryExt *>(ext);
         });
 }
 LCDevice::~LCDevice() {

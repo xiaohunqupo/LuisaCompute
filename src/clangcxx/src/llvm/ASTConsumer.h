@@ -104,11 +104,11 @@ protected:
 
 class ASTConsumer final : public ASTConsumerBase {
 public:
-    explicit ASTConsumer(luisa::compute::Device *device, luisa::vector<BuildArgument>* kernel_arg_reflect, compute::ShaderOption option);
+    explicit ASTConsumer(luisa::compute::Device *device, ShaderReflection* kernel_arg_reflect, compute::ShaderOption option);
     ~ASTConsumer() override;
     const luisa::compute::Device *device = nullptr;
     const compute::ShaderOption option;
-    luisa::vector<BuildArgument>* kernel_arg_reflect = nullptr;
+    ShaderReflection* kernel_arg_reflect = nullptr;
 };
 class ASTCallableConsumer final : public ASTConsumerBase {
 public:

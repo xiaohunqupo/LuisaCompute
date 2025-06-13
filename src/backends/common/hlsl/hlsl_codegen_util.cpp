@@ -69,7 +69,7 @@ vstd::string_view CodegenUtility::ReadInternalHLSLFile(vstd::string_view name) {
         vstd::vector<char> result;
     };
     static vstd::HashMap<vstd::string, CachedHeader> headers;
-    static std::mutex header_mtx;
+    static luisa::spin_mutex header_mtx;
     auto iter = [&]() {
         std::lock_guard lck{header_mtx};
         return headers.emplace(name);

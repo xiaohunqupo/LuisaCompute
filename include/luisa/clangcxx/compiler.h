@@ -15,7 +15,7 @@ struct LC_CLANGCXX_API Compiler {
         vstd::IRange<luisa::string_view> &defines,
         const std::filesystem::path &shader_path,
         vstd::IRange<luisa::string> &include_paths,
-        luisa::vector<BuildArgument>* kernel_arg_reflect = nullptr) LUISA_NOEXCEPT;
+        ShaderReflection* kernel_arg_reflect = nullptr) LUISA_NOEXCEPT;
     static compute::CallableLibrary export_callables(
         compute::Device &device,
         vstd::IRange<luisa::string_view> &defines,

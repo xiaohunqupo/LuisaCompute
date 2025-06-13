@@ -33,7 +33,7 @@ DirectXHeap DXAllocatorImpl::AllocateTextureHeap(
 void DXAllocatorImpl::DeAllocateHeap(uint64_t handle) const noexcept {
     device->defaultAllocator->Release(handle);
 }
-static std::mutex gDxcMutex;
+static luisa::spin_mutex gDxcMutex;
 static vstd::StackObject<hlsl::ShaderCompiler, false> gDxcCompiler;
 static int32 gDxcRefCount = 0;
 
