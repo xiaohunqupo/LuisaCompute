@@ -19,9 +19,6 @@
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
 
-#include <imgui.h>
-#include <imgui_impl_glfw.h>
-
 #ifdef Bool// good job!
 #undef Bool
 #endif
@@ -41,6 +38,13 @@
 #ifdef None// speechless
 #undef None
 #endif
+
+#ifdef Status// ???
+#undef Status
+#endif
+
+#include <imgui.h>
+#include <imgui_impl_glfw.h>
 
 #include <luisa/core/logging.h>
 #include <luisa/core/stl/queue.h>
