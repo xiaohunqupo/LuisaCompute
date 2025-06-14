@@ -14,7 +14,7 @@ int main(int argc, char *argv[]) {
     }
     Device device = context.create_device(argv[1]);
     luisa::vector<Attribute> attris;
-    attris.emplace_back("fuck", "shit");
+    attris.emplace_back("attr0", "attr1");
     auto t = Type::buffer(Type::of<float>(), attris);
     LUISA_INFO("{}", t->description());
 }

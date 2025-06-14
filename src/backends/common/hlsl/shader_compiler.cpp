@@ -66,12 +66,16 @@ CompileResult ShaderCompiler::compile(
         code.size(),
         CP_ACP};
     ComPtr<IDxcResult> compileResult;
-    LC_DXC_THROW_IF_FAILED(compiler()->Compile(
-        &buffer,
-        args.data(),
+    auto comp = compiler();
+    if (comp) {
+        auto compile_result = comp->Compile(
+            &buffer,
+            args.data(),
         args.size(),
-        nullptr,
-        IID_PPV_ARGS(compileResult.GetAddressOf())));
+            nullptr,
+            IID_PPV_ARGS(compileResult.GetAddressOf()));
+        LC_DXC_THROW_IF_FAILED(compile_result);
+    }
     HRESULT status;
     LC_DXC_THROW_IF_FAILED(compileResult->GetStatus(&status));
     if (status == 0) {
@@ -105,14 +109,14 @@ static void AddCompileFlags(Vec &args, bool debug) {
 template<typename Vec>
 static void AddUnsafeMathFlags(Vec &args) {
     // unsafe opt may conflict with dxc
-    vstd::push_back_all(
-        args,
-        {L"-opt-enable",
-         L"-funsafe-math-optimizations",
-         L"-opt-enable",
-         L"-fassociative-math",
-         L"-opt-enable",
-         L"-freciprocal-math"});
+    // vstd::push_back_all(
+    //     args,
+    //     {L"-opt-enable",
+    //      L"-funsafe-math-optimizations",
+    //      L"-opt-enable",
+    //      L"-fassociative-math",
+    //      L"-opt-enable",
+    //      L"-freciprocal-math"});
 }
 CompileResult ShaderCompiler::compile_compute(
     vstd::string_view code,
@@ -129,13 +133,13 @@ CompileResult ShaderCompiler::compile_compute(
     vstd::fixed_vector<LPCWSTR, 32> args;
     vstd::wstring smStr;
     smStr << L"cs_" << GetSM(shaderModel);
-    args.emplace_back(L"/T");
+    if (spirv) {
+        args.emplace_back(L"-spirv");
+        args.emplace_back(L"/DSPV");
+    }
+    args.emplace_back(L"-T");
     args.emplace_back(smStr.c_str());
     AddCompileFlags(args, debug);
-    if (spirv) {
-        args.emplace_back(L"/DSPV");
-        args.emplace_back(L"-spirv");
-    }
     if (enableUnsafeMath) {
         AddUnsafeMathFlags(args);
     }
@@ -168,7 +172,7 @@ RasterBin ShaderCompiler::compile_raster(
     if (optimize) {
         args.emplace_back(DXC_ARG_OPTIMIZATION_LEVEL3);
     }
-    args.emplace_back(L"/T");
+    args.emplace_back(L"-T");
     auto size = args.size();
     vstd::wstring smStr;
     smStr << L"vs_" << GetSM(shaderModel);
@@ -195,7 +199,7 @@ CompileResult ShaderCompiler::CompileRayTracing(
     vstd::fixed_vector<LPCWSTR, 32> args;
     vstd::wstring smStr;
     smStr << L"lib_" << GetSM(shaderModel);
-    args.emplace_back(L"/T");
+    args.emplace_back(L"-T");
     args.emplace_back(smStr.c_str());
     args.push_back_all(
         {L"-Qstrip_debug",

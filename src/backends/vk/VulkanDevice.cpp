@@ -30,7 +30,10 @@ VulkanDevice::VulkanDevice(VkPhysicalDevice physicalDevice) {
     // Device properties also contain limits and sparse properties
     vkGetPhysicalDeviceProperties(physicalDevice, &properties);
     // Features should be checked by the examples before using them
-    vkGetPhysicalDeviceFeatures(physicalDevice, &features);
+    features12 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES};
+    features = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
+    features.pNext = &features12;
+    vkGetPhysicalDeviceFeatures2(physicalDevice, &features);
     // Memory properties are used regularly for creating all kinds of buffers
     vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memoryProperties);
     // Queue family properties, used for setting up requested queues upon device creation
@@ -147,7 +150,7 @@ uint32_t VulkanDevice::getQueueFamilyIndex(VkQueueFlags queueFlags) const {
 	*
 	* @return VkResult of the device creation call
 	*/
-VkResult VulkanDevice::createLogicalDevice(VkPhysicalDeviceFeatures enabledFeatures, vstd::span<const vstd::string> enabledExtensions, void *pNextChain, bool useSwapChain, VkQueueFlags requestedQueueTypes) {
+VkResult VulkanDevice::createLogicalDevice(VkPhysicalDeviceFeatures &enabledFeatures, vstd::span<const vstd::string> enabledExtensions, void *pNextChain, bool useSwapChain, VkQueueFlags requestedQueueTypes) {
     // Desired queues need to be requested upon logical device creation
     // Due to differing queue family configurations of Vulkan implementations this can be a bit tricky, especially if the application
     // requests different queue types
@@ -214,7 +217,7 @@ VkResult VulkanDevice::createLogicalDevice(VkPhysicalDeviceFeatures enabledFeatu
         [&](size_t i) {
             return enabledExtensions[i].c_str();
         });
-		
+
     if (useSwapChain) {
         // If the device will be used for presenting to a display via a swapchain we need to request the swapchain extension
         deviceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
@@ -296,4 +299,3 @@ VkFormat VulkanDevice::getSupportedDepthFormat(bool checkSamplingSupport) {
 }
 
 };// namespace vks
-

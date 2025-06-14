@@ -54,7 +54,7 @@ vstd::string_view CodegenStackData::CreateStruct(Type const *t) {
         }));
     if (ite.second) {
         auto newPtr = ite.first.value().get();
-        newPtr->Init(generateStruct);
+        newPtr->Init(generateStruct, isSpirv);
         customStructVector.emplace_back(ite.first.value().get());
     }
     return ite.first.value()->GetStructName();

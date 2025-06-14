@@ -25,6 +25,7 @@ struct CodegenStackData : public vstd::IOperatorNewBase {
     };
     FuncType funcType;
     bool isRaster = false;
+    bool isSpirv = false;
     bool isPixelShader = false;
     bool pixelFirstArgIsStruct = false;
     uint64 count = 0;

@@ -52,7 +52,7 @@ Shader::Shader(
                 assert(false);
                 break;
         }
-        v.descriptorCount = i.array_size;
+        v.descriptorCount = i.array_size == ~0u ? 65535u : i.array_size;
         v.stageFlags = stage_bits;
         v.pImmutableSamplers = nullptr;
         vstd::push_back_all(_binds, binds);

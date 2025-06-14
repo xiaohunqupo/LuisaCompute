@@ -7,7 +7,14 @@
 #include <luisa/core/logging.h>
 #include "../common/hlsl/shader_compiler.h"
 
-static constexpr bool PRINT_CODE = false;
+static const bool PRINT_CODE = ([] {
+    // read env LUISA_DUMP_SOURCE
+    auto env = std::getenv("LUISA_DUMP_SOURCE");
+    if (env == nullptr) {
+        return false;
+    }
+    return std::string_view{env} == "1";
+})();
 
 namespace lc::vk {
 ComputeShader::ComputeShader(
@@ -86,7 +93,7 @@ ComputeShader *ComputeShader::compile(
                 md5 = vstd::MD5({reinterpret_cast<uint8_t const *>(str.result.data() + str.immutableHeaderSize), str.result.size() - str.immutableHeaderSize});
             }
         }
-        if constexpr (PRINT_CODE) {
+        if (PRINT_CODE) {
             auto f = fopen("hlsl_output.hlsl", "ab");
             fwrite(str.result.data(), str.result.size(), 1, f);
             fclose(f);
@@ -96,14 +103,15 @@ ComputeShader *ComputeShader::compile(
             true,
             shader_model,
             unsafe_math,
-            true);
+            true,
+            false);
         return comp_result.multi_visit_or(
             vstd::UndefEval<ComputeShader *>{},
-            [&](vstd::unique_ptr<hlsl::DxcByteBlob> const &buffer) {
+            [&](Microsoft::WRL::ComPtr<IDxcBlob> const &buffer) {
                 auto shader = new ComputeShader(
                     device,
                     str.properties,
-                    {reinterpret_cast<const uint *>(buffer->data()), buffer->size() / sizeof(uint)},
+                    {reinterpret_cast<const uint *>(buffer->GetBufferPointer()), buffer->GetBufferSize() / sizeof(uint)},
                     std::move(bindings),
                     {});
                 if (write_cache) {
@@ -113,7 +121,7 @@ ComputeShader *ComputeShader::compile(
                         vstd::MD5(vstd::MD5::MD5Data{0, 0}),
                         kernel.block_size(),
                         file_name,
-                        {reinterpret_cast<const uint *>(buffer->data()), buffer->size() / sizeof(uint)},
+                        {reinterpret_cast<const uint *>(buffer->GetBufferPointer()), buffer->GetBufferSize() / sizeof(uint)},
                         serde_type,
                         bin_io);
                     ShaderSerializer::serialize_pso(

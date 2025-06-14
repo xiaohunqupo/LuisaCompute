@@ -19,6 +19,10 @@ namespace lc::vk {
 static constexpr uint k_shader_model = 65u;
 
 using namespace std::string_literals;
+static luisa::spin_mutex gDxcMutex;
+static vstd::StackObject<hlsl::ShaderCompiler, false> gDxcCompiler;
+static int32 gDxcRefCount = 0;
+
 namespace detail {
 struct Settings {
     bool validation;
@@ -26,6 +30,7 @@ struct Settings {
     bool vsync{false};
     bool overlay{true};
 };
+
 static VkInstance vk_instance{nullptr};
 static std::mutex instance_mtx;
 static Settings settings{};
@@ -270,6 +275,13 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
         device_idx = configs->device_index;
         _binary_io = configs->binary_io;
     }
+    Context ctx{this->_ctx_impl};
+    {
+        std::lock_guard lck(gDxcMutex);
+        if (gDxcRefCount == 0)
+            gDxcCompiler.create(ctx.runtime_directory());
+        gDxcRefCount++;
+    }
     if (!headless) {
         // init instance
         {
@@ -283,16 +295,15 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
                 detail::vk_instance = detail::create_instance(enableValidation);
             }
         }
-        _init_device(device_idx, true);
+        _init_device(device_idx, false);
     }
     // auto exts = detail::supported_exts(physical_device());
     // for(auto&& i : exts){
     //     LUISA_INFO("{}", i.extensionName);
     // }
     auto ctx_inst = context();
-    Context ctx{this->_ctx_impl};
     if (!_binary_io) {
-        _default_file_io = vstd::make_unique<DefaultBinaryIO>(std::move(ctx_inst));
+        _default_file_io = vstd::make_unique<DefaultBinaryIO>(std::move(ctx_inst), headless);
         _binary_io = _default_file_io.get();
     }
 }
@@ -317,7 +328,7 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
     physical_devices.push_back_uninitialized(gpuCount);
     err = vkEnumeratePhysicalDevices(detail::vk_instance, &gpuCount, physical_devices.data());
     if (err) [[unlikely]] {
-        LUISA_ERROR("Could not enumerate physical devices : {}", err);
+        LUISA_ERROR("Could not enumerate physical devices : {}", (int)err);
         return;
     }
 
@@ -384,9 +395,11 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES,
         .pNext = fallback ? nullptr : &enabledAccelerationStructureFeatures,
         .timelineSemaphore = VK_TRUE};
+    VkPhysicalDeviceVulkan12Features features12 = _vk_device->features12;
     void *ext_chain = &enable_timeline_feature;
     VK_CHECK_RESULT(_vk_device->createLogicalDevice(_device_features, _enable_device_exts, ext_chain));
     auto device = _vk_device->logicalDevice;
+    
     // Get a graphics queue from the device
     vkGetDeviceQueue(device, _vk_device->queueFamilyIndices.graphics, 0, &_graphics_queue);
     vkGetDeviceQueue(device, _vk_device->queueFamilyIndices.compute, 0, &_compute_queue);
@@ -416,6 +429,10 @@ bool Device::is_pso_same(VkPipelineCacheHeaderVersionOne const &pso) {
 }
 Device::~Device() {
     vkDestroyDescriptorPool(logic_device(), _desc_pool, Device::alloc_callbacks());
+    std::lock_guard lck(gDxcMutex);
+    if (--gDxcRefCount == 0) {
+        gDxcCompiler.destroy();
+    }
 }
 void *Device::native_handle() const noexcept { return _vk_device->logicalDevice; }
 BufferCreationInfo Device::create_buffer(const Type *element, size_t elem_count, void *external_ptr) noexcept {
@@ -435,8 +452,8 @@ void Device::destroy_buffer(uint64_t handle) noexcept {
 // texture
 ResourceCreationInfo Device::create_texture(
     PixelFormat format, uint dimension,
-    uint width, uint height, uint depth,
-    uint mipmap_levels, bool simultaneous_access, bool allow_raster_target) noexcept {
+    uint width, uint height, uint depth, uint mipmap_levels,
+    void *, bool simultaneous_access, bool allow_raster_target) noexcept {
 
     auto ptr = new Texture(
         this,
@@ -479,10 +496,7 @@ void Device::dispatch(
 }
 
 // swap chain
-SwapchainCreationInfo Device::create_swapchain(
-    uint64_t window_handle, uint64_t stream_handle,
-    uint width, uint height, bool allow_hdr,
-    bool vsync, uint back_buffer_size) noexcept { return SwapchainCreationInfo{ResourceCreationInfo::make_invalid()}; }
+SwapchainCreationInfo Device::create_swapchain(const SwapchainOption &option, uint64_t stream_handle) noexcept { return SwapchainCreationInfo{ResourceCreationInfo::make_invalid()}; }
 void Device::destroy_swap_chain(uint64_t handle) noexcept {}
 void Device::present_display_in_stream(uint64_t stream_handle, uint64_t swapchain_handle, uint64_t image_handle) noexcept {}
 
@@ -506,16 +520,17 @@ ShaderCreationInfo Device::create_shader(const ShaderOption &option, Function ke
             true,
             k_shader_model,
             option.enable_fast_math,
-            true);
+            true,
+            false);
         comp_result.multi_visit(
-            [&](vstd::unique_ptr<hlsl::DxcByteBlob> const &buffer) {
+            [&](Microsoft::WRL::ComPtr<IDxcBlob> const &buffer) {
                 ShaderSerializer::serialize_bytecode(
                     code.properties,
                     check_md5,
                     code.typeMD5,
                     kernel.block_size(),
                     option.name,
-                    {reinterpret_cast<const uint *>(buffer->data()), buffer->size() / sizeof(uint)},
+                    {reinterpret_cast<const uint *>(buffer->GetBufferPointer()), buffer->GetBufferSize() / sizeof(uint)},
                     SerdeType::ByteCode,
                     _binary_io);
             },
@@ -610,7 +625,7 @@ VSTL_EXPORT_C void backend_device_names(luisa::vector<luisa::string> &r) {
     physical_devices.push_back_uninitialized(gpuCount);
     auto err = vkEnumeratePhysicalDevices(detail::vk_instance, &gpuCount, physical_devices.data());
     if (err) {
-        LUISA_ERROR("Could not enumerate physical devices : {}", err);
+        LUISA_ERROR("Could not enumerate physical devices : {}", (int)err);
         return;
     }
     r.reserve(physical_devices.size());
@@ -621,7 +636,6 @@ VSTL_EXPORT_C void backend_device_names(luisa::vector<luisa::string> &r) {
     }
 }
 hlsl::ShaderCompiler *Device::Compiler() {
-    static vstd::optional<hlsl::ShaderCompiler> gDxcCompiler;
     return gDxcCompiler.ptr();
 }
 VkInstance Device::instance() const {

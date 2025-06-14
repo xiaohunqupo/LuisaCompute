@@ -58,7 +58,7 @@ void ReadbackBuffer::copy_to(void *data, size_t offset, size_t size) {
         device()->allocator().allocator(),
         _res.allocation);
 }
-DefaultBuffer::DefaultBuffer(Device *device, size_t size_bytes)
+DefaultBuffer::DefaultBuffer(Device *device, size_t size_bytes, bool used_as_accel)
     : Buffer{device, size_bytes},
       _res{
           device->allocator()
@@ -68,9 +68,9 @@ DefaultBuffer::DefaultBuffer(Device *device, size_t size_bytes)
                       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
                       VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
                       VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT |
-                      VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
-                      VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR |
-                      VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR),
+                      (used_as_accel ? (VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
+                                        VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR) :
+                                       0)),
                   AccessType::None)} {
 }
 DefaultBuffer::~DefaultBuffer() {

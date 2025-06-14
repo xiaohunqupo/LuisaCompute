@@ -23,7 +23,8 @@ private:
         Type const *originType,
         vstd::span<Type const *const> const &vars,
         size_t structIdx,
-        Callback const &visitor);
+        Callback const &visitor,
+        bool isSpirv);
     void InitAsArray(
         Type const *structureType,
         size_t structIdx,
@@ -42,7 +43,7 @@ public:
         Type const *structureType,
         size_t structIdx,
         CodegenUtility *util);
-    void Init(Callback const &visitor);
+    void Init(Callback const &visitor, bool isSpirv);
     ~StructGenerator();
 };
 }// namespace lc::hlsl

@@ -56,7 +56,8 @@ void StructGenerator::InitAsStruct(
     Type const *originType,
     vstd::span<Type const *const> const &vars,
     size_t structIdx,
-    Callback const &visitor) {
+    Callback const &visitor,
+    bool isSpirv) {
     size_t alignCount = 0;
     size_t structSize = 0;
     structDesc.reserve(256);
@@ -79,7 +80,7 @@ void StructGenerator::InitAsStruct(
         util->GetTypeName(*i, structDesc, Usage::READ, false);
         structDesc << " v"sv << vstd::to_string(varIdx);
         varIdx++;
-        if (i->tag() == Type::Tag::BOOL) {
+        if (!isSpirv && i->tag() == Type::Tag::BOOL) {
             structDesc << ":8"sv;
         }
         structDesc << ";\n"sv;
@@ -95,9 +96,9 @@ void StructGenerator::InitAsArray(
     util->GetTypeName(*ele, structDesc, Usage::READ, false);
     structDesc << " v["sv << vstd::to_string(t->dimension()) << "];\n";
 }
-void StructGenerator::Init(Callback const &visitor) {
+void StructGenerator::Init(Callback const &visitor, bool isSpirv) {
     if (structureType->tag() == Type::Tag::STRUCTURE) {
-        InitAsStruct(structureType, structureType->members(), idx, visitor);
+        InitAsStruct(structureType, structureType->members(), idx, visitor, isSpirv);
     } else {
         InitAsArray(structureType, idx, visitor);
     }

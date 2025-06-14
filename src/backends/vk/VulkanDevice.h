@@ -28,7 +28,8 @@ struct VulkanDevice
 	/** @brief Properties of the physical device including limits that the application can check against */
 	VkPhysicalDeviceProperties properties;
 	/** @brief Features of the physical device that an application can use to check if a feature is supported */
-	VkPhysicalDeviceFeatures features;
+	VkPhysicalDeviceVulkan12Features features12;
+	VkPhysicalDeviceFeatures2 features;
 	/** @brief Features that have been enabled for use on the physical device */
 	VkPhysicalDeviceFeatures enabledFeatures;
 	/** @brief Memory types and heaps of the physical device */
@@ -54,7 +55,7 @@ struct VulkanDevice
 	~VulkanDevice();
 	uint32_t        getMemoryType(uint32_t typeBits, VkMemoryPropertyFlags properties, VkBool32 *memTypeFound = nullptr) const;
 	uint32_t        getQueueFamilyIndex(VkQueueFlags queueFlags) const;
-	VkResult        createLogicalDevice(VkPhysicalDeviceFeatures enabledFeatures, vstd::span<const vstd::string> enabledExtensions, void *pNextChain, bool useSwapChain = true, VkQueueFlags requestedQueueTypes = VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT);
+	VkResult        createLogicalDevice(VkPhysicalDeviceFeatures& enabledFeatures, vstd::span<const vstd::string> enabledExtensions, void *pNextChain, bool useSwapChain = true, VkQueueFlags requestedQueueTypes = VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT);
 	bool            extensionSupported(vstd::string_view extension);
 	VkFormat        getSupportedDepthFormat(bool checkSamplingSupport);
 };

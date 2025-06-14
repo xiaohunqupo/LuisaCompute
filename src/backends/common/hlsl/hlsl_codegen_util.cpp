@@ -56,7 +56,7 @@ struct DXILRegisterIndexer : public RegisterIndexer {
 struct SpirVRegisterIndexer : public RegisterIndexer {
     uint count;
     void init() override {
-        count = 2;
+        count = 1;
     }
     uint &get(uint idx) override {
         return count;
@@ -90,10 +90,10 @@ vstd::string_view CodegenUtility::ReadInternalHLSLFile(vstd::string_view name) {
     return {v.result.data(), v.result.size()};
 }
 namespace detail {
-static size_t AddHeader(CallOpSet const &ops, vstd::StringBuilder &builder, bool isRaster) {
+static size_t AddHeader(CallOpSet const &ops, vstd::StringBuilder &builder, bool isRaster, bool is_spirv) {
     builder << CodegenUtility::ReadInternalHLSLFile("hlsl_header");
     size_t immutable_size = builder.size();
-    if (ops.uses_raytracing()) {
+    if (ops.uses_raytracing() && !is_spirv) {
         builder << CodegenUtility::ReadInternalHLSLFile("raytracing_header");
     }
     if (ops.test(CallOp::DETERMINANT)) {
@@ -2114,6 +2114,7 @@ CodegenUtility::~CodegenUtility() {}
 CodegenResult CodegenUtility::Codegen(
     Function kernel, luisa::string_view native_code, uint custom_mask, bool isSpirV) {
     opt = CodegenStackData::Allocate(this);
+    opt->isSpirv = isSpirV;
     auto disposeOpt = vstd::scope_exit([&] {
         CodegenStackData::DeAllocate(std::move(opt));
     });
@@ -2127,7 +2128,7 @@ CodegenResult CodegenUtility::Codegen(
     vstd::StringBuilder finalResult;
     opt->incrementalFunc = &incrementalFunc;
     finalResult.reserve(65500);
-    uint64 immutableHeaderSize = detail::AddHeader(kernel.propagated_builtin_callables(), finalResult, false);
+    uint64 immutableHeaderSize = detail::AddHeader(kernel.propagated_builtin_callables(), finalResult, false, isSpirV);
     finalResult << native_code << "\n//"sv;
     static_cast<void>(vstd::to_string(custom_mask));
     finalResult << '\n';
@@ -2182,6 +2183,7 @@ CodegenResult CodegenUtility::RasterCodegen(
     uint custom_mask,
     bool isSpirV) {
     opt = CodegenStackData::Allocate(this);
+    opt->isSpirv = isSpirV;
     // CodegenStackData::ThreadLocalSpirv() = false;
     opt->kernel = vertFunc;
     opt->isRaster = true;
@@ -2197,7 +2199,7 @@ CodegenResult CodegenUtility::RasterCodegen(
     finalResult.reserve(65500);
     auto opSet = vertFunc.propagated_builtin_callables();
     opSet.propagate(pixelFunc.propagated_builtin_callables());
-    uint64 immutableHeaderSize = detail::AddHeader(opSet, finalResult, true);
+    uint64 immutableHeaderSize = detail::AddHeader(opSet, finalResult, true, isSpirV);
     finalResult << native_code << "\n//"sv;
     static_cast<void>(vstd::to_string(custom_mask));
     finalResult << '\n';
