@@ -104,14 +104,20 @@ Stream::Stream(Device *device, StreamTag tag)
         case StreamTag::GRAPHICS:
             pool_ci.queueFamilyIndex = device->graphics_queue_index();
             _queue = device->graphics_queue();
+            resource_barrier.queue_type = ResourceBarrier::QueueType::Graphics;
+            resource_barrier.queue_index = device->graphics_queue_index();
             break;
         case StreamTag::COPY:
             pool_ci.queueFamilyIndex = device->copy_queue_index();
-            _queue = device->compute_queue();
+            resource_barrier.queue_type = ResourceBarrier::QueueType::Copy;
+            _queue = device->copy_queue();
+            resource_barrier.queue_index = device->copy_queue_index();
             break;
         case StreamTag::COMPUTE:
             pool_ci.queueFamilyIndex = device->compute_queue_index();
-            _queue = device->copy_queue();
+            resource_barrier.queue_type = ResourceBarrier::QueueType::Compute;
+            _queue = device->compute_queue();
+            resource_barrier.queue_index = device->compute_queue_index();
             break;
         default:
             LUISA_ASSERT(false, "Illegal stream tag.");
@@ -149,6 +155,7 @@ void Stream::dispatch(
             return CommandBuffer{*this};
         }();
         auto cb = cmdbuffer.cmdbuffer();
+        cmdbuffer.resource_barrier = &resource_barrier;
         cmdbuffer.begin();
         cmdbuffer.execute(cmds);
         cmdbuffer.end();
@@ -231,13 +238,51 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
             auto cmd = i->cmd;
             switch (cmd->tag()) {
                 case Command::Tag::EBufferUploadCommand: {
-
+                    auto c = static_cast<BufferUploadCommand const *>(cmd);
+                    resource_barrier->record(
+                        BufferView{
+                            reinterpret_cast<Buffer const *>(c->handle()),
+                            c->offset(),
+                            c->size()},
+                        ResourceBarrier::Usage::CopyDest);
                 } break;
                 case Command::Tag::EBufferDownloadCommand: {
+                    auto c = static_cast<BufferDownloadCommand const *>(cmd);
+                    resource_barrier->record(
+                        BufferView{
+                            reinterpret_cast<Buffer const *>(c->handle()),
+                            c->offset(),
+                            c->size()},
+                        ResourceBarrier::Usage::CopySource);
                 } break;
                 case Command::Tag::EBufferCopyCommand: {
+                    auto c = static_cast<BufferCopyCommand const *>(cmd);
+                    resource_barrier->record(
+                        BufferView{
+                            reinterpret_cast<Buffer const *>(c->dst_handle()),
+                            c->dst_offset(),
+                            c->size()},
+                        ResourceBarrier::Usage::CopyDest);
+                    resource_barrier->record(
+                        BufferView{
+                            reinterpret_cast<Buffer const *>(c->src_handle()),
+                            c->src_offset(),
+                            c->size()},
+                        ResourceBarrier::Usage::CopySource);
                 } break;
                 case Command::Tag::EBufferToTextureCopyCommand: {
+                    auto c = static_cast<BufferToTextureCopyCommand const *>(cmd);
+                    resource_barrier->record(
+                        TexView{
+                            reinterpret_cast<Texture const *>(c->texture()),
+                            c->level()},
+                        ResourceBarrier::Usage::CopySource);
+                    resource_barrier->record(
+                        BufferView{
+                            reinterpret_cast<Buffer const *>(c->buffer()),
+                            c->buffer_offset(),
+                            pixel_storage_size(c->storage(), c->size())},
+                        ResourceBarrier::Usage::CopyDest);
                 } break;
                 case Command::Tag::EShaderDispatchCommand: {
                 } break;
@@ -248,6 +293,18 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                 case Command::Tag::ETextureCopyCommand: {
                 } break;
                 case Command::Tag::ETextureToBufferCopyCommand: {
+                    auto c = static_cast<TextureToBufferCopyCommand const *>(cmd);
+                    resource_barrier->record(
+                        TexView{
+                            reinterpret_cast<Texture const *>(c->texture()),
+                            c->level()},
+                        ResourceBarrier::Usage::CopyDest);
+                    resource_barrier->record(
+                        BufferView{
+                            reinterpret_cast<Buffer const *>(c->buffer()),
+                            c->buffer_offset(),
+                            pixel_storage_size(c->storage(), c->size())},
+                        ResourceBarrier::Usage::CopySource);
                 } break;
                 case Command::Tag::EAccelBuildCommand: {
                 } break;
@@ -262,6 +319,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                 default: break;
             }
         }
+        resource_barrier->update_states(_cmdbuffer);
         // Execute
         for (auto i = lst; i != nullptr; i = i->p_next) {
             auto cmd = i->cmd;
@@ -299,6 +357,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
             }
         }
     }
+    resource_barrier->update_states(_cmdbuffer);
 }
 
 vstd::span<VkDescriptorSet> Shader::allocate_desc_set(VkDescriptorPool pool, vstd::vector<VkDescriptorSet> &descs) {

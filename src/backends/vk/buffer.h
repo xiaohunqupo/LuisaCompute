@@ -1,6 +1,6 @@
 #pragma once
 #include "resource.h"
-#include <vulkan/vulkan.h>
+#include <vulkan/vulkan_core.h>
 namespace lc::vk {
 class Buffer : public Resource {
     size_t _byte_size;
@@ -14,6 +14,7 @@ public:
     virtual VkBuffer vk_buffer() const = 0;
 };
 class BufferView {
+public:
     Buffer const *buffer;
     size_t offset;
     size_t size_bytes;

@@ -119,7 +119,7 @@ protected:
         size_t size;
         bool require_update{false};
 
-        ResourceStates(Type type, size_t size, Resource const *res);
+        ResourceStates(Type type, size_t size);
     };
     vstd::HashMap<Resource const *, ResourceStates> frameStates;
     vstd::vector<std::pair<Resource const *, ResourceStates *>> current_update_states;

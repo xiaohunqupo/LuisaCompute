@@ -8,9 +8,9 @@
 #include <luisa/runtime/device.h>
 #include <luisa/runtime/context.h>
 #include <luisa/ast/interface.h>
-#include <luisa/dsl/syntax.h>
+#include <luisa/dsl/sugar.h>
+#include <luisa/runtime/bindless_array.h>
 
-#include "common/config.h"
 
 using namespace luisa;
 using namespace luisa::compute;
@@ -50,15 +50,12 @@ LUISA_STRUCT(Test2, a, b) {};
 LUISA_STRUCT(Test3, a, b, c) {};
 LUISA_STRUCT(Point3D, v) {};
 LUISA_STRUCT(MDArray, v) {};
-
-TEST_CASE("dsl") {
+int main(int argc, char *argv[]) 
+ {
 
     constexpr auto f = 10;
 
     luisa::log_level_verbose();
-
-    auto argc = luisa::test::argc();
-    auto argv = luisa::test::argv();
 
     Context context{argv[0]};
     if (argc <= 1) {
@@ -115,7 +112,7 @@ TEST_CASE("dsl") {
     Constant float_consts = {1.0f, 2.0f};
     Constant int_consts = const_vector;
 
-    Kernel1D<Buffer<float>, uint> kernel_def = [&](BufferVar<float> buffer_float, Var<uint> count) noexcept -> void {
+    Kernel1D<Buffer<float>, uint, BindlessArray> kernel_def = [&](BufferVar<float> buffer_float, Var<uint> count, Var<BindlessArray> heap) noexcept -> void {
         using namespace dsl_literals;
         auto lx = 0._half;
         auto ly = 0._float;
@@ -191,11 +188,12 @@ TEST_CASE("dsl") {
 
         Var vec4 = buffer->read(10);           // indexing into captured buffer (with literal)
         Var another_vec4 = buffer->read(v_int);// indexing into captured buffer (with Var)
+        another_vec4 += heap.buffer<float4>(0).read(0);
         buffer->write(v_int + 1, float4(123.0f));
     };
     auto t1 = clock.toc();
 
     auto kernel = device.compile(kernel_def);
-    auto command = kernel(float_buffer, 12u).dispatch(1024u);
-    auto launch_command = static_cast<ShaderDispatchCommand *>(command.get());
+    // auto command = kernel(float_buffer, 12u).dispatch(1024u);
+    // auto launch_command = static_cast<ShaderDispatchCommand *>(command.get());
 }

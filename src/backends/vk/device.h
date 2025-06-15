@@ -1,5 +1,5 @@
 #pragma once
-#include <vulkan/vulkan.h>
+#include <vulkan/vulkan_core.h>
 #include <luisa/runtime/device.h>
 #include "VulkanDevice.h"
 #include <luisa/vstl/common.h>

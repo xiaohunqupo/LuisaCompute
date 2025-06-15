@@ -4,13 +4,14 @@
 #include "upload_buffer.h"
 #include "readback_buffer.h"
 #include "default_buffer.h"
-#include <vulkan/vulkan.h>
+#include <vulkan/vulkan_core.h>
 #include <luisa/runtime/rhi/stream_tag.h>
 #include <luisa/runtime/rhi/command.h>
 #include <luisa/vstl/lockfree_array_queue.h>
 #include <luisa/vstl/stack_allocator.h>
 #include "../common/command_reorder_visitor.h"
 #include "shader.h"
+#include "resource_barrier.h"
 
 namespace lc::vk {
 class Event;
@@ -54,6 +55,7 @@ class CommandBuffer : public Resource {
     vstd::unique_ptr<CommandBufferState> _state;
 
 public:
+    ResourceBarrier *resource_barrier;
     using Resource::operator bool;
     CommandBuffer(Stream &stream);
     CommandBuffer(CommandBuffer &&);
@@ -117,6 +119,7 @@ class Stream : public Resource {
     std::mutex _mtx;
     vstd::LockFreeArrayQueue<CommandBuffer> _cmdbuffers;
     vstd::LockFreeArrayQueue<AsyncCmd> _exec;
+    ResourceBarrier resource_barrier;
 
 public:
     CommandReorderVisitor<ReorderFuncTable, true> reorder;

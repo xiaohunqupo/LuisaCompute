@@ -30,6 +30,7 @@ Texture::Texture(
               VK_IMAGE_USAGE_SAMPLED_BIT |
               VK_IMAGE_USAGE_STORAGE_BIT)),
       _format(format),
+      _mip(mip),
       _dimension(dimension),
       _simultaneous_access(simultaneous_access) {
     _layouts.resize(mip);

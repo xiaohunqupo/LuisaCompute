@@ -143,7 +143,7 @@ void EnhancedBarrierTracker::Record(
         detail::BarrierAccessMap[barrier_state_idx],
         detail::BarrierLayoutMap[barrier_state_idx]);
 }
-EnhancedBarrierTrackerImpl::ResourceStates::ResourceStates(Type type, size_t size, Resource const *res) : size(size) {
+EnhancedBarrierTrackerImpl::ResourceStates::ResourceStates(Type type, size_t size) : size(size) {
     if (type == Type::Texture) {
         layer_states.reset_as<vstd::vector<TextureRange>>(size);
     } else {
@@ -409,7 +409,7 @@ void EnhancedBarrierTracker::Record(
             size = 1;
             return 0u;
         });
-    auto ite = frameStates.emplace(d3d12Res, type, size, d3d12Res);
+    auto ite = frameStates.emplace(d3d12Res, type, size);
     auto &vec = ite.value().layer_states;
     if (!ite.value().require_update) {
         current_update_states.emplace_back(ite.key(), &ite.value());

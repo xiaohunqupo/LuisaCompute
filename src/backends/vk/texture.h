@@ -1,16 +1,19 @@
 #pragma once
 #include "resource.h"
-#include <vulkan/vulkan.h>
+#include <vulkan/vulkan_core.h>
 #include "vk_allocator.h"
 #include <luisa/runtime/rhi/pixel.h>
 namespace lc::vk {
 class Texture : public Resource {
     AllocatedImage _img;
     compute::PixelFormat _format;
+    uint _mip;
     uint _dimension;
     bool _simultaneous_access;
     vstd::vector<VkImageLayout> _layouts;
 public:
+    auto simultaneous_access() const { return _simultaneous_access; }
+    auto dimension() const { return _dimension; }
     Texture(
         Device *device,
         uint dimension,
@@ -20,8 +23,8 @@ public:
         bool simultaneous_access,
         bool allow_raster_target);
     ~Texture();
+    auto mip() const { return _mip; }
     auto vk_image() const { return _img.image; }
-    auto dimension() const { return _dimension; }
     auto format() const { return _format; }
     auto layout(uint level) const { return _layouts[level]; }
     static VkFormat to_vk_format(compute::PixelFormat format);

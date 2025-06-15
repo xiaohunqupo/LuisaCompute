@@ -1,6 +1,6 @@
 #pragma once
 #include "resource.h"
-#include <vulkan/vulkan.h>
+#include <vulkan/vulkan_core.h>
 #include "../common/hlsl/shader_property.h"
 #include <luisa/runtime/rhi/argument.h>
 #include "buffer.h"

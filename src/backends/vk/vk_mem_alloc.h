@@ -127,7 +127,7 @@ extern "C" {
 #endif
 
 #ifndef VULKAN_H_
-#include <vulkan/vulkan.h>
+#include <vulkan/vulkan_core.h>
 #endif
 
 #if !defined(VMA_VULKAN_VERSION)
