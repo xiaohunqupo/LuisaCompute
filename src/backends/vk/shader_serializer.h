@@ -5,9 +5,10 @@
 #include "../common/hlsl/shader_property.h"
 #include "device.h"
 #include "serde_type.h"
+#include "shader.h"
 namespace luisa {
 class BinaryIO;
-}
+}// namespace luisa
 namespace lc::vk {
 using namespace luisa;
 class Shader;
@@ -16,6 +17,7 @@ class ShaderSerializer {
 public:
     static void serialize_bytecode(
         vstd::span<const hlsl::Property> binds,
+        vstd::span<const SavedArgument> saved_args,
         vstd::MD5 shader_md5,
         vstd::MD5 type_md5,
         uint3 block_size,
@@ -41,5 +43,7 @@ public:
         vstd::string_view file_name,
         SerdeType serde_type,
         BinaryIO const *bin_io);
+    static vstd::vector<SavedArgument> serialize_saved_args(Function kernel);
+    static vstd::vector<SavedArgument> serialize_saved_args(vstd::IRange<std::pair<Variable, Usage>> &arguments);
 };
 }// namespace lc::vk

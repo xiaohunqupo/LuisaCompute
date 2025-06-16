@@ -19,11 +19,13 @@ static const bool PRINT_CODE = ([] {
 namespace lc::vk {
 ComputeShader::ComputeShader(
     Device *device,
+    uint3 block_size,
     vstd::span<hlsl::Property const> binds,
+    vstd::vector<SavedArgument> &&saved_args,
     vstd::span<uint const> spv_code,
     vstd::vector<Argument> &&captured,
     vstd::span<std::byte const> cache_code)
-    : Shader{device, ShaderTag::ComputeShader, std::move(captured), binds} {
+    : Shader{device, ShaderTag::ComputeShader, std::move(captured), std::move(saved_args), binds}, _block_size(block_size) {
     VkPipelineCacheCreateInfo pso_ci{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO};
     if (!cache_code.empty()) {
@@ -110,13 +112,16 @@ ComputeShader *ComputeShader::compile(
             [&](Microsoft::WRL::ComPtr<IDxcBlob> const &buffer) {
                 auto shader = new ComputeShader(
                     device,
+                    blockSize,
                     str.properties,
+                    ShaderSerializer::serialize_saved_args(kernel),
                     {reinterpret_cast<const uint *>(buffer->GetBufferPointer()), buffer->GetBufferSize() / sizeof(uint)},
                     std::move(bindings),
                     {});
                 if (write_cache) {
                     ShaderSerializer::serialize_bytecode(
                         shader->binds(),
+                        shader->saved_arguments(),
                         md5,
                         vstd::MD5(vstd::MD5::MD5Data{0, 0}),
                         kernel.block_size(),

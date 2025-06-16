@@ -2,12 +2,18 @@
 #include "log.h"
 #include "device.h"
 namespace lc::vk {
+SavedArgument::SavedArgument(Type const *type) {
+    if (luisa::to_underlying(type->tag()) < luisa::to_underlying(Type::Tag::BUFFER)) {
+        structSize = type->size();
+    }
+}
 Shader::Shader(
     Device *device,
     ShaderTag tag,
     vstd::vector<Argument> &&captured,
+    vstd::vector<SavedArgument> &&saved_arguments,
     vstd::span<hlsl::Property const> binds)
-    : Resource{device}, _captured{std::move(captured)} {
+    : Resource{device}, _captured{std::move(captured)}, _saved_arguments(std::move(saved_arguments)) {
     VkShaderStageFlagBits stage_bits = [&]() -> VkShaderStageFlagBits {
         switch (tag) {
             case ShaderTag::ComputeShader:
@@ -55,9 +61,8 @@ Shader::Shader(
         v.descriptorCount = i.array_size == ~0u ? 65535u : i.array_size;
         v.stageFlags = stage_bits;
         v.pImmutableSamplers = nullptr;
-        vstd::push_back_all(_binds, binds);
     }
-
+    vstd::push_back_all(_binds, binds);
     _desc_set_layout.reserve(bindings.size());
     for (auto &&i : bindings) {
         VkDescriptorSetLayoutCreateInfo descriptorLayout{

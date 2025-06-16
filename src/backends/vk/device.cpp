@@ -364,6 +364,7 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
     _enable_device_exts.emplace_back(VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME);
     if (!fallback) {
         _enable_device_exts.emplace_back(VK_KHR_RAY_QUERY_EXTENSION_NAME);
+        _enable_device_exts.emplace_back(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
         _enable_device_exts.emplace_back(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
         _enable_device_exts.emplace_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
         _enable_device_exts.emplace_back(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
@@ -382,6 +383,7 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
         .shaderUniformTexelBufferArrayNonUniformIndexing = VK_TRUE,
         .shaderStorageTexelBufferArrayNonUniformIndexing = VK_TRUE,
         .runtimeDescriptorArray = VK_TRUE};
+
     VkPhysicalDeviceRayQueryFeaturesKHR enable_rayquery_features{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR,
         .pNext = &enable_bindless_features,
@@ -395,11 +397,14 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES,
         .pNext = fallback ? nullptr : &enabledAccelerationStructureFeatures,
         .timelineSemaphore = VK_TRUE};
-    VkPhysicalDeviceVulkan12Features features12 = _vk_device->features12;
-    void *ext_chain = &enable_timeline_feature;
+    VkPhysicalDeviceSynchronization2Features barrier_feature{
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES,
+        &enable_timeline_feature,
+        true};
+    void *ext_chain = &barrier_feature;
     VK_CHECK_RESULT(_vk_device->createLogicalDevice(_device_features, _enable_device_exts, ext_chain));
     auto device = _vk_device->logicalDevice;
-    
+
     // Get a graphics queue from the device
     vkGetDeviceQueue(device, _vk_device->queueFamilyIndices.graphics, 0, &_graphics_queue);
     vkGetDeviceQueue(device, _vk_device->queueFamilyIndices.compute, 0, &_compute_queue);
@@ -438,7 +443,7 @@ void *Device::native_handle() const noexcept { return _vk_device->logicalDevice;
 BufferCreationInfo Device::create_buffer(const Type *element, size_t elem_count, void *external_ptr) noexcept {
     BufferCreationInfo info;
     info.element_stride = (element == Type::of<void>()) ? 1 : element->size();
-    auto ptr = new DefaultBuffer(this, info.element_stride * elem_count);
+    auto ptr = new DefaultBuffer(this, info.element_stride * elem_count, false);
     info.handle = reinterpret_cast<uint64_t>(ptr);
     info.native_handle = ptr->vk_buffer();
     info.total_size_bytes = ptr->byte_size();
@@ -524,8 +529,10 @@ ShaderCreationInfo Device::create_shader(const ShaderOption &option, Function ke
             false);
         comp_result.multi_visit(
             [&](Microsoft::WRL::ComPtr<IDxcBlob> const &buffer) {
+                auto saved_args = ShaderSerializer::serialize_saved_args(kernel);
                 ShaderSerializer::serialize_bytecode(
                     code.properties,
+                    saved_args,
                     check_md5,
                     code.typeMD5,
                     kernel.block_size(),
@@ -573,7 +580,10 @@ ShaderCreationInfo Device::create_shader(const ShaderOption &option, Function ke
 }
 ShaderCreationInfo Device::create_shader(const ShaderOption &option, const ir::KernelModule *kernel) noexcept { return ShaderCreationInfo::make_invalid(); }
 ShaderCreationInfo Device::load_shader(luisa::string_view name, luisa::span<const Type *const> arg_types) noexcept { return ShaderCreationInfo::make_invalid(); }
-Usage Device::shader_argument_usage(uint64_t handle, size_t index) noexcept { return Usage::NONE; }
+Usage Device::shader_argument_usage(uint64_t handle, size_t index) noexcept {
+    auto shader = reinterpret_cast<Shader const *>(handle);
+    return shader->saved_arguments()[index].varUsage;
+}
 void Device::destroy_shader(uint64_t handle) noexcept {
     delete reinterpret_cast<ComputeShader *>(handle);
 }

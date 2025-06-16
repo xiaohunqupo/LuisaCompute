@@ -25,6 +25,7 @@ public:
     Device *device;
     uint64 allocate(uint64 size) override;
     void deallocate(uint64 handle) override;
+    Pack *Create(size_t size);
 };
 template<typename T>
 class BufferAllocator {
@@ -46,15 +47,24 @@ struct CommandBufferState {
     temp_buffer::BufferAllocator<DefaultBuffer> default_alloc;
     temp_buffer::BufferAllocator<ReadbackBuffer> readback_alloc;
     vstd::vector<VkDescriptorSet> _desc_sets;
+    vstd::vector<VkImageView> img_views;
+    vstd::vector<vstd::function<void()>> _callbacks;
     CommandBufferState();
+    void init(Device &device);
     void reset(Device &device);
 };
+
 class CommandBuffer : public Resource {
     Stream &stream;
     VkCommandBuffer _cmdbuffer;
     vstd::unique_ptr<CommandBufferState> _state;
 
 public:
+    vstd::vector<std::byte> *uniform_data;
+    vstd::vector<std::pair<size_t, size_t>> *dispatch_offsets;
+    vstd::vector<VkWriteDescriptorSet> *write_desc_sets;
+    vstd::StackAllocator *temp_desc;
+
     ResourceBarrier *resource_barrier;
     using Resource::operator bool;
     CommandBuffer(Stream &stream);
@@ -120,6 +130,11 @@ class Stream : public Resource {
     vstd::LockFreeArrayQueue<CommandBuffer> _cmdbuffers;
     vstd::LockFreeArrayQueue<AsyncCmd> _exec;
     ResourceBarrier resource_barrier;
+    vstd::vector<std::byte> uniform_data;
+    vstd::vector<std::pair<size_t, size_t>> dispatch_offsets;
+    vstd::VEngineMallocVisitor temp_desc_visitor;
+    vstd::StackAllocator temp_desc;
+    vstd::vector<VkWriteDescriptorSet> write_desc_sets;
 
 public:
     CommandReorderVisitor<ReorderFuncTable, true> reorder;
