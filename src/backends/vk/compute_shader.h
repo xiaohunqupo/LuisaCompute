@@ -18,13 +18,16 @@ using namespace luisa::compute;
 class ComputeShader : public Shader {
     VkPipelineCache _pipe_cache{};
     VkPipeline _pipeline;
-
+    uint3 _block_size;
 public:
     auto pipeline() const { return _pipeline; }
     bool serialize_pso(vstd::vector<std::byte> &result) const override;
+    auto block_size() const { return _block_size; }
     ComputeShader(
         Device *device,
+        uint3 block_size,
         vstd::span<hlsl::Property const> binds,
+        vstd::vector<SavedArgument> &&saved_arguments,
         vstd::span<uint const> spv_code,
         vstd::vector<Argument> &&captured,
         vstd::span<std::byte const> cache_code);

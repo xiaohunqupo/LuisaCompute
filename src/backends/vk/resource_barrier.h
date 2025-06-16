@@ -118,5 +118,6 @@ public:
     void restore_states(VkCommandBuffer cmd_buffer);
     void barrier_filter(VkBufferMemoryBarrier2 &barrier) const;
     void barrier_filter(VkImageMemoryBarrier2 &barrier) const;
+    VkImageLayout get_layout(Resource const* res, uint level) const;
 };
 }// namespace lc::vk

@@ -28,7 +28,7 @@ ReadbackBuffer::ReadbackBuffer(Device *device, size_t size_bytes)
 ReadbackBuffer::~ReadbackBuffer() {
     device()->allocator().destroy_buffer(_res);
 }
-void UploadBuffer::copy_from(void const *data, size_t offset, size_t size) {
+void UploadBuffer::copy_from(void const *data, size_t offset, size_t size) const {
     void *mapped_ptr;
     VK_CHECK_RESULT(vmaMapMemory(
         device()->allocator().allocator(),
@@ -43,7 +43,7 @@ void UploadBuffer::copy_from(void const *data, size_t offset, size_t size) {
         device()->allocator().allocator(),
         _res.allocation);
 }
-void ReadbackBuffer::copy_to(void *data, size_t offset, size_t size) {
+void ReadbackBuffer::copy_to(void *data, size_t offset, size_t size) const {
     void *mapped_ptr;
     VK_CHECK_RESULT(vmaMapMemory(
         device()->allocator().allocator(),
@@ -67,6 +67,8 @@ DefaultBuffer::DefaultBuffer(Device *device, size_t size_bytes, bool used_as_acc
                   static_cast<VkBufferUsageFlagBits>(
                       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
                       VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
+                      VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
+                      VK_BUFFER_USAGE_TRANSFER_DST_BIT |
                       VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT |
                       (used_as_accel ? (VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
                                         VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR) :

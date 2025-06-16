@@ -282,6 +282,15 @@ void FilterAccess(
     }
 }
 }// namespace detail
+VkImageLayout ResourceBarrier::get_layout(Resource const *res, uint level) const {
+    auto iter = frame_states.find(res);
+    LUISA_ASSERT(iter && iter.value().layer_states.index() == 1);
+    auto &v = iter.value();
+    auto &ranges = v.layer_states.get<1>();
+    LUISA_ASSERT(ranges.size() > level);
+    return ranges[level].before_layout;
+}
+
 void ResourceBarrier::update_states(VkCommandBuffer cmd_buffer) {
     buffer_barriers.clear();
     tex_barriers.clear();
