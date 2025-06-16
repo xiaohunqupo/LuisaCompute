@@ -491,8 +491,8 @@ void process_dxgi_error(HRESULT hr) {
                 } else {
                     ContextStr.clear();
                 }
-                luisa::wstring OpName = (BreadcrumbOp < std::size(OpNames)) ? OpNames[BreadcrumbOp] : L"Unknown Op";
-                luisa::wstring State = Op < LastCompletedOp ? L"[ok]" : (Op == LastCompletedOp ? L"[Active]" : L"[ ]");
+                luisa::wstring_view OpName = (BreadcrumbOp < std::size(OpNames)) ? OpNames[BreadcrumbOp] : L"Unknown Op";
+                luisa::wstring_view State = Op < LastCompletedOp ? L"[ok]" : (Op == LastCompletedOp ? L"[Active]" : L"[ ]");
                 luisa::format_to(std::back_inserter(result), L"\t{} Op: {}, {} {} {}\n", State, Op, OpName, ContextStr, (Op + 1 == LastCompletedOp) ? L" - LAST COMPLETED" : L"");
             }
         }
