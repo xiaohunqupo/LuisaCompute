@@ -475,7 +475,7 @@ void process_dxgi_error(HRESULT hr) {
             if (node->pCommandQueueDebugNameW) {
                 result += luisa::format<luisa::wstring>(L"Command queue debug name: {}\n", node->pCommandQueueDebugNameW);
             }
-            result += luisa::format<luisa::wstring>(L"DRED: {} completed of {}\n", LastCompletedOp, node->BreadcrumbCount);
+            result += luisa::format(L"DRED: {} completed of {}\n", LastCompletedOp, node->BreadcrumbCount);
             TracedCommandLists++;
             int32 FirstOp = std::max(LastCompletedOp - 100, 0);
             int32 LastOp = std::min(LastCompletedOp + 20, int32(node->BreadcrumbCount) - 1);
@@ -486,14 +486,14 @@ void process_dxgi_error(HRESULT hr) {
             for (int32 Op = FirstOp; Op <= LastOp; ++Op) {
                 D3D12_AUTO_BREADCRUMB_OP BreadcrumbOp = node->pCommandHistory[Op];
                 auto OpContextStr = ContextStrings.find(Op);
-                if (OpContextStr) {
+                if (OpContextStr != ContextStrings.end()) {
                     ContextStr += OpContextStr->second;
                 } else {
                     ContextStr.clear();
                 }
                 luisa::wstring OpName = (BreadcrumbOp < std::size(OpNames)) ? OpNames[BreadcrumbOp] : L"Unknown Op";
                 luisa::wstring State = Op < LastCompletedOp ? L"[ok]" : (Op == LastCompletedOp ? L"[Active]" : L"[ ]");
-                result += luisa::format<luisa::wstring>(L"\t{} Op: {}, {} {} {}\n", State, Op, OpName, ContextStr, (Op + 1 == LastCompletedOp) ? L" - LAST COMPLETED" : L"");
+                result += luisa::format(L"\t{} Op: {}, {} {} {}\n", State, Op, OpName, ContextStr, (Op + 1 == LastCompletedOp) ? L" - LAST COMPLETED" : L"");
             }
         }
         node = node->pNext;
@@ -501,7 +501,7 @@ void process_dxgi_error(HRESULT hr) {
     if (TracedCommandLists == 0) {
         result += L"DRED: No command list found with active outstanding operations (all finished or not started yet)\n";
     }
-    result += luisa::format<luisa::wstring>(L"page fault VA: {}\n", DredPageFaultOutput.PageFaultVA);
+    result += luisa::format(L"page fault VA: {}\n", DredPageFaultOutput.PageFaultVA);
 
     for (auto node = DredPageFaultOutput.pHeadExistingAllocationNode; node != nullptr; node = node->pNext) {
         if (node->ObjectNameW) {
