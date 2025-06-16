@@ -11,7 +11,6 @@
 #include <luisa/dsl/sugar.h>
 #include <luisa/runtime/bindless_array.h>
 
-
 using namespace luisa;
 using namespace luisa::compute;
 
@@ -50,8 +49,8 @@ LUISA_STRUCT(Test2, a, b) {};
 LUISA_STRUCT(Test3, a, b, c) {};
 LUISA_STRUCT(Point3D, v) {};
 LUISA_STRUCT(MDArray, v) {};
-int main(int argc, char *argv[]) 
- {
+
+int main(int argc, char *argv[]) {
 
     constexpr auto f = 10;
 

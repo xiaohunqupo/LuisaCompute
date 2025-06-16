@@ -32,7 +32,6 @@ function(luisa_compute_add_test name)
 endfunction()
 
 luisa_compute_add_test(context)
-luisa_compute_add_test(dsl)
 luisa_compute_add_test(buffer_io)
 
 if (LUISA_COMPUTE_ENABLE_RUST)
@@ -56,8 +55,9 @@ luisa_compute_add_executable(test_binding_group_template test_binding_group_temp
 luisa_compute_add_executable(test_copy test_copy.cpp)
 luisa_compute_add_executable(test_constant test_constant.cpp)
 luisa_compute_add_executable(test_cpu_callable test_cpu_callable.cpp)
-luisa_compute_add_executable(test_dsl_multithread test_dsl_multithread.cpp)
+luisa_compute_add_executable(test_dsl test_dsl.cpp)
 luisa_compute_add_executable(test_dsl_sugar test_dsl_sugar.cpp)
+luisa_compute_add_executable(test_dsl_multithread test_dsl_multithread.cpp)
 luisa_compute_add_executable(test_dstorage test_dstorage.cpp)
 luisa_compute_add_executable(test_dstorage_decompression test_dstorage_decompression.cpp)
 luisa_compute_add_executable(test_indirect test_indirect.cpp)
