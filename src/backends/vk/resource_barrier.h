@@ -29,22 +29,22 @@ class ResourceBarrier {
     };
     struct BufferRange {
         // Range range;
-        VkPipelineStageFlagBits2 before_stage;
-        VkPipelineStageFlagBits2 after_stage;
-        VkAccessFlagBits2 before_access;
-        VkAccessFlagBits2 after_access;
+        VkPipelineStageFlagBits2 before_stage{0};
+        VkPipelineStageFlagBits2 after_stage{0};
+        VkAccessFlagBits2 before_access{0};
+        VkAccessFlagBits2 after_access{0};
         bool first_time{true};// used for backup
     };
     struct TextureRange {
         bool level_inited{false};
-        bool level_require_update;
+        bool level_require_update{false};
         bool first_time{true};// used for backup
-        VkPipelineStageFlagBits2 before_stage;
-        VkPipelineStageFlagBits2 after_stage;
-        VkAccessFlagBits2 before_access;
-        VkAccessFlagBits2 after_access;
-        VkImageLayout before_layout;
-        VkImageLayout after_layout;
+        VkPipelineStageFlagBits2 before_stage{0};
+        VkPipelineStageFlagBits2 after_stage{0};
+        VkAccessFlagBits2 before_access{0};
+        VkAccessFlagBits2 after_access{0};
+        VkImageLayout before_layout{VK_IMAGE_LAYOUT_GENERAL};
+        VkImageLayout after_layout{VK_IMAGE_LAYOUT_GENERAL};
     };
     struct ResourceStates {
         vstd::variant<

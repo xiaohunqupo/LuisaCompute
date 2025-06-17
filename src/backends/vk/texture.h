@@ -10,7 +10,8 @@ class Texture : public Resource {
     uint _mip;
     uint _dimension;
     bool _simultaneous_access;
-    vstd::vector<VkImageLayout> _layouts;
+    mutable luisa::spin_mutex _layout_mtx;
+    mutable vstd::vector<VkImageLayout> _layouts;
 public:
     auto simultaneous_access() const { return _simultaneous_access; }
     auto dimension() const { return _dimension; }
@@ -26,7 +27,14 @@ public:
     auto mip() const { return _mip; }
     auto vk_image() const { return _img.image; }
     auto format() const { return _format; }
-    auto layout(uint level) const { return _layouts[level]; }
+    auto layout(uint level) const {
+        std::lock_guard lck{_layout_mtx};
+        return _layouts[level];
+    }
+    auto set_layout(uint level, VkImageLayout layout) const {
+        std::lock_guard lck{_layout_mtx};
+        _layouts[level] = layout;
+    }
     static VkFormat to_vk_format(compute::PixelFormat format);
 };
 struct TexView {

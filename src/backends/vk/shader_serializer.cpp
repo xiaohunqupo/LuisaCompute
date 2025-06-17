@@ -38,7 +38,7 @@ void ShaderSerializer::serialize_bytecode(
         .property_size = binds.size(),
         .spv_byte_size = spv_code.size_bytes(),
         .kernel_arg_count = (uint)saved_args.size()};
-    uint64_t final_size = sizeof(ShaderSerHeader) + header.property_size * sizeof(hlsl::Property) + header.spv_byte_size;
+    uint64_t final_size = sizeof(ShaderSerHeader) + header.property_size * sizeof(hlsl::Property) + header.spv_byte_size + header.kernel_arg_count * sizeof(SavedArgument);
     results.push_back_uninitialized(final_size);
     auto data_ptr = results.data();
     auto save = [&]<typename T>(T const &t) {

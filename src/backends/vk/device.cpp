@@ -416,15 +416,16 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
     memcpy(_pso_header.pipelineCacheUUID, _vk_device->properties.pipelineCacheUUID, VK_UUID_SIZE);
     _allocator.create(*this);
     VkDescriptorPoolSize pool_sizes[3];
-    pool_sizes[0].descriptorCount = 65536;
+    pool_sizes[0].descriptorCount = 262144;
     pool_sizes[0].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    pool_sizes[1].descriptorCount = 65536;
+    pool_sizes[1].descriptorCount = 262144;
     pool_sizes[1].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-    pool_sizes[2].descriptorCount = 65536;
+    pool_sizes[2].descriptorCount = 262144;
     pool_sizes[2].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
     VkDescriptorPoolCreateInfo createInfo{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-        .maxSets = 65536,
+        .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+        .maxSets = 262144,
         .poolSizeCount = vstd::array_count(pool_sizes),
         .pPoolSizes = pool_sizes};
     VK_CHECK_RESULT(vkCreateDescriptorPool(logic_device(), &createInfo, Device::alloc_callbacks(), &_desc_pool));

@@ -56,7 +56,7 @@ struct DXILRegisterIndexer : public RegisterIndexer {
 struct SpirVRegisterIndexer : public RegisterIndexer {
     uint count;
     void init() override {
-        count = 1;
+        count = 0;
     }
     uint &get(uint idx) override {
         return count;
@@ -190,14 +190,23 @@ void CodegenUtility::GetVariableName(Variable::Tag type, uint id, vstd::StringBu
             break;
         case Variable::Tag::DISPATCH_SIZE:
             if (opt->funcType == CodegenStackData::FuncType::Kernel) {
-                str << "dsp_c.xyz"sv;
+                if (opt->isSpirv)
+                    str << "dsp_c.v.xyz"sv;
+                else
+                    str << "dsp_c.xyz"sv;
             } else {
-                str << "dsp_c"sv;
+                if (opt->isSpirv)
+                    str << "dsp_c.v"sv;
+                else
+                    str << "dsp_c"sv;
             }
             break;
         case Variable::Tag::KERNEL_ID:
             if (opt->funcType == CodegenStackData::FuncType::Kernel) {
-                str << "dsp_c.w"sv;
+                if (opt->isSpirv)
+                    str << "dsp_c.v.w"sv;
+                else
+                    str << "dsp_c.w"sv;
             } else {
                 str << "ker"sv;
             }
@@ -1538,11 +1547,12 @@ void main(uint3 thdId:SV_GroupThreadId,uint3 dspId:SV_DispatchThreadID,uint3 grp
                 swizzle.emplace_back('z');
             }
             if (!swizzle.empty()) {
+                auto dsp_c = opt->isSpirv ? "dsp_c.v"sv : "dsp_c"sv;
                 if (swizzle.size() == 1) {
-                    result << "if(dspId."sv << swizzle[0] << ">=dsp_c."sv << swizzle[0] << ") return;\n"sv;
+                    result << "if(dspId."sv << swizzle[0] << ">="sv << dsp_c << "."sv << swizzle[0] << ") return;\n"sv;
                 } else {
                     vstd::string_view strv(swizzle.data(), swizzle.size());
-                    result << "if(any(dspId."sv << strv << ">=dsp_c."sv << strv << ")) return;\n"sv;
+                    result << "if(any(dspId."sv << strv << ">="sv << dsp_c << "."sv << strv << ")) return;\n"sv;
                 }
             }
             if (cbufferNonEmpty) {
@@ -1756,9 +1766,15 @@ void CodegenUtility::GenerateCBuffer(
         }
         size += size_cache;
     }
-    result << R"(};
+    if (opt->isSpirv) {
+        result << R"(};
+StructuredBuffer<_Args> _Global:register(t1);
+)"sv;
+    } else {
+        result << R"(};
 StructuredBuffer<_Args> _Global:register(t0);
 )"sv;
+    }
     bind_count += 2;
 }
 void CodegenUtility::GenerateBindless(
@@ -1810,7 +1826,7 @@ void CodegenUtility::PreprocessCodegenProperties(
             Property{
                 ShaderVariableType::ConstantValue,
                 0,
-                1,
+                0,
                 1});
     } else {
         if (!isRaster) {
@@ -1834,7 +1850,7 @@ void CodegenUtility::PreprocessCodegenProperties(
             Property{
                 ShaderVariableType::StructuredBuffer,
                 0,
-                0,
+                0u,
                 1});
     }
     GenerateBindless(properties, varData, isSpirv, bind_count);
@@ -2141,9 +2157,11 @@ CodegenResult CodegenUtility::Codegen(
         GenerateCBuffer({&argRange}, varData, bind_count);
     }
     if (isSpirV) {
-        varData << R"(cbuffer CB:register(b1){
-uint4 dsp_c;
-}
+        varData << R"(
+struct _CBType{
+uint4 v;
+};
+[[vk::push_constant]] ConstantBuffer<_CBType> dsp_c:register(b0);
 )"sv;
         bind_count += 2;
     } else {

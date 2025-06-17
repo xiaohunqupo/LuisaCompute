@@ -72,11 +72,16 @@ Shader::Shader(
         auto &r = _desc_set_layout.emplace_back();
         VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device->logic_device(), &descriptorLayout, Device::alloc_callbacks(), &r));
     }
-
+    VkPushConstantRange push_const_range{
+        VkShaderStageFlags(stage_bits),
+        0,
+        16};
     VkPipelineLayoutCreateInfo pPipelineLayoutCreateInfo{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .setLayoutCount = static_cast<uint>(_desc_set_layout.size()),
-        .pSetLayouts = _desc_set_layout.data()};
+        .pSetLayouts = _desc_set_layout.data(),
+        .pushConstantRangeCount = 1,
+        .pPushConstantRanges = &push_const_range};
     VK_CHECK_RESULT(
         vkCreatePipelineLayout(
             device->logic_device(),

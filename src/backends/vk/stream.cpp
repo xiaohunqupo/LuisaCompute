@@ -76,10 +76,6 @@ struct ResourceBarrierVisitor {
             barrier->record(
                 BufferView{res, bf.offset, bf.size},
                 uav_usage);
-            // barrier->RecordState(
-            //     res,
-            //     D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-            //     true);
         } else {
             barrier->record(
                 BufferView{res, bf.offset, bf.size},
@@ -139,7 +135,7 @@ struct BindPropVisitor {
             reinterpret_cast<DefaultBuffer const *>(bf.handle)->vk_buffer(),
             bf.offset,
             bf.size};
-        cmdbuffer->write_desc_sets->emplace_back(VkWriteDescriptorSet{
+        auto &a = cmdbuffer->write_desc_sets->emplace_back(VkWriteDescriptorSet{
             VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
             nullptr,
             desc_sets[0],
@@ -166,7 +162,7 @@ struct BindPropVisitor {
             Texture::to_vk_format(tex->format()),
             VkComponentMapping{VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY},
             VkImageSubresourceRange{
-                VK_IMAGE_ASPECT_NONE,
+                VK_IMAGE_ASPECT_COLOR_BIT,
                 bf.level,
                 1,
                 0,
@@ -266,6 +262,10 @@ void CommandBufferState::init(Device &device) {
     default_alloc.visitor.device = &device;
 }
 void CommandBufferState::reset(Device &device) {
+    for (auto &i : _callbacks) {
+        i();
+    }
+    _callbacks.clear();
     upload_alloc.clear();
     default_alloc.clear();
     readback_alloc.clear();
@@ -279,10 +279,6 @@ void CommandBufferState::reset(Device &device) {
         vkDestroyImageView(device.logic_device(), i, Device::alloc_callbacks());
     }
     img_views.clear();
-    for (auto &i : _callbacks) {
-        i();
-    }
-    _callbacks.clear();
 }
 void CommandBuffer::reset() {
     _state->reset(*device());
@@ -676,7 +672,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                         c->buffer_offset(),
                         0,
                         0,
-                        VkImageSubresourceLayers{VK_IMAGE_ASPECT_NONE, c->level(), 0, 1},
+                        VkImageSubresourceLayers{VK_IMAGE_ASPECT_COLOR_BIT, c->level(), 0, 1},
                         VkOffset3D{tex_offset.x, tex_offset.y, tex_offset.z},
                         VkExtent3D{size.x, size.y, size.z}};
 
@@ -694,6 +690,47 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                     auto c = static_cast<ShaderDispatchCommand const *>(cmd);
                     auto shader = reinterpret_cast<ComputeShader *>(c->handle());
                     desc_indices.clear();
+                    desc_indices.emplace_back(0);
+                    if (offset_ptr->second > 0) {
+                        auto arg_buffer_info = temp_desc->allocate_memory<VkDescriptorBufferInfo>();
+                        *arg_buffer_info = VkDescriptorBufferInfo{
+                            arg_buffer.buffer->vk_buffer(),
+                            arg_buffer.offset + offset_ptr->first,
+                            offset_ptr->second};
+                        write_desc_sets->emplace_back(VkWriteDescriptorSet{
+                            VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                            nullptr,
+                            0,
+                            desc_indices[0]++,
+                            0,
+                            1,
+                            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                            nullptr,
+                            arg_buffer_info,
+                            nullptr});
+                    }
+                    // // dispatch count
+                    // {
+                    //     auto cbuffer = temp_desc->allocate_memory<VkDescriptorBufferInfo>();
+                    //     auto ptr = _state->upload_alloc.allocate(sizeof(uint4), 16);
+                    //     uint4 value{make_uint4(c->dispatch_size(), 0)};
+                    //     static_cast<UploadBuffer const *>(ptr.buffer)->copy_from(&value, ptr.offset, sizeof(value));
+                    //     *cbuffer = VkDescriptorBufferInfo{
+                    //         ptr.buffer->vk_buffer(),
+                    //         ptr.offset,
+                    //         sizeof(uint4)};
+                    //     write_desc_sets->emplace_back(VkWriteDescriptorSet{
+                    //         VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                    //         nullptr,
+                    //         0,
+                    //         desc_indices[0]++,
+                    //         0,
+                    //         1,
+                    //         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                    //         nullptr,
+                    //         cbuffer,
+                    //         nullptr});
+                    // }
                     BindPropVisitor visitor;
                     visitor.cmdbuffer = this;
                     visitor.desc_sets = shader->allocate_desc_set(device()->desc_pool(), _state->_desc_sets);
@@ -702,7 +739,14 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                     visitor.arg = shader->saved_arguments().data();
                     DecodeCmd(shader->captured(), visitor);
                     DecodeCmd(c->arguments(), visitor);
-                    vkCmdBindPipeline(_cmdbuffer, VK_PIPELINE_BIND_POINT_COMPUTE, shader->pipeline());
+                    if (!write_desc_sets->empty()) {
+                        vkUpdateDescriptorSets(
+                            device()->logic_device(),
+                            write_desc_sets->size(),
+                            write_desc_sets->data(), 0,
+                            nullptr);
+                        write_desc_sets->clear();
+                    }
                     vkCmdBindDescriptorSets(
                         _cmdbuffer,
                         VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -712,18 +756,39 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                         visitor.desc_sets.data(),
                         0,
                         nullptr);
+                    vkCmdBindPipeline(_cmdbuffer, VK_PIPELINE_BIND_POINT_COMPUTE, shader->pipeline());
                     auto calc = [](uint disp, uint thd) {
                         return (disp + thd - 1u) / thd;
                     };
                     auto blk = shader->block_size();
                     if (c->is_multiple_dispatch()) {
+                        LUISA_ASSERT(false, "Dispatch count not implemented.");
+                        uint idx = 0;
                         for (auto &disp_size : c->dispatch_sizes()) {
+                            uint4 value{make_uint4(disp_size, idx)};
+                            ++idx;
+                            vkCmdPushConstants(
+                                _cmdbuffer,
+                                shader->pipeline_layout(),
+                                VK_SHADER_STAGE_COMPUTE_BIT,
+                                0,
+                                16,
+                                &value);
                             vkCmdDispatch(_cmdbuffer, calc(disp_size.x, blk.x), calc(disp_size.y, blk.y), calc(disp_size.z, blk.z));
                         }
                     } else {
                         auto disp_size = c->dispatch_size();
+                        uint4 value{make_uint4(disp_size, 0)};
+                        vkCmdPushConstants(
+                            _cmdbuffer,
+                            shader->pipeline_layout(),
+                            VK_SHADER_STAGE_COMPUTE_BIT,
+                            0,
+                            16,
+                            &value);
                         vkCmdDispatch(_cmdbuffer, calc(disp_size.x, blk.x), calc(disp_size.y, blk.y), calc(disp_size.z, blk.z));
                     }
+                    offset_ptr++;
                 } break;
                 case Command::Tag::ETextureUploadCommand: {
                     auto c = static_cast<TextureUploadCommand const *>(cmd);
@@ -739,7 +804,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                         buffer.offset,
                         0,
                         0,
-                        VkImageSubresourceLayers{VK_IMAGE_ASPECT_NONE, c->level(), 0, 1},
+                        VkImageSubresourceLayers{VK_IMAGE_ASPECT_COLOR_BIT, c->level(), 0, 1},
                         VkOffset3D{tex_offset.x, tex_offset.y, tex_offset.z},
                         VkExtent3D{size.x, size.y, size.z}};
 
@@ -772,7 +837,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                         buffer.offset,
                         0,
                         0,
-                        VkImageSubresourceLayers{VK_IMAGE_ASPECT_NONE, c->level(), 0, 1},
+                        VkImageSubresourceLayers{VK_IMAGE_ASPECT_COLOR_BIT, c->level(), 0, 1},
                         VkOffset3D{tex_offset.x, tex_offset.y, tex_offset.z},
                         VkExtent3D{size.x, size.y, size.z}};
                     VkCopyImageToBufferInfo2 info{
@@ -797,9 +862,9 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                     VkImageCopy2 copy{
                         VK_STRUCTURE_TYPE_IMAGE_COPY_2,
                         nullptr,
-                        VkImageSubresourceLayers{VK_IMAGE_ASPECT_NONE, c->src_level(), 0, 1},
+                        VkImageSubresourceLayers{VK_IMAGE_ASPECT_COLOR_BIT, c->src_level(), 0, 1},
                         VkOffset3D{src_tex_offset.x, src_tex_offset.y, src_tex_offset.z},
-                        VkImageSubresourceLayers{VK_IMAGE_ASPECT_NONE, c->dst_level(), 0, 1},
+                        VkImageSubresourceLayers{VK_IMAGE_ASPECT_COLOR_BIT, c->dst_level(), 0, 1},
                         VkOffset3D{dst_tex_offset.x, dst_tex_offset.y, dst_tex_offset.z},
                         VkExtent3D{size.x, size.y, size.z}};
                     VkCopyImageInfo2 info{
@@ -826,7 +891,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                         c->buffer_offset(),
                         0,
                         0,
-                        VkImageSubresourceLayers{VK_IMAGE_ASPECT_NONE, c->level(), 0, 1},
+                        VkImageSubresourceLayers{VK_IMAGE_ASPECT_COLOR_BIT, c->level(), 0, 1},
                         VkOffset3D{tex_offset.x, tex_offset.y, tex_offset.z},
                         VkExtent3D{size.x, size.y, size.z}};
                     VkCopyImageToBufferInfo2 info{
@@ -856,14 +921,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
         }
     }
     resource_barrier->restore_states(_cmdbuffer);
-    if (!write_desc_sets->empty()) {
-        vkUpdateDescriptorSets(
-            device()->logic_device(),
-            write_desc_sets->size(),
-            write_desc_sets->data(), 0,
-            nullptr);
-        write_desc_sets->clear();
-    }
+
     temp_desc->clear();
 }
 
@@ -958,7 +1016,7 @@ void Shader::update_desc_set(
                     }
                 }(),
                 .format = Texture::to_vk_format(tex->format()),
-                .subresourceRange = VkImageSubresourceRange{.baseMipLevel = t.level, .levelCount = 1, .baseArrayLayer = 0, .layerCount = 1}};
+                .subresourceRange = VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .baseMipLevel = t.level, .levelCount = 1, .baseArrayLayer = 0, .layerCount = 1}};
             VK_CHECK_RESULT(vkCreateImageView(device()->logic_device(), &img_view_create_info, Device::alloc_callbacks(), &img_view));
             image_info.imageView = img_view;
             image_info.imageLayout = tex->layout(t.level);

@@ -46,22 +46,22 @@ static constexpr VkAccessFlagBits2 BarrierAccessMap[] = {
 static constexpr VkAccessFlagBits2 write_access = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
 static constexpr VkImageLayout BarrierLayoutMap[] = {
     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,        // ComputeRead,
-    VK_IMAGE_LAYOUT_UNDEFINED,                       // ComputeAccelRead,
+    VK_IMAGE_LAYOUT_GENERAL,                         // ComputeAccelRead,
     VK_IMAGE_LAYOUT_GENERAL,                         // ComputeUAV,
     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,            // CopySource,
     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,            // CopyDest,
-    VK_IMAGE_LAYOUT_UNDEFINED,                       // BuildAccel,
-    VK_IMAGE_LAYOUT_UNDEFINED,                       // CopyAccelSrc
-    VK_IMAGE_LAYOUT_UNDEFINED,                       // CopyAccelDst
+    VK_IMAGE_LAYOUT_GENERAL,                         // BuildAccel,
+    VK_IMAGE_LAYOUT_GENERAL,                         // CopyAccelSrc
+    VK_IMAGE_LAYOUT_GENERAL,                         // CopyAccelDst
     VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, //DepthRead
     VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,//DepthWrite
-    VK_IMAGE_LAYOUT_UNDEFINED,                       // DepthWrite
-    VK_IMAGE_LAYOUT_UNDEFINED,                       //VertexRead,
-    VK_IMAGE_LAYOUT_UNDEFINED,                       //  IndexRead,
+    VK_IMAGE_LAYOUT_GENERAL,                         // DepthWrite
+    VK_IMAGE_LAYOUT_GENERAL,                         //VertexRead,
+    VK_IMAGE_LAYOUT_GENERAL,                         //  IndexRead,
     VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,              //RenderTarget
-    VK_IMAGE_LAYOUT_UNDEFINED,                       //AccelInstanceBuffer
+    VK_IMAGE_LAYOUT_GENERAL,                         //AccelInstanceBuffer
     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,        // RasterRead
-    VK_IMAGE_LAYOUT_UNDEFINED,                       // RasterAccelRead,
+    VK_IMAGE_LAYOUT_GENERAL,                         // RasterAccelRead,
     VK_IMAGE_LAYOUT_GENERAL,                         // RasterUAV,
 };
 static std::pair<VkAccessFlagBits2, VkImageLayout> combine(
@@ -126,11 +126,11 @@ void ResourceBarrier::record(
     using SubResource = vstd::variant<
         BufferAfterRange,
         uint /*tex level*/>;
-    VkImageLayout init_layout = VK_IMAGE_LAYOUT_GENERAL;
     ResourceStates::Type type;
     bool allow_simul_access = true;
     Resource const *vk_res;
     size_t size;
+    VkImageLayout init_layout = VK_IMAGE_LAYOUT_UNDEFINED;
     auto resRange = res.multi_visit_or(
         vstd::UndefEval<SubResource>{},
         [&](BufferView const &bufferView) -> SubResource {
@@ -147,6 +147,7 @@ void ResourceBarrier::record(
             type = ResourceStates::Type::Texture;
             size = texView.tex->mip();
             vk_res = texView.tex;
+            init_layout = static_cast<Texture const *>(vk_res)->layout(texView.level);
             allow_simul_access = texView.tex->simultaneous_access();
             return texView.level;
         });
@@ -234,7 +235,7 @@ void ResourceBarrier::_update_state(Resource const *res_ptr, ResourceStates &sta
             barrier.newLayout = i.after_layout;
             barrier.image = static_cast<Texture const *>(res_ptr)->vk_image();
             barrier.subresourceRange = VkImageSubresourceRange{
-                .aspectMask = 0,
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
                 .baseMipLevel = (uint)idx,
                 .levelCount = 1,
                 .baseArrayLayer = 0,
@@ -348,9 +349,10 @@ void ResourceBarrier::restore_states(VkCommandBuffer cmd_buffer) {
                 barrier.dstAccessMask = VK_ACCESS_2_NONE;
                 barrier.oldLayout = i.before_layout;
                 barrier.newLayout = init_layout;
+                static_cast<Texture const *>(resPtr)->set_layout(idx, init_layout);
                 barrier.image = static_cast<Texture const *>(resPtr)->vk_image();
                 barrier.subresourceRange = VkImageSubresourceRange{
-                    .aspectMask = 0,
+                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
                     .baseMipLevel = (uint)idx,
                     .levelCount = 1,
                     .baseArrayLayer = 0,

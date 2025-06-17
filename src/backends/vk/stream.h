@@ -83,7 +83,7 @@ struct ReorderFuncTable {
     Usage get_usage(uint64_t shader_handle, size_t argument_index) const noexcept {
         using namespace lc::hlsl;
         auto cs = reinterpret_cast<Shader *>(shader_handle);
-        switch (cs->binds()[argument_index].type) {
+        switch (cs->binds()[argument_index + 2].type) {
             case ShaderVariableType::ConstantBuffer:
             case ShaderVariableType::SRVTextureHeap:
             case ShaderVariableType::SRVBufferHeap:
