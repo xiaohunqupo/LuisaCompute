@@ -234,7 +234,16 @@ void FallbackCommandQueue::enqueue(luisa::move_only_function<void()> &&task) noe
 }
 
 void FallbackCommandQueue::enqueue_parallel(uint n, luisa::move_only_function<void(uint)> &&task) noexcept {
+    static auto LUISA_SINGLE_THREADING = [] {
+        using namespace std::string_view_literals;
+        return getenv("LUISA_SINGLE_THREADING") == "1"sv;
+    }();
     enqueue([this, n, task = std::move(task)]() mutable noexcept {
+        // for debugging
+        if (LUISA_SINGLE_THREADING) {
+            for (auto i = 0u; i < n; ++i) { task(i); }
+            return;
+        }
 #if defined(LUISA_FALLBACK_USE_DISPATCH_QUEUE)
         if (_dispatch_queue == nullptr) {
 #ifdef LUISA_PLATFORM_APPLE
