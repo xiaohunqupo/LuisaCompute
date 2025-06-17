@@ -415,26 +415,202 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
     _pso_header.deviceID = _vk_device->properties.deviceID;
     memcpy(_pso_header.pipelineCacheUUID, _vk_device->properties.pipelineCacheUUID, VK_UUID_SIZE);
     _allocator.create(*this);
-    VkDescriptorPoolSize pool_sizes[3];
-    pool_sizes[0].descriptorCount = 262144;
-    pool_sizes[0].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    pool_sizes[1].descriptorCount = 262144;
-    pool_sizes[1].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-    pool_sizes[2].descriptorCount = 262144;
-    pool_sizes[2].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-    VkDescriptorPoolCreateInfo createInfo{
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-        .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
-        .maxSets = 262144,
-        .poolSizeCount = vstd::array_count(pool_sizes),
-        .pPoolSizes = pool_sizes};
-    VK_CHECK_RESULT(vkCreateDescriptorPool(logic_device(), &createInfo, Device::alloc_callbacks(), &_desc_pool));
+    // bind desc_pool
+
+    // bindless buffer desc_pool
+    {
+        VkDescriptorPoolSize pool_size;
+        pool_size.descriptorCount = 65536;
+        pool_size.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        VkDescriptorPoolCreateInfo createInfo{
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+            .flags = 0,
+            .maxSets = 1,
+            .poolSizeCount = 1,
+            .pPoolSizes = &pool_size};
+        VK_CHECK_RESULT(vkCreateDescriptorPool(logic_device(), &createInfo, alloc_callbacks(), &_bdls_buffer_desc_pool));
+        VkDescriptorSetLayoutBinding binding{
+            0,
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            65536,
+            VK_SHADER_STAGE_COMPUTE_BIT,
+            nullptr};
+        VkDescriptorSetLayoutCreateInfo descriptorLayout{
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            .bindingCount = 1,
+            .pBindings = &binding};
+        VK_CHECK_RESULT(vkCreateDescriptorSetLayout(logic_device(), &descriptorLayout, alloc_callbacks(), &_bdls_buffer_set_layout));
+        VkDescriptorSetAllocateInfo alloc_info{
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+            .descriptorPool = _bdls_buffer_desc_pool,
+            .descriptorSetCount = 1,
+            .pSetLayouts = &_bdls_buffer_set_layout};
+        VK_CHECK_RESULT(vkAllocateDescriptorSets(logic_device(), &alloc_info, &_bdls_buffer_set));
+    }
+    // bindless tex2d desc_pool
+    {
+        VkDescriptorPoolSize pool_size;
+        pool_size.descriptorCount = 65536;
+        pool_size.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+        VkDescriptorPoolCreateInfo createInfo{
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+            .flags = 0,
+            .maxSets = 1,
+            .poolSizeCount = 1,
+            .pPoolSizes = &pool_size};
+        VK_CHECK_RESULT(vkCreateDescriptorPool(logic_device(), &createInfo, alloc_callbacks(), &_bdls_tex2d_desc_pool));
+        VkDescriptorSetLayoutBinding binding{
+            0,
+            VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+            65536,
+            VK_SHADER_STAGE_COMPUTE_BIT,
+            nullptr};
+        VkDescriptorSetLayoutCreateInfo descriptorLayout{
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            .bindingCount = 1,
+            .pBindings = &binding};
+        VK_CHECK_RESULT(vkCreateDescriptorSetLayout(logic_device(), &descriptorLayout, alloc_callbacks(), &_bdls_tex2d_set_layout));
+        VkDescriptorSetAllocateInfo alloc_info{
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+            .descriptorPool = _bdls_tex2d_desc_pool,
+            .descriptorSetCount = 1,
+            .pSetLayouts = &_bdls_tex2d_set_layout};
+        VK_CHECK_RESULT(vkAllocateDescriptorSets(logic_device(), &alloc_info, &_bdls_tex2d_set));
+    }
+    // bindless tex3d desc_pool
+    {
+        VkDescriptorPoolSize pool_size;
+        pool_size.descriptorCount = 65536;
+        pool_size.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+        VkDescriptorPoolCreateInfo createInfo{
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+            .flags = 0,
+            .maxSets = 1,
+            .poolSizeCount = 1,
+            .pPoolSizes = &pool_size};
+        VK_CHECK_RESULT(vkCreateDescriptorPool(logic_device(), &createInfo, alloc_callbacks(), &_bdls_tex3d_desc_pool));
+        VkDescriptorSetLayoutBinding binding{
+            0,
+            VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+            65536,
+            VK_SHADER_STAGE_COMPUTE_BIT,
+            nullptr};
+        VkDescriptorSetLayoutCreateInfo descriptorLayout{
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            .bindingCount = 1,
+            .pBindings = &binding};
+        VK_CHECK_RESULT(vkCreateDescriptorSetLayout(logic_device(), &descriptorLayout, alloc_callbacks(), &_bdls_tex3d_set_layout));
+        VkDescriptorSetAllocateInfo alloc_info{
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+            .descriptorPool = _bdls_tex3d_desc_pool,
+            .descriptorSetCount = 1,
+            .pSetLayouts = &_bdls_tex3d_set_layout};
+        VK_CHECK_RESULT(vkAllocateDescriptorSets(logic_device(), &alloc_info, &_bdls_tex3d_set));
+    }
+    // sampler desc_pool
+    {
+        VkDescriptorPoolSize pool_size;
+        pool_size.descriptorCount = 16;
+        pool_size.type = VK_DESCRIPTOR_TYPE_SAMPLER;
+        VkDescriptorPoolCreateInfo createInfo{
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+            .flags = 0,
+            .maxSets = 1,
+            .poolSizeCount = 1,
+            .pPoolSizes = &pool_size};
+        VK_CHECK_RESULT(vkCreateDescriptorPool(logic_device(), &createInfo, alloc_callbacks(), &_sampler_pool));
+        _samplers.resize(16);
+        size_t idx = 0;
+        for (auto x : vstd::range(4))
+            for (auto y : vstd::range(4)) {
+                auto d = vstd::scope_exit([&] { ++idx; });
+                VkSamplerCreateInfo info{
+                    VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+                    nullptr,
+                    0};
+
+                switch ((Sampler::Filter)y) {
+                    case Sampler::Filter::POINT:
+                        info.minFilter = VK_FILTER_NEAREST;
+                        info.magFilter = VK_FILTER_NEAREST;
+                        break;
+                    case Sampler::Filter::LINEAR_POINT:
+                        info.minFilter = VK_FILTER_LINEAR;
+                        info.magFilter = VK_FILTER_LINEAR;
+                        break;
+                    case Sampler::Filter::LINEAR_LINEAR:
+                        info.minFilter = VK_FILTER_LINEAR;
+                        info.magFilter = VK_FILTER_LINEAR;
+                        info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+                        break;
+                    case Sampler::Filter::ANISOTROPIC:
+                        info.minFilter = VK_FILTER_LINEAR;
+                        info.magFilter = VK_FILTER_LINEAR;
+                        info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+                        info.anisotropyEnable = VK_TRUE;
+                        info.maxAnisotropy = 16;
+                        break;
+                    default: LUISA_ASSUME(false); break;
+                }
+
+                VkSamplerAddressMode address = [&] {
+                    switch ((Sampler::Address)x) {
+                        case Sampler::Address::EDGE:
+                            return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+                        case Sampler::Address::REPEAT:
+                            return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+                        case Sampler::Address::MIRROR:
+                            return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+                        default:
+                            info.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+                            return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+                    }
+                }();
+                info.addressModeU = address;
+                info.addressModeV = address;
+                info.addressModeW = address;
+
+                info.mipLodBias = 0;
+                info.minLod = 0;
+                info.maxLod = VK_LOD_CLAMP_NONE;
+                VK_CHECK_RESULT(vkCreateSampler(logic_device(), &info, alloc_callbacks(), &_samplers[idx]));
+            }
+        VkDescriptorSetLayoutBinding binding{
+            0,
+            VK_DESCRIPTOR_TYPE_SAMPLER,
+            16,
+            VK_SHADER_STAGE_COMPUTE_BIT,
+            _samplers.data()};
+        VkDescriptorSetLayoutCreateInfo descriptorLayout{
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            .bindingCount = 1,
+            .pBindings = &binding};
+        VK_CHECK_RESULT(vkCreateDescriptorSetLayout(logic_device(), &descriptorLayout, alloc_callbacks(), &_sampler_set_layout));
+        VkDescriptorSetAllocateInfo alloc_info{
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+            .descriptorPool = _sampler_pool,
+            .descriptorSetCount = 1,
+            .pSetLayouts = &_sampler_set_layout};
+        VK_CHECK_RESULT(vkAllocateDescriptorSets(logic_device(), &alloc_info, &_sampler_set));
+
+        //TODO
+    }
 }
 bool Device::is_pso_same(VkPipelineCacheHeaderVersionOne const &pso) {
     return std::memcmp(&pso, &_pso_header, sizeof(VkPipelineCacheHeaderVersionOne)) == 0;
 }
 Device::~Device() {
-    vkDestroyDescriptorPool(logic_device(), _desc_pool, Device::alloc_callbacks());
+    vkDestroyDescriptorSetLayout(logic_device(), _sampler_set_layout, alloc_callbacks());
+    vkDestroyDescriptorSetLayout(logic_device(), _bdls_buffer_set_layout, alloc_callbacks());
+    vkDestroyDescriptorSetLayout(logic_device(), _bdls_tex2d_set_layout, alloc_callbacks());
+    vkDestroyDescriptorSetLayout(logic_device(), _bdls_tex3d_set_layout, alloc_callbacks());
+    vkDestroyDescriptorPool(logic_device(), _sampler_pool, alloc_callbacks());
+    vkDestroyDescriptorPool(logic_device(), _bdls_tex3d_desc_pool, alloc_callbacks());
+    vkDestroyDescriptorPool(logic_device(), _bdls_tex2d_desc_pool, alloc_callbacks());
+    vkDestroyDescriptorPool(logic_device(), _bdls_buffer_desc_pool, alloc_callbacks());
+    for (auto &i : _samplers) {
+        vkDestroySampler(logic_device(), i, alloc_callbacks());
+    }
     std::lock_guard lck(gDxcMutex);
     if (--gDxcRefCount == 0) {
         gDxcCompiler.destroy();

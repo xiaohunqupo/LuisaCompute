@@ -32,6 +32,7 @@ Shader::Shader(
         auto &vec = bindings[i.space_index];
         vec.resize(std::max<size_t>(vec.size(), i.register_index + 1));
         auto &v = vec[i.register_index];
+        v.pImmutableSamplers = nullptr;
         v.binding = i.register_index;
         switch (i.type) {
             case hlsl::ShaderVariableType::ConstantBuffer:
@@ -53,6 +54,7 @@ Shader::Shader(
                 break;
             case hlsl::ShaderVariableType::SamplerHeap:
                 v.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+                v.pImmutableSamplers = device->samplers().data();
                 break;
             default:
                 assert(false);
@@ -60,7 +62,6 @@ Shader::Shader(
         }
         v.descriptorCount = i.array_size == ~0u ? 65535u : i.array_size;
         v.stageFlags = stage_bits;
-        v.pImmutableSamplers = nullptr;
     }
     vstd::push_back_all(_binds, binds);
     _desc_set_layout.reserve(bindings.size());

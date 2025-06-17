@@ -124,12 +124,12 @@ struct ResourceBarrierVisitor {
 struct BindPropVisitor {
     // Each sets
     CommandBuffer *cmdbuffer;
-    vstd::span<VkDescriptorSet> desc_sets;
-    vstd::fixed_vector<uint, 8> *desc_indices;
+    VkDescriptorSet desc_set;
+    uint desc_index;
     vstd::vector<VkImageView> *img_views;
     SavedArgument const *arg;
     void operator()(Argument::Buffer const &bf) {
-        auto idx = (*desc_indices)[0]++;
+        auto idx = desc_index++;
         auto buffer_descs = cmdbuffer->temp_desc->allocate_memory<VkDescriptorBufferInfo>();
         *buffer_descs = VkDescriptorBufferInfo{
             reinterpret_cast<DefaultBuffer const *>(bf.handle)->vk_buffer(),
@@ -138,7 +138,7 @@ struct BindPropVisitor {
         auto &a = cmdbuffer->write_desc_sets->emplace_back(VkWriteDescriptorSet{
             VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
             nullptr,
-            desc_sets[0],
+            desc_set,
             idx,
             0,
             1,
@@ -150,7 +150,7 @@ struct BindPropVisitor {
         ++arg;
     }
     void operator()(Argument::Texture const &bf) {
-        auto idx = (*desc_indices)[0]++;
+        auto idx = desc_index++;
         auto tex = reinterpret_cast<Texture const *>(bf.handle);
 
         VkImageViewCreateInfo imgview_create_info{
@@ -179,7 +179,7 @@ struct BindPropVisitor {
         cmdbuffer->write_desc_sets->emplace_back(VkWriteDescriptorSet{
             VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
             nullptr,
-            desc_sets[0],
+            desc_set,
             idx,
             0,
             1,
@@ -257,9 +257,29 @@ CommandBufferState::CommandBufferState()
       readback_alloc(TEMP_SIZE) {
 }
 void CommandBufferState::init(Device &device) {
+    this->device = &device;
     upload_alloc.visitor.device = &device;
     readback_alloc.visitor.device = &device;
     default_alloc.visitor.device = &device;
+    {
+        VkDescriptorPoolSize pool_sizes[3];
+        pool_sizes[0].descriptorCount = 262144;
+        pool_sizes[0].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        pool_sizes[1].descriptorCount = 262144;
+        pool_sizes[1].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        pool_sizes[2].descriptorCount = 262144;
+        pool_sizes[2].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+        VkDescriptorPoolCreateInfo createInfo{
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+            .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+            .maxSets = 65536,
+            .poolSizeCount = vstd::array_count(pool_sizes),
+            .pPoolSizes = pool_sizes};
+        VK_CHECK_RESULT(vkCreateDescriptorPool(device.logic_device(), &createInfo, Device::alloc_callbacks(), &_desc_pool));
+    }
+}
+CommandBufferState::~CommandBufferState() {
+    vkDestroyDescriptorPool(device->logic_device(), _desc_pool, Device::alloc_callbacks());
 }
 void CommandBufferState::reset(Device &device) {
     for (auto &i : _callbacks) {
@@ -269,16 +289,11 @@ void CommandBufferState::reset(Device &device) {
     upload_alloc.clear();
     default_alloc.clear();
     readback_alloc.clear();
-    if (!_desc_sets.empty()) {
-        VK_CHECK_RESULT(
-            vkFreeDescriptorSets(
-                device.logic_device(), device.desc_pool(), _desc_sets.size(), _desc_sets.data()));
-        _desc_sets.clear();
-    }
     for (auto i : img_views) {
         vkDestroyImageView(device.logic_device(), i, Device::alloc_callbacks());
     }
     img_views.clear();
+    VK_CHECK_RESULT(vkResetDescriptorPool(device.logic_device(), _desc_pool, 0));
 }
 void CommandBuffer::reset() {
     _state->reset(*device());
@@ -381,6 +396,7 @@ void Stream::dispatch(
         auto cb = cmdbuffer.cmdbuffer();
         cmdbuffer.resource_barrier = &resource_barrier;
         cmdbuffer.uniform_data = &uniform_data;
+        cmdbuffer.desc_sets = &desc_sets;
         cmdbuffer.dispatch_offsets = &dispatch_offsets;
         cmdbuffer.write_desc_sets = &write_desc_sets;
         cmdbuffer.temp_desc = &temp_desc;
@@ -461,7 +477,6 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
     auto clear_reorder = vstd::scope_exit([&] {
         stream.reorder.clear();
     });
-    vstd::fixed_vector<uint, 8> desc_indices;
     for (auto &&lst : cmd_lists) {
         dispatch_offsets->clear();
         uniform_data->clear();
@@ -689,8 +704,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                 case Command::Tag::EShaderDispatchCommand: {
                     auto c = static_cast<ShaderDispatchCommand const *>(cmd);
                     auto shader = reinterpret_cast<ComputeShader *>(c->handle());
-                    desc_indices.clear();
-                    desc_indices.emplace_back(0);
+                    uint desc_index = 0;
                     if (offset_ptr->second > 0) {
                         auto arg_buffer_info = temp_desc->allocate_memory<VkDescriptorBufferInfo>();
                         *arg_buffer_info = VkDescriptorBufferInfo{
@@ -701,7 +715,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                             VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                             nullptr,
                             0,
-                            desc_indices[0]++,
+                            desc_index++,
                             0,
                             1,
                             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
@@ -709,32 +723,21 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                             arg_buffer_info,
                             nullptr});
                     }
-                    // // dispatch count
-                    // {
-                    //     auto cbuffer = temp_desc->allocate_memory<VkDescriptorBufferInfo>();
-                    //     auto ptr = _state->upload_alloc.allocate(sizeof(uint4), 16);
-                    //     uint4 value{make_uint4(c->dispatch_size(), 0)};
-                    //     static_cast<UploadBuffer const *>(ptr.buffer)->copy_from(&value, ptr.offset, sizeof(value));
-                    //     *cbuffer = VkDescriptorBufferInfo{
-                    //         ptr.buffer->vk_buffer(),
-                    //         ptr.offset,
-                    //         sizeof(uint4)};
-                    //     write_desc_sets->emplace_back(VkWriteDescriptorSet{
-                    //         VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                    //         nullptr,
-                    //         0,
-                    //         desc_indices[0]++,
-                    //         0,
-                    //         1,
-                    //         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                    //         nullptr,
-                    //         cbuffer,
-                    //         nullptr});
-                    // }
+
                     BindPropVisitor visitor;
                     visitor.cmdbuffer = this;
-                    visitor.desc_sets = shader->allocate_desc_set(device()->desc_pool(), _state->_desc_sets);
-                    visitor.desc_indices = &desc_indices;
+                    VkDescriptorSetAllocateInfo alloc_info{
+                        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+                        .descriptorPool = _state->_desc_pool,
+                        .descriptorSetCount = 1,
+                        .pSetLayouts = shader->desc_set_layout().data()};
+                    VK_CHECK_RESULT(
+                        vkAllocateDescriptorSets(
+                            device()->logic_device(),
+                            &alloc_info,
+                            &visitor.desc_set));
+
+                    visitor.desc_index = desc_index;
                     visitor.img_views = &_state->img_views;
                     visitor.arg = shader->saved_arguments().data();
                     DecodeCmd(shader->captured(), visitor);
@@ -747,13 +750,16 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                             nullptr);
                         write_desc_sets->clear();
                     }
+                    desc_sets->clear();
+                    desc_sets->push_back(visitor.desc_set);
+                    desc_sets->push_back(device()->sampler_set());
                     vkCmdBindDescriptorSets(
                         _cmdbuffer,
                         VK_PIPELINE_BIND_POINT_COMPUTE,
                         shader->pipeline_layout(),
                         0,
-                        visitor.desc_sets.size(),
-                        visitor.desc_sets.data(),
+                        desc_sets->size(),
+                        desc_sets->data(),
                         0,
                         nullptr);
                     vkCmdBindPipeline(_cmdbuffer, VK_PIPELINE_BIND_POINT_COMPUTE, shader->pipeline());

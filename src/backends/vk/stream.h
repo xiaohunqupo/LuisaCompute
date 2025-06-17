@@ -43,13 +43,15 @@ public:
 };
 }// namespace temp_buffer
 struct CommandBufferState {
+    Device* device;
     temp_buffer::BufferAllocator<UploadBuffer> upload_alloc;
     temp_buffer::BufferAllocator<DefaultBuffer> default_alloc;
     temp_buffer::BufferAllocator<ReadbackBuffer> readback_alloc;
-    vstd::vector<VkDescriptorSet> _desc_sets;
+    VkDescriptorPool _desc_pool;
     vstd::vector<VkImageView> img_views;
     vstd::vector<vstd::function<void()>> _callbacks;
     CommandBufferState();
+    ~CommandBufferState();
     void init(Device &device);
     void reset(Device &device);
 };
@@ -60,6 +62,7 @@ class CommandBuffer : public Resource {
     vstd::unique_ptr<CommandBufferState> _state;
 
 public:
+    vstd::vector<VkDescriptorSet> *desc_sets;
     vstd::vector<std::byte> *uniform_data;
     vstd::vector<std::pair<size_t, size_t>> *dispatch_offsets;
     vstd::vector<VkWriteDescriptorSet> *write_desc_sets;
@@ -128,6 +131,7 @@ class Stream : public Resource {
     std::condition_variable _cv;
     std::mutex _mtx;
     vstd::LockFreeArrayQueue<CommandBuffer> _cmdbuffers;
+    vstd::vector<VkDescriptorSet> desc_sets;
     vstd::LockFreeArrayQueue<AsyncCmd> _exec;
     ResourceBarrier resource_barrier;
     vstd::vector<std::byte> uniform_data;

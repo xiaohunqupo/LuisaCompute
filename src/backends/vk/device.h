@@ -20,14 +20,31 @@ class Device : public DeviceInterface, public vstd::IOperatorNewBase {
     VkQueue _graphics_queue{};
     VkQueue _compute_queue{};
     VkQueue _copy_queue{};
-    VkDescriptorPool _desc_pool;
+    VkDescriptorPool _sampler_pool;
+    VkDescriptorSet _sampler_set;
+    VkDescriptorSetLayout _sampler_set_layout;
+    VkDescriptorPool _bdls_buffer_desc_pool;
+    VkDescriptorSet _bdls_buffer_set;
+    VkDescriptorSetLayout _bdls_buffer_set_layout;
+    VkDescriptorPool _bdls_tex2d_desc_pool;
+    VkDescriptorSet _bdls_tex2d_set;
+    VkDescriptorSetLayout _bdls_tex2d_set_layout;
+    VkDescriptorPool _bdls_tex3d_desc_pool;
+    VkDescriptorSet _bdls_tex3d_set;
+    VkDescriptorSetLayout _bdls_tex3d_set_layout;
     VkPipelineCacheHeaderVersionOne _pso_header{};
+    vstd::vector<VkSampler> _samplers;
     vstd::optional<VkAllocator> _allocator;
     BinaryIO const *_binary_io{};
     vstd::unique_ptr<DefaultBinaryIO> _default_file_io;
     void _init_device(uint32_t selectedDevice, bool fallback);
 
 public:
+    auto sampler_set() const { return _sampler_set; }
+    auto bdls_buffer_set() const { return _bdls_buffer_set; }
+    auto bdls_tex2d_set() const { return _bdls_tex2d_set; }
+    auto bdls_tex3d_set() const { return _bdls_tex3d_set; }
+    auto samplers() const const { return luisa::span{_samplers}; }
     static hlsl::ShaderCompiler *Compiler();
     static VkAllocationCallbacks *alloc_callbacks();
     VkInstance instance() const;
@@ -51,7 +68,6 @@ public:
     auto graphics_queue() const { return _graphics_queue; }
     auto compute_queue() const { return _compute_queue; }
     auto copy_queue() const { return _copy_queue; }
-    auto desc_pool() const { return _desc_pool; }
     // texture
     ResourceCreationInfo create_texture(
         PixelFormat format, uint dimension,
