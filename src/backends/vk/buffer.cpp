@@ -10,7 +10,7 @@ UploadBuffer::UploadBuffer(Device *device, size_t size_bytes)
           device->allocator()
               .allocate_buffer(
                   size_bytes,
-                  VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                  (VkBufferUsageFlagBits)((uint)VK_BUFFER_USAGE_TRANSFER_SRC_BIT | (uint)VK_BUFFER_USAGE_STORAGE_BUFFER_BIT),
                   AccessType::Upload)} {
 }
 UploadBuffer::~UploadBuffer() {

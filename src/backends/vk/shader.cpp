@@ -12,8 +12,12 @@ Shader::Shader(
     ShaderTag tag,
     vstd::vector<Argument> &&captured,
     vstd::vector<SavedArgument> &&saved_arguments,
-    vstd::span<hlsl::Property const> binds)
-    : Resource{device}, _captured{std::move(captured)}, _saved_arguments(std::move(saved_arguments)) {
+    vstd::span<hlsl::Property const> binds,
+    bool use_tex2d_bindless,
+    bool use_tex3d_bindless,
+    bool use_buffer_bindless)
+    : Resource{device}, _captured{std::move(captured)}, _saved_arguments(std::move(saved_arguments)),
+      _use_tex2d_bindless(use_tex2d_bindless), _use_tex3d_bindless(use_tex3d_bindless), _use_buffer_bindless(use_buffer_bindless) {
     VkShaderStageFlagBits stage_bits = [&]() -> VkShaderStageFlagBits {
         switch (tag) {
             case ShaderTag::ComputeShader:
@@ -60,7 +64,7 @@ Shader::Shader(
                 assert(false);
                 break;
         }
-        v.descriptorCount = i.array_size == ~0u ? 65535u : i.array_size;
+        v.descriptorCount = i.array_size == ~0u ? 65536u : i.array_size;
         v.stageFlags = stage_bits;
     }
     vstd::push_back_all(_binds, binds);

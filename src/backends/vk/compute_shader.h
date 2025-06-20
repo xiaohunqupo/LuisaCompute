@@ -30,12 +30,15 @@ public:
         vstd::vector<SavedArgument> &&saved_arguments,
         vstd::span<uint const> spv_code,
         vstd::vector<Argument> &&captured,
-        vstd::span<std::byte const> cache_code);
+        vstd::span<std::byte const> cache_code,
+        bool use_tex2d_bindless,
+        bool use_tex3d_bindless,
+        bool use_buffer_bindless);
     ~ComputeShader();
     static ComputeShader *compile(
         BinaryIO const *bin_io,
         Device *device,
-        Function kernel,
+        vstd::vector<SavedArgument> &&saved_args,
         vstd::function<hlsl::CodegenResult()> const &codegen,
         vstd::optional<vstd::MD5> const &code_md5,
         vstd::vector<Argument> &&bindings,

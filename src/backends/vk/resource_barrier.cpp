@@ -1,4 +1,5 @@
 #include "resource_barrier.h"
+#include "bindless_array.h"
 namespace lc::vk {
 namespace detail {
 static constexpr auto raster_stage = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_2_TESSELLATION_CONTROL_SHADER_BIT | VK_PIPELINE_STAGE_2_TESSELLATION_EVALUATION_SHADER_BIT | VK_PIPELINE_STAGE_2_GEOMETRY_SHADER_BIT | VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
@@ -290,6 +291,28 @@ VkImageLayout ResourceBarrier::get_layout(Resource const *res, uint level) const
     auto &ranges = v.layer_states.get<1>();
     LUISA_ASSERT(ranges.size() > level);
     return ranges[level].before_layout;
+}
+
+void ResourceBarrier::process_bindless(BindlessArray *bdls_arr, Usage dst_usage) {
+    for (auto iter = write_state_map.begin(); iter != write_state_map.end(); ++iter) {
+        if (bdls_arr->is_ptr_in_bindless(reinterpret_cast<size_t>(iter->first))) {
+            auto ite = frame_states.find(iter->first);
+            assert(ite);
+            auto res = ite.key();
+            if (res->tag() == Resource::Tag::Buffer) {
+                record(
+                    BufferView(static_cast<Buffer const *>(res), 0, static_cast<Buffer const *>(res)->byte_size()),
+                    dst_usage);
+            } else if (res->tag() == Resource::Tag::Texture) {
+                auto tex = static_cast<Texture const *>(res);
+                for (auto i : vstd::range(tex->mip())) {
+                    record(
+                        TexView(tex, i),
+                        dst_usage);
+                }
+            }
+        }
+    }
 }
 
 void ResourceBarrier::update_states(VkCommandBuffer cmd_buffer) {

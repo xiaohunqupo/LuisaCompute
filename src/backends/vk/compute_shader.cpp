@@ -24,8 +24,11 @@ ComputeShader::ComputeShader(
     vstd::vector<SavedArgument> &&saved_args,
     vstd::span<uint const> spv_code,
     vstd::vector<Argument> &&captured,
-    vstd::span<std::byte const> cache_code)
-    : Shader{device, ShaderTag::ComputeShader, std::move(captured), std::move(saved_args), binds}, _block_size(block_size) {
+    vstd::span<std::byte const> cache_code,
+    bool use_tex2d_bindless,
+    bool use_tex3d_bindless,
+    bool use_buffer_bindless)
+    : Shader{device, ShaderTag::ComputeShader, std::move(captured), std::move(saved_args), binds, use_tex2d_bindless, use_tex3d_bindless, use_buffer_bindless}, _block_size(block_size) {
     VkPipelineCacheCreateInfo pso_ci{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO};
     if (!cache_code.empty()) {
@@ -72,7 +75,7 @@ ComputeShader::~ComputeShader() {
 ComputeShader *ComputeShader::compile(
     BinaryIO const *bin_io,
     Device *device,
-    Function kernel,
+    vstd::vector<SavedArgument> &&saved_args,
     vstd::function<hlsl::CodegenResult()> const &codegen,
     vstd::optional<vstd::MD5> const &code_md5,
     vstd::vector<Argument> &&bindings,
@@ -114,21 +117,27 @@ ComputeShader *ComputeShader::compile(
                     device,
                     blockSize,
                     str.properties,
-                    ShaderSerializer::serialize_saved_args(kernel),
+                    std::move(saved_args),
                     {reinterpret_cast<const uint *>(buffer->GetBufferPointer()), buffer->GetBufferSize() / sizeof(uint)},
                     std::move(bindings),
-                    {});
+                    {},
+                    str.useTex2DBindless,
+                    str.useTex3DBindless,
+                    str.useBufferBindless);
                 if (write_cache) {
                     ShaderSerializer::serialize_bytecode(
                         shader->binds(),
                         shader->saved_arguments(),
                         md5,
                         vstd::MD5(vstd::MD5::MD5Data{0, 0}),
-                        kernel.block_size(),
+                        blockSize,
                         file_name,
                         {reinterpret_cast<const uint *>(buffer->GetBufferPointer()), buffer->GetBufferSize() / sizeof(uint)},
                         serde_type,
-                        bin_io);
+                        bin_io,
+                        str.useTex2DBindless,
+                        str.useTex3DBindless,
+                        str.useBufferBindless);
                     ShaderSerializer::serialize_pso(
                         device,
                         shader,

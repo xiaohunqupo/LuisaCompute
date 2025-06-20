@@ -9,11 +9,13 @@
 #include "../common/hlsl/binding_to_arg.h"
 #include <luisa/runtime/context.h>
 #include "../common/hlsl/shader_compiler.h"
+#include "builtin_kernel.h"
 #include "shader_serializer.h"
 #include "default_buffer.h"
 #include "stream.h"
 #include "event.h"
 #include "texture.h"
+#include "bindless_array.h"
 
 namespace lc::vk {
 static constexpr uint k_shader_model = 65u;
@@ -267,7 +269,8 @@ void Device::destroy_accel(uint64_t handle) noexcept {
 }
 //////////////// Not implemented area
 Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
-    : DeviceInterface{std::move(ctx_arg)} {
+    : DeviceInterface{std::move(ctx_arg)},
+      set_bindless_kernel(BuiltinKernel::LoadBindlessSetKernel) {
     bool headless = false;
     uint device_idx = 0;
     if (configs) {
@@ -655,8 +658,15 @@ void Device::destroy_texture(uint64_t handle) noexcept {
 }
 
 // bindless array
-ResourceCreationInfo Device::create_bindless_array(size_t size) noexcept { return ResourceCreationInfo::make_invalid(); }
-void Device::destroy_bindless_array(uint64_t handle) noexcept {}
+ResourceCreationInfo Device::create_bindless_array(size_t size) noexcept {
+    auto r = new BindlessArray(this, size);
+    return ResourceCreationInfo{
+        .handle = reinterpret_cast<uint64_t>(r),
+        .native_handle = &r->indices_buffer()};
+}
+void Device::destroy_bindless_array(uint64_t handle) noexcept {
+    delete reinterpret_cast<BindlessArray *>(handle);
+}
 
 // stream
 ResourceCreationInfo Device::create_stream(StreamTag stream_tag) noexcept {
@@ -716,7 +726,9 @@ ShaderCreationInfo Device::create_shader(const ShaderOption &option, Function ke
                     option.name,
                     {reinterpret_cast<const uint *>(buffer->GetBufferPointer()), buffer->GetBufferSize() / sizeof(uint)},
                     SerdeType::ByteCode,
-                    _binary_io);
+                    _binary_io, code.useTex2DBindless,
+                    code.useTex3DBindless,
+                    code.useBufferBindless);
             },
             [](auto &&err) {
                 LUISA_ERROR("Compile Error: {}", err);
@@ -740,7 +752,7 @@ ShaderCreationInfo Device::create_shader(const ShaderOption &option, Function ke
         auto shader = ComputeShader::compile(
             _binary_io,
             this,
-            kernel,
+            ShaderSerializer::serialize_saved_args(kernel),
             [&]() { return std::move(code); },
             check_md5,
             hlsl::binding_to_arg(kernel.bound_arguments()),
@@ -834,5 +846,37 @@ VSTL_EXPORT_C DeviceInterface *create(Context &&c, DeviceConfig const *settings)
 }
 VSTL_EXPORT_C void destroy(DeviceInterface *device) {
     delete static_cast<Device *>(device);
+}
+uint Device::HeapAlloc::alloc() {
+    std::lock_guard lck{mtx};
+    if (release_pool.empty()) {
+        return count++;
+    }
+    auto r = release_pool.back();
+    release_pool.pop_back();
+    return r;
+}
+void Device::HeapAlloc::dealloc(uint idx) {
+    std::lock_guard lck{mtx};
+    release_pool.emplace_back(idx);
+}
+Device::HeapAlloc::HeapAlloc() = default;
+Device::HeapAlloc::~HeapAlloc() = default;
+Device::LazyLoadShader::LazyLoadShader(LoadFunc loadFunc) : loadFunc(loadFunc) {}
+Device::LazyLoadShader::~LazyLoadShader() {}
+ComputeShader *Device::LazyLoadShader::Get(Device *self) {
+    if (!shader) {
+        shader = vstd::create_unique(loadFunc(self));
+    }
+    return shader.get();
+}
+bool Device::LazyLoadShader::Check(Device *self) {
+    if (shader) return true;
+    shader = vstd::create_unique(loadFunc(self));
+    if (shader) {
+        auto afterExit = vstd::scope_exit([&] { shader = nullptr; });
+        return true;
+    }
+    return false;
 }
 }// namespace lc::vk

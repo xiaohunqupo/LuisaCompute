@@ -24,7 +24,10 @@ public:
         vstd::string_view file_name,
         vstd::span<const uint> spv_code,
         SerdeType serde_type,
-        BinaryIO const *bin_io);
+        BinaryIO const *bin_io,
+        bool use_tex2d_bindless,
+        bool use_tex3d_bindless,
+        bool use_buffer_bindless);
     static void serialize_pso(
         Device *device,
         Shader const *shader,

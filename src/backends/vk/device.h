@@ -9,6 +9,7 @@ namespace lc::hlsl {
 class ShaderCompiler;
 }// namespace lc::hlsl
 namespace lc::vk {
+class ComputeShader;
 using namespace luisa;
 using namespace luisa::compute;
 class Device : public DeviceInterface, public vstd::IOperatorNewBase {
@@ -38,8 +39,36 @@ class Device : public DeviceInterface, public vstd::IOperatorNewBase {
     BinaryIO const *_binary_io{};
     vstd::unique_ptr<DefaultBinaryIO> _default_file_io;
     void _init_device(uint32_t selectedDevice, bool fallback);
+    struct HeapAlloc {
+        uint count = 0;
+        vstd::vector<uint> release_pool;
+        luisa::spin_mutex mtx;
+        uint alloc();
+        void dealloc(uint idx);
+        HeapAlloc();
+        ~HeapAlloc();
+    };
 
 public:
+    struct LazyLoadShader {
+    public:
+        using LoadFunc = vstd::func_ptr_t<ComputeShader *(Device *)>;
+
+    private:
+        vstd::unique_ptr<ComputeShader> shader;
+        LoadFunc loadFunc;
+
+    public:
+        LazyLoadShader(LoadFunc loadFunc);
+        ComputeShader *Get(Device *self);
+        bool Check(Device *self);
+        ~LazyLoadShader();
+    };
+    HeapAlloc tex2d_heap_pool;
+    HeapAlloc tex3d_heap_pool;
+    HeapAlloc buffer_heap_pool;
+    LazyLoadShader set_bindless_kernel;
+    auto binary_io() const { return _binary_io; }
     auto sampler_set() const { return _sampler_set; }
     auto bdls_buffer_set() const { return _bdls_buffer_set; }
     auto bdls_tex2d_set() const { return _bdls_tex2d_set; }

@@ -4,6 +4,7 @@
 #include "texture.h"
 #include <luisa/vstl/common.h>
 namespace lc::vk {
+class BindlessArray;
 class Buffer;
 class ResourceBarrier {
     struct Range {
@@ -118,6 +119,7 @@ public:
     void restore_states(VkCommandBuffer cmd_buffer);
     void barrier_filter(VkBufferMemoryBarrier2 &barrier) const;
     void barrier_filter(VkImageMemoryBarrier2 &barrier) const;
-    VkImageLayout get_layout(Resource const* res, uint level) const;
+    VkImageLayout get_layout(Resource const *res, uint level) const;
+    void process_bindless(BindlessArray *bdls_arr, Usage dst_usage);
 };
 }// namespace lc::vk

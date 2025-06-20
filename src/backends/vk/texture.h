@@ -36,6 +36,7 @@ public:
         _layouts[level] = layout;
     }
     static VkFormat to_vk_format(compute::PixelFormat format);
+    Tag tag() const override { return Tag::Texture; }
 };
 struct TexView {
     Texture const *tex;

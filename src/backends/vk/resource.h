@@ -12,5 +12,12 @@ public:
     Resource(Device *device) : _device{device} {}
     virtual ~Resource() = default;
     auto device() const { return _device; }
+    enum class Tag {
+        Buffer,
+        Texture,
+        Swapchain,
+        Unknown
+    };
+    virtual Tag tag() const { return Tag::Unknown; }
 };
 }// namespace lc::vk

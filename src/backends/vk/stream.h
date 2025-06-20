@@ -43,7 +43,7 @@ public:
 };
 }// namespace temp_buffer
 struct CommandBufferState {
-    Device* device;
+    Device *device;
     temp_buffer::BufferAllocator<UploadBuffer> upload_alloc;
     temp_buffer::BufferAllocator<DefaultBuffer> default_alloc;
     temp_buffer::BufferAllocator<ReadbackBuffer> readback_alloc;
@@ -66,6 +66,7 @@ public:
     vstd::vector<std::byte> *uniform_data;
     vstd::vector<std::pair<size_t, size_t>> *dispatch_offsets;
     vstd::vector<VkWriteDescriptorSet> *write_desc_sets;
+    vstd::vector<uint4> *bindless_cache;
     vstd::StackAllocator *temp_desc;
 
     ResourceBarrier *resource_barrier;
@@ -77,36 +78,22 @@ public:
     void reset();
     void begin();
     void end();
+    auto states() const { return _state.get(); }
     void execute(vstd::span<const luisa::unique_ptr<Command>> cmds);
 };
 struct ReorderFuncTable {
-    bool is_res_in_bindless(uint64_t bindless_handle, uint64_t resource_handle) const noexcept {
-        return false;
-    }
+    bool is_res_in_bindless(uint64_t bindless_handle, uint64_t resource_handle) const noexcept;
     Usage get_usage(uint64_t shader_handle, size_t argument_index) const noexcept {
-        using namespace lc::hlsl;
         auto cs = reinterpret_cast<Shader *>(shader_handle);
-        switch (cs->binds()[argument_index + 2].type) {
-            case ShaderVariableType::ConstantBuffer:
-            case ShaderVariableType::SRVTextureHeap:
-            case ShaderVariableType::SRVBufferHeap:
-            case ShaderVariableType::CBVBufferHeap:
-            case ShaderVariableType::SamplerHeap:
-            case ShaderVariableType::StructuredBuffer:
-            case ShaderVariableType::ConstantValue:
-                return Usage::READ;
-            default:
-                return Usage::READ_WRITE;
-        }
+        return cs->saved_arguments()[argument_index].varUsage;
     }
-    void update_bindless(uint64_t handle, luisa::span<const BindlessArrayUpdateCommand::Modification> modifications) const noexcept {
-    }
+    void update_bindless(uint64_t handle, luisa::span<const BindlessArrayUpdateCommand::Modification> modifications) const noexcept;
     luisa::span<const Argument> shader_bindings(uint64_t handle) const noexcept {
         auto cs = reinterpret_cast<Shader *>(handle);
         return cs->captured();
     }
-    void lock_bindless(uint64_t bindless_handle) const noexcept {}
-    void unlock_bindless(uint64_t bindless_handle) const noexcept {}
+    void lock_bindless(uint64_t bindless_handle) const noexcept;
+    void unlock_bindless(uint64_t bindless_handle) const noexcept;
 };
 
 class Stream : public Resource {
@@ -139,6 +126,7 @@ class Stream : public Resource {
     vstd::VEngineMallocVisitor temp_desc_visitor;
     vstd::StackAllocator temp_desc;
     vstd::vector<VkWriteDescriptorSet> write_desc_sets;
+    vstd::vector<uint4> bindless_cache;
 
 public:
     CommandReorderVisitor<ReorderFuncTable, true> reorder;

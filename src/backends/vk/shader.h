@@ -33,7 +33,9 @@ protected:
     vstd::vector<hlsl::Property> _binds;
     vstd::vector<Argument> _captured;
     vstd::vector<SavedArgument> _saved_arguments;
-
+    bool _use_tex2d_bindless;
+    bool _use_tex3d_bindless;
+    bool _use_buffer_bindless;
 public:
     auto pipeline_layout() const { return _pipeline_layout; }
     virtual bool serialize_pso(vstd::vector<std::byte> &result) const { return false; }
@@ -41,12 +43,18 @@ public:
     auto captured() const { return vstd::span<const Argument>{_captured}; }
     auto desc_set_layout() const { return vstd::span{_desc_set_layout}; }
     auto saved_arguments() const { return vstd::span{_saved_arguments}; }
+    bool use_tex2d_bindless() const { return _use_tex2d_bindless; };
+    bool use_tex3d_bindless() const { return _use_tex3d_bindless; };
+    bool use_buffer_bindless() const { return _use_buffer_bindless; };
     Shader(
         Device *device,
         ShaderTag tag,
         vstd::vector<Argument> &&captured,
-        vstd::vector<SavedArgument>&& saved_arguments,
-        vstd::span<hlsl::Property const> binds);
+        vstd::vector<SavedArgument> &&saved_arguments,
+        vstd::span<hlsl::Property const> binds,
+        bool use_tex2d_bindless,
+        bool use_tex3d_bindless,
+        bool use_buffer_bindless);
     virtual ~Shader();
     vstd::span<VkDescriptorSet> allocate_desc_set(VkDescriptorPool pool, vstd::vector<VkDescriptorSet> &descs) const;
     void update_desc_set(

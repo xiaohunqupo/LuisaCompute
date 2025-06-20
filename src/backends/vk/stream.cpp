@@ -1,6 +1,7 @@
 #include "stream.h"
 #include "device.h"
 #include "compute_shader.h"
+#include "bindless_array.h"
 #include <luisa/core/logging.h>
 #include "log.h"
 namespace lc::vk {
@@ -29,6 +30,18 @@ void DecodeCmd(vstd::span<const Argument> args, Visitor &&visitor) {
             } break;
         }
     }
+}
+bool ReorderFuncTable::is_res_in_bindless(uint64_t bindless_handle, uint64_t resource_handle) const noexcept {
+    return reinterpret_cast<BindlessArray *>(bindless_handle)->is_ptr_in_bindless(resource_handle);
+}
+void ReorderFuncTable::lock_bindless(uint64_t bindless_handle) const noexcept {
+    reinterpret_cast<BindlessArray *>(bindless_handle)->mtx.lock();
+}
+void ReorderFuncTable::unlock_bindless(uint64_t bindless_handle) const noexcept {
+    reinterpret_cast<BindlessArray *>(bindless_handle)->mtx.unlock();
+}
+void ReorderFuncTable::update_bindless(uint64_t handle, luisa::span<const BindlessArrayUpdateCommand::Modification> modifications) const noexcept {
+    reinterpret_cast<BindlessArray *>(handle)->bind(modifications);
 }
 struct ResourceBarrierVisitor {
     ResourceBarrier *barrier;
@@ -100,8 +113,12 @@ struct ResourceBarrierVisitor {
         ++arg;
     }
     void operator()(Argument::BindlessArray const &bf) {
-        LUISA_NOT_IMPLEMENTED();
-        // TODO: bindless
+        auto bdls = reinterpret_cast<BindlessArray *>(bf.handle);
+        auto &buffer = bdls->indices_buffer();
+        barrier->record(
+            BufferView(&buffer, 0, buffer.byte_size()),
+            read_usage);
+        barrier->process_bindless(bdls, read_usage);
         ++arg;
     }
     void operator()(Argument::Uniform const &a) {
@@ -146,7 +163,6 @@ struct BindPropVisitor {
             nullptr,
             buffer_descs,
             nullptr});
-        ++buffer_descs;
         ++arg;
     }
     void operator()(Argument::Texture const &bf) {
@@ -187,13 +203,29 @@ struct BindPropVisitor {
             image_descs,
             nullptr,
             nullptr});
-        ++image_descs;
         ++arg;
     }
     void operator()(Argument::Uniform const &a) {
     }
     void operator()(Argument::BindlessArray const &bf) {
-        LUISA_NOT_IMPLEMENTED();
+        auto &buffer = reinterpret_cast<BindlessArray const *>(bf.handle)->indices_buffer();
+        auto idx = desc_index++;
+        auto buffer_descs = cmdbuffer->temp_desc->allocate_memory<VkDescriptorBufferInfo>();
+        *buffer_descs = VkDescriptorBufferInfo{
+            buffer.vk_buffer(),
+            0,
+            buffer.byte_size()};
+        auto &a = cmdbuffer->write_desc_sets->emplace_back(VkWriteDescriptorSet{
+            VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            nullptr,
+            desc_set,
+            idx,
+            0,
+            1,
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            nullptr,
+            buffer_descs,
+            nullptr});
         ++arg;
     }
     void operator()(Argument::Accel const &bf) {
@@ -399,6 +431,7 @@ void Stream::dispatch(
         cmdbuffer.desc_sets = &desc_sets;
         cmdbuffer.dispatch_offsets = &dispatch_offsets;
         cmdbuffer.write_desc_sets = &write_desc_sets;
+        cmdbuffer.bindless_cache = &bindless_cache;
         cmdbuffer.temp_desc = &temp_desc;
         cmdbuffer.begin();
         cmdbuffer.execute(cmds);
@@ -601,6 +634,9 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                 case Command::Tag::EProceduralPrimitiveBuildCommand: {
                 } break;
                 case Command::Tag::EBindlessArrayUpdateCommand: {
+                    auto c = static_cast<BindlessArrayUpdateCommand const *>(cmd);
+                    reinterpret_cast<BindlessArray *>(c->handle())->pre_update(resource_barrier);
+
                 } break;
                 default: break;
             }
@@ -753,6 +789,15 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                     desc_sets->clear();
                     desc_sets->push_back(visitor.desc_set);
                     desc_sets->push_back(device()->sampler_set());
+                    if (shader->use_buffer_bindless()) {
+                        desc_sets->push_back(device()->bdls_buffer_set());
+                    }
+                    if (shader->use_tex2d_bindless()) {
+                        desc_sets->push_back(device()->bdls_tex2d_set());
+                    }
+                    if (shader->use_tex3d_bindless()) {
+                        desc_sets->push_back(device()->bdls_tex3d_set());
+                    }
                     vkCmdBindDescriptorSets(
                         _cmdbuffer,
                         VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -921,6 +966,42 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                 case Command::Tag::EProceduralPrimitiveBuildCommand: {
                 } break;
                 case Command::Tag::EBindlessArrayUpdateCommand: {
+                    auto c = static_cast<BindlessArrayUpdateCommand const *>(cmd);
+                    reinterpret_cast<BindlessArray *>(c->handle())->update(this, *write_desc_sets, *bindless_cache, c->modifications());
+                    // LOG bindless indices
+
+                    // auto &bf = reinterpret_cast<BindlessArray *>(c->handle())->indices_buffer();
+                    // resource_barrier->record(
+                    //     BufferView{&bf},
+                    //     ResourceBarrier::Usage::CopySource);
+                    // resource_barrier->update_states(_cmdbuffer);
+
+                    // luisa::vector<std::array<uint, 3>> vec(16);
+                    // auto chunk = _state->readback_alloc.allocate(vec.size(), 16);
+
+                    // VkBufferCopy2 buffer_copy{
+                    //     VK_STRUCTURE_TYPE_BUFFER_COPY_2,
+                    //     nullptr,
+                    //     0,
+                    //     chunk.offset,
+                    //     vec.size_bytes()};
+                    // int x = 0;
+                    // VkCopyBufferInfo2 copy_info2{
+                    //     VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2,
+                    //     nullptr,
+                    //     bf.vk_buffer(),
+                    //     chunk.buffer->vk_buffer(),
+                    //     1,
+                    //     &buffer_copy};
+                    // vkCmdCopyBuffer2(
+                    //     _cmdbuffer,
+                    //     &copy_info2);
+                    // _state->_callbacks.emplace_back([chunk, vec = std::move(vec)]() mutable {
+                    //     static_cast<ReadbackBuffer const *>(chunk.buffer)->copy_to(vec.data(), chunk.offset, vec.size_bytes());
+                    //     for (auto &i : vec) {
+                    //         LUISA_INFO(uint3(i[0], i[1], i[2]));
+                    //     }
+                    // });
                 } break;
                 default: break;
             }

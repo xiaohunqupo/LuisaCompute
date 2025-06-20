@@ -12,6 +12,7 @@ public:
     auto byte_size() const { return _byte_size; }
     virtual ~Buffer() = default;
     virtual VkBuffer vk_buffer() const = 0;
+    Tag tag() const override { return Tag::Buffer; }
 };
 class BufferView {
 public:

@@ -13,6 +13,9 @@ struct ShaderSerHeader {
     uint64 spv_byte_size;
     uint block_size[3];
     uint kernel_arg_count;
+    bool use_bindless_buffer;
+    bool use_bindless_tex2d;
+    bool use_bindless_tex3d;
 };
 struct PSODataPackage {
     VkPipelineCacheHeaderVersionOne header;
@@ -28,7 +31,10 @@ void ShaderSerializer::serialize_bytecode(
     vstd::string_view file_name,
     vstd::span<const uint> spv_code,
     SerdeType serde_type,
-    BinaryIO const *bin_io) {
+    BinaryIO const *bin_io,
+    bool use_tex2d_bindless,
+    bool use_tex3d_bindless,
+    bool use_buffer_bindless) {
     using namespace detail;
     vstd::vector<std::byte> results;
     ShaderSerHeader header{
@@ -49,10 +55,14 @@ void ShaderSerializer::serialize_bytecode(
         memcpy(data_ptr, t, sizeof(T) * size);
         data_ptr += sizeof(T) * size;
     };
+    header.use_bindless_buffer = use_buffer_bindless;
+    header.use_bindless_tex2d = use_tex2d_bindless;
+    header.use_bindless_tex3d = use_tex3d_bindless;
     save(header);
     save_arr(binds.data(), binds.size());
     save_arr(saved_args.data(), saved_args.size());
     save_arr(spv_code.data(), spv_code.size());
+
     switch (serde_type) {
         case SerdeType::Cache:
             bin_io->write_shader_cache(file_name, results);
@@ -97,6 +107,7 @@ ShaderSerializer::DeserResult ShaderSerializer::try_deser_compute(
     DeserResult result{
         .shader = nullptr};
     uint3 block_size;
+    ShaderSerHeader header;
     {
         auto read_stream = [&]() {
             switch (serde_type) {
@@ -109,7 +120,6 @@ ShaderSerializer::DeserResult ShaderSerializer::try_deser_compute(
             }
         }();
         if (!read_stream) return result;
-        ShaderSerHeader header;
         if (read_stream->length() < sizeof(ShaderSerHeader)) return result;
         read_stream->read({reinterpret_cast<std::byte *>(&header), sizeof(ShaderSerHeader)});
         if (read_stream->length() != (header.property_size * sizeof(hlsl::Property) + header.spv_byte_size + header.kernel_arg_count * sizeof(SavedArgument)))
@@ -156,7 +166,10 @@ ShaderSerializer::DeserResult ShaderSerializer::try_deser_compute(
         std::move(saved_args),
         spv,
         std::move(captured),
-        pso_data};
+        pso_data,
+        header.use_bindless_tex2d,
+        header.use_bindless_tex3d,
+        header.use_bindless_buffer};
     if (pso_data.empty() &&
         shader->serialize_pso(pso_data)) {
         bin_io->write_shader_cache(pso_name, pso_data);
