@@ -7,6 +7,7 @@ class DefaultBuffer : public Buffer {
 
 public:
     DefaultBuffer(Device *device, size_t size_bytes, bool used_as_accel = false);
+    DefaultBuffer(DefaultBuffer&& rhs);
     ~DefaultBuffer();
     VkBuffer vk_buffer() const override { return _res.buffer; }
 };

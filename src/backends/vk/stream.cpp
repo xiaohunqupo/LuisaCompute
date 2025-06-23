@@ -4,6 +4,7 @@
 #include "bindless_array.h"
 #include <luisa/core/logging.h>
 #include "log.h"
+#include "blas.h"
 namespace lc::vk {
 template<typename Visitor>
 void DecodeCmd(vstd::span<const Argument> args, Visitor &&visitor) {
@@ -234,7 +235,20 @@ struct BindPropVisitor {
     }
 };
 namespace temp_buffer {
-
+uint64 DefaultBufferDeferredVisitor::allocate(uint64 size) {
+    auto bf = new DefaultBuffer(device, size);
+    _buffers.try_emplace(
+        reinterpret_cast<uint64_t>(bf),
+        bf);
+    return reinterpret_cast<uint64>(bf);
+}
+void DefaultBufferDeferredVisitor::deallocate(uint64 handle) {
+    if (_buffers.empty()) return;
+    auto iter = _buffers.find(handle);
+    LUISA_ASSERT(iter != _buffers.end());
+    cmdbuffer->states()->dispose_after_flush(std::move(iter->second));
+    _buffers.erase(iter);
+}
 template<typename Pack>
 uint64 Visitor<Pack>::allocate(uint64 size) {
     return reinterpret_cast<uint64_t>(new Pack(device, size));
@@ -285,14 +299,12 @@ BufferView BufferAllocator<T>::allocate(size_t size, size_t align) {
 static size_t TEMP_SIZE = 1024ull * 1024ull;
 CommandBufferState::CommandBufferState()
     : upload_alloc(TEMP_SIZE),
-      default_alloc(TEMP_SIZE),
       readback_alloc(TEMP_SIZE) {
 }
 void CommandBufferState::init(Device &device) {
     this->device = &device;
     upload_alloc.visitor.device = &device;
     readback_alloc.visitor.device = &device;
-    default_alloc.visitor.device = &device;
     {
         VkDescriptorPoolSize pool_sizes[3];
         pool_sizes[0].descriptorCount = 262144;
@@ -318,8 +330,11 @@ void CommandBufferState::reset(Device &device) {
         i();
     }
     _callbacks.clear();
+    for (auto &i : _dispose_pool) {
+        i.second(i.first);
+    }
+    _dispose_pool.clear();
     upload_alloc.clear();
-    default_alloc.clear();
     readback_alloc.clear();
     for (auto i : img_views) {
         vkDestroyImageView(device.logic_device(), i, Device::alloc_callbacks());
@@ -365,7 +380,8 @@ Stream::Stream(Device *device, StreamTag tag)
           }
           loop_cmd();
       }),
-      temp_desc(65536, &temp_desc_visitor, 2) {
+      temp_desc(65536, &temp_desc_visitor, 2),
+      scratch_buffer_alloc(TEMP_SIZE, &scratch_buffer_alloc_visitor) {
     VkCommandPoolCreateInfo pool_ci{
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
         .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT};
@@ -401,6 +417,7 @@ Stream::~Stream() {
     }
     _cv.notify_one();
     _thd.join();
+    scratch_buffer_alloc_visitor._buffers.clear();
     while (auto p = _cmdbuffers.pop()) {
     }
     vkDestroyCommandPool(device()->logic_device(), _pool, Device::alloc_callbacks());
@@ -425,7 +442,11 @@ void Stream::dispatch(
             if (p) return std::move(*p);
             return CommandBuffer{*this};
         }();
+        scratch_buffer_alloc_visitor.cmdbuffer = &cmdbuffer;
+        scratch_buffer_alloc_visitor.device = device();
+
         auto cb = cmdbuffer.cmdbuffer();
+
         cmdbuffer.resource_barrier = &resource_barrier;
         cmdbuffer.uniform_data = &uniform_data;
         cmdbuffer.desc_sets = &desc_sets;
@@ -433,6 +454,7 @@ void Stream::dispatch(
         cmdbuffer.write_desc_sets = &write_desc_sets;
         cmdbuffer.bindless_cache = &bindless_cache;
         cmdbuffer.temp_desc = &temp_desc;
+        cmdbuffer.scratch_buffer_alloc = &scratch_buffer_alloc;
         cmdbuffer.begin();
         cmdbuffer.execute(cmds);
         cmdbuffer.end();
@@ -513,6 +535,9 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
     for (auto &&lst : cmd_lists) {
         dispatch_offsets->clear();
         uniform_data->clear();
+        auto delay_clear = vstd::scope_exit([&]() {
+            scratch_buffer_alloc->clear();
+        });
         // Preprocess: record resources' states
         for (auto i = lst; i != nullptr; i = i->p_next) {
             auto cmd = i->cmd;
@@ -628,6 +653,8 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                 case Command::Tag::EAccelBuildCommand: {
                 } break;
                 case Command::Tag::EMeshBuildCommand: {
+                    auto c = static_cast<MeshBuildCommand const *>(cmd);
+                    reinterpret_cast<Blas *>(c->handle())->pre_build(*this, c);
                 } break;
                 case Command::Tag::ECurveBuildCommand: {
                 } break;
@@ -960,6 +987,8 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                 case Command::Tag::EAccelBuildCommand: {
                 } break;
                 case Command::Tag::EMeshBuildCommand: {
+                    auto c = static_cast<MeshBuildCommand const *>(cmd);
+                    reinterpret_cast<Blas *>(c->handle())->build(*this, c);
                 } break;
                 case Command::Tag::ECurveBuildCommand: {
                 } break;

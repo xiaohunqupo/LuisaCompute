@@ -27,16 +27,31 @@ public:
     void deallocate(uint64 handle) override;
     Pack *Create(size_t size);
 };
+class DefaultBufferDeferredVisitor : public vstd::StackAllocatorVisitor {
+public:
+    Device *device;
+    CommandBuffer *cmdbuffer;
+    vstd::unordered_map<uint64_t, vstd::unique_ptr<DefaultBuffer>> _buffers;
+    uint64 allocate(uint64 size) override;
+    void deallocate(uint64 handle) override;
+};
+class BufferAllocatorBase {
+protected:
+    ~BufferAllocatorBase() = default;
+public:
+    virtual BufferView allocate(size_t size) = 0;
+    virtual BufferView allocate(size_t size, size_t align) = 0;
+};
 template<typename T>
-class BufferAllocator {
+class BufferAllocator : public BufferAllocatorBase {
     static constexpr size_t kLargeBufferSize = 65536ull;
     vstd::StackAllocator alloc;
     vstd::vector<vstd::unique_ptr<T>> largeBuffers;
 
 public:
     Visitor<T> visitor;
-    BufferView allocate(size_t size);
-    BufferView allocate(size_t size, size_t align);
+    BufferView allocate(size_t size) override;
+    BufferView allocate(size_t size, size_t align) override;
     void clear();
     BufferAllocator(size_t initCapacity);
     ~BufferAllocator();
@@ -45,15 +60,27 @@ public:
 struct CommandBufferState {
     Device *device;
     temp_buffer::BufferAllocator<UploadBuffer> upload_alloc;
-    temp_buffer::BufferAllocator<DefaultBuffer> default_alloc;
     temp_buffer::BufferAllocator<ReadbackBuffer> readback_alloc;
     VkDescriptorPool _desc_pool;
     vstd::vector<VkImageView> img_views;
+    vstd::vector<std::pair<void *, vstd::func_ptr_t<void(void *)>>> _dispose_pool;
     vstd::vector<vstd::function<void()>> _callbacks;
     CommandBufferState();
     ~CommandBufferState();
     void init(Device &device);
     void reset(Device &device);
+    template<typename TT>
+        requires(!std::is_trivially_destructible_v<TT> && !std::is_reference_v<TT>)
+    void dispose_after_flush(TT &&value) {
+        auto ptr = vengine_malloc(sizeof(std::remove_cvref_t<TT>));
+        new (ptr) TT(std::forward<TT>(value));
+        _dispose_pool.emplace_back(
+            ptr,
+            [](void *ptr) {
+                std::destroy_at(reinterpret_cast<std::remove_cvref_t<TT> *>(ptr));
+                vengine_free(ptr);
+            });
+    }
 };
 
 class CommandBuffer : public Resource {
@@ -66,6 +93,7 @@ public:
     vstd::vector<std::byte> *uniform_data;
     vstd::vector<std::pair<size_t, size_t>> *dispatch_offsets;
     vstd::vector<VkWriteDescriptorSet> *write_desc_sets;
+    vstd::StackAllocator *scratch_buffer_alloc;
     vstd::vector<uint4> *bindless_cache;
     vstd::StackAllocator *temp_desc;
 
@@ -125,6 +153,8 @@ class Stream : public Resource {
     vstd::vector<std::pair<size_t, size_t>> dispatch_offsets;
     vstd::VEngineMallocVisitor temp_desc_visitor;
     vstd::StackAllocator temp_desc;
+    temp_buffer::DefaultBufferDeferredVisitor scratch_buffer_alloc_visitor;
+    vstd::StackAllocator scratch_buffer_alloc;
     vstd::vector<VkWriteDescriptorSet> write_desc_sets;
     vstd::vector<uint4> bindless_cache;
 

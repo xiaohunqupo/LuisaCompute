@@ -16,7 +16,7 @@
 #include "event.h"
 #include "texture.h"
 #include "bindless_array.h"
-
+#include "blas.h"
 namespace lc::vk {
 static constexpr uint k_shader_model = 65u;
 
@@ -244,11 +244,13 @@ VkAllocationCallbacks *Device::alloc_callbacks() {
 //////////////// Not implemented area
 ResourceCreationInfo Device::create_mesh(
     const AccelOption &option) noexcept {
-    LUISA_ERROR("mesh not implemented.");
-    return ResourceCreationInfo::make_invalid();
+    auto mesh = new Blas(this, option);
+    return ResourceCreationInfo{
+        .handle = reinterpret_cast<uint64_t>(mesh),
+        .native_handle = mesh->accel()};
 }
 void Device::destroy_mesh(uint64_t handle) noexcept {
-    LUISA_ERROR("mesh not implemented.");
+    delete reinterpret_cast<Blas *>(handle);
 }
 
 ResourceCreationInfo Device::create_procedural_primitive(
@@ -309,6 +311,7 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
         _default_file_io = vstd::make_unique<DefaultBinaryIO>(std::move(ctx_inst), headless);
         _binary_io = _default_file_io.get();
     }
+    func_table.init(this);
 }
 void Device::_init_device(uint32_t selectedDevice, bool fallback) {
     VkResult err;
@@ -373,8 +376,15 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
         _enable_device_exts.emplace_back(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
     }
 
+    VkPhysicalDeviceBufferDeviceAddressFeatures device_buffer_feature{
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES,
+        nullptr,
+        VK_TRUE
+    };
+
     VkPhysicalDeviceDescriptorIndexingFeatures enable_bindless_features{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES,
+        .pNext = &device_buffer_feature,
         .shaderInputAttachmentArrayDynamicIndexing = VK_TRUE,
         .shaderUniformTexelBufferArrayDynamicIndexing = VK_TRUE,
         .shaderStorageTexelBufferArrayDynamicIndexing = VK_TRUE,
@@ -623,7 +633,7 @@ void *Device::native_handle() const noexcept { return _vk_device->logicalDevice;
 BufferCreationInfo Device::create_buffer(const Type *element, size_t elem_count, void *external_ptr) noexcept {
     BufferCreationInfo info;
     info.element_stride = (element == Type::of<void>()) ? 1 : element->size();
-    auto ptr = new DefaultBuffer(this, info.element_stride * elem_count, false);
+    auto ptr = new DefaultBuffer(this, info.element_stride * elem_count, true);
     info.handle = reinterpret_cast<uint64_t>(ptr);
     info.native_handle = ptr->vk_buffer();
     info.total_size_bytes = ptr->byte_size();

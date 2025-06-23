@@ -70,12 +70,24 @@ DefaultBuffer::DefaultBuffer(Device *device, size_t size_bytes, bool used_as_acc
                       VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
                       VK_BUFFER_USAGE_TRANSFER_DST_BIT |
                       VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT |
-                      (used_as_accel ? (VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
-                                        VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR) :
+                      VK_BUFFER_USAGE_2_SHADER_DEVICE_ADDRESS_BIT |
+                      (used_as_accel ? (VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR) :
                                        0)),
                   AccessType::None)} {
 }
 DefaultBuffer::~DefaultBuffer() {
-    device()->allocator().destroy_buffer(_res);
+    if (_res.buffer)
+        device()->allocator().destroy_buffer(_res);
+}
+uint64_t Buffer::get_device_address() const {
+    VkBufferDeviceAddressInfoKHR buffer_device_address_info{};
+    buffer_device_address_info.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+    buffer_device_address_info.buffer = vk_buffer();
+    return vkGetBufferDeviceAddress(device()->logic_device(), &buffer_device_address_info);
+}
+DefaultBuffer::DefaultBuffer(DefaultBuffer &&rhs)
+    : Buffer(std::move(rhs)) {
+    _res = rhs._res;
+    rhs._res.buffer = nullptr;
 }
 }// namespace lc::vk

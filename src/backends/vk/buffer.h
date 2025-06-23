@@ -9,10 +9,12 @@ public:
     Buffer(Device *device, size_t byte_size)
         : Resource{device},
           _byte_size{byte_size} {};
+    Buffer(Buffer &&) = default;
     auto byte_size() const { return _byte_size; }
     virtual ~Buffer() = default;
     virtual VkBuffer vk_buffer() const = 0;
     Tag tag() const override { return Tag::Buffer; }
+    uint64_t get_device_address() const;
 };
 class BufferView {
 public:
@@ -30,4 +32,5 @@ public:
           offset(offset),
           size_bytes(size_bytes) {}
 };
+
 }// namespace lc::vk
