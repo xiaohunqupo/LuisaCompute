@@ -783,8 +783,13 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                             funcPtr,
                             fb->func_ref(func->function()));
                         current = funcPtr;
-                    } else
-                        current = fb->unary(lcType, TranslateUnaryOp(cxx_op), lhs);
+                    } 
+                    else
+                    {
+                        auto _local = LC_Local(fb, lcType, Usage::READ_WRITE);
+                        fb->assign(_local, fb->unary(lcType, TranslateUnaryOp(cxx_op), lhs));
+                        current = _local;
+                    }
                 } else {
                     auto one = fb->literal(Type::of<int>(), 1);
                     auto typed_one = one;
@@ -1012,7 +1017,11 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                                           (unaopName == "MINUS") ? UnaryOp::MINUS :
                                                                    (clangcxx_log_error("unsupportted unary op {}!!", unaopName.data()), UnaryOp::PLUS);
                         if (auto lcReturnType = db->FindOrAddType(cxxReturnType, x->getBeginLoc()))
-                            current = fb->unary(lcReturnType, lcUnaop, lcArgs[0]);
+                        {
+                            auto _local = LC_Local(fb, lcReturnType, Usage::READ_WRITE);
+                            fb->assign(_local, fb->unary(lcReturnType, lcUnaop, lcArgs[0]));
+                            current = _local;
+                        }
                     } else if (isAccess) {
                         if (auto lcReturnType = db->FindOrAddType(cxxReturnType, x->getBeginLoc())) {
                             if (lcArgs.size() >= 2) {
