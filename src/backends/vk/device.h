@@ -70,6 +70,7 @@ public:
     HeapAlloc tex3d_heap_pool;
     HeapAlloc buffer_heap_pool;
     LazyLoadShader set_bindless_kernel;
+    LazyLoadShader set_accel_kernel;
     auto binary_io() const { return _binary_io; }
     auto sampler_set() const { return _sampler_set; }
     auto bdls_buffer_set() const { return _bdls_buffer_set; }

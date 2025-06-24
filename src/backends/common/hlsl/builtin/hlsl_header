@@ -80,7 +80,6 @@ T _fract(T x){return x-floor(x);}
 struct _Hit0{uint v0;uint v1;float2 v2;uint v3;float v4;};
 struct _Hit1{uint v0;uint v1;float2 v2;float v3;uint _a0;};
 struct _Hit2{uint v0;uint v1;};
-#ifndef SPV
 struct _MeshInst {
 float4 p0;
 float4 p1;
@@ -91,7 +90,6 @@ uint InstanceContributionToHitGroupIndex:24;
 uint Flags:8;
 uint2 accelStructPtr;
 };
-#endif
 float2x2 _outer_product(float2 a,float2 b){return float2x2(a*b.x,a*b.y);}
 float3x4 _outer_product(float3 a,float3 b){return float3x4(float4(a*b.x,0),float4(a*b.y,0),float4(a*b.z,0));}
 float4x4 _outer_product(float4 a,float4 b){return float4x4(a*b.x,a*b.y,a*b.z,a*b.w);}

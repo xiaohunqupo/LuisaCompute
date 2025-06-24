@@ -5,6 +5,7 @@
 #include <luisa/core/logging.h>
 #include "log.h"
 #include "blas.h"
+#include "tlas.h"
 namespace lc::vk {
 template<typename Visitor>
 void DecodeCmd(vstd::span<const Argument> args, Visitor &&visitor) {
@@ -134,8 +135,19 @@ struct ResourceBarrierVisitor {
         ++arg;
     }
     void operator()(Argument::Accel const &bf) {
-        LUISA_NOT_IMPLEMENTED();
-        // TODO: accel
+        auto tlas = reinterpret_cast<Tlas *>(bf.handle);
+        if ((luisa::to_underlying(arg->varUsage) & luisa::to_underlying(Usage::WRITE)) != 0) {
+            barrier->record(
+                BufferView(tlas->instance_buffer()),
+                ResourceBarrier::Usage::ComputeUAV);
+        } else {
+            barrier->record(
+                BufferView(tlas->instance_buffer()),
+                ResourceBarrier::Usage::ComputeRead);
+            barrier->record(
+                BufferView(tlas->accel_buffer()),
+                ResourceBarrier::Usage::ComputeAccelRead);
+        }
         ++arg;
     }
 };
@@ -230,7 +242,66 @@ struct BindPropVisitor {
         ++arg;
     }
     void operator()(Argument::Accel const &bf) {
-        LUISA_NOT_IMPLEMENTED();
+        auto tlas = reinterpret_cast<Tlas *>(bf.handle);
+        if ((luisa::to_underlying(arg->varUsage) & luisa::to_underlying(Usage::WRITE)) != 0) {
+            auto idx = desc_index++;
+            auto buffer_descs = cmdbuffer->temp_desc->allocate_memory<VkDescriptorBufferInfo>();
+            *buffer_descs = VkDescriptorBufferInfo{
+                tlas->instance_buffer()->vk_buffer(),
+                0,
+                tlas->instance_buffer()->byte_size()};
+            auto &a = cmdbuffer->write_desc_sets->emplace_back(VkWriteDescriptorSet{
+                VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                nullptr,
+                desc_set,
+                idx,
+                0,
+                1,
+                VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                nullptr,
+                buffer_descs,
+                nullptr});
+        } else {
+            // accel
+            {
+                auto idx = desc_index++;
+                auto accel_info = cmdbuffer->temp_desc->allocate_memory<VkWriteDescriptorSetAccelerationStructureKHR>();
+                accel_info->sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
+                accel_info->accelerationStructureCount = 1;
+                accel_info->pAccelerationStructures = &tlas->accel();
+                auto &a = cmdbuffer->write_desc_sets->emplace_back(VkWriteDescriptorSet{
+                    VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                    accel_info,
+                    desc_set,
+                    idx,
+                    0,
+                    1,
+                    VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
+                    nullptr,
+                    nullptr,
+                    nullptr});
+            }
+            // instance
+            {
+                auto idx = desc_index++;
+                auto buffer_descs = cmdbuffer->temp_desc->allocate_memory<VkDescriptorBufferInfo>();
+                *buffer_descs = VkDescriptorBufferInfo{
+                    tlas->instance_buffer()->vk_buffer(),
+                    0,
+                    tlas->instance_buffer()->byte_size()};
+                auto &a = cmdbuffer->write_desc_sets->emplace_back(VkWriteDescriptorSet{
+                    VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                    nullptr,
+                    desc_set,
+                    idx,
+                    0,
+                    1,
+                    VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                    nullptr,
+                    buffer_descs,
+                    nullptr});
+            }
+        }
         ++arg;
     }
 };
@@ -301,7 +372,7 @@ CommandBufferState::CommandBufferState()
     : upload_alloc(TEMP_SIZE),
       readback_alloc(TEMP_SIZE) {
 }
-void CommandBufferState::init(Device &device) {
+void CommandBufferState::init(Device &device, StreamTag tag) {
     this->device = &device;
     upload_alloc.visitor.device = &device;
     readback_alloc.visitor.device = &device;
@@ -321,8 +392,28 @@ void CommandBufferState::init(Device &device) {
             .pPoolSizes = pool_sizes};
         VK_CHECK_RESULT(vkCreateDescriptorPool(device.logic_device(), &createInfo, Device::alloc_callbacks(), &_desc_pool));
     }
+    if (!_pool) {
+        VkCommandPoolCreateInfo pool_ci{
+            .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+            .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT};
+        switch (tag) {
+            case StreamTag::GRAPHICS:
+                pool_ci.queueFamilyIndex = device.graphics_queue_index();
+                break;
+            case StreamTag::COPY:
+                pool_ci.queueFamilyIndex = device.copy_queue_index();
+                break;
+            case StreamTag::COMPUTE:
+                pool_ci.queueFamilyIndex = device.compute_queue_index();
+                break;
+            default:
+                LUISA_ASSERT(false, "Illegal stream tag.");
+        }
+        VK_CHECK_RESULT(vkCreateCommandPool(device.logic_device(), &pool_ci, Device::alloc_callbacks(), &_pool));
+    }
 }
 CommandBufferState::~CommandBufferState() {
+    vkDestroyCommandPool(device->logic_device(), _pool, Device::alloc_callbacks());
     vkDestroyDescriptorPool(device->logic_device(), _desc_pool, Device::alloc_callbacks());
 }
 void CommandBufferState::reset(Device &device) {
@@ -343,8 +434,8 @@ void CommandBufferState::reset(Device &device) {
     VK_CHECK_RESULT(vkResetDescriptorPool(device.logic_device(), _desc_pool, 0));
 }
 void CommandBuffer::reset() {
-    _state->reset(*device());
     VK_CHECK_RESULT(vkResetCommandBuffer(_cmdbuffer, 0));
+    _state->reset(*device());
 }
 
 Stream::Stream(Device *device, StreamTag tag)
@@ -381,25 +472,20 @@ Stream::Stream(Device *device, StreamTag tag)
           loop_cmd();
       }),
       temp_desc(65536, &temp_desc_visitor, 2),
-      scratch_buffer_alloc(TEMP_SIZE, &scratch_buffer_alloc_visitor) {
-    VkCommandPoolCreateInfo pool_ci{
-        .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-        .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT};
+      scratch_buffer_alloc(TEMP_SIZE, &scratch_buffer_alloc_visitor),
+      _stream_tag(tag) {
     switch (tag) {
         case StreamTag::GRAPHICS:
-            pool_ci.queueFamilyIndex = device->graphics_queue_index();
             _queue = device->graphics_queue();
             resource_barrier.queue_type = ResourceBarrier::QueueType::Graphics;
             resource_barrier.queue_index = device->graphics_queue_index();
             break;
         case StreamTag::COPY:
-            pool_ci.queueFamilyIndex = device->copy_queue_index();
             resource_barrier.queue_type = ResourceBarrier::QueueType::Copy;
             _queue = device->copy_queue();
             resource_barrier.queue_index = device->copy_queue_index();
             break;
         case StreamTag::COMPUTE:
-            pool_ci.queueFamilyIndex = device->compute_queue_index();
             resource_barrier.queue_type = ResourceBarrier::QueueType::Compute;
             _queue = device->compute_queue();
             resource_barrier.queue_index = device->compute_queue_index();
@@ -407,7 +493,6 @@ Stream::Stream(Device *device, StreamTag tag)
         default:
             LUISA_ASSERT(false, "Illegal stream tag.");
     }
-    VK_CHECK_RESULT(vkCreateCommandPool(device->logic_device(), &pool_ci, Device::alloc_callbacks(), &_pool));
 }
 Stream::~Stream() {
     sync();
@@ -420,7 +505,6 @@ Stream::~Stream() {
     scratch_buffer_alloc_visitor._buffers.clear();
     while (auto p = _cmdbuffers.pop()) {
     }
-    vkDestroyCommandPool(device()->logic_device(), _pool, Device::alloc_callbacks());
 }
 void Stream::dispatch(
     vstd::span<const luisa::unique_ptr<Command>> cmds,
@@ -484,10 +568,10 @@ CommandBuffer::CommandBuffer(Stream &stream)
     : Resource(stream.device()),
       stream(stream),
       _state(vstd::make_unique<CommandBufferState>()) {
-    _state->init(*stream.device());
+    _state->init(*stream.device(), stream.stream_tag());
     VkCommandBufferAllocateInfo cb_ci{
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .commandPool = stream.pool(),
+        .commandPool = _state->_pool,
         .commandBufferCount = 1};
     VK_CHECK_RESULT(vkAllocateCommandBuffers(device()->logic_device(), &cb_ci, &_cmdbuffer));
     // VkFenceCreateInfo fence_info{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
@@ -495,7 +579,7 @@ CommandBuffer::CommandBuffer(Stream &stream)
 }
 CommandBuffer::~CommandBuffer() {
     if (_cmdbuffer)
-        vkFreeCommandBuffers(device()->logic_device(), stream.pool(), 1, &_cmdbuffer);
+        vkFreeCommandBuffers(device()->logic_device(), _state->_pool, 1, &_cmdbuffer);
 }
 void CommandBuffer::begin() {
     VkCommandBufferBeginInfo bi{
@@ -601,11 +685,10 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                         uniform_data,
                         *c,
                         false};
-                    sizes.second = uniform_data->size() - sizes.first;
-                    dispatch_offsets->emplace_back(sizes);
                     DecodeCmd(shader->captured(), visitor);
                     DecodeCmd(c->arguments(), visitor);
-                    //TODO
+                    sizes.second = uniform_data->size() - sizes.first;
+                    dispatch_offsets->emplace_back(sizes);
                 } break;
                 case Command::Tag::ETextureUploadCommand: {
                     auto c = static_cast<TextureUploadCommand const *>(cmd);
@@ -651,6 +734,8 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                         ResourceBarrier::Usage::CopySource);
                 } break;
                 case Command::Tag::EAccelBuildCommand: {
+                    auto c = static_cast<AccelBuildCommand const *>(cmd);
+                    reinterpret_cast<Tlas *>(c->handle())->pre_build(*this, c->instance_count(), *write_desc_sets, *bindless_cache, c->modifications(), c->request());
                 } break;
                 case Command::Tag::EMeshBuildCommand: {
                     auto c = static_cast<MeshBuildCommand const *>(cmd);
@@ -768,24 +853,6 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                     auto c = static_cast<ShaderDispatchCommand const *>(cmd);
                     auto shader = reinterpret_cast<ComputeShader *>(c->handle());
                     uint desc_index = 0;
-                    if (offset_ptr->second > 0) {
-                        auto arg_buffer_info = temp_desc->allocate_memory<VkDescriptorBufferInfo>();
-                        *arg_buffer_info = VkDescriptorBufferInfo{
-                            arg_buffer.buffer->vk_buffer(),
-                            arg_buffer.offset + offset_ptr->first,
-                            offset_ptr->second};
-                        write_desc_sets->emplace_back(VkWriteDescriptorSet{
-                            VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                            nullptr,
-                            0,
-                            desc_index++,
-                            0,
-                            1,
-                            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                            nullptr,
-                            arg_buffer_info,
-                            nullptr});
-                    }
 
                     BindPropVisitor visitor;
                     visitor.cmdbuffer = this;
@@ -799,9 +866,28 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                             device()->logic_device(),
                             &alloc_info,
                             &visitor.desc_set));
-
+                    if (offset_ptr->second > 0) {
+                        auto arg_buffer_info = temp_desc->allocate_memory<VkDescriptorBufferInfo>();
+                        *arg_buffer_info = VkDescriptorBufferInfo{
+                            arg_buffer.buffer->vk_buffer(),
+                            arg_buffer.offset + offset_ptr->first,
+                            offset_ptr->second};
+                        write_desc_sets->emplace_back(VkWriteDescriptorSet{
+                            VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                            nullptr,
+                            visitor.desc_set,
+                            desc_index++,
+                            0,
+                            1,
+                            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                            nullptr,
+                            arg_buffer_info,
+                            nullptr});
+                    }
                     visitor.desc_index = desc_index;
                     visitor.img_views = &_state->img_views;
+                    auto size = shader->saved_arguments().size();
+
                     visitor.arg = shader->saved_arguments().data();
                     DecodeCmd(shader->captured(), visitor);
                     DecodeCmd(c->arguments(), visitor);
@@ -985,6 +1071,49 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                         &info);
                 } break;
                 case Command::Tag::EAccelBuildCommand: {
+                    auto c = static_cast<AccelBuildCommand const *>(cmd);
+                    reinterpret_cast<Tlas *>(c->handle())->build(*this, c->instance_count());
+                    auto &bf = *reinterpret_cast<Tlas *>(c->handle())->instance_buffer();
+                    // resource_barrier->record(
+                    //     BufferView{&bf},
+                    //     ResourceBarrier::Usage::CopySource);
+                    // resource_barrier->update_states(_cmdbuffer);
+                    // luisa::vector<VkAccelerationStructureInstanceKHR> vec(bf.byte_size() / sizeof(VkAccelerationStructureInstanceKHR));
+                    // auto chunk = _state->readback_alloc.allocate(vec.size_bytes(), 16);
+
+                    // VkBufferCopy2 buffer_copy{
+                    //     VK_STRUCTURE_TYPE_BUFFER_COPY_2,
+                    //     nullptr,
+                    //     0,
+                    //     chunk.offset,
+                    //     vec.size_bytes()};
+                    // int x = 0;
+                    // VkCopyBufferInfo2 copy_info2{
+                    //     VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2,
+                    //     nullptr,
+                    //     bf.vk_buffer(),
+                    //     chunk.buffer->vk_buffer(),
+                    //     1,
+                    //     &buffer_copy};
+                    // vkCmdCopyBuffer2(
+                    //     _cmdbuffer,
+                    //     &copy_info2);
+                    // _state->_callbacks.emplace_back([chunk, vec = std::move(vec)]() mutable {
+                    //     static_cast<ReadbackBuffer const *>(chunk.buffer)->copy_to(vec.data(), chunk.offset, vec.size_bytes());
+                    //     for (auto &i : vec) {
+                    //         LUISA_INFO(
+                    //             "Matrix: {}\n{}\n{}\ninstanceCustomIndex{}\nmask{}\ninstanceShaderBindingTableRecordOffset{}\nflags{}\naccelerationStructureReference{}",
+                    //             (float4&)i.transform.matrix[0],
+                    //             (float4&)i.transform.matrix[1],
+                    //             (float4&)i.transform.matrix[2],
+                    //             (uint)i.instanceCustomIndex,
+                    //             (uint)i.mask,
+                    //             (uint)i.instanceShaderBindingTableRecordOffset,
+                    //             (uint)i.flags,
+                    //             i.accelerationStructureReference
+                    //         );
+                    //     }
+                    // });
                 } break;
                 case Command::Tag::EMeshBuildCommand: {
                     auto c = static_cast<MeshBuildCommand const *>(cmd);

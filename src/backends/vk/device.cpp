@@ -17,6 +17,7 @@
 #include "texture.h"
 #include "bindless_array.h"
 #include "blas.h"
+#include "tlas.h"
 namespace lc::vk {
 static constexpr uint k_shader_model = 65u;
 
@@ -263,16 +264,19 @@ void Device::destroy_procedural_primitive(uint64_t handle) noexcept {
 }
 
 ResourceCreationInfo Device::create_accel(const AccelOption &option) noexcept {
-    LUISA_ERROR("accel not implemented.");
-    return ResourceCreationInfo::make_invalid();
+    auto accel = new Tlas(this, option);
+    return ResourceCreationInfo{
+        .handle = reinterpret_cast<uint64_t>(accel),
+        .native_handle = accel->accel()};
 }
 void Device::destroy_accel(uint64_t handle) noexcept {
-    LUISA_ERROR("accel not implemented.");
+    delete reinterpret_cast<Tlas*>(handle);
 }
 //////////////// Not implemented area
 Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
     : DeviceInterface{std::move(ctx_arg)},
-      set_bindless_kernel(BuiltinKernel::LoadBindlessSetKernel) {
+      set_bindless_kernel(BuiltinKernel::LoadBindlessSetKernel),
+      set_accel_kernel(BuiltinKernel::LoadAccelSetKernel) {
     bool headless = false;
     uint device_idx = 0;
     if (configs) {
@@ -379,8 +383,7 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
     VkPhysicalDeviceBufferDeviceAddressFeatures device_buffer_feature{
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES,
         nullptr,
-        VK_TRUE
-    };
+        VK_TRUE};
 
     VkPhysicalDeviceDescriptorIndexingFeatures enable_bindless_features{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES,
@@ -683,7 +686,7 @@ ResourceCreationInfo Device::create_stream(StreamTag stream_tag) noexcept {
     auto ptr = new Stream(this, stream_tag);
     ResourceCreationInfo info{
         .handle = reinterpret_cast<uint64_t>(ptr),
-        .native_handle = ptr->pool()};
+        .native_handle = ptr->queue()};
     return info;
 }
 void Device::destroy_stream(uint64_t handle) noexcept {

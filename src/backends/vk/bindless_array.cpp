@@ -116,7 +116,7 @@ void BindlessArray::update(
     luisa::span<BindlessArrayUpdateCommand::Modification const> mods) {
     std::lock_guard lck{mtx};
     auto dsc_buffer = cmdbuffer->states()->upload_alloc.allocate(16 * mods.size(), 16);
-    auto shader = cmdbuffer->device()->set_bindless_kernel.Get(cmdbuffer->device());
+    auto shader = device()->set_bindless_kernel.Get(device());
     cache.clear();
     cache.reserve(mods.size());
     auto emplace_tex = [&]<bool isTex2D>(BindlessStruct &bind_grp, Texture const *tex) {
@@ -219,16 +219,16 @@ void BindlessArray::update(
         0,
         4,
         &value);
-
+    VkDescriptorBufferInfo arg_buffer_info{
+        dsc_buffer.buffer->vk_buffer(),
+        dsc_buffer.offset,
+        dsc_buffer.size_bytes};
     VkDescriptorBufferInfo buffer_info{
         _indices_buffer.vk_buffer(),
         0,
         _indices_buffer.byte_size()};
     static_cast<UploadBuffer const *>(dsc_buffer.buffer)->copy_from(cache.data(), dsc_buffer.offset, cache.size_bytes());
-    VkDescriptorBufferInfo arg_buffer_info{
-        dsc_buffer.buffer->vk_buffer(),
-        dsc_buffer.offset,
-        dsc_buffer.size_bytes};
+
     write_desc_sets.emplace_back(VkWriteDescriptorSet{
         VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         nullptr,

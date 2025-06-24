@@ -93,7 +93,7 @@ namespace detail {
 static size_t AddHeader(CallOpSet const &ops, vstd::StringBuilder &builder, bool isRaster, bool is_spirv) {
     builder << CodegenUtility::ReadInternalHLSLFile("hlsl_header");
     size_t immutable_size = builder.size();
-    if (ops.uses_raytracing() && !is_spirv) {
+    if (ops.uses_raytracing()) {
         builder << CodegenUtility::ReadInternalHLSLFile("raytracing_header");
     }
     if (ops.test(CallOp::DETERMINANT)) {
@@ -1766,15 +1766,9 @@ void CodegenUtility::GenerateCBuffer(
         }
         size += size_cache;
     }
-    if (opt->isSpirv) {
-        result << R"(};
-StructuredBuffer<_Args> _Global:register(t1);
-)"sv;
-    } else {
-        result << R"(};
+    result << R"(};
 StructuredBuffer<_Args> _Global:register(t0);
 )"sv;
-    }
     bind_count += 2;
 }
 void CodegenUtility::GenerateBindless(
@@ -2025,7 +2019,7 @@ void CodegenUtility::CodegenProperties(
                 if (Writable(i)) {
                     genArg.operator()<RegisterType::UAV, true, true>(ShaderVariableType::RWStructuredBuffer, 'u');
                 } else {
-                    genArg.operator()<RegisterType::SRV>(ShaderVariableType::StructuredBuffer, 't');
+                    genArg.operator()<RegisterType::SRV>(opt->isSpirv ? ShaderVariableType::SPIRVAccel : ShaderVariableType::StructuredBuffer, 't');
                     genArg.operator()<RegisterType::SRV, true>(ShaderVariableType::StructuredBuffer, 't');
                 }
                 break;

@@ -9,6 +9,7 @@ public:
     DEFINE_VK_FUNC(vkCreateAccelerationStructureKHR);
     DEFINE_VK_FUNC(vkCmdBuildAccelerationStructuresKHR);
     DEFINE_VK_FUNC(vkDestroyAccelerationStructureKHR);
+    DEFINE_VK_FUNC(vkGetAccelerationStructureDeviceAddressKHR);
     VkFuncTable();
     void init(Device *device);
     ~VkFuncTable();

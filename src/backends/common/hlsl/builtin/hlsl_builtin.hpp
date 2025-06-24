@@ -2,6 +2,7 @@
 #include <luisa/core/stl/string.h>
 namespace lc_hlsl{
 extern unsigned char accel_process[];
+extern unsigned char accel_process_vk[];
 extern unsigned char bindless_upload[];
 extern unsigned char bindless_upload_vk[];
 extern unsigned char bc6_encode_block[];
@@ -37,6 +38,7 @@ static HLSLCompressedHeader get_hlsl_builtin(luisa::string_view ss) {
         luisa::unordered_map<luisa::string_view, HLSLCompressedHeader> dict;
         Dict(){
 			dict.try_emplace("accel_process", HLSLCompressedHeader{accel_process, 525, 1491});
+			dict.try_emplace("accel_process_vk", HLSLCompressedHeader{accel_process_vk, 554, 1548});
 			dict.try_emplace("bindless_upload", HLSLCompressedHeader{bindless_upload, 225, 334});
 			dict.try_emplace("bindless_upload_vk", HLSLCompressedHeader{bindless_upload_vk, 253, 386});
 			dict.try_emplace("bc6_encode_block", HLSLCompressedHeader{bc6_encode_block, 1805, 11021});
@@ -48,7 +50,7 @@ static HLSLCompressedHeader get_hlsl_builtin(luisa::string_view ss) {
 			dict.try_emplace("bc7_trymode_02cs", HLSLCompressedHeader{bc7_trymode_02cs, 1782, 7820});
 			dict.try_emplace("bc7_trymode_137cs", HLSLCompressedHeader{bc7_trymode_137cs, 1814, 7852});
 			dict.try_emplace("bc7_trymode_456cs", HLSLCompressedHeader{bc7_trymode_456cs, 2391, 11171});
-			dict.try_emplace("hlsl_header", HLSLCompressedHeader{hlsl_header, 1427, 5617});
+			dict.try_emplace("hlsl_header", HLSLCompressedHeader{hlsl_header, 1414, 5596});
 			dict.try_emplace("raytracing_header", HLSLCompressedHeader{raytracing_header, 881, 3650});
 			dict.try_emplace("tex2d_bindless", HLSLCompressedHeader{tex2d_bindless, 551, 4136});
 			dict.try_emplace("tex3d_bindless", HLSLCompressedHeader{tex3d_bindless, 507, 3535});

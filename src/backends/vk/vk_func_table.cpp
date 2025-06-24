@@ -8,6 +8,7 @@ void VkFuncTable::init(Device *device) {
     SET_VK_FUNC(vkCreateAccelerationStructureKHR);
     SET_VK_FUNC(vkCmdBuildAccelerationStructuresKHR);
     SET_VK_FUNC(vkDestroyAccelerationStructureKHR);
+    SET_VK_FUNC(vkGetAccelerationStructureDeviceAddressKHR);
 }
 VkFuncTable::VkFuncTable() {}
 VkFuncTable::~VkFuncTable() {}

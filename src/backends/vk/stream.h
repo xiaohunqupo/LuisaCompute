@@ -58,7 +58,8 @@ public:
 };
 }// namespace temp_buffer
 struct CommandBufferState {
-    Device *device;
+    VkCommandPool _pool{};
+    Device *device{};
     temp_buffer::BufferAllocator<UploadBuffer> upload_alloc;
     temp_buffer::BufferAllocator<ReadbackBuffer> readback_alloc;
     VkDescriptorPool _desc_pool;
@@ -67,7 +68,7 @@ struct CommandBufferState {
     vstd::vector<vstd::function<void()>> _callbacks;
     CommandBufferState();
     ~CommandBufferState();
-    void init(Device &device);
+    void init(Device &device, StreamTag tag);
     void reset(Device &device);
     template<typename TT>
         requires(!std::is_trivially_destructible_v<TT> && !std::is_reference_v<TT>)
@@ -140,7 +141,6 @@ class Stream : public Resource {
         SyncExt,
         NotifyEvt>;
     Event _evt;
-    VkCommandPool _pool;
     VkQueue _queue;
     std::atomic_bool _enabled{true};
     std::condition_variable _cv;
@@ -157,11 +157,11 @@ class Stream : public Resource {
     vstd::StackAllocator scratch_buffer_alloc;
     vstd::vector<VkWriteDescriptorSet> write_desc_sets;
     vstd::vector<uint4> bindless_cache;
-
+    StreamTag _stream_tag;
 public:
     CommandReorderVisitor<ReorderFuncTable, true> reorder;
     [[nodiscard]] auto queue() const { return _queue; }
-    [[nodiscard]] auto pool() const { return _pool; }
+    [[nodiscard]] auto stream_tag() const { return _stream_tag; }
     Stream(Device *device, StreamTag tag);
     ~Stream();
     void dispatch(

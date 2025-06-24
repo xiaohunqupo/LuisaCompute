@@ -1222,6 +1222,7 @@ void LCCmdBuffer::Execute(
                 accelScratchBuffer = allocator->AllocateScratchBuffer(ppVisitor.buildAccelSize);
                 visitor.accelScratchOffsets = ppVisitor.accelOffset->data();
                 visitor.accelScratchBuffer = accelScratchBuffer;
+                tracker->Record(accelScratchBuffer, EnhancedBarrierTracker::Usage::ComputeUAV);
             }
             // Upload CBuffers
             if (ppVisitor.argBuffer->empty()) {

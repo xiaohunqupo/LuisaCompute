@@ -56,6 +56,9 @@ Shader::Shader(
             case hlsl::ShaderVariableType::SRVBufferHeap:
                 v.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
                 break;
+            case hlsl::ShaderVariableType::SPIRVAccel:
+                v.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+                break;
             case hlsl::ShaderVariableType::SamplerHeap:
                 v.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
                 v.pImmutableSamplers = device->samplers().data();

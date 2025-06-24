@@ -249,7 +249,7 @@ void BottomAccel::RemoveAccelRef(MeshHandle *handle) {
     MeshHandle::DestroyHandle(handle);
 }
 namespace detail {
-static vstd::Pool<MeshHandle> meshHandlePool(32, false);
+static vstd::Pool<MeshHandle> meshHandlePool(256, false);
 static vstd::spin_mutex meshHandleMtx;
 }// namespace detail
 MeshHandle *MeshHandle::AllocateHandle() {

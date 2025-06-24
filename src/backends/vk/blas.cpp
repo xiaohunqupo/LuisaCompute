@@ -1,6 +1,7 @@
 #include "blas.h"
 #include "device.h"
 #include "log.h"
+#include "tlas.h"
 #include "stream.h"
 namespace lc::vk {
 Blas::Blas(Device *device, AccelOption const &option)
@@ -13,10 +14,6 @@ void Blas::pre_build(
     vertex_data_device_address.deviceAddress = reinterpret_cast<DefaultBuffer const *>(cmd->vertex_buffer())->get_device_address() + cmd->vertex_buffer_offset();
     index_data_device_address.deviceAddress = reinterpret_cast<DefaultBuffer const *>(cmd->triangle_buffer())->get_device_address() + cmd->triangle_buffer_offset();
 
-    VkTransformMatrixKHR transform_matrix = {
-        1.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 1.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 1.0f, 0.0f};
     auto acceleration_structure_geometry = cmdbuffer.temp_desc->allocate_memory<VkAccelerationStructureGeometryKHR>();
     acceleration_structure_geometry->sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
     acceleration_structure_geometry->geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
@@ -57,7 +54,7 @@ void Blas::pre_build(
         _accel_buffer = vstd::make_unique<DefaultBuffer>(
             device(),
             acceleration_structure_build_sizes_info.accelerationStructureSize,
-            true);
+            false, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR);
     }
     cmdbuffer.resource_barrier->record(
         _accel_buffer.get(),
@@ -67,15 +64,27 @@ void Blas::pre_build(
     acceleration_structure_create_info.buffer = _accel_buffer->vk_buffer();
     acceleration_structure_create_info.size = acceleration_structure_build_sizes_info.accelerationStructureSize;
     acceleration_structure_create_info.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+    if (_accel) {
+        cmdbuffer.states()->_callbacks.emplace_back([a = _accel, device = device()]() {
+            device->func_table.vkDestroyAccelerationStructureKHR(device->logic_device(), a, Device::alloc_callbacks());
+        });
+        sync_tlas();
+    }
     VK_CHECK_RESULT(device()->func_table.vkCreateAccelerationStructureKHR(device()->logic_device(), &acceleration_structure_create_info, Device::alloc_callbacks(), &_accel));
     scratch_buffer_size = (scratch_buffer_size + 255) & (~(255u));
     auto scratch_chunk = cmdbuffer.scratch_buffer_alloc->allocate(scratch_buffer_size);
-    
+
     scratch_buffer = reinterpret_cast<DefaultBuffer const *>(scratch_chunk.handle);
     scratch_buffer_offset = scratch_chunk.offset;
     cmdbuffer.resource_barrier->record(
         scratch_buffer,
         ResourceBarrier::Usage::ComputeUAV);
+    cmdbuffer.resource_barrier->record(
+        reinterpret_cast<DefaultBuffer const *>(cmd->vertex_buffer()),
+        ResourceBarrier::Usage::AccelInstanceBuffer);
+    cmdbuffer.resource_barrier->record(
+        reinterpret_cast<DefaultBuffer const *>(cmd->triangle_buffer()),
+        ResourceBarrier::Usage::AccelInstanceBuffer);
 }
 void Blas::build(
     CommandBuffer &cmdbuffer,
@@ -94,6 +103,61 @@ void Blas::build(
         &acceleration_structure_build_range_info);
 }
 Blas::~Blas() {
+    for (auto &&i : handles) {
+        i->accel->allInstance[i->accelIndex].handle = nullptr;
+        MeshHandle::DestroyHandle(i);
+    }
     device()->func_table.vkDestroyAccelerationStructureKHR(device()->logic_device(), _accel, Device::alloc_callbacks());
+}
+uint64_t Blas::get_accel_device_address() const {
+    VkAccelerationStructureDeviceAddressInfoKHR acceleration_device_address_info{};
+    acceleration_device_address_info.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
+    acceleration_device_address_info.accelerationStructure = _accel;
+    return device()->func_table.vkGetAccelerationStructureDeviceAddressKHR(device()->logic_device(), &acceleration_device_address_info);
+}
+void Blas::remove_accel_ref(MeshHandle *handle) {
+    LUISA_ASSUME(handle->mesh == this);
+    {
+        std::lock_guard lck(handleMtx);
+        auto last = handles.back();
+        handles.pop_back();
+        if (last != handle) {
+            last->meshIndex = handle->meshIndex;
+            handles[handle->meshIndex] = last;
+        }
+    }
+    MeshHandle::DestroyHandle(handle);
+}
+MeshHandle *Blas::add_accel_ref(Tlas *accel, uint index) {
+    auto meshHandle = MeshHandle::AllocateHandle();
+    meshHandle->mesh = this;
+    meshHandle->accel = accel;
+    meshHandle->accelIndex = index;
+    {
+        std::lock_guard lck(handleMtx);
+        meshHandle->meshIndex = handles.size();
+        handles.emplace_back(meshHandle);
+    }
+    return meshHandle;
+}
+void Blas::sync_tlas() {
+    std::lock_guard lck(handleMtx);
+    for (auto &&i : handles) {
+        LUISA_ASSUME(i->mesh == this);
+        i->accel->update_mesh(i);
+    }
+}
+
+namespace detail {
+static vstd::Pool<MeshHandle> meshHandlePool(256, false);
+static vstd::spin_mutex meshHandleMtx;
+}// namespace detail
+MeshHandle *MeshHandle::AllocateHandle() {
+    using namespace detail;
+    return meshHandlePool.create_lock(meshHandleMtx);
+}
+void MeshHandle::DestroyHandle(MeshHandle *handle) {
+    using namespace detail;
+    meshHandlePool.destroy_lock(meshHandleMtx, handle);
 }
 }// namespace lc::vk
