@@ -116,6 +116,7 @@ LC_CORE_API void log_flush() noexcept;
 
 template<typename... Args>
 [[noreturn]] LUISA_FORCE_INLINE void log_error(Args &&...args) noexcept {
+#ifndef LUISA_CUSTOM_LOGGER
     std::string error_message;
     if constexpr (sizeof...(args) == 1u) {
         error_message = std::string{std::forward<Args>(args)...};
@@ -128,7 +129,6 @@ template<typename... Args>
         fmt::format_to(std::back_inserter(error_message),
                        FMT_STRING("\n    {:>2} {}"), i, t);
     }
-#ifndef LUISA_CUSTOM_LOGGER
     detail::default_logger().error(error_message);
 #else
     if constexpr (sizeof...(args) == 1) {
