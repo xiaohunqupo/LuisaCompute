@@ -262,7 +262,7 @@ public:
     void reset() noexcept;
 
     // deprecated methods
-    [[deprecated("Please use `reset` instead.")]]
+    [[deprecated("Please use `reset()` instead.")]]
     void dispose() noexcept;
 };
 
