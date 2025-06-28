@@ -279,11 +279,12 @@ class BindlessBuffer {
 private:
     const RefExpr *_array{nullptr};
     const Expression *_index{nullptr};
+    bool _is_typed;
 
 public:
     /// Construct from array RefExpr and index Expression
-    BindlessBuffer(const RefExpr *array, const Expression *index) noexcept
-        : _array{array}, _index{index} {}
+    BindlessBuffer(const RefExpr *array, const Expression *index, bool is_typed) noexcept
+        : _array{array}, _index{index}, _is_typed{is_typed} {}
 
     /// Read at index i
     template<typename I>
@@ -292,7 +293,7 @@ public:
         auto f = detail::FunctionBuilder::current();
         return def<T>(
             f->call(
-                Type::of<T>(), CallOp::BINDLESS_BUFFER_READ,
+                Type::of<T>(), _is_typed ? CallOp::TYPED_BINDLESS_BUFFER_READ : CallOp::BINDLESS_BUFFER_READ,
                 {_array, _index, detail::extract_expression(std::forward<I>(i))}));
     }
 
@@ -301,7 +302,7 @@ public:
         requires is_integral_expr_v<I>
     void write(I &&i, V &&value) const noexcept {
         detail::FunctionBuilder::current()->call(
-            CallOp::BINDLESS_BUFFER_WRITE,
+            _is_typed ? CallOp::TYPED_BINDLESS_BUFFER_WRITE : CallOp::BINDLESS_BUFFER_WRITE,
             {_array, _index,
              detail::extract_expression(std::forward<I>(i)),
              detail::extract_expression(std::forward<V>(value))});
@@ -316,10 +317,11 @@ class LC_DSL_API BindlessByteBuffer {
 private:
     const RefExpr *_array{nullptr};
     const Expression *_index{nullptr};
+    bool _is_typed;
 
 public:
-    BindlessByteBuffer(const RefExpr *array, const Expression *index) noexcept
-        : _array{array}, _index{index} {}
+    BindlessByteBuffer(const RefExpr *array, const Expression *index, bool is_typed) noexcept
+        : _array{array}, _index{index}, _is_typed{is_typed} {}
 
     template<typename T, typename I>
         requires is_valid_buffer_element_v<T> && is_integral_expr_v<I>
@@ -327,7 +329,7 @@ public:
         auto f = detail::FunctionBuilder::current();
         return def<T>(
             f->call(
-                Type::of<T>(), CallOp::BINDLESS_BYTE_BUFFER_READ,
+                Type::of<T>(), _is_typed ? CallOp::TYPED_BINDLESS_BYTE_BUFFER_READ : CallOp::BINDLESS_BYTE_BUFFER_READ,
                 {_array, _index, detail::extract_expression(std::forward<I>(offset))}));
     }
 
@@ -341,11 +343,12 @@ class LC_DSL_API BindlessTexture2D {
 private:
     const RefExpr *_array{nullptr};
     const Expression *_index{nullptr};
+    bool _is_typed;
 
 public:
     /// Construct from array RefExpr and index Expression
-    BindlessTexture2D(const RefExpr *array, const Expression *index) noexcept
-        : _array{array}, _index{index} {}
+    BindlessTexture2D(const RefExpr *array, const Expression *index, bool is_typed) noexcept
+        : _array{array}, _index{index}, _is_typed{is_typed} {}
     /// Sample at (u, v)
     [[nodiscard]] Var<float4> sample(Expr<float2> uv) const noexcept;
     /// Sample at (u, v) at mip level
@@ -369,7 +372,8 @@ public:
     [[nodiscard]] auto read(Expr<uint2> coord, I &&level) const noexcept {
         auto f = detail::FunctionBuilder::current();
         return def<float4>(f->call(
-            Type::of<float4>(), CallOp::BINDLESS_TEXTURE2D_READ_LEVEL,
+            Type::of<float4>(),
+            _is_typed ? CallOp::TYPED_BINDLESS_TEXTURE2D_READ_LEVEL : CallOp::BINDLESS_TEXTURE2D_READ_LEVEL,
             {_array, _index, coord.expression(),
              detail::extract_expression(std::forward<I>(level))}));
     }
@@ -384,11 +388,12 @@ class LC_DSL_API BindlessTexture3D {
 private:
     const RefExpr *_array{nullptr};
     const Expression *_index{nullptr};
+    bool _is_typed;
 
 public:
     /// Construct from array RefExpr and index Expression
-    BindlessTexture3D(const RefExpr *array, const Expression *index) noexcept
-        : _array{array}, _index{index} {}
+    BindlessTexture3D(const RefExpr *array, const Expression *index, bool is_typed) noexcept
+        : _array{array}, _index{index}, _is_typed{is_typed} {}
     /// Sample at (u, v, w)
     [[nodiscard]] Var<float4> sample(Expr<float3> uvw) const noexcept;
     /// Sample at (u, v, w) at mip level
@@ -412,7 +417,8 @@ public:
     [[nodiscard]] auto read(Expr<uint3> coord, I &&level) const noexcept {
         auto f = detail::FunctionBuilder::current();
         return def<float4>(f->call(
-            Type::of<float4>(), CallOp::BINDLESS_TEXTURE3D_READ_LEVEL,
+            Type::of<float4>(),
+            _is_typed ? CallOp::TYPED_BINDLESS_TEXTURE3D_READ_LEVEL : CallOp::BINDLESS_TEXTURE3D_READ_LEVEL,
             {_array, _index, coord.expression(),
              detail::extract_expression(std::forward<I>(level))}));
     }
@@ -443,33 +449,33 @@ public:
     /// Get 2D texture at index
     template<typename I>
         requires is_integral_expr_v<I>
-    [[nodiscard]] auto tex2d(I &&index) const noexcept {
+    [[nodiscard]] auto tex2d(I &&index, bool is_typed = false) const noexcept {
         auto i = def(std::forward<I>(index));
-        return detail::BindlessTexture2D{_expression, i.expression()};
+        return detail::BindlessTexture2D{_expression, i.expression(), is_typed};
     }
 
     /// Get 3D texture at index
     template<typename I>
         requires is_integral_expr_v<I>
-    [[nodiscard]] auto tex3d(I &&index) const noexcept {
+    [[nodiscard]] auto tex3d(I &&index, bool is_typed = false) const noexcept {
         auto i = def(std::forward<I>(index));
-        return detail::BindlessTexture3D{_expression, i.expression()};
+        return detail::BindlessTexture3D{_expression, i.expression(), is_typed};
     }
 
     /// Get buffer at index
     template<typename T, typename I>
         requires is_integral_expr_v<I>
-    [[nodiscard]] auto buffer(I &&index) const noexcept {
+    [[nodiscard]] auto buffer(I &&index, bool is_typed = false) const noexcept {
         auto i = def(std::forward<I>(index));
-        return detail::BindlessBuffer<T>{_expression, i.expression()};
+        return detail::BindlessBuffer<T>{_expression, i.expression(), is_typed};
     }
 
     /// Get byte-address buffer at index
     template<typename I>
         requires is_integral_expr_v<I>
-    [[nodiscard]] auto byte_buffer(I &&index) const noexcept {
+    [[nodiscard]] auto byte_buffer(I &&index, bool is_typed = false) const noexcept {
         auto i = def(std::forward<I>(index));
-        return detail::BindlessByteBuffer{_expression, i.expression()};
+        return detail::BindlessByteBuffer{_expression, i.expression(), is_typed};
     }
 
     /// Self-pointer to unify the interfaces of the captured BindlessArray and Expr<BindlessArray>
@@ -611,26 +617,26 @@ public:
 public:
     template<typename I>
         requires is_integral_expr_v<I>
-    [[nodiscard]] auto tex2d(I &&index) const noexcept {
-        return Expr<BindlessArray>{_array}.tex2d(std::forward<I>(index));
+    [[nodiscard]] auto tex2d(I &&index, bool is_typed = false) const noexcept {
+        return Expr<BindlessArray>{_array}.tex2d(std::forward<I>(index), is_typed);
     }
 
     template<typename I>
         requires is_integral_expr_v<I>
-    [[nodiscard]] auto tex3d(I &&index) const noexcept {
-        return Expr<BindlessArray>{_array}.tex3d(std::forward<I>(index));
+    [[nodiscard]] auto tex3d(I &&index, bool is_typed = false) const noexcept {
+        return Expr<BindlessArray>{_array}.tex3d(std::forward<I>(index), is_typed);
     }
 
     template<typename T, typename I>
         requires is_integral_expr_v<I>
-    [[nodiscard]] auto buffer(I &&index) const noexcept {
-        return Expr<BindlessArray>{_array}.buffer<T>(std::forward<I>(index));
+    [[nodiscard]] auto buffer(I &&index, bool is_typed = false) const noexcept {
+        return Expr<BindlessArray>{_array}.buffer<T>(std::forward<I>(index), is_typed);
     }
 
     template<typename I>
         requires is_integral_expr_v<I>
-    [[nodiscard]] auto byte_buffer(I &&index) const noexcept {
-        return Expr<BindlessArray>{_array}.byte_buffer(std::forward<I>(index));
+    [[nodiscard]] auto byte_buffer(I &&index, bool is_typed = false) const noexcept {
+        return Expr<BindlessArray>{_array}.byte_buffer(std::forward<I>(index), is_typed);
     }
 };
 

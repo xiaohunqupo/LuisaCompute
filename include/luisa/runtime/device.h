@@ -177,7 +177,7 @@ public:
     // see definition in rtx/accel.cpp
     [[nodiscard]] Accel create_accel(const AccelOption &option = {}) noexcept;
     // see definition in runtime/bindless_array.cpp
-    [[nodiscard]] BindlessArray create_bindless_array(size_t slots = 65536u) noexcept;
+    [[nodiscard]] BindlessArray create_bindless_array(size_t slots = 65536u, BindlessType type = BindlessType::None) noexcept;
 
     template<typename T>
     [[nodiscard]] auto create_image(PixelStorage pixel, uint width, uint height, uint mip_levels = 1u, bool simultaneous_access = false, bool allow_raster_target = false) noexcept {

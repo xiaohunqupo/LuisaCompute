@@ -10,10 +10,29 @@
 namespace lc::dx {
 
 BindlessArray::BindlessArray(
-    Device *device, uint arraySize)
+    Device *device, uint arraySize,
+    BindlessType type)
     : Resource(device),
-      buffer(device, arraySize * sizeof(BindlessStruct), device->defaultAllocator.get()) {
-    binded.resize(arraySize);
+      buffer(device, arraySize * (type == BindlessType::None ? sizeof(BindlessStruct) : sizeof(uint)), device->defaultAllocator.get()) {
+    auto reset = [&](auto &t) {
+        luisa::enlarge_by(t, arraySize);
+        std::memset(t.data(), -1, luisa::size_bytes(t));
+    };
+    switch (type) {
+        case BindlessType::None:
+            typed_binded.reset_as(0, arraySize);
+            break;
+        case BindlessType::Buffer:
+            is_buffer_type = true;
+            typed_binded.reset_as(1);
+            reset(typed_binded.get<1>());
+            break;
+        default:
+            is_buffer_type = false;
+            typed_binded.reset_as(1);
+            reset(typed_binded.get<1>());
+            break;
+    }
 }
 BindlessArray::~BindlessArray() {
     auto Return = [&](auto &&i) {
@@ -26,11 +45,26 @@ BindlessArray::~BindlessArray() {
             device->globalHeap->ReturnIndex(i & BindlessStruct::mask);
         }
     };
-    for (auto &&i : binded) {
-        Return(i.first.buffer);
-        ReturnTex(i.first.tex2D);
-        ReturnTex(i.first.tex3D);
-    }
+    typed_binded.multi_visit(
+        [&](auto &&binded) {
+            for (auto &&i : binded) {
+                Return(i.first.buffer);
+                ReturnTex(i.first.tex2D);
+                ReturnTex(i.first.tex3D);
+            }
+        },
+        [&](auto &&binded) {
+            if (is_buffer_type) {
+                for (auto &&i : binded) {
+                    Return(i.first);
+                }
+            } else {
+                for (auto &&i : binded) {
+                    ReturnTex(i.first);
+                }
+            }
+        });
+
     for (auto &&i : freeQueue) {
         device->globalHeap->ReturnIndex(i);
     }
@@ -66,7 +100,80 @@ BindlessArray::MapIndex BindlessArray::AddIndex(size_t ptr) {
     ite.value()++;
     return ite;
 }
+void BindlessArray::Bind(vstd::span<const BindlessArrayUpdateCommand::BufferModification> mods) {
+    LUISA_DEBUG_ASSERT(typed_binded.index() == 1);
+    auto &binded = typed_binded.get<1>();
+    std::lock_guard lck{mtx};
+    if (mods.empty()) return;
+    for (auto &&mod : mods) {
+        auto &bindGrp = binded[mod.slot].first;
+        auto &indices = binded[mod.slot].second;
+        using Ope = BindlessArrayUpdateCommand::Modification::Operation;
+        switch (mod.buffer.op) {
+            case Ope::REMOVE:
+                TryReturnIndex(indices, bindGrp);
+                break;
+            case Ope::EMPLACE: {
+                TryReturnIndex(indices, bindGrp);
+                BufferView v{reinterpret_cast<Buffer *>(mod.buffer.handle), mod.buffer.offset_bytes};
+                auto newIdx = device->globalHeap->AllocateIndex();
+                auto desc = v.buffer->GetColorSrvDesc(
+                    v.offset,
+                    v.byteSize);
+#ifndef NDEBUG
+                if (!desc) {
+                    LUISA_ERROR("illagel buffer");
+                }
+#endif
+                device->globalHeap->CreateSRV(
+                    v.buffer->GetResource(),
+                    *desc,
+                    newIdx);
+                bindGrp = newIdx;
+                indices = AddIndex(mod.buffer.handle);
+                break;
+            }
+            default: break;
+        }
+    }
+}
+
+void BindlessArray::Bind(vstd::span<const BindlessArrayUpdateCommand::Texture2DModification> mods) {
+    LUISA_DEBUG_ASSERT(typed_binded.index() == 1);
+    auto &binded = typed_binded.get<1>();
+    std::lock_guard lck{mtx};
+    if (mods.empty()) return;
+    auto EmplaceTex = [&](uint &bindGrp, MapIndex &indices, uint64_t handle, TextureBase const *tex, Sampler const &samp) {
+        TryReturnIndexTex(indices, bindGrp);
+
+        auto texIdx = device->globalHeap->AllocateIndex();
+        device->globalHeap->CreateSRV(
+            tex->GetResource(),
+            tex->GetColorSrvDesc(),
+            texIdx);
+        auto smpIdx = GlobalSamplers::GetIndex(samp);
+        indices = AddIndex(handle);
+        bindGrp = texIdx | (smpIdx << 28);
+    };
+    using Ope = BindlessArrayUpdateCommand::Modification::Operation;
+    for (auto &&mod : mods) {
+        auto &bindGrp = binded[mod.slot].first;
+        auto &indices = binded[mod.slot].second;
+        switch (mod.tex2d.op) {
+            case Ope::REMOVE:
+                TryReturnIndexTex(indices, bindGrp);
+                break;
+            case Ope::EMPLACE:
+                EmplaceTex(bindGrp, indices, mod.tex2d.handle, reinterpret_cast<TextureBase *>(mod.tex2d.handle), mod.tex2d.sampler);
+                break;
+            default: break;
+        }
+    }
+}
+
 void BindlessArray::Bind(vstd::span<const BindlessArrayUpdateCommand::Modification> mods) {
+    LUISA_DEBUG_ASSERT(typed_binded.index() == 0);
+    auto &binded = typed_binded.get<0>();
     std::lock_guard lck{mtx};
     if (mods.empty()) return;
     auto EmplaceTex = [&]<bool isTex2D>(BindlessStruct &bindGrp, MapIndicies &indices, uint64_t handle, TextureBase const *tex, Sampler const &samp) {
@@ -140,10 +247,8 @@ void BindlessArray::Bind(vstd::span<const BindlessArrayUpdateCommand::Modificati
 }
 void BindlessArray::PreProcessStates(
     CommandBufferBuilder &builder,
-    EnhancedBarrierTracker &tracker,
-    vstd::span<const BindlessArrayUpdateCommand::Modification> mods) const {
+    EnhancedBarrierTracker &tracker) const {
     std::lock_guard lck{mtx};
-    if (mods.empty()) return;
     tracker.Record(
         BufferView(&buffer),
         EnhancedBarrierTracker::Usage::ComputeUAV);
@@ -152,6 +257,8 @@ void BindlessArray::UpdateStates(
     CommandBufferBuilder &builder,
     EnhancedBarrierTracker &tracker,
     vstd::span<const BindlessArrayUpdateCommand::Modification> mods) const {
+    LUISA_DEBUG_ASSERT(typed_binded.index() == 0);
+    auto &binded = typed_binded.get<0>();
     std::lock_guard lck{mtx};
     struct BindlessElement {
         uint idx;
@@ -197,5 +304,70 @@ void BindlessArray::UpdateStates(
                 }
             });
     }
+}
+template<typename T>
+void BindlessArray::_UpdateStates(
+    CommandBufferBuilder &builder,
+    EnhancedBarrierTracker &tracker,
+    vstd::span<const T> mods) const {
+    LUISA_DEBUG_ASSERT(typed_binded.index() == 1);
+    auto &binded = typed_binded.get<1>();
+    std::lock_guard lck{mtx};
+    struct BindlessElement {
+        uint idx;
+        uint e;
+    };
+    if (!mods.empty()) {
+        auto alloc = builder.GetCB()->GetAlloc();
+        auto tempBuffer = alloc->GetTempUploadBuffer(sizeof(BindlessElement) * mods.size(), 16);
+        auto ubuffer = static_cast<UploadBuffer const *>(tempBuffer.buffer);
+        auto offset = tempBuffer.offset;
+        for (auto &&mod : mods) {
+            BindlessElement e;
+            e.idx = mod.slot;
+            e.e = binded[mod.slot].first;
+            ubuffer->CopyData(offset, {reinterpret_cast<uint8_t const *>(&e), sizeof(BindlessElement)});
+            offset += sizeof(BindlessElement);
+        }
+        auto cs = device->setTypedBindlessKernel.Get(device);
+        auto cbuffer = alloc->GetTempUploadBuffer(sizeof(uint), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+        struct CBuffer {
+            uint dsp;
+        };
+        CBuffer cbValue;
+        cbValue.dsp = mods.size();
+        static_cast<UploadBuffer const *>(cbuffer.buffer)
+            ->CopyData(cbuffer.offset,
+                       {reinterpret_cast<uint8_t const *>(&cbValue), sizeof(CBuffer)});
+        BindProperty properties[3];
+        properties[0] = cbuffer;
+        properties[1] = tempBuffer;
+        properties[2] = BufferView(&buffer);
+        builder.DispatchCompute(
+            cs,
+            uint3(mods.size(), 1, 1),
+            properties);
+    }
+    if (!freeQueue.empty()) {
+        builder.GetCB()->GetAlloc()->ExecuteAfterComplete(
+            [vec = std::move(freeQueue),
+             device = device] {
+                for (auto &&i : vec) {
+                    device->globalHeap->ReturnIndex(i);
+                }
+            });
+    }
+}
+void BindlessArray::UpdateStates(
+    CommandBufferBuilder &builder,
+    EnhancedBarrierTracker &tracker,
+    vstd::span<const BindlessArrayUpdateCommand::Texture2DModification> mods) const {
+    _UpdateStates<BindlessArrayUpdateCommand::Texture2DModification>(builder, tracker, mods);
+}
+void BindlessArray::UpdateStates(
+    CommandBufferBuilder &builder,
+    EnhancedBarrierTracker &tracker,
+    vstd::span<const BindlessArrayUpdateCommand::BufferModification> mods) const {
+    _UpdateStates<BindlessArrayUpdateCommand::BufferModification>(builder, tracker, mods);
 }
 }// namespace lc::dx

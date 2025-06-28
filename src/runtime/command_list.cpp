@@ -4,6 +4,9 @@
 
 namespace luisa::compute {
 
+void BindlessArrayUpdateCommand::check_bindless_index(size_t index) const {
+    LUISA_DEBUG_ASSERT(_modifications.index() == index, "Modification type mismatch.");
+}
 CommandList::~CommandList() noexcept {
     LUISA_ASSERT(_committed || empty(),
                  "Destructing non-empty command list. "

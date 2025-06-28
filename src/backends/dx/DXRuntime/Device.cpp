@@ -80,6 +80,7 @@ hlsl::ShaderCompiler *Device::Compiler() {
 }
 Device::Device(Context &&ctx, DeviceConfig const *settings)
     : setBindlessKernel(BuiltinKernel::LoadBindlessSetKernel),
+      setTypedBindlessKernel(BuiltinKernel::LoadTypedBindlessSetKernel),
       setAccelKernel(BuiltinKernel::LoadAccelSetKernel),
       bc6TryModeG10(BuiltinKernel::LoadBC6TryModeG10CSKernel),
       bc6TryModeLE10(BuiltinKernel::LoadBC6TryModeLE10CSKernel),
@@ -257,8 +258,8 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
                 LUISA_INFO("Adapter mismatch, shader cache cleared.");
                 fileIo->clear_shader_cache();
             }
-            static_cast<void>(fileIo->write_shader_cache("dx_adapterid", {reinterpret_cast<std::byte const *>(&adapterID), sizeof(vstd::MD5)}));
         }
+        static_cast<void>(fileIo->write_shader_cache("dx_adapterid", {reinterpret_cast<std::byte const *>(&adapterID), sizeof(vstd::MD5)}));
         if (allocSettings)
             defaultAllocator = vstd::make_unique<GpuAllocator>(
                 this,

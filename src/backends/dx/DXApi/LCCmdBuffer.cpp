@@ -414,10 +414,10 @@ public:
     void visit(const BindlessArrayUpdateCommand *cmd) noexcept override {
         // reinterpret_cast<BindlessArray *>(cmd->handle())->Bind(cmd->modifications());
         auto arr = reinterpret_cast<BindlessArray *>(cmd->handle());
-        arr->PreProcessStates(
-            *bd,
-            *stateTracker,
-            cmd->modifications());
+        if (!cmd->empty())
+            arr->PreProcessStates(
+                *bd,
+                *stateTracker);
     };
 
     void visit(const CustomCommand *cmd) noexcept override {
@@ -959,10 +959,35 @@ public:
         });
 #endif
         auto arr = reinterpret_cast<BindlessArray *>(cmd->handle());
-        arr->UpdateStates(
-            *bd,
-            *stateTracker,
-            cmd->modifications());
+        switch (cmd->typed_index()) {
+            case 0: {
+                arr->UpdateStates(
+                    *bd,
+                    *stateTracker,
+                    cmd->modifications());
+            } break;
+            case 1: {
+                arr->UpdateStates(
+                    *bd,
+                    *stateTracker,
+                    cmd->buffer_modifications());
+            } break;
+            case 2: {
+                arr->UpdateStates(
+                    *bd,
+                    *stateTracker,
+                    cmd->tex2d_modifications());
+            } break;
+            case 3: {
+                auto mod = cmd->tex3d_modifications();
+                arr->UpdateStates(
+                    *bd,
+                    *stateTracker,
+                    luisa::span{
+                        reinterpret_cast<BindlessArrayUpdateCommand::Texture2DModification const *>(mod.data()),
+                        mod.size()});
+            } break;
+        }
     }
     void visit(const DXCustomCmd *cmd) noexcept {
         cmd->execute(
@@ -1222,7 +1247,7 @@ void LCCmdBuffer::Execute(
                 accelScratchBuffer = allocator->AllocateScratchBuffer(ppVisitor.buildAccelSize);
                 visitor.accelScratchOffsets = ppVisitor.accelOffset->data();
                 visitor.accelScratchBuffer = accelScratchBuffer;
-                tracker->Record(accelScratchBuffer, EnhancedBarrierTracker::Usage::ComputeUAV);
+                tracker->Record(accelScratchBuffer, EnhancedBarrierTracker::Usage::BuildAccelScratch);
             }
             // Upload CBuffers
             if (ppVisitor.argBuffer->empty()) {

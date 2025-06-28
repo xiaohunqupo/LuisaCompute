@@ -5,6 +5,8 @@ extern unsigned char accel_process[];
 extern unsigned char accel_process_vk[];
 extern unsigned char bindless_upload[];
 extern unsigned char bindless_upload_vk[];
+extern unsigned char typed_bindless_upload[];
+extern unsigned char typed_bindless_upload_vk[];
 extern unsigned char bc6_encode_block[];
 extern unsigned char bc6_header[];
 extern unsigned char bc6_trymode_g10cs[];
@@ -41,6 +43,8 @@ static HLSLCompressedHeader get_hlsl_builtin(luisa::string_view ss) {
 			dict.try_emplace("accel_process_vk", HLSLCompressedHeader{accel_process_vk, 554, 1548});
 			dict.try_emplace("bindless_upload", HLSLCompressedHeader{bindless_upload, 225, 334});
 			dict.try_emplace("bindless_upload_vk", HLSLCompressedHeader{bindless_upload_vk, 253, 386});
+			dict.try_emplace("typed_bindless_upload", HLSLCompressedHeader{typed_bindless_upload, 210, 292});
+			dict.try_emplace("typed_bindless_upload_vk", HLSLCompressedHeader{typed_bindless_upload_vk, 239, 344});
 			dict.try_emplace("bc6_encode_block", HLSLCompressedHeader{bc6_encode_block, 1805, 11021});
 			dict.try_emplace("bc6_header", HLSLCompressedHeader{bc6_header, 6209, 80770});
 			dict.try_emplace("bc6_trymode_g10cs", HLSLCompressedHeader{bc6_trymode_g10cs, 1311, 6513});
@@ -52,8 +56,8 @@ static HLSLCompressedHeader get_hlsl_builtin(luisa::string_view ss) {
 			dict.try_emplace("bc7_trymode_456cs", HLSLCompressedHeader{bc7_trymode_456cs, 2391, 11171});
 			dict.try_emplace("hlsl_header", HLSLCompressedHeader{hlsl_header, 1414, 5596});
 			dict.try_emplace("raytracing_header", HLSLCompressedHeader{raytracing_header, 881, 3650});
-			dict.try_emplace("tex2d_bindless", HLSLCompressedHeader{tex2d_bindless, 551, 4136});
-			dict.try_emplace("tex3d_bindless", HLSLCompressedHeader{tex3d_bindless, 507, 3535});
+			dict.try_emplace("tex2d_bindless", HLSLCompressedHeader{tex2d_bindless, 707, 8074});
+			dict.try_emplace("tex3d_bindless", HLSLCompressedHeader{tex3d_bindless, 645, 6896});
 			dict.try_emplace("compute_quad", HLSLCompressedHeader{compute_quad, 87, 138});
 			dict.try_emplace("determinant", HLSLCompressedHeader{determinant, 525, 2019});
 			dict.try_emplace("inverse", HLSLCompressedHeader{inverse, 681, 2907});
@@ -61,7 +65,7 @@ static HLSLCompressedHeader get_hlsl_builtin(luisa::string_view ss) {
 			dict.try_emplace("resource_size", HLSLCompressedHeader{resource_size, 227, 1374});
 			dict.try_emplace("accel_header", HLSLCompressedHeader{accel_header, 391, 1160});
 			dict.try_emplace("copy_sign", HLSLCompressedHeader{copy_sign, 175, 765});
-			dict.try_emplace("bindless_common", HLSLCompressedHeader{bindless_common, 308, 724});
+			dict.try_emplace("bindless_common", HLSLCompressedHeader{bindless_common, 348, 1187});
 			dict.try_emplace("auto_diff", HLSLCompressedHeader{auto_diff, 345, 1795});
 			dict.try_emplace("reduce", HLSLCompressedHeader{reduce, 743, 6372});
 		}

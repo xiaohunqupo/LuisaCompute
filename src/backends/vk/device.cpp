@@ -671,7 +671,7 @@ void Device::destroy_texture(uint64_t handle) noexcept {
 }
 
 // bindless array
-ResourceCreationInfo Device::create_bindless_array(size_t size) noexcept {
+ResourceCreationInfo Device::create_bindless_array(size_t size, BindlessType type) noexcept {
     auto r = new BindlessArray(this, size);
     return ResourceCreationInfo{
         .handle = reinterpret_cast<uint64_t>(r),

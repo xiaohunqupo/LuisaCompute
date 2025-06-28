@@ -26,6 +26,7 @@ public:
             tex3D = tex | (s << 28);
         }
     };
+
     struct MapIndicies {
         MapIndex buffer;
         MapIndex tex2D;
@@ -33,7 +34,8 @@ public:
     };
 
 private:
-    vstd::vector<std::pair<BindlessStruct, MapIndicies>> binded;
+    vstd::variant<vstd::vector<std::pair<BindlessStruct, MapIndicies>>, vstd::vector<std::pair<uint, MapIndex>>> typed_binded;
+    bool is_buffer_type;
     Map ptrMap;
     mutable std::mutex mtx;
     DefaultBuffer buffer;
@@ -56,20 +58,35 @@ public:
         BufferView,
         std::pair<TextureBase const *, Sampler>>;
     void Bind(vstd::span<const BindlessArrayUpdateCommand::Modification> mods);
+    void Bind(vstd::span<const BindlessArrayUpdateCommand::BufferModification> mods);
+    void Bind(vstd::span<const BindlessArrayUpdateCommand::Texture2DModification> mods);
     void PreProcessStates(
         CommandBufferBuilder &builder,
-        EnhancedBarrierTracker &tracker,
-        vstd::span<const BindlessArrayUpdateCommand::Modification> mods) const;
+        EnhancedBarrierTracker &tracker) const;
     void UpdateStates(
         CommandBufferBuilder &builder,
         EnhancedBarrierTracker &tracker,
         vstd::span<const BindlessArrayUpdateCommand::Modification> mods) const;
+    template <typename T>
+    void _UpdateStates(
+        CommandBufferBuilder &builder,
+        EnhancedBarrierTracker &tracker,
+        vstd::span<const T> mods) const;
+    void UpdateStates(
+        CommandBufferBuilder &builder,
+        EnhancedBarrierTracker &tracker,
+        vstd::span<const BindlessArrayUpdateCommand::BufferModification> mods) const;
+    void UpdateStates(
+        CommandBufferBuilder &builder,
+        EnhancedBarrierTracker &tracker,
+        vstd::span<const BindlessArrayUpdateCommand::Texture2DModification> mods) const;
 
     DefaultBuffer const *BindlessBuffer() const { return &buffer; }
     Tag GetTag() const override { return Tag::BindlessArray; }
     BindlessArray(
         Device *device,
-        uint arraySize);
+        uint arraySize,
+        BindlessType type);
     ~BindlessArray();
     ID3D12Resource *GetResource() const override {
         return buffer.GetResource();

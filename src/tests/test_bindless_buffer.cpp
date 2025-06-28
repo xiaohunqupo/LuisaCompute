@@ -19,7 +19,7 @@ int main(int argc, char *argv[]) {
 
     Stream stream = device.create_stream(StreamTag::GRAPHICS);
     Image<float> device_image1 = device.create_image<float>(PixelStorage::BYTE4, resolution);
-    BindlessArray bdls = device.create_bindless_array();
+    BindlessArray bdls = device.create_bindless_array(65535, BindlessType::Buffer);
     Buffer<float4> buffer = device.create_buffer<float4>(4);
     std::vector<float4> a{4};
     a[0] = {1, 0, 0, 1};
@@ -27,13 +27,13 @@ int main(int argc, char *argv[]) {
     a[2] = {0, 0, 1, 1};
     a[3] = {1, 1, 1, 1};
     stream << buffer.copy_from(a.data()) << synchronize();
-    bdls.emplace_on_update(0, buffer);
+    bdls.emplace_on_update(5, buffer);
     stream << bdls.update() << synchronize();
 
     Kernel2D kernel = [&](Float time) {
         Var coord = dispatch_id().xy();
         UInt i2 = ((coord.x + cast<uint>(time)) / 16 % 4);
-        auto vertex_array = bdls->buffer<float4>(0);
+        auto vertex_array = bdls->buffer<float4>(5);
         Float4 p = vertex_array.read(i2);
         device_image1->write(coord, make_float4(p));
     };

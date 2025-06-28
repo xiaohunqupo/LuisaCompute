@@ -620,48 +620,50 @@ public:
 };
 
 class BindlessArrayUpdateCommand final : public Command {
+    LC_RUNTIME_API void check_bindless_index(size_t index) const;
 
 public:
+    enum struct Operation : uint {
+        NONE,
+        EMPLACE,
+        REMOVE,
+    };
+
+    struct ModificationBuffer {
+        uint64_t handle;
+        size_t offset_bytes;
+        Operation op;
+        ModificationBuffer() noexcept
+            : handle{0}, offset_bytes{0u}, op{Operation::NONE} {}
+        ModificationBuffer(uint64_t handle, size_t offset_bytes, Operation op) noexcept
+            : handle{handle}, offset_bytes{offset_bytes}, op{op} {}
+        [[nodiscard]] static auto emplace(uint64_t handle, size_t offset_bytes) noexcept {
+            return ModificationBuffer{handle, offset_bytes, Operation::EMPLACE};
+        }
+        [[nodiscard]] static auto remove() noexcept {
+            return ModificationBuffer{0u, 0u, Operation::REMOVE};
+        }
+    };
+
+    struct ModificationTexture {
+        uint64_t handle;
+        Sampler sampler;
+        Operation op;
+        ModificationTexture() noexcept
+            : handle{0u}, sampler{}, op{Operation::NONE} {}
+        ModificationTexture(uint64_t handle, Sampler sampler, Operation op) noexcept
+            : handle{handle}, sampler{sampler}, op{op} {}
+        [[nodiscard]] static auto emplace(uint64_t handle, Sampler sampler) noexcept {
+            return ModificationTexture{handle, sampler, Operation::EMPLACE};
+        }
+        [[nodiscard]] static auto remove() noexcept {
+            return ModificationTexture{0u, Sampler{}, Operation::REMOVE};
+        }
+    };
     struct Modification {
-
-        enum struct Operation : uint {
-            NONE,
-            EMPLACE,
-            REMOVE,
-        };
-
-        struct Buffer {
-            uint64_t handle;
-            size_t offset_bytes;
-            Operation op;
-            Buffer() noexcept
-                : handle{0}, offset_bytes{0u}, op{Operation::NONE} {}
-            Buffer(uint64_t handle, size_t offset_bytes, Operation op) noexcept
-                : handle{handle}, offset_bytes{offset_bytes}, op{op} {}
-            [[nodiscard]] static auto emplace(uint64_t handle, size_t offset_bytes) noexcept {
-                return Buffer{handle, offset_bytes, Operation::EMPLACE};
-            }
-            [[nodiscard]] static auto remove() noexcept {
-                return Buffer{0u, 0u, Operation::REMOVE};
-            }
-        };
-
-        struct Texture {
-            uint64_t handle;
-            Sampler sampler;
-            Operation op;
-            Texture() noexcept
-                : handle{0u}, sampler{}, op{Operation::NONE} {}
-            Texture(uint64_t handle, Sampler sampler, Operation op) noexcept
-                : handle{handle}, sampler{sampler}, op{op} {}
-            [[nodiscard]] static auto emplace(uint64_t handle, Sampler sampler) noexcept {
-                return Texture{handle, sampler, Operation::EMPLACE};
-            }
-            [[nodiscard]] static auto remove() noexcept {
-                return Texture{0u, Sampler{}, Operation::REMOVE};
-            }
-        };
-
+        using Operation = BindlessArrayUpdateCommand::Operation;
+        using Buffer = BindlessArrayUpdateCommand::ModificationBuffer;
+        using Texture = BindlessArrayUpdateCommand::ModificationTexture;
         size_t slot;
         Buffer buffer;
         Texture tex2d;
@@ -676,19 +678,106 @@ public:
 
     static_assert(sizeof(Modification) == 64u);
 
+    struct BufferModification {
+        using Operation = BindlessArrayUpdateCommand::Operation;
+        using Buffer = BindlessArrayUpdateCommand::ModificationBuffer;
+        size_t slot;
+        Buffer buffer;
+        explicit BufferModification(size_t slot) noexcept
+            : slot{slot}, buffer{} {}
+
+        explicit BufferModification(size_t slot, Buffer buffer) noexcept
+            : slot{slot}, buffer{buffer} {}
+    };
+    struct Texture2DModification {
+        using Operation = BindlessArrayUpdateCommand::Operation;
+        using Texture = BindlessArrayUpdateCommand::ModificationTexture;
+        size_t slot;
+        Texture tex2d;
+        explicit Texture2DModification(size_t slot) noexcept
+            : slot{slot}, tex2d{} {}
+
+        explicit Texture2DModification(size_t slot, Texture tex2d) noexcept
+            : slot{slot}, tex2d{tex2d} {}
+    };
+    struct Texture3DModification {
+        using Operation = BindlessArrayUpdateCommand::Operation;
+        using Texture = BindlessArrayUpdateCommand::ModificationTexture;
+        size_t slot;
+        Texture tex3d;
+        explicit Texture3DModification(size_t slot) noexcept
+            : slot{slot}, tex3d{} {}
+
+        explicit Texture3DModification(size_t slot, Texture tex3d) noexcept
+            : slot{slot}, tex3d{tex3d} {}
+    };
+
 private:
     uint64_t _handle;
-    luisa::vector<Modification> _modifications;
+    luisa::variant<
+        luisa::vector<Modification>,
+        luisa::vector<BufferModification>,
+        luisa::vector<Texture2DModification>,
+        luisa::vector<Texture3DModification>>
+        _modifications;
 
 public:
     BindlessArrayUpdateCommand(uint64_t handle,
                                luisa::vector<Modification> &&mods) noexcept
         : Command{Command::Tag::EBindlessArrayUpdateCommand},
           _handle{handle}, _modifications{std::move(mods)} {}
+    BindlessArrayUpdateCommand(uint64_t handle,
+                               luisa::vector<BufferModification> &&mods) noexcept
+        : Command{Command::Tag::EBindlessArrayUpdateCommand},
+          _handle{handle}, _modifications{std::move(mods)} {}
+    BindlessArrayUpdateCommand(uint64_t handle,
+                               luisa::vector<Texture2DModification> &&mods) noexcept
+        : Command{Command::Tag::EBindlessArrayUpdateCommand},
+          _handle{handle}, _modifications{std::move(mods)} {}
+    BindlessArrayUpdateCommand(uint64_t handle,
+                               luisa::vector<Texture3DModification> &&mods) noexcept
+        : Command{Command::Tag::EBindlessArrayUpdateCommand},
+          _handle{handle}, _modifications{std::move(mods)} {}
     [[nodiscard]] auto handle() const noexcept { return _handle; }
-    [[nodiscard]] auto steal_modifications() noexcept { return std::move(_modifications); }
-    [[nodiscard]] auto set_modifications(luisa::vector<Modification> &&mods) noexcept { return _modifications = std::move(mods); }
-    [[nodiscard]] luisa::span<const Modification> modifications() const noexcept { return _modifications; }
+    [[nodiscard]] auto typed_index() const noexcept { return _modifications.index(); }
+    [[nodiscard]] auto steal_modifications() noexcept {
+        check_bindless_index(0);
+        return std::move(luisa::get<0>(_modifications));
+    }
+    [[nodiscard]] auto steal_buffer_modifications() noexcept {
+        check_bindless_index(1);
+        return std::move(luisa::get<1>(_modifications));
+    }
+    [[nodiscard]] auto steal_tex2d_modifications() noexcept {
+        check_bindless_index(2);
+        return std::move(luisa::get<2>(_modifications));
+    }
+    [[nodiscard]] auto steal_tex3d_modifications() noexcept {
+        check_bindless_index(3);
+        return std::move(luisa::get<3>(_modifications));
+    }
+    [[nodiscard]] bool empty() const noexcept {
+        return luisa::visit([](auto &&t) { return t.empty(); }, _modifications);
+    }
+    [[nodiscard]] luisa::span<const Modification> modifications() const noexcept {
+        check_bindless_index(0);
+        return luisa::get<0>(_modifications);
+    }
+    [[nodiscard]] luisa::span<const BufferModification> buffer_modifications()
+        const noexcept {
+        check_bindless_index(1);
+        return luisa::get<1>(_modifications);
+    }
+    [[nodiscard]] luisa::span<const Texture2DModification> tex2d_modifications()
+        const noexcept {
+        check_bindless_index(2);
+        return luisa::get<2>(_modifications);
+    }
+    [[nodiscard]] luisa::span<const Texture3DModification> tex3d_modifications()
+        const noexcept {
+        check_bindless_index(3);
+        return luisa::get<3>(_modifications);
+    }
     LUISA_MAKE_COMMAND_COMMON(StreamTag::COMPUTE)
 };
 

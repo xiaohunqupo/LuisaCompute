@@ -11,6 +11,7 @@ static constexpr VkPipelineStageFlagBits2 BarrierSyncMap[] = {
     VK_PIPELINE_STAGE_2_COPY_BIT,                                                              // CopySource,
     VK_PIPELINE_STAGE_2_COPY_BIT,                                                              // CopyDest,
     VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,                                  // BuildAccel,
+    VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,                                  // BuildAccelScratch,
     VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_COPY_BIT_KHR,                                   // CopyAccelSrc
     VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_COPY_BIT_KHR,                                   // CopyAccelDst
     VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,//DepthRead
@@ -31,6 +32,7 @@ static constexpr VkAccessFlagBits2 BarrierAccessMap[] = {
     VK_ACCESS_2_TRANSFER_READ_BIT,                   // CopySource,
     VK_ACCESS_2_TRANSFER_WRITE_BIT,                  // CopyDest,
     VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,// BuildAccel,
+    VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,            // BuildAccelScratch,
     VK_ACCESS_2_TRANSFER_READ_BIT,                   // CopyAccelSrc
     VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,// CopyAccelDst
     VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT,   //DepthRead
@@ -52,6 +54,7 @@ static constexpr VkImageLayout BarrierLayoutMap[] = {
     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,            // CopySource,
     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,            // CopyDest,
     VK_IMAGE_LAYOUT_GENERAL,                         // BuildAccel,
+    VK_IMAGE_LAYOUT_GENERAL,                         // BuildAccelScratch,
     VK_IMAGE_LAYOUT_GENERAL,                         // CopyAccelSrc
     VK_IMAGE_LAYOUT_GENERAL,                         // CopyAccelDst
     VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, //DepthRead

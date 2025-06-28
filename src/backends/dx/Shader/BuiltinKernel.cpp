@@ -78,6 +78,44 @@ ComputeShader *BuiltinKernel::LoadBindlessSetKernel(Device *device) {
         "load_bdls.dxil"sv,
         CacheType::Internal, true, false);
 }
+ComputeShader *BuiltinKernel::LoadTypedBindlessSetKernel(Device *device) {
+    auto func = [&] {
+        hlsl::CodegenResult code;
+        code.useBufferBindless = false;
+        code.useTex2DBindless = false;
+        code.useTex3DBindless = false;
+        code.result << hlsl::CodegenUtility::ReadInternalHLSLFile("typed_bindless_upload");
+        code.properties.resize(3);
+        auto &Global = code.properties[0];
+        Global.array_size = 1;
+        Global.register_index = 0;
+        Global.space_index = 0;
+        Global.type = hlsl::ShaderVariableType::ConstantBuffer;
+        auto &SetBuffer = code.properties[1];
+        SetBuffer.array_size = 1;
+        SetBuffer.register_index = 0;
+        SetBuffer.space_index = 0;
+        SetBuffer.type = hlsl::ShaderVariableType::StructuredBuffer;
+        auto &InstBuffer = code.properties[2];
+        InstBuffer.array_size = 1;
+        InstBuffer.register_index = 0;
+        InstBuffer.space_index = 0;
+        InstBuffer.type = hlsl::ShaderVariableType::RWStructuredBuffer;
+        return code;
+    };
+    return ComputeShader::CompileCompute(
+        device->fileIo,
+        device->profiler,
+        device,
+        {},
+        func,
+        {},
+        {},
+        uint3(256, 1, 1),
+        62,
+        "typed_load_bdls.dxil"sv,
+        CacheType::Internal, true, false);
+}
 namespace detail {
 static ComputeShader *LoadBCKernel(
     Device *device,

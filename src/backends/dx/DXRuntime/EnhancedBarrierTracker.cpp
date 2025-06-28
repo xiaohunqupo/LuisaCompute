@@ -14,6 +14,7 @@ static constexpr D3D12_BARRIER_SYNC BarrierSyncMap[] = {
     D3D12_BARRIER_SYNC_COPY,                                                                              // CopySource,
     D3D12_BARRIER_SYNC_COPY,                                                                              // CopyDest,
     D3D12_BARRIER_SYNC_BUILD_RAYTRACING_ACCELERATION_STRUCTURE,                                           // BuildAccel,
+    D3D12_BARRIER_SYNC_BUILD_RAYTRACING_ACCELERATION_STRUCTURE,                                           // BuildAccelScratch,
     D3D12_BARRIER_SYNC_COPY_RAYTRACING_ACCELERATION_STRUCTURE,                                            // CopyAccelSrc
     D3D12_BARRIER_SYNC_COPY_RAYTRACING_ACCELERATION_STRUCTURE,                                            // CopyAccelDst
     D3D12_BARRIER_SYNC_DEPTH_STENCIL,                                                                     //DepthRead
@@ -41,6 +42,7 @@ static constexpr D3D12_BARRIER_ACCESS BarrierAccessMap[] = {
     D3D12_BARRIER_ACCESS_COPY_SOURCE,                            // CopySource,
     D3D12_BARRIER_ACCESS_COPY_DEST,                              // CopyDest,
     D3D12_BARRIER_ACCESS_RAYTRACING_ACCELERATION_STRUCTURE_WRITE,// BuildAccel,
+    D3D12_BARRIER_ACCESS_UNORDERED_ACCESS,                       // BuildAccelScratch,
     D3D12_BARRIER_ACCESS_COPY_SOURCE,                            // CopyAccelSrc
     D3D12_BARRIER_ACCESS_RAYTRACING_ACCELERATION_STRUCTURE_WRITE,// CopyAccelDst
     D3D12_BARRIER_ACCESS_DEPTH_STENCIL_READ,                     //DepthRead
@@ -68,6 +70,7 @@ static constexpr D3D12_BARRIER_LAYOUT BarrierLayoutMap[] = {
     D3D12_BARRIER_LAYOUT_COPY_SOURCE,        // CopySource,
     D3D12_BARRIER_LAYOUT_COPY_DEST,          // CopyDest,
     D3D12_BARRIER_LAYOUT_UNDEFINED,          // BuildAccel,
+    D3D12_BARRIER_LAYOUT_UNDEFINED,          // BuildAccelScratch,
     D3D12_BARRIER_LAYOUT_UNDEFINED,          // CopyAccelSrc
     D3D12_BARRIER_LAYOUT_UNDEFINED,          // CopyAccelDst
     D3D12_BARRIER_LAYOUT_DEPTH_STENCIL_READ, //DepthRead

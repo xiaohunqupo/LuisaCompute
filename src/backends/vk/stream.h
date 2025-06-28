@@ -117,6 +117,9 @@ struct ReorderFuncTable {
         return cs->saved_arguments()[argument_index].varUsage;
     }
     void update_bindless(uint64_t handle, luisa::span<const BindlessArrayUpdateCommand::Modification> modifications) const noexcept;
+    void update_bindless(uint64_t handle, luisa::span<const BindlessArrayUpdateCommand::BufferModification> modifications) const noexcept;
+    void update_bindless(uint64_t handle, luisa::span<const BindlessArrayUpdateCommand::Texture2DModification> modifications) const noexcept;
+    void update_bindless(uint64_t handle, luisa::span<const BindlessArrayUpdateCommand::Texture3DModification> modifications) const noexcept;
     luisa::span<const Argument> shader_bindings(uint64_t handle) const noexcept {
         auto cs = reinterpret_cast<Shader *>(handle);
         return cs->captured();
