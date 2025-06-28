@@ -255,8 +255,15 @@ public:
     [[nodiscard]] auto valid() const noexcept { return _info.valid(); }
     [[nodiscard]] explicit operator bool() const noexcept { return valid(); }
     void set_name(luisa::string_view name) const noexcept;
+
+    // give out the ownership of the resource without destroying it
+    [[nodiscard]] ResourceCreationInfo release() noexcept;
+    // destroy the resource and reset the handle to invalid
+    void reset() noexcept;
+
+    // deprecated methods
+    [[deprecated("Please use `reset` instead.")]]
     void dispose() noexcept;
-    ResourceCreationInfo release() noexcept;
 };
 
 }// namespace luisa::compute

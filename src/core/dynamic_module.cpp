@@ -2,14 +2,16 @@
 #include <luisa/core/clock.h>
 #include <luisa/core/logging.h>
 #include <luisa/core/stl/filesystem.h>
+
 #ifdef LUISA_PLATFORM_WINDOWS
 #include <Windows.h>
 #endif
+
 namespace luisa {
 
 DynamicModule &DynamicModule::operator=(DynamicModule &&rhs) noexcept {
     if (this != &rhs) {
-        dispose();
+        reset();
         _handle = rhs._handle;
         rhs._handle = nullptr;
     }
@@ -19,7 +21,18 @@ DynamicModule &DynamicModule::operator=(DynamicModule &&rhs) noexcept {
 DynamicModule::DynamicModule(DynamicModule &&another) noexcept
     : _handle{another._handle} { another._handle = nullptr; }
 
-DynamicModule::~DynamicModule() noexcept { dispose(); }
+DynamicModule::~DynamicModule() noexcept { reset(); }
+
+void *DynamicModule::release() noexcept {
+    return std::exchange(_handle, nullptr);
+}
+
+void DynamicModule::reset() noexcept {
+    if (_handle) {
+        dynamic_module_destroy(_handle);
+        _handle = nullptr;
+    }
+}
 
 void DynamicModule::dispose() noexcept {
     if (_handle) {
