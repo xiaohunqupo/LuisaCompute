@@ -45,6 +45,15 @@ void ReorderFuncTable::unlock_bindless(uint64_t bindless_handle) const noexcept 
 void ReorderFuncTable::update_bindless(uint64_t handle, luisa::span<const BindlessArrayUpdateCommand::Modification> modifications) const noexcept {
     reinterpret_cast<BindlessArray *>(handle)->bind(modifications);
 }
+void ReorderFuncTable::update_bindless(uint64_t handle, luisa::span<const BindlessArrayUpdateCommand::BufferModification> modifications) const noexcept {
+    LUISA_NOT_IMPLEMENTED();
+}
+void ReorderFuncTable::update_bindless(uint64_t handle, luisa::span<const BindlessArrayUpdateCommand::Texture2DModification> modifications) const noexcept {
+    LUISA_NOT_IMPLEMENTED();
+}
+void ReorderFuncTable::update_bindless(uint64_t handle, luisa::span<const BindlessArrayUpdateCommand::Texture3DModification> modifications) const noexcept {
+    LUISA_NOT_IMPLEMENTED();
+}
 struct ResourceBarrierVisitor {
     ResourceBarrier *barrier;
     SavedArgument const *arg;

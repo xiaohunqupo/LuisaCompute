@@ -111,7 +111,7 @@ static size_t AddHeader(CallOpSet const &ops, vstd::StringBuilder &builder, bool
     bool useBindless = false;
     for (auto i : vstd::range(
              luisa::to_underlying(CallOp::BINDLESS_TEXTURE2D_SAMPLE),
-             luisa::to_underlying(CallOp::BINDLESS_BUFFER_TYPE) + 1)) {
+             luisa::to_underlying(CallOp::TYPED_BINDLESS_BUFFER_ADDRESS) + 1)) {
         if (ops.test(static_cast<CallOp>(i))) {
             useBindless = true;
             break;
@@ -954,6 +954,43 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             str << ",bdls)"sv;
             return;
         }
+        case CallOp::TYPED_BINDLESS_BUFFER_SIZE: {
+            str << "_typed_bdlsBfSize"sv;
+            opt->useBufferBindless = true;
+            str << '(';
+            for (auto &&i : args) {
+                i->accept(vis);
+                str << ',';
+            }
+            str << "bdls)"sv;
+            return;
+        }
+        case CallOp::TYPED_BINDLESS_BUFFER_READ: {
+            str << "_typed_READ_BUFFER"sv;
+            opt->useBufferBindless = true;
+            str << '(';
+            for (auto &&i : args) {
+                i->accept(vis);
+                str << ',';
+            }
+            vstd::to_string(expr->type()->size(), str);
+            str << ',';
+            GetTypeName(*expr->type(), str, Usage::READ, true);
+            str << ",bdls)"sv;
+            return;
+        }
+        case CallOp::TYPED_BINDLESS_BYTE_BUFFER_READ: {
+            str << "_typed_READ_BUFFER_BYTES"sv;
+            opt->useBufferBindless = true;
+            str << '(';
+            for (auto &&i : args) {
+                i->accept(vis);
+                str << ',';
+            }
+            GetTypeName(*expr->type(), str, Usage::READ, true);
+            str << ",bdls)"sv;
+            return;
+        }
         case CallOp::ASSERT:
         case CallOp::ASSUME:
             return;
@@ -1069,6 +1106,111 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
         case CallOp::BINDLESS_TEXTURE3D_SIZE_LEVEL:
             opt->useTex3DBindless = true;
             str << "_Tex3DSizeLevel"sv;
+            break;
+        case CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE:
+            opt->useTex2DBindless = true;
+            if (opt->isPixelShader) {
+                str << "_typed_SampleTex2DPixel"sv;
+            } else {
+                str << "_typed_SampleTex2D"sv;
+            }
+            break;
+        case CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE_SAMPLER:
+            opt->useTex2DBindless = true;
+            if (opt->isPixelShader) {
+                str << "_typed_SampleTex2DPixelSmp"sv;
+            } else {
+                str << "_typed_SampleTex2DSmp"sv;
+            }
+            break;
+
+        case CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE_LEVEL:
+            opt->useTex2DBindless = true;
+            str << "_typed_SampleTex2DLevel"sv;
+            break;
+        case CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE_LEVEL_SAMPLER:
+            opt->useTex2DBindless = true;
+            str << "_typed_SampleTex2DLevelSmp"sv;
+            break;
+        case CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE_GRAD:
+            opt->useTex2DBindless = true;
+            str << "_typed_SampleTex2DGrad"sv;
+            break;
+        case CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE_GRAD_SAMPLER:
+            opt->useTex2DBindless = true;
+            str << "_typed_SampleTex2DGradSmp"sv;
+            break;
+        case CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL:
+            opt->useTex2DBindless = true;
+            str << "_typed_SampleTex2DGradLevel"sv;
+            break;
+        case CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL_SAMPLER:
+            opt->useTex2DBindless = true;
+            str << "_typed_SampleTex2DGradLevelSmp"sv;
+            break;
+        case CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE:
+            opt->useTex3DBindless = true;
+            str << "_typed_SampleTex3D"sv;
+            break;
+        case CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE_SAMPLER:
+            opt->useTex3DBindless = true;
+            str << "_typed_SampleTex3DSmp"sv;
+            break;
+        case CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE_LEVEL:
+            opt->useTex3DBindless = true;
+            str << "_typed_SampleTex3DLevel"sv;
+            break;
+        case CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE_LEVEL_SAMPLER:
+            opt->useTex3DBindless = true;
+            str << "_typed_SampleTex3DLevelSmp"sv;
+            break;
+        case CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE_GRAD:
+            opt->useTex3DBindless = true;
+            str << "_typed_SampleTex3DGrad"sv;
+            break;
+        case CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE_GRAD_SAMPLER:
+            opt->useTex3DBindless = true;
+            str << "_typed_SampleTex3DGradSmp"sv;
+            break;
+        case CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL:
+            opt->useTex3DBindless = true;
+            str << "_typed_SampleTex3DGradLevel"sv;
+            break;
+        case CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL_SAMPLER:
+            opt->useTex3DBindless = true;
+            str << "_typed_SampleTex3DGradLevelSmp"sv;
+            break;
+        case CallOp::TYPED_BINDLESS_TEXTURE2D_READ:
+            opt->useTex2DBindless = true;
+            str << "_typed_ReadTex2D"sv;
+            break;
+        case CallOp::TYPED_BINDLESS_TEXTURE2D_READ_LEVEL:
+            opt->useTex2DBindless = true;
+            str << "_typed_ReadTex2DLevel"sv;
+            break;
+        case CallOp::TYPED_BINDLESS_TEXTURE3D_READ:
+            opt->useTex3DBindless = true;
+            str << "_typed_ReadTex3D"sv;
+            break;
+        case CallOp::TYPED_BINDLESS_TEXTURE3D_READ_LEVEL:
+            opt->useTex3DBindless = true;
+            str << "_typed_ReadTex3DLevel"sv;
+            break;
+        case CallOp::TYPED_BINDLESS_TEXTURE2D_SIZE:
+            opt->useTex2DBindless = true;
+            str << "_typed_Tex2DSize"sv;
+            break;
+        case CallOp::TYPED_BINDLESS_TEXTURE2D_SIZE_LEVEL:
+            opt->useTex2DBindless = true;
+            str << "_typed_Tex2DSizeLevel"sv;
+            break;
+        case CallOp::TYPED_BINDLESS_TEXTURE3D_SIZE:
+            opt->useTex3DBindless = true;
+            str << "_typed_Tex3DSize"sv;
+            break;
+        case CallOp::TYPED_BINDLESS_TEXTURE3D_SIZE_LEVEL:
+            opt->useTex3DBindless = true;
+            str << "_typed_Tex3DSizeLevel"sv;
             break;
         case CallOp::SYNCHRONIZE_BLOCK:
             str << "GroupMemoryBarrierWithGroupSync()"sv;
@@ -1241,6 +1383,7 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
         case CallOp::OUTER_PRODUCT: str << "_outer_product"; break;
         case CallOp::MATRIX_COMPONENT_WISE_MULTIPLICATION: str << "_mat_comp_mul"; break;
         case CallOp::BINDLESS_BUFFER_TYPE: LUISA_NOT_IMPLEMENTED(); break;
+        case CallOp::TYPED_BINDLESS_BUFFER_TYPE: LUISA_NOT_IMPLEMENTED(); break;
         case CallOp::WARP_IS_FIRST_ACTIVE_LANE:
             str << "WaveIsFirstLane"sv;
             break;
@@ -1302,6 +1445,7 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
         case CallOp::PACK: LUISA_NOT_IMPLEMENTED();
         case CallOp::UNPACK: LUISA_NOT_IMPLEMENTED();
         case CallOp::BINDLESS_BUFFER_WRITE: LUISA_NOT_IMPLEMENTED();
+        case CallOp::TYPED_BINDLESS_BUFFER_WRITE: LUISA_NOT_IMPLEMENTED();
         case CallOp::WARP_FIRST_ACTIVE_LANE: LUISA_NOT_IMPLEMENTED();
         case CallOp::TEXTURE2D_SAMPLE:
         case CallOp::TEXTURE3D_SAMPLE:

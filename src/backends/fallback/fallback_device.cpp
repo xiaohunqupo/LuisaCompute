@@ -378,7 +378,8 @@ void FallbackDevice::destroy_sparse_texture(uint64_t handle) noexcept {
     DeviceInterface::destroy_sparse_texture(handle);
 }
 
-ResourceCreationInfo FallbackDevice::create_bindless_array(size_t size) noexcept {
+ResourceCreationInfo FallbackDevice::create_bindless_array(size_t size, BindlessType type) noexcept {
+    LUISA_ASSERT(type == BindlessType::None);
     auto array = luisa::new_with_allocator<FallbackBindlessArray>(size);
     return ResourceCreationInfo{
         .handle = reinterpret_cast<uint64_t>(array),

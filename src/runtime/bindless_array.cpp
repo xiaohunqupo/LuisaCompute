@@ -20,8 +20,8 @@ void ShaderInvokeBase::encode(ShaderDispatchCmdEncoder &encoder, const BindlessA
 
 }// namespace detail
 
-BindlessArray Device::create_bindless_array(size_t slots) noexcept {
-    return _create<BindlessArray>(slots);
+BindlessArray Device::create_bindless_array(size_t slots, BindlessType type) noexcept {
+    return _create<BindlessArray>(slots, type);
 }
 
 BindlessArray::BindlessArray(BindlessArray &&rhs) noexcept
@@ -31,9 +31,24 @@ BindlessArray::BindlessArray(BindlessArray &&rhs) noexcept
     rhs._size = 0;
 }
 
-BindlessArray::BindlessArray(DeviceInterface *device, size_t size) noexcept
-    : Resource{device, Tag::BINDLESS_ARRAY, device->create_bindless_array(size)},
-      _size{size} {}
+BindlessArray::BindlessArray(DeviceInterface *device, size_t size, BindlessType type) noexcept
+    : Resource{device, Tag::BINDLESS_ARRAY, device->create_bindless_array(size, type)},
+      _size{size} {
+    switch (type) {
+        case BindlessType::None:
+            _updates.emplace<luisa::unordered_set<Modification, ModSlotHash, ModSlotEqual>>();
+            break;
+        case BindlessType::Buffer:
+            _updates.emplace<luisa::unordered_set<BufferModification, ModSlotHash, ModSlotEqual>>();
+            break;
+        case BindlessType::Texture2D:
+            _updates.emplace<luisa::unordered_set<Texture2DModification, ModSlotHash, ModSlotEqual>>();
+            break;
+        case BindlessType::Texture3D:
+            _updates.emplace<luisa::unordered_set<Texture3DModification, ModSlotHash, ModSlotEqual>>();
+            break;
+    }
+}
 
 void BindlessArray::emplace_buffer_handle_on_update(size_t index, uint64_t handle, size_t offset_bytes) noexcept {
     _check_is_valid();
@@ -43,8 +58,15 @@ void BindlessArray::emplace_buffer_handle_on_update(size_t index, uint64_t handl
             "Invalid buffer slot {} for bindless array of size {}.",
             index, _size);
     }
-    auto [iter, _] = _updates.emplace(index);
-    const_cast<Modification::Buffer &>(iter->buffer) = Modification::Buffer::emplace(handle, offset_bytes);
+    if (_updates.index() == 0) {
+        auto [iter, _] = luisa::get<0>(_updates).emplace(index);
+        const_cast<Modification::Buffer &>(iter->buffer) = Modification::Buffer::emplace(handle, offset_bytes);
+    } else if (_updates.index() == 1) {
+        auto [iter, _] = luisa::get<1>(_updates).emplace(index);
+        const_cast<Modification::Buffer &>(iter->buffer) = Modification::Buffer::emplace(handle, offset_bytes);
+    } else {
+        LUISA_ASSERT(false, "Invalid bindless type.");
+    }
 }
 
 void BindlessArray::emplace_tex2d_handle_on_update(size_t index, uint64_t handle, Sampler sampler) noexcept {
@@ -55,8 +77,15 @@ void BindlessArray::emplace_tex2d_handle_on_update(size_t index, uint64_t handle
             "Invalid texture2d slot {} for bindless array of size {}.",
             index, _size);
     }
-    auto [iter, _] = _updates.emplace(index);
-    const_cast<Modification::Texture &>(iter->tex2d) = Modification::Texture::emplace(handle, sampler);
+    if (_updates.index() == 0) {
+        auto [iter, _] = luisa::get<0>(_updates).emplace(index);
+        const_cast<Modification::Texture &>(iter->tex2d) = Modification::Texture::emplace(handle, sampler);
+    } else if (_updates.index() == 2) {
+        auto [iter, _] = luisa::get<2>(_updates).emplace(index);
+        const_cast<Modification::Texture &>(iter->tex2d) = Modification::Texture::emplace(handle, sampler);
+    } else {
+        LUISA_ASSERT(false, "Invalid bindless type.");
+    }
 }
 
 void BindlessArray::emplace_tex3d_handle_on_update(size_t index, uint64_t handle, Sampler sampler) noexcept {
@@ -67,8 +96,15 @@ void BindlessArray::emplace_tex3d_handle_on_update(size_t index, uint64_t handle
             "Invalid texture3d slot {} for bindless array of size {}.",
             index, _size);
     }
-    auto [iter, _] = _updates.emplace(index);
-    const_cast<Modification::Texture &>(iter->tex3d) = Modification::Texture::emplace(handle, sampler);
+    if (_updates.index() == 0) {
+        auto [iter, _] = luisa::get<0>(_updates).emplace(index);
+        const_cast<Modification::Texture &>(iter->tex3d) = Modification::Texture::emplace(handle, sampler);
+    } else if (_updates.index() == 3) {
+        auto [iter, _] = luisa::get<3>(_updates).emplace(index);
+        const_cast<Modification::Texture &>(iter->tex3d) = Modification::Texture::emplace(handle, sampler);
+    } else {
+        LUISA_ASSERT(false, "Invalid bindless type.");
+    }
 }
 
 BindlessArray &BindlessArray::remove_buffer_on_update(size_t index) noexcept {
@@ -79,8 +115,15 @@ BindlessArray &BindlessArray::remove_buffer_on_update(size_t index) noexcept {
             "Invalid buffer slot {} for bindless array of size {}.",
             index, _size);
     }
-    auto [iter, _] = _updates.emplace(index);
-    const_cast<Modification::Buffer &>(iter->buffer) = Modification::Buffer::remove();
+    if (_updates.index() == 0) {
+        auto [iter, _] = luisa::get<0>(_updates).emplace(index);
+        const_cast<Modification::Buffer &>(iter->buffer) = Modification::Buffer::remove();
+    } else if (_updates.index() == 1) {
+        auto [iter, _] = luisa::get<1>(_updates).emplace(index);
+        const_cast<Modification::Buffer &>(iter->buffer) = Modification::Buffer::remove();
+    } else {
+        LUISA_ASSERT(false, "Invalid bindless type.");
+    }
     return *this;
 }
 
@@ -92,8 +135,15 @@ BindlessArray &BindlessArray::remove_tex2d_on_update(size_t index) noexcept {
             "Invalid texture2d slot {} for bindless array of size {}.",
             index, _size);
     }
-    auto [iter, _] = _updates.emplace(index);
-    const_cast<Modification::Texture &>(iter->tex2d) = Modification::Texture::remove();
+    if (_updates.index() == 0) {
+        auto [iter, _] = luisa::get<0>(_updates).emplace(index);
+        const_cast<Modification::Texture &>(iter->tex2d) = Modification::Texture::remove();
+    } else if (_updates.index() == 2) {
+        auto [iter, _] = luisa::get<2>(_updates).emplace(index);
+        const_cast<Modification::Texture &>(iter->tex2d) = Modification::Texture::remove();
+    } else {
+        LUISA_ASSERT(false, "Invalid bindless type.");
+    }
     return *this;
 }
 
@@ -105,32 +155,43 @@ BindlessArray &BindlessArray::remove_tex3d_on_update(size_t index) noexcept {
             "Invalid texture3d slot {} for bindless array of size {}.",
             index, _size);
     }
-    auto [iter, _] = _updates.emplace(index);
-    const_cast<Modification::Texture &>(iter->tex3d) = Modification::Texture::remove();
+    if (_updates.index() == 0) {
+        auto [iter, _] = luisa::get<0>(_updates).emplace(index);
+        const_cast<Modification::Texture &>(iter->tex3d) = Modification::Texture::remove();
+    } else if (_updates.index() == 3) {
+        auto [iter, _] = luisa::get<3>(_updates).emplace(index);
+        const_cast<Modification::Texture &>(iter->tex3d) = Modification::Texture::remove();
+    }
     return *this;
 }
 
 luisa::unique_ptr<Command> BindlessArray::update() noexcept {
     _check_is_valid();
     std::lock_guard lock{_mtx};
-    if (_updates.empty()) {
+    if (luisa::visit([](auto &&t) { return t.empty(); }, _updates)) {
         LUISA_WARNING_WITH_LOCATION(
             "No update to bindless array.");
         return nullptr;
     }
-    luisa::vector<Modification> mods;
-    mods.reserve(_updates.size());
-    for (auto m : _updates) { mods.emplace_back(m); }
-    _updates.clear();
-    return luisa::make_unique<BindlessArrayUpdateCommand>(handle(), std::move(mods));
+    using VV = std::remove_cvref_t<decltype(luisa::get<0>(_updates))>::key_type;
+    return luisa::visit(
+        [this]<typename T>(luisa::unordered_set<T, ModSlotHash, ModSlotEqual> &updates) {
+            luisa::vector<T> mods;
+            mods.reserve(updates.size());
+            for (auto m : updates) { mods.emplace_back(m); }
+            updates.clear();
+            return luisa::make_unique<BindlessArrayUpdateCommand>(handle(), std::move(mods));
+        },
+        _updates);
 }
 
 BindlessArray::~BindlessArray() noexcept {
-    if (!_updates.empty()) {
+    if (!luisa::visit([](auto &&t) { return t.empty(); }, _updates)) {
         LUISA_WARNING_WITH_LOCATION(
             "Bindless array #{} destroyed with {} pending updates. "
             "Did you forget to call update()?",
-            this->handle(), _updates.size());
+            this->handle(),
+            luisa::visit([](auto &&t) { return t.size(); }, _updates));
     }
     if (*this) {
         device()->destroy_bindless_array(handle());

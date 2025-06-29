@@ -83,6 +83,7 @@ public:
         CopySource,
         CopyDest,
         BuildAccel,
+        BuildAccelScratch,
         CopyAccelSrc,
         CopyAccelDst,
         DepthRead,

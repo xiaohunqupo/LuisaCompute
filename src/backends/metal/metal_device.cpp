@@ -333,7 +333,8 @@ void MetalDevice::destroy_texture(uint64_t handle) noexcept {
     });
 }
 
-ResourceCreationInfo MetalDevice::create_bindless_array(size_t size) noexcept {
+ResourceCreationInfo MetalDevice::create_bindless_array(size_t size, BindlessType type) noexcept {
+    LUISA_ASSERT(type == BindlessType::None);
     return with_autorelease_pool([=, this] {
         auto array = new_with_allocator<MetalBindlessArray>(this, size);
         ResourceCreationInfo info{};

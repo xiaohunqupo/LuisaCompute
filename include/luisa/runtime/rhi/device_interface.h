@@ -92,6 +92,13 @@ protected:
     ~DeviceExtension() noexcept = default;
 };
 
+enum struct BindlessType {
+    None,
+    Buffer,
+    Texture2D,
+    Texture3D
+};
+
 class LC_RUNTIME_API DeviceInterface : public luisa::enable_shared_from_this<DeviceInterface> {
 
 protected:
@@ -130,7 +137,7 @@ public:
     virtual void destroy_texture(uint64_t handle) noexcept = 0;
 
     // bindless array
-    [[nodiscard]] virtual ResourceCreationInfo create_bindless_array(size_t size) noexcept = 0;
+    [[nodiscard]] virtual ResourceCreationInfo create_bindless_array(size_t size, BindlessType type) noexcept = 0;
     virtual void destroy_bindless_array(uint64_t handle) noexcept = 0;
 
     // stream

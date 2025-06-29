@@ -35,6 +35,17 @@ struct ReorderFuncTable {
     void update_bindless(uint64_t handle, luisa::span<const BindlessArrayUpdateCommand::Modification> modifications) const noexcept {
         reinterpret_cast<BindlessArray *>(handle)->Bind(modifications);
     }
+    void update_bindless(uint64_t handle, luisa::span<const BindlessArrayUpdateCommand::BufferModification> modifications) const noexcept {
+        reinterpret_cast<BindlessArray *>(handle)->Bind(modifications);
+    }
+    void update_bindless(uint64_t handle, luisa::span<const BindlessArrayUpdateCommand::Texture2DModification> modifications) const noexcept {
+        reinterpret_cast<BindlessArray *>(handle)->Bind(modifications);
+    }
+    void update_bindless(uint64_t handle, luisa::span<const BindlessArrayUpdateCommand::Texture3DModification> modifications) const noexcept {
+        reinterpret_cast<BindlessArray *>(handle)->Bind(luisa::span{
+            reinterpret_cast<const BindlessArrayUpdateCommand::Texture2DModification *>(modifications.data()),
+            modifications.size()});
+    }
     luisa::span<const Argument> shader_bindings(uint64_t handle) const noexcept {
         return reinterpret_cast<ComputeShader const *>(handle)->ArgBindings();
     }

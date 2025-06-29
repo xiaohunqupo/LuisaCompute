@@ -65,7 +65,7 @@ public:
                                         uint mipmap_levels, void *external_native_handle,
                                         bool simultaneous_access, bool allow_raster_target) noexcept override;
     void destroy_texture(uint64_t handle) noexcept override;
-    ResourceCreationInfo create_bindless_array(size_t size) noexcept override;
+    ResourceCreationInfo create_bindless_array(size_t size, BindlessType type) noexcept override;
     void destroy_bindless_array(uint64_t handle) noexcept override;
     ResourceCreationInfo create_stream(StreamTag stream_tag) noexcept override;
     void destroy_stream(uint64_t handle) noexcept override;
