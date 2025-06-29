@@ -80,7 +80,6 @@ hlsl::ShaderCompiler *Device::Compiler() {
 }
 Device::Device(Context &&ctx, DeviceConfig const *settings)
     : setBindlessKernel(BuiltinKernel::LoadBindlessSetKernel),
-      setTypedBindlessKernel(BuiltinKernel::LoadTypedBindlessSetKernel),
       setAccelKernel(BuiltinKernel::LoadAccelSetKernel),
       bc6TryModeG10(BuiltinKernel::LoadBC6TryModeG10CSKernel),
       bc6TryModeLE10(BuiltinKernel::LoadBC6TryModeLE10CSKernel),

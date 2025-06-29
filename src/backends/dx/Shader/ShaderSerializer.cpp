@@ -54,7 +54,7 @@ std::pair<vstd::string, Type const *> DeserPrinterSize(BinaryStream *streamer) {
 }
 }// namespace detail
 static constexpr size_t kRootSigReserveSize = 16384;
-static constexpr uint64 kHeaderVersion = 2ull;
+static constexpr uint64 kHeaderVersion = 3ull;
 vstd::vector<std::byte>
 ShaderSerializer::Serialize(
     vstd::span<hlsl::Property const> properties,

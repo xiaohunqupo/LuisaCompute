@@ -1107,14 +1107,6 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             opt->useTex3DBindless = true;
             str << "_Tex3DSizeLevel"sv;
             break;
-        case CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE:
-            opt->useTex2DBindless = true;
-            if (opt->isPixelShader) {
-                str << "_typed_SampleTex2DPixel"sv;
-            } else {
-                str << "_typed_SampleTex2D"sv;
-            }
-            break;
         case CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE_SAMPLER:
             opt->useTex2DBindless = true;
             if (opt->isPixelShader) {
@@ -1123,58 +1115,29 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
                 str << "_typed_SampleTex2DSmp"sv;
             }
             break;
-
-        case CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE_LEVEL:
-            opt->useTex2DBindless = true;
-            str << "_typed_SampleTex2DLevel"sv;
-            break;
         case CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE_LEVEL_SAMPLER:
             opt->useTex2DBindless = true;
             str << "_typed_SampleTex2DLevelSmp"sv;
-            break;
-        case CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE_GRAD:
-            opt->useTex2DBindless = true;
-            str << "_typed_SampleTex2DGrad"sv;
             break;
         case CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE_GRAD_SAMPLER:
             opt->useTex2DBindless = true;
             str << "_typed_SampleTex2DGradSmp"sv;
             break;
-        case CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL:
-            opt->useTex2DBindless = true;
-            str << "_typed_SampleTex2DGradLevel"sv;
-            break;
         case CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL_SAMPLER:
             opt->useTex2DBindless = true;
             str << "_typed_SampleTex2DGradLevelSmp"sv;
-            break;
-        case CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE:
-            opt->useTex3DBindless = true;
-            str << "_typed_SampleTex3D"sv;
             break;
         case CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE_SAMPLER:
             opt->useTex3DBindless = true;
             str << "_typed_SampleTex3DSmp"sv;
             break;
-        case CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE_LEVEL:
-            opt->useTex3DBindless = true;
-            str << "_typed_SampleTex3DLevel"sv;
-            break;
         case CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE_LEVEL_SAMPLER:
             opt->useTex3DBindless = true;
             str << "_typed_SampleTex3DLevelSmp"sv;
             break;
-        case CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE_GRAD:
-            opt->useTex3DBindless = true;
-            str << "_typed_SampleTex3DGrad"sv;
-            break;
         case CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE_GRAD_SAMPLER:
             opt->useTex3DBindless = true;
             str << "_typed_SampleTex3DGradSmp"sv;
-            break;
-        case CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL:
-            opt->useTex3DBindless = true;
-            str << "_typed_SampleTex3DGradLevel"sv;
             break;
         case CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL_SAMPLER:
             opt->useTex3DBindless = true;

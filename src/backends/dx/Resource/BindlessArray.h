@@ -35,7 +35,7 @@ public:
     };
 
 private:
-    vstd::variant<vstd::vector<std::pair<BindlessStruct, MapIndicies>>, vstd::vector<std::pair<uint, MapIndex>>, vstd::vector<MapIndex>> typed_binded;
+    vstd::variant<vstd::vector<std::pair<BindlessStruct, MapIndicies>>, vstd::vector<MapIndex>> typed_binded;
     Map ptrMap;
     mutable std::mutex mtx;
     DefaultBuffer buffer;

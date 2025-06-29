@@ -82,7 +82,6 @@ public:
     vstd::unique_ptr<DescriptorHeap> globalHeap;
     vstd::unique_ptr<DescriptorHeap> samplerHeap;
     LazyLoadShader setBindlessKernel;
-    LazyLoadShader setTypedBindlessKernel;
     LazyLoadShader setAccelKernel;
 
     LazyLoadShader bc6TryModeG10;
