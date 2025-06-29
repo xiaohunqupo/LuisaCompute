@@ -19,7 +19,7 @@ int main(int argc, char *argv[]) {
 
     Stream stream = device.create_stream(StreamTag::GRAPHICS);
     Image<float> device_image1 = device.create_image<float>(PixelStorage::BYTE4, resolution);
-    BindlessArray bdls = device.create_bindless_array(65535, BindlessType::Buffer);
+    BindlessArray bdls = device.create_bindless_array(65535);
     Buffer<float4> buffer = device.create_buffer<float4>(4);
     std::vector<float4> a{4};
     a[0] = {1, 0, 0, 1};

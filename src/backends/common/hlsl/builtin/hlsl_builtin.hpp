@@ -65,7 +65,7 @@ static HLSLCompressedHeader get_hlsl_builtin(luisa::string_view ss) {
 			dict.try_emplace("resource_size", HLSLCompressedHeader{resource_size, 227, 1374});
 			dict.try_emplace("accel_header", HLSLCompressedHeader{accel_header, 391, 1160});
 			dict.try_emplace("copy_sign", HLSLCompressedHeader{copy_sign, 175, 765});
-			dict.try_emplace("bindless_common", HLSLCompressedHeader{bindless_common, 348, 1187});
+			dict.try_emplace("bindless_common", HLSLCompressedHeader{bindless_common, 351, 1193});
 			dict.try_emplace("auto_diff", HLSLCompressedHeader{auto_diff, 345, 1795});
 			dict.try_emplace("reduce", HLSLCompressedHeader{reduce, 743, 6372});
 		}

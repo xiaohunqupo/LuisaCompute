@@ -61,7 +61,7 @@ int main(int argc, char *argv[]) {
         "Loaded mesh with {} shape(s) and {} vertices.",
         obj_reader.GetShapes().size(), vertices.size());
 
-    BindlessArray heap = device.create_bindless_array(65535, BindlessType::Buffer);
+    BindlessArray heap = device.create_bindless_array(65535);
     Stream stream = device.create_stream(StreamTag::GRAPHICS);
     Buffer<float3> vertex_buffer = device.create_buffer<float3>(vertices.size());
     stream << vertex_buffer.copy_from(vertices.data());
@@ -194,7 +194,7 @@ int main(int argc, char *argv[]) {
                 Var<TriangleHit> hit = accel.intersect(ray, {});
                 reorder_shader_execution();
                 $if (hit->miss()) { $break; };
-                Var<Triangle> triangle = heap->buffer<Triangle>(hit.inst, true).read(hit.prim);
+                Var<Triangle> triangle = heap->buffer<Triangle>(hit.inst).read(hit.prim);
                 Float3 p0 = vertex_buffer->read(triangle.i0);
                 Float3 p1 = vertex_buffer->read(triangle.i1);
                 Float3 p2 = vertex_buffer->read(triangle.i2);

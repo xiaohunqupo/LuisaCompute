@@ -1,6 +1,7 @@
 #pragma once
 #include <Resource/Resource.h>
 #include <luisa/vstl/spin_mutex.h>
+#include <luisa/core/first_fit.h>
 namespace lc::dx {
 
 class DescriptorHeap final : public Resource {
@@ -10,12 +11,14 @@ private:
     D3D12_CPU_DESCRIPTOR_HANDLE hCPUHeapStart;
     D3D12_GPU_DESCRIPTOR_HANDLE hGPUHeapStart;
     uint HandleIncrementSize;
-    uint64 numDescriptors;
+    uint32_t numDescriptors;
     vstd::vector<uint32_t> freeList;
     uint32_t allocIndex;
     vstd::spin_mutex heapMtx;
+    luisa::FirstFit subAlloc;
 
 public:
+    
     uint64 Length() const { return numDescriptors; }
     ID3D12DescriptorHeap *GetHeap() const { return pDH.Get(); }
     D3D12_GPU_DESCRIPTOR_HANDLE hGPU(uint64 index) const ;
@@ -26,6 +29,9 @@ public:
         D3D12_DESCRIPTOR_HEAP_TYPE Type,
         uint32_t numDescriptors,
         bool bShaderVisible);
+    luisa::FirstFit::Node* SubAllocate(uint32_t size);
+    void DeAllocate(luisa::FirstFit::Node* ptr);
+    uint GetSubAllocOffset(luisa::FirstFit::Node const* ptr);
     uint32_t AllocateIndex();
     void ReturnIndex(uint32_t v);
     void Reset();

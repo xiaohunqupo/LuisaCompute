@@ -4,6 +4,7 @@
 #include <luisa/vstl/lockfree_array_queue.h>
 #include <DXRuntime/EnhancedBarrierTracker.h>
 #include <luisa/runtime/rhi/command.h>
+#include <luisa/core/first_fit.h>
 namespace lc::dx {
 using namespace luisa::compute;
 class TextureBase;
@@ -34,15 +35,16 @@ public:
     };
 
 private:
-    vstd::variant<vstd::vector<std::pair<BindlessStruct, MapIndicies>>, vstd::vector<std::pair<uint, MapIndex>>> typed_binded;
-    bool is_buffer_type;
+    vstd::variant<vstd::vector<std::pair<BindlessStruct, MapIndicies>>, vstd::vector<std::pair<uint, MapIndex>>, vstd::vector<MapIndex>> typed_binded;
     Map ptrMap;
     mutable std::mutex mtx;
     DefaultBuffer buffer;
+    luisa::FirstFit::Node* _buffer_node = nullptr;
     void TryReturnIndex(MapIndex &index, uint &originValue);
     void TryReturnIndexTex(MapIndex &index, uint &originValue);
     MapIndex AddIndex(size_t ptr);
     mutable vstd::vector<uint> freeQueue;
+    mutable bool offset_setted = false;
 
 public:
     void Lock() const {

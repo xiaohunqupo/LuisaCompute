@@ -13,28 +13,31 @@ BindlessArray::BindlessArray(
     Device *device, uint arraySize,
     BindlessType type)
     : Resource(device),
-      buffer(device, arraySize * (type == BindlessType::None ? sizeof(BindlessStruct) : sizeof(uint)), device->defaultAllocator.get()) {
-    auto reset = [&](auto &t) {
-        luisa::enlarge_by(t, arraySize);
-        std::memset(t.data(), -1, luisa::size_bytes(t));
-    };
+      buffer(device, type == BindlessType::Buffer ? 4 : (arraySize * (type == BindlessType::None ? sizeof(BindlessStruct) : sizeof(uint))), device->defaultAllocator.get()) {
     switch (type) {
         case BindlessType::None:
             typed_binded.reset_as(0, arraySize);
             break;
-        case BindlessType::Buffer:
-            is_buffer_type = true;
+        case BindlessType::Buffer: {
+            _buffer_node = device->globalHeap->SubAllocate(arraySize);
+            typed_binded.reset_as(2);
+            auto &v = typed_binded.get<2>();
+            v.resize(arraySize);
+        } break;
+        default: {
             typed_binded.reset_as(1);
-            reset(typed_binded.get<1>());
-            break;
-        default:
-            is_buffer_type = false;
-            typed_binded.reset_as(1);
-            reset(typed_binded.get<1>());
-            break;
+            auto &v = typed_binded.get<1>();
+            v.resize(arraySize);
+            for (auto &i : v) {
+                i.first = BindlessStruct::n_pos;
+            }
+        } break;
     }
 }
 BindlessArray::~BindlessArray() {
+    if (_buffer_node) {
+        device->globalHeap->DeAllocate(_buffer_node);
+    }
     auto Return = [&](auto &&i) {
         if (i != BindlessStruct::n_pos) {
             device->globalHeap->ReturnIndex(i);
@@ -54,16 +57,11 @@ BindlessArray::~BindlessArray() {
             }
         },
         [&](auto &&binded) {
-            if (is_buffer_type) {
-                for (auto &&i : binded) {
-                    Return(i.first);
-                }
-            } else {
-                for (auto &&i : binded) {
-                    ReturnTex(i.first);
-                }
+            for (auto &&i : binded) {
+                ReturnTex(i.first);
             }
-        });
+        },
+        [](auto &&b) {});
 
     for (auto &&i : freeQueue) {
         device->globalHeap->ReturnIndex(i);
@@ -101,39 +99,29 @@ BindlessArray::MapIndex BindlessArray::AddIndex(size_t ptr) {
     return ite;
 }
 void BindlessArray::Bind(vstd::span<const BindlessArrayUpdateCommand::BufferModification> mods) {
-    LUISA_DEBUG_ASSERT(typed_binded.index() == 1);
-    auto &binded = typed_binded.get<1>();
+    LUISA_DEBUG_ASSERT(typed_binded.index() == 2 && _buffer_node);
+    auto &binded = typed_binded.get<2>();
     std::lock_guard lck{mtx};
     if (mods.empty()) return;
     for (auto &&mod : mods) {
-        auto &bindGrp = binded[mod.slot].first;
-        auto &indices = binded[mod.slot].second;
+        auto &indices = binded[mod.slot];
         using Ope = BindlessArrayUpdateCommand::Modification::Operation;
-        switch (mod.buffer.op) {
-            case Ope::REMOVE:
-                TryReturnIndex(indices, bindGrp);
-                break;
-            case Ope::EMPLACE: {
-                TryReturnIndex(indices, bindGrp);
-                BufferView v{reinterpret_cast<Buffer *>(mod.buffer.handle), mod.buffer.offset_bytes};
-                auto newIdx = device->globalHeap->AllocateIndex();
-                auto desc = v.buffer->GetColorSrvDesc(
-                    v.offset,
-                    v.byteSize);
+        if (mod.buffer.op == Ope::EMPLACE) {
+            BufferView v{reinterpret_cast<Buffer *>(mod.buffer.handle), mod.buffer.offset_bytes};
+            auto newIdx = device->globalHeap->GetSubAllocOffset(_buffer_node) + mod.slot;
+            auto desc = v.buffer->GetColorSrvDesc(
+                v.offset,
+                v.byteSize);
 #ifndef NDEBUG
-                if (!desc) {
-                    LUISA_ERROR("illagel buffer");
-                }
-#endif
-                device->globalHeap->CreateSRV(
-                    v.buffer->GetResource(),
-                    *desc,
-                    newIdx);
-                bindGrp = newIdx;
-                indices = AddIndex(mod.buffer.handle);
-                break;
+            if (!desc) {
+                LUISA_ERROR("illagel buffer");
             }
-            default: break;
+#endif
+            device->globalHeap->CreateSRV(
+                v.buffer->GetResource(),
+                *desc,
+                newIdx);
+            indices = AddIndex(mod.buffer.handle);
         }
     }
 }
@@ -157,6 +145,7 @@ void BindlessArray::Bind(vstd::span<const BindlessArrayUpdateCommand::Texture2DM
     };
     using Ope = BindlessArrayUpdateCommand::Modification::Operation;
     for (auto &&mod : mods) {
+        auto vv = mod.slot;
         auto &bindGrp = binded[mod.slot].first;
         auto &indices = binded[mod.slot].second;
         switch (mod.tex2d.op) {
@@ -249,9 +238,10 @@ void BindlessArray::PreProcessStates(
     CommandBufferBuilder &builder,
     EnhancedBarrierTracker &tracker) const {
     std::lock_guard lck{mtx};
+    if (offset_setted && _buffer_node) return;
     tracker.Record(
         BufferView(&buffer),
-        EnhancedBarrierTracker::Usage::ComputeUAV);
+        _buffer_node ? EnhancedBarrierTracker::Usage::CopyDest : EnhancedBarrierTracker::Usage::ComputeUAV);
 }
 void BindlessArray::UpdateStates(
     CommandBufferBuilder &builder,
@@ -368,6 +358,21 @@ void BindlessArray::UpdateStates(
     CommandBufferBuilder &builder,
     EnhancedBarrierTracker &tracker,
     vstd::span<const BindlessArrayUpdateCommand::BufferModification> mods) const {
-    _UpdateStates<BindlessArrayUpdateCommand::BufferModification>(builder, tracker, mods);
+    LUISA_DEBUG_ASSERT(_buffer_node);
+    std::lock_guard lck{mtx};
+    if (offset_setted) return;
+    offset_setted = true;
+    auto alloc = builder.GetCB()->GetAlloc();
+    auto cbuffer = alloc->GetTempUploadBuffer(sizeof(uint), 16);
+    uint value = device->globalHeap->GetSubAllocOffset(_buffer_node);
+    static_cast<UploadBuffer const *>(cbuffer.buffer)
+        ->CopyData(cbuffer.offset,
+                   {reinterpret_cast<uint8_t const *>(&value), sizeof(uint)});
+    builder.CopyBuffer(
+        cbuffer.buffer,
+        &buffer,
+        cbuffer.offset,
+        0,
+        sizeof(uint));
 }
 }// namespace lc::dx
