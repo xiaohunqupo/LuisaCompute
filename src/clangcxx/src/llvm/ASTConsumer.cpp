@@ -720,7 +720,7 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                             } else {
                                 fb->assign(constructed, lcArgs.begin()[1]);
                             }
-                        } else if (builtinName == "array") {
+                        } else if (builtinName == "array" || builtinName == "shared_array") {
                             if (auto TSD = llvm::dyn_cast<clang::ClassTemplateSpecializationDecl>(Ty->getAs<clang::RecordType>()->getDecl())) {
                                 auto &Arguments = TSD->getTemplateArgs();
                                 auto EType = Arguments[0].getAsType();
@@ -728,9 +728,16 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                                 auto lcElemType = db->FindOrAddType(EType, x->getBeginLoc());
                                 const luisa::compute::Type *lcArrayType = Type::array(lcElemType, N);
 
-                                auto Flags = Arguments[2].getAsIntegral().getLimitedValue();
-                                if (Flags & 1)
+                                if (TSD->getTemplateArgs().size() > 2)
+                                {
+                                    auto Flags = Arguments[2].getAsIntegral().getLimitedValue();
+                                    if (Flags & 1)
+                                        constructed = fb->shared(lcArrayType);
+                                }
+                                if (builtinName == "shared_array")
+                                {
                                     constructed = fb->shared(lcArrayType);
+                                }
 
                                 if (!cxxCtor->isDefaultConstructor()) {
                                     if (cxxCtor->isConvertingConstructor(true))
