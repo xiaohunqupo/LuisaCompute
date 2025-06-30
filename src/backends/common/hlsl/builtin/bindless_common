@@ -15,6 +15,8 @@ return s[idx*3];
 #define _READ_BUFFER_BYTES(arr,arrIdx,idx,type,bf) bf[NonUniformResourceIndex(_ReadBdlsBuffer(arr,arrIdx))].template Load<type>(idx)
 #define _typed_READ_BUFFER(arr,arrIdx,idx,size,type,bf) bf[NonUniformResourceIndex(arr[0]+arrIdx)].template Load<type>(size*idx)
 #define _typed_READ_BUFFER_BYTES(arr,arrIdx,idx,type,bf) bf[NonUniformResourceIndex(arr[0]+arrIdx)].template Load<type>(idx)
+#define _typed_uniform_READ_BUFFER(arr,arrIdx,idx,size,type,bf) bf[(arr[0]+arrIdx)].template Load<type>(size*idx)
+#define _typed_uniform_READ_BUFFER_BYTES(arr,arrIdx,idx,type,bf) bf[(arr[0]+arrIdx)].template Load<type>(idx)
 template<typename T,typename I,typename J>
 uint _bdlsBfSize(StructuredBuffer<uint> arr,I arrIdx,J size,T bf){
 uint sz;
@@ -25,5 +27,11 @@ template<typename T,typename I,typename J>
 uint _typed_bdlsBfSize(StructuredBuffer<uint> arr,I arrIdx,J size,T bf){
 uint sz;
 bf[NonUniformResourceIndex(arr[0]+arrIdx)].GetDimensions(sz);
+return sz/size;
+}
+template<typename T,typename I,typename J>
+uint _typed_uniform_bdlsBfSize(StructuredBuffer<uint> arr,I arrIdx,J size,T bf){
+uint sz;
+bf[(arr[0]+arrIdx)].GetDimensions(sz);
 return sz/size;
 }

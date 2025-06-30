@@ -991,6 +991,43 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             str << ",bdls)"sv;
             return;
         }
+        case CallOp::TYPED_UNIFORM_BINDLESS_BUFFER_SIZE: {
+            str << "_typed_uniform_bdlsBfSize"sv;
+            opt->useBufferBindless = true;
+            str << '(';
+            for (auto &&i : args) {
+                i->accept(vis);
+                str << ',';
+            }
+            str << "bdls)"sv;
+            return;
+        }
+        case CallOp::TYPED_UNIFORM_BINDLESS_BUFFER_READ: {
+            str << "_typed_uniform_READ_BUFFER"sv;
+            opt->useBufferBindless = true;
+            str << '(';
+            for (auto &&i : args) {
+                i->accept(vis);
+                str << ',';
+            }
+            vstd::to_string(expr->type()->size(), str);
+            str << ',';
+            GetTypeName(*expr->type(), str, Usage::READ, true);
+            str << ",bdls)"sv;
+            return;
+        }
+        case CallOp::TYPED_UNIFORM_BINDLESS_BYTE_BUFFER_READ: {
+            str << "_typed_uniform_READ_BUFFER_BYTES"sv;
+            opt->useBufferBindless = true;
+            str << '(';
+            for (auto &&i : args) {
+                i->accept(vis);
+                str << ',';
+            }
+            GetTypeName(*expr->type(), str, Usage::READ, true);
+            str << ",bdls)"sv;
+            return;
+        }
         case CallOp::ASSERT:
         case CallOp::ASSUME:
             return;
@@ -1174,6 +1211,74 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
         case CallOp::TYPED_BINDLESS_TEXTURE3D_SIZE_LEVEL:
             opt->useTex3DBindless = true;
             str << "_typed_Tex3DSizeLevel"sv;
+            break;
+        case CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_SAMPLE_SAMPLER:
+            opt->useTex2DBindless = true;
+            if (opt->isPixelShader) {
+                str << "_typed_uniform_SampleTex2DPixelSmp"sv;
+            } else {
+                str << "_typed_uniform_SampleTex2DSmp"sv;
+            }
+            break;
+        case CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_SAMPLE_LEVEL_SAMPLER:
+            opt->useTex2DBindless = true;
+            str << "_typed_uniform_SampleTex2DLevelSmp"sv;
+            break;
+        case CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_SAMPLE_GRAD_SAMPLER:
+            opt->useTex2DBindless = true;
+            str << "_typed_uniform_SampleTex2DGradSmp"sv;
+            break;
+        case CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL_SAMPLER:
+            opt->useTex2DBindless = true;
+            str << "_typed_uniform_SampleTex2DGradLevelSmp"sv;
+            break;
+        case CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_SAMPLE_SAMPLER:
+            opt->useTex3DBindless = true;
+            str << "_typed_uniform_SampleTex3DSmp"sv;
+            break;
+        case CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_SAMPLE_LEVEL_SAMPLER:
+            opt->useTex3DBindless = true;
+            str << "_typed_uniform_SampleTex3DLevelSmp"sv;
+            break;
+        case CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_SAMPLE_GRAD_SAMPLER:
+            opt->useTex3DBindless = true;
+            str << "_typed_uniform_SampleTex3DGradSmp"sv;
+            break;
+        case CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL_SAMPLER:
+            opt->useTex3DBindless = true;
+            str << "_typed_uniform_SampleTex3DGradLevelSmp"sv;
+            break;
+        case CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_READ:
+            opt->useTex2DBindless = true;
+            str << "_typed_uniform_ReadTex2D"sv;
+            break;
+        case CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_READ_LEVEL:
+            opt->useTex2DBindless = true;
+            str << "_typed_uniform_ReadTex2DLevel"sv;
+            break;
+        case CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_READ:
+            opt->useTex3DBindless = true;
+            str << "_typed_uniform_ReadTex3D"sv;
+            break;
+        case CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_READ_LEVEL:
+            opt->useTex3DBindless = true;
+            str << "_typed_uniform_ReadTex3DLevel"sv;
+            break;
+        case CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_SIZE:
+            opt->useTex2DBindless = true;
+            str << "_typed_uniform_Tex2DSize"sv;
+            break;
+        case CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_SIZE_LEVEL:
+            opt->useTex2DBindless = true;
+            str << "_typed_uniform_Tex2DSizeLevel"sv;
+            break;
+        case CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_SIZE:
+            opt->useTex3DBindless = true;
+            str << "_typed_uniform_Tex3DSize"sv;
+            break;
+        case CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_SIZE_LEVEL:
+            opt->useTex3DBindless = true;
+            str << "_typed_uniform_Tex3DSizeLevel"sv;
             break;
         case CallOp::SYNCHRONIZE_BLOCK:
             str << "GroupMemoryBarrierWithGroupSync()"sv;
