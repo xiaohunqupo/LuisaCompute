@@ -329,7 +329,7 @@ const luisa::compute::Type *TypeDatabase::RecordAsBuiltinType(const QualType Ty)
             } else {
                 Ty->dump();
             }
-        } else if (builtin_type_name == "array") {
+        } else if (builtin_type_name == "array" || builtin_type_name == "shared_array") {
             if (auto TSD = GetClassTemplateSpecializationDecl(Ty)) {
                 auto &Arguments = TSD->getTemplateArgs();
                 clang::Expr::EvalResult Result;
