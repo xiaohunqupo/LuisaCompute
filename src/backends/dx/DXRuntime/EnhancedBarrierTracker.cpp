@@ -676,6 +676,11 @@ void FilterAccess(
             layout = D3D12_BARRIER_LAYOUT_COMMON;
         } break;
     }
+    // Type is render-target
+    const auto tex_read_sync = D3D12_BARRIER_SYNC_INDEX_INPUT | D3D12_BARRIER_SYNC_VERTEX_SHADING | D3D12_BARRIER_SYNC_PIXEL_SHADING | D3D12_BARRIER_SYNC_COMPUTE_SHADING | D3D12_BARRIER_SYNC_NON_PIXEL_SHADING | D3D12_BARRIER_SYNC_ALL_SHADING;
+    if ((access & (D3D12_BARRIER_ACCESS_RENDER_TARGET | D3D12_BARRIER_ACCESS_DEPTH_STENCIL_WRITE)) != 0) {
+        sync &= ~tex_read_sync;
+    }
 }
 }// namespace detail
 void EnhancedBarrierTrackerImpl::BarrierFilter(D3D12_BUFFER_BARRIER &barrier) {
