@@ -866,7 +866,9 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                         db->DumpWithLocation(x);
                         clangcxx_log_error("ICE, unexpected parameter: rhs not found!");
                     }
-                    current = fb->binary(lcType, TranslateBinaryOp(cxx_op), lhs, rhs);
+                    auto _local = LC_Local(fb, lcType, Usage::READ_WRITE);
+                    fb->assign(_local, fb->binary(lcType, TranslateBinaryOp(cxx_op), lhs, rhs));
+                    current = _local;
                 }
             } else if (auto cxxCondOp = llvm::dyn_cast<clang::ConditionalOperator>(x)) {
                 auto _cond = stack->GetExpr(cxxCondOp->getCond());
@@ -1044,7 +1046,11 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                     } else if (!binopName.empty()) {
                         auto lcBinop = db->FindBinOp(binopName);
                         if (auto lcReturnType = db->FindOrAddType(cxxReturnType, x->getBeginLoc()))
-                            current = fb->binary(lcReturnType, lcBinop, lcArgs[0], lcArgs[1]);
+                        {
+                            auto _local = LC_Local(fb, lcReturnType, Usage::READ_WRITE); 
+                            fb->assign(_local, fb->binary(lcReturnType, lcBinop, lcArgs[0], lcArgs[1]));
+                            current = _local;
+                        }
                     } else if (!unaopName.empty()) {
                         UnaryOp lcUnaop = (unaopName == "PLUS")  ? UnaryOp::PLUS :
                                           (unaopName == "MINUS") ? UnaryOp::MINUS :
