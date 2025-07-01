@@ -30,6 +30,16 @@ inline bool FuncIsEmpty(Function func) {
     return true;
 }
 
+inline bool IsTypeDefDecl(const clang::DeclStmt* decl)
+{
+    for (auto _decl : decl->decls())
+    {
+        if (clang::isa<clang::TypeDecl>(_decl))
+            return true;
+    }
+    return false;
+}
+
 inline luisa::compute::BinaryOp TranslateBinaryOp(clang::BinaryOperator::Opcode op) {
     switch (op) {
         case CXXBinOp::BO_Add: return LCBinOp::ADD;
@@ -519,6 +529,8 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
 
             for (auto sub : cxxCompound->body())
                 TraverseStmt(sub);
+        } else if (auto cxxTypeDecl = llvm::dyn_cast<clang::DeclStmt>(x); cxxTypeDecl && IsTypeDefDecl(cxxTypeDecl)){
+
         } else {
             RecursiveASTVisitor<ExprTranslator>::TraverseStmt(x);
         }
@@ -606,6 +618,20 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                         current = fb->literal(Type::of<uint>(), static_cast<uint>(limitedVal));
                     else
                         current = fb->literal(Type::of<uint64>(), static_cast<uint64>(limitedVal));
+                }
+            } else if (auto scalar = llvm::dyn_cast<CXXScalarValueInitExpr>(x)) {
+                if (scalar->getType()->isBooleanType()) {
+                    current = fb->literal(Type::of<bool>(), false);
+                } else if (scalar->getType()->isFloatingType()) {
+                    current = fb->literal(Type::of<float>(), 0.f);
+                } else if (scalar->getType()->isIntegerType()) {
+                    if (scalar->getType()->isSignedIntegerType()) {
+                        current = fb->literal(Type::of<int>(), 0);
+                    } else {
+                        current = fb->literal(Type::of<uint>(), 0u);
+                    }
+                } else {
+                    clangcxx_log_error("unsupported scalar type: {}", scalar->getType().getAsString());
                 }
             } else if (auto bl = llvm::dyn_cast<CXXBoolLiteralExpr>(x)) {
                 current = fb->literal(Type::of<bool>(), (bool)bl->getValue());
