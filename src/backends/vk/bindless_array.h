@@ -39,7 +39,10 @@ private:
     BindlessSlotType _type;
     luisa::FirstFit::Node *_buffer_node = nullptr;
     bool offset_setted = false;
-    vstd::variant<vstd::vector<std::pair<BindlessStruct, MapIndicies>>, vstd::vector<MapIndex>> typed_binded;
+    vstd::variant<
+        vstd::vector<std::pair<BindlessStruct, MapIndicies>>,
+        vstd::vector<MapIndex>>
+        typed_binded;
     Map ptrMap;
     mutable vstd::vector<FreeValue> freeQueue;
     void return_value(MapIndex &index, uint type, uint &originValue);
