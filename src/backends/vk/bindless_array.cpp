@@ -33,9 +33,7 @@ BindlessArray::BindlessArray(Device *device, BindlessType type, size_t size)
         default: {
             auto &alloc = bdls_detail::get_alloc(*device, type);
             _buffer_node = alloc.sub_alloc(size);
-            typed_binded.reset_as(1);
-            auto &v = typed_binded.get<1>();
-            v.resize(size);
+            typed_binded.reset_as(1, size);
         } break;
     }
 }

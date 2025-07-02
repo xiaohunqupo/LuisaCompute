@@ -20,9 +20,7 @@ BindlessArray::BindlessArray(
             break;
         default: {
             _buffer_node = device->globalHeap->SubAllocate(arraySize);
-            typed_binded.reset_as(1);
-            auto &v = typed_binded.get<1>();
-            v.resize(arraySize);
+            typed_binded.reset_as(1, arraySize);
         } break;
     }
 }
