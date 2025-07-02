@@ -89,7 +89,7 @@ public:
     BindlessArray(
         Device *device,
         uint arraySize,
-        BindlessType type);
+        BindlessSlotType type);
     ~BindlessArray();
     ID3D12Resource *GetResource() const override {
         return buffer.GetResource();

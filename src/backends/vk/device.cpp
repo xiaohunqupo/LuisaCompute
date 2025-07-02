@@ -693,7 +693,7 @@ uint Device::HeapAlloc::get_index(luisa::FirstFit::Node const *ptr) const {
     return full_size - (ptr->offset() + ptr->size());
 }
 // bindless array
-ResourceCreationInfo Device::create_bindless_array(size_t size, BindlessType type) noexcept {
+ResourceCreationInfo Device::create_bindless_array(size_t size, BindlessSlotType type) noexcept {
     auto r = new BindlessArray(this, type, size);
     return ResourceCreationInfo{
         .handle = reinterpret_cast<uint64_t>(r),

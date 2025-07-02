@@ -68,21 +68,29 @@ public:
         }
     };
 
+    using ModSlotSet_MultiPurpose =
+        luisa::unordered_set<Modification, ModSlotHash, ModSlotEqual>;
+    using ModSlotSet_BufferOnly =
+        luisa::unordered_set<BufferModification, ModSlotHash, ModSlotEqual>;
+    using ModSlotSet_Texture2DOnly =
+        luisa::unordered_set<Texture2DModification, ModSlotHash, ModSlotEqual>;
+    using ModSlotSet_Texture3DOnly =
+        luisa::unordered_set<Texture3DModification, ModSlotHash, ModSlotEqual>;
+
 private:
     size_t _size{0u};
-    // "emplace" and "remove" operations will be cached under _updates and commit in update() command
-    luisa::variant<
-        luisa::unordered_set<Modification, ModSlotHash, ModSlotEqual>,
-        luisa::unordered_set<BufferModification, ModSlotHash, ModSlotEqual>,
-        luisa::unordered_set<Texture2DModification, ModSlotHash, ModSlotEqual>,
-        luisa::unordered_set<Texture3DModification, ModSlotHash, ModSlotEqual>>
+    // "emplace" and "remove" operations will be cached in _updates and committed on calling update() command
+    luisa::variant<ModSlotSet_MultiPurpose,
+                   ModSlotSet_BufferOnly,
+                   ModSlotSet_Texture2DOnly,
+                   ModSlotSet_Texture3DOnly>
         _updates;
     mutable luisa::spin_mutex _mtx;
 
 private:
     friend class Device;
     friend class ManagedBindless;
-    BindlessArray(DeviceInterface *device, size_t size, BindlessType type) noexcept;
+    BindlessArray(DeviceInterface *device, size_t size, BindlessSlotType type) noexcept;
 
 public:
     BindlessArray() noexcept = default;
@@ -108,6 +116,7 @@ public:
         std::lock_guard lck{_mtx};
         return !luisa::visit([](auto &&t) { return t.empty(); }, _updates);
     }
+
     // on-update functions' operations will be committed by update()
     void emplace_buffer_handle_on_update(size_t index, uint64_t handle, size_t offset_bytes) noexcept;
     void emplace_tex2d_handle_on_update(size_t index, uint64_t handle, Sampler sampler) noexcept;

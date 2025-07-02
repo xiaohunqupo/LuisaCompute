@@ -53,7 +53,7 @@ public:
     void destroy_texture(uint64_t handle) noexcept override;
 
     // bindless array
-    ResourceCreationInfo create_bindless_array(size_t size, BindlessType type) noexcept override;
+    ResourceCreationInfo create_bindless_array(size_t size, BindlessSlotType type) noexcept override;
     void destroy_bindless_array(uint64_t handle) noexcept override;
 
     // stream

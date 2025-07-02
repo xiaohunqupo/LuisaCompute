@@ -36,7 +36,7 @@ private:
         uint index : 30;
     };
     DefaultBuffer _indices_buffer;
-    BindlessType _type;
+    BindlessSlotType _type;
     luisa::FirstFit::Node *_buffer_node = nullptr;
     bool offset_setted = false;
     vstd::variant<vstd::vector<std::pair<BindlessStruct, MapIndicies>>, vstd::vector<MapIndex>> typed_binded;
@@ -54,7 +54,7 @@ public:
     auto &indices_buffer() { return _indices_buffer; }
     auto const &indices_buffer() const { return _indices_buffer; }
     mutable std::mutex mtx;
-    BindlessArray(Device *device, BindlessType type, size_t size);
+    BindlessArray(Device *device, BindlessSlotType type, size_t size);
     void pre_update(ResourceBarrier *barrier);
     bool is_ptr_in_bindless(size_t ptr) const {
         return ptrMap.find(ptr);

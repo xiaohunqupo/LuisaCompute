@@ -620,7 +620,8 @@ public:
 };
 
 class BindlessArrayUpdateCommand final : public Command {
-    LC_RUNTIME_API void check_bindless_index(size_t index) const;
+
+    LC_RUNTIME_API [[noreturn]] static void report_unmatched_bindless_slot_type(luisa::string_view expected) noexcept;
 
 public:
     enum struct Operation : uint {
@@ -629,41 +630,42 @@ public:
         REMOVE,
     };
 
-    struct ModificationBuffer {
+    struct ModifiedBuffer {
         uint64_t handle;
         size_t offset_bytes;
         Operation op;
-        ModificationBuffer() noexcept
+        ModifiedBuffer() noexcept
             : handle{0}, offset_bytes{0u}, op{Operation::NONE} {}
-        ModificationBuffer(uint64_t handle, size_t offset_bytes, Operation op) noexcept
+        ModifiedBuffer(uint64_t handle, size_t offset_bytes, Operation op) noexcept
             : handle{handle}, offset_bytes{offset_bytes}, op{op} {}
         [[nodiscard]] static auto emplace(uint64_t handle, size_t offset_bytes) noexcept {
-            return ModificationBuffer{handle, offset_bytes, Operation::EMPLACE};
+            return ModifiedBuffer{handle, offset_bytes, Operation::EMPLACE};
         }
         [[nodiscard]] static auto remove() noexcept {
-            return ModificationBuffer{0u, 0u, Operation::REMOVE};
+            return ModifiedBuffer{0u, 0u, Operation::REMOVE};
         }
     };
 
-    struct ModificationTexture {
+    struct ModifiedTexture {
         uint64_t handle;
         Sampler sampler;
         Operation op;
-        ModificationTexture() noexcept
+        ModifiedTexture() noexcept
             : handle{0u}, sampler{}, op{Operation::NONE} {}
-        ModificationTexture(uint64_t handle, Sampler sampler, Operation op) noexcept
+        ModifiedTexture(uint64_t handle, Sampler sampler, Operation op) noexcept
             : handle{handle}, sampler{sampler}, op{op} {}
         [[nodiscard]] static auto emplace(uint64_t handle, Sampler sampler) noexcept {
-            return ModificationTexture{handle, sampler, Operation::EMPLACE};
+            return ModifiedTexture{handle, sampler, Operation::EMPLACE};
         }
         [[nodiscard]] static auto remove() noexcept {
-            return ModificationTexture{0u, Sampler{}, Operation::REMOVE};
+            return ModifiedTexture{0u, Sampler{}, Operation::REMOVE};
         }
     };
+
     struct Modification {
         using Operation = BindlessArrayUpdateCommand::Operation;
-        using Buffer = BindlessArrayUpdateCommand::ModificationBuffer;
-        using Texture = BindlessArrayUpdateCommand::ModificationTexture;
+        using Buffer = BindlessArrayUpdateCommand::ModifiedBuffer;
+        using Texture = BindlessArrayUpdateCommand::ModifiedTexture;
         size_t slot;
         Buffer buffer;
         Texture tex2d;
@@ -680,7 +682,7 @@ public:
 
     struct BufferModification {
         using Operation = BindlessArrayUpdateCommand::Operation;
-        using Buffer = BindlessArrayUpdateCommand::ModificationBuffer;
+        using Buffer = BindlessArrayUpdateCommand::ModifiedBuffer;
         size_t slot;
         Buffer buffer;
         explicit BufferModification(size_t slot) noexcept
@@ -689,9 +691,10 @@ public:
         explicit BufferModification(size_t slot, Buffer buffer) noexcept
             : slot{slot}, buffer{buffer} {}
     };
+
     struct Texture2DModification {
         using Operation = BindlessArrayUpdateCommand::Operation;
-        using Texture = BindlessArrayUpdateCommand::ModificationTexture;
+        using Texture = BindlessArrayUpdateCommand::ModifiedTexture;
         size_t slot;
         Texture tex2d;
         explicit Texture2DModification(size_t slot) noexcept
@@ -700,9 +703,10 @@ public:
         explicit Texture2DModification(size_t slot, Texture tex2d) noexcept
             : slot{slot}, tex2d{tex2d} {}
     };
+
     struct Texture3DModification {
         using Operation = BindlessArrayUpdateCommand::Operation;
-        using Texture = BindlessArrayUpdateCommand::ModificationTexture;
+        using Texture = BindlessArrayUpdateCommand::ModifiedTexture;
         size_t slot;
         Texture tex3d;
         explicit Texture3DModification(size_t slot) noexcept
@@ -740,43 +744,56 @@ public:
           _handle{handle}, _modifications{std::move(mods)} {}
     [[nodiscard]] auto handle() const noexcept { return _handle; }
     [[nodiscard]] auto typed_index() const noexcept { return _modifications.index(); }
-    [[nodiscard]] auto steal_modifications() noexcept {
-        check_bindless_index(0);
-        return std::move(luisa::get<0>(_modifications));
-    }
-    [[nodiscard]] auto steal_buffer_modifications() noexcept {
-        check_bindless_index(1);
-        return std::move(luisa::get<1>(_modifications));
-    }
-    [[nodiscard]] auto steal_tex2d_modifications() noexcept {
-        check_bindless_index(2);
-        return std::move(luisa::get<2>(_modifications));
-    }
-    [[nodiscard]] auto steal_tex3d_modifications() noexcept {
-        check_bindless_index(3);
-        return std::move(luisa::get<3>(_modifications));
-    }
-    [[nodiscard]] bool empty() const noexcept {
+    [[nodiscard]] auto empty() const noexcept {
         return luisa::visit([](auto &&t) { return t.empty(); }, _modifications);
     }
+    [[nodiscard]] auto steal_modifications() noexcept {
+        if (auto mods = luisa::get_if<luisa::vector<Modification>>(&_modifications)) [[likely]] {
+            return std::move(*mods);
+        }
+        report_unmatched_bindless_slot_type("MULTIPLE");
+    }
+    [[nodiscard]] auto steal_buffer_modifications() noexcept {
+        if (auto mods = luisa::get_if<luisa::vector<BufferModification>>(&_modifications)) [[likely]] {
+            return std::move(*mods);
+        }
+        report_unmatched_bindless_slot_type("BUFFER_ONLY");
+    }
+    [[nodiscard]] auto steal_tex2d_modifications() noexcept {
+        if (auto mods = luisa::get_if<luisa::vector<Texture2DModification>>(&_modifications)) [[likely]] {
+            return std::move(*mods);
+        }
+        report_unmatched_bindless_slot_type("TEXTURE2D_ONLY");
+    }
+    [[nodiscard]] auto steal_tex3d_modifications() noexcept {
+        if (auto mods = luisa::get_if<luisa::vector<Texture3DModification>>(&_modifications)) [[likely]] {
+            return std::move(*mods);
+        }
+        report_unmatched_bindless_slot_type("TEXTURE3D_ONLY");
+    }
     [[nodiscard]] luisa::span<const Modification> modifications() const noexcept {
-        check_bindless_index(0);
-        return luisa::get<0>(_modifications);
+        if (auto mods = luisa::get_if<luisa::vector<Modification>>(&_modifications)) [[likely]] {
+            return *mods;
+        }
+        report_unmatched_bindless_slot_type("MULTIPLE");
     }
-    [[nodiscard]] luisa::span<const BufferModification> buffer_modifications()
-        const noexcept {
-        check_bindless_index(1);
-        return luisa::get<1>(_modifications);
+    [[nodiscard]] luisa::span<const BufferModification> buffer_modifications() const noexcept {
+        if (auto mods = luisa::get_if<luisa::vector<BufferModification>>(&_modifications)) [[likely]] {
+            return *mods;
+        }
+        report_unmatched_bindless_slot_type("BUFFER_ONLY");
     }
-    [[nodiscard]] luisa::span<const Texture2DModification> tex2d_modifications()
-        const noexcept {
-        check_bindless_index(2);
-        return luisa::get<2>(_modifications);
+    [[nodiscard]] luisa::span<const Texture2DModification> tex2d_modifications() const noexcept {
+        if (auto mods = luisa::get_if<luisa::vector<Texture2DModification>>(&_modifications)) [[likely]] {
+            return *mods;
+        }
+        report_unmatched_bindless_slot_type("TEXTURE2D_ONLY");
     }
-    [[nodiscard]] luisa::span<const Texture3DModification> tex3d_modifications()
-        const noexcept {
-        check_bindless_index(3);
-        return luisa::get<3>(_modifications);
+    [[nodiscard]] luisa::span<const Texture3DModification> tex3d_modifications() const noexcept {
+        if (auto mods = luisa::get_if<luisa::vector<Texture3DModification>>(&_modifications)) [[likely]] {
+            return *mods;
+        }
+        report_unmatched_bindless_slot_type("TEXTURE3D_ONLY");
     }
     LUISA_MAKE_COMMAND_COMMON(StreamTag::COMPUTE)
 };
@@ -787,7 +804,7 @@ public:
     explicit CustomCommand() noexcept
         : Command{Command::Tag::ECustomCommand} {}
     [[nodiscard]] virtual uint64_t uuid() const noexcept = 0;
-    virtual ~CustomCommand() noexcept override = default;
+    ~CustomCommand() noexcept override = default;
     LUISA_MAKE_COMMAND_COMMON_ACCEPT()
 };
 

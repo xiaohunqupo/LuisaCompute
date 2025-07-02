@@ -542,7 +542,8 @@ public:
         device.destroy_texture(device.device, api::Texture{handle});
     }
 
-    ResourceCreationInfo create_bindless_array(size_t size) noexcept override {
+    ResourceCreationInfo create_bindless_array(size_t size, BindlessSlotType type) noexcept override {
+        LUISA_ASSERT(type == BindlessSlotType::MULTIPLE, "Typed bindless arrays are not allowed.");
         api::CreatedResourceInfo array = device.create_bindless_array(device.device, size);
         ResourceCreationInfo info{};
         info.handle = array.handle;
@@ -778,4 +779,5 @@ luisa::compute::DeviceInterface *create(luisa::compute::Context &&ctx,
 void destroy(luisa::compute::DeviceInterface *device) noexcept {
     luisa::delete_with_allocator(device);
 }
+
 }// namespace luisa::compute::rust

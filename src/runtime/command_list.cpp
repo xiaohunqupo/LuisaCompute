@@ -4,9 +4,6 @@
 
 namespace luisa::compute {
 
-void BindlessArrayUpdateCommand::check_bindless_index(size_t index) const {
-    LUISA_DEBUG_ASSERT(_modifications.index() == index, "Modification type mismatch.");
-}
 CommandList::~CommandList() noexcept {
     LUISA_ASSERT(_committed || empty(),
                  "Destructing non-empty command list. "
@@ -38,8 +35,9 @@ CommandList &CommandList::add_callback(luisa::move_only_function<void()> &&callb
 }
 
 CommandList &CommandList::add_range(CommandList &&cmdlist) noexcept {
-    if (cmdlist.empty()) [[unlikely]]
+    if (cmdlist.empty()) [[unlikely]] {
         return *this;
+    }
     auto size = _commands.size();
     luisa::enlarge_by(_commands, cmdlist._commands.size());
     for (size_t i = 0; i < cmdlist._commands.size(); ++i) {

@@ -92,12 +92,29 @@ protected:
     ~DeviceExtension() noexcept = default;
 };
 
-enum struct BindlessType {
-    None,
-    Buffer,
-    Texture2D,
-    Texture3D
+enum struct BindlessSlotType {
+
+    MULTIPLE = 0,
+    BUFFER_ONLY = 1,
+    TEXTURE2D_ONLY = 2,
+    TEXTURE3D_ONLY = 3,
+
+    // Legacy names for Maxwell
+    Buffer [[deprecated("Please use BindlessSlotType::BUFFER_ONLY for consistent nameing.")]] = BUFFER_ONLY,
+    Texture2D [[deprecated("Please use BindlessSlotType::TEXTURE2D_ONLY for consistent nameing.")]] = TEXTURE2D_ONLY,
+    Texture3D [[deprecated("Please use BindlessSlotType::TEXTURE3D_ONLY for consistent nameing.")]] = TEXTURE3D_ONLY,
+#ifdef None
+#define LUISA_MACRO_None_BACKUP None
+#undef None
+#endif
+    None [[deprecated("Please use BindlessSlotType::MULTIPLE for consistent nameing.")]] = MULTIPLE,
+#ifdef LUISA_MACRO_None_BACKUP
+#define None LUISA_MACRO_None_BACKUP
+#undef LUISA_MACRO_None_BACKUP
+#endif
 };
+
+using BindlessType [[deprecated("Please use BindlessSlotType instead.")]] = BindlessSlotType;
 
 class LC_RUNTIME_API DeviceInterface : public luisa::enable_shared_from_this<DeviceInterface> {
 
@@ -137,7 +154,7 @@ public:
     virtual void destroy_texture(uint64_t handle) noexcept = 0;
 
     // bindless array
-    [[nodiscard]] virtual ResourceCreationInfo create_bindless_array(size_t size, BindlessType type) noexcept = 0;
+    [[nodiscard]] virtual ResourceCreationInfo create_bindless_array(size_t size, BindlessSlotType type) noexcept = 0;
     virtual void destroy_bindless_array(uint64_t handle) noexcept = 0;
 
     // stream

@@ -11,11 +11,11 @@ namespace lc::dx {
 
 BindlessArray::BindlessArray(
     Device *device, uint arraySize,
-    BindlessType type)
+    BindlessSlotType type)
     : Resource(device),
-      buffer(device, type != BindlessType::None ? 4 : (arraySize * sizeof(BindlessStruct)), device->defaultAllocator.get()) {
+      buffer(device, type != BindlessSlotType::MULTIPLE ? 4 : (arraySize * sizeof(BindlessStruct)), device->defaultAllocator.get()) {
     switch (type) {
-        case BindlessType::None:
+        case BindlessSlotType::MULTIPLE:
             typed_binded.reset_as(0, arraySize);
             break;
         default: {

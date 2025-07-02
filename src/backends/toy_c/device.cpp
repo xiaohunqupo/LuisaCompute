@@ -167,7 +167,7 @@ public:
     void destroy_texture(uint64_t handle) noexcept override {
         LUISA_ERROR("Not supported.");
     }
-    ResourceCreationInfo create_bindless_array(size_t size, BindlessType type) noexcept override {
+    ResourceCreationInfo create_bindless_array(size_t size, BindlessSlotType type) noexcept override {
         LUISA_ERROR("Not supported.");
         return {};
     }

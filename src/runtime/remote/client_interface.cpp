@@ -80,7 +80,7 @@ void ClientInterface::destroy_texture(uint64_t handle) noexcept {
 }
 
 // bindless array
-ResourceCreationInfo ClientInterface::create_bindless_array(size_t size, BindlessType type) noexcept {
+ResourceCreationInfo ClientInterface::create_bindless_array(size_t size, BindlessSlotType type) noexcept {
     ResourceCreationInfo r;
     r.handle = _flag++;
     r.native_handle = nullptr;

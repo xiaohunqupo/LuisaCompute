@@ -9,25 +9,25 @@
 #include "device.h"
 namespace lc::vk {
 namespace bdls_detail {
-Device::HeapAlloc &get_alloc(Device &device, BindlessType type) {
+Device::HeapAlloc &get_alloc(Device &device, BindlessSlotType type) {
     switch (type) {
-        case BindlessType::Buffer:
+        case BindlessSlotType::BUFFER_ONLY:
             return device.buffer_heap_pool;
-        case BindlessType::Texture2D:
+        case BindlessSlotType::TEXTURE2D_ONLY:
             return device.tex2d_heap_pool;
-        case BindlessType::Texture3D:
+        case BindlessSlotType::TEXTURE3D_ONLY:
             return device.tex3d_heap_pool;
         default:
             LUISA_ERROR("Bad bindless type.");
     }
 }
 }// namespace bdls_detail
-BindlessArray::BindlessArray(Device *device, BindlessType type, size_t size)
+BindlessArray::BindlessArray(Device *device, BindlessSlotType type, size_t size)
     : Resource(device),
-      _indices_buffer(device, type == BindlessType::None ? sizeof(BindlessStruct) * size : sizeof(uint)),
+      _indices_buffer(device, type == BindlessSlotType::MULTIPLE ? sizeof(BindlessStruct) * size : sizeof(uint)),
       _type(type) {
     switch (type) {
-        case BindlessType::None:
+        case BindlessSlotType::MULTIPLE:
             typed_binded.reset_as(0, size);
             break;
         default: {

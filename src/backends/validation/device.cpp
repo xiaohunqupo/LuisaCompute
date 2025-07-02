@@ -132,7 +132,7 @@ void Device::destroy_texture(uint64_t handle) noexcept {
 }
 
 // bindless array
-ResourceCreationInfo Device::create_bindless_array(size_t size, BindlessType type) noexcept {
+ResourceCreationInfo Device::create_bindless_array(size_t size, BindlessSlotType type) noexcept {
     auto arr = _native->create_bindless_array(size, type);
     // TODO: bindless range check maybe?
     new BindlessArray{arr.handle};

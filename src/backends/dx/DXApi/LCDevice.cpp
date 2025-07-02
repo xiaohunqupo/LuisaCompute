@@ -265,7 +265,7 @@ ResourceCreationInfo LCDevice::create_texture(
 void LCDevice::destroy_texture(uint64 handle) noexcept {
     delete reinterpret_cast<TextureBase *>(handle);
 }
-ResourceCreationInfo LCDevice::create_bindless_array(size_t size, BindlessType type) noexcept {
+ResourceCreationInfo LCDevice::create_bindless_array(size_t size, BindlessSlotType type) noexcept {
     ResourceCreationInfo info;
     auto res = new BindlessArray(&nativeDevice, size, type);
     info.handle = resource_to_handle(res);

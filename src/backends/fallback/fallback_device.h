@@ -88,7 +88,7 @@ public:
                                                     uint width, uint height, uint depth,
                                                     uint mipmap_levels, bool simultaneous_access) noexcept override;
     void destroy_sparse_texture(uint64_t handle) noexcept override;
-    ResourceCreationInfo create_bindless_array(size_t size, BindlessType type) noexcept override;
+    ResourceCreationInfo create_bindless_array(size_t size, BindlessSlotType type) noexcept override;
     ResourceCreationInfo create_event() noexcept override;
 };
 
