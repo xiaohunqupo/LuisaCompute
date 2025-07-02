@@ -35,12 +35,15 @@ public:
     };
 
 private:
-    vstd::variant<vstd::vector<std::pair<BindlessStruct, MapIndicies>>, vstd::vector<MapIndex>> typed_binded;
+    vstd::variant<
+        vstd::vector<std::pair<BindlessStruct, MapIndicies>>,
+        vstd::vector<MapIndex>>
+        typed_binded;
     Map ptrMap;
     mutable std::mutex mtx;
     DefaultBuffer buffer;
-    luisa::FirstFit::Node* _buffer_node = nullptr;
-    void Deref(MapIndex& index);
+    luisa::FirstFit::Node *_buffer_node = nullptr;
+    void Deref(MapIndex &index);
     void TryReturnIndex(MapIndex &index, uint &originValue);
     void TryReturnIndexTex(MapIndex &index, uint &originValue);
     MapIndex AddIndex(size_t ptr);
@@ -70,7 +73,7 @@ public:
         CommandBufferBuilder &builder,
         EnhancedBarrierTracker &tracker,
         vstd::span<const BindlessArrayUpdateCommand::Modification> mods) const;
-    template <typename T>
+    template<typename T>
     void _UpdateStates(
         CommandBufferBuilder &builder,
         EnhancedBarrierTracker &tracker,

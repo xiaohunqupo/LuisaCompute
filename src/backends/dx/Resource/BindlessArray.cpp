@@ -13,14 +13,14 @@ BindlessArray::BindlessArray(
     Device *device, uint arraySize,
     BindlessType type)
     : Resource(device),
-      buffer(device, type != BindlessType::None ? 4 : (arraySize * sizeof(BindlessStruct)), device->defaultAllocator.get()) {
+      buffer(device, type != BindlessType::None ? sizeof(uint) : (arraySize * sizeof(BindlessStruct)), device->defaultAllocator.get()) {
     switch (type) {
         case BindlessType::None:
-            typed_binded.reset_as(0, arraySize);
+            typed_binded.reset_as<vstd::vector<std::pair<BindlessStruct, MapIndicies>>>(arraySize);
             break;
         default: {
             _buffer_node = device->globalHeap->SubAllocate(arraySize);
-            typed_binded.reset_as(1, arraySize);
+            typed_binded.reset_as<vstd::vector<MapIndex>>(arraySize);
         } break;
     }
 }
@@ -38,9 +38,8 @@ BindlessArray::~BindlessArray() {
             device->globalHeap->ReturnIndex(i & BindlessStruct::mask);
         }
     };
-    if (typed_binded.index() == 0) {
-        auto &binded = typed_binded.get<0>();
-        for (auto &&i : binded) {
+    if (auto binded = typed_binded.try_get<vstd::vector<std::pair<BindlessStruct, MapIndicies>>>()) {
+        for (auto &&i : *binded) {
             Return(i.first.buffer);
             ReturnTex(i.first.tex2D);
             ReturnTex(i.first.tex3D);
@@ -91,8 +90,9 @@ BindlessArray::MapIndex BindlessArray::AddIndex(size_t ptr) {
     return ite;
 }
 void BindlessArray::Bind(vstd::span<const BindlessArrayUpdateCommand::BufferModification> mods) {
-    LUISA_DEBUG_ASSERT(typed_binded.index() == 1 && _buffer_node);
-    auto &binded = typed_binded.get<1>();
+    auto bind_ptr = typed_binded.try_get<vstd::vector<MapIndex>>();
+    LUISA_DEBUG_ASSERT(bind_ptr && _buffer_node);
+    auto &binded = *bind_ptr;
     std::lock_guard lck{mtx};
     if (mods.empty()) return;
     for (auto &&mod : mods) {
@@ -120,8 +120,9 @@ void BindlessArray::Bind(vstd::span<const BindlessArrayUpdateCommand::BufferModi
 }
 
 void BindlessArray::Bind(vstd::span<const BindlessArrayUpdateCommand::Texture2DModification> mods) {
-    LUISA_DEBUG_ASSERT(typed_binded.index() == 1);
-    auto &binded = typed_binded.get<1>();
+    auto bind_ptr = typed_binded.try_get<vstd::vector<MapIndex>>();
+    LUISA_DEBUG_ASSERT(bind_ptr && _buffer_node);
+    auto &binded = *bind_ptr;
     std::lock_guard lck{mtx};
     if (mods.empty()) return;
     auto EmplaceTex = [&](uint texIdx, MapIndex &indices, uint64_t handle, TextureBase const *tex, Sampler const &samp) {
@@ -144,8 +145,9 @@ void BindlessArray::Bind(vstd::span<const BindlessArrayUpdateCommand::Texture2DM
 }
 
 void BindlessArray::Bind(vstd::span<const BindlessArrayUpdateCommand::Modification> mods) {
-    LUISA_DEBUG_ASSERT(typed_binded.index() == 0);
-    auto &binded = typed_binded.get<0>();
+    auto binded_ptr = typed_binded.try_get<vstd::vector<std::pair<BindlessStruct, MapIndicies>>>();
+    LUISA_DEBUG_ASSERT(binded_ptr);
+    auto &binded = *binded_ptr;
     std::lock_guard lck{mtx};
     if (mods.empty()) return;
     auto EmplaceTex = [&]<bool isTex2D>(BindlessStruct &bindGrp, MapIndicies &indices, uint64_t handle, TextureBase const *tex, Sampler const &samp) {
@@ -230,8 +232,9 @@ void BindlessArray::UpdateStates(
     CommandBufferBuilder &builder,
     EnhancedBarrierTracker &tracker,
     vstd::span<const BindlessArrayUpdateCommand::Modification> mods) const {
-    LUISA_DEBUG_ASSERT(typed_binded.index() == 0);
-    auto &binded = typed_binded.get<0>();
+    auto binded_ptr = typed_binded.try_get<vstd::vector<std::pair<BindlessStruct, MapIndicies>>>();
+    LUISA_DEBUG_ASSERT(binded_ptr);
+    auto &binded = *binded_ptr;
     std::lock_guard lck{mtx};
     struct BindlessElement {
         uint idx;
