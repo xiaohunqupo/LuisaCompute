@@ -1,5 +1,5 @@
 #pragma once
-#include <vulkan/vulkan_core.h>
+#include <volk.h>
 #include "resource.h"
 #include "default_buffer.h"
 #include <luisa/runtime/rtx/accel.h>

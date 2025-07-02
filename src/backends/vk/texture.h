@@ -1,6 +1,6 @@
 #pragma once
 #include "resource.h"
-#include <vulkan/vulkan_core.h>
+#include <volk.h>
 #include "vk_allocator.h"
 #include <luisa/runtime/rhi/pixel.h>
 namespace lc::vk {

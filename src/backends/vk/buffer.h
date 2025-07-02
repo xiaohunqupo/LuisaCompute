@@ -1,6 +1,6 @@
 #pragma once
 #include "resource.h"
-#include <vulkan/vulkan_core.h>
+#include <volk.h>
 namespace lc::vk {
 class Buffer : public Resource {
     size_t _byte_size;

@@ -1,6 +1,5 @@
 #include "swapchain.h"
-#include <vulkan/vulkan.h>
-#include "vk_func_table.h"
+#include <volk.h>
 #include "log.h"
 #include "device.h"
 
@@ -11,33 +10,32 @@ struct SwapChainSupportDetails {
     luisa::vector<VkPresentModeKHR> present_modes;
 };
 [[nodiscard]] auto _query_swapchain_support(
-    VkFuncTable const &func_table,
     VkPhysicalDevice device, VkSurfaceKHR surface) noexcept {
     SwapChainSupportDetails details;
-    func_table.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities);
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities);
     auto format_count = 0u;
-    func_table.vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &format_count, nullptr);
+    vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &format_count, nullptr);
     if (format_count != 0u) {
         details.formats.resize(format_count);
-        func_table.vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &format_count, details.formats.data());
+        vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &format_count, details.formats.data());
     }
     auto present_mode_count = 0u;
-    func_table.vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &present_mode_count, nullptr);
+    vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &present_mode_count, nullptr);
     if (present_mode_count != 0u) {
         details.present_modes.resize(present_mode_count);
-        func_table.vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &present_mode_count, details.present_modes.data());
+        vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &present_mode_count, details.present_modes.data());
     }
     return details;
 }
 void _create_surface(
-    VkFuncTable const &func_table,
     uint64_t display_handle, uint64_t window_handle, VkSurfaceKHR surface, VkInstance instance) noexcept {
     //TODO: linux wip
     VkWin32SurfaceCreateInfoKHR create_info{};
     create_info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
     create_info.hwnd = reinterpret_cast<HWND>(window_handle);
     create_info.hinstance = GetModuleHandle(nullptr);
-    VK_CHECK_RESULT(func_table.vkCreateWin32SurfaceKHR(instance, &create_info, Device::alloc_callbacks(), &surface));
+    auto vkCreateWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)vkGetInstanceProcAddr(instance, "vkCreateWin32SurfaceKHR");
+    VK_CHECK_RESULT(vkCreateWin32SurfaceKHR(instance, &create_info, Device::alloc_callbacks(), &surface));
 }
 [[nodiscard]] static auto _is_hdr_colorspace(VkColorSpaceKHR colorspace) noexcept {
     return colorspace == VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT;
@@ -88,15 +86,12 @@ void Swapchain::create_swapchain(
     uint64_t window_handle,
     uint width, uint height, uint back_buffers,
     bool is_recreation, bool allow_hdr, bool vsync) {
-    auto &&func_table = device()->func_table;
     _create_surface(
-        func_table,
         display_handle,
         window_handle,
         _surface,
         device()->instance());
     auto support = _query_swapchain_support(
-        func_table,
         device()->physical_device(), _surface);
     if (support.capabilities.maxImageCount == 0u) { support.capabilities.maxImageCount = back_buffers; }
     if (!is_recreation) {// only allow change back buffer count and swapchain format on first creation
@@ -176,12 +171,12 @@ void Swapchain::create_swapchain(
     create_info.presentMode = present_mode;
     create_info.clipped = VK_TRUE;
     auto logic_device = device()->logic_device();
-    VK_CHECK_RESULT(func_table.vkCreateSwapchainKHR(logic_device, &create_info, Device::alloc_callbacks(), &_swapchain));
+    VK_CHECK_RESULT(vkCreateSwapchainKHR(logic_device, &create_info, Device::alloc_callbacks(), &_swapchain));
 
     // get the swapchain images
     auto image_count = back_buffers;
     _swapchain_images.resize(image_count);
-    VK_CHECK_RESULT(func_table.vkGetSwapchainImagesKHR(logic_device, _swapchain, &image_count, _swapchain_images.data()));
+    VK_CHECK_RESULT(vkGetSwapchainImagesKHR(logic_device, _swapchain, &image_count, _swapchain_images.data()));
     LUISA_ASSERT(image_count == back_buffers, "Swapchain image count mismatch.");
 
     // create the swapchain image views
@@ -221,7 +216,7 @@ Swapchain::~Swapchain() {
             device()->logic_device(), i,
             Device::alloc_callbacks());
     }
-    device()->func_table.vkDestroySwapchainKHR(device()->logic_device(), _swapchain, Device::alloc_callbacks());
+    vkDestroySwapchainKHR(device()->logic_device(), _swapchain, Device::alloc_callbacks());
     vkDestroySurfaceKHR(
         device()->instance(),
         _surface,

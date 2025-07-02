@@ -4,7 +4,7 @@
 #include "upload_buffer.h"
 #include "readback_buffer.h"
 #include "default_buffer.h"
-#include <vulkan/vulkan_core.h>
+#include <volk.h>
 #include <luisa/runtime/rhi/stream_tag.h>
 #include <luisa/runtime/rhi/command.h>
 #include <luisa/vstl/lockfree_array_queue.h>

@@ -124,6 +124,7 @@ vstd::vector<VkExtensionProperties> supported_exts(VkPhysicalDevice physical_dev
     return props;
 }
 VkInstance create_instance(bool enableValidation) {
+    volkInitialize();
     vstd::vector<const char *> instance_exts = {VK_KHR_SURFACE_EXTENSION_NAME};
     vstd::vector<const char *> enable_inst_ext;
     vstd::unordered_set<vstd::string> supported_instance_exts;
@@ -302,6 +303,7 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
                 constexpr bool enableValidation = true;
 #endif
                 detail::vk_instance = detail::create_instance(enableValidation);
+                volkLoadInstance(detail::vk_instance);
             }
         }
         _init_device(device_idx, false);
@@ -315,7 +317,7 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
         _default_file_io = vstd::make_unique<DefaultBinaryIO>(std::move(ctx_inst), headless);
         _binary_io = _default_file_io.get();
     }
-    func_table.init(this);
+    // func_table.init(this);
 }
 void Device::_init_device(uint32_t selectedDevice, bool fallback) {
     VkResult err;
@@ -420,6 +422,7 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
     void *ext_chain = &barrier_feature;
     VK_CHECK_RESULT(_vk_device->createLogicalDevice(_device_features, _enable_device_exts, ext_chain));
     auto device = _vk_device->logicalDevice;
+    volkLoadDevice(device);
 
     // Get a graphics queue from the device
     vkGetDeviceQueue(device, _vk_device->queueFamilyIndices.graphics, 0, &_graphics_queue);
@@ -630,9 +633,12 @@ Device::~Device() {
     for (auto &i : _samplers) {
         vkDestroySampler(logic_device(), i, alloc_callbacks());
     }
-    std::lock_guard lck(gDxcMutex);
-    if (--gDxcRefCount == 0) {
-        gDxcCompiler.destroy();
+    _default_file_io = nullptr;
+    {
+        std::lock_guard lck(gDxcMutex);
+        if (--gDxcRefCount == 0) {
+            gDxcCompiler.destroy();
+        }
     }
 }
 void *Device::native_handle() const noexcept { return _vk_device->logicalDevice; }

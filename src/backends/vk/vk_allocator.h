@@ -1,5 +1,5 @@
 #pragma once
-#include <vulkan/vulkan_core.h>
+#include <volk.h>
 #include "vk_mem_alloc.h"
 #include <luisa/core/basic_types.h>
 namespace lc::vk {

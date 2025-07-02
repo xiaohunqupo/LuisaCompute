@@ -11,7 +11,7 @@
 #pragma once
 
 
-#include "vulkan/vulkan.h"
+#include <volk.h>
 #include "VulkanTools.h"
 
 namespace vks

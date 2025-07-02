@@ -1,12 +1,11 @@
 #pragma once
-#include <vulkan/vulkan_core.h>
+#include <volk.h>
 #include <luisa/runtime/device.h>
 #include "VulkanDevice.h"
 #include <luisa/vstl/common.h>
 #include <luisa/core/first_fit.h>
 #include "../common/default_binary_io.h"
 #include "vk_allocator.h"
-#include "vk_func_table.h"
 namespace lc::hlsl {
 class ShaderCompiler;
 }// namespace lc::hlsl
@@ -72,7 +71,6 @@ public:
         bool Check(Device *self);
         ~LazyLoadShader();
     };
-    VkFuncTable func_table;
     HeapAlloc tex2d_heap_pool;
     HeapAlloc tex3d_heap_pool;
     HeapAlloc buffer_heap_pool;

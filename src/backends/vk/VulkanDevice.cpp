@@ -22,7 +22,16 @@ namespace vks {
 	*
 	* @param physicalDevice Physical device that is to be used
 	*/
+static luisa::spin_mutex gVolkMtx;
+static int32 gVolkRefCount = 0;
+
 VulkanDevice::VulkanDevice(VkPhysicalDevice physicalDevice) {
+    {
+        std::lock_guard lck(gVolkMtx);
+        if (gVolkRefCount++ == 0) {
+            volkInitialize();
+        }
+    }
     assert(physicalDevice);
     this->physicalDevice = physicalDevice;
 
@@ -64,6 +73,12 @@ VulkanDevice::VulkanDevice(VkPhysicalDevice physicalDevice) {
 VulkanDevice::~VulkanDevice() {
     if (logicalDevice) {
         vkDestroyDevice(logicalDevice, lc::vk::Device::alloc_callbacks());
+    }
+    {
+        std::lock_guard lck(gVolkMtx);
+        if (--gVolkRefCount == 0) {
+            volkFinalize();
+        }
     }
 }
 

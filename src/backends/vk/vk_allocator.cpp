@@ -1,4 +1,5 @@
-#define VMA_IMPLEMENTATION
+#define VMA_STATIC_VULKAN_FUNCTIONS 1
+#define VMA_IMPLEMENTATION 1
 #include "vk_mem_alloc.h"
 #include "vk_allocator.h"
 #include "device.h"

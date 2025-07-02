@@ -41,7 +41,7 @@ void Blas::pre_build(
     acceleration_structure_build_sizes_info.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
     acceleration_build_geometry_info->mode = update ? VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR : VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
     const uint32_t primitive_count = cmd->triangle_buffer_size() / 12;
-    device()->func_table.vkGetAccelerationStructureBuildSizesKHR(
+    vkGetAccelerationStructureBuildSizesKHR(
         device()->logic_device(), VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
         acceleration_build_geometry_info,
         &primitive_count,
@@ -66,11 +66,11 @@ void Blas::pre_build(
     acceleration_structure_create_info.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
     if (_accel) {
         cmdbuffer.states()->_callbacks.emplace_back([a = _accel, device = device()]() {
-            device->func_table.vkDestroyAccelerationStructureKHR(device->logic_device(), a, Device::alloc_callbacks());
+            vkDestroyAccelerationStructureKHR(device->logic_device(), a, Device::alloc_callbacks());
         });
         sync_tlas();
     }
-    VK_CHECK_RESULT(device()->func_table.vkCreateAccelerationStructureKHR(device()->logic_device(), &acceleration_structure_create_info, Device::alloc_callbacks(), &_accel));
+    VK_CHECK_RESULT(vkCreateAccelerationStructureKHR(device()->logic_device(), &acceleration_structure_create_info, Device::alloc_callbacks(), &_accel));
     scratch_buffer_size = (scratch_buffer_size + 255) & (~(255u));
     auto scratch_chunk = cmdbuffer.scratch_buffer_alloc->allocate(scratch_buffer_size);
 
@@ -96,7 +96,7 @@ void Blas::build(
     acceleration_structure_build_range_info->primitiveOffset = 0;
     acceleration_structure_build_range_info->firstVertex = 0;
     acceleration_structure_build_range_info->transformOffset = 0;
-    device()->func_table.vkCmdBuildAccelerationStructuresKHR(
+    vkCmdBuildAccelerationStructuresKHR(
         cmdbuffer.cmdbuffer(),
         1,
         acceleration_build_geometry_info,
@@ -107,13 +107,13 @@ Blas::~Blas() {
         i->accel->allInstance[i->accelIndex].handle = nullptr;
         MeshHandle::DestroyHandle(i);
     }
-    device()->func_table.vkDestroyAccelerationStructureKHR(device()->logic_device(), _accel, Device::alloc_callbacks());
+    vkDestroyAccelerationStructureKHR(device()->logic_device(), _accel, Device::alloc_callbacks());
 }
 uint64_t Blas::get_accel_device_address() const {
     VkAccelerationStructureDeviceAddressInfoKHR acceleration_device_address_info{};
     acceleration_device_address_info.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
     acceleration_device_address_info.accelerationStructure = _accel;
-    return device()->func_table.vkGetAccelerationStructureDeviceAddressKHR(device()->logic_device(), &acceleration_device_address_info);
+    return vkGetAccelerationStructureDeviceAddressKHR(device()->logic_device(), &acceleration_device_address_info);
 }
 void Blas::remove_accel_ref(MeshHandle *handle) {
     LUISA_ASSUME(handle->mesh == this);

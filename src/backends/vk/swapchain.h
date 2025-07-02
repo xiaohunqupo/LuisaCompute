@@ -1,5 +1,5 @@
 #pragma once
-#include <vulkan/vulkan_core.h>
+#include <volk.h>
 #include "resource.h"
 namespace lc::vk {
 class Swapchain : public Resource {

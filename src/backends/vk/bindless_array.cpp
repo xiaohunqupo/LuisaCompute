@@ -4,7 +4,7 @@
 #include "device.h"
 #include "resource_barrier.h"
 #include "stream.h"
-#include <vulkan/vulkan_core.h>
+#include <volk.h>
 #include "log.h"
 #include "device.h"
 namespace lc::vk {
