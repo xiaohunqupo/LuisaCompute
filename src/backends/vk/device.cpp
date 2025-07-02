@@ -18,6 +18,7 @@
 #include "bindless_array.h"
 #include "blas.h"
 #include "tlas.h"
+#include "swapchain.h"
 namespace lc::vk {
 static constexpr uint k_shader_model = 65u;
 
@@ -722,8 +723,26 @@ void Device::dispatch(
 }
 
 // swap chain
-SwapchainCreationInfo Device::create_swapchain(const SwapchainOption &option, uint64_t stream_handle) noexcept { return SwapchainCreationInfo{ResourceCreationInfo::make_invalid()}; }
-void Device::destroy_swap_chain(uint64_t handle) noexcept {}
+SwapchainCreationInfo Device::create_swapchain(const SwapchainOption &option, uint64_t stream_handle) noexcept {
+    auto ptr = new Swapchain(this);
+    ptr->create_swapchain(
+        option.display,
+        option.window,
+        option.size.x,
+        option.size.y,
+        option.back_buffer_count,
+        false,
+        option.wants_hdr,
+        option.wants_vsync);
+    SwapchainCreationInfo r;
+    r.handle = reinterpret_cast<uint64_t>(ptr);
+    r.storage = option.wants_hdr ? PixelStorage::HALF4 : PixelStorage::BYTE4;
+    r.native_handle = ptr->swapchain();
+    return r;
+}
+void Device::destroy_swap_chain(uint64_t handle) noexcept {
+    delete reinterpret_cast<Swapchain *>(handle);
+}
 void Device::present_display_in_stream(uint64_t stream_handle, uint64_t swapchain_handle, uint64_t image_handle) noexcept {}
 
 // kernel
