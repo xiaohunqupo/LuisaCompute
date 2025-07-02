@@ -40,6 +40,7 @@ private:
     mutable std::mutex mtx;
     DefaultBuffer buffer;
     luisa::FirstFit::Node* _buffer_node = nullptr;
+    void Deref(MapIndex& index);
     void TryReturnIndex(MapIndex &index, uint &originValue);
     void TryReturnIndexTex(MapIndex &index, uint &originValue);
     MapIndex AddIndex(size_t ptr);

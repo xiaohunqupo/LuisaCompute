@@ -46,13 +46,14 @@ void ReorderFuncTable::update_bindless(uint64_t handle, luisa::span<const Bindle
     reinterpret_cast<BindlessArray *>(handle)->bind(modifications);
 }
 void ReorderFuncTable::update_bindless(uint64_t handle, luisa::span<const BindlessArrayUpdateCommand::BufferModification> modifications) const noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    reinterpret_cast<BindlessArray *>(handle)->bind(modifications);
 }
 void ReorderFuncTable::update_bindless(uint64_t handle, luisa::span<const BindlessArrayUpdateCommand::Texture2DModification> modifications) const noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    reinterpret_cast<BindlessArray *>(handle)->bind(modifications);
 }
 void ReorderFuncTable::update_bindless(uint64_t handle, luisa::span<const BindlessArrayUpdateCommand::Texture3DModification> modifications) const noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    reinterpret_cast<BindlessArray *>(handle)->bind({reinterpret_cast<const BindlessArrayUpdateCommand::Texture2DModification *>(modifications.data()),
+                                                     modifications.size()});
 }
 struct ResourceBarrierVisitor {
     ResourceBarrier *barrier;
@@ -1134,7 +1135,21 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                 } break;
                 case Command::Tag::EBindlessArrayUpdateCommand: {
                     auto c = static_cast<BindlessArrayUpdateCommand const *>(cmd);
-                    reinterpret_cast<BindlessArray *>(c->handle())->update(this, *write_desc_sets, *bindless_cache, c->modifications());
+                    auto bdls = reinterpret_cast<BindlessArray *>(c->handle());
+                    switch (c->typed_index()) {
+                        case 0:
+                            bdls->update(this, *write_desc_sets, *bindless_cache, c->modifications());
+                            break;
+                        case 1:
+                            bdls->update(this, *write_desc_sets, *bindless_cache, c->buffer_modifications());
+                            break;
+                        case 2:
+                            bdls->update(this, *write_desc_sets, *bindless_cache, c->tex2d_modifications());
+                            break;
+                        case 3:
+                            bdls->update(this, *write_desc_sets, *bindless_cache, c->tex3d_modifications());
+                            break;
+                    }
                     // LOG bindless indices
 
                     // auto &bf = reinterpret_cast<BindlessArray *>(c->handle())->indices_buffer();

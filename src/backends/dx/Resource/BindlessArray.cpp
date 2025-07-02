@@ -40,19 +40,26 @@ BindlessArray::~BindlessArray() {
             device->globalHeap->ReturnIndex(i & BindlessStruct::mask);
         }
     };
-    typed_binded.multi_visit(
-        [&](auto &&binded) {
-            for (auto &&i : binded) {
-                Return(i.first.buffer);
-                ReturnTex(i.first.tex2D);
-                ReturnTex(i.first.tex3D);
-            }
-        },
-        [](auto &&b) {});
-
+    if (typed_binded.index() == 0) {
+        auto &binded = typed_binded.get<0>();
+        for (auto &&i : binded) {
+            Return(i.first.buffer);
+            ReturnTex(i.first.tex2D);
+            ReturnTex(i.first.tex3D);
+        }
+    }
     for (auto &&i : freeQueue) {
         device->globalHeap->ReturnIndex(i);
     }
+}
+void BindlessArray::Deref(MapIndex &index) {
+    if (!index) return;
+    auto &&v = index.value();
+    v--;
+    if (v == 0) {
+        ptrMap.remove(index);
+    }
+    index = {};
 }
 void BindlessArray::TryReturnIndexTex(MapIndex &index, uint &originValue) {
     if (originValue != BindlessStruct::n_pos) {
@@ -92,6 +99,7 @@ void BindlessArray::Bind(vstd::span<const BindlessArrayUpdateCommand::BufferModi
     if (mods.empty()) return;
     for (auto &&mod : mods) {
         auto &indices = binded[mod.slot];
+        Deref(indices);
         using Ope = BindlessArrayUpdateCommand::Modification::Operation;
         if (mod.buffer.op == Ope::EMPLACE) {
             BufferView v{reinterpret_cast<Buffer *>(mod.buffer.handle), mod.buffer.offset_bytes};
@@ -123,7 +131,6 @@ void BindlessArray::Bind(vstd::span<const BindlessArrayUpdateCommand::Texture2DM
             tex->GetResource(),
             tex->GetColorSrvDesc(),
             texIdx);
-        auto smpIdx = GlobalSamplers::GetIndex(samp);
         indices = AddIndex(handle);
     };
     using Ope = BindlessArrayUpdateCommand::Modification::Operation;
@@ -131,11 +138,9 @@ void BindlessArray::Bind(vstd::span<const BindlessArrayUpdateCommand::Texture2DM
         auto vv = mod.slot;
         auto &indices = binded[mod.slot];
         auto newIdx = device->globalHeap->GetSubAllocOffset(_buffer_node) + mod.slot;
-        switch (mod.tex2d.op) {
-            case Ope::EMPLACE:
-                EmplaceTex(newIdx, indices, mod.tex2d.handle, reinterpret_cast<TextureBase *>(mod.tex2d.handle), mod.tex2d.sampler);
-                break;
-            default: break;
+        Deref(indices);
+        if (mod.tex2d.op == Ope::EMPLACE) {
+            EmplaceTex(newIdx, indices, mod.tex2d.handle, reinterpret_cast<TextureBase *>(mod.tex2d.handle), mod.tex2d.sampler);
         }
     }
 }

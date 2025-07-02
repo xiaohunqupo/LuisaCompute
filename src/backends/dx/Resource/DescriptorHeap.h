@@ -18,10 +18,10 @@ private:
     luisa::FirstFit subAlloc;
 
 public:
-    
+
     uint64 Length() const { return numDescriptors; }
     ID3D12DescriptorHeap *GetHeap() const { return pDH.Get(); }
-    D3D12_GPU_DESCRIPTOR_HANDLE hGPU(uint64 index) const ;
+    D3D12_GPU_DESCRIPTOR_HANDLE hGPU(uint64 index) const;
     D3D12_CPU_DESCRIPTOR_HANDLE hCPU(uint64 index) const;
 
     DescriptorHeap(
@@ -29,20 +29,19 @@ public:
         D3D12_DESCRIPTOR_HEAP_TYPE Type,
         uint32_t numDescriptors,
         bool bShaderVisible);
-    luisa::FirstFit::Node* SubAllocate(uint32_t size);
-    void DeAllocate(luisa::FirstFit::Node* ptr);
-    uint GetSubAllocOffset(luisa::FirstFit::Node const* ptr);
+    luisa::FirstFit::Node *SubAllocate(uint32_t size);
+    void DeAllocate(luisa::FirstFit::Node *ptr);
+    uint GetSubAllocOffset(luisa::FirstFit::Node const *ptr) const;
     uint32_t AllocateIndex();
     void ReturnIndex(uint32_t v);
     void Reset();
     void CreateUAV(ID3D12Resource *resource, const D3D12_UNORDERED_ACCESS_VIEW_DESC &pDesc, uint64 index);
     void CreateSRV(ID3D12Resource *resource, const D3D12_SHADER_RESOURCE_VIEW_DESC &pDesc, uint64 index);
-    void CreateRTV(ID3D12Resource *resource, const D3D12_RENDER_TARGET_VIEW_DESC& pDesc, uint64 index);
-    void CreateDSV(ID3D12Resource *resource, const D3D12_DEPTH_STENCIL_VIEW_DESC& pDesc, uint64 index);
+    void CreateRTV(ID3D12Resource *resource, const D3D12_RENDER_TARGET_VIEW_DESC &pDesc, uint64 index);
+    void CreateDSV(ID3D12Resource *resource, const D3D12_DEPTH_STENCIL_VIEW_DESC &pDesc, uint64 index);
     void CreateSampler(D3D12_SAMPLER_DESC const &desc, uint64 index);
     ~DescriptorHeap();
     Tag GetTag() const override { return Tag::DescriptorHeap; }
-    
 };
 struct DescriptorHeapView {
     DescriptorHeap const *heap;

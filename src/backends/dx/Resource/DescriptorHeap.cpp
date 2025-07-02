@@ -82,7 +82,7 @@ luisa::FirstFit::Node *DescriptorHeap::SubAllocate(uint32_t size) {
 void DescriptorHeap::DeAllocate(luisa::FirstFit::Node *ptr) {
     subAlloc.free(ptr);
 }
-uint DescriptorHeap::GetSubAllocOffset(luisa::FirstFit::Node const *ptr) {
+uint DescriptorHeap::GetSubAllocOffset(luisa::FirstFit::Node const *ptr) const {
     return numDescriptors - (ptr->offset() + ptr->size());
 }
 }// namespace lc::dx

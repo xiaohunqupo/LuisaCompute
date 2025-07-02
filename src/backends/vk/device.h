@@ -3,6 +3,7 @@
 #include <luisa/runtime/device.h>
 #include "VulkanDevice.h"
 #include <luisa/vstl/common.h>
+#include <luisa/core/first_fit.h>
 #include "../common/default_binary_io.h"
 #include "vk_allocator.h"
 #include "vk_func_table.h"
@@ -40,17 +41,23 @@ class Device : public DeviceInterface, public vstd::IOperatorNewBase {
     BinaryIO const *_binary_io{};
     vstd::unique_ptr<DefaultBinaryIO> _default_file_io;
     void _init_device(uint32_t selectedDevice, bool fallback);
+public:
     struct HeapAlloc {
         uint count = 0;
         vstd::vector<uint> release_pool;
         luisa::spin_mutex mtx;
+        luisa::FirstFit sub_allocator;
+        uint full_size;
         uint alloc();
         void dealloc(uint idx);
+        luisa::FirstFit::Node *sub_alloc(uint32_t size);
+        void free(luisa::FirstFit::Node *ptr);
+        uint get_index(luisa::FirstFit::Node const *ptr) const;
+
         HeapAlloc();
         ~HeapAlloc();
     };
 
-public:
     struct LazyLoadShader {
     public:
         using LoadFunc = vstd::func_ptr_t<ComputeShader *(Device *)>;

@@ -270,7 +270,7 @@ ResourceCreationInfo Device::create_accel(const AccelOption &option) noexcept {
         .native_handle = accel->accel()};
 }
 void Device::destroy_accel(uint64_t handle) noexcept {
-    delete reinterpret_cast<Tlas*>(handle);
+    delete reinterpret_cast<Tlas *>(handle);
 }
 //////////////// Not implemented area
 Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
@@ -435,8 +435,9 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
 
     // bindless buffer desc_pool
     {
+        buffer_heap_pool.full_size = 262144;
         VkDescriptorPoolSize pool_size;
-        pool_size.descriptorCount = 65536;
+        pool_size.descriptorCount = buffer_heap_pool.full_size;
         pool_size.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         VkDescriptorPoolCreateInfo createInfo{
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
@@ -448,7 +449,7 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
         VkDescriptorSetLayoutBinding binding{
             0,
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            65536,
+            buffer_heap_pool.full_size,
             VK_SHADER_STAGE_COMPUTE_BIT,
             nullptr};
         VkDescriptorSetLayoutCreateInfo descriptorLayout{
@@ -465,8 +466,9 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
     }
     // bindless tex2d desc_pool
     {
+        tex2d_heap_pool.full_size = 262144;
         VkDescriptorPoolSize pool_size;
-        pool_size.descriptorCount = 65536;
+        pool_size.descriptorCount = tex2d_heap_pool.full_size;
         pool_size.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
         VkDescriptorPoolCreateInfo createInfo{
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
@@ -478,7 +480,7 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
         VkDescriptorSetLayoutBinding binding{
             0,
             VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-            65536,
+            tex2d_heap_pool.full_size,
             VK_SHADER_STAGE_COMPUTE_BIT,
             nullptr};
         VkDescriptorSetLayoutCreateInfo descriptorLayout{
@@ -495,8 +497,9 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
     }
     // bindless tex3d desc_pool
     {
+        tex3d_heap_pool.full_size = 262144;
         VkDescriptorPoolSize pool_size;
-        pool_size.descriptorCount = 65536;
+        pool_size.descriptorCount = tex3d_heap_pool.full_size;
         pool_size.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
         VkDescriptorPoolCreateInfo createInfo{
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
@@ -508,7 +511,7 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
         VkDescriptorSetLayoutBinding binding{
             0,
             VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-            65536,
+            tex3d_heap_pool.full_size,
             VK_SHADER_STAGE_COMPUTE_BIT,
             nullptr};
         VkDescriptorSetLayoutCreateInfo descriptorLayout{
@@ -669,10 +672,22 @@ ResourceCreationInfo Device::create_texture(
 void Device::destroy_texture(uint64_t handle) noexcept {
     delete reinterpret_cast<Texture *>(handle);
 }
-
+luisa::FirstFit::Node *Device::HeapAlloc::sub_alloc(uint32_t size) {
+    auto ptr = sub_allocator.allocate_best_fit(size);
+    if (ptr->offset() + ptr->size() > (full_size - count)) [[unlikely]] {
+        vengine_log("bindless allocator out or range!\n");
+    }
+    return ptr;
+}
+void Device::HeapAlloc::free(luisa::FirstFit::Node *ptr) {
+    sub_allocator.free(ptr);
+}
+uint Device::HeapAlloc::get_index(luisa::FirstFit::Node const *ptr) const {
+    return full_size - (ptr->offset() + ptr->size());
+}
 // bindless array
 ResourceCreationInfo Device::create_bindless_array(size_t size, BindlessType type) noexcept {
-    auto r = new BindlessArray(this, size);
+    auto r = new BindlessArray(this, type, size);
     return ResourceCreationInfo{
         .handle = reinterpret_cast<uint64_t>(r),
         .native_handle = &r->indices_buffer()};
@@ -873,7 +888,7 @@ void Device::HeapAlloc::dealloc(uint idx) {
     std::lock_guard lck{mtx};
     release_pool.emplace_back(idx);
 }
-Device::HeapAlloc::HeapAlloc() = default;
+Device::HeapAlloc::HeapAlloc() : sub_allocator(std::numeric_limits<uint32_t>::max(), 1) {}
 Device::HeapAlloc::~HeapAlloc() = default;
 Device::LazyLoadShader::LazyLoadShader(LoadFunc loadFunc) : loadFunc(loadFunc) {}
 Device::LazyLoadShader::~LazyLoadShader() {}
