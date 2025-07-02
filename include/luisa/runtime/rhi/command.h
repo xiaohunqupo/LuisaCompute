@@ -621,7 +621,7 @@ public:
 
 class BindlessArrayUpdateCommand final : public Command {
 
-    LC_RUNTIME_API [[noreturn]] static void report_unmatched_bindless_slot_type(luisa::string_view expected) noexcept;
+    [[noreturn]] LC_RUNTIME_API static void report_unmatched_bindless_slot_type(luisa::string_view expected) noexcept;
 
 public:
     enum struct Operation : uint {
