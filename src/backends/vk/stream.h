@@ -150,7 +150,7 @@ class Stream : public Resource {
     std::mutex _mtx;
     vstd::LockFreeArrayQueue<CommandBuffer> _cmdbuffers;
     vstd::vector<VkDescriptorSet> desc_sets;
-    vstd::LockFreeArrayQueue<AsyncCmd> _exec;
+    vstd::SingleThreadArrayQueue<AsyncCmd> _exec;
     ResourceBarrier resource_barrier;
     vstd::vector<std::byte> uniform_data;
     vstd::vector<std::pair<size_t, size_t>> dispatch_offsets;

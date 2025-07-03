@@ -62,7 +62,7 @@ void CommandQueue::AddEvent(LCEvent const *evt, uint64 fenceIdx) {
 }
 
 void CommandQueue::ExecuteThread() {
-    while (enabled || executedAllocators.length() != 0) {
+    while (enabled) {
         uint64_t fence;
         bool wakeupThread;
         auto Weakup = [&] {

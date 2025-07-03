@@ -454,7 +454,11 @@ Stream::Stream(Device *device, StreamTag tag)
       reorder({}),
       _thd([this]() {
           auto loop_cmd = [&]() {
-              while (auto p = _exec.pop()) {
+              while (true) {
+                  _mtx.lock();
+                  auto p = _exec.pop();
+                  _mtx.unlock();
+                  if (!p) break;
                   p->visit(
                       [&]<typename T>(T &t) {
                           if constexpr (std::is_same_v<T, Callbacks>) {
@@ -553,12 +557,14 @@ void Stream::dispatch(
         cmdbuffer.execute(cmds);
         cmdbuffer.end();
         _evt.signal(*this, fence, &cb);
+        _mtx.lock();
         _exec.push(SyncExt{
             .evt = &_evt,
             .value = fence});
         _exec.push(std::move(cmdbuffer));
     } else {
         _evt.update_fence(fence);
+        _mtx.lock();
     }
     if (!callbacks.empty()) {
         _exec.push(std::move(callbacks));
@@ -567,7 +573,6 @@ void Stream::dispatch(
         .evt = &_evt,
         .value = fence});
 
-    _mtx.lock();
     _mtx.unlock();
     _cv.notify_one();
 }
@@ -609,9 +614,9 @@ CommandBuffer::CommandBuffer(CommandBuffer &&rhs)
 }
 void Stream::signal(Event *event, uint64_t value) {
     event->signal(*this, value);
+    _mtx.lock();
     _exec.push(SyncExt{event, value});
     _exec.push(NotifyEvt{event, value});
-    _mtx.lock();
     _mtx.unlock();
     _cv.notify_one();
 }
@@ -1136,20 +1141,9 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                 case Command::Tag::EBindlessArrayUpdateCommand: {
                     auto c = static_cast<BindlessArrayUpdateCommand const *>(cmd);
                     auto bdls = reinterpret_cast<BindlessArray *>(c->handle());
-                    switch (c->typed_index()) {
-                        case 0:
-                            bdls->update(this, *write_desc_sets, *bindless_cache, c->modifications());
-                            break;
-                        case 1:
-                            bdls->update(this, *write_desc_sets, *bindless_cache, c->buffer_modifications());
-                            break;
-                        case 2:
-                            bdls->update(this, *write_desc_sets, *bindless_cache, c->tex2d_modifications());
-                            break;
-                        case 3:
-                            bdls->update(this, *write_desc_sets, *bindless_cache, c->tex3d_modifications());
-                            break;
-                    }
+                    c->visit_modifications([&](auto &&t) {
+                        bdls->update(this, *write_desc_sets, *bindless_cache, luisa::span{t});
+                    });
                     // LOG bindless indices
 
                     // auto &bf = reinterpret_cast<BindlessArray *>(c->handle())->indices_buffer();

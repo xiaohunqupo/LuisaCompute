@@ -867,20 +867,9 @@ public:
 
     // BindlessArray : read multi resources
     void visit(const BindlessArrayUpdateCommand *command) noexcept override {
-        switch (command->typed_index()) {
-            case 0:
-                _func_table.update_bindless(command->handle(), command->modifications());
-                break;
-            case 1:
-                _func_table.update_bindless(command->handle(), command->buffer_modifications());
-                break;
-            case 2:
-                _func_table.update_bindless(command->handle(), command->tex2d_modifications());
-                break;
-            case 3:
-                _func_table.update_bindless(command->handle(), command->tex3d_modifications());
-                break;
-        }
+        command->visit_modifications([&](auto&& mods){
+            _func_table.update_bindless(command->handle(), luisa::span{mods});
+        });
         add_command(command, set_write(command->handle(), Range(), ResourceType::Bindless));
     }
 

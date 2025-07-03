@@ -959,35 +959,21 @@ public:
         });
 #endif
         auto arr = reinterpret_cast<BindlessArray *>(cmd->handle());
-        switch (cmd->typed_index()) {
-            case 0: {
-                arr->UpdateStates(
-                    *bd,
-                    *stateTracker,
-                    cmd->modifications());
-            } break;
-            case 1: {
-                arr->UpdateStates(
-                    *bd,
-                    *stateTracker,
-                    cmd->buffer_modifications());
-            } break;
-            case 2: {
-                arr->UpdateStates(
-                    *bd,
-                    *stateTracker,
-                    cmd->tex2d_modifications());
-            } break;
-            case 3: {
-                auto mod = cmd->tex3d_modifications();
+        cmd->visit_modifications([&]<typename T>(T const &t) {
+            if constexpr (std::is_same_v<T, luisa::vector<BindlessArrayUpdateCommand::Texture3DModification>>) {
                 arr->UpdateStates(
                     *bd,
                     *stateTracker,
                     luisa::span{
-                        reinterpret_cast<BindlessArrayUpdateCommand::Texture2DModification const *>(mod.data()),
-                        mod.size()});
-            } break;
-        }
+                        reinterpret_cast<BindlessArrayUpdateCommand::Texture2DModification const *>(t.data()),
+                        t.size()});
+            } else {
+                arr->UpdateStates(
+                    *bd,
+                    *stateTracker,
+                    luisa::span{t});
+            }
+        });
     }
     void visit(const DXCustomCmd *cmd) noexcept {
         cmd->execute(

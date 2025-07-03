@@ -293,12 +293,6 @@ void _record_command_buffer(
     uint current_frame,
     uint image_index) {
 
-    VK_CHECK_RESULT(vkResetCommandBuffer(command_buffer, 0));
-
-    VkCommandBufferBeginInfo begin_info{};
-    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    VK_CHECK_RESULT(vkBeginCommandBuffer(command_buffer, &begin_info));
-
     VkRenderPassBeginInfo render_pass_info{};
     render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     render_pass_info.renderPass = render_pass;
@@ -331,8 +325,6 @@ void _record_command_buffer(
 
     vkCmdDraw(command_buffer, 6u, 1, 0, 0);
     vkCmdEndRenderPass(command_buffer);
-
-    VK_CHECK_RESULT(vkEndCommandBuffer(command_buffer));
 }
 
 void _create_descriptor_sets(
@@ -526,6 +518,11 @@ void Swapchain::create_swapchain(
     uint64_t window_handle,
     uint width, uint height, uint back_buffers,
     bool is_recreation, bool allow_hdr, bool vsync) {
+    _display_handle = display_handle;
+    _window_handle = window_handle;
+    _requested_size = uint2(width, height);
+    _requested_hdr = allow_hdr;
+    _requested_vsync = allow_hdr;
     _create_surface(
         display_handle,
         window_handle,
@@ -648,12 +645,39 @@ void Swapchain::create_swapchain(
         _swapchain_framebuffers,
         _render_pass,
         _swapchain_extent);
+    _image_available_semaphores.resize(_swapchain_images.size());
+    _render_finished_semaphores.resize(_swapchain_images.size());
+    VkSemaphoreCreateInfo semaphore_info{};
+    semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    for (auto i : vstd::range(_swapchain_images.size())) {
+        VK_CHECK_RESULT(vkCreateSemaphore(device()->logic_device(), &semaphore_info, Device::alloc_callbacks(), &_image_available_semaphores[i]));
+        VK_CHECK_RESULT(vkCreateSemaphore(device()->logic_device(), &semaphore_info, Device::alloc_callbacks(), &_render_finished_semaphores[i]));
+    }
 }
 
 Swapchain::Swapchain(Device *device)
     : Resource(device) {
 }
-Swapchain::~Swapchain() {
+void Swapchain::_recreate_swapchain() {
+    auto back_buffers = _swapchain_framebuffers.size();
+    auto device = this->device()->logic_device();
+    vkDeviceWaitIdle(device);
+
+    _destroy_swapchain();
+
+    create_swapchain(
+        _display_handle, _window_handle,
+        _requested_size.x, _requested_size.y,
+        back_buffers, true,
+        _requested_hdr, _requested_vsync);
+    _create_framebuffers(
+        device,
+        _swapchain_image_views,
+        _swapchain_framebuffers,
+        _render_pass,
+        _swapchain_extent);
+}
+void Swapchain::_destroy_swapchain() {
     auto device = this->device()->logic_device();
     for (auto &i : _swapchain_image_views) {
         vkDestroyImageView(
@@ -664,11 +688,22 @@ Swapchain::~Swapchain() {
     for (auto &i : _swapchain_framebuffers) {
         vkDestroyFramebuffer(device, i, Device::alloc_callbacks());
     }
+    _swapchain_framebuffers.clear();
+    _swapchain_image_views.clear();
+    _swapchain_images.clear();
     vkDestroySwapchainKHR(device, _swapchain, Device::alloc_callbacks());
+}
+
+Swapchain::~Swapchain() {
+    auto device = this->device()->logic_device();
+    _destroy_swapchain();
     vkDestroySurfaceKHR(
         this->device()->instance(),
         _surface,
         Device::alloc_callbacks());
+    for (auto &i : _image_available_semaphores) {
+        vkDestroySemaphore(device, i, Device::alloc_callbacks());
+    }
     vkDestroyPipeline(device, _graphics_pipeline, Device::alloc_callbacks());
     vkDestroyPipelineLayout(device, _pipeline_layout, Device::alloc_callbacks());
     vkDestroyBuffer(device, _vertex_buffer, Device::alloc_callbacks());
@@ -676,5 +711,92 @@ Swapchain::~Swapchain() {
     vkDestroySampler(device, _texture_sampler, Device::alloc_callbacks());
     vkDestroyDescriptorSetLayout(device, _descriptor_set_layout, Device::alloc_callbacks());
     vkDestroyRenderPass(device, _render_pass, Device::alloc_callbacks());
+}
+void Swapchain::present(
+    CommandBuffer &cmdbuffer,
+    VkQueue queue,
+    VkSemaphore wait, VkSemaphore signal,
+    VkImageView image,
+    VkImageLayout image_layout,
+    VkTimelineSemaphoreSubmitInfo const *timeline_submit_info) {
+    luisa::vector<VkDescriptorImageInfo> cached_image_infos;
+    luisa::vector<VkDescriptorSet> descriptor_sets;
+    _create_descriptor_sets(
+        device()->logic_device(),
+        _swapchain_images,
+        descriptor_sets,
+        _descriptor_set_layout,
+        cached_image_infos,
+        cmdbuffer.states()->_desc_pool);
+
+    auto image_index = 0u;
+    if (auto ret = vkAcquireNextImageKHR(
+            device()->logic_device(), _swapchain, UINT64_MAX,
+            _image_available_semaphores[_current_frame],
+            VK_NULL_HANDLE, &image_index);
+        ret == VK_ERROR_OUT_OF_DATE_KHR) {
+        _recreate_swapchain();
+        return;
+    } else if (ret != VK_SUCCESS && ret != VK_SUBOPTIMAL_KHR) {
+        LUISA_ERROR_WITH_LOCATION(
+            "Failed to acquire swapchain image: {}.",
+            luisa::to_string(ret));
+    }
+
+    // update descriptor set if necessary
+    if (image != _cached_image_infos[_current_frame].imageView ||
+        image_layout != _cached_image_infos[_current_frame].imageLayout) {
+        _cached_image_infos[_current_frame].imageView = image;
+        _cached_image_infos[_current_frame].imageLayout = image_layout;
+        VkWriteDescriptorSet descriptor_write{};
+        descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptor_write.dstBinding = 0u;
+        descriptor_write.dstArrayElement = 0u;
+        descriptor_write.dstSet = descriptor_sets[_current_frame];
+        descriptor_write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+        descriptor_write.descriptorCount = 1u;
+        descriptor_write.pImageInfo = &_cached_image_infos[_current_frame];
+        vkUpdateDescriptorSets(device()->logic_device(), 1u, &descriptor_write, 0u, nullptr);
+    }
+    _record_command_buffer(
+        cmdbuffer.cmdbuffer(),
+        _render_pass,
+        _swapchain_framebuffers,
+        _swapchain_extent,
+        _vertex_buffer,
+        descriptor_sets,
+        _graphics_pipeline,
+        _pipeline_layout,
+        _current_frame,
+        image_index);
+    // submit command buffer
+    VkSubmitInfo submit_info{};
+    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    std::array wait_semaphores = {_image_available_semaphores[_current_frame], wait};
+    std::array wait_stages = {static_cast<VkPipelineStageFlags>(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT),
+                              static_cast<VkPipelineStageFlags>(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT)};
+    submit_info.waitSemaphoreCount = wait == nullptr ? 1u : 2u;
+    submit_info.pNext = timeline_submit_info;
+    submit_info.pWaitSemaphores = wait_semaphores.data();
+    submit_info.pWaitDstStageMask = wait_stages.data();
+    std::array signal_semaphores = {_render_finished_semaphores[_current_frame], signal};
+    submit_info.signalSemaphoreCount = signal == nullptr ? 1u : 2u;
+    submit_info.pSignalSemaphores = signal_semaphores.data();
+    submit_info.commandBufferCount = 1;
+    auto _cmdbuffer = cmdbuffer.cmdbuffer();
+    submit_info.pCommandBuffers = &_cmdbuffer;
+    VK_CHECK_RESULT(vkQueueSubmit(queue, 1u, &submit_info, _in_flight_fences[_current_frame]));
+
+    // present
+    VkPresentInfoKHR present_info{};
+    present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    present_info.pSwapchains = &_swapchain;
+    present_info.swapchainCount = 1u;
+    present_info.waitSemaphoreCount = 1u;
+    present_info.pWaitSemaphores = &_render_finished_semaphores[_current_frame];
+    present_info.pImageIndices = &image_index;
+    VK_CHECK_RESULT(vkQueuePresentKHR(queue, &present_info));
+
+    _current_frame = (_current_frame + 1u) % _swapchain_images.size();
 }
 }// namespace lc::vk

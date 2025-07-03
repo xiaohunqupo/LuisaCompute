@@ -743,7 +743,10 @@ public:
         : Command{Command::Tag::EBindlessArrayUpdateCommand},
           _handle{handle}, _modifications{std::move(mods)} {}
     [[nodiscard]] auto handle() const noexcept { return _handle; }
-    [[nodiscard]] auto typed_index() const noexcept { return _modifications.index(); }
+    template <typename Func>
+    auto visit_modifications(Func&& func) const {
+        return luisa::visit(func, _modifications);
+    }
     [[nodiscard]] auto empty() const noexcept {
         return luisa::visit([](auto &&t) { return t.empty(); }, _modifications);
     }
