@@ -128,7 +128,7 @@ void CommandQueue::ForceSync(
     cb.Close();
     Complete();
     auto curFrame = ++lastFrame;
-    alloc->Execute(this, cmdFence.Get(), curFrame);
+    alloc->Execute(this, cmdFence.Get(), curFrame, {}, false);
     alloc->Complete(this, cmdFence.Get(), curFrame);
     alloc->Reset(this);
     executedFrame = curFrame;
@@ -155,43 +155,22 @@ void CommandQueue::Signal() {
     mtx.unlock();
     waitCv.notify_one();
 }
-void CommandQueue::Execute(AllocatorPtr &&alloc) {
+void CommandQueue::Execute(AllocatorPtr &&alloc, vstd::vector<vstd::function<void()>> &&callbacks, luisa::span<std::pair<IDXGISwapChain *, bool>> swapChains, bool cmdlist_is_empty) {
     auto curFrame = ++lastFrame;
-    alloc->Execute(this, cmdFence.Get(), curFrame);
-    mtx.lock();
-    executedAllocators.push(std::move(alloc), curFrame, true);
-    mtx.unlock();
-    waitCv.notify_one();
-}
-void CommandQueue::ExecuteCallbacks(AllocatorPtr &&alloc, vstd::vector<vstd::function<void()>> &&callbacks) {
-    auto curFrame = ++lastFrame;
-    alloc->Execute(this, cmdFence.Get(), curFrame);
-    mtx.lock();
-    executedAllocators.push(std::move(alloc), curFrame, false);
-    executedAllocators.push(std::move(callbacks), curFrame, true);
-    mtx.unlock();
-    waitCv.notify_one();
-}
-void CommandQueue::ExecuteEmpty(AllocatorPtr &&alloc) {
-    allocatorPool.push(std::move(alloc));
-}
+    alloc->Execute(this, cmdFence.Get(), curFrame, swapChains, cmdlist_is_empty);
+    if (cmdlist_is_empty) {
+        allocatorPool.push(std::move(alloc));
+    }
+    if ((!cmdlist_is_empty) || (!callbacks.empty())) {
+        mtx.lock();
+        if (!cmdlist_is_empty)
+            executedAllocators.push(std::move(alloc), curFrame, callbacks.empty());
+        if (!callbacks.empty())
+            executedAllocators.push(std::move(callbacks), curFrame, true);
+        mtx.unlock();
 
-void CommandQueue::ExecuteEmptyCallbacks(AllocatorPtr &&alloc, vstd::vector<vstd::function<void()>> &&callbacks) {
-    allocatorPool.push(std::move(alloc));
-    auto curFrame = ++lastFrame;
-    mtx.lock();
-    executedAllocators.push(std::move(callbacks), curFrame, true);
-    mtx.unlock();
-    waitCv.notify_one();
-}
-
-void CommandQueue::ExecuteAndPresent(AllocatorPtr &&alloc, IDXGISwapChain *swapChain, bool vsync) {
-    auto curFrame = ++lastFrame;
-    alloc->ExecuteAndPresent(this, cmdFence.Get(), curFrame, swapChain, vsync);
-    mtx.lock();
-    executedAllocators.push(std::move(alloc), curFrame, true);
-    mtx.unlock();
-    waitCv.notify_one();
+        waitCv.notify_one();
+    }
 }
 
 void CommandQueue::Complete(uint64 fence) {

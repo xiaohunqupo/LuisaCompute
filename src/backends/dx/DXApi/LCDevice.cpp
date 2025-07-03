@@ -542,7 +542,7 @@ void LCDevice::present_display_in_stream(uint64 stream_handle, uint64 swapchain_
     reinterpret_cast<LCCmdBuffer *>(stream_handle)
         ->Present(
             reinterpret_cast<LCSwapChain *>(swapchain_handle),
-            reinterpret_cast<TextureBase *>(image_handle), nativeDevice.maxAllocatorCount);
+            reinterpret_cast<TextureBase *>(image_handle), 0, nativeDevice.maxAllocatorCount);
 }
 ResourceCreationInfo DxRasterExt::create_raster_shader(
     Function vert,

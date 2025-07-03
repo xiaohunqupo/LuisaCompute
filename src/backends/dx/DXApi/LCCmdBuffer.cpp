@@ -15,6 +15,7 @@
 #include <luisa/runtime/rtx/aabb.h>
 #include <Resource/DepthBuffer.h>
 #include <luisa/backends/ext/raster_cmd.h>
+#include <luisa/runtime/swapchain.h>
 #include <Resource/SparseTexture.h>
 #include <luisa/backends/ext/dx_custom_cmd.h>
 #include "../../common/shader_print_formatter.h"
@@ -1150,6 +1151,8 @@ void LCCmdBuffer::Execute(
     auto allocator = queue.CreateAllocator(maxAlloc);
     auto allocType = allocator->Type();
     bool cmdListIsEmpty = commands.empty();
+    luisa::fixed_vector<std::pair<IDXGISwapChain *, bool>, 4> present_swapchains;
+    present_swapchains.reserve(cmdList.presents().size());
     {
         std::unique_lock lck{mtx};
         LCPreProcessVisitor ppVisitor;
@@ -1304,20 +1307,59 @@ void LCCmdBuffer::Execute(
                 lck.lock();
             }
         }
+        for (auto &&present : cmdList.presents()) {
+            auto swapchain = reinterpret_cast<LCSwapChain *>(present.chain->handle());
+            auto &&rt = &swapchain->m_renderTargets[swapchain->frameIndex];
+            auto img = reinterpret_cast<TextureBase *>(present.frame.handle());
+            auto mip = present.frame.level();
+            tracker->Record(
+                rt,
+                EnhancedBarrierTracker::Range(0, 1),
+                D3D12_BARRIER_SYNC_COPY,
+                D3D12_BARRIER_ACCESS_COPY_DEST,
+                D3D12_BARRIER_LAYOUT_COPY_DEST);
+            tracker->Record(
+                img,
+                EnhancedBarrierTracker::Range(mip, 1),
+                D3D12_BARRIER_SYNC_COPY,
+                D3D12_BARRIER_ACCESS_COPY_SOURCE,
+                D3D12_BARRIER_LAYOUT_COPY_SOURCE);
+            // tracker->UpdateState(&barrier_callback);
+        }
+        if (!cmdList.presents().empty()) {
+            tracker->UpdateState(&barrier_callback);
+        }
+        for (auto &&present : cmdList.presents()) {
+            auto swapchain = reinterpret_cast<LCSwapChain *>(present.chain->handle());
+            auto &&rt = &swapchain->m_renderTargets[swapchain->frameIndex];
+            auto img = reinterpret_cast<TextureBase *>(present.frame.handle());
+            auto mip = present.frame.level();
+            swapchain->frameIndex += 1;
+            swapchain->frameIndex %= swapchain->frameCount;
+            D3D12_TEXTURE_COPY_LOCATION sourceLocation;
+            sourceLocation.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+            sourceLocation.SubresourceIndex = mip;
+            D3D12_TEXTURE_COPY_LOCATION destLocation;
+            destLocation.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+            destLocation.SubresourceIndex = 0;
+            sourceLocation.pResource = img->GetResource();
+            destLocation.pResource = rt->GetResource();
+            cmdBuffer->CmdList()->CopyTextureRegion(
+                &destLocation,
+                0, 0, 0,
+                &sourceLocation,
+                nullptr);
+            tracker->Record(
+                rt,
+                EnhancedBarrierTracker::Range(0, 1),
+                D3D12_BARRIER_SYNC_ALL,
+                D3D12_BARRIER_ACCESS_COMMON,
+                D3D12_BARRIER_LAYOUT_PRESENT);
+            present_swapchains.emplace_back(swapchain->swapChain.Get(), swapchain->vsync);
+        }
         tracker->RestoreState(&barrier_callback);
     }
-
-    if (funcs.empty()) {
-        if (cmdListIsEmpty)
-            queue.ExecuteEmpty(std::move(allocator));
-        else
-            queue.Execute(std::move(allocator));
-    } else {
-        if (cmdListIsEmpty)
-            queue.ExecuteEmptyCallbacks(std::move(allocator), std::move(funcs));
-        else
-            queue.ExecuteCallbacks(std::move(allocator), std::move(funcs));
-    }
+    queue.Execute(std::move(allocator), std::move(funcs), luisa::span{present_swapchains}, cmdListIsEmpty);
 }
 void LCCmdBuffer::Sync() {
     queue.Complete();
@@ -1325,6 +1367,7 @@ void LCCmdBuffer::Sync() {
 void LCCmdBuffer::Present(
     LCSwapChain *swapchain,
     TextureBase *img,
+    uint mip,
     size_t maxAlloc) {
     auto alloc = queue.CreateAllocator(maxAlloc);
     {
@@ -1354,7 +1397,7 @@ void LCCmdBuffer::Present(
             img_barrier.Transition.pResource = img->GetResource();
             img_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COMMON;
             img_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
-            img_barrier.Transition.Subresource = 0;
+            img_barrier.Transition.Subresource = mip;
             bd.GetCB()->CmdList()->ResourceBarrier(vstd::array_count(barriers), barriers);
         }
         // tracker->Record(
@@ -1364,7 +1407,7 @@ void LCCmdBuffer::Present(
         // tracker->UpdateState(bd);
         D3D12_TEXTURE_COPY_LOCATION sourceLocation;
         sourceLocation.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-        sourceLocation.SubresourceIndex = 0;
+        sourceLocation.SubresourceIndex = mip;
         D3D12_TEXTURE_COPY_LOCATION destLocation;
         destLocation.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
         destLocation.SubresourceIndex = 0;
@@ -1393,11 +1436,12 @@ void LCCmdBuffer::Present(
             img_barrier.Transition.pResource = img->GetResource();
             img_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
             img_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COMMON;
-            img_barrier.Transition.Subresource = 0;
+            img_barrier.Transition.Subresource = mip;
             bd.GetCB()->CmdList()->ResourceBarrier(vstd::array_count(barriers), barriers);
         }
     }
-    queue.ExecuteAndPresent(std::move(alloc), swapchain->swapChain.Get(), swapchain->vsync);
+    std::pair<IDXGISwapChain *, bool> sw{swapchain->swapChain.Get(), swapchain->vsync};
+    queue.Execute(std::move(alloc), {}, {&sw, 1}, false);
 }
 void LCCmdBuffer::CompressBC(
     TextureBase *rt,
@@ -1585,11 +1629,11 @@ void LCCmdBuffer::CompressBC(
         if (batch == batchNum - 1) {
             vstd::vector<vstd::function<void()>> callbacks;
             callbacks.emplace_back([backBuffer = std::move(backBuffer)] {});
-            queue.ExecuteCallbacks(
+            queue.Execute(
                 std::move(alloc),
-                std::move(callbacks));
+                std::move(callbacks), {}, false);
         } else {
-            queue.Execute(std::move(alloc));
+            queue.Execute(std::move(alloc), {}, {}, false);
         }
     }
 }

@@ -14,7 +14,7 @@ class Device;
 }// namespace lc::validation
 
 namespace luisa::compute {
-
+struct SwapchainPresent;
 class LC_RUNTIME_API CommandList : concepts::Noncopyable {
     friend class lc::validation::Device;
 
@@ -22,14 +22,16 @@ public:
     class Commit;
     using CommandContainer = luisa::vector<luisa::unique_ptr<Command>>;
     using CallbackContainer = luisa::vector<luisa::move_only_function<void()>>;
+    using PresentContainer = luisa::vector<SwapchainPresent>;
 
 private:
     CommandContainer _commands;
     CallbackContainer _callbacks;
+    PresentContainer _presents;
     bool _committed{false};
 
 public:
-    CommandList() noexcept = default;
+    CommandList() noexcept;
     ~CommandList() noexcept;
     CommandList(CommandList &&another) noexcept;
     CommandList &operator=(CommandList &&rhs) noexcept = delete;
@@ -40,6 +42,8 @@ public:
     CommandList &operator<<(luisa::unique_ptr<Command> &&cmd) noexcept;
     CommandList &append(luisa::unique_ptr<Command> &&cmd) noexcept;
     CommandList &add_callback(luisa::move_only_function<void()> &&callback) noexcept;
+    CommandList &add_present(SwapchainPresent &&present) noexcept;
+
     CommandList &add_range(CommandList &&cmdlist) noexcept;
     CommandList &operator<<(CommandList &&cmdlist) noexcept {
         return add_range(std::move(cmdlist));
@@ -47,9 +51,11 @@ public:
     void clear() noexcept;
     [[nodiscard]] auto commands() const noexcept { return luisa::span{_commands}; }
     [[nodiscard]] auto callbacks() const noexcept { return luisa::span{_callbacks}; }
+    [[nodiscard]] luisa::span<const SwapchainPresent> presents() const noexcept;
     [[nodiscard]] CommandContainer steal_commands() noexcept;
     [[nodiscard]] CallbackContainer steal_callbacks() noexcept;
-    [[nodiscard]] auto empty() const noexcept { return _commands.empty() && _callbacks.empty(); }
+    [[nodiscard]] PresentContainer steal_presents() noexcept;
+    [[nodiscard]] bool empty() const noexcept;
     [[nodiscard]] Commit commit() noexcept;
 };
 

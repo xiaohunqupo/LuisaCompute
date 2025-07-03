@@ -1,5 +1,6 @@
 #include <luisa/runtime/rhi/command.h>
 #include <luisa/runtime/command_list.h>
+#include <luisa/runtime/swapchain.h>
 #include <luisa/core/logging.h>
 
 namespace luisa::compute {
@@ -64,20 +65,33 @@ CommandList::CommandContainer CommandList::steal_commands() noexcept {
     return std::move(_commands);
 }
 
+CommandList::PresentContainer CommandList::steal_presents() noexcept {
+    return std::move(_presents);
+}
+
+CommandList &CommandList::add_present(SwapchainPresent &&present) noexcept {
+    _presents.emplace_back(present);
+    return *this;
+}
+
 CommandList CommandList::create(size_t reserved_command_size, size_t reserved_callback_size) noexcept {
     CommandList list{};
     list.reserve(reserved_command_size, reserved_callback_size);
     return list;
 }
+CommandList::CommandList() noexcept = default;
 
 CommandList::Commit CommandList::commit() noexcept {
     _committed = true;
     return Commit{std::move(*this)};
 }
+bool CommandList::empty() const noexcept { return _commands.empty() && _callbacks.empty() && _presents.empty(); }
+luisa::span<const SwapchainPresent> CommandList::presents() const noexcept { return luisa::span{_presents}; }
 
 CommandList::CommandList(CommandList &&another) noexcept
     : _commands{std::move(another._commands)},
       _callbacks{std::move(another._callbacks)},
+      _presents{std::move(another._presents)},
       _committed{another._committed} { another._committed = false; }
 
 }// namespace luisa::compute

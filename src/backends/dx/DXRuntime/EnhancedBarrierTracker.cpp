@@ -201,6 +201,7 @@ void EnhancedBarrierTracker::Record(
         case Resource::Tag::SwapChain:
             type = ResourceStates::Type::Texture;
             Record(ResourceView(static_cast<SwapChain const *>(res)), sync, access, layout);
+            break;
         default:
             LUISA_ERROR("Bad resource for barrier.");
             break;
@@ -500,22 +501,21 @@ void EnhancedBarrierTracker::Record(
 void EnhancedBarrierTrackerImpl::UpdateResourceState(Resource const *resPtr, ResourceStates &state) {
     state.require_update = false;
     bool is_write = false;
-    if (state.layer_states.index() == 0) {
-        auto &bf = state.layer_states.get<0>();
+    if (auto bf = state.layer_states.try_get<BufferRange>()) {
         D3D12_BUFFER_BARRIER &barrier = bufferBarriers.emplace_back();
-        barrier.SyncBefore = bf.before_sync;
-        barrier.SyncAfter = bf.after_sync;
-        barrier.AccessBefore = bf.before_access;
-        barrier.AccessAfter = bf.after_access;
+        barrier.SyncBefore = bf->before_sync;
+        barrier.SyncAfter = bf->after_sync;
+        barrier.AccessBefore = bf->before_access;
+        barrier.AccessAfter = bf->after_access;
         barrier.pResource = resPtr->GetResource();
         barrier.Offset = 0;
         barrier.Size = UINT64_MAX;
         is_write |= (barrier.AccessAfter & detail::write_access) != 0;
 
-        bf.before_sync = bf.after_sync;
-        bf.after_sync = D3D12_BARRIER_SYNC_NONE;
-        bf.before_access = bf.after_access;
-        bf.after_access = D3D12_BARRIER_ACCESS_COMMON;
+        bf->before_sync = bf->after_sync;
+        bf->after_sync = D3D12_BARRIER_SYNC_NONE;
+        bf->before_access = bf->after_access;
+        bf->after_access = D3D12_BARRIER_ACCESS_COMMON;
         // bf.after_access = bf.init_access;
     } else {// Texture
         auto &vec = state.layer_states.get<1>();
@@ -592,12 +592,11 @@ void EnhancedBarrierTrackerImpl::RestoreState(BarrierCallback *cmdBuffer) {
     for (auto &i : frameStates) {
         Resource const *resPtr = i.first;
         ResourceStates &state = i.second;
-        if (state.layer_states.index() == 0) {
-            auto &bf = state.layer_states.get<0>();
+        if (auto bf = state.layer_states.try_get<BufferRange>()) {
             D3D12_BUFFER_BARRIER &barrier = bufferBarriers.emplace_back();
             barrier.SyncBefore = D3D12_BARRIER_SYNC_ALL;
             barrier.SyncAfter = D3D12_BARRIER_SYNC_NONE;
-            barrier.AccessBefore = bf.before_access;
+            barrier.AccessBefore = bf->before_access;
             barrier.AccessAfter = D3D12_BARRIER_ACCESS_COMMON;
             barrier.pResource = resPtr->GetResource();
             barrier.Offset = 0;

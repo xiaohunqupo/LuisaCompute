@@ -64,26 +64,11 @@ BufferView CommandAllocator::BufferAllocator<T>::Allocate(size_t size, size_t al
 void CommandAllocator::Execute(
     CommandQueue *queue,
     ID3D12Fence *fence,
-    uint64 fenceIndex) {
-    ID3D12CommandList *cmdList = cbuffer->CmdList();
-    auto cmdQueue = queue->Queue();
-    if (!device->deviceSettings) {
-        cmdQueue->ExecuteCommandLists(
-            1,
-            &cmdList);
-        ThrowIfFailed(cmdQueue->Signal(fence, fenceIndex));
-    } else {
-        if (!device->deviceSettings->ExecuteCommandList(cmdQueue, static_cast<ID3D12GraphicsCommandList *>(cmdList)))
-            cmdQueue->ExecuteCommandLists(
-                1,
-                &cmdList);
-        if (!device->deviceSettings->SignalFence(cmdQueue, fence, fenceIndex)) {
-            ThrowIfFailed(cmdQueue->Signal(fence, fenceIndex));
-        }
-    }
-}
-void CommandAllocator::ExecuteAndPresent(CommandQueue *queue, ID3D12Fence *fence, uint64 fenceIndex, IDXGISwapChain *swapchain, bool vsync) {
-    auto present = [&]() {
+    uint64 fenceIndex,
+    luisa::span<std::pair<IDXGISwapChain *, bool>> swapChains, bool cmdlist_is_empty) {
+    if (cmdlist_is_empty && swapChains.empty()) return;
+    auto present = [&](IDXGISwapChain *swapchain, bool vsync) {
+        if (!swapchain) return;
         HRESULT present_hresult;
         if (vsync) {
             present_hresult = swapchain->Present(1, 0);
@@ -101,23 +86,28 @@ void CommandAllocator::ExecuteAndPresent(CommandQueue *queue, ID3D12Fence *fence
     ID3D12CommandList *cmdList = cbuffer->CmdList();
     auto cmdQueue = queue->Queue();
     if (!device->deviceSettings) {
-        cmdQueue->ExecuteCommandLists(
-            1,
-            &cmdList);
-        present();
-        ThrowIfFailed(cmdQueue->Signal(fence, fenceIndex));
-    } else {
-        if (!device->deviceSettings->ExecuteCommandList(cmdQueue, static_cast<ID3D12GraphicsCommandList *>(cmdList)))
+        if (!cmdlist_is_empty) {
             cmdQueue->ExecuteCommandLists(
                 1,
                 &cmdList);
-        present();
+        }
+        for (auto &i : swapChains)
+            present(i.first, i.second);
+        ThrowIfFailed(cmdQueue->Signal(fence, fenceIndex));
+    } else {
+        if (!cmdlist_is_empty) {
+            if (!device->deviceSettings->ExecuteCommandList(cmdQueue, static_cast<ID3D12GraphicsCommandList *>(cmdList)))
+                cmdQueue->ExecuteCommandLists(
+                    1,
+                    &cmdList);
+        }
+        for (auto &i : swapChains)
+            present(i.first, i.second);
         if (!device->deviceSettings->SignalFence(cmdQueue, fence, fenceIndex)) {
             ThrowIfFailed(cmdQueue->Signal(fence, fenceIndex));
         }
     }
 }
-
 void CommandAllocator::Complete(
     CommandQueue *queue,
     ID3D12Fence *fence,

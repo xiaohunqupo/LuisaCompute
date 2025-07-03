@@ -92,6 +92,7 @@ public:
     void Present(
         LCSwapChain *swapchain,
         TextureBase *rt,
+        uint mip,
         size_t maxAlloc);
     void CompressBC(
         TextureBase *rt,
