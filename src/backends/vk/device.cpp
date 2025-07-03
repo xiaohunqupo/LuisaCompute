@@ -379,9 +379,12 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
         _enable_device_exts.emplace_back(VK_KHR_RAY_QUERY_EXTENSION_NAME);
         _enable_device_exts.emplace_back(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
         _enable_device_exts.emplace_back(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
+        // _enable_device_exts.emplace_back(VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME);
         _enable_device_exts.emplace_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
         _enable_device_exts.emplace_back(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
     }
+
+    
 
     VkPhysicalDeviceBufferDeviceAddressFeatures device_buffer_feature{
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES,
@@ -719,7 +722,7 @@ void Device::synchronize_stream(uint64_t stream_handle) noexcept {
 }
 void Device::dispatch(
     uint64_t stream_handle, CommandList &&list) noexcept {
-    reinterpret_cast<Stream *>(stream_handle)->dispatch(list.commands(), list.steal_callbacks(), true);
+    reinterpret_cast<Stream *>(stream_handle)->dispatch(list.commands(), list.steal_callbacks(), inqueue_limit);
 }
 
 // swap chain
@@ -743,7 +746,9 @@ SwapchainCreationInfo Device::create_swapchain(const SwapchainOption &option, ui
 void Device::destroy_swap_chain(uint64_t handle) noexcept {
     delete reinterpret_cast<Swapchain *>(handle);
 }
-void Device::present_display_in_stream(uint64_t stream_handle, uint64_t swapchain_handle, uint64_t image_handle) noexcept {}
+void Device::present_display_in_stream(uint64_t stream_handle, uint64_t swapchain_handle, uint64_t image_handle) noexcept {
+    reinterpret_cast<Stream *>(stream_handle)->present(reinterpret_cast<Texture const *>(image_handle), 0, reinterpret_cast<Swapchain *>(swapchain_handle), inqueue_limit);
+}
 
 // kernel
 ShaderCreationInfo Device::create_shader(const ShaderOption &option, Function kernel) noexcept {

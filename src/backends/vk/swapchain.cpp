@@ -200,12 +200,12 @@ void _create_framebuffers(
     }
 }
 void _create_vertex_buffer(
-    VkCommandBuffer command_buffer,
+    CommandBuffer &cmdbuffer,
     vstd::vector<vstd::function<void()>> &after_render_callback,
     VkPhysicalDevice physical_device,
     VkDevice device,
-    VkBuffer vertex_buffer,
-    VkDeviceMemory vertex_buffer_memory) noexcept {
+    VkBuffer &vertex_buffer,
+    VkDeviceMemory &vertex_buffer_memory) noexcept {
 
     const std::array vertices = {1.f, 0.f,
                                  0.f, 0.f,
@@ -263,16 +263,48 @@ void _create_vertex_buffer(
     VkCommandBufferBeginInfo begin_info{};
     begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    VK_CHECK_RESULT(vkBeginCommandBuffer(command_buffer, &begin_info));
+    auto command_buffer = cmdbuffer.cmdbuffer();
     VkBufferCopy copy_region{};
     copy_region.size = buffer_size;
-    vkCmdCopyBuffer(command_buffer, staging_buffer, vertex_buffer, 1, &copy_region);
-    VK_CHECK_RESULT(vkEndCommandBuffer(command_buffer));
 
-    VkSubmitInfo submit_info{};
-    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submit_info.commandBufferCount = 1;
-    submit_info.pCommandBuffers = &command_buffer;
+    {
+        VkBufferMemoryBarrier2 vertex_copy_dst_barrier{};
+        vertex_copy_dst_barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+        vertex_copy_dst_barrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
+        vertex_copy_dst_barrier.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+        vertex_copy_dst_barrier.srcAccessMask = VK_ACCESS_2_NONE;
+        vertex_copy_dst_barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+        vertex_copy_dst_barrier.srcQueueFamilyIndex = cmdbuffer.resource_barrier->queue_index;
+        vertex_copy_dst_barrier.dstQueueFamilyIndex = vertex_copy_dst_barrier.srcQueueFamilyIndex;
+        vertex_copy_dst_barrier.buffer = vertex_buffer;
+        vertex_copy_dst_barrier.offset = 0;
+        vertex_copy_dst_barrier.size = buffer_size;
+        VkDependencyInfo vertex_copy_dst_info{};
+        vertex_copy_dst_info.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+        vertex_copy_dst_info.bufferMemoryBarrierCount = 1;
+        vertex_copy_dst_info.pBufferMemoryBarriers = &vertex_copy_dst_barrier;
+        vkCmdPipelineBarrier2(cmdbuffer.cmdbuffer(), &vertex_copy_dst_info);
+    }
+
+    vkCmdCopyBuffer(command_buffer, staging_buffer, vertex_buffer, 1, &copy_region);
+    {
+        VkBufferMemoryBarrier2 vertex_copy_dst_barrier{};
+        vertex_copy_dst_barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+        vertex_copy_dst_barrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+        vertex_copy_dst_barrier.dstStageMask = VK_PIPELINE_STAGE_2_VERTEX_ATTRIBUTE_INPUT_BIT;
+        vertex_copy_dst_barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+        vertex_copy_dst_barrier.dstAccessMask = VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT;
+        vertex_copy_dst_barrier.srcQueueFamilyIndex = cmdbuffer.resource_barrier->queue_index;
+        vertex_copy_dst_barrier.dstQueueFamilyIndex = vertex_copy_dst_barrier.srcQueueFamilyIndex;
+        vertex_copy_dst_barrier.buffer = vertex_buffer;
+        vertex_copy_dst_barrier.offset = 0;
+        vertex_copy_dst_barrier.size = buffer_size;
+        VkDependencyInfo vertex_copy_dst_info{};
+        vertex_copy_dst_info.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+        vertex_copy_dst_info.bufferMemoryBarrierCount = 1;
+        vertex_copy_dst_info.pBufferMemoryBarriers = &vertex_copy_dst_barrier;
+        vkCmdPipelineBarrier2(cmdbuffer.cmdbuffer(), &vertex_copy_dst_info);
+    }
     // after commit
     after_render_callback.emplace_back(
         [device, staging_buffer, staging_buffer_memory]() {
@@ -287,7 +319,7 @@ void _record_command_buffer(
     luisa::vector<VkFramebuffer> &swapchain_framebuffers,
     VkExtent2D const &swapchain_extent,
     VkBuffer vertex_buffer,
-    luisa::vector<VkDescriptorSet> &descriptor_sets,
+    VkDescriptorSet &descriptor_set,
     VkPipeline graphics_pipeline,
     VkPipelineLayout pipeline_layout,
     uint current_frame,
@@ -321,7 +353,7 @@ void _record_command_buffer(
 
     auto vertex_buffer_offset = static_cast<VkDeviceSize>(0u);
     vkCmdBindVertexBuffers(command_buffer, 0, 1, &vertex_buffer, &vertex_buffer_offset);
-    vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 1, &descriptor_sets[current_frame], 0, nullptr);
+    vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 1, &descriptor_set, 0, nullptr);
 
     vkCmdDraw(command_buffer, 6u, 1, 0, 0);
     vkCmdEndRenderPass(command_buffer);
@@ -330,19 +362,15 @@ void _record_command_buffer(
 void _create_descriptor_sets(
     VkDevice device,
     luisa::vector<VkImage> &swapchain_images,
-    luisa::vector<VkDescriptorSet> &descriptor_sets,
+    VkDescriptorSet &descriptor_set,
     VkDescriptorSetLayout descriptor_set_layout,
-    luisa::vector<VkDescriptorImageInfo> &cached_image_infos,
     VkDescriptorPool desc_pool) noexcept {
-    luisa::vector<VkDescriptorSetLayout> layouts(swapchain_images.size(), descriptor_set_layout);
     VkDescriptorSetAllocateInfo alloc_info{};
     alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     alloc_info.descriptorPool = desc_pool;
-    alloc_info.descriptorSetCount = static_cast<uint32_t>(swapchain_images.size());
-    alloc_info.pSetLayouts = layouts.data();
-    descriptor_sets.resize(swapchain_images.size());
-    VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &alloc_info, descriptor_sets.data()));
-    cached_image_infos.resize(swapchain_images.size());
+    alloc_info.descriptorSetCount = 1;
+    alloc_info.pSetLayouts = &descriptor_set_layout;
+    VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &alloc_info, &descriptor_set));
 }
 
 void _create_pipeline(
@@ -546,16 +574,35 @@ void Swapchain::create_swapchain(
             }
             if (allow_hdr) {
                 for (auto format : formats) {
-                    if (format.colorSpace == VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT) { return format; }
+                    if (format.colorSpace == VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT) {
+                        return format;
+                    }
                 }
             }
+            // for (auto format : formats) {
+            //     if (format.format == VK_FORMAT_R16G16B16A16_SFLOAT) {
+            //         format.colorSpace = VK_COLOR_SPACE_BT709_LINEAR_EXT;
+            //         return format;
+            //     }
+            // }
+            // if (allow_hdr) {
+            //     for (auto format : formats) {
+            //         if (format.format == VK_FORMAT_A2B10G10R10_UNORM_PACK32) {
+            //             return format;
+            //         }
+            //     }
+            // }
             for (auto format : formats) {
                 if (format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR &&
                     (format.format == VK_FORMAT_R8G8B8A8_SRGB ||
-                     format.format == VK_FORMAT_B8G8R8A8_SRGB)) { return format; }
+                     format.format == VK_FORMAT_B8G8R8A8_SRGB)) {
+                    return format;
+                }
             }
             for (auto format : formats) {
-                if (format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) { return format; }
+                if (format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+                    return format;
+                }
             }
             return formats.front();
         }();
@@ -647,9 +694,14 @@ void Swapchain::create_swapchain(
         _swapchain_extent);
     _image_available_semaphores.resize(_swapchain_images.size());
     _render_finished_semaphores.resize(_swapchain_images.size());
+    _in_flight_fences.resize(_swapchain_images.size());
     VkSemaphoreCreateInfo semaphore_info{};
     semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    VkFenceCreateInfo fence_info{};
+    fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fence_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
     for (auto i : vstd::range(_swapchain_images.size())) {
+        VK_CHECK_RESULT(vkCreateFence(device()->logic_device(), &fence_info, Device::alloc_callbacks(), &_in_flight_fences[i]))
         VK_CHECK_RESULT(vkCreateSemaphore(device()->logic_device(), &semaphore_info, Device::alloc_callbacks(), &_image_available_semaphores[i]));
         VK_CHECK_RESULT(vkCreateSemaphore(device()->logic_device(), &semaphore_info, Device::alloc_callbacks(), &_render_finished_semaphores[i]));
     }
@@ -704,6 +756,13 @@ Swapchain::~Swapchain() {
     for (auto &i : _image_available_semaphores) {
         vkDestroySemaphore(device, i, Device::alloc_callbacks());
     }
+    for (auto &i : _render_finished_semaphores) {
+        vkDestroySemaphore(device, i, Device::alloc_callbacks());
+    }
+    for (auto &i : _in_flight_fences) {
+        vkDestroyFence(device, i, Device::alloc_callbacks());
+    }
+
     vkDestroyPipeline(device, _graphics_pipeline, Device::alloc_callbacks());
     vkDestroyPipelineLayout(device, _pipeline_layout, Device::alloc_callbacks());
     vkDestroyBuffer(device, _vertex_buffer, Device::alloc_callbacks());
@@ -716,17 +775,22 @@ void Swapchain::present(
     CommandBuffer &cmdbuffer,
     VkQueue queue,
     VkSemaphore wait, VkSemaphore signal,
-    VkImageView image,
-    VkImageLayout image_layout,
-    VkTimelineSemaphoreSubmitInfo const *timeline_submit_info) {
-    luisa::vector<VkDescriptorImageInfo> cached_image_infos;
-    luisa::vector<VkDescriptorSet> descriptor_sets;
+    Texture const *tex,
+    uint mip,
+    VkTimelineSemaphoreSubmitInfo const *timeline_submit_info,
+    vstd::FuncRef<void()> &&end_cmdlist) {
+    if (!_vertex_buffer) {
+        _create_vertex_buffer(cmdbuffer, cmdbuffer.states()->_callbacks, device()->physical_device(), device()->logic_device(), _vertex_buffer, _vertex_buffer_memory);
+    }
+    VK_CHECK_RESULT(vkWaitForFences(
+        device()->logic_device(), 1, &_in_flight_fences[_current_frame],
+        VK_TRUE, UINT64_MAX));
+    VkDescriptorSet descriptor_set;
     _create_descriptor_sets(
         device()->logic_device(),
         _swapchain_images,
-        descriptor_sets,
+        descriptor_set,
         _descriptor_set_layout,
-        cached_image_infos,
         cmdbuffer.states()->_desc_pool);
 
     auto image_index = 0u;
@@ -742,33 +806,61 @@ void Swapchain::present(
             "Failed to acquire swapchain image: {}.",
             luisa::to_string(ret));
     }
+    VK_CHECK_RESULT(vkResetFences(device()->logic_device(), 1, &_in_flight_fences[_current_frame]));
+    auto image = tex->vk_image();
+    auto image_format = Texture::to_vk_format(tex->format());
+    cmdbuffer.resource_barrier->record(
+        TexView{tex, mip},
+        ResourceBarrier::Usage::RasterRead);
+    cmdbuffer.resource_barrier->update_states(cmdbuffer.cmdbuffer());
+
+    auto image_layout = cmdbuffer.resource_barrier->get_layout(tex, mip);
+    VkImageViewCreateInfo image_view_create_info{};
+    image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    image_view_create_info.image = image,
+    image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    image_view_create_info.format = image_format;
+    image_view_create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    image_view_create_info.subresourceRange.baseMipLevel = mip;
+    image_view_create_info.subresourceRange.levelCount = 1u;
+    image_view_create_info.subresourceRange.baseArrayLayer = 0u;
+    image_view_create_info.subresourceRange.layerCount = 1u;
+    VkImageView img_view;
+    VK_CHECK_RESULT(vkCreateImageView(
+        device()->logic_device(),
+        &image_view_create_info,
+        Device::alloc_callbacks(),
+        &img_view));
+    cmdbuffer.states()->_callbacks.emplace_back([img_view, device = this->device()->logic_device()]() {
+        vkDestroyImageView(device, img_view, Device::alloc_callbacks());
+    });
 
     // update descriptor set if necessary
-    if (image != _cached_image_infos[_current_frame].imageView ||
-        image_layout != _cached_image_infos[_current_frame].imageLayout) {
-        _cached_image_infos[_current_frame].imageView = image;
-        _cached_image_infos[_current_frame].imageLayout = image_layout;
-        VkWriteDescriptorSet descriptor_write{};
-        descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptor_write.dstBinding = 0u;
-        descriptor_write.dstArrayElement = 0u;
-        descriptor_write.dstSet = descriptor_sets[_current_frame];
-        descriptor_write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-        descriptor_write.descriptorCount = 1u;
-        descriptor_write.pImageInfo = &_cached_image_infos[_current_frame];
-        vkUpdateDescriptorSets(device()->logic_device(), 1u, &descriptor_write, 0u, nullptr);
-    }
+    VkDescriptorImageInfo image_info{};
+    image_info.imageView = img_view;
+    image_info.imageLayout = image_layout;
+    VkWriteDescriptorSet descriptor_write{};
+    descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptor_write.dstBinding = 0u;
+    descriptor_write.dstArrayElement = 0u;
+    descriptor_write.dstSet = descriptor_set;
+    descriptor_write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    descriptor_write.descriptorCount = 1u;
+    descriptor_write.pImageInfo = &image_info;
+    vkUpdateDescriptorSets(device()->logic_device(), 1u, &descriptor_write, 0u, nullptr);
+
     _record_command_buffer(
         cmdbuffer.cmdbuffer(),
         _render_pass,
         _swapchain_framebuffers,
         _swapchain_extent,
         _vertex_buffer,
-        descriptor_sets,
+        descriptor_set,
         _graphics_pipeline,
         _pipeline_layout,
         _current_frame,
         image_index);
+    end_cmdlist();
     // submit command buffer
     VkSubmitInfo submit_info{};
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;

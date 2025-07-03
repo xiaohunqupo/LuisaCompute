@@ -39,6 +39,7 @@ class Device : public DeviceInterface, public vstd::IOperatorNewBase {
     vstd::optional<VkAllocator> _allocator;
     BinaryIO const *_binary_io{};
     vstd::unique_ptr<DefaultBinaryIO> _default_file_io;
+    bool inqueue_limit = true; // TODO
     void _init_device(uint32_t selectedDevice, bool fallback);
 public:
     struct HeapAlloc {

@@ -1,6 +1,7 @@
 #pragma once
 #include "resource.h"
 #include "event.h"
+#include "texture.h"
 #include "upload_buffer.h"
 #include "readback_buffer.h"
 #include "default_buffer.h"
@@ -16,6 +17,7 @@
 namespace lc::vk {
 class Event;
 class Stream;
+class Swapchain;
 using namespace luisa::compute;
 class CommandBuffer;
 namespace temp_buffer {
@@ -170,6 +172,11 @@ public:
     void dispatch(
         vstd::span<const luisa::unique_ptr<Command>> cmds,
         Callbacks &&callbacks,
+        bool inqueue_limit);
+    void present(
+        Texture const *tex,
+        uint mip,
+        Swapchain *swapchain,
         bool inqueue_limit);
     void sync();
     void signal(Event *event, uint64_t value);

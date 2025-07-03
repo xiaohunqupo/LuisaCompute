@@ -6,6 +6,7 @@
 #include "log.h"
 #include "blas.h"
 #include "tlas.h"
+#include "swapchain.h"
 namespace lc::vk {
 template<typename Visitor>
 void DecodeCmd(vstd::span<const Argument> args, Visitor &&visitor) {
@@ -518,6 +519,65 @@ Stream::~Stream() {
     _thd.join();
     scratch_buffer_alloc_visitor._buffers.clear();
     while (auto p = _cmdbuffers.pop()) {
+    }
+}
+void Stream::present(
+    Texture const *tex,
+    uint mip,
+    Swapchain *swapchain,
+    bool inqueue_limit) {
+    if (inqueue_limit) {
+        if (_evt.last_fence() > 2) {
+            _evt.sync(_evt.last_fence() - 2);
+        }
+    }
+    auto fence = _evt.last_fence() + 1;
+    {
+        CommandBuffer cmdbuffer = [&]() {
+            auto p = _cmdbuffers.pop();
+            if (p) return std::move(*p);
+            return CommandBuffer{*this};
+        }();
+        scratch_buffer_alloc_visitor.cmdbuffer = &cmdbuffer;
+        scratch_buffer_alloc_visitor.device = device();
+
+        auto cb = cmdbuffer.cmdbuffer();
+
+        cmdbuffer.resource_barrier = &resource_barrier;
+        cmdbuffer.uniform_data = &uniform_data;
+        cmdbuffer.desc_sets = &desc_sets;
+        cmdbuffer.dispatch_offsets = &dispatch_offsets;
+        cmdbuffer.write_desc_sets = &write_desc_sets;
+        cmdbuffer.bindless_cache = &bindless_cache;
+        cmdbuffer.temp_desc = &temp_desc;
+        cmdbuffer.scratch_buffer_alloc = &scratch_buffer_alloc;
+        cmdbuffer.begin();
+        auto end_func = [&]() {
+            resource_barrier.restore_states(cmdbuffer.cmdbuffer());
+            cmdbuffer.end();
+        };
+        swapchain->present(
+            cmdbuffer,
+            _queue,
+            nullptr,
+            nullptr,
+            tex,
+            mip,
+            nullptr,
+            end_func);
+        _evt.signal(*this, fence, nullptr);
+
+        _mtx.lock();
+        _exec.push(SyncExt{
+            .evt = &_evt,
+            .value = fence});
+        _exec.push(std::move(cmdbuffer));
+        _exec.push(NotifyEvt{
+            .evt = &_evt,
+            .value = fence});
+
+        _mtx.unlock();
+        _cv.notify_one();
     }
 }
 void Stream::dispatch(

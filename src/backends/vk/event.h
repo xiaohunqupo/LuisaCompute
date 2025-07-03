@@ -15,6 +15,7 @@ class Event : public Resource {
     void host_wait(uint64_t value);
     void notify(uint64_t value);
 public:
+    static VkTimelineSemaphoreSubmitInfo get_timeline_submit(uint64_t const *value_ptr);
     [[nodiscard]] auto semaphore() const { return _semaphore; }
     [[nodiscard]] auto last_fence() const { return lastFence; }
     [[nodiscard]] bool is_complete(uint64_t fence) const {

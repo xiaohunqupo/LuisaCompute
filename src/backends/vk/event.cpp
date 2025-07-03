@@ -22,19 +22,23 @@ void Event::update_fence(uint64_t value) {
     std::lock_guard lck(eventMtx);
     lastFence = std::max(lastFence, value);
 }
-void Event::signal(Stream &stream, uint64_t value, VkCommandBuffer *cmdbuffer) {
-    {
-        std::lock_guard lck(eventMtx);
-        lastFence = std::max(lastFence, value);
-    }
+VkTimelineSemaphoreSubmitInfo Event::get_timeline_submit(uint64_t const *value_ptr) {
     VkTimelineSemaphoreSubmitInfo timelineInfo1{};
     timelineInfo1.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
     timelineInfo1.pNext = nullptr;
     timelineInfo1.waitSemaphoreValueCount = 0;
     timelineInfo1.pWaitSemaphoreValues = nullptr;
     timelineInfo1.signalSemaphoreValueCount = 1;
-    timelineInfo1.pSignalSemaphoreValues = &value;
+    timelineInfo1.pSignalSemaphoreValues = value_ptr;
 
+    return timelineInfo1;
+}
+void Event::signal(Stream &stream, uint64_t value, VkCommandBuffer *cmdbuffer) {
+    {
+        std::lock_guard lck(eventMtx);
+        lastFence = std::max(lastFence, value);
+    }
+    auto timelineInfo1 = get_timeline_submit(&value);
     VkSubmitInfo info1{};
     info1.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     info1.pNext = &timelineInfo1;

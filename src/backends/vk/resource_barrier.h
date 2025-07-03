@@ -7,6 +7,7 @@ namespace lc::vk {
 class BindlessArray;
 class Buffer;
 class ResourceBarrier {
+public:
     struct Range {
         int64_t min;
         int64_t max;
@@ -69,6 +70,7 @@ class ResourceBarrier {
     using ResourceView = vstd::variant<
         BufferView,
         TexView>;
+private:
     vstd::HashMap<Resource const *, ResourceStates> frame_states;
     vstd::vector<std::pair<Resource const *, ResourceStates *>> current_update_states;
     vstd::HashMap<Resource const *, size_t /* size */> write_state_map;
