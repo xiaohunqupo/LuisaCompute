@@ -1054,6 +1054,8 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                     } else if (!unaopName.empty()) {
                         UnaryOp lcUnaop = (unaopName == "PLUS")  ? UnaryOp::PLUS :
                                           (unaopName == "MINUS") ? UnaryOp::MINUS :
+                                          (unaopName == "BIT_NOT") ? UnaryOp::BIT_NOT :
+                                          (unaopName == "NOT") ? UnaryOp::NOT :
                                                                    (clangcxx_log_error("unsupportted unary op {}!!", unaopName.data()), UnaryOp::PLUS);
                         if (auto lcReturnType = db->FindOrAddType(cxxReturnType, x->getBeginLoc()))
                         {
