@@ -172,6 +172,7 @@ public:
     void dispatch(
         vstd::span<const luisa::unique_ptr<Command>> cmds,
         Callbacks &&callbacks,
+        vstd::span<const SwapchainPresent> presents,
         bool inqueue_limit);
     void present(
         Texture const *tex,

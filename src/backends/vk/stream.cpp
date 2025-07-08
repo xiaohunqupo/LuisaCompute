@@ -8,7 +8,15 @@
 #include "tlas.h"
 #include "swapchain.h"
 #include "sparse_buffer.h"
+#include <luisa/runtime/swapchain.h>
 namespace lc::vk {
+struct PresentCommand {
+    luisa::fixed_vector<VkSemaphore, 1> submit_wait_semaphores;
+    luisa::fixed_vector<VkSemaphore, 1> signal_semaphores;
+    luisa::fixed_vector<VkPipelineStageFlags, 1> wait_stages;
+    luisa::fixed_vector<VkSemaphore, 1> present_wait_semaphores;
+    luisa::fixed_vector<uint, 1> image_indices;
+};
 template<typename Visitor>
 void DecodeCmd(vstd::span<const Argument> args, Visitor &&visitor) {
     using Tag = Argument::Tag;
@@ -522,6 +530,7 @@ Stream::~Stream() {
     while (auto p = _cmdbuffers.pop()) {
     }
 }
+
 void Stream::present(
     Texture const *tex,
     uint mip,
@@ -553,21 +562,49 @@ void Stream::present(
         cmdbuffer.temp_desc = &temp_desc;
         cmdbuffer.scratch_buffer_alloc = &scratch_buffer_alloc;
         cmdbuffer.begin();
-        auto end_func = [&]() {
-            resource_barrier.restore_states(cmdbuffer.cmdbuffer());
-            cmdbuffer.end();
-        };
+        PresentCommand present_cmd;
+        present_cmd.submit_wait_semaphores.emplace_back();
+        present_cmd.signal_semaphores.emplace_back();
+        present_cmd.wait_stages.emplace_back();
+        present_cmd.present_wait_semaphores.emplace_back();
+        present_cmd.image_indices.emplace_back();
         swapchain->present(
             cmdbuffer,
-            _queue,
-            nullptr,
-            nullptr,
+            present_cmd.submit_wait_semaphores.back(), present_cmd.signal_semaphores.back(),
+            present_cmd.wait_stages.back(),
+            present_cmd.present_wait_semaphores.back(),
+            present_cmd.image_indices.back(),
             tex,
-            mip,
-            nullptr,
-            end_func);
-        _evt.signal(*this, fence, nullptr);
+            mip);
 
+        resource_barrier.restore_states(cmdbuffer.cmdbuffer());
+        cmdbuffer.end();
+
+        {
+            VkSubmitInfo submit_info{};
+            submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+            submit_info.waitSemaphoreCount = present_cmd.submit_wait_semaphores.size();
+            submit_info.pWaitSemaphores = present_cmd.submit_wait_semaphores.data();
+            submit_info.pWaitDstStageMask = present_cmd.wait_stages.data();
+            submit_info.signalSemaphoreCount = present_cmd.signal_semaphores.size();
+            submit_info.pSignalSemaphores = present_cmd.signal_semaphores.data();
+            submit_info.commandBufferCount = 1;
+            auto _cmdbuffer = cmdbuffer.cmdbuffer();
+            submit_info.pCommandBuffers = &_cmdbuffer;
+            VK_CHECK_RESULT(vkQueueSubmit(_queue, 1u, &submit_info, nullptr));
+        }
+        {
+            VkPresentInfoKHR present_info{};
+            present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+            auto swp_ptr = swapchain->swapchain();
+            present_info.pSwapchains = &swp_ptr;
+            present_info.swapchainCount = 1u;
+            present_info.waitSemaphoreCount = present_cmd.present_wait_semaphores.size();
+            present_info.pWaitSemaphores = present_cmd.present_wait_semaphores.data();
+            present_info.pImageIndices = present_cmd.image_indices.data();
+            VK_CHECK_RESULT(vkQueuePresentKHR(_queue, &present_info));
+        }
+        _evt.signal(*this, fence);
         _mtx.lock();
         _exec.push(SyncExt{
             .evt = &_evt,
@@ -584,7 +621,10 @@ void Stream::present(
 void Stream::dispatch(
     vstd::span<const luisa::unique_ptr<Command>> cmds,
     luisa::vector<luisa::move_only_function<void()>> &&callbacks,
+    vstd::span<const SwapchainPresent> presents,
     bool inqueue_limit) {
+    PresentCommand present_cmd;
+    luisa::fixed_vector<VkSwapchainKHR, 1> vk_swapchains;
 
     if (cmds.empty() && callbacks.empty()) {
         return;
@@ -616,8 +656,53 @@ void Stream::dispatch(
         cmdbuffer.scratch_buffer_alloc = &scratch_buffer_alloc;
         cmdbuffer.begin();
         cmdbuffer.execute(cmds);
+        for (auto &i : presents) {
+            auto swapchain = reinterpret_cast<lc::vk::Swapchain *>(i.chain->handle());
+            auto tex = reinterpret_cast<Texture *>(i.frame.handle());
+            auto mip = i.frame.level();
+
+            present_cmd.submit_wait_semaphores.emplace_back();
+            present_cmd.signal_semaphores.emplace_back();
+            present_cmd.wait_stages.emplace_back();
+            present_cmd.present_wait_semaphores.emplace_back();
+            present_cmd.image_indices.emplace_back();
+            vk_swapchains.emplace_back(swapchain->swapchain());
+
+            swapchain->present(
+                cmdbuffer,
+                present_cmd.submit_wait_semaphores.back(), present_cmd.signal_semaphores.back(),
+                present_cmd.wait_stages.back(),
+                present_cmd.present_wait_semaphores.back(),
+                present_cmd.image_indices.back(),
+                tex,
+                mip);
+        }
+        resource_barrier.restore_states(cmdbuffer.cmdbuffer());
         cmdbuffer.end();
-        _evt.signal(*this, fence, &cb);
+        if (!presents.empty()) {
+            VkSubmitInfo submit_info{};
+            submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+            submit_info.waitSemaphoreCount = present_cmd.submit_wait_semaphores.size();
+            submit_info.pWaitSemaphores = present_cmd.submit_wait_semaphores.data();
+            submit_info.pWaitDstStageMask = present_cmd.wait_stages.data();
+            submit_info.signalSemaphoreCount = present_cmd.signal_semaphores.size();
+            submit_info.pSignalSemaphores = present_cmd.signal_semaphores.data();
+            submit_info.commandBufferCount = 1;
+            auto _cmdbuffer = cmdbuffer.cmdbuffer();
+            submit_info.pCommandBuffers = &_cmdbuffer;
+            VK_CHECK_RESULT(vkQueueSubmit(_queue, 1u, &submit_info, nullptr));
+
+            VkPresentInfoKHR present_info{};
+            present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+            present_info.pSwapchains = vk_swapchains.data();
+            present_info.swapchainCount = vk_swapchains.size();
+            present_info.waitSemaphoreCount = present_cmd.present_wait_semaphores.size();
+            present_info.pWaitSemaphores = present_cmd.present_wait_semaphores.data();
+            present_info.pImageIndices = present_cmd.image_indices.data();
+            VK_CHECK_RESULT(vkQueuePresentKHR(_queue, &present_info));
+        }
+        _evt.signal(*this, fence, presents.empty() ? &cb : nullptr);
+        temp_desc.clear();
         _mtx.lock();
         _exec.push(SyncExt{
             .evt = &_evt,
@@ -1376,9 +1461,6 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
             }
         }
     }
-    resource_barrier->restore_states(_cmdbuffer);
-
-    temp_desc->clear();
 }
 
 vstd::span<VkDescriptorSet> Shader::allocate_desc_set(VkDescriptorPool pool, vstd::vector<VkDescriptorSet> &descs) const {

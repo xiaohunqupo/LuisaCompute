@@ -721,7 +721,7 @@ void Device::synchronize_stream(uint64_t stream_handle) noexcept {
 }
 void Device::dispatch(
     uint64_t stream_handle, CommandList &&list) noexcept {
-    reinterpret_cast<Stream *>(stream_handle)->dispatch(list.commands(), list.steal_callbacks(), inqueue_limit);
+    reinterpret_cast<Stream *>(stream_handle)->dispatch(list.commands(), list.steal_callbacks(), list.presents(), inqueue_limit);
 }
 
 // swap chain
