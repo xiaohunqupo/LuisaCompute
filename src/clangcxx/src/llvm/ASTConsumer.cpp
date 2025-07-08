@@ -1472,8 +1472,13 @@ auto FunctionBuilderBuilder::build(const clang::FunctionDecl *S, bool allowKerne
                 };
                 luisa::vector<const clang::VarDecl *> input_params(params.begin(), params.end());
                 if (is_kernel) {
-                    for (const auto *var : db->extern_vars) {
+                    for (const auto *var : db->extern_vars) 
+                    {
                         collect_arg(var);
+                    }
+                    for (const auto [redecl, to] : db->extern_var_redirects)
+                    {
+                        stack.SetLocal(redecl, stack.GetLocal(to));
                     }
                 }
                 for (auto param : params) {
@@ -1540,7 +1545,17 @@ void ExternVarHandler::run(const MatchFinder::MatchResult &Result) {
         bool ignore = false;
         for (auto Anno : S->specific_attrs<clang::AnnotateAttr>())
             ignore |= isIgnore(Anno);
-        if (!ignore && S->hasExternalStorage()) {
+
+        if (!ignore && S->hasExternalStorage()) 
+        {
+            for (auto redecl : S->redecls())
+            {
+                if (db->extern_vars.contains(redecl))
+                {
+                    db->extern_var_redirects[S] = redecl;
+                    return;
+                }
+            }
             db->extern_vars.emplace(S);
         }
     }
