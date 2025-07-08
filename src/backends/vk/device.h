@@ -13,6 +13,7 @@ namespace lc::vk {
 class ComputeShader;
 using namespace luisa;
 using namespace luisa::compute;
+static constexpr size_t sparse_buffer_size = 65536ull;
 class Device : public DeviceInterface, public vstd::IOperatorNewBase {
     vstd::optional<vks::VulkanDevice> _vk_device;
     VkPhysicalDeviceProperties _device_properties{};
@@ -39,7 +40,7 @@ class Device : public DeviceInterface, public vstd::IOperatorNewBase {
     vstd::optional<VkAllocator> _allocator;
     BinaryIO const *_binary_io{};
     vstd::unique_ptr<DefaultBinaryIO> _default_file_io;
-    bool inqueue_limit = true; // TODO
+    bool inqueue_limit = true;// TODO
     void _init_device(uint32_t selectedDevice, bool fallback);
 public:
     struct HeapAlloc {
@@ -159,5 +160,19 @@ public:
 
     // query
     void set_name(luisa::compute::Resource::Tag resource_tag, uint64_t resource_handle, luisa::string_view name) noexcept override;
+    ResourceCreationInfo allocate_sparse_texture_heap(size_t byte_size) noexcept override;
+    void deallocate_sparse_texture_heap(uint64_t handle) noexcept override;
+    ResourceCreationInfo allocate_sparse_buffer_heap(size_t byte_size) noexcept override;
+    void deallocate_sparse_buffer_heap(uint64_t handle) noexcept override;
+    void update_sparse_resources(
+        uint64_t stream_handle,
+        luisa::vector<SparseUpdateTile> &&textures_update) noexcept override;
+    SparseBufferCreationInfo create_sparse_buffer(const Type *element, size_t elem_count) noexcept override;
+    SparseTextureCreationInfo create_sparse_texture(
+        PixelFormat format, uint dimension,
+        uint width, uint height, uint depth,
+        uint mipmap_levels, bool simultaneous_access) noexcept override;
+    void destroy_sparse_texture(uint64_t handle) noexcept override;
+    void destroy_sparse_buffer(uint64_t handle) noexcept override;
 };
 }// namespace lc::vk

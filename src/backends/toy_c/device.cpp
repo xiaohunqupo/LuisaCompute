@@ -273,7 +273,7 @@ public:
     void deallocate_sparse_buffer_heap(uint64_t handle) noexcept override {
         LUISA_ERROR("Not supported.");
     }
-    ResourceCreationInfo allocate_sparse_texture_heap(size_t byte_size, bool is_compressed_type) noexcept override {
+    ResourceCreationInfo allocate_sparse_texture_heap(size_t byte_size) noexcept override {
         LUISA_ERROR("Not supported.");
         return {};
     }

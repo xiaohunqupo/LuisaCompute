@@ -19,6 +19,7 @@
 #include "blas.h"
 #include "tlas.h"
 #include "swapchain.h"
+#include "sparse_buffer.h"
 namespace lc::vk {
 static constexpr uint k_shader_model = 65u;
 
@@ -383,8 +384,6 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
         _enable_device_exts.emplace_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
         _enable_device_exts.emplace_back(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
     }
-
-    
 
     VkPhysicalDeviceBufferDeviceAddressFeatures device_buffer_feature{
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES,
@@ -936,5 +935,70 @@ bool Device::LazyLoadShader::Check(Device *self) {
         return true;
     }
     return false;
+}
+ResourceCreationInfo Device::allocate_sparse_texture_heap(size_t byte_size) noexcept {
+    VkMemoryRequirements req{
+        .size = byte_size,
+        .alignment = sparse_buffer_size,
+        .memoryTypeBits = std::numeric_limits<uint>::max()};
+    auto allocation = vengine_new<std::pair<VmaAllocation, VmaAllocationInfo>>();
+    VmaAllocationCreateInfo allocInfo = {
+        .flags = VMA_ALLOCATION_CREATE_STRATEGY_BEST_FIT_BIT,
+        .usage = VMA_MEMORY_USAGE_GPU_ONLY};
+    _allocator->alloc_sparse(req, &allocInfo, allocation->first, &allocation->second);
+    return ResourceCreationInfo{
+        .handle = reinterpret_cast<uint64_t>(allocation),
+        .native_handle = allocation->first};
+}
+void Device::deallocate_sparse_texture_heap(uint64_t handle) noexcept {
+    auto ptr = reinterpret_cast<std::pair<VmaAllocation, VmaAllocationInfo> *>(handle);
+    _allocator->dealloc_sparse(ptr->first);
+    vengine_delete(ptr);
+}
+ResourceCreationInfo Device::allocate_sparse_buffer_heap(size_t byte_size) noexcept {
+    return allocate_sparse_texture_heap(byte_size);
+}
+void Device::deallocate_sparse_buffer_heap(uint64_t handle) noexcept {
+    deallocate_sparse_texture_heap(handle);
+}
+void Device::update_sparse_resources(
+    uint64_t stream_handle,
+    luisa::vector<SparseUpdateTile> &&textures_update) noexcept {
+    reinterpret_cast<Stream *>(stream_handle)->update_sparse_resources(std::move(textures_update));
+}
+SparseBufferCreationInfo Device::create_sparse_buffer(const Type *element, size_t elem_count) noexcept {
+    SparseBufferCreationInfo info;
+    auto ptr = new SparseBuffer(this, element->size() * elem_count, true);
+    info.element_stride = (element == Type::of<void>()) ? 1 : element->size();
+    info.handle = reinterpret_cast<uint64_t>(ptr);
+    info.native_handle = ptr->vk_buffer();
+    info.total_size_bytes = ptr->byte_size();
+    info.tile_size_bytes = sparse_buffer_size;
+    return info;
+}
+SparseTextureCreationInfo Device::create_sparse_texture(
+    PixelFormat format, uint dimension,
+    uint width, uint height, uint depth,
+    uint mipmap_levels, bool simultaneous_access) noexcept {
+    auto ptr = new Texture(this);
+    ptr->init_as_sparse(dimension, format, uint3(width, height, depth), mipmap_levels, simultaneous_access);
+    SparseTextureCreationInfo r;
+    r.handle = reinterpret_cast<uint64_t>(ptr);
+    r.native_handle = ptr->vk_image();
+    r.tile_size_bytes = sparse_buffer_size;
+    r.tile_size = [&](){
+        if (dimension == 2){
+            return make_uint3(Texture::tex2d_tile_size(pixel_format_to_storage(format)), 1);
+        } else {
+            return Texture::tex3d_tile_size(pixel_format_to_storage(format));
+        }
+    }();
+    return r;
+}
+void Device::destroy_sparse_texture(uint64_t handle) noexcept {
+    delete reinterpret_cast<Texture *>(handle);
+}
+void Device::destroy_sparse_buffer(uint64_t handle) noexcept {
+    delete reinterpret_cast<SparseBuffer *>(handle);
 }
 }// namespace lc::vk

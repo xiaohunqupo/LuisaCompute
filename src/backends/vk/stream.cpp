@@ -7,6 +7,7 @@
 #include "blas.h"
 #include "tlas.h"
 #include "swapchain.h"
+#include "sparse_buffer.h"
 namespace lc::vk {
 template<typename Visitor>
 void DecodeCmd(vstd::span<const Argument> args, Visitor &&visitor) {
@@ -173,7 +174,7 @@ struct BindPropVisitor {
         auto idx = desc_index++;
         auto buffer_descs = cmdbuffer->temp_desc->allocate_memory<VkDescriptorBufferInfo>();
         *buffer_descs = VkDescriptorBufferInfo{
-            reinterpret_cast<DefaultBuffer const *>(bf.handle)->vk_buffer(),
+            reinterpret_cast<Buffer const *>(bf.handle)->vk_buffer(),
             bf.offset,
             bf.size};
         auto &a = cmdbuffer->write_desc_sets->emplace_back(VkWriteDescriptorSet{
@@ -636,6 +637,138 @@ void Stream::dispatch(
     _mtx.unlock();
     _cv.notify_one();
 }
+void Stream::update_sparse_resources(luisa::vector<SparseUpdateTile> &&textures_update) noexcept {
+    if (textures_update.empty()) [[unlikely]]
+        return;
+    VkBindSparseInfo info{
+        .sType = VK_STRUCTURE_TYPE_BIND_SPARSE_INFO,
+    };
+    auto fence = _evt.last_fence() + 1;
+    struct Alloc {
+        size_t size{};
+        void *ptr{};
+        bool is_buffer{};
+    };
+    vstd::unordered_map<uint64_t, Alloc> counter;
+    size_t buffer_bind_count = 0;
+    size_t img_bind_count = 0;
+    for (auto &i : textures_update) {
+        auto &v = counter.try_emplace(i.handle, 0).first->second;
+        v.size += 1;
+        luisa::visit(
+            [&]<typename T>(T const &op) {
+                if constexpr (std::is_same_v<SparseTextureMapOperation, T> || std::is_same_v<SparseTextureUnMapOperation, T>) {
+                    img_bind_count += 1;
+                    v.is_buffer = false;
+                } else {
+                    buffer_bind_count += 1;
+                    v.is_buffer = true;
+                }
+            },
+            i.operations);
+    }
+    auto buffer_ptr_chunk = temp_desc.allocate(sizeof(VkSparseBufferMemoryBindInfo) * buffer_bind_count, alignof(VkSparseBufferMemoryBindInfo));
+    auto img_ptr_chunk = temp_desc.allocate(sizeof(VkSparseImageMemoryBindInfo) * img_bind_count, alignof(VkSparseImageMemoryBindInfo));
+    auto buffer_ptr = reinterpret_cast<VkSparseBufferMemoryBindInfo *>(buffer_ptr_chunk.handle + buffer_ptr_chunk.offset);
+    auto img_ptr = reinterpret_cast<VkSparseImageMemoryBindInfo *>(img_ptr_chunk.handle + img_ptr_chunk.offset);
+    info.pBufferBinds = buffer_ptr;
+    info.pImageBinds = img_ptr;
+    info.bufferBindCount = buffer_bind_count;
+    info.imageBindCount = img_bind_count;
+    // Bind ptr
+    for (auto &i : counter) {
+        auto &a = i.second;
+        if (a.is_buffer) {
+            auto chunk = temp_desc.allocate(sizeof(VkSparseMemoryBind) * a.size, alignof(VkSparseMemoryBind));
+            auto ptr = reinterpret_cast<VkSparseMemoryBind *>(chunk.handle + chunk.offset);
+            a.ptr = ptr;
+            buffer_ptr->buffer = reinterpret_cast<SparseBuffer *>(i.first)->vk_buffer();
+            buffer_ptr->bindCount = a.size;
+            buffer_ptr->pBinds = ptr;
+            ++buffer_ptr;
+        } else {
+            auto chunk = temp_desc.allocate(sizeof(VkSparseImageMemoryBind) * a.size, alignof(VkSparseImageMemoryBind));
+            auto ptr = reinterpret_cast<VkSparseImageMemoryBind *>(chunk.handle + chunk.offset);
+            a.ptr = ptr;
+            img_ptr->image = reinterpret_cast<Texture *>(i.first)->vk_image();
+            img_ptr->bindCount = a.size;
+            img_ptr->pBinds = ptr;
+            ++img_ptr;
+        }
+    }
+    // Write value
+    for (auto &i : textures_update) {
+        auto &v = counter.try_emplace(i.handle, 0).first->second;
+        luisa::visit([&]<typename T>(T const &op) {
+            if constexpr (std::is_same_v<SparseTextureMapOperation, T>) {
+                auto ptr = reinterpret_cast<VkSparseImageMemoryBind *>(v.ptr);
+                auto heap = reinterpret_cast<std::pair<VmaAllocation, VmaAllocationInfo> *>(op.allocated_heap);
+                auto tex = reinterpret_cast<Texture const *>(i.handle);
+                ptr->subresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                ptr->subresource.mipLevel = op.mip_level;
+                ptr->subresource.arrayLayer = 0;
+                auto tile_size = tex->tile_size();
+                auto start_size = op.start_tile * tile_size;
+                auto extent = op.tile_count * tile_size;
+                ptr->offset = VkOffset3D{(int)start_size.x, (int)start_size.y, (int)start_size.z};
+                ptr->extent = VkExtent3D{extent.x, extent.y, extent.z};
+                ptr->memory = heap->second.deviceMemory;
+                ptr->memoryOffset = heap->second.offset;
+                ptr->flags = 0;
+                ++ptr;
+                v.ptr = ptr;
+            } else if constexpr (std::is_same_v<SparseTextureUnMapOperation, T>) {
+                auto ptr = reinterpret_cast<VkSparseImageMemoryBind *>(v.ptr);
+                auto tex = reinterpret_cast<Texture const *>(i.handle);
+                ptr->subresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                ptr->subresource.mipLevel = op.mip_level;
+                ptr->subresource.arrayLayer = 0;
+                auto tile_size = tex->tile_size();
+                auto start_size = op.start_tile * tile_size;
+                auto extent = op.tile_count * tile_size;
+                ptr->offset = VkOffset3D{(int)start_size.x, (int)start_size.y, (int)start_size.z};
+                ptr->extent = VkExtent3D{extent.x, extent.y, extent.z};
+                ptr->memory = VK_NULL_HANDLE;
+                ptr->flags = 0;
+                ++ptr;
+                v.ptr = ptr;
+            } else if constexpr (std::is_same_v<SparseBufferMapOperation, T>) {
+                auto ptr = reinterpret_cast<VkSparseMemoryBind *>(v.ptr);
+                auto heap = reinterpret_cast<std::pair<VmaAllocation, VmaAllocationInfo> *>(op.allocated_heap);
+                ptr->memory = heap->second.deviceMemory;
+                ptr->memoryOffset = heap->second.offset;
+                ptr->resourceOffset = op.start_tile * sparse_buffer_size;
+                ptr->size = sparse_buffer_size * op.tile_count;
+                ptr->flags = 0;
+                ++ptr;
+                v.ptr = ptr;
+            } else if constexpr (std::is_same_v<SparseBufferUnMapOperation, T>) {
+                auto ptr = reinterpret_cast<VkSparseMemoryBind *>(v.ptr);
+                ptr->memory = VK_NULL_HANDLE;
+                ptr->resourceOffset = op.start_tile * sparse_buffer_size;
+                ptr->size = sparse_buffer_size * op.tile_count;
+                ptr->flags = 0;
+                ++ptr;
+                v.ptr = ptr;
+            }
+        },
+                     i.operations);
+    }
+    VkTimelineSemaphoreSubmitInfo timeline;
+    _evt.signal_sparse(*this, &fence, &info, &timeline);
+    VK_CHECK_RESULT(vkQueueBindSparse(
+        _queue,
+        1,
+        &info,
+        VK_NULL_HANDLE));
+    temp_desc.clear();
+    _mtx.lock();
+    _exec.push(NotifyEvt{
+        .evt = &_evt,
+        .value = fence});
+    _mtx.unlock();
+    _cv.notify_one();
+}
 void Stream::sync() {
     _evt.sync(_evt.last_fence());
 }
@@ -850,7 +983,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                         VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2,
                         nullptr,
                         chunk.buffer->vk_buffer(),
-                        reinterpret_cast<DefaultBuffer const *>(c->handle())->vk_buffer(),
+                        reinterpret_cast<Buffer const *>(c->handle())->vk_buffer(),
                         1,
                         &buffer_copy};
                     vkCmdCopyBuffer2(
@@ -872,7 +1005,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                     VkCopyBufferInfo2 copy_info2{
                         VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2,
                         nullptr,
-                        reinterpret_cast<DefaultBuffer const *>(c->handle())->vk_buffer(),
+                        reinterpret_cast<Buffer const *>(c->handle())->vk_buffer(),
                         chunk.buffer->vk_buffer(),
                         1,
                         &buffer_copy};
@@ -891,8 +1024,8 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                     VkCopyBufferInfo2 copy_info2{
                         VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2,
                         nullptr,
-                        reinterpret_cast<DefaultBuffer const *>(c->src_handle())->vk_buffer(),
-                        reinterpret_cast<DefaultBuffer const *>(c->dst_handle())->vk_buffer(),
+                        reinterpret_cast<Buffer const *>(c->src_handle())->vk_buffer(),
+                        reinterpret_cast<Buffer const *>(c->dst_handle())->vk_buffer(),
                         1,
                         &buffer_copy};
                     vkCmdCopyBuffer2(
@@ -917,7 +1050,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                     VkCopyBufferToImageInfo2 copy_info{
                         VK_STRUCTURE_TYPE_COPY_BUFFER_TO_IMAGE_INFO_2,
                         nullptr,
-                        reinterpret_cast<DefaultBuffer const *>(c->buffer())->vk_buffer(),
+                        reinterpret_cast<Buffer const *>(c->buffer())->vk_buffer(),
                         tex->vk_image(),
                         resource_barrier->get_layout(tex, c->level()),
                         1,
@@ -1138,7 +1271,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                         nullptr,
                         tex->vk_image(),
                         resource_barrier->get_layout(tex, c->level()),
-                        reinterpret_cast<DefaultBuffer const *>(c->buffer())->vk_buffer(),
+                        reinterpret_cast<Buffer const *>(c->buffer())->vk_buffer(),
                         1,
                         &region};
                     vkCmdCopyImageToBuffer2(

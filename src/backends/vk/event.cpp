@@ -33,6 +33,19 @@ VkTimelineSemaphoreSubmitInfo Event::get_timeline_submit(uint64_t const *value_p
 
     return timelineInfo1;
 }
+void Event::signal_sparse(Stream &stream, uint64_t const* value_ptr, VkBindSparseInfo *sparse_info, VkTimelineSemaphoreSubmitInfo* timeline_ptr) {
+    {
+        std::lock_guard lck(eventMtx);
+        lastFence = std::max(lastFence, *value_ptr);
+    }
+    *timeline_ptr = get_timeline_submit(value_ptr);
+    timeline_ptr->pNext = sparse_info->pNext;
+    sparse_info->pNext = timeline_ptr;
+    sparse_info->waitSemaphoreCount = 0;
+    sparse_info->pWaitSemaphores = nullptr;
+    sparse_info->signalSemaphoreCount = 1;
+    sparse_info->pSignalSemaphores = &_semaphore;
+}
 void Event::signal(Stream &stream, uint64_t value, VkCommandBuffer *cmdbuffer) {
     {
         std::lock_guard lck(eventMtx);

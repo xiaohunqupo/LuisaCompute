@@ -362,8 +362,8 @@ void FallbackDevice::destroy_sparse_buffer(uint64_t handle) noexcept {
     DeviceInterface::destroy_sparse_buffer(handle);
 }
 
-ResourceCreationInfo FallbackDevice::allocate_sparse_texture_heap(size_t byte_size, bool is_compressed_type) noexcept {
-    return DeviceInterface::allocate_sparse_texture_heap(byte_size, is_compressed_type);
+ResourceCreationInfo FallbackDevice::allocate_sparse_texture_heap(size_t byte_size) noexcept {
+    return DeviceInterface::allocate_sparse_texture_heap(byte_size);
 }
 
 void FallbackDevice::deallocate_sparse_texture_heap(uint64_t handle) noexcept {

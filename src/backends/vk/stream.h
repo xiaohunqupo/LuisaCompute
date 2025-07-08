@@ -178,6 +178,7 @@ public:
         uint mip,
         Swapchain *swapchain,
         bool inqueue_limit);
+    void update_sparse_resources(luisa::vector<SparseUpdateTile> &&textures_update) noexcept;
     void sync();
     void signal(Event *event, uint64_t value);
     void wait(Event *event, uint64_t value);

@@ -81,4 +81,36 @@ void VkAllocator::destroy_image(AllocatedImage const &img) {
 VkAllocator::~VkAllocator() {
     vmaDestroyAllocator(_allocator);
 }
+void VkAllocator::alloc_sparse(SparseAllocCmdList &&cmdlist, SparseAllocResult &result) {
+    LUISA_DEBUG_ASSERT(cmdlist.create_info.empty() || cmdlist.create_info.size() == cmdlist.mem_requires.size());
+    auto size = cmdlist.mem_requires.size();
+    if (size == 0) [[unlikely]]
+        return;
+    if (cmdlist.create_info.empty()) {
+        vstd::push_back_all(cmdlist.create_info, size, VmaAllocationCreateInfo{});
+    }
+    result.alloc_result.clear();
+    result.alloc_result_info.clear();
+    result.alloc_result.push_back_uninitialized(size);
+    result.alloc_result_info.push_back_uninitialized(size);
+    VK_CHECK_RESULT(
+        vmaAllocateMemoryPages(_allocator, cmdlist.mem_requires.data(), cmdlist.create_info.data(), size, result.alloc_result.data(), result.alloc_result_info.data()));
+    cmdlist.create_info.clear();
+    cmdlist.mem_requires.clear();
+}
+void VkAllocator::alloc_sparse(
+    VkMemoryRequirements const &require,
+    VmaAllocationCreateInfo const *alloc_info,
+    VmaAllocation &result,
+    VmaAllocationInfo *result_info) {
+    VK_CHECK_RESULT(vmaAllocateMemory(_allocator, &require, alloc_info, &result, result_info));
+}
+void VkAllocator::dealloc_sparse(vstd::vector<VmaAllocation> &alloc) {
+    if (alloc.empty()) [[unlikely]]
+        return;
+    vmaFreeMemoryPages(_allocator, alloc.size(), alloc.data());
+}
+void VkAllocator::dealloc_sparse(VmaAllocation const &alloc) {
+    vmaFreeMemory(_allocator, alloc);
+}
 }// namespace lc::vk
