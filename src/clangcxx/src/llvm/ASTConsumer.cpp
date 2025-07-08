@@ -1541,7 +1541,7 @@ void ExternVarHandler::run(const MatchFinder::MatchResult &Result) {
         for (auto Anno : S->specific_attrs<clang::AnnotateAttr>())
             ignore |= isIgnore(Anno);
         if (!ignore && S->hasExternalStorage()) {
-            db->extern_vars.emplace_back(S);
+            db->extern_vars.emplace(S);
         }
     }
 }
