@@ -764,6 +764,7 @@ ShaderCreationInfo Device::create_shader(const ShaderOption &option, Function ke
     vstd::MD5 check_md5({reinterpret_cast<uint8_t const *>(code.result.data() + code.immutableHeaderSize), code.result.size() - code.immutableHeaderSize});
     if (option.compile_only) {
         assert(!option.name.empty());
+        info.invalidate();
         auto comp_result = Device::Compiler()->compile_compute(
             code.result.view(),
             true,
@@ -825,7 +826,24 @@ ShaderCreationInfo Device::create_shader(const ShaderOption &option, Function ke
     return info;
 }
 ShaderCreationInfo Device::create_shader(const ShaderOption &option, const ir::KernelModule *kernel) noexcept { return ShaderCreationInfo::make_invalid(); }
-ShaderCreationInfo Device::load_shader(luisa::string_view name, luisa::span<const Type *const> arg_types) noexcept { return ShaderCreationInfo::make_invalid(); }
+ShaderCreationInfo Device::load_shader(luisa::string_view name, luisa::span<const Type *const> arg_types) noexcept {
+    ShaderCreationInfo info;
+    auto deser_result = ShaderSerializer::try_deser_compute(this, {}, {}, name, SerdeType::ByteCode, _binary_io);
+    if (!deser_result.shader) {
+        info.invalidate();
+        return info;
+    }
+    if (!ComputeShader::verify_type_md5(arg_types, deser_result.type_md5)) {
+        LUISA_WARNING("Shader {} arguments not match.", name);
+        info.invalidate();
+        return info;
+    }
+    auto shader = static_cast<ComputeShader *>(deser_result.shader);
+    info.handle = reinterpret_cast<uint64_t>(deser_result.shader);
+    info.native_handle = shader->pipeline();
+    info.block_size = shader->block_size();
+    return info;
+}
 Usage Device::shader_argument_usage(uint64_t handle, size_t index) noexcept {
     auto shader = reinterpret_cast<Shader const *>(handle);
     return shader->saved_arguments()[index].varUsage;
@@ -986,8 +1004,8 @@ SparseTextureCreationInfo Device::create_sparse_texture(
     r.handle = reinterpret_cast<uint64_t>(ptr);
     r.native_handle = ptr->vk_image();
     r.tile_size_bytes = sparse_buffer_size;
-    r.tile_size = [&](){
-        if (dimension == 2){
+    r.tile_size = [&]() {
+        if (dimension == 2) {
             return make_uint3(Texture::tex2d_tile_size(pixel_format_to_storage(format)), 1);
         } else {
             return Texture::tex3d_tile_size(pixel_format_to_storage(format));

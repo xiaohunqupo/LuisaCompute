@@ -92,6 +92,7 @@ void ShaderSerializer::serialize_pso(
 
     bin_io->write_shader_cache(file_name, pso_data);
 }
+
 ShaderSerializer::DeserResult ShaderSerializer::try_deser_compute(
     Device *device,
     // invalid md5 for AOT
@@ -120,9 +121,10 @@ ShaderSerializer::DeserResult ShaderSerializer::try_deser_compute(
             }
         }();
         if (!read_stream) return result;
-        if (read_stream->length() < sizeof(ShaderSerHeader)) return result;
+        auto stream_len = read_stream->length();
+        if (stream_len < sizeof(ShaderSerHeader)) return result;
         read_stream->read({reinterpret_cast<std::byte *>(&header), sizeof(ShaderSerHeader)});
-        if (read_stream->length() != (header.property_size * sizeof(hlsl::Property) + header.spv_byte_size + header.kernel_arg_count * sizeof(SavedArgument)))
+        if (stream_len != read_stream->pos() + (header.property_size * sizeof(hlsl::Property) + header.spv_byte_size + header.kernel_arg_count * sizeof(SavedArgument)))
             return result;
         if (shader_md5 && *shader_md5 != header.md5)
             return result;
@@ -146,13 +148,14 @@ ShaderSerializer::DeserResult ShaderSerializer::try_deser_compute(
         pso_name = pso_md5.to_string(false);
         auto read_stream = bin_io->read_shader_cache(pso_name);
         if (read_stream) {
-            if (read_stream->length() >= sizeof(VkPipelineCacheHeaderVersionOne)) {
+            auto stream_len = read_stream->length();
+            if (stream_len >= sizeof(VkPipelineCacheHeaderVersionOne)) {
                 pso_data.push_back_uninitialized(sizeof(VkPipelineCacheHeaderVersionOne));
                 read_stream->read(pso_data);
                 if (!device->is_pso_same(*reinterpret_cast<VkPipelineCacheHeaderVersionOne const *>(pso_data.data()))) {
                     pso_data.clear();
                 } else {
-                    auto last_size = read_stream->length();
+                    auto last_size = stream_len - read_stream->pos();
                     pso_data.push_back_uninitialized(last_size);
                     read_stream->read({pso_data.data() + sizeof(VkPipelineCacheHeaderVersionOne), last_size});
                 }

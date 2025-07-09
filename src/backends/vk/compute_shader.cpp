@@ -17,6 +17,9 @@ static const bool PRINT_CODE = ([] {
 })();
 
 namespace lc::vk {
+bool ComputeShader::verify_type_md5(luisa::span<const Type *const> arg_types, vstd::MD5 md5) {
+    return hlsl::CodegenUtility::GetTypeMD5(arg_types) == md5;
+}
 ComputeShader::ComputeShader(
     Device *device,
     uint3 block_size,
