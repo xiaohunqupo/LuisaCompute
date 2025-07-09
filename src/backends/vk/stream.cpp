@@ -1038,6 +1038,8 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                 case Command::Tag::ECurveBuildCommand: {
                 } break;
                 case Command::Tag::EProceduralPrimitiveBuildCommand: {
+                    auto c = static_cast<ProceduralPrimitiveBuildCommand const *>(cmd);
+                    reinterpret_cast<Blas *>(c->handle())->pre_build(*this, c);
                 } break;
                 case Command::Tag::EBindlessArrayUpdateCommand: {
                     auto c = static_cast<BindlessArrayUpdateCommand const *>(cmd);
@@ -1451,6 +1453,8 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                 case Command::Tag::ECurveBuildCommand: {
                 } break;
                 case Command::Tag::EProceduralPrimitiveBuildCommand: {
+                    auto c = static_cast<ProceduralPrimitiveBuildCommand const *>(cmd);
+                    reinterpret_cast<Blas *>(c->handle())->build(*this, c);
                 } break;
                 case Command::Tag::EBindlessArrayUpdateCommand: {
                     auto c = static_cast<BindlessArrayUpdateCommand const *>(cmd);

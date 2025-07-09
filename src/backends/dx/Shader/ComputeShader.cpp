@@ -7,7 +7,6 @@
 namespace lc::dx {
 namespace ComputeShaderDetail {
 static const bool PRINT_CODE = ([] {
-    // read env LUISA_DUMP_SOURCE
     auto env = std::getenv("LUISA_DUMP_SOURCE");
     if (env == nullptr) {
         return false;

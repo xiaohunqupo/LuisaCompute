@@ -3,12 +3,17 @@
 typedef RayQuery<RAY_FLAG_NONE> _LC_RayQueryAll;
 typedef RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH> _LC_RayQueryAny;
 template<typename T>
-_Hit1 _TraceClosest(RaytracingAccelerationStructure accel,T rayDesc,uint mask){
+RayDesc _toRay(T rayDesc){
 RayDesc ray;
 ray.Origin=float3(rayDesc.v0.v[0],rayDesc.v0.v[1],rayDesc.v0.v[2]);
 ray.Direction=float3(rayDesc.v2.v[0],rayDesc.v2.v[1],rayDesc.v2.v[2]);
 ray.TMin=rayDesc.v1;
 ray.TMax=rayDesc.v3;
+return ray;
+}
+template<typename T>
+_Hit1 _TraceClosest(RaytracingAccelerationStructure accel,T rayDesc,uint mask){
+RayDesc ray=_toRay(rayDesc);
 RayQuery<_CLOSEST_HIT_RAY_FLAG> q;
 q.TraceRayInline(accel,_CLOSEST_HIT_RAY_FLAG,mask,ray);
 _Hit1 pl=(_Hit1)0;
@@ -23,28 +28,13 @@ pl.v0=4294967295;
 }
 return pl;
 }
-template<typename T>
-_LC_RayQueryAll _QueryAll(RaytracingAccelerationStructure accel,T rayDesc,uint mask){
-RayDesc ray;
-ray.Origin=float3(rayDesc.v0.v[0],rayDesc.v0.v[1],rayDesc.v0.v[2]);
-ray.Direction=float3(rayDesc.v2.v[0],rayDesc.v2.v[1],rayDesc.v2.v[2]);
-ray.TMin=rayDesc.v1;
-ray.TMax=rayDesc.v3;
-_LC_RayQueryAll q;
-q.TraceRayInline(accel,RAY_FLAG_NONE,mask,ray);
-return q;
-}
-template<typename T>
-_LC_RayQueryAny _QueryAny(RaytracingAccelerationStructure accel,T rayDesc,uint mask){
-RayDesc ray;
-ray.Origin=float3(rayDesc.v0.v[0],rayDesc.v0.v[1],rayDesc.v0.v[2]);
-ray.Direction=float3(rayDesc.v2.v[0],rayDesc.v2.v[1],rayDesc.v2.v[2]);
-ray.TMin=rayDesc.v1;
-ray.TMax=rayDesc.v3;
-_LC_RayQueryAny q;
-q.TraceRayInline(accel,RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,mask,ray);
-return q;
-}
+
+#define _QueryAll(accel,rayDesc,mask,q)\
+{RayDesc ray=_toRay(rayDesc);\
+q.TraceRayInline(accel,RAY_FLAG_NONE,mask,ray);}
+#define _QueryAny(accel,rayDesc,mask,q)\
+{RayDesc ray=_toRay(rayDesc);\
+q.TraceRayInline(accel,RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,mask,ray);}
 template<typename T, typename Q>
 T _RayQueryGetWorldRay(Q q) {
 float3 o=q.WorldRayOrigin();
@@ -107,11 +97,7 @@ q.CommitProceduralPrimitiveHit(dist);
 }
 template<typename T>
 bool _TraceAny(RaytracingAccelerationStructure accel,T rayDesc,uint mask){
-RayDesc ray;
-ray.Origin=float3(rayDesc.v0.v[0],rayDesc.v0.v[1],rayDesc.v0.v[2]);
-ray.Direction=float3(rayDesc.v2.v[0],rayDesc.v2.v[1],rayDesc.v2.v[2]);
-ray.TMin=rayDesc.v1;
-ray.TMax=rayDesc.v3;
+RayDesc ray=_toRay(rayDesc);
 RayQuery<_ANY_HIT_RAY_FLAG> q;
 q.TraceRayInline(accel,_ANY_HIT_RAY_FLAG,mask,ray);
 q.Proceed();

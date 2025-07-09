@@ -569,10 +569,18 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                                     stack->SetLocal(varDecl, (const compute::RefExpr *)lcInit);
                                     current = lcInit;
                                 } else {
-                                    auto lcVar = LC_Local(fb, lcType, Usage::WRITE);
-                                    fb->assign(lcVar, lcInit);
-                                    stack->SetLocal(varDecl, lcVar);
-                                    current = lcVar;
+                                    if (lcInit->tag() == Expression::Tag::REF && static_cast<RefExpr const*>(lcInit)->type()->is_custom())
+                                    {
+                                        stack->SetLocal(varDecl, static_cast<RefExpr const*>(lcInit));
+                                        current = lcInit;
+                                    }
+                                    else
+                                    {
+                                        auto lcVar = LC_Local(fb, lcType, Usage::WRITE);
+                                        fb->assign(lcVar, lcInit);
+                                        stack->SetLocal(varDecl, lcVar);
+                                        current = lcVar;
+                                    }
                                 }
                             } else {
                                 auto lcVar = LC_Local(fb, lcType, Usage::WRITE);

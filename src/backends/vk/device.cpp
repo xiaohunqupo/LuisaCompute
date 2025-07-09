@@ -260,11 +260,10 @@ void Device::destroy_mesh(uint64_t handle) noexcept {
 
 ResourceCreationInfo Device::create_procedural_primitive(
     const AccelOption &option) noexcept {
-    LUISA_ERROR("procedural primitive not implemented.");
-    return ResourceCreationInfo::make_invalid();
+    return create_mesh(option);
 }
 void Device::destroy_procedural_primitive(uint64_t handle) noexcept {
-    LUISA_ERROR("procedural primitive not implemented.");
+    destroy_mesh(handle);
 }
 
 ResourceCreationInfo Device::create_accel(const AccelOption &option) noexcept {

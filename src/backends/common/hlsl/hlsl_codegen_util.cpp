@@ -912,11 +912,13 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             str << "_TraceAny"sv;
             break;
         case CallOp::RAY_TRACING_QUERY_ALL:
-            str << "_QueryAll"sv;
-            break;
+            str << "_QueryAll("sv;
+            PrintArgs();
+            return;
         case CallOp::RAY_TRACING_QUERY_ANY:
-            str << "_QueryAny"sv;
-            break;
+            str << "_QueryAny("sv;
+            PrintArgs();
+            return;
         case CallOp::BINDLESS_BUFFER_SIZE: {
             str << "_bdlsBfSize"sv;
             opt->useBufferBindless = true;

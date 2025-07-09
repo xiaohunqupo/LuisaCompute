@@ -17,7 +17,7 @@ private:
     vstd::unique_ptr<DefaultBuffer> _instance_buffer;
     VkAccelerationStructureBuildGeometryInfoKHR *acceleration_build_geometry_info;
     AccelOption option;
-    DefaultBuffer const *scratch_buffer{nullptr};
+    Buffer const *scratch_buffer{nullptr};
     vstd::unordered_map<uint64, MeshHandle *> set_map;
     uint64_t scratch_buffer_offset{0};
     uint _last_instance_count = 0;

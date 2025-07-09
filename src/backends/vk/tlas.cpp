@@ -247,7 +247,7 @@ void Tlas::pre_build(
     scratch_buffer_size = (scratch_buffer_size + 255) & (~(255u));
     auto scratch_chunk = cmdbuffer.scratch_buffer_alloc->allocate(scratch_buffer_size);
 
-    scratch_buffer = reinterpret_cast<DefaultBuffer const *>(scratch_chunk.handle);
+    scratch_buffer = reinterpret_cast<Buffer const *>(scratch_chunk.handle);
     scratch_buffer_offset = scratch_chunk.offset;
     cmdbuffer.resource_barrier->record(
         scratch_buffer,
