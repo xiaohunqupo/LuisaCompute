@@ -3,7 +3,6 @@
 namespace lc::vk {
 namespace detail {
 static constexpr auto raster_stage = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_2_TESSELLATION_CONTROL_SHADER_BIT | VK_PIPELINE_STAGE_2_TESSELLATION_EVALUATION_SHADER_BIT | VK_PIPELINE_STAGE_2_GEOMETRY_SHADER_BIT | VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
-static constexpr auto all_access = VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT;
 static constexpr VkPipelineStageFlagBits2 BarrierSyncMap[] = {
     VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,                                                    // ComputeRead,
     VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,                                                    // ComputeAccelRead,
@@ -285,6 +284,10 @@ void FilterAccess(
             layout = VK_IMAGE_LAYOUT_GENERAL;
         } break;
     }
+    const auto tex_read_sync = VK_PIPELINE_STAGE_2_COPY_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT | raster_stage;
+    if ((access & (VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT)) != 0) {
+        sync &= ~tex_read_sync;
+    }
 }
 }// namespace detail
 VkImageLayout ResourceBarrier::get_layout(Resource const *res, uint level) const {
@@ -296,7 +299,7 @@ VkImageLayout ResourceBarrier::get_layout(Resource const *res, uint level) const
     return ranges[level].before_layout;
 }
 
-void ResourceBarrier::process_bindless(BindlessArray *bdls_arr, Usage dst_usage) {
+void ResourceBarrier::process_bindless(BindlessArray const *bdls_arr, Usage dst_usage) {
     for (auto iter = write_state_map.begin(); iter != write_state_map.end(); ++iter) {
         if (bdls_arr->is_ptr_in_bindless(reinterpret_cast<size_t>(iter->first))) {
             auto ite = frame_states.find(iter->first);

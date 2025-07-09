@@ -9,6 +9,7 @@
 #include "swapchain.h"
 #include "sparse_buffer.h"
 #include <luisa/runtime/swapchain.h>
+#include <luisa/backends/ext/vk_custom_cmd.h>
 namespace lc::vk {
 struct PresentCommand {
     luisa::fixed_vector<VkSemaphore, 1> submit_wait_semaphores;
@@ -1041,7 +1042,42 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                 case Command::Tag::EBindlessArrayUpdateCommand: {
                     auto c = static_cast<BindlessArrayUpdateCommand const *>(cmd);
                     reinterpret_cast<BindlessArray *>(c->handle())->pre_update(resource_barrier);
-
+                } break;
+                case Command::Tag::ECustomCommand: {
+                    auto c = static_cast<CustomCommand const *>(cmd);
+                    switch (c->uuid()) {
+                        case to_underlying(CustomCommandUUID::CUSTOM_DISPATCH): {
+                            auto custom_cmd = static_cast<VKCustomCmd const *>(c);
+                            for (auto &&i : custom_cmd->get_resource_usages()) {
+                                luisa::visit(
+                                    [&]<typename T>(T const &t) {
+                                        if constexpr (std::is_same_v<T, Argument::Buffer>) {
+                                            auto buffer = reinterpret_cast<Buffer const *>(t.handle);
+                                            resource_barrier->record(
+                                                BufferView(buffer, t.offset, t.size),
+                                                i.stage, i.access, i.texture_layout);
+                                        } else if constexpr (std::is_same_v<T, Argument::Texture>) {
+                                            auto tex = reinterpret_cast<Texture const *>(t.handle);
+                                            resource_barrier->record(
+                                                TexView(tex, t.level),
+                                                i.stage, i.access, i.texture_layout);
+                                        } else {
+                                            auto bdls = reinterpret_cast<BindlessArray const *>(t.handle);
+                                            auto &buffer = bdls->indices_buffer();
+                                            resource_barrier->record(
+                                                BufferView(&buffer, 0, buffer.byte_size()),
+                                                i.stage, i.access, i.texture_layout);
+                                            resource_barrier->process_bindless(bdls, ResourceBarrier::Usage::ComputeRead);
+                                        }
+                                    },
+                                    i.resource);
+                            }
+                        } break;
+                        //TODO: other commands
+                        default: {
+                            LUISA_ERROR("Command type not supported.");
+                        } break;
+                    }
                 } break;
                 default: break;
             }
@@ -1456,6 +1492,23 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                     //         LUISA_INFO(uint3(i[0], i[1], i[2]));
                     //     }
                     // });
+                } break;
+                case Command::Tag::ECustomCommand: {
+                    auto c = static_cast<CustomCommand const *>(cmd);
+                    switch (c->uuid()) {
+                        case to_underlying(CustomCommandUUID::CUSTOM_DISPATCH): {
+                            static_cast<VKCustomCmd const *>(c)->execute(
+                                device()->physical_device(),
+                                device()->logic_device(),
+                                stream.queue(),
+                                _cmdbuffer,
+                                _state->_desc_pool);
+                        } break;
+                        //TODO: other commands
+                        default: {
+                            LUISA_ERROR("Command type not supported.");
+                        } break;
+                    }
                 } break;
                 default: break;
             }

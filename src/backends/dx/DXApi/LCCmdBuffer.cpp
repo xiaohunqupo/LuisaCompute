@@ -210,14 +210,13 @@ public:
         auto get_resource_view = [&](auto &&i) {
             return luisa::visit(
                 [&]<typename T>(T const &t) -> EnhancedBarrierTracker::ResourceView {
-                    using PureT = std::remove_cvref_t<T>;
-                    if constexpr (std::is_same_v<PureT, Argument::Buffer>) {
+                    if constexpr (std::is_same_v<T, Argument::Buffer>) {
                         return EnhancedBarrierTracker::ResourceView{
                             BufferView{
                                 static_cast<Buffer const *>(reinterpret_cast<Resource const *>(t.handle)),
                                 t.offset,
                                 t.size}};
-                    } else if constexpr (std::is_same_v<PureT, Argument::Texture>) {
+                    } else if constexpr (std::is_same_v<T, Argument::Texture>) {
                         return EnhancedBarrierTracker::ResourceView{
                             EnhancedBarrierTracker::TexView{
                                 static_cast<TextureBase const *>(reinterpret_cast<Resource const *>(t.handle)),

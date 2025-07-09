@@ -123,6 +123,6 @@ public:
     void barrier_filter(VkBufferMemoryBarrier2 &barrier) const;
     void barrier_filter(VkImageMemoryBarrier2 &barrier) const;
     VkImageLayout get_layout(Resource const *res, uint level) const;
-    void process_bindless(BindlessArray *bdls_arr, Usage dst_usage);
+    void process_bindless(BindlessArray const *bdls_arr, Usage dst_usage);
 };
 }// namespace lc::vk

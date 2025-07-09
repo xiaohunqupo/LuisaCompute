@@ -100,11 +100,11 @@ static constexpr D3D12_BARRIER_LAYOUT BarrierLayoutMap[] = {
 };
 }// namespace dx_detail
 class DXCustomCmd : public CustomDispatchCommand {
+public:
     using ResourceHandle = luisa::variant<
         Argument::Buffer,
         Argument::Texture,
         Argument::BindlessArray>;
-public:
     struct ResourceUsage {
         ResourceHandle resource;
         D3D12_RESOURCE_STATES required_state;
