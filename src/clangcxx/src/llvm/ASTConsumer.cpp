@@ -30,10 +30,8 @@ inline bool FuncIsEmpty(Function func) {
     return true;
 }
 
-inline bool IsTypeDefDecl(const clang::DeclStmt* decl)
-{
-    for (auto _decl : decl->decls())
-    {
+inline bool IsTypeDefDecl(const clang::DeclStmt *decl) {
+    for (auto _decl : decl->decls()) {
         if (clang::isa<clang::TypeDecl>(_decl))
             return true;
     }
@@ -529,7 +527,7 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
 
             for (auto sub : cxxCompound->body())
                 TraverseStmt(sub);
-        } else if (auto cxxTypeDecl = llvm::dyn_cast<clang::DeclStmt>(x); cxxTypeDecl && IsTypeDefDecl(cxxTypeDecl)){
+        } else if (auto cxxTypeDecl = llvm::dyn_cast<clang::DeclStmt>(x); cxxTypeDecl && IsTypeDefDecl(cxxTypeDecl)) {
 
         } else {
             RecursiveASTVisitor<ExprTranslator>::TraverseStmt(x);
@@ -569,13 +567,10 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                                     stack->SetLocal(varDecl, (const compute::RefExpr *)lcInit);
                                     current = lcInit;
                                 } else {
-                                    if (lcInit->tag() == Expression::Tag::REF && static_cast<RefExpr const*>(lcInit)->type()->is_custom())
-                                    {
-                                        stack->SetLocal(varDecl, static_cast<RefExpr const*>(lcInit));
+                                    if (lcInit->tag() == Expression::Tag::REF && static_cast<RefExpr const *>(lcInit)->type()->is_custom()) {
+                                        stack->SetLocal(varDecl, static_cast<RefExpr const *>(lcInit));
                                         current = lcInit;
-                                    }
-                                    else
-                                    {
+                                    } else {
                                         auto lcVar = LC_Local(fb, lcType, Usage::WRITE);
                                         fb->assign(lcVar, lcInit);
                                         stack->SetLocal(varDecl, lcVar);
@@ -729,13 +724,20 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                                             default: {
                                                 clangcxx_log_error("unsupported type: {}, kind {}", Ty.getAsString(), luisa::to_string(EType->getKind()));
                                             } break;
-                #undef CASE_VEC_TYPE
                                         }
                                         // clang-format on
+                                    }
+                                } else if (Arguments.size() >= 2) {
+                                    auto name = Arguments.get(0).getAsType().getAsString();
+                                    if (name.size() > 4 && name.substr(name.size() - 4, 4) == "half") {
+                                        auto N = Arguments.get(1).getAsIntegral().getLimitedValue();
+                                        CASE_VEC_TYPE(half, HALF)
                                     }
                                 }
                             } else
                                 clangcxx_log_error("???");
+#undef CASE_VEC_TYPE
+
                         } else if (builtinName == "matrix") {
                             if (auto TSD = llvm::dyn_cast<clang::ClassTemplateSpecializationDecl>(Ty->getAs<clang::RecordType>()->getDecl())) {
                                 auto &Arguments = TSD->getTemplateArgs();
@@ -762,14 +764,12 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                                 auto lcElemType = db->FindOrAddType(EType, x->getBeginLoc());
                                 const luisa::compute::Type *lcArrayType = Type::array(lcElemType, N);
 
-                                if (TSD->getTemplateArgs().size() > 2)
-                                {
+                                if (TSD->getTemplateArgs().size() > 2) {
                                     auto Flags = Arguments[2].getAsIntegral().getLimitedValue();
                                     if (Flags & 1)
                                         constructed = fb->shared(lcArrayType);
                                 }
-                                if (builtinName == "shared_array")
-                                {
+                                if (builtinName == "shared_array") {
                                     constructed = fb->shared(lcArrayType);
                                 }
 
@@ -824,9 +824,7 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                             funcPtr,
                             fb->func_ref(func->function()));
                         current = funcPtr;
-                    } 
-                    else
-                    {
+                    } else {
                         auto _local = LC_Local(fb, lcType, Usage::READ_WRITE);
                         fb->assign(_local, fb->unary(lcType, TranslateUnaryOp(cxx_op), lhs));
                         current = _local;
@@ -1009,6 +1007,7 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                     llvm::StringRef exprName = {};
                     bool isAccess = false;
                     bool isFuncRef = false;
+                    bool isCast = false;
                     for (auto attr : calleeDecl->specific_attrs<clang::AnnotateAttr>()) {
                         if (callopName.empty())
                             callopName = getCallopName(attr);
@@ -1022,6 +1021,7 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                             exprName = getExprName(attr);
                         isAccess |= luisa::clangcxx::isAccess(attr);
                         isFuncRef |= luisa::clangcxx::isFuncRef(attr);
+                        isCast |= luisa::clangcxx::isCast(attr);
                     }
                     // args
                     luisa::string printer_str;
@@ -1053,20 +1053,18 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                         fb->print_(std::move(printer_str), lcArgs);
                     } else if (!binopName.empty()) {
                         auto lcBinop = db->FindBinOp(binopName);
-                        if (auto lcReturnType = db->FindOrAddType(cxxReturnType, x->getBeginLoc()))
-                        {
-                            auto _local = LC_Local(fb, lcReturnType, Usage::READ_WRITE); 
+                        if (auto lcReturnType = db->FindOrAddType(cxxReturnType, x->getBeginLoc())) {
+                            auto _local = LC_Local(fb, lcReturnType, Usage::READ_WRITE);
                             fb->assign(_local, fb->binary(lcReturnType, lcBinop, lcArgs[0], lcArgs[1]));
                             current = _local;
                         }
                     } else if (!unaopName.empty()) {
-                        UnaryOp lcUnaop = (unaopName == "PLUS")  ? UnaryOp::PLUS :
-                                          (unaopName == "MINUS") ? UnaryOp::MINUS :
+                        UnaryOp lcUnaop = (unaopName == "PLUS")    ? UnaryOp::PLUS :
+                                          (unaopName == "MINUS")   ? UnaryOp::MINUS :
                                           (unaopName == "BIT_NOT") ? UnaryOp::BIT_NOT :
-                                          (unaopName == "NOT") ? UnaryOp::NOT :
-                                                                   (clangcxx_log_error("unsupportted unary op {}!!", unaopName.data()), UnaryOp::PLUS);
-                        if (auto lcReturnType = db->FindOrAddType(cxxReturnType, x->getBeginLoc()))
-                        {
+                                          (unaopName == "NOT")     ? UnaryOp::NOT :
+                                                                     (clangcxx_log_error("unsupportted unary op {}!!", unaopName.data()), UnaryOp::PLUS);
+                        if (auto lcReturnType = db->FindOrAddType(cxxReturnType, x->getBeginLoc())) {
                             auto _local = LC_Local(fb, lcReturnType, Usage::READ_WRITE);
                             fb->assign(_local, fb->unary(lcReturnType, lcUnaop, lcArgs[0]));
                             current = _local;
@@ -1181,6 +1179,13 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                                 current = ret_value;
                             } else
                                 clangcxx_log_error("unfound return type in lambda: {}", call->getCallReturnType(*astContext)->getCanonicalTypeInternal().getAsString());
+                        } else if (isCast && lcArgs.size() == 1) {
+                            if (auto lcReturnType = db->FindOrAddType(call->getCallReturnType(*astContext), x->getBeginLoc())) {
+                                current = fb->cast(lcReturnType, CastOp::STATIC, lcArgs[0]);
+                            } else {
+                                db->DumpWithLocation(calleeDecl);
+                                clangcxx_log_error("unfound operator!");
+                            }
                         } else {
                             db->DumpWithLocation(calleeDecl);
                             clangcxx_log_error("unfound function!");
@@ -1480,12 +1485,10 @@ auto FunctionBuilderBuilder::build(const clang::FunctionDecl *S, bool allowKerne
                 };
                 luisa::vector<const clang::VarDecl *> input_params(params.begin(), params.end());
                 if (is_kernel) {
-                    for (const auto *var : db->extern_vars) 
-                    {
+                    for (const auto *var : db->extern_vars) {
                         collect_arg(var);
                     }
-                    for (const auto [redecl, to] : db->extern_var_redirects)
-                    {
+                    for (const auto [redecl, to] : db->extern_var_redirects) {
                         stack.SetLocal(redecl, stack.GetLocal(to));
                     }
                 }
@@ -1554,12 +1557,9 @@ void ExternVarHandler::run(const MatchFinder::MatchResult &Result) {
         for (auto Anno : S->specific_attrs<clang::AnnotateAttr>())
             ignore |= isIgnore(Anno);
 
-        if (!ignore && S->hasExternalStorage()) 
-        {
-            for (auto redecl : S->redecls())
-            {
-                if (db->extern_vars.contains(redecl))
-                {
+        if (!ignore && S->hasExternalStorage()) {
+            for (auto redecl : S->redecls()) {
+                if (db->extern_vars.contains(redecl)) {
                     db->extern_var_redirects[S] = redecl;
                     return;
                 }
