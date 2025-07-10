@@ -39,7 +39,7 @@ void Tlas::pre_build(
     }
     if (_instance_buffer && _instance_buffer->byte_size() < dst_inst_size) {
         update = false;
-        auto new_inst_buffer = vstd::make_unique<DefaultBuffer>(device(), dst_inst_size, false, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR);
+        auto new_inst_buffer = vstd::make_unique<DefaultBuffer>(device(), dst_inst_size, true, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR);
         resource_barrier->record(
             BufferView{new_inst_buffer.get()},
             ResourceBarrier::Usage::CopyDest);
@@ -69,7 +69,24 @@ void Tlas::pre_build(
         update = false;
         _instance_buffer = vstd::make_unique<DefaultBuffer>(device(), dst_inst_size, false, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR);
     }
-    if (!modifications.empty()) {
+    if (!(modifications.empty() && set_map.empty())) {
+        for (auto &&i : modifications) {
+            auto ite = set_map.find(i.index);
+            bool updateMesh = (i.flags & AccelBuildCommand::Modification::flag_primitive);
+            if (ite != set_map.end()) {
+                if (!updateMesh) {
+                    const_cast<uint &>(i.flags) = i.flags | AccelBuildCommand::Modification::flag_primitive;
+                    const_cast<uint64_t &>(i.primitive) = ite->second->mesh->get_accel_device_address();
+                    updateMesh = true;
+                }
+                set_map.erase(ite);
+            }
+            if (updateMesh) {
+                auto mesh = reinterpret_cast<Blas *>(i.primitive);
+                set_mesh(mesh, i.index);
+                update = false;
+            }
+        }
         resource_barrier->record(
             BufferView{
                 _instance_buffer.get()},
@@ -87,8 +104,9 @@ void Tlas::pre_build(
                 device()->logic_device(),
                 &alloc_info,
                 &desc_set));
+        const uint modification_size = modifications.size() + set_map.size();
         uint2 value = {
-            (uint)modifications.size(),
+            modification_size,
             instance_count};
         vkCmdPushConstants(
             cmdbuffer.cmdbuffer(),
@@ -97,27 +115,11 @@ void Tlas::pre_build(
             0,
             sizeof(value),
             &value);
-        const uint flag_mesh = 1u << 0u;
-        const uint flag_transform = 1u << 1u;
-        const uint flag_opaque_on = 1u << 2u;
-        const uint flag_opaque_off = 1u << 3u;
-        const uint flag_visibility = 1u << 4u;
-        const uint flag_user_id = 1u << 5u;
-        const uint flag_opaque = flag_opaque_on | flag_opaque_off;
-        for (auto &&i : modifications) {
-            auto ite = set_map.find(i.index);
-            if (ite != set_map.end()) {
-                bool updateMesh = (i.flags & flag_mesh);
-                if (!updateMesh) {
-                    const_cast<uint64_t &>(i.primitive) = ite->second->mesh->get_accel_device_address();
-                    updateMesh = true;
-                }
-                set_map.erase(ite);
-            }
-        }
-        auto dsc_buffer = cmdbuffer.states()->upload_alloc.allocate((set_map.size() + modifications.size()) * sizeof(TlasInputInst), 16);
+
+        auto dsc_buffer = cmdbuffer.states()->upload_alloc.allocate((modification_size) * sizeof(TlasInputInst), 16);
         cache.clear();
         cache.push_back_uninitialized((dsc_buffer.size_bytes + sizeof(uint4) - 1) / sizeof(uint4));
+        std::memset(cache.data(), 0, cache.size_bytes());
         auto inst_ptr = reinterpret_cast<TlasInputInst *>(cache.data());
 
         for (auto &&i : modifications) {
@@ -126,19 +128,27 @@ void Tlas::pre_build(
             inst_ptr->vis_mask = i.vis_mask;
             inst_ptr->user_id = i.user_id;
             inst_ptr->flags = i.flags;
-            auto address = reinterpret_cast<Blas const *>(i.primitive)->get_accel_device_address();
-            inst_ptr->mesh = reinterpret_cast<std::array<uint, 2> &>(address);
+            if (i.flags & AccelBuildCommand::Modification::flag_primitive) {
+                auto mesh = reinterpret_cast<Blas const *>(i.primitive);
+                auto addr = mesh->get_accel_device_address();
+                inst_ptr->mesh = reinterpret_cast<std::array<uint, 2> const &>(addr);
+                resource_barrier->record(BufferView{mesh->_accel_buffer.get()},
+                                         ResourceBarrier::Usage::AccelInstanceBuffer);
+            }
             inst_ptr++;
         }
         for (auto &i : set_map) {
-            auto mod = *inst_ptr;
-            mod.index = i.first;
-            mod.flags = AccelBuildCommand::Modification::flag_primitive;
+            if (i.first >= allInstance.size()) continue;
+            inst_ptr->index = i.first;
+            inst_ptr->flags = AccelBuildCommand::Modification::flag_primitive;
+            resource_barrier->record(BufferView{i.second->mesh->_accel_buffer.get()},
+                                         ResourceBarrier::Usage::AccelInstanceBuffer);
             auto addr = i.second->mesh->get_accel_device_address();
-            mod.mesh = reinterpret_cast<std::array<uint, 2> &>(addr);
+            inst_ptr->mesh = reinterpret_cast<std::array<uint, 2> &>(addr);
             ++inst_ptr;
         }
         static_cast<UploadBuffer const *>(dsc_buffer.buffer)->copy_from(cache.data(), dsc_buffer.offset, dsc_buffer.size_bytes);
+        set_map.clear();
         VkDescriptorBufferInfo arg_buffer_info{
             dsc_buffer.buffer->vk_buffer(),
             dsc_buffer.offset,
@@ -186,7 +196,7 @@ void Tlas::pre_build(
             0,
             nullptr);
         vkCmdBindPipeline(cmdbuffer.cmdbuffer(), VK_PIPELINE_BIND_POINT_COMPUTE, shader->pipeline());
-        vkCmdDispatch(cmdbuffer.cmdbuffer(), (modifications.size() + 255) / 256, 1, 1);
+        vkCmdDispatch(cmdbuffer.cmdbuffer(), (modification_size + 255) / 256, 1, 1);
     }
     VkDeviceOrHostAddressConstKHR instance_data_device_address{};
     instance_data_device_address.deviceAddress = _instance_buffer->get_device_address();
@@ -232,7 +242,6 @@ void Tlas::pre_build(
     resource_barrier->record(
         _accel_buffer.get(),
         ResourceBarrier::Usage::BuildAccel);
-
     VkAccelerationStructureCreateInfoKHR acceleration_structure_create_info{};
     acceleration_structure_create_info.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
     acceleration_structure_create_info.buffer = _accel_buffer->vk_buffer();

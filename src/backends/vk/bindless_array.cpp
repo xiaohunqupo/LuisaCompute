@@ -146,7 +146,7 @@ void BindlessArray::bind(luisa::span<BindlessArrayUpdateCommand::Modification co
             return_value(indices.tex2D, 1, bind_grp.tex2D);
             tex_idx = device()->tex2d_heap_pool.alloc();
         } else {
-            return_value(indices.tex2D, 2, bind_grp.tex2D);
+            return_value(indices.tex3D, 2, bind_grp.tex3D);
             tex_idx = device()->tex3d_heap_pool.alloc();
         }
         auto smp_idx = luisa::to_underlying(samp.filter()) + luisa::to_underlying(samp.address()) * 4;
@@ -273,7 +273,8 @@ void BindlessArray::update(
     for (auto &mod : mods) {
         if (mod.tex2d.op == Ope::EMPLACE) {
             auto idx = device()->tex2d_heap_pool.get_index(_buffer_node) + mod.slot;
-            emplace_tex(cmdbuffer, write_desc_sets, device()->bdls_tex2d_set(), idx, reinterpret_cast<Texture *>(mod.tex2d.handle));
+            auto img_view = &device()->tex2d_bindless_imgview[idx];
+            emplace_tex(*img_view, cmdbuffer, write_desc_sets, device()->bdls_tex2d_set(), idx, reinterpret_cast<Texture *>(mod.tex2d.handle));
         }
     }
     if (!write_desc_sets.empty()) {
@@ -297,7 +298,8 @@ void BindlessArray::update(
     for (auto &mod : mods) {
         if (mod.tex3d.op == Ope::EMPLACE) {
             auto idx = device()->tex3d_heap_pool.get_index(_buffer_node) + mod.slot;
-            emplace_tex(cmdbuffer, write_desc_sets, device()->bdls_tex3d_set(), idx, reinterpret_cast<Texture *>(mod.tex3d.handle));
+            auto img_view = &device()->tex3d_bindless_imgview[idx];
+            emplace_tex(*img_view, cmdbuffer, write_desc_sets, device()->bdls_tex3d_set(), idx, reinterpret_cast<Texture *>(mod.tex3d.handle));
         }
     }
     if (!write_desc_sets.empty()) {
@@ -311,13 +313,17 @@ void BindlessArray::update(
     }
 }
 void BindlessArray::emplace_tex(
+    VkImageView &img_view,
     CommandBuffer *cmdbuffer,
     luisa::vector<VkWriteDescriptorSet> &write_desc_sets,
     VkDescriptorSet tex_set,
     uint tex_idx,
     Texture const *tex) const {
+    if (img_view) {
+        vkDestroyImageView(device()->logic_device(), img_view, Device::alloc_callbacks());
+        img_view = nullptr;
+    }
     auto image_info = cmdbuffer->temp_desc->allocate_memory<VkDescriptorImageInfo>();
-    auto &img_view = cmdbuffer->states()->img_views.emplace_back();
     VkImageViewCreateInfo img_view_create_info = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .flags = 0,
@@ -339,7 +345,7 @@ void BindlessArray::emplace_tex(
     *image_info = VkDescriptorImageInfo{
         nullptr,
         img_view,
-        cmdbuffer->resource_barrier->get_layout(tex, 0)};
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
     write_desc_sets.emplace_back(VkWriteDescriptorSet{
         VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         nullptr,
@@ -368,14 +374,18 @@ void BindlessArray::update(
     auto emplace_tex = [&]<bool isTex2D>(BindlessStruct &bind_grp, Texture const *tex) {
         VkDescriptorSet tex_set;
         uint tex_idx;
+        VkImageView *img_view;
         if constexpr (isTex2D) {
             tex_set = device()->bdls_tex2d_set();
             tex_idx = bind_grp.tex2D & BindlessStruct::mask;
+            img_view = &device()->tex2d_bindless_imgview[tex_idx];
         } else {
             tex_set = device()->bdls_tex3d_set();
             tex_idx = bind_grp.tex3D & BindlessStruct::mask;
+            img_view = &device()->tex3d_bindless_imgview[tex_idx];
         }
         this->emplace_tex(
+            *img_view,
             cmdbuffer,
             write_desc_sets,
             tex_set,

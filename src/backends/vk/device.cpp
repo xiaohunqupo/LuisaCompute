@@ -499,6 +499,7 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
             .descriptorSetCount = 1,
             .pSetLayouts = &_bdls_tex2d_set_layout};
         VK_CHECK_RESULT(vkAllocateDescriptorSets(logic_device(), &alloc_info, &_bdls_tex2d_set));
+        tex2d_bindless_imgview.resize(tex2d_heap_pool.full_size);
     }
     // bindless tex3d desc_pool
     {
@@ -530,6 +531,7 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
             .descriptorSetCount = 1,
             .pSetLayouts = &_bdls_tex3d_set_layout};
         VK_CHECK_RESULT(vkAllocateDescriptorSets(logic_device(), &alloc_info, &_bdls_tex3d_set));
+        tex3d_bindless_imgview.resize(tex3d_heap_pool.full_size);
     }
     // sampler desc_pool
     {
@@ -632,6 +634,12 @@ Device::~Device() {
     vkDestroyDescriptorPool(logic_device(), _bdls_tex3d_desc_pool, alloc_callbacks());
     vkDestroyDescriptorPool(logic_device(), _bdls_tex2d_desc_pool, alloc_callbacks());
     vkDestroyDescriptorPool(logic_device(), _bdls_buffer_desc_pool, alloc_callbacks());
+    for (auto &i : tex2d_bindless_imgview) {
+        if (i) vkDestroyImageView(logic_device(), i, alloc_callbacks());
+    }
+    for (auto &i : tex3d_bindless_imgview) {
+        if (i) vkDestroyImageView(logic_device(), i, alloc_callbacks());
+    }
     for (auto &i : _samplers) {
         vkDestroySampler(logic_device(), i, alloc_callbacks());
     }

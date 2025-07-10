@@ -47,6 +47,7 @@ private:
     mutable vstd::vector<FreeValue> freeQueue;
     void return_value(MapIndex &index, uint type, uint &originValue);
     void emplace_tex(
+        VkImageView &img_view,
         CommandBuffer *cmdbuffer,
         luisa::vector<VkWriteDescriptorSet> &write_desc_sets,
         VkDescriptorSet tex_set,

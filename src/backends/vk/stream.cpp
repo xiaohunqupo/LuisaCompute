@@ -537,6 +537,7 @@ void Stream::present(
     uint mip,
     Swapchain *swapchain,
     bool inqueue_limit) {
+    temp_desc.clear();
     if (inqueue_limit) {
         if (_evt.last_fence() > 2) {
             _evt.sync(_evt.last_fence() - 2);
@@ -626,7 +627,7 @@ void Stream::dispatch(
     bool inqueue_limit) {
     PresentCommand present_cmd;
     luisa::fixed_vector<VkSwapchainKHR, 1> vk_swapchains;
-
+    temp_desc.clear();
     if (cmds.empty() && callbacks.empty()) {
         return;
     }
@@ -703,7 +704,6 @@ void Stream::dispatch(
             VK_CHECK_RESULT(vkQueuePresentKHR(_queue, &present_info));
         }
         _evt.signal(*this, fence, presents.empty() ? &cb : nullptr);
-        temp_desc.clear();
         _mtx.lock();
         _exec.push(SyncExt{
             .evt = &_evt,
@@ -724,6 +724,7 @@ void Stream::dispatch(
     _cv.notify_one();
 }
 void Stream::update_sparse_resources(luisa::vector<SparseUpdateTile> &&textures_update) noexcept {
+    temp_desc.clear();
     if (textures_update.empty()) [[unlikely]]
         return;
     VkBindSparseInfo info{
@@ -847,7 +848,6 @@ void Stream::update_sparse_resources(luisa::vector<SparseUpdateTile> &&textures_
         1,
         &info,
         VK_NULL_HANDLE));
-    temp_desc.clear();
     _mtx.lock();
     _exec.push(NotifyEvt{
         .evt = &_evt,
@@ -1470,9 +1470,8 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                     //     ResourceBarrier::Usage::CopySource);
                     // resource_barrier->update_states(_cmdbuffer);
 
-                    // luisa::vector<std::array<uint, 3>> vec(16);
+                    // luisa::vector<std::array<uint, 3>> vec(3);
                     // auto chunk = _state->readback_alloc.allocate(vec.size(), 16);
-
                     // VkBufferCopy2 buffer_copy{
                     //     VK_STRUCTURE_TYPE_BUFFER_COPY_2,
                     //     nullptr,
@@ -1493,7 +1492,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                     // _state->_callbacks.emplace_back([chunk, vec = std::move(vec)]() mutable {
                     //     static_cast<ReadbackBuffer const *>(chunk.buffer)->copy_to(vec.data(), chunk.offset, vec.size_bytes());
                     //     for (auto &i : vec) {
-                    //         LUISA_INFO(uint3(i[0], i[1], i[2]));
+                    //         LUISA_INFO(uint3(i[0], i[1] & ((1u<<24u) - 1), i[2] & ((1u<<24u) - 1)));
                     //     }
                     // });
                 } break;

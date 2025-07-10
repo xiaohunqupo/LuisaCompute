@@ -73,6 +73,8 @@ public:
         bool Check(Device *self);
         ~LazyLoadShader();
     };
+    vstd::vector<VkImageView> tex2d_bindless_imgview;
+    vstd::vector<VkImageView> tex3d_bindless_imgview;
     HeapAlloc tex2d_heap_pool;
     HeapAlloc tex3d_heap_pool;
     HeapAlloc buffer_heap_pool;

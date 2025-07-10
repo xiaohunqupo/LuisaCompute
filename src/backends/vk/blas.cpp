@@ -33,13 +33,14 @@ void Blas::_pre_build(
         &primitive_count,
         &acceleration_structure_build_sizes_info);
     uint scratch_buffer_size = update ? acceleration_structure_build_sizes_info.updateScratchSize : acceleration_structure_build_sizes_info.buildScratchSize;
-    if (_accel_buffer && _accel_buffer->byte_size() != acceleration_structure_build_sizes_info.accelerationStructureSize) {
+    if (_accel_buffer && _accel_buffer->byte_size() < acceleration_structure_build_sizes_info.accelerationStructureSize) {
         cmdbuffer.states()->dispose_after_flush(std::move(_accel_buffer));
     }
     if (!_accel_buffer) {
+        update = false;
         _accel_buffer = vstd::make_unique<DefaultBuffer>(
             device(),
-            acceleration_structure_build_sizes_info.accelerationStructureSize,
+            (acceleration_structure_build_sizes_info.accelerationStructureSize + 65535u) & (~65535u),
             false, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR);
     }
     cmdbuffer.resource_barrier->record(
@@ -50,11 +51,11 @@ void Blas::_pre_build(
     acceleration_structure_create_info.buffer = _accel_buffer->vk_buffer();
     acceleration_structure_create_info.size = acceleration_structure_build_sizes_info.accelerationStructureSize;
     acceleration_structure_create_info.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+    bool sync = _accel;
     if (_accel) {
         cmdbuffer.states()->_callbacks.emplace_back([a = _accel, device = device()]() {
             vkDestroyAccelerationStructureKHR(device->logic_device(), a, Device::alloc_callbacks());
         });
-        sync_tlas();
     }
     VK_CHECK_RESULT(vkCreateAccelerationStructureKHR(device()->logic_device(), &acceleration_structure_create_info, Device::alloc_callbacks(), &_accel));
     scratch_buffer_size = (scratch_buffer_size + 255) & (~(255u));
@@ -65,6 +66,9 @@ void Blas::_pre_build(
     cmdbuffer.resource_barrier->record(
         scratch_buffer,
         ResourceBarrier::Usage::ComputeUAV);
+    if (sync) {
+        sync_tlas();
+    }
 }
 void Blas::pre_build(
     CommandBuffer &cmdbuffer,
