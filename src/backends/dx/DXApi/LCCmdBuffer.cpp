@@ -343,11 +343,11 @@ public:
     }
     void visit(const ShaderDispatchCommand *cmd) noexcept override {
         auto cs = reinterpret_cast<ComputeShader *>(cmd->handle());
+        UniformAlign(16);
         size_t beforeSize = argBuffer->size();
         Visitor visitor{this, cs->Args().data(), *cmd, false};
         DecodeCmd(cs->ArgBindings(), visitor);
         DecodeCmd(cmd->arguments(), visitor);
-        UniformAlign(16);
         size_t afterSize = argBuffer->size();
         argVecs->emplace_back(beforeSize, afterSize - beforeSize);
         if (cmd->is_indirect()) {
@@ -438,11 +438,11 @@ public:
 
     void visit(const DrawRasterSceneCommand *cmd) noexcept {
         auto cs = reinterpret_cast<RasterShader *>(cmd->handle());
+        UniformAlign(16);
         size_t beforeSize = argBuffer->size();
         auto rtvs = cmd->rtv_texs();
         auto dsv = cmd->dsv_tex();
         DecodeCmd(cmd->arguments(), Visitor{this, cs->Args().data(), *cmd, true});
-        UniformAlign(16);
         size_t afterSize = argBuffer->size();
         argVecs->emplace_back(beforeSize, afterSize - beforeSize);
 
@@ -1199,12 +1199,49 @@ void LCCmdBuffer::Execute(
         visitor.bd = &cmdBuilder;
         ppVisitor.bd = &cmdBuilder;
         reorder.clear();
+        size_t uniformSize = 0;
+        auto addSize = [&](auto const &c, Argument const &a) {
+            if (a.tag != Argument::Tag::UNIFORM) [[likely]]
+                return;
+
+            // uniform_buffer_size +=
+            auto bf = c.uniform(a.uniform);
+            uniformSize += std::max<size_t>(4, bf.size_bytes());
+        };
         for (auto &&command : commands) {
             // if (command->tag() == Command::Tag::EBindlessArrayUpdateCommand) {
             //     auto cmd = static_cast<BindlessArrayUpdateCommand const *>(command.get());
             //     reinterpret_cast<BindlessArray *>(cmd->handle())->Bind(cmd->modifications());
             // }
             command->accept(reorder);
+            switch (command->tag()) {
+                case Command::Tag::EShaderDispatchCommand: {
+                    auto c = static_cast<ShaderDispatchCommand const *>(command.get());
+                    auto cs = reinterpret_cast<ComputeShader *>(c->handle());
+                    uniformSize = (uniformSize + 15ull) & (~(15ull));
+                    for (auto &&i : cs->ArgBindings()) {
+                        addSize(*c, i);
+                    }
+                    for (auto &&i : c->arguments()) {
+                        addSize(*c, i);
+                    }
+                } break;
+                case Command::Tag::ECustomCommand: {
+                    if (static_cast<CustomCommand const *>(command.get())->uuid() ==
+                        to_underlying(CustomCommandUUID::RASTER_DRAW_SCENE)) {
+                        auto c = static_cast<DrawRasterSceneCommand const *>(command.get());
+                        for (auto &&i : c->arguments()) {
+                            addSize(*c, i);
+                        }
+                    }
+                } break;
+            }
+        }
+        // Upload CBuffers
+        if (uniformSize > 0) {
+            visitor.argBuffer = allocator->GetTempUploadBuffer(uniformSize, 16);
+        } else {
+            visitor.argBuffer = {};
         }
         auto cmdLists = reorder.command_lists();
         ID3D12DescriptorHeap *h[2] = {
@@ -1219,7 +1256,6 @@ void LCCmdBuffer::Execute(
 
             // Clear caches
             ppVisitor.argVecs->clear();
-            ppVisitor.argBuffer->clear();
             ppVisitor.accelOffset->clear();
             ppVisitor.bottomAccelDatas->clear();
             ppVisitor.buildAccelSize = 0;
@@ -1237,37 +1273,7 @@ void LCCmdBuffer::Execute(
                 visitor.accelScratchBuffer = accelScratchBuffer;
                 tracker->Record(accelScratchBuffer, EnhancedBarrierTracker::Usage::BuildAccelScratch);
             }
-            // Upload CBuffers
-            if (ppVisitor.argBuffer->empty()) {
-                visitor.argBuffer = {};
-            } else {
-// Use default buffer as arguments buffer
-#if false
-                auto uploadBuffer = allocator->GetTempDefaultBuffer(ppVisitor.argBuffer->size(), 16);
-                tracker->RecordState(
-                    uploadBuffer.buffer,
-                    D3D12_RESOURCE_STATE_COPY_DEST);
-                // Update recorded states
-                tracker->UpdateState(
-                    cmdBuilder);
-                cmdBuilder.Upload(
-                    uploadBuffer,
-                    ppVisitor.argBuffer->data());
-                tracker->RecordState(
-                    uploadBuffer.buffer,
-                    tracker->ReadState(ResourceReadUsage::Srv));
-#else
-                // use upload buffer maybe faster?
-                auto uploadBuffer = allocator->GetTempUploadBuffer(ppVisitor.argBuffer->size(), 16);
-                static_cast<UploadBuffer const *>(uploadBuffer.buffer)
-                    ->CopyData(
-                        uploadBuffer.offset,
-                        {reinterpret_cast<uint8_t const *>(
-                             ppVisitor.argBuffer->data()),
-                         ppVisitor.argBuffer->size()});
-#endif
-                visitor.argBuffer = uploadBuffer;
-            }
+
             tracker->UpdateState(
                 &barrier_callback);
             visitor.bufferVec = ppVisitor.argVecs->data();
@@ -1306,6 +1312,16 @@ void LCCmdBuffer::Execute(
                 lck.lock();
             }
         }
+        if (visitor.argBuffer.buffer) {
+            static_cast<UploadBuffer const *>(visitor.argBuffer.buffer)
+                ->CopyData(
+                    visitor.argBuffer.offset,
+                    {reinterpret_cast<uint8_t const *>(
+                         argBuffer.data()),
+                     argBuffer.size()});
+            LUISA_DEBUG_ASSERT(argBuffer.size() == uniformSize);
+        }
+
         for (auto &&present : cmdList.presents()) {
             auto swapchain = reinterpret_cast<LCSwapChain *>(present.chain->handle());
             auto &&rt = &swapchain->m_renderTargets[swapchain->frameIndex];

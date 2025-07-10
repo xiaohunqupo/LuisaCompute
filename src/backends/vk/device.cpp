@@ -127,8 +127,8 @@ vstd::vector<VkExtensionProperties> supported_exts(VkPhysicalDevice physical_dev
 }
 VkInstance create_instance(bool enableValidation) {
     volkInitialize();
-    vstd::vector<const char *> instance_exts = {VK_KHR_SURFACE_EXTENSION_NAME};
-    vstd::vector<const char *> enable_inst_ext;
+    vstd::vector<const char *> instance_exts;
+    instance_exts.reserve(8);
     vstd::unordered_set<vstd::string> supported_instance_exts;
 
     // Validation can also be forced via a define
@@ -141,6 +141,7 @@ VkInstance create_instance(bool enableValidation) {
     appInfo.apiVersion = VK_API_VERSION_1_3;
 
     // Enable surface extensions depending on os
+    instance_exts.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
     instance_exts.push_back(VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME);
 #if defined(_WIN32)
     instance_exts.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
@@ -175,20 +176,10 @@ VkInstance create_instance(bool enableValidation) {
     }
 #if (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK))
     // SRS - When running on iOS/macOS with MoltenVK, enable VK_KHR_get_physical_device_properties2 if not already enabled by the example (required by VK_KHR_portability_subset)
-    if (std::find(enable_inst_ext.begin(), enable_inst_ext.end(), VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME) == enable_inst_ext.end()) {
-        enable_inst_ext.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+    if (std::find(instance_exts.begin(), instance_exts.end(), VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME) == instance_exts.end()) {
+        instance_exts.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
     }
 #endif
-    // Enabled requested instance extensions
-    if (enable_inst_ext.size() > 0) {
-        for (const char *enabledExtension : enable_inst_ext) {
-            // Output message if requested extension is not available
-            if (supported_instance_exts.find(enabledExtension) == supported_instance_exts.end()) {
-                LUISA_ERROR("Enabled instance extension \"{}\"  is not present at instance level", enabledExtension);
-            }
-            instance_exts.push_back(enabledExtension);
-        }
-    }
 
     VkInstanceCreateInfo instanceCreateInfo = {};
     instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -283,6 +274,9 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
     bool headless = false;
     uint device_idx = 0;
     if (configs) {
+        if (configs->extension) {
+            _config_ext = luisa::unique_ptr<VulkanDeviceConfigExt>{reinterpret_cast<VulkanDeviceConfigExt *>(configs->extension.get())};
+        }
         headless = configs->headless;
         device_idx = configs->device_index;
         _binary_io = configs->binary_io;
@@ -308,17 +302,25 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
                 volkLoadInstance(detail::vk_instance);
             }
         }
-        _init_device(device_idx, false);
+        bool fallback = false;
+        if (_config_ext) {
+            fallback = _config_ext->enable_fallback();
+        }
+        _init_device(device_idx, fallback);
+        auto ctx_inst = context();
+        if (!_binary_io) {
+            _default_file_io = vstd::make_unique<DefaultBinaryIO>(std::move(ctx_inst), headless);
+            _binary_io = _default_file_io.get();
+        }
+        if (_config_ext) {
+            _config_ext->readback_vulkan_device(instance(), physical_device(), logic_device(), alloc_callbacks(), _pso_header, _graphics_queue, _compute_queue, _copy_queue, gDxcCompiler->compiler(), gDxcCompiler->library(), gDxcCompiler->utils());
+        }
     }
     // auto exts = detail::supported_exts(physical_device());
     // for(auto&& i : exts){
     //     LUISA_INFO("{}", i.extensionName);
     // }
-    auto ctx_inst = context();
-    if (!_binary_io) {
-        _default_file_io = vstd::make_unique<DefaultBinaryIO>(std::move(ctx_inst), headless);
-        _binary_io = _default_file_io.get();
-    }
+
     // func_table.init(this);
 }
 void Device::_init_device(uint32_t selectedDevice, bool fallback) {
@@ -350,18 +352,16 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
 
     // Select physical device to be used for the Vulkan example
     // Defaults to the first device unless specified by command line
-    if (!fallback) {
-        for (auto &&i : physical_devices) {
-            vkGetPhysicalDeviceProperties(i, &_device_properties);
-            luisa::string device_name{_device_properties.deviceName};
-            if (device_name.find("GeForce") != luisa::string::npos ||
-                device_name.find("Radeon") != luisa::string::npos ||
-                device_name.find("Arc") != luisa::string::npos) {
-                LUISA_INFO("Select device: {}", device_name);
-                break;
-            }
-            selectedDevice++;
+    for (auto &&i : physical_devices) {
+        vkGetPhysicalDeviceProperties(i, &_device_properties);
+        luisa::string device_name{_device_properties.deviceName};
+        if (device_name.find("GeForce") != luisa::string::npos ||
+            device_name.find("Radeon") != luisa::string::npos ||
+            device_name.find("Arc") != luisa::string::npos) {
+            LUISA_INFO("Select device: {}", device_name);
+            break;
         }
+        selectedDevice++;
     }
     auto physical_device = physical_devices[selectedDevice];
 
@@ -377,9 +377,9 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
     _vk_device.create(physical_device);
     _enable_device_exts.emplace_back(VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME);
     if (!fallback) {
+        // _enable_device_exts.emplace_back(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
+        // _enable_device_exts.emplace_back(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
         _enable_device_exts.emplace_back(VK_KHR_RAY_QUERY_EXTENSION_NAME);
-        _enable_device_exts.emplace_back(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
-        _enable_device_exts.emplace_back(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
         _enable_device_exts.emplace_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
         _enable_device_exts.emplace_back(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
     }
@@ -392,16 +392,17 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
     VkPhysicalDeviceDescriptorIndexingFeatures enable_bindless_features{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES,
         .pNext = &device_buffer_feature,
-        .shaderInputAttachmentArrayDynamicIndexing = VK_TRUE,
-        .shaderUniformTexelBufferArrayDynamicIndexing = VK_TRUE,
-        .shaderStorageTexelBufferArrayDynamicIndexing = VK_TRUE,
-        .shaderUniformBufferArrayNonUniformIndexing = VK_TRUE,
+        // .shaderInputAttachmentArrayDynamicIndexing = VK_TRUE,
+        // .shaderUniformTexelBufferArrayDynamicIndexing = VK_TRUE,
+        // .shaderStorageTexelBufferArrayDynamicIndexing = VK_TRUE,
+        // .shaderUniformBufferArrayNonUniformIndexing = VK_TRUE,
         .shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
-        .shaderStorageBufferArrayNonUniformIndexing = VK_TRUE,
-        .shaderStorageImageArrayNonUniformIndexing = VK_TRUE,
-        .shaderInputAttachmentArrayNonUniformIndexing = VK_TRUE,
-        .shaderUniformTexelBufferArrayNonUniformIndexing = VK_TRUE,
-        .shaderStorageTexelBufferArrayNonUniformIndexing = VK_TRUE,
+        .descriptorBindingPartiallyBound = VK_TRUE,
+        // .shaderStorageBufferArrayNonUniformIndexing = VK_TRUE,
+        // .shaderStorageImageArrayNonUniformIndexing = VK_TRUE,
+        // .shaderInputAttachmentArrayNonUniformIndexing = VK_TRUE,
+        // .shaderUniformTexelBufferArrayNonUniformIndexing = VK_TRUE,
+        // .shaderStorageTexelBufferArrayNonUniformIndexing = VK_TRUE,
         .runtimeDescriptorArray = VK_TRUE};
 
     VkPhysicalDeviceRayQueryFeaturesKHR enable_rayquery_features{
@@ -415,7 +416,7 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
 
     VkPhysicalDeviceTimelineSemaphoreFeatures enable_timeline_feature{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES,
-        .pNext = fallback ? nullptr : &enabledAccelerationStructureFeatures,
+        .pNext = &enabledAccelerationStructureFeatures,
         .timelineSemaphore = VK_TRUE};
     VkPhysicalDeviceSynchronization2Features barrier_feature{
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES,
@@ -739,7 +740,7 @@ SwapchainCreationInfo Device::create_swapchain(const SwapchainOption &option, ui
         option.window,
         option.size.x,
         option.size.y,
-        option.back_buffer_count,
+        option.back_buffer_count + 1,
         false,
         option.wants_hdr,
         option.wants_vsync);

@@ -151,7 +151,7 @@ struct ResourceBarrierVisitor {
             uint value = v ? std::numeric_limits<uint>::max() : 0;
             emplace_data(value);
         } else {
-            emplace_data(bf.data(), arg->structSize);
+            emplace_data(bf.data(), bf.size_bytes());
         }
         ++arg;
     }
@@ -399,16 +399,16 @@ void CommandBufferState::init(Device &device, StreamTag tag) {
     readback_alloc.visitor.device = &device;
     {
         VkDescriptorPoolSize pool_sizes[3];
-        pool_sizes[0].descriptorCount = 262144;
+        pool_sizes[0].descriptorCount = 65536;
         pool_sizes[0].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        pool_sizes[1].descriptorCount = 262144;
+        pool_sizes[1].descriptorCount = 65536;
         pool_sizes[1].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-        pool_sizes[2].descriptorCount = 262144;
+        pool_sizes[2].descriptorCount = 65536;
         pool_sizes[2].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
         VkDescriptorPoolCreateInfo createInfo{
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-            .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
-            .maxSets = 65536,
+            .flags = 0,
+            .maxSets = 262144,
             .poolSizeCount = vstd::array_count(pool_sizes),
             .pPoolSizes = pool_sizes};
         VK_CHECK_RESULT(vkCreateDescriptorPool(device.logic_device(), &createInfo, Device::alloc_callbacks(), &_desc_pool));
@@ -647,6 +647,7 @@ void Stream::dispatch(
         scratch_buffer_alloc_visitor.device = device();
 
         auto cb = cmdbuffer.cmdbuffer();
+        auto cb_ptr = &cb;
 
         cmdbuffer.resource_barrier = &resource_barrier;
         cmdbuffer.uniform_data = &uniform_data;
@@ -690,8 +691,10 @@ void Stream::dispatch(
             submit_info.signalSemaphoreCount = present_cmd.signal_semaphores.size();
             submit_info.pSignalSemaphores = present_cmd.signal_semaphores.data();
             submit_info.commandBufferCount = 1;
-            auto _cmdbuffer = cmdbuffer.cmdbuffer();
-            submit_info.pCommandBuffers = &_cmdbuffer;
+            if (device()->config_ext() && device()->config_ext()->execute_command_buffer(cb)) {
+                cb_ptr = nullptr;
+            }
+            submit_info.pCommandBuffers = cb_ptr;
             VK_CHECK_RESULT(vkQueueSubmit(_queue, 1u, &submit_info, nullptr));
 
             VkPresentInfoKHR present_info{};
@@ -703,7 +706,10 @@ void Stream::dispatch(
             present_info.pImageIndices = present_cmd.image_indices.data();
             VK_CHECK_RESULT(vkQueuePresentKHR(_queue, &present_info));
         }
-        _evt.signal(*this, fence, presents.empty() ? &cb : nullptr);
+        if (cb_ptr && device()->config_ext() && device()->config_ext()->execute_command_buffer(cb)) {
+            cb_ptr = nullptr;
+        }
+        _evt.signal(*this, fence, cb_ptr);
         _mtx.lock();
         _exec.push(SyncExt{
             .evt = &_evt,
@@ -863,11 +869,17 @@ CommandBuffer::CommandBuffer(Stream &stream)
       stream(stream),
       _state(vstd::make_unique<CommandBufferState>()) {
     _state->init(*stream.device(), stream.stream_tag());
-    VkCommandBufferAllocateInfo cb_ci{
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .commandPool = _state->_pool,
-        .commandBufferCount = 1};
-    VK_CHECK_RESULT(vkAllocateCommandBuffers(device()->logic_device(), &cb_ci, &_cmdbuffer));
+    _cmdbuffer = nullptr;
+    if (device()->config_ext()) {
+        _cmdbuffer = device()->config_ext()->borrow_command_buffer(stream.stream_tag());
+    }
+    if (!_cmdbuffer) {
+        VkCommandBufferAllocateInfo cb_ci{
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+            .commandPool = _state->_pool,
+            .commandBufferCount = 1};
+        VK_CHECK_RESULT(vkAllocateCommandBuffers(device()->logic_device(), &cb_ci, &_cmdbuffer));
+    }
     // VkFenceCreateInfo fence_info{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
     // VK_CHECK_RESULT(vkCreateFence(device()->logic_device(), &fence_info, Device::alloc_callbacks(), nullptr));
 }
@@ -903,16 +915,48 @@ void Stream::wait(Event *event, uint64_t value) {
     event->wait(*this, value);
 }
 void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
+    // collect argument buffer
+    size_t uniform_buffer_size = 0;
+    auto add_size = [&](ShaderDispatchCommand const &c, Argument const &a) {
+        if (a.tag != Argument::Tag::UNIFORM) [[likely]]
+            return;
+
+        // uniform_buffer_size +=
+        auto bf = c.uniform(a.uniform);
+        uniform_buffer_size += std::max<size_t>(4, bf.size_bytes());
+    };
     for (auto &&command : cmds) {
         command->accept(stream.reorder);
+        if (command->tag() != Command::Tag::EShaderDispatchCommand) continue;
+        auto c = static_cast<ShaderDispatchCommand const *>(command.get());
+        auto shader = reinterpret_cast<Shader const *>(c->handle());
+        uniform_buffer_size = (uniform_buffer_size + 15ull) & (~(15ull));
+        for (auto &i : shader->captured()) {
+            add_size(*c, i);
+        }
+        for (auto &i : c->arguments()) {
+            add_size(*c, i);
+        }
     }
     auto cmd_lists = stream.reorder.command_lists();
     auto clear_reorder = vstd::scope_exit([&] {
         stream.reorder.clear();
     });
+    uniform_data->clear();
+    uniform_data->reserve(uniform_buffer_size);
+#ifndef NDEBUG
+    auto check_uniform = vstd::scope_exit([&]() {
+        if (uniform_data->size_bytes() != uniform_buffer_size) [[unlikely]] {
+            LUISA_ERROR("Bad uniform size.");
+        }
+    });
+#endif
+    BufferView arg_buffer;
+    if (uniform_buffer_size > 0) {
+        arg_buffer = _state->upload_alloc.allocate(uniform_buffer_size, 16);
+    }
     for (auto &&lst : cmd_lists) {
         dispatch_offsets->clear();
-        uniform_data->clear();
         auto delay_clear = vstd::scope_exit([&]() {
             scratch_buffer_alloc->clear();
         });
@@ -1084,8 +1128,6 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                 default: break;
             }
         }
-        auto arg_buffer = _state->upload_alloc.allocate(uniform_data->size(), 16);
-        static_cast<UploadBuffer const *>(arg_buffer.buffer)->copy_from(uniform_data->data(), arg_buffer.offset, uniform_data->size());
         resource_barrier->update_states(_cmdbuffer);
         auto offset_ptr = dispatch_offsets->data();
         // Execute
@@ -1516,6 +1558,9 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                 default: break;
             }
         }
+    }
+    if (uniform_buffer_size > 0) {
+        static_cast<UploadBuffer const *>(arg_buffer.buffer)->copy_from(uniform_data->data(), arg_buffer.offset, uniform_data->size());
     }
 }
 

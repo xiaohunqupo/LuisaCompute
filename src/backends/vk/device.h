@@ -6,6 +6,7 @@
 #include <luisa/core/first_fit.h>
 #include "../common/default_binary_io.h"
 #include "vk_allocator.h"
+#include <luisa/backends/ext/vk_config_ext.h>
 namespace lc::hlsl {
 class ShaderCompiler;
 }// namespace lc::hlsl
@@ -15,6 +16,7 @@ using namespace luisa;
 using namespace luisa::compute;
 static constexpr size_t sparse_buffer_size = 65536ull;
 class Device : public DeviceInterface, public vstd::IOperatorNewBase {
+    luisa::unique_ptr<VulkanDeviceConfigExt> _config_ext;
     vstd::optional<vks::VulkanDevice> _vk_device;
     VkPhysicalDeviceProperties _device_properties{};
     VkPhysicalDeviceFeatures _device_features{};
@@ -80,6 +82,7 @@ public:
     HeapAlloc buffer_heap_pool;
     LazyLoadShader set_bindless_kernel;
     LazyLoadShader set_accel_kernel;
+    VulkanDeviceConfigExt *config_ext() const { return _config_ext.get(); }
     auto binary_io() const { return _binary_io; }
     auto sampler_set() const { return _sampler_set; }
     auto bdls_buffer_set() const { return _bdls_buffer_set; }
