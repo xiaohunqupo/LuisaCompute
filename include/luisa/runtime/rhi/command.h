@@ -119,10 +119,15 @@ protected:
     ~ShaderDispatchCommandBase() noexcept = default;
 
 public:
+    void set_handle(uint64_t handle) noexcept { _handle = handle; }
     [[nodiscard]] auto handle() const noexcept { return _handle; }
     [[nodiscard]] auto arguments() const noexcept {
         return luisa::span{reinterpret_cast<const Argument *>(_argument_buffer.data()), _argument_count};
     }
+    [[nodiscard]] auto arguments() noexcept {
+        return luisa::span{reinterpret_cast<Argument *>(_argument_buffer.data()), _argument_count};
+    }
+
     [[nodiscard]] auto uniform(const Argument::Uniform &u) const noexcept {
         return luisa::span{_argument_buffer}.subspan(u.offset, u.size);
     }
@@ -179,6 +184,8 @@ public:
                         const void *data) noexcept
         : Command{Command::Tag::EBufferUploadCommand},
           _handle{handle}, _offset{offset_bytes}, _size{size_bytes}, _data{data} {}
+    void set_handle(uint64_t handle) noexcept { _handle = handle; }
+    void set_data(const void *data) noexcept { _data = data; }
     [[nodiscard]] auto handle() const noexcept { return _handle; }
     [[nodiscard]] auto offset() const noexcept { return _offset; }
     [[nodiscard]] auto size() const noexcept { return _size; }
@@ -202,6 +209,8 @@ public:
     BufferDownloadCommand(uint64_t handle, size_t offset_bytes, size_t size_bytes, void *data) noexcept
         : Command{Command::Tag::EBufferDownloadCommand},
           _handle{handle}, _offset{offset_bytes}, _size{size_bytes}, _data{data} {}
+    void set_handle(uint64_t handle) noexcept { _handle = handle; }
+    void set_data(void *data) noexcept { _data = data; }
     [[nodiscard]] auto handle() const noexcept { return _handle; }
     [[nodiscard]] auto offset() const noexcept { return _offset; }
     [[nodiscard]] auto size() const noexcept { return _size; }
@@ -227,6 +236,8 @@ public:
         : Command{Command::Tag::EBufferCopyCommand},
           _src_handle{src}, _dst_handle{dst},
           _src_offset{src_offset}, _dst_offset{dst_offset}, _size{size} {}
+    void set_src_handle(uint64_t handle) noexcept { _src_handle = handle; }
+    void set_dst_handle(uint64_t handle) noexcept { _dst_handle = handle; }
     [[nodiscard]] auto src_handle() const noexcept { return _src_handle; }
     [[nodiscard]] auto dst_handle() const noexcept { return _dst_handle; }
     [[nodiscard]] auto src_offset() const noexcept { return _src_offset; }
@@ -259,6 +270,8 @@ public:
           _texture_handle{texture}, _pixel_storage{storage}, _texture_level{level},
           _texture_offset{texture_offset.x, texture_offset.y, texture_offset.z},
           _texture_size{size.x, size.y, size.z} {}
+    void set_buffer_handle(uint64_t handle) noexcept { _buffer_handle = handle; }
+    void set_texture_handle(uint64_t handle) noexcept { _texture_handle = handle; }
     [[nodiscard]] auto buffer() const noexcept { return _buffer_handle; }
     [[nodiscard]] auto buffer_offset() const noexcept { return _buffer_offset; }
     [[nodiscard]] auto texture() const noexcept { return _texture_handle; }
@@ -293,6 +306,8 @@ public:
           _texture_handle{texture}, _pixel_storage{storage}, _texture_level{level},
           _texture_offset{texture_offset.x, texture_offset.y, texture_offset.z},
           _texture_size{size.x, size.y, size.z} {}
+    void set_buffer_handle(uint64_t handle) noexcept { _buffer_handle = handle; }
+    void set_texture_handle(uint64_t handle) noexcept { _texture_handle = handle; }
     [[nodiscard]] auto buffer() const noexcept { return _buffer_handle; }
     [[nodiscard]] auto buffer_offset() const noexcept { return _buffer_offset; }
     [[nodiscard]] auto texture() const noexcept { return _texture_handle; }
@@ -327,6 +342,8 @@ public:
           _src_offset{src_offset.x, src_offset.y, src_offset.z},
           _dst_offset{dst_offset.x, dst_offset.y, dst_offset.z},
           _size{size.x, size.y, size.z}, _src_level{src_level}, _dst_level{dst_level} {}
+    void set_src_handle(uint64_t handle) noexcept { _src_handle = handle; }
+    void set_dst_handle(uint64_t handle) noexcept { _dst_handle = handle; }
     [[nodiscard]] auto storage() const noexcept { return _storage; }
     [[nodiscard]] auto src_handle() const noexcept { return _src_handle; }
     [[nodiscard]] auto dst_handle() const noexcept { return _dst_handle; }
@@ -361,6 +378,8 @@ public:
           _offset{offset.x, offset.y, offset.z},
           _size{size.x, size.y, size.z},
           _data{data} {}
+    void set_handle(uint64_t handle) noexcept { _handle = handle; }
+    void set_data(const void *data) noexcept { _data = data; }
     [[nodiscard]] auto handle() const noexcept { return _handle; }
     [[nodiscard]] auto storage() const noexcept { return _storage; }
     [[nodiscard]] auto level() const noexcept { return _level; }
@@ -393,6 +412,8 @@ public:
           _offset{offset.x, offset.y, offset.z},
           _size{size.x, size.y, size.z},
           _data{data} {}
+    void set_handle(uint64_t handle) noexcept { _handle = handle; }
+    void set_data(void *data) noexcept { _data = data; }
     [[nodiscard]] auto handle() const noexcept { return _handle; }
     [[nodiscard]] auto storage() const noexcept { return _storage; }
     [[nodiscard]] auto level() const noexcept { return _level; }
@@ -434,6 +455,9 @@ public:
           _triangle_buffer{triangle_buffer}, _triangle_buffer_offset{triangle_buffer_offset},
           _triangle_buffer_size{triangle_buffer_size} {
     }
+    void set_handle(uint64_t handle) noexcept { _handle = handle; }
+    void set_vertex_buffer(uint64_t vertex_buffer) noexcept { _vertex_buffer = vertex_buffer; }
+    void set_triangle_buffer(uint64_t triangle_buffer) noexcept { _triangle_buffer = triangle_buffer; }
     [[nodiscard]] auto handle() const noexcept { return _handle; }
     [[nodiscard]] auto request() const noexcept { return _request; }
     [[nodiscard]] auto vertex_buffer() const noexcept { return _vertex_buffer; }
@@ -476,6 +500,9 @@ public:
           _seg_buffer{seg_buffer}, _seg_buffer_offset{seg_buffer_offset} {}
 
 public:
+    void set_handle(uint64_t handle) noexcept { _handle = handle; }
+    void set_cp_buffer(uint64_t cp_buffer) noexcept { _cp_buffer = cp_buffer; }
+    void set_seg_buffer(uint64_t seg_buffer) noexcept { _seg_buffer = seg_buffer; }
     [[nodiscard]] auto handle() const noexcept { return _handle; }
     [[nodiscard]] auto request() const { return _request; }
     [[nodiscard]] auto basis() const { return _basis; }
@@ -504,6 +531,8 @@ public:
         : Command{Command::Tag::EProceduralPrimitiveBuildCommand},
           _handle{handle}, _request{request}, _aabb_buffer{aabb_buffer},
           _aabb_buffer_offset{aabb_buffer_offset}, _aabb_buffer_size{aabb_buffer_size} {}
+    void set_handle(uint64_t handle) noexcept { _handle = handle; }
+    void set_aabb_buffer(uint64_t aabb_buffer) noexcept { _aabb_buffer = aabb_buffer; }
     [[nodiscard]] auto handle() const noexcept { return _handle; }
     [[nodiscard]] auto request() const noexcept { return _request; }
     [[nodiscard]] auto aabb_buffer() const noexcept { return _aabb_buffer; }
@@ -524,6 +553,8 @@ public:
                                luisa::vector<MotionInstanceTransform> keyframes) noexcept
         : Command{Command::Tag::EMotionInstanceBuildCommand},
           _handle{handle}, _child{child}, _keyframes{std::move(keyframes)} {}
+    void set_handle(uint64_t handle) noexcept { _handle = handle; }
+    void set_child_handle(uint64_t handle) noexcept { _child = handle; }
     [[nodiscard]] auto handle() const noexcept { return _handle; }
     [[nodiscard]] auto child() const noexcept { return _child; }
     [[nodiscard]] auto keyframes() const noexcept { return luisa::span{_keyframes}; }
@@ -610,6 +641,10 @@ public:
           _handle{handle}, _instance_count{instance_count},
           _request{request}, _update_instance_buffer_only{update_instance_buffer_only},
           _modifications{std::move(modifications)} {}
+    void set_handle(uint64_t handle) noexcept { _handle = handle; }
+    void set_modifications(luisa::vector<Modification> &&modifications) noexcept {
+        _modifications = std::move(modifications);
+    }
     [[nodiscard]] auto handle() const noexcept { return _handle; }
     [[nodiscard]] auto request() const noexcept { return _request; }
     [[nodiscard]] auto instance_count() const noexcept { return _instance_count; }
@@ -742,9 +777,15 @@ public:
                                luisa::vector<Texture3DModification> &&mods) noexcept
         : Command{Command::Tag::EBindlessArrayUpdateCommand},
           _handle{handle}, _modifications{std::move(mods)} {}
+    void set_handle(uint64_t handle) noexcept { _handle = handle; }
+
     [[nodiscard]] auto handle() const noexcept { return _handle; }
-    template <typename Func>
-    auto visit_modifications(Func&& func) const {
+    template<typename Func>
+    auto visit_modifications(Func &&func) const {
+        return luisa::visit(func, _modifications);
+    }
+    template<typename Func>
+    auto visit_modifications(Func &&func) {
         return luisa::visit(func, _modifications);
     }
     [[nodiscard]] auto empty() const noexcept {

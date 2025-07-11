@@ -32,13 +32,17 @@ private:
 
 public:
     CommandList() noexcept;
+    CommandList(
+        CommandContainer &&commands,
+        CallbackContainer &&callbacks,
+        PresentContainer &&presents) noexcept;
     ~CommandList() noexcept;
     CommandList(CommandList &&another) noexcept;
     CommandList &operator=(CommandList &&rhs) noexcept = delete;
     [[nodiscard]] static CommandList create(size_t reserved_command_size = 0u,
                                             size_t reserved_callback_size = 0u) noexcept;
 
-    void reserve(size_t command_size, size_t callback_size) noexcept;
+    void reserve(size_t command_size, size_t callback_size, size_t present_size = 1) noexcept;
     CommandList &operator<<(luisa::unique_ptr<Command> &&cmd) noexcept;
     CommandList &append(luisa::unique_ptr<Command> &&cmd) noexcept;
     CommandList &add_callback(luisa::move_only_function<void()> &&callback) noexcept;
