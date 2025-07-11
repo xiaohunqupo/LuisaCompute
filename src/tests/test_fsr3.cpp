@@ -227,7 +227,7 @@ class FSRCommand : public DXCustomCmd {
     FfxFsr3Context *context;
     mutable FfxFsr3DispatchUpscaleDescription dispatch_params{};
 
-    [[nodiscard]] luisa::span<const ResourceUsage> get_resource_usages() const noexcept override {
+    [[nodiscard]] luisa::span< ResourceUsage> get_resource_usages()  noexcept override {
         return resource_usages;
     }
     template<typename T>

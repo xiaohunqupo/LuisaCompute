@@ -946,6 +946,10 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
     uniform_data->reserve(uniform_buffer_size);
 #ifndef NDEBUG
     auto check_uniform = vstd::scope_exit([&]() {
+        auto aligned_size = (uniform_data->size_bytes() + 15ull) & (~15ull);
+        uniform_buffer_size = (uniform_buffer_size + 15ull) & (~(15ull));
+        LUISA_DEBUG_ASSERT(aligned_size == uniform_buffer_size);
+
         if (uniform_data->size_bytes() != uniform_buffer_size) [[unlikely]] {
             LUISA_ERROR("Bad uniform size.");
         }
@@ -1094,7 +1098,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                     switch (c->uuid()) {
                         case to_underlying(CustomCommandUUID::CUSTOM_DISPATCH): {
                             auto custom_cmd = static_cast<VKCustomCmd const *>(c);
-                            for (auto &&i : custom_cmd->get_resource_usages()) {
+                            for (auto &&i : const_cast<VKCustomCmd *>(custom_cmd)->get_resource_usages()) {
                                 luisa::visit(
                                     [&]<typename T>(T const &t) {
                                         if constexpr (std::is_same_v<T, Argument::Buffer>) {

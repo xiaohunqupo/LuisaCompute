@@ -865,18 +865,27 @@ public:
         virtual void visit(const Argument::BindlessArray &, Usage usage) noexcept = 0;
         virtual void visit(const Argument::Accel &, Usage usage) noexcept = 0;
     };
+    class MutableArgumentVisitor {
+    public:
+        virtual ~MutableArgumentVisitor() noexcept = default;
+        virtual void visit(Argument::Buffer &, Usage usage) noexcept = 0;
+        virtual void visit(Argument::Texture &, Usage usage) noexcept = 0;
+        virtual void visit(Argument::BindlessArray &, Usage usage) noexcept = 0;
+        virtual void visit(Argument::Accel &, Usage usage) noexcept = 0;
+    };
 
 public:
     explicit CustomDispatchCommand() noexcept = default;
     ~CustomDispatchCommand() noexcept override = default;
 
+    virtual void traverse_arguments(MutableArgumentVisitor &visitor) noexcept = 0;
     virtual void traverse_arguments(ArgumentVisitor &visitor) const noexcept = 0;
 
     // For backend reorder
     [[nodiscard]] virtual uint3 max_dispatch_size() const noexcept { return uint3{65535u * 32u}; }
 
     template<typename F>
-        requires(!std::derived_from<std::remove_cvref_t<F>, ArgumentVisitor>)
+        requires((!std::derived_from<std::remove_cvref_t<F>, MutableArgumentVisitor>) && (!std::derived_from<std::remove_cvref_t<F>, ArgumentVisitor>))
     void traverse_arguments(F &&f) const noexcept {
         class Adapter final : public ArgumentVisitor {
         private:
@@ -894,6 +903,31 @@ public:
                 _f(resource, usage);
             }
             void visit(const Argument::Accel &resource, Usage usage) noexcept override {
+                _f(resource, usage);
+            }
+        };
+        Adapter adapter{f};
+        this->traverse_arguments(adapter);
+    }
+    template<typename F>
+        requires((!std::derived_from<std::remove_cvref_t<F>, MutableArgumentVisitor>) && (!std::derived_from<std::remove_cvref_t<F>, ArgumentVisitor>))
+    void traverse_arguments(F &&f) noexcept {
+        class Adapter final : public MutableArgumentVisitor {
+        private:
+            F &_f;
+
+        public:
+            explicit Adapter(F &f) noexcept : _f{f} {}
+            void visit(Argument::Buffer &resource, Usage usage) noexcept override {
+                _f(resource, usage);
+            }
+            void visit(Argument::Texture &resource, Usage usage) noexcept override {
+                _f(resource, usage);
+            }
+            void visit(Argument::BindlessArray &resource, Usage usage) noexcept override {
+                _f(resource, usage);
+            }
+            void visit(Argument::Accel &resource, Usage usage) noexcept override {
                 _f(resource, usage);
             }
         };

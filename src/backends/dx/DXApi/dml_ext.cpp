@@ -289,7 +289,7 @@ void DxGraphBuildCommand::execute(IDXGIAdapter1 *adapter, IDXGIFactory2 *dxgi_fa
 
 class DxGraphForwardCommand final : public DXCustomCmd {
     luisa::vector<EnhancedResourceUsage> resource_usages;
-    luisa::span<const EnhancedResourceUsage> get_enhanced_resource_usages() const noexcept override {
+    luisa::span<EnhancedResourceUsage> get_enhanced_resource_usages() noexcept override {
         return resource_usages;
     }
 public:

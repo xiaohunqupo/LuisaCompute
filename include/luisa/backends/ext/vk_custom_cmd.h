@@ -187,7 +187,7 @@ private:
         return usage;
     }
 public:
-    [[nodiscard]] virtual luisa::span<const ResourceUsage> get_resource_usages() const noexcept {
+    [[nodiscard]] virtual luisa::span<ResourceUsage> get_resource_usages() noexcept {
         return {};
     }
     VKCustomCmd() noexcept = default;
@@ -196,6 +196,15 @@ public:
         return luisa::to_underlying(CustomCommandUUID::CUSTOM_DISPATCH);
     }
     void traverse_arguments(ArgumentVisitor &visitor) const noexcept override {
+        auto usages = const_cast<VKCustomCmd *>(this)->get_resource_usages();
+        for (auto &&[handle, stage, access, layout] : usages) {
+            luisa::visit([&](auto &&v) {
+                visitor.visit(v, resource_state_to_usage(access));
+            },
+                         handle);
+        }
+    }
+    void traverse_arguments(MutableArgumentVisitor &visitor) noexcept override {
         auto usages = get_resource_usages();
         for (auto &&[handle, stage, access, layout] : usages) {
             luisa::visit([&](auto &&v) {

@@ -183,7 +183,7 @@ public:
                 uint value = v ? std::numeric_limits<uint>::max() : 0;
                 self->EmplaceData(value);
             } else {
-                self->EmplaceData(bf.data(), arg->structSize);
+                self->EmplaceData(bf.data(), bf.size_bytes());
             }
             ++arg;
         }
@@ -232,11 +232,11 @@ public:
                 },
                 i.resource);
         };
-        for (auto &&i : cmd->get_resource_usages()) {
+        for (auto i : const_cast<DXCustomCmd *>(cmd)->get_resource_usages()) {
             auto res_view = get_resource_view(i);
             stateTracker->Record(res_view, i.required_state);
         }
-        for (auto &&i : cmd->get_enhanced_resource_usages()) {
+        for (auto i : const_cast<DXCustomCmd *>(cmd)->get_enhanced_resource_usages()) {
             auto res_view = get_resource_view(i);
             stateTracker->Record(
                 res_view,
@@ -1319,7 +1319,9 @@ void LCCmdBuffer::Execute(
                     {reinterpret_cast<uint8_t const *>(
                          argBuffer.data()),
                      argBuffer.size()});
-            LUISA_DEBUG_ASSERT(argBuffer.size() == uniformSize);
+            auto aligned_size = (argBuffer.size() + 15ull) & (~15ull);
+            uniformSize = (uniformSize + 15ull) & (~(15ull));
+            LUISA_DEBUG_ASSERT(aligned_size == uniformSize);
         }
 
         for (auto &&present : cmdList.presents()) {
