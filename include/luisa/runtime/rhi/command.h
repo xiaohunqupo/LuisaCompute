@@ -185,6 +185,8 @@ public:
         : Command{Command::Tag::EBufferUploadCommand},
           _handle{handle}, _offset{offset_bytes}, _size{size_bytes}, _data{data} {}
     void set_handle(uint64_t handle) noexcept { _handle = handle; }
+    void set_offset(size_t offset) noexcept { _offset = offset; }
+    void set_size(size_t size) noexcept { _size = size; }
     void set_data(const void *data) noexcept { _data = data; }
     [[nodiscard]] auto handle() const noexcept { return _handle; }
     [[nodiscard]] auto offset() const noexcept { return _offset; }
@@ -210,6 +212,8 @@ public:
         : Command{Command::Tag::EBufferDownloadCommand},
           _handle{handle}, _offset{offset_bytes}, _size{size_bytes}, _data{data} {}
     void set_handle(uint64_t handle) noexcept { _handle = handle; }
+    void set_offset(size_t offset) noexcept { _offset = offset; }
+    void set_size(size_t size) noexcept { _size = size; }
     void set_data(void *data) noexcept { _data = data; }
     [[nodiscard]] auto handle() const noexcept { return _handle; }
     [[nodiscard]] auto offset() const noexcept { return _offset; }
@@ -238,6 +242,9 @@ public:
           _src_offset{src_offset}, _dst_offset{dst_offset}, _size{size} {}
     void set_src_handle(uint64_t handle) noexcept { _src_handle = handle; }
     void set_dst_handle(uint64_t handle) noexcept { _dst_handle = handle; }
+    void set_src_offset(size_t src_offset) noexcept { _src_offset = src_offset; }
+    void set_dst_offset(size_t dst_offset) noexcept { _dst_offset = dst_offset; }
+    void set_size(size_t size) noexcept { _size = size; }
     [[nodiscard]] auto src_handle() const noexcept { return _src_handle; }
     [[nodiscard]] auto dst_handle() const noexcept { return _dst_handle; }
     [[nodiscard]] auto src_offset() const noexcept { return _src_offset; }
@@ -271,6 +278,7 @@ public:
           _texture_offset{texture_offset.x, texture_offset.y, texture_offset.z},
           _texture_size{size.x, size.y, size.z} {}
     void set_buffer_handle(uint64_t handle) noexcept { _buffer_handle = handle; }
+    void set_buffer_offset(uint64_t offset) noexcept { _buffer_offset = offset; }
     void set_texture_handle(uint64_t handle) noexcept { _texture_handle = handle; }
     [[nodiscard]] auto buffer() const noexcept { return _buffer_handle; }
     [[nodiscard]] auto buffer_offset() const noexcept { return _buffer_offset; }
@@ -307,6 +315,7 @@ public:
           _texture_offset{texture_offset.x, texture_offset.y, texture_offset.z},
           _texture_size{size.x, size.y, size.z} {}
     void set_buffer_handle(uint64_t handle) noexcept { _buffer_handle = handle; }
+    void set_buffer_offset(uint64_t offset) noexcept { _buffer_offset = offset; }
     void set_texture_handle(uint64_t handle) noexcept { _texture_handle = handle; }
     [[nodiscard]] auto buffer() const noexcept { return _buffer_handle; }
     [[nodiscard]] auto buffer_offset() const noexcept { return _buffer_offset; }
@@ -457,6 +466,10 @@ public:
     }
     void set_handle(uint64_t handle) noexcept { _handle = handle; }
     void set_vertex_buffer(uint64_t vertex_buffer) noexcept { _vertex_buffer = vertex_buffer; }
+    void set_vertex_offset(uint64_t offset) noexcept { _vertex_buffer_offset = offset; }
+    void set_vertex_size(uint64_t size) noexcept { _vertex_buffer_size = size; }
+    void set_triangle_offset(uint64_t offset) noexcept { _triangle_buffer_offset = offset; }
+    void set_triangle_size(uint64_t size) noexcept { _triangle_buffer_size = size; }
     void set_triangle_buffer(uint64_t triangle_buffer) noexcept { _triangle_buffer = triangle_buffer; }
     [[nodiscard]] auto handle() const noexcept { return _handle; }
     [[nodiscard]] auto request() const noexcept { return _request; }
@@ -503,6 +516,8 @@ public:
     void set_handle(uint64_t handle) noexcept { _handle = handle; }
     void set_cp_buffer(uint64_t cp_buffer) noexcept { _cp_buffer = cp_buffer; }
     void set_seg_buffer(uint64_t seg_buffer) noexcept { _seg_buffer = seg_buffer; }
+    void set_cp_buffer_offset(uint64_t offset) noexcept { _cp_buffer_offset = offset; }
+    void set_seg_buffer_offset(uint64_t offset) noexcept { _seg_buffer_offset = offset; }
     [[nodiscard]] auto handle() const noexcept { return _handle; }
     [[nodiscard]] auto request() const { return _request; }
     [[nodiscard]] auto basis() const { return _basis; }
@@ -533,6 +548,8 @@ public:
           _aabb_buffer_offset{aabb_buffer_offset}, _aabb_buffer_size{aabb_buffer_size} {}
     void set_handle(uint64_t handle) noexcept { _handle = handle; }
     void set_aabb_buffer(uint64_t aabb_buffer) noexcept { _aabb_buffer = aabb_buffer; }
+    void set_aabb_buffer_offset(uint64_t offset) noexcept { _aabb_buffer_offset = offset; }
+    void set_aabb_buffer_size(uint64_t size) noexcept { _aabb_buffer_size = size; }
     [[nodiscard]] auto handle() const noexcept { return _handle; }
     [[nodiscard]] auto request() const noexcept { return _request; }
     [[nodiscard]] auto aabb_buffer() const noexcept { return _aabb_buffer; }
@@ -555,6 +572,9 @@ public:
           _handle{handle}, _child{child}, _keyframes{std::move(keyframes)} {}
     void set_handle(uint64_t handle) noexcept { _handle = handle; }
     void set_child_handle(uint64_t handle) noexcept { _child = handle; }
+    void set_keyframes(luisa::vector<MotionInstanceTransform> &&keyframes) noexcept {
+        _keyframes = std::move(keyframes);
+    }
     [[nodiscard]] auto handle() const noexcept { return _handle; }
     [[nodiscard]] auto child() const noexcept { return _child; }
     [[nodiscard]] auto keyframes() const noexcept { return luisa::span{_keyframes}; }
