@@ -104,7 +104,7 @@ void BindlessArray::Bind(vstd::span<const BindlessArrayUpdateCommand::BufferModi
             auto newIdx = device->globalHeap->GetSubAllocOffset(_buffer_node) + mod.slot;
             auto desc = v.buffer->GetColorSrvDesc(
                 v.offset,
-                v.byteSize);
+                v.byteSize, true);
 #ifndef NDEBUG
             if (!desc) {
                 LUISA_ERROR("illagel buffer");
@@ -183,7 +183,7 @@ void BindlessArray::Bind(vstd::span<const BindlessArrayUpdateCommand::Modificati
                 auto newIdx = device->globalHeap->AllocateIndex();
                 auto desc = v.buffer->GetColorSrvDesc(
                     v.offset,
-                    v.byteSize);
+                    v.byteSize, true);
 #ifndef NDEBUG
                 if (!desc) {
                     LUISA_ERROR("illagel buffer");

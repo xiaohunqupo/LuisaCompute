@@ -144,7 +144,6 @@ private:
                                         VK_ACCESS_2_SHADER_STORAGE_READ_BIT |
                                         VK_ACCESS_2_VIDEO_DECODE_READ_BIT_KHR |
                                         VK_ACCESS_2_VIDEO_ENCODE_READ_BIT_KHR |
-                                        VK_ACCESS_2_SHADER_TILE_ATTACHMENT_READ_BIT_QCOM |
                                         VK_ACCESS_2_TRANSFORM_FEEDBACK_COUNTER_READ_BIT_EXT |
                                         VK_ACCESS_2_CONDITIONAL_RENDERING_READ_BIT_EXT |
                                         VK_ACCESS_2_COMMAND_PREPROCESS_READ_BIT_NV |
@@ -168,7 +167,6 @@ private:
                                          VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT |
                                          VK_ACCESS_2_VIDEO_DECODE_WRITE_BIT_KHR |
                                          VK_ACCESS_2_VIDEO_ENCODE_WRITE_BIT_KHR |
-                                         VK_ACCESS_2_SHADER_TILE_ATTACHMENT_WRITE_BIT_QCOM |
                                          VK_ACCESS_2_TRANSFORM_FEEDBACK_WRITE_BIT_EXT |
                                          VK_ACCESS_2_TRANSFORM_FEEDBACK_COUNTER_WRITE_BIT_EXT |
                                          VK_ACCESS_2_COMMAND_PREPROCESS_WRITE_BIT_NV |
