@@ -794,7 +794,8 @@ ShaderCreationInfo Device::create_shader(const ShaderOption &option, Function ke
                     SerdeType::ByteCode,
                     _binary_io, code.useTex2DBindless,
                     code.useTex3DBindless,
-                    code.useBufferBindless);
+                    code.useBufferBindless,
+                    code.printers);
             },
             [](auto &&err) {
                 LUISA_ERROR("Compile Error: {}", err);
@@ -1026,5 +1027,9 @@ void Device::destroy_sparse_texture(uint64_t handle) noexcept {
 }
 void Device::destroy_sparse_buffer(uint64_t handle) noexcept {
     delete reinterpret_cast<SparseBuffer *>(handle);
+}
+void Device::set_stream_log_callback(uint64_t stream_handle,
+                                     const StreamLogCallback &callback) noexcept {
+    reinterpret_cast<Stream *>(stream_handle)->logger = callback;
 }
 }// namespace lc::vk

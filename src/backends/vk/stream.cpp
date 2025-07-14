@@ -10,6 +10,7 @@
 #include "sparse_buffer.h"
 #include <luisa/runtime/swapchain.h>
 #include <luisa/backends/ext/vk_custom_cmd.h>
+#include "../common/shader_print_formatter.h"
 namespace lc::vk {
 struct PresentCommand {
     luisa::fixed_vector<VkSemaphore, 1> submit_wait_semaphores;
@@ -558,6 +559,7 @@ void Stream::present(
         cmdbuffer.resource_barrier = &resource_barrier;
         cmdbuffer.uniform_data = &uniform_data;
         cmdbuffer.desc_sets = &desc_sets;
+        cmdbuffer.logger = &logger;
         cmdbuffer.dispatch_offsets = &dispatch_offsets;
         cmdbuffer.write_desc_sets = &write_desc_sets;
         cmdbuffer.bindless_cache = &bindless_cache;
@@ -652,6 +654,7 @@ void Stream::dispatch(
         cmdbuffer.resource_barrier = &resource_barrier;
         cmdbuffer.uniform_data = &uniform_data;
         cmdbuffer.desc_sets = &desc_sets;
+        cmdbuffer.logger = &logger;
         cmdbuffer.dispatch_offsets = &dispatch_offsets;
         cmdbuffer.write_desc_sets = &write_desc_sets;
         cmdbuffer.bindless_cache = &bindless_cache;
@@ -1268,6 +1271,93 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                     visitor.arg = shader->saved_arguments().data();
                     DecodeCmd(shader->captured(), visitor);
                     DecodeCmd(c->arguments(), visitor);
+                    constexpr size_t max_printer_count = 1024ull * 1024ull;
+                    BufferView count_buffer;
+                    BufferView data_buffer;
+                    if (!shader->printers().empty()) {
+                        auto count_chunk = scratch_buffer_alloc->allocate(4, 16);
+                        auto data_chunk = scratch_buffer_alloc->allocate(max_printer_count, 16);
+                        count_buffer = BufferView(
+                            reinterpret_cast<Buffer const *>(count_chunk.handle),
+                            count_chunk.offset,
+                            4);
+                        auto upload_buffer = states()->upload_alloc.allocate(4);
+                        uint zero = 0;
+                        static_cast<UploadBuffer const *>(upload_buffer.buffer)->copy_from(&zero, upload_buffer.offset, 4);
+
+                        resource_barrier->record(
+                            count_buffer,
+                            ResourceBarrier::Usage::CopyDest);
+                        resource_barrier->update_states(_cmdbuffer);
+                        VkBufferCopy2 buffer_copy{
+                            VK_STRUCTURE_TYPE_BUFFER_COPY_2,
+                            nullptr,
+                            upload_buffer.offset,
+                            count_buffer.offset,
+                            4};
+                        VkCopyBufferInfo2 copy_info2{
+                            VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2,
+                            nullptr,
+                            upload_buffer.buffer->vk_buffer(),
+                            count_buffer.buffer->vk_buffer(),
+                            1,
+                            &buffer_copy};
+                        vkCmdCopyBuffer2(
+                            _cmdbuffer,
+                            &copy_info2);
+
+                        data_buffer = BufferView{
+                            reinterpret_cast<Buffer const *>(data_chunk.handle),
+                            data_chunk.offset,
+                            max_printer_count};
+                        // bind counter
+                        {
+                            auto idx = visitor.desc_index++;
+                            auto buffer_descs = temp_desc->allocate_memory<VkDescriptorBufferInfo>();
+                            *buffer_descs = VkDescriptorBufferInfo{
+                                count_buffer.buffer->vk_buffer(),
+                                count_buffer.offset,
+                                4};
+                            auto &a = write_desc_sets->emplace_back(VkWriteDescriptorSet{
+                                VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                                nullptr,
+                                visitor.desc_set,
+                                idx,
+                                0,
+                                1,
+                                VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                nullptr,
+                                buffer_descs,
+                                nullptr});
+                        }
+                        // bind data
+                        {
+                            auto idx = visitor.desc_index++;
+                            auto buffer_descs = temp_desc->allocate_memory<VkDescriptorBufferInfo>();
+                            *buffer_descs = VkDescriptorBufferInfo{
+                                data_buffer.buffer->vk_buffer(),
+                                data_buffer.offset,
+                                max_printer_count};
+                            auto &a = write_desc_sets->emplace_back(VkWriteDescriptorSet{
+                                VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                                nullptr,
+                                visitor.desc_set,
+                                idx,
+                                0,
+                                1,
+                                VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                nullptr,
+                                buffer_descs,
+                                nullptr});
+                        }
+                        resource_barrier->record(
+                            data_buffer,
+                            ResourceBarrier::Usage::ComputeUAV);
+                        resource_barrier->record(
+                            count_buffer,
+                            ResourceBarrier::Usage::ComputeUAV);
+                        resource_barrier->update_states(_cmdbuffer);
+                    }
                     if (!write_desc_sets->empty()) {
                         vkUpdateDescriptorSets(
                             device()->logic_device(),
@@ -1328,6 +1418,84 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                             16,
                             &value);
                         vkCmdDispatch(_cmdbuffer, calc(disp_size.x, blk.x), calc(disp_size.y, blk.y), calc(disp_size.z, blk.z));
+                    }
+                    if (!shader->printers().empty()) {
+                        resource_barrier->record(
+                            count_buffer,
+                            ResourceBarrier::Usage::CopySource);
+                        resource_barrier->record(
+                            data_buffer,
+                            ResourceBarrier::Usage::CopySource);
+                        resource_barrier->update_states(_cmdbuffer);
+                        auto counter_readback = states()->readback_alloc.allocate(4, 16);
+                        auto data_readback = states()->readback_alloc.allocate(max_printer_count, 16);
+                        // Copy counter
+                        {
+                            VkBufferCopy2 buffer_copy{
+                                VK_STRUCTURE_TYPE_BUFFER_COPY_2,
+                                nullptr,
+                                count_buffer.offset,
+                                counter_readback.offset,
+                                4};
+                            VkCopyBufferInfo2 copy_info2{
+                                VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2,
+                                nullptr,
+                                count_buffer.buffer->vk_buffer(),
+                                reinterpret_cast<Buffer const *>(counter_readback.buffer)->vk_buffer(),
+                                1,
+                                &buffer_copy};
+
+                            vkCmdCopyBuffer2(
+                                _cmdbuffer,
+                                &copy_info2);
+                        }
+                        // Copy data
+                        {
+                            VkBufferCopy2 buffer_copy{
+                                VK_STRUCTURE_TYPE_BUFFER_COPY_2,
+                                nullptr,
+                                data_buffer.offset,
+                                data_readback.offset,
+                                max_printer_count};
+                            VkCopyBufferInfo2 copy_info2{
+                                VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2,
+                                nullptr,
+                                data_buffer.buffer->vk_buffer(),
+                                reinterpret_cast<Buffer const *>(data_readback.buffer)->vk_buffer(),
+                                1,
+                                &buffer_copy};
+                            vkCmdCopyBuffer2(
+                                _cmdbuffer,
+                                &copy_info2);
+                        }
+                        states()->_callbacks.emplace_back(
+                            [printers = shader->printers(),
+                             logger = this->logger,
+                             counter_readback,
+                             data_readback]() {
+                                uint counter = 0;
+                                static_cast<ReadbackBuffer const *>(counter_readback.buffer)->copy_to(&counter, counter_readback.offset, 4);
+                                luisa::vector<std::byte> data;
+                                data.push_back_uninitialized(counter);
+                                static_cast<ReadbackBuffer const *>(data_readback.buffer)->copy_to(data.data(), data_readback.offset, counter);
+                                size_t offset = 0;
+                                const auto ptr = data.data();
+                                const auto end = data.size();
+                                while (offset < end) {
+                                    uint flagTypeIdx = *reinterpret_cast<uint32_t *>(ptr + offset);
+                                    auto &type = printers[flagTypeIdx];
+                                    ShaderPrintFormatter formatter{type.first, type.second, false};
+                                    luisa::string result;
+                                    auto align = std::max<size_t>(4, type.second->alignment());
+                                    formatter(result, {ptr + offset + align, type.second->size()});
+                                    size_t ele_size = align + type.second->size();
+                                    ele_size = ((ele_size + 15ull) & (~15ull));
+                                    offset += ele_size;
+                                    if (logger) [[likely]] {
+                                        (*logger)(result);
+                                    }
+                                }
+                            });
                     }
                     offset_ptr++;
                 } break;

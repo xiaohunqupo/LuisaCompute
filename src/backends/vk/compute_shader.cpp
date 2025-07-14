@@ -30,8 +30,9 @@ ComputeShader::ComputeShader(
     vstd::span<std::byte const> cache_code,
     bool use_tex2d_bindless,
     bool use_tex3d_bindless,
-    bool use_buffer_bindless)
-    : Shader{device, ShaderTag::ComputeShader, std::move(captured), std::move(saved_args), binds, use_tex2d_bindless, use_tex3d_bindless, use_buffer_bindless}, _block_size(block_size) {
+    bool use_buffer_bindless,
+    vstd::vector<std::pair<luisa::string, Type const *>> &&printers)
+    : Shader{device, ShaderTag::ComputeShader, std::move(captured), std::move(saved_args), binds, use_tex2d_bindless, use_tex3d_bindless, use_buffer_bindless, std::move(printers)}, _block_size(block_size) {
     VkPipelineCacheCreateInfo pso_ci{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO};
     if (!cache_code.empty()) {
@@ -126,7 +127,8 @@ ComputeShader *ComputeShader::compile(
                     {},
                     str.useTex2DBindless,
                     str.useTex3DBindless,
-                    str.useBufferBindless);
+                    str.useBufferBindless,
+                    std::move(str.printers));
                 if (write_cache) {
                     ShaderSerializer::serialize_bytecode(
                         shader->binds(),
@@ -140,7 +142,8 @@ ComputeShader *ComputeShader::compile(
                         bin_io,
                         str.useTex2DBindless,
                         str.useTex3DBindless,
-                        str.useBufferBindless);
+                        str.useBufferBindless,
+                        shader->printers());
                     ShaderSerializer::serialize_pso(
                         device,
                         shader,

@@ -179,5 +179,7 @@ public:
         uint mipmap_levels, bool simultaneous_access) noexcept override;
     void destroy_sparse_texture(uint64_t handle) noexcept override;
     void destroy_sparse_buffer(uint64_t handle) noexcept override;
+    void set_stream_log_callback(uint64_t stream_handle,
+                                 const StreamLogCallback &callback) noexcept override;
 };
 }// namespace lc::vk

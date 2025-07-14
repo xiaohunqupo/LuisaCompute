@@ -27,7 +27,8 @@ public:
         BinaryIO const *bin_io,
         bool use_tex2d_bindless,
         bool use_tex3d_bindless,
-        bool use_buffer_bindless);
+        bool use_buffer_bindless,
+        vstd::span<std::pair<vstd::string, Type const *> const> printers);
     static void serialize_pso(
         Device *device,
         Shader const *shader,

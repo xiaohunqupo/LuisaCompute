@@ -92,6 +92,7 @@ class CommandBuffer : public Resource {
     vstd::unique_ptr<CommandBufferState> _state;
 
 public:
+    luisa::function<void(luisa::string_view)> *logger;
     vstd::vector<VkDescriptorSet> *desc_sets;
     vstd::vector<std::byte> *uniform_data;
     vstd::vector<std::pair<size_t, size_t>> *dispatch_offsets;
@@ -164,6 +165,7 @@ class Stream : public Resource {
     vstd::vector<uint4> bindless_cache;
     StreamTag _stream_tag;
 public:
+    luisa::function<void(luisa::string_view)> logger;
     CommandReorderVisitor<ReorderFuncTable, true> reorder;
     [[nodiscard]] auto queue() const { return _queue; }
     [[nodiscard]] auto stream_tag() const { return _stream_tag; }
