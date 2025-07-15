@@ -195,10 +195,7 @@ void CodegenUtility::GetVariableName(Variable::Tag type, uint id, vstd::StringBu
                 else
                     str << "dsp_c.xyz"sv;
             } else {
-                if (opt->isSpirv)
-                    str << "dsp_c.v"sv;
-                else
-                    str << "dsp_c"sv;
+                str << "dsp_c"sv;
             }
             break;
         case Variable::Tag::KERNEL_ID:

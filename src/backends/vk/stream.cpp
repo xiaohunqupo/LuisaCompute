@@ -241,6 +241,7 @@ struct BindPropVisitor {
         ++arg;
     }
     void operator()(Argument::Uniform const &a) {
+        ++arg;
     }
     void operator()(Argument::BindlessArray const &bf) {
         auto &buffer = reinterpret_cast<BindlessArray const *>(bf.handle)->indices_buffer();
@@ -951,9 +952,8 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
     auto check_uniform = vstd::scope_exit([&]() {
         auto aligned_size = (uniform_data->size_bytes() + 15ull) & (~15ull);
         uniform_buffer_size = (uniform_buffer_size + 15ull) & (~(15ull));
-        LUISA_DEBUG_ASSERT(aligned_size == uniform_buffer_size);
 
-        if (uniform_data->size_bytes() != uniform_buffer_size) [[unlikely]] {
+        if (aligned_size != uniform_buffer_size) [[unlikely]] {
             LUISA_ERROR("Bad uniform size.");
         }
     });

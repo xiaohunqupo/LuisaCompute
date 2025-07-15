@@ -419,7 +419,7 @@ void BindlessArray::update(
             emplace_tex.operator()<true>(bind_grp, reinterpret_cast<Texture *>(mod.tex2d.handle));
         }
         if (mod.tex3d.op == Ope::EMPLACE) {
-            emplace_tex.operator()<true>(bind_grp, reinterpret_cast<Texture *>(mod.tex3d.handle));
+            emplace_tex.operator()<false>(bind_grp, reinterpret_cast<Texture *>(mod.tex3d.handle));
         }
         auto &v = cache.emplace_back();
         v.x = mod.slot;

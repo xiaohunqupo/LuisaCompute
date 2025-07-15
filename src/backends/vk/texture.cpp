@@ -187,7 +187,7 @@ VkFormat Texture::to_vk_format(PixelFormat format) {
         case PixelFormat::R10G10B10A2UInt:
             return VK_FORMAT_A2R10G10B10_UINT_PACK32;
         case PixelFormat::R10G10B10A2UNorm:
-            return VK_FORMAT_A2R10G10B10_UNORM_PACK32;
+            return VK_FORMAT_A2B10G10R10_UNORM_PACK32;
         case PixelFormat::R11G11B10F:
             return VK_FORMAT_B10G11R11_UFLOAT_PACK32;
         case PixelFormat::BC1UNorm:
