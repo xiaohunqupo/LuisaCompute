@@ -230,6 +230,7 @@ VkInstance create_instance(bool enableValidation) {
 
     VkInstance instance;
     VK_CHECK_RESULT(vkCreateInstance(&instanceCreateInfo, Device::alloc_callbacks(), &instance));
+    volkLoadInstance(instance);
     return instance;
 }
 
@@ -299,7 +300,7 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
                 constexpr bool enableValidation = true;
 #endif
                 detail::vk_instance = detail::create_instance(enableValidation);
-                volkLoadInstance(detail::vk_instance);
+                
             }
         }
         bool fallback = false;
@@ -323,6 +324,7 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
 
     // func_table.init(this);
 }
+
 void Device::_init_device(uint32_t selectedDevice, bool fallback) {
     VkResult err;
 

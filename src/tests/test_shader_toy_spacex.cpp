@@ -96,4 +96,5 @@ int main(int argc, char *argv[]) {
         stream << shader(framebuffer, bindless, time).dispatch(resolution)
                << swapchain.present(framebuffer);
     }
+    stream.synchronize();
 }
