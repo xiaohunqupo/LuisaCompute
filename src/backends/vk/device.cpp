@@ -289,6 +289,10 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
             gDxcCompiler.create(ctx.runtime_directory());
         gDxcRefCount++;
     }
+    if (!_binary_io) {
+        _default_file_io = vstd::make_unique<DefaultBinaryIO>(context(), headless);
+        _binary_io = _default_file_io.get();
+    }
     if (!headless) {
         // init instance
         {
@@ -300,7 +304,6 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
                 constexpr bool enableValidation = true;
 #endif
                 detail::vk_instance = detail::create_instance(enableValidation);
-                
             }
         }
         bool fallback = false;
@@ -308,11 +311,7 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
             fallback = _config_ext->enable_fallback();
         }
         _init_device(device_idx, fallback);
-        auto ctx_inst = context();
-        if (!_binary_io) {
-            _default_file_io = vstd::make_unique<DefaultBinaryIO>(std::move(ctx_inst), headless);
-            _binary_io = _default_file_io.get();
-        }
+
         if (_config_ext) {
             _config_ext->readback_vulkan_device(instance(), physical_device(), logic_device(), alloc_callbacks(), _pso_header, _graphics_queue, _compute_queue, _copy_queue, gDxcCompiler->compiler(), gDxcCompiler->library(), gDxcCompiler->utils());
         }
@@ -629,22 +628,24 @@ bool Device::is_pso_same(VkPipelineCacheHeaderVersionOne const &pso) {
     return std::memcmp(&pso, &_pso_header, sizeof(VkPipelineCacheHeaderVersionOne)) == 0;
 }
 Device::~Device() {
-    vkDestroyDescriptorSetLayout(logic_device(), _sampler_set_layout, alloc_callbacks());
-    vkDestroyDescriptorSetLayout(logic_device(), _bdls_buffer_set_layout, alloc_callbacks());
-    vkDestroyDescriptorSetLayout(logic_device(), _bdls_tex2d_set_layout, alloc_callbacks());
-    vkDestroyDescriptorSetLayout(logic_device(), _bdls_tex3d_set_layout, alloc_callbacks());
-    vkDestroyDescriptorPool(logic_device(), _sampler_pool, alloc_callbacks());
-    vkDestroyDescriptorPool(logic_device(), _bdls_tex3d_desc_pool, alloc_callbacks());
-    vkDestroyDescriptorPool(logic_device(), _bdls_tex2d_desc_pool, alloc_callbacks());
-    vkDestroyDescriptorPool(logic_device(), _bdls_buffer_desc_pool, alloc_callbacks());
-    for (auto &i : tex2d_bindless_imgview) {
-        if (i) vkDestroyImageView(logic_device(), i, alloc_callbacks());
-    }
-    for (auto &i : tex3d_bindless_imgview) {
-        if (i) vkDestroyImageView(logic_device(), i, alloc_callbacks());
-    }
-    for (auto &i : _samplers) {
-        vkDestroySampler(logic_device(), i, alloc_callbacks());
+    if (_vk_device) {
+        vkDestroyDescriptorSetLayout(logic_device(), _sampler_set_layout, alloc_callbacks());
+        vkDestroyDescriptorSetLayout(logic_device(), _bdls_buffer_set_layout, alloc_callbacks());
+        vkDestroyDescriptorSetLayout(logic_device(), _bdls_tex2d_set_layout, alloc_callbacks());
+        vkDestroyDescriptorSetLayout(logic_device(), _bdls_tex3d_set_layout, alloc_callbacks());
+        vkDestroyDescriptorPool(logic_device(), _sampler_pool, alloc_callbacks());
+        vkDestroyDescriptorPool(logic_device(), _bdls_tex3d_desc_pool, alloc_callbacks());
+        vkDestroyDescriptorPool(logic_device(), _bdls_tex2d_desc_pool, alloc_callbacks());
+        vkDestroyDescriptorPool(logic_device(), _bdls_buffer_desc_pool, alloc_callbacks());
+        for (auto &i : tex2d_bindless_imgview) {
+            if (i) vkDestroyImageView(logic_device(), i, alloc_callbacks());
+        }
+        for (auto &i : tex3d_bindless_imgview) {
+            if (i) vkDestroyImageView(logic_device(), i, alloc_callbacks());
+        }
+        for (auto &i : _samplers) {
+            vkDestroySampler(logic_device(), i, alloc_callbacks());
+        }
     }
     _default_file_io = nullptr;
     {
