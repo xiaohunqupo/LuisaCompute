@@ -16,6 +16,25 @@ using namespace luisa;
 using namespace luisa::compute;
 static constexpr size_t sparse_buffer_size = 65536ull;
 class Device : public DeviceInterface, public vstd::IOperatorNewBase {
+    struct Ext {
+        using Ctor = vstd::func_ptr_t<DeviceExtension *(Device *)>;
+        using Dtor = vstd::func_ptr_t<void(DeviceExtension *)>;
+        DeviceExtension *ext;
+        Ctor ctor;
+        Dtor dtor;
+        Ext(Ctor ctor, Dtor dtor) : ext{nullptr}, ctor{ctor}, dtor{dtor} {}
+        Ext(Ext const &) = delete;
+        Ext(Ext &&rhs) : ext{rhs.ext}, ctor{rhs.ctor}, dtor{rhs.dtor} {
+            rhs.ext = nullptr;
+        }
+        ~Ext() {
+            if (ext) {
+                dtor(ext);
+            }
+        }
+    };
+    std::mutex ext_mtx;
+    vstd::unordered_map<vstd::string, Ext> exts;
     luisa::unique_ptr<VulkanDeviceConfigExt> _config_ext;
     vstd::optional<vks::VulkanDevice> _vk_device;
     VkPhysicalDeviceProperties _device_properties{};
@@ -181,5 +200,6 @@ public:
     void destroy_sparse_buffer(uint64_t handle) noexcept override;
     void set_stream_log_callback(uint64_t stream_handle,
                                  const StreamLogCallback &callback) noexcept override;
+    DeviceExtension *extension(vstd::string_view name) noexcept override;
 };
 }// namespace lc::vk

@@ -20,6 +20,7 @@
 #include "tlas.h"
 #include "swapchain.h"
 #include "sparse_buffer.h"
+#include "pinned_memory_ext.h"
 namespace lc::vk {
 static constexpr uint k_shader_model = 65u;
 
@@ -315,6 +316,18 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
         if (_config_ext) {
             _config_ext->readback_vulkan_device(instance(), physical_device(), logic_device(), alloc_callbacks(), _pso_header, _graphics_queue, _compute_queue, _copy_queue, gDxcCompiler->compiler(), gDxcCompiler->library(), gDxcCompiler->utils());
         }
+        exts.try_emplace(
+#ifdef LUISA_USE_SYSTEM_STL
+            luisa::string{PinnedMemoryExt::name},
+#else
+            PinnedMemoryExt::name,
+#endif
+            [](Device *device) -> DeviceExtension * {
+                return new VkPinnedMemoryExt(device);
+            },
+            [](DeviceExtension *ext) {
+                delete static_cast<VkPinnedMemoryExt *>(ext);
+            });
     }
     // auto exts = detail::supported_exts(physical_device());
     // for(auto&& i : exts){
@@ -1024,6 +1037,18 @@ SparseTextureCreationInfo Device::create_sparse_texture(
         }
     }();
     return r;
+}
+DeviceExtension *Device::extension(vstd::string_view name) noexcept {
+    auto ite = exts.find(name);
+    if (ite == exts.end()) return nullptr;
+    auto &v = ite->second;
+    {
+        std::lock_guard lck{ext_mtx};
+        if (v.ext == nullptr) {
+            v.ext = v.ctor(this);
+        }
+    }
+    return v.ext;
 }
 void Device::destroy_sparse_texture(uint64_t handle) noexcept {
     delete reinterpret_cast<Texture *>(handle);

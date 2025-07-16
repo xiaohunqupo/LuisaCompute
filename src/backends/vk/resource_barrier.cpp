@@ -125,7 +125,11 @@ void ResourceBarrier::record(
     VkPipelineStageFlagBits2 stage,
     VkAccessFlagBits2 access,
     VkImageLayout layout) {
-
+    if (res.is_type_of<BufferView>()) {
+        // If the buffer is host-visible, should not be recorded by resource-barrier
+        if (res.get<0>().buffer->flush_host())
+            return;
+    }
     using SubResource = vstd::variant<
         BufferAfterRange,
         uint /*tex level*/>;
