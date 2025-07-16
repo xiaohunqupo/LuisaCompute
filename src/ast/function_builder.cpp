@@ -8,6 +8,47 @@ luisa::vector<FunctionBuilder *> &FunctionBuilder::_function_stack() noexcept {
     return stack;
 }
 
+bool _check_expr_is_ref(const Expression *expr) noexcept {
+    switch (expr->tag()) {
+        case Expression::Tag::UNARY: {
+            return _check_expr_is_ref(static_cast<UnaryExpr const *>(expr)->operand());
+        }
+        case Expression::Tag::BINARY: {
+            auto _expr = static_cast<BinaryExpr const *>(expr);
+            return _check_expr_is_ref(_expr->lhs()) ||
+                   _check_expr_is_ref(_expr->rhs());
+        }
+        case Expression::Tag::MEMBER: {
+            return _check_expr_is_ref(static_cast<MemberExpr const *>(expr)->self());
+        }
+        case Expression::Tag::ACCESS: {
+            auto _expr = static_cast<AccessExpr const *>(expr);
+            return _check_expr_is_ref(_expr->index()) ||
+                   _check_expr_is_ref(_expr->range());
+        }
+        case Expression::Tag::LITERAL:
+            return false;
+        case Expression::Tag::REF:
+            return true;
+        case Expression::Tag::CONSTANT:
+            return false;
+        case Expression::Tag::CALL: {
+            auto _expr = static_cast<CallExpr const *>(expr);
+            for (auto &&i : _expr->arguments()) {
+                if (_check_expr_is_ref(i))
+                    return true;
+            }
+            return false;
+        }
+        case Expression::Tag::CAST: {
+            return _check_expr_is_ref(static_cast<CastExpr const *>(expr)->expression());
+        };
+        default: {
+            return false;
+        } break;
+    }
+}
+
 void FunctionBuilder::push(FunctionBuilder *func) noexcept {
     _function_stack().emplace_back(func);
 }
@@ -990,7 +1031,9 @@ static void check_expr_is_internalizable(const Expression *expr) noexcept {
 
 // internalize an expression that is captured by a callable
 const Expression *FunctionBuilder::_internalize(const Expression *expr) noexcept {
-    if (expr == nullptr || expr->builder() == this) { return expr; }
+    if (expr == nullptr || expr->builder() == this || !_check_expr_is_ref(expr)) {
+        return expr;
+    }
     if (expr->type() == nullptr) {
         LUISA_ASSERT(expr->builder() == this,
                      "Cannot internalize expression with no type.");

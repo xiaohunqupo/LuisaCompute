@@ -141,21 +141,15 @@ void Stack::SetLocal(const clang::ValueDecl *decl, const luisa::compute::RefExpr
 }
 
 const luisa::compute::Expression *Stack::GetExpr(const clang::Stmt *stmt) const {
-    if (expr_map.contains(stmt))
-        return expr_map.find(stmt)->second;
-    return nullptr;
+    auto iter = expr_map.find(stmt);
+    if (iter == expr_map.end()) return nullptr;
+    return iter->second;
 }
 
 void Stack::SetExpr(const clang::Stmt *stmt, const luisa::compute::Expression *expr) {
     if (!stmt)
         clangcxx_log_error("unknown error: SetExpr with nullptr!");
-    if (expr_map.contains(stmt)) {
-        // TODO: ignore template case.
-        // stmt->dump();
-        // clangcxx_log_error("unknown error: SetExpr with existed!");
-        return;
-    }
-    expr_map[stmt] = expr;
+    expr_map.try_emplace(stmt, expr);
 }
 
 const luisa::compute::Expression *Stack::GetConstant(const clang::ValueDecl *var) const {
@@ -825,9 +819,7 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                             fb->func_ref(func->function()));
                         current = funcPtr;
                     } else {
-                        auto _local = LC_Local(fb, lcType, Usage::READ_WRITE);
-                        fb->assign(_local, fb->unary(lcType, TranslateUnaryOp(cxx_op), lhs));
-                        current = _local;
+                        current = fb->unary(lcType, TranslateUnaryOp(cxx_op), lhs);
                     }
                 } else {
                     auto one = fb->literal(Type::of<int>(), 1);
@@ -872,9 +864,8 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                         db->DumpWithLocation(x);
                         clangcxx_log_error("ICE, unexpected parameter: rhs not found!");
                     }
-                    auto _local = LC_Local(fb, lcType, Usage::READ_WRITE);
-                    fb->assign(_local, fb->binary(lcType, TranslateBinaryOp(cxx_op), lhs, rhs));
-                    current = _local;
+                    // fb->assign(_local, );
+                    current = fb->binary(lcType, TranslateBinaryOp(cxx_op), lhs, rhs);
                 }
             } else if (auto cxxCondOp = llvm::dyn_cast<clang::ConditionalOperator>(x)) {
                 auto _cond = stack->GetExpr(cxxCondOp->getCond());
@@ -936,10 +927,10 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
             } else if (auto cxxDefaultArg = llvm::dyn_cast<clang::CXXDefaultArgExpr>(x)) {
                 auto _ = db->CommentStmt(fb, cxxDefaultArg);
 
-                const auto _value = LC_Local(fb, db->FindOrAddType(cxxDefaultArg->getType(), x->getBeginLoc()), Usage::READ_WRITE);
+                // const auto _value = LC_Local(fb, db->FindOrAddType(cxxDefaultArg->getType(), x->getBeginLoc()), Usage::READ_WRITE);
+                stack->expr_map.erase(cxxDefaultArg->getExpr());
                 TraverseStmt(cxxDefaultArg->getExpr());
-                fb->assign(_value, stack->GetExpr(cxxDefaultArg->getExpr()));
-                current = _value;
+                current = stack->GetExpr(cxxDefaultArg->getExpr());
             } else if (auto t = llvm::dyn_cast<clang::CXXThisExpr>(x)) {
                 current = db->GetFunctionThis(fb);
             } else if (auto cxxMember = llvm::dyn_cast<clang::MemberExpr>(x)) {
@@ -1054,9 +1045,7 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                     } else if (!binopName.empty()) {
                         auto lcBinop = db->FindBinOp(binopName);
                         if (auto lcReturnType = db->FindOrAddType(cxxReturnType, x->getBeginLoc())) {
-                            auto _local = LC_Local(fb, lcReturnType, Usage::READ_WRITE);
-                            fb->assign(_local, fb->binary(lcReturnType, lcBinop, lcArgs[0], lcArgs[1]));
-                            current = _local;
+                            current = fb->binary(lcReturnType, lcBinop, lcArgs[0], lcArgs[1]);
                         }
                     } else if (!unaopName.empty()) {
                         UnaryOp lcUnaop = (unaopName == "PLUS")    ? UnaryOp::PLUS :
@@ -1065,9 +1054,7 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                                           (unaopName == "NOT")     ? UnaryOp::NOT :
                                                                      (clangcxx_log_error("unsupportted unary op {}!!", unaopName.data()), UnaryOp::PLUS);
                         if (auto lcReturnType = db->FindOrAddType(cxxReturnType, x->getBeginLoc())) {
-                            auto _local = LC_Local(fb, lcReturnType, Usage::READ_WRITE);
-                            fb->assign(_local, fb->unary(lcReturnType, lcUnaop, lcArgs[0]));
-                            current = _local;
+                            current = fb->unary(lcReturnType, lcUnaop, lcArgs[0]);
                         }
                     } else if (isAccess) {
                         if (auto lcReturnType = db->FindOrAddType(cxxReturnType, x->getBeginLoc())) {

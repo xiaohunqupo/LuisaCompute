@@ -32,10 +32,7 @@ struct Stack {
 
     bool isCtorExpr(const luisa::compute::Expression *expr);
     void SetExprAsCtor(const luisa::compute::Expression *expr);
-
     luisa::vector<const luisa::compute::Expression *> callers;
-
-private:
     luisa::unordered_set<const luisa::compute::Expression *> ctor_exprs;
     luisa::unordered_map<const clang::Stmt *, const luisa::compute::Expression *> expr_map;
     luisa::unordered_map<const clang::ValueDecl *, const luisa::compute::RefExpr *> locals;
