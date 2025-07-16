@@ -43,9 +43,9 @@ void ShaderSerializer::serialize_bytecode(
     ShaderSerHeader header{
         .md5 = shader_md5,
         .type_md5 = type_md5,
-        .block_size = {block_size.x, block_size.y, block_size.z},
         .property_size = binds.size(),
         .spv_byte_size = spv_code.size_bytes(),
+        .block_size = {block_size.x, block_size.y, block_size.z},
         .kernel_arg_count = (uint)saved_args.size()};
     uint printer_size_bytes = 0;
     for (auto &i : printers) {
