@@ -274,7 +274,7 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
       set_bindless_kernel(BuiltinKernel::LoadBindlessSetKernel),
       set_accel_kernel(BuiltinKernel::LoadAccelSetKernel) {
     bool headless = false;
-    uint device_idx = 0;
+    uint device_idx = -1;
     if (configs) {
         if (configs->extension) {
             _config_ext = luisa::unique_ptr<VulkanDeviceConfigExt>{reinterpret_cast<VulkanDeviceConfigExt *>(configs->extension.get())};
@@ -366,16 +366,19 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
 
     // Select physical device to be used for the Vulkan example
     // Defaults to the first device unless specified by command line
-    for (auto &&i : physical_devices) {
-        vkGetPhysicalDeviceProperties(i, &_device_properties);
-        luisa::string device_name{_device_properties.deviceName};
-        if (device_name.find("GeForce") != luisa::string::npos ||
-            device_name.find("Radeon") != luisa::string::npos ||
-            device_name.find("Arc") != luisa::string::npos) {
-            LUISA_INFO("Select device: {}", device_name);
-            break;
+    if (selectedDevice == -1) {
+        selectedDevice = 0;
+        for (auto &&i : physical_devices) {
+            vkGetPhysicalDeviceProperties(i, &_device_properties);
+            luisa::string device_name{_device_properties.deviceName};
+            if (device_name.find("GeForce") != luisa::string::npos ||
+                device_name.find("Radeon") != luisa::string::npos ||
+                device_name.find("Arc") != luisa::string::npos) {
+                LUISA_INFO("Select device: {}", device_name);
+                break;
+            }
+            selectedDevice++;
         }
-        selectedDevice++;
     }
     auto physical_device = physical_devices[selectedDevice];
 
