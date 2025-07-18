@@ -896,17 +896,17 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
             } else if (auto _cxxParen = llvm::dyn_cast<ParenExpr>(x)) {
                 current = stack->GetExpr(_cxxParen->getSubExpr());
             } else if (auto implicit_cast = llvm::dyn_cast<ImplicitCastExpr>(x)) {
-                if (stack->GetExpr(implicit_cast->getSubExpr()) != nullptr) {
+                auto lcSubExpr = stack->GetExpr(implicit_cast->getSubExpr()); 
+                if (lcSubExpr == db->GetFunctionThis(fb))
+                {
+                    current = lcSubExpr;
+                }
+                else if (lcSubExpr != nullptr) {
                     const auto lcCastType = db->FindOrAddType(implicit_cast->getType(), x->getBeginLoc());
-                    auto lcExpr = stack->GetExpr(implicit_cast->getSubExpr());
-                    if (!lcExpr) {
-                        db->DumpWithLocation(implicit_cast->getSubExpr());
-                        clangcxx_log_error("unknown error: rhs not found!");
-                    }
-                    if (lcExpr->type() != lcCastType)
-                        current = fb->cast(lcCastType, CastOp::STATIC, lcExpr);
+                    if (lcSubExpr->type() != lcCastType)
+                        current = fb->cast(lcCastType, CastOp::STATIC, lcSubExpr);
                     else
-                        current = lcExpr;
+                        current = lcSubExpr;
                 }
             } else if (auto _explicit_cast = llvm::dyn_cast<ExplicitCastExpr>(x)) {
                 if (stack->GetExpr(_explicit_cast->getSubExpr()) != nullptr) {
