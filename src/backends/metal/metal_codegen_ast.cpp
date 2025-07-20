@@ -1157,7 +1157,7 @@ void MetalCodegenAST::visit(const CallExpr *expr) noexcept {
         case CallOp::BINDLESS_TEXTURE3D_SAMPLE_LEVEL_SAMPLER: _scratch << "bindless_texture_sample3d_level_sample"; break;
         case CallOp::BINDLESS_TEXTURE3D_SAMPLE_GRAD_SAMPLER: _scratch << "bindless_texture_sample3d_grad_sample"; break;
         case CallOp::BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL_SAMPLER: _scratch << "bindless_texture_sample3d_grad_level_sample"; break;
-        case CallOp::CLOCK: LUISA_NOT_IMPLEMENTED();
+        default: LUISA_NOT_IMPLEMENTED();
     }
     _scratch << "(";
     if (auto op = expr->op(); is_atomic_operation(op)) {

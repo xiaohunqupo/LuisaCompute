@@ -252,7 +252,6 @@ enum struct CallOp : uint32_t {
     TYPED_UNIFORM_BINDLESS_BYTE_BUFFER_READ,// (bindless_array, index: uint, offset_bytes: uint): expr->type()
     TYPED_UNIFORM_BINDLESS_BUFFER_SIZE,     // (bindless_array, index: uint, stride: uint) -> size
     TYPED_UNIFORM_BINDLESS_BUFFER_TYPE,     // (bindless_array, index: uint) -> uint64 (type id of the element); the returned value
-                              // could be compared with the value of a TypeIDExpr to examine the type of the buffer
     TYPED_UNIFORM_BINDLESS_BUFFER_ADDRESS,  // (bindless_array, index: uint) -> uint64 (address of the buffer)
     
     // Non uniform typed
@@ -288,7 +287,6 @@ enum struct CallOp : uint32_t {
     TYPED_BINDLESS_BYTE_BUFFER_READ,// (bindless_array, index: uint, offset_bytes: uint): expr->type()
     TYPED_BINDLESS_BUFFER_SIZE,     // (bindless_array, index: uint, stride: uint) -> size
     TYPED_BINDLESS_BUFFER_TYPE,     // (bindless_array, index: uint) -> uint64 (type id of the element); the returned value
-                              // could be compared with the value of a TypeIDExpr to examine the type of the buffer
     TYPED_BINDLESS_BUFFER_ADDRESS,  // (bindless_array, index: uint) -> uint64 (address of the buffer)
 
     MAKE_BOOL2, // (bool, bool2)

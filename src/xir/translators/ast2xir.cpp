@@ -788,6 +788,7 @@ private:
             case CallOp::TEXTURE3D_SAMPLE_GRAD: return resource_call(ResourceQueryOp::TEXTURE3D_SAMPLE_GRAD);
             case CallOp::TEXTURE3D_SAMPLE_GRAD_LEVEL: return resource_call(ResourceQueryOp::TEXTURE3D_SAMPLE_GRAD_LEVEL);
             case CallOp::CLOCK: return b.clock();
+            default: LUISA_NOT_IMPLEMENTED("AST Op {} is not implemented.", luisa::to_string(expr->op()));
         }
         LUISA_NOT_IMPLEMENTED();
     }
