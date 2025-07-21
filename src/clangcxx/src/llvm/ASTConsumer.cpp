@@ -1134,7 +1134,8 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                         const auto isTemplateInstant = funcDecl->isTemplateInstantiation();
                         const auto isLambda = methodDecl && methodDecl->getParent()->isLambda();
                         if (!db->lambda_builders.contains(calleeDecl) && !db->func_builders.contains(calleeDecl)) {
-                            FunctionBuilderBuilder fbfb(db, *stack);
+                            auto new_stack = *stack;
+                            FunctionBuilderBuilder fbfb(db, new_stack);
                             fbfb.build(calleeDecl->getAsFunction(), false);
                             calleeDecl = funcDecl;
                         }
