@@ -148,8 +148,7 @@ void EnhancedBarrierTrackerBackup::UpdateResourceState(Resource const *resPtr, R
         auto before_state = bf.first_time ? resPtr->GetInitState() : ToStates(bf.before_sync, bf.before_access, D3D12_BARRIER_LAYOUT_UNDEFINED);
         auto after_state = ToStates(bf.after_sync, bf.after_access, D3D12_BARRIER_LAYOUT_UNDEFINED);
         bool emplace = true;
-        if (before_state == after_state && (before_state & (D3D12_RESOURCE_STATE_UNORDERED_ACCESS |
-                                                            D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE)) != 0) {
+        if ((before_state & D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE) != 0 || (after_state & D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE) != 0 || (before_state == after_state && (before_state & (D3D12_RESOURCE_STATE_UNORDERED_ACCESS)) != 0)) {
             barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
             barrier.UAV.pResource = resPtr->GetResource();
         } else if (before_state != after_state) {
@@ -179,7 +178,7 @@ void EnhancedBarrierTrackerBackup::UpdateResourceState(Resource const *resPtr, R
             auto before_state = i.first_time ? resPtr->GetInitState() : ToStates(i.before_sync, i.before_access, i.before_layout);
             auto after_state = ToStates(i.after_sync, i.after_access, i.after_layout);
             bool emplace = true;
-            if (before_state == after_state && (before_state & D3D12_RESOURCE_STATE_UNORDERED_ACCESS) != 0) {
+            if ((before_state & D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE) != 0 || (after_state & D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE) != 0 || (before_state == after_state && (before_state & (D3D12_RESOURCE_STATE_UNORDERED_ACCESS)) != 0)) {
                 barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
                 barrier.UAV.pResource = resPtr->GetResource();
             } else if (before_state != after_state) {
@@ -225,6 +224,11 @@ void EnhancedBarrierTrackerBackup::RestoreState(BarrierCallback *cmdBuffer) {
             auto before_state = ToStates(bf.before_sync, bf.before_access, D3D12_BARRIER_LAYOUT_UNDEFINED);
             auto after_state = resPtr->GetInitState();
             if (before_state == after_state) continue;
+            if (before_state != after_state) {
+                if (0 != (after_state & D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE) || 0 != (before_state & D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE)) {
+                    continue;
+                }
+            }
             D3D12_RESOURCE_BARRIER &barrier = barriers.emplace_back();
             barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
             barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
