@@ -132,8 +132,8 @@ void Device::destroy_texture(uint64_t handle) noexcept {
 }
 
 // bindless array
-ResourceCreationInfo Device::create_bindless_array(size_t size) noexcept {
-    auto arr = _native->create_bindless_array(size);
+ResourceCreationInfo Device::create_bindless_array(size_t size, BindlessSlotType type) noexcept {
+    auto arr = _native->create_bindless_array(size, type);
     // TODO: bindless range check maybe?
     new BindlessArray{arr.handle};
     return arr;
@@ -446,8 +446,8 @@ void Device::deallocate_sparse_buffer_heap(uint64_t handle) noexcept {
     RWResource::dispose(handle);
     _native->deallocate_sparse_buffer_heap(handle);
 }
-ResourceCreationInfo Device::allocate_sparse_texture_heap(size_t byte_size, bool is_compressed_type) noexcept {
-    auto r = _native->allocate_sparse_texture_heap(byte_size, is_compressed_type);
+ResourceCreationInfo Device::allocate_sparse_texture_heap(size_t byte_size) noexcept {
+    auto r = _native->allocate_sparse_texture_heap(byte_size);
     new SparseHeap(r.handle, byte_size);
     return r;
 }

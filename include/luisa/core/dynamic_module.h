@@ -13,8 +13,9 @@ namespace luisa {
  */
 class MemorySanitizer;
 class LC_CORE_API DynamicModule : concepts::Noncopyable {
-    friend ::luisa::MemorySanitizer;
+
 private:
+    friend ::luisa::MemorySanitizer;
     void *_handle{nullptr};
 
 private:
@@ -28,6 +29,13 @@ public:
     DynamicModule(DynamicModule &&another) noexcept;
     DynamicModule &operator=(DynamicModule &&rhs) noexcept;
     ~DynamicModule() noexcept;
+
+    // give out the ownership of the module without destroying it
+    [[nodiscard]] void *release() noexcept;
+    // destroy the module and reset the handle to nullptr
+    void reset() noexcept;
+
+    [[deprecated("Pleade use `reset()` instead.")]]
     void dispose() noexcept;
 
     /**

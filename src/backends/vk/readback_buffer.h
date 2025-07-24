@@ -4,11 +4,15 @@
 namespace lc::vk {
 class ReadbackBuffer : public Buffer {
     AllocatedBuffer _res;
+    void *_mapped_ptr{};
 
 public:
+    mutable BufferFlusher _flusher;
     ReadbackBuffer(Device *device, size_t size_bytes);
     ~ReadbackBuffer();
     void copy_to(void *data, size_t offset, size_t size) const;
     VkBuffer vk_buffer() const override { return _res.buffer; }
+    void *mapped_ptr() const { return _mapped_ptr; }
+    bool flush_host() const override;
 };
 }// namespace lc::vk

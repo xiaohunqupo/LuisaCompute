@@ -82,13 +82,13 @@ public:
     void deallocate_sparse_buffer_heap(uint64_t handle) noexcept override;
     void update_sparse_resources(uint64_t stream_handle, vector<luisa::compute::SparseUpdateTile> &&textures_update) noexcept override;
     void destroy_sparse_buffer(uint64_t handle) noexcept override;
-    ResourceCreationInfo allocate_sparse_texture_heap(size_t byte_size, bool is_compressed_type) noexcept override;
+    ResourceCreationInfo allocate_sparse_texture_heap(size_t byte_size) noexcept override;
     void deallocate_sparse_texture_heap(uint64_t handle) noexcept override;
     SparseTextureCreationInfo create_sparse_texture(PixelFormat format, uint dimension,
                                                     uint width, uint height, uint depth,
                                                     uint mipmap_levels, bool simultaneous_access) noexcept override;
     void destroy_sparse_texture(uint64_t handle) noexcept override;
-    ResourceCreationInfo create_bindless_array(size_t size) noexcept override;
+    ResourceCreationInfo create_bindless_array(size_t size, BindlessSlotType type) noexcept override;
     ResourceCreationInfo create_event() noexcept override;
 };
 

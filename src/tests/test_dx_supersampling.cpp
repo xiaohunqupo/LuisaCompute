@@ -98,7 +98,7 @@ void fsr2_message(FfxFsr2MsgType type, const wchar_t *message) {
 }
 class FSRCommand : public DXCustomCmd {
     luisa::vector<ResourceUsage> resource_usages;
-    luisa::span<const ResourceUsage> get_resource_usages() const noexcept {
+    luisa::span<ResourceUsage> get_resource_usages() noexcept {
         return resource_usages;
     }
 public:
@@ -248,7 +248,7 @@ struct XessJitter {
 };
 class XessCommand : public DXCustomCmd {
     luisa::vector<ResourceUsage> resource_usages;
-    luisa::span<const ResourceUsage> get_resource_usages() const noexcept {
+    luisa::span<ResourceUsage> get_resource_usages() noexcept {
         return resource_usages;
     }
 

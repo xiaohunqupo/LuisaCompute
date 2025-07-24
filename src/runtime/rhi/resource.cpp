@@ -61,4 +61,14 @@ ResourceCreationInfo Resource::release() noexcept {
     _info.invalidate();
     return info;
 }
+
+void Resource::reset() noexcept {
+    if (*this) {
+        this->~Resource();
+        _info.invalidate();
+    } else {
+        LUISA_WARNING_WITH_LOCATION("Resetting an already invalid resource.");
+    }
+}
+
 }// namespace luisa::compute

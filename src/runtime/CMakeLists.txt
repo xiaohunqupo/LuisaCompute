@@ -10,6 +10,7 @@ set(LUISA_COMPUTE_RUNTIME_RASTER_SOURCES
         raster/raster.cpp)
 
 set(LUISA_COMPUTE_RUNTIME_RHI_SOURCES
+        rhi/command.cpp
         rhi/command_encoder.cpp
         rhi/device_interface.cpp
         rhi/pixel.cpp
@@ -40,7 +41,8 @@ set(LUISA_COMPUTE_RUNTIME_SOURCES
         ${LUISA_COMPUTE_RUNTIME_RHI_SOURCES}
         ${LUISA_COMPUTE_RUNTIME_RTX_SOURCES}
         ${LUISA_COMPUTE_RUNTIME_RASTER_SOURCES}
-        ${LUISA_COMPUTE_RUNTIME_REMOTE_SOURCES})
+        ${LUISA_COMPUTE_RUNTIME_REMOTE_SOURCES}
+        rhi/command.cpp)
 
 add_library(luisa-compute-runtime SHARED ${LUISA_COMPUTE_RUNTIME_SOURCES})
 target_link_libraries(luisa-compute-runtime

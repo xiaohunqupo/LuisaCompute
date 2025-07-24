@@ -57,11 +57,7 @@ public:
     AllocatorPtr CreateAllocator(size_t maxAllocCount);
     void AddEvent(LCEvent const *evt, uint64 fenceIdx);
     void Signal();
-    void Execute(AllocatorPtr &&alloc);
-    void ExecuteCallbacks(AllocatorPtr &&alloc, vstd::vector<vstd::function<void()>> &&callbacks);
-    void ExecuteEmpty(AllocatorPtr &&alloc);
-    void ExecuteEmptyCallbacks(AllocatorPtr &&alloc, vstd::vector<vstd::function<void()>> &&callbacks);
-    void ExecuteAndPresent(AllocatorPtr &&alloc, IDXGISwapChain *swapChain, bool vsync);
+    void Execute(AllocatorPtr &&alloc, vstd::vector<vstd::function<void()>> &&callbacks, luisa::span<std::pair<IDXGISwapChain *, bool>> swapChains, bool cmdlist_is_empty);
     void Complete(uint64 fence);
     void Complete();
     void ForceSync(

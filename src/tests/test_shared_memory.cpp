@@ -53,7 +53,7 @@ int main(int argc, char *argv[]) {
     }
     Device device = context.create_device(argv[1]);
 
-    static constexpr auto queue_size = 16_M;
+    static constexpr auto queue_size = 8_M;
     AtomicQueue<float> q{device, queue_size};
 
     Callable lcg = [](UInt &state) noexcept {

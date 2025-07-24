@@ -1,5 +1,5 @@
 #pragma once
-#include <vulkan/vulkan_core.h>
+#include <volk.h>
 #include "resource.h"
 #include "default_buffer.h"
 #include <luisa/runtime/rtx/accel.h>
@@ -22,12 +22,12 @@ public:
 class Blas : public Resource {
     friend class Tlas;
 private:
-luisa::spin_mutex handleMtx;
+    luisa::spin_mutex handleMtx;
     VkAccelerationStructureKHR _accel{nullptr};
     vstd::unique_ptr<DefaultBuffer> _accel_buffer;
     VkAccelerationStructureBuildGeometryInfoKHR *acceleration_build_geometry_info;
     AccelOption option;
-    DefaultBuffer const *scratch_buffer{nullptr};
+    Buffer const *scratch_buffer{nullptr};
     uint64_t scratch_buffer_offset{0};
     vstd::fixed_vector<MeshHandle *, 2> handles;
 
@@ -37,12 +37,24 @@ luisa::spin_mutex handleMtx;
 public:
     [[nodiscard]] auto &accel() const { return _accel; }
     Blas(Device *device, AccelOption const &option);
+    void _pre_build(
+        CommandBuffer &cmdbuffer,
+        VkAccelerationStructureGeometryKHR* acceleration_structure_geometry,
+        uint32_t primitive_count,
+        AccelBuildRequest request
+    );
     void pre_build(
+        CommandBuffer &cmdbuffer,
+        MeshBuildCommand const *cmd);
+    void pre_build(
+        CommandBuffer &cmdbuffer,
+        ProceduralPrimitiveBuildCommand const *cmd);
+    void build(
         CommandBuffer &cmdbuffer,
         MeshBuildCommand const *cmd);
     void build(
         CommandBuffer &cmdbuffer,
-        MeshBuildCommand const *cmd);
+        ProceduralPrimitiveBuildCommand const *cmd);
     ~Blas();
     uint64_t get_accel_device_address() const;
 };

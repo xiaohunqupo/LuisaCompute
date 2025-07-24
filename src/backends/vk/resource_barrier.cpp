@@ -3,7 +3,6 @@
 namespace lc::vk {
 namespace detail {
 static constexpr auto raster_stage = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_2_TESSELLATION_CONTROL_SHADER_BIT | VK_PIPELINE_STAGE_2_TESSELLATION_EVALUATION_SHADER_BIT | VK_PIPELINE_STAGE_2_GEOMETRY_SHADER_BIT | VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
-static constexpr auto all_access = VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT;
 static constexpr VkPipelineStageFlagBits2 BarrierSyncMap[] = {
     VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,                                                    // ComputeRead,
     VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,                                                    // ComputeAccelRead,
@@ -11,6 +10,7 @@ static constexpr VkPipelineStageFlagBits2 BarrierSyncMap[] = {
     VK_PIPELINE_STAGE_2_COPY_BIT,                                                              // CopySource,
     VK_PIPELINE_STAGE_2_COPY_BIT,                                                              // CopyDest,
     VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,                                  // BuildAccel,
+    VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,                                  // BuildAccelScratch,
     VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_COPY_BIT_KHR,                                   // CopyAccelSrc
     VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_COPY_BIT_KHR,                                   // CopyAccelDst
     VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,//DepthRead
@@ -31,6 +31,7 @@ static constexpr VkAccessFlagBits2 BarrierAccessMap[] = {
     VK_ACCESS_2_TRANSFER_READ_BIT,                   // CopySource,
     VK_ACCESS_2_TRANSFER_WRITE_BIT,                  // CopyDest,
     VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,// BuildAccel,
+    VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,            // BuildAccelScratch,
     VK_ACCESS_2_TRANSFER_READ_BIT,                   // CopyAccelSrc
     VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,// CopyAccelDst
     VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT,   //DepthRead
@@ -52,6 +53,7 @@ static constexpr VkImageLayout BarrierLayoutMap[] = {
     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,            // CopySource,
     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,            // CopyDest,
     VK_IMAGE_LAYOUT_GENERAL,                         // BuildAccel,
+    VK_IMAGE_LAYOUT_GENERAL,                         // BuildAccelScratch,
     VK_IMAGE_LAYOUT_GENERAL,                         // CopyAccelSrc
     VK_IMAGE_LAYOUT_GENERAL,                         // CopyAccelDst
     VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, //DepthRead
@@ -123,7 +125,11 @@ void ResourceBarrier::record(
     VkPipelineStageFlagBits2 stage,
     VkAccessFlagBits2 access,
     VkImageLayout layout) {
-
+    if (res.is_type_of<BufferView>()) {
+        // If the buffer is host-visible, should not be recorded by resource-barrier
+        if (res.get<0>().buffer->flush_host())
+            return;
+    }
     using SubResource = vstd::variant<
         BufferAfterRange,
         uint /*tex level*/>;
@@ -282,6 +288,10 @@ void FilterAccess(
             layout = VK_IMAGE_LAYOUT_GENERAL;
         } break;
     }
+    const auto tex_read_sync = VK_PIPELINE_STAGE_2_COPY_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT | raster_stage;
+    if ((access & (VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT)) != 0) {
+        sync &= ~tex_read_sync;
+    }
 }
 }// namespace detail
 VkImageLayout ResourceBarrier::get_layout(Resource const *res, uint level) const {
@@ -293,7 +303,7 @@ VkImageLayout ResourceBarrier::get_layout(Resource const *res, uint level) const
     return ranges[level].before_layout;
 }
 
-void ResourceBarrier::process_bindless(BindlessArray *bdls_arr, Usage dst_usage) {
+void ResourceBarrier::process_bindless(BindlessArray const *bdls_arr, Usage dst_usage) {
     for (auto iter = write_state_map.begin(); iter != write_state_map.end(); ++iter) {
         if (bdls_arr->is_ptr_in_bindless(reinterpret_cast<size_t>(iter->first))) {
             auto ite = frame_states.find(iter->first);

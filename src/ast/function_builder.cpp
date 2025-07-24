@@ -988,18 +988,60 @@ static void check_expr_is_internalizable(const Expression *expr) noexcept {
     return false;
 }
 
+bool is_expr_statically_evaluated(const Expression *expr) noexcept {
+    switch (expr->tag()) {
+        case Expression::Tag::UNARY: {
+            return is_expr_statically_evaluated(
+                static_cast<UnaryExpr const *>(expr)->operand());
+        }
+        case Expression::Tag::BINARY: {
+            auto e = static_cast<BinaryExpr const *>(expr);
+            return is_expr_statically_evaluated(e->lhs()) &&
+                   is_expr_statically_evaluated(e->rhs());
+        }
+        case Expression::Tag::MEMBER: {
+            return is_expr_statically_evaluated(
+                static_cast<MemberExpr const *>(expr)->self());
+        }
+        case Expression::Tag::ACCESS: {
+            auto e = static_cast<AccessExpr const *>(expr);
+            return is_expr_statically_evaluated(e->index()) &&
+                   is_expr_statically_evaluated(e->range());
+        }
+        case Expression::Tag::LITERAL: return true;
+        case Expression::Tag::CONSTANT: return true;
+        case Expression::Tag::CALL: {
+            auto e = static_cast<CallExpr const *>(expr);
+            if (e->is_external()) { return false; }
+            return std::all_of(e->arguments().cbegin(), e->arguments().cend(),
+                               [](auto x) noexcept {
+                                   return is_expr_statically_evaluated(x);
+                               });
+        }
+        case Expression::Tag::CAST: {
+            return is_expr_statically_evaluated(
+                static_cast<CastExpr const *>(expr)->expression());
+        }
+        default: break;
+    }
+    return false;
+}
+
 // internalize an expression that is captured by a callable
 const Expression *FunctionBuilder::_internalize(const Expression *expr) noexcept {
-    if (expr == nullptr || expr->builder() == this) { return expr; }
+    if (expr == nullptr || expr->builder() == this) {
+        return expr;
+    }
     if (expr->type() == nullptr) {
         LUISA_ASSERT(expr->builder() == this,
                      "Cannot internalize expression with no type.");
         return expr;
     }
+    auto is_static = is_expr_statically_evaluated(expr);
     // Note: we support "variable leaking" into caller to help graph-style
     //  shading system implementation but this can be dangerous. So we also
     //  print a warning message with stacktrace for users to check twice.
-    if (_tag != Function::Tag::CALLABLE) {
+    if (_tag != Function::Tag::CALLABLE && !is_static) [[unlikely]] {
         // must be a leak from a callable, so postpone
         // the fix until the kernel is encoded
         LUISA_ASSERT(expr->tag() == Expression::Tag::REF,
@@ -1026,9 +1068,10 @@ const Expression *FunctionBuilder::_internalize(const Expression *expr) noexcept
         iter != _captured_external_variables.end()) {
         return iter->second;
     }
-    // internalize
-    check_expr_is_internalizable(expr);
-    auto internalized = [this, external = expr]() noexcept -> const Expression * {
+    // check before internalizing
+    if (!is_static) { check_expr_is_internalizable(expr); }
+    // internalize the expression
+    auto internalized = [this, is_static, external = expr]() noexcept -> const Expression * {
         auto mark_internalizer_argument = [this, external](auto expr) noexcept -> const Expression * {
             _internalizer_arguments.emplace(expr->variable(), external);
             return expr;
@@ -1055,7 +1098,7 @@ const Expression *FunctionBuilder::_internalize(const Expression *expr) noexcept
         };
         switch (external->tag()) {
             case Expression::Tag::MEMBER: {
-                if (expr_is_lvalue_local_variable(external)) {
+                if (is_static || expr_is_lvalue_local_variable(external)) {
                     auto expr = static_cast<const MemberExpr *>(external);
                     auto self = _internalize(expr->self());
                     if (expr->is_swizzle()) {
@@ -1068,7 +1111,7 @@ const Expression *FunctionBuilder::_internalize(const Expression *expr) noexcept
                 return internalize_rvalue();
             }
             case Expression::Tag::ACCESS: {
-                if (expr_is_lvalue_local_variable(external)) {
+                if (is_static || expr_is_lvalue_local_variable(external)) {
                     auto expr = static_cast<const AccessExpr *>(external);
                     auto range = _internalize(expr->range());
                     auto index = _internalize(expr->index());
@@ -1108,10 +1151,43 @@ const Expression *FunctionBuilder::_internalize(const Expression *expr) noexcept
                 auto expr = static_cast<const ConstantExpr *>(external);
                 return constant(expr->data());
             }
-            case Expression::Tag::UNARY: [[fallthrough]];
-            case Expression::Tag::BINARY: [[fallthrough]];
-            case Expression::Tag::CALL: [[fallthrough]];
+            case Expression::Tag::UNARY: {
+                if (is_static) {
+                    auto e = static_cast<const UnaryExpr *>(external);
+                    auto x = _internalize(e->operand());
+                    return unary(e->type(), e->op(), x);
+                }
+                return internalize_rvalue();
+            }
+            case Expression::Tag::BINARY: {
+                if (is_static) {
+                    auto e = static_cast<const BinaryExpr *>(external);
+                    auto lhs = _internalize(e->lhs());
+                    auto rhs = _internalize(e->rhs());
+                    return binary(e->type(), e->op(), lhs, rhs);
+                }
+                return internalize_rvalue();
+            }
+            case Expression::Tag::CALL: {
+                if (is_static) {
+                    auto e = static_cast<const CallExpr *>(external);
+                    CallExpr::ArgumentList args;
+                    args.reserve(e->arguments().size());
+                    for (auto arg : e->arguments()) {
+                        args.emplace_back(_internalize(arg));
+                    }
+                    if (e->is_builtin()) { return call(e->type(), e->op(), args, e->curve_basis_set()); }
+                    if (e->is_custom()) { return call(e->type(), e->custom(), args); }
+                    LUISA_ERROR_WITH_LOCATION("Invalid call expression to internalize.");
+                }
+                return internalize_rvalue();
+            }
             case Expression::Tag::CAST: {// must be r-value
+                if (is_static) {
+                    auto e = static_cast<const CastExpr *>(external);
+                    auto x = _internalize(e->expression());
+                    return cast(e->type(), e->op(), x);
+                }
                 return internalize_rvalue();
             }
             case Expression::Tag::TYPE_ID: {

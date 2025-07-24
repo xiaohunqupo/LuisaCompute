@@ -1,6 +1,6 @@
 target("lc-backend-vk")
 _config_project({
-	project_kind = "shared"
+    project_kind = "shared"
 })
 add_deps("lc-runtime", "lc-vstl", "lc-hlsl-codegen")
 add_headerfiles("*.h", "../common/default_binary_io.h")
@@ -14,18 +14,6 @@ elseif is_plat("linux") then
 end
 add_defines("USE_SPIRV")
 on_load(function(target)
-    local vk_path = os.getenv("VK_SDK_PATH")
-    if not vk_path then
-        vk_path = os.getenv("VULKAN_SDK")
-    end
-    if not vk_path then
-        utils.error("Can not find vulkan")
-        target:set_enabled(false)
-        return
-    end
-    target:add("includedirs", path.join(vk_path, "Include"))
-    target:add("linkdirs", path.join(vk_path, "Lib"))
-    target:add("links", "vulkan-1")
-    
+    target:add("deps", "volk")
 end)
 target_end()

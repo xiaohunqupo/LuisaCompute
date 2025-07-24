@@ -15,9 +15,10 @@ Shader::Shader(
     vstd::span<hlsl::Property const> binds,
     bool use_tex2d_bindless,
     bool use_tex3d_bindless,
-    bool use_buffer_bindless)
+    bool use_buffer_bindless,
+    vstd::vector<std::pair<luisa::string, Type const *>> &&printers)
     : Resource{device}, _captured{std::move(captured)}, _saved_arguments(std::move(saved_arguments)),
-      _use_tex2d_bindless(use_tex2d_bindless), _use_tex3d_bindless(use_tex3d_bindless), _use_buffer_bindless(use_buffer_bindless) {
+      _use_tex2d_bindless(use_tex2d_bindless), _use_tex3d_bindless(use_tex3d_bindless), _use_buffer_bindless(use_buffer_bindless), _printers(std::move(printers)) {
     VkShaderStageFlagBits stage_bits = [&]() -> VkShaderStageFlagBits {
         switch (tag) {
             case ShaderTag::ComputeShader:
@@ -67,7 +68,7 @@ Shader::Shader(
                 assert(false);
                 break;
         }
-        v.descriptorCount = i.array_size == ~0u ? 65536u : i.array_size;
+        v.descriptorCount = i.array_size == ~0u ? 262144u : i.array_size;
         v.stageFlags = stage_bits;
     }
     vstd::push_back_all(_binds, binds);

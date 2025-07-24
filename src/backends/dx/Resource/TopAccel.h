@@ -49,7 +49,7 @@ class TopAccel : public Resource {
         CommandBufferBuilder &builder,
         vstd::unique_ptr<DefaultBuffer> &oldBuffer, size_t newSize, bool needCopy, D3D12_RESOURCE_STATES state);
     void InitSetDesc(vstd::span<AccelBuildCommand::Modification const> const &modifications);
-    void ProcessSetDesc();
+    void ProcessSetDesc(EnhancedBarrierTracker &tracker);
     void ProcessSetMap();
 
 public:

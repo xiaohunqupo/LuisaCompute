@@ -236,7 +236,8 @@ void FallbackCommandQueue::enqueue(luisa::move_only_function<void()> &&task) noe
 void FallbackCommandQueue::enqueue_parallel(uint n, luisa::move_only_function<void(uint)> &&task) noexcept {
     static auto LUISA_SINGLE_THREADING = [] {
         using namespace std::string_view_literals;
-        return getenv("LUISA_SINGLE_THREADING") == "1"sv;
+        auto env = getenv("LUISA_SINGLE_THREADING");
+        return env != nullptr && env == "1"sv;
     }();
     enqueue([this, n, task = std::move(task)]() mutable noexcept {
         // for debugging

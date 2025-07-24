@@ -623,7 +623,7 @@ inline Sampler convert_sampler(LCSampler sampler) {
 
 LUISA_EXPORT_API LCCreatedResourceInfo luisa_compute_bindless_array_create(LCDevice device, size_t n) LUISA_NOEXCEPT {
     auto d = reinterpret_cast<DeviceInterface *>(device._0);
-    auto info = d->create_bindless_array(n);
+    auto info = d->create_bindless_array(n, BindlessSlotType::MULTIPLE);
     return LCCreatedResourceInfo{
         .handle = info.handle,
         .native_handle = info.native_handle,

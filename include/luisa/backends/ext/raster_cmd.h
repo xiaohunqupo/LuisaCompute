@@ -4,6 +4,7 @@
 #include <luisa/runtime/raster/raster_state.h>
 #include <luisa/runtime/raster/raster_scene.h>
 #include <luisa/backends/ext/registry.h>
+#include <luisa/core/logging.h>
 
 namespace luisa::compute {
 
@@ -32,18 +33,29 @@ public:
                            MeshFormat const *mesh_format) noexcept
         : ShaderDispatchCommandBase{
               shader_handle, std::move(argument_buffer), argument_count},
-          _rtv_texs{rtv_textures}, _rtv_count{rtv_count}, _dsv_tex{dsv_texture}, _scene{std::move(scene)}, _viewport{viewport},_mesh_format{mesh_format}, _raster_state{raster_state} {
+          _rtv_texs{rtv_textures}, _rtv_count{rtv_count}, _dsv_tex{dsv_texture}, _scene{std::move(scene)}, _viewport{viewport}, _mesh_format{mesh_format}, _raster_state{raster_state} {
     }
 
 public:
     DrawRasterSceneCommand(DrawRasterSceneCommand const &) noexcept = delete;
     DrawRasterSceneCommand(DrawRasterSceneCommand &&) noexcept = default;
     ~DrawRasterSceneCommand() noexcept override = default;
+    void set_dsv_texs(Argument::Texture const &dsv_tex) noexcept {
+        _dsv_tex = dsv_tex;
+    }
+    void set_scene(luisa::vector<RasterMesh> &&scene) noexcept {
+        _scene = std::move(scene);
+    }
+
+    [[nodiscard]] auto rtv_texs() noexcept { return luisa::span{_rtv_texs.data(), _rtv_count}; }
     [[nodiscard]] auto rtv_texs() const noexcept { return luisa::span{_rtv_texs.data(), _rtv_count}; }
     [[nodiscard]] auto const &dsv_tex() const noexcept { return _dsv_tex; }
     [[nodiscard]] auto const &raster_state() const noexcept { return _raster_state; }
     [[nodiscard]] auto scene() const noexcept {
         return luisa::span{_scene};
+    }
+    [[nodiscard]] auto steal_scene() noexcept {
+        return std::move(_scene);
     }
     [[nodiscard]] auto const &mesh_format() const noexcept {
         return *_mesh_format;
@@ -62,6 +74,7 @@ public:
     explicit ClearDepthCommand(uint64_t handle, float value) noexcept
         : _handle{handle}, _value(value) {
     }
+    void set_handle(uint64_t handle) noexcept { _handle = handle; }
     [[nodiscard]] auto handle() const noexcept { return _handle; }
     [[nodiscard]] auto value() const noexcept { return _value; }
     [[nodiscard]] uint64_t uuid() const noexcept override { return to_underlying(CustomCommandUUID::RASTER_CLEAR_DEPTH); }

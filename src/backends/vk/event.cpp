@@ -22,19 +22,36 @@ void Event::update_fence(uint64_t value) {
     std::lock_guard lck(eventMtx);
     lastFence = std::max(lastFence, value);
 }
-void Event::signal(Stream &stream, uint64_t value, VkCommandBuffer *cmdbuffer) {
-    {
-        std::lock_guard lck(eventMtx);
-        lastFence = std::max(lastFence, value);
-    }
+VkTimelineSemaphoreSubmitInfo Event::get_timeline_submit(uint64_t const *value_ptr) {
     VkTimelineSemaphoreSubmitInfo timelineInfo1{};
     timelineInfo1.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
     timelineInfo1.pNext = nullptr;
     timelineInfo1.waitSemaphoreValueCount = 0;
     timelineInfo1.pWaitSemaphoreValues = nullptr;
     timelineInfo1.signalSemaphoreValueCount = 1;
-    timelineInfo1.pSignalSemaphoreValues = &value;
+    timelineInfo1.pSignalSemaphoreValues = value_ptr;
 
+    return timelineInfo1;
+}
+void Event::signal_sparse(Stream &stream, uint64_t const* value_ptr, VkBindSparseInfo *sparse_info, VkTimelineSemaphoreSubmitInfo* timeline_ptr) {
+    {
+        std::lock_guard lck(eventMtx);
+        lastFence = std::max(lastFence, *value_ptr);
+    }
+    *timeline_ptr = get_timeline_submit(value_ptr);
+    timeline_ptr->pNext = sparse_info->pNext;
+    sparse_info->pNext = timeline_ptr;
+    sparse_info->waitSemaphoreCount = 0;
+    sparse_info->pWaitSemaphores = nullptr;
+    sparse_info->signalSemaphoreCount = 1;
+    sparse_info->pSignalSemaphores = &_semaphore;
+}
+void Event::signal(Stream &stream, uint64_t value, VkCommandBuffer *cmdbuffer) {
+    {
+        std::lock_guard lck(eventMtx);
+        lastFence = std::max(lastFence, value);
+    }
+    auto timelineInfo1 = get_timeline_submit(&value);
     VkSubmitInfo info1{};
     info1.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     info1.pNext = &timelineInfo1;

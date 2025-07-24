@@ -51,9 +51,9 @@ static HLSLCompressedHeader get_hlsl_builtin(luisa::string_view ss) {
 			dict.try_emplace("bc7_trymode_137cs", HLSLCompressedHeader{bc7_trymode_137cs, 1814, 7852});
 			dict.try_emplace("bc7_trymode_456cs", HLSLCompressedHeader{bc7_trymode_456cs, 2391, 11171});
 			dict.try_emplace("hlsl_header", HLSLCompressedHeader{hlsl_header, 1414, 5596});
-			dict.try_emplace("raytracing_header", HLSLCompressedHeader{raytracing_header, 881, 3650});
-			dict.try_emplace("tex2d_bindless", HLSLCompressedHeader{tex2d_bindless, 551, 4136});
-			dict.try_emplace("tex3d_bindless", HLSLCompressedHeader{tex3d_bindless, 507, 3535});
+			dict.try_emplace("raytracing_header", HLSLCompressedHeader{raytracing_header, 889, 3045});
+			dict.try_emplace("tex2d_bindless", HLSLCompressedHeader{tex2d_bindless, 737, 8999});
+			dict.try_emplace("tex3d_bindless", HLSLCompressedHeader{tex3d_bindless, 675, 7825});
 			dict.try_emplace("compute_quad", HLSLCompressedHeader{compute_quad, 87, 138});
 			dict.try_emplace("determinant", HLSLCompressedHeader{determinant, 525, 2019});
 			dict.try_emplace("inverse", HLSLCompressedHeader{inverse, 681, 2907});
@@ -61,7 +61,7 @@ static HLSLCompressedHeader get_hlsl_builtin(luisa::string_view ss) {
 			dict.try_emplace("resource_size", HLSLCompressedHeader{resource_size, 227, 1374});
 			dict.try_emplace("accel_header", HLSLCompressedHeader{accel_header, 391, 1160});
 			dict.try_emplace("copy_sign", HLSLCompressedHeader{copy_sign, 175, 765});
-			dict.try_emplace("bindless_common", HLSLCompressedHeader{bindless_common, 308, 724});
+			dict.try_emplace("bindless_common", HLSLCompressedHeader{bindless_common, 375, 1615});
 			dict.try_emplace("auto_diff", HLSLCompressedHeader{auto_diff, 345, 1795});
 			dict.try_emplace("reduce", HLSLCompressedHeader{reduce, 743, 6372});
 		}

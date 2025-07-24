@@ -368,7 +368,9 @@ void StringStateVisitor::visit(const PrintStmt *stmt) {
     str << "}\n"sv;
 }
 void StringStateVisitor::visit(const CommentStmt *state) {
+#ifndef NDEBUG
     str << "/* " << state->comment() << " */\n";
+#endif
 }
 void StringStateVisitor::visit(const IfStmt *state) {
     str << "if(";
@@ -506,14 +508,29 @@ void StringStateVisitor::visit(const AssignStmt *state) {
     bool isLazyDecl = false;
     Variable rqVar;
     bool lhs_is_shared{false};
+    auto is_rayquery = [&]() {
+        if (state->rhs()->tag() != Expression::Tag::CALL) return false;
+        auto s = static_cast<CallExpr const *>(state->rhs());
+        return (s->op() == CallOp::RAY_TRACING_QUERY_ANY || s->op() == CallOp::RAY_TRACING_QUERY_ALL);
+    };
     if (is_custom(state->lhs(), rqVar)) {
         auto iter = lazyDeclVars.find(rqVar);
+        vstd::StringBuilder var_name;
+        util->GetVariableName(rqVar, var_name);
         if (iter != lazyDeclVars.end()) {
             util->GetTypeName(*rqVar.type(), str, Usage::READ);
-            str << ' ';
-            util->GetVariableName(rqVar, str);
+            str << ' '
+                << var_name;
             lazyDeclVars.erase(iter);
             isLazyDecl = true;
+        }
+        if (is_rayquery()) {
+            str << ";\n";
+            state->rhs()->accept(*this);
+            str << ',';
+            state->lhs()->accept(*this);
+            str << ");\n";
+            return;
         }
     }
     auto rhs_is_shared = is_shared(state->rhs());

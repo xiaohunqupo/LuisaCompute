@@ -100,11 +100,11 @@ static constexpr D3D12_BARRIER_LAYOUT BarrierLayoutMap[] = {
 };
 }// namespace dx_detail
 class DXCustomCmd : public CustomDispatchCommand {
+public:
     using ResourceHandle = luisa::variant<
         Argument::Buffer,
         Argument::Texture,
         Argument::BindlessArray>;
-public:
     struct ResourceUsage {
         ResourceHandle resource;
         D3D12_RESOURCE_STATES required_state;
@@ -180,10 +180,10 @@ private:
         IDXGIFactory2 *dxgi_factory,
         ID3D12Device *device,
         ID3D12GraphicsCommandList4 *command_list) const noexcept = 0;
-    [[nodiscard]] virtual luisa::span<const ResourceUsage> get_resource_usages() const noexcept {
+    [[nodiscard]] virtual luisa::span<ResourceUsage> get_resource_usages() noexcept {
         return {};
     }
-    [[nodiscard]] virtual luisa::span<const EnhancedResourceUsage> get_enhanced_resource_usages() const noexcept {
+    [[nodiscard]] virtual luisa::span<EnhancedResourceUsage> get_enhanced_resource_usages() noexcept {
         return {};
     }
 
@@ -270,6 +270,22 @@ private:
 
 public:
     void traverse_arguments(ArgumentVisitor &visitor) const noexcept override {
+        auto usages = const_cast<DXCustomCmd *>(this)->get_resource_usages();
+        for (auto &&[handle, state] : usages) {
+            luisa::visit([&](auto &&v) {
+                visitor.visit(v, resource_state_to_usage(state));
+            },
+                         handle);
+        }
+        auto enhanced_usages = const_cast<DXCustomCmd *>(this)->get_enhanced_resource_usages();
+        for (auto &&[handle, sync, access, layout] : enhanced_usages) {
+            luisa::visit([&](auto &&v) {
+                visitor.visit(v, resource_state_to_usage(access));
+            },
+                         handle);
+        }
+    }
+    void traverse_arguments(MutableArgumentVisitor &visitor) noexcept override {
         auto usages = get_resource_usages();
         for (auto &&[handle, state] : usages) {
             luisa::visit([&](auto &&v) {

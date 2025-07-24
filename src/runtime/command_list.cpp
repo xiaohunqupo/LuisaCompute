@@ -1,5 +1,6 @@
 #include <luisa/runtime/rhi/command.h>
 #include <luisa/runtime/command_list.h>
+#include <luisa/runtime/swapchain.h>
 #include <luisa/core/logging.h>
 
 namespace luisa::compute {
@@ -10,14 +11,16 @@ CommandList::~CommandList() noexcept {
                  "Did you forget to commit?");
 }
 
-void CommandList::reserve(size_t command_size, size_t callback_size) noexcept {
+void CommandList::reserve(size_t command_size, size_t callback_size, size_t present_size) noexcept {
     if (command_size) { _commands.reserve(command_size); }
     if (callback_size) { _callbacks.reserve(callback_size); }
+    if (present_size) { _presents.reserve(present_size); }
 }
 
 void CommandList::clear() noexcept {
     _commands.clear();
     _callbacks.clear();
+    _presents.clear();
     _committed = false;
 }
 
@@ -35,18 +38,18 @@ CommandList &CommandList::add_callback(luisa::move_only_function<void()> &&callb
 }
 
 CommandList &CommandList::add_range(CommandList &&cmdlist) noexcept {
-    if (cmdlist.empty()) [[unlikely]]
-        return *this;
+    if (cmdlist.empty()) [[unlikely]] { return *this; }
+    // move commands into this command list
     auto size = _commands.size();
-    luisa::enlarge_by(_commands, cmdlist._commands.size());
-    for (size_t i = 0; i < cmdlist._commands.size(); ++i) {
-        new (_commands.data() + i + size) CommandContainer::value_type{std::move(cmdlist._commands[i])};
-    }
-    size = _callbacks.size();
-    luisa::enlarge_by(_callbacks, cmdlist._callbacks.size());
-    for (size_t i = 0; i < cmdlist._callbacks.size(); ++i) {
-        new (_callbacks.data() + i + size) CallbackContainer::value_type{std::move(cmdlist._callbacks[i])};
-    }
+    _commands.reserve(_commands.size() + cmdlist._commands.size());
+    for (auto &&cmd : cmdlist._commands) { _commands.emplace_back(std::move(cmd)); }
+    // move callbacks into this command list
+    _callbacks.reserve(_callbacks.size() + cmdlist._callbacks.size());
+    for (auto &&cb : cmdlist._callbacks) { _callbacks.emplace_back(std::move(cb)); }
+    // move presents into this command list
+    _presents.reserve(_presents.size() + cmdlist._presents.size());
+    for (auto &&present : cmdlist._presents) { _presents.emplace_back(std::move(present)); }
+    // clear the other command list
     cmdlist.clear();
     return *this;
 }
@@ -63,20 +66,40 @@ CommandList::CommandContainer CommandList::steal_commands() noexcept {
     return std::move(_commands);
 }
 
+CommandList::PresentContainer CommandList::steal_presents() noexcept {
+    return std::move(_presents);
+}
+
+CommandList &CommandList::add_present(SwapchainPresent &&present) noexcept {
+    _presents.emplace_back(present);
+    return *this;
+}
+
 CommandList CommandList::create(size_t reserved_command_size, size_t reserved_callback_size) noexcept {
     CommandList list{};
     list.reserve(reserved_command_size, reserved_callback_size);
     return list;
 }
+CommandList::CommandList() noexcept = default;
 
 CommandList::Commit CommandList::commit() noexcept {
     _committed = true;
     return Commit{std::move(*this)};
 }
+bool CommandList::empty() const noexcept { return _commands.empty() && _callbacks.empty() && _presents.empty(); }
+luisa::span<const SwapchainPresent> CommandList::presents() const noexcept { return luisa::span{_presents}; }
 
 CommandList::CommandList(CommandList &&another) noexcept
     : _commands{std::move(another._commands)},
       _callbacks{std::move(another._callbacks)},
+      _presents{std::move(another._presents)},
       _committed{another._committed} { another._committed = false; }
 
+CommandList::CommandList(
+    CommandContainer &&commands,
+    CallbackContainer &&callbacks,
+    PresentContainer &&presents) noexcept
+    : _commands{std::move(commands)},
+      _callbacks{std::move(callbacks)},
+      _presents{std::move(presents)} {}
 }// namespace luisa::compute

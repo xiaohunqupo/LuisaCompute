@@ -34,6 +34,9 @@ class LC_RUNTIME_API BindlessArray final : public Resource {
 
 public:
     using Modification = BindlessArrayUpdateCommand::Modification;
+    using BufferModification = BindlessArrayUpdateCommand::BufferModification;
+    using Texture2DModification = BindlessArrayUpdateCommand::Texture2DModification;
+    using Texture3DModification = BindlessArrayUpdateCommand::Texture3DModification;
 
     struct ModSlotHash {
         using is_transparent = void;
@@ -41,7 +44,8 @@ public:
         [[nodiscard]] auto operator()(size_t slot) const noexcept -> uint64_t {
             return hash_value(slot);
         }
-        [[nodiscard]] auto operator()(const Modification &m) const noexcept -> uint64_t {
+        template<typename T>
+        [[nodiscard]] auto operator()(const T &m) const noexcept -> uint64_t {
             return (*this)(m.slot);
         }
     };
@@ -64,16 +68,29 @@ public:
         }
     };
 
+    using ModSlotSet_MultiPurpose =
+        luisa::unordered_set<Modification, ModSlotHash, ModSlotEqual>;
+    using ModSlotSet_BufferOnly =
+        luisa::unordered_set<BufferModification, ModSlotHash, ModSlotEqual>;
+    using ModSlotSet_Texture2DOnly =
+        luisa::unordered_set<Texture2DModification, ModSlotHash, ModSlotEqual>;
+    using ModSlotSet_Texture3DOnly =
+        luisa::unordered_set<Texture3DModification, ModSlotHash, ModSlotEqual>;
+
 private:
     size_t _size{0u};
-    // "emplace" and "remove" operations will be cached under _updates and commit in update() command
-    luisa::unordered_set<Modification, ModSlotHash, ModSlotEqual> _updates;
+    // "emplace" and "remove" operations will be cached in _updates and committed on calling update() command
+    luisa::variant<ModSlotSet_MultiPurpose,
+                   ModSlotSet_BufferOnly,
+                   ModSlotSet_Texture2DOnly,
+                   ModSlotSet_Texture3DOnly>
+        _updates;
     mutable luisa::spin_mutex _mtx;
 
 private:
     friend class Device;
     friend class ManagedBindless;
-    BindlessArray(DeviceInterface *device, size_t size) noexcept;
+    BindlessArray(DeviceInterface *device, size_t size, BindlessSlotType type) noexcept;
 
 public:
     BindlessArray() noexcept = default;
@@ -97,8 +114,9 @@ public:
     [[nodiscard]] auto dirty() const noexcept {
         _check_is_valid();
         std::lock_guard lck{_mtx};
-        return !_updates.empty();
+        return !luisa::visit([](auto &&t) { return t.empty(); }, _updates);
     }
+
     // on-update functions' operations will be committed by update()
     void emplace_buffer_handle_on_update(size_t index, uint64_t handle, size_t offset_bytes) noexcept;
     void emplace_tex2d_handle_on_update(size_t index, uint64_t handle, Sampler sampler) noexcept;

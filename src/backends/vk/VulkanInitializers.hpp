@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include "vulkan/vulkan.h"
+#include <volk.h>
 #include <luisa/vstl/common.h>
 namespace vks
 {

@@ -58,21 +58,21 @@ PiecewiseLinearCurve::evaluate(Expr<float> u, Expr<float3> ps) const noexcept {
     CurveEvaluation eval;
     $outline {
         // consider the spherical caps of the curve
-        $if (u == 0.f) {
-            eval.position = ps;
-            eval.normal = ps - _p0.xyz();
-            auto tangent = normalize(_p1.xyz());
-            auto binormal = normalize(cross(tangent, eval.normal));
-            eval.tangent = normalize(cross(eval.normal, binormal));
-        }
-        $elif (u >= 1.f) {
-            auto p1 = _p1.xyz() + _p0.xyz();
-            eval.normal = normalize(ps - p1);
-            auto tangent = normalize(_p1.xyz());
-            auto binormal = normalize(cross(tangent, eval.normal));
-            eval.tangent = normalize(cross(eval.normal, binormal));
-        }
-        $else {
+        //$if (u == 0.f) {
+        //    eval.position = ps;
+        //    eval.normal = ps - _p0.xyz();
+        //    auto tangent = normalize(_p1.xyz());
+        //    auto binormal = normalize(cross(tangent, eval.normal));
+        //    eval.tangent = normalize(cross(eval.normal, binormal));
+        //}
+        //$elif (u >= 1.f) {
+        //    auto p1 = _p1.xyz() + _p0.xyz();
+        //    eval.normal = normalize(ps - p1);
+        //    auto tangent = normalize(_p1.xyz());
+        //    auto binormal = normalize(cross(tangent, eval.normal));
+        //    eval.tangent = normalize(cross(eval.normal, binormal));
+        //}
+        //$else {
             auto p4 = position(u);
             auto p = p4.xyz();
             auto r = p4.w;
@@ -86,7 +86,7 @@ PiecewiseLinearCurve::evaluate(Expr<float> u, Expr<float3> ps) const noexcept {
             eval.position = p + o1;
             eval.normal = normalize(dd * o1 - (dr * r) * d);
             eval.tangent = normalize(d);
-        };
+        //};
     };
     return eval;
 }

@@ -15,6 +15,7 @@
 #include <luisa/runtime/rtx/aabb.h>
 #include <Resource/DepthBuffer.h>
 #include <luisa/backends/ext/raster_cmd.h>
+#include <luisa/runtime/swapchain.h>
 #include <Resource/SparseTexture.h>
 #include <luisa/backends/ext/dx_custom_cmd.h>
 #include "../../common/shader_print_formatter.h"
@@ -182,7 +183,7 @@ public:
                 uint value = v ? std::numeric_limits<uint>::max() : 0;
                 self->EmplaceData(value);
             } else {
-                self->EmplaceData(bf.data(), arg->structSize);
+                self->EmplaceData(bf.data(), bf.size_bytes());
             }
             ++arg;
         }
@@ -209,14 +210,13 @@ public:
         auto get_resource_view = [&](auto &&i) {
             return luisa::visit(
                 [&]<typename T>(T const &t) -> EnhancedBarrierTracker::ResourceView {
-                    using PureT = std::remove_cvref_t<T>;
-                    if constexpr (std::is_same_v<PureT, Argument::Buffer>) {
+                    if constexpr (std::is_same_v<T, Argument::Buffer>) {
                         return EnhancedBarrierTracker::ResourceView{
                             BufferView{
                                 static_cast<Buffer const *>(reinterpret_cast<Resource const *>(t.handle)),
                                 t.offset,
                                 t.size}};
-                    } else if constexpr (std::is_same_v<PureT, Argument::Texture>) {
+                    } else if constexpr (std::is_same_v<T, Argument::Texture>) {
                         return EnhancedBarrierTracker::ResourceView{
                             EnhancedBarrierTracker::TexView{
                                 static_cast<TextureBase const *>(reinterpret_cast<Resource const *>(t.handle)),
@@ -232,11 +232,11 @@ public:
                 },
                 i.resource);
         };
-        for (auto &&i : cmd->get_resource_usages()) {
+        for (auto i : const_cast<DXCustomCmd *>(cmd)->get_resource_usages()) {
             auto res_view = get_resource_view(i);
             stateTracker->Record(res_view, i.required_state);
         }
-        for (auto &&i : cmd->get_enhanced_resource_usages()) {
+        for (auto i : const_cast<DXCustomCmd *>(cmd)->get_enhanced_resource_usages()) {
             auto res_view = get_resource_view(i);
             stateTracker->Record(
                 res_view,
@@ -343,11 +343,11 @@ public:
     }
     void visit(const ShaderDispatchCommand *cmd) noexcept override {
         auto cs = reinterpret_cast<ComputeShader *>(cmd->handle());
+        UniformAlign(16);
         size_t beforeSize = argBuffer->size();
         Visitor visitor{this, cs->Args().data(), *cmd, false};
         DecodeCmd(cs->ArgBindings(), visitor);
         DecodeCmd(cmd->arguments(), visitor);
-        UniformAlign(16);
         size_t afterSize = argBuffer->size();
         argVecs->emplace_back(beforeSize, afterSize - beforeSize);
         if (cmd->is_indirect()) {
@@ -414,10 +414,10 @@ public:
     void visit(const BindlessArrayUpdateCommand *cmd) noexcept override {
         // reinterpret_cast<BindlessArray *>(cmd->handle())->Bind(cmd->modifications());
         auto arr = reinterpret_cast<BindlessArray *>(cmd->handle());
-        arr->PreProcessStates(
-            *bd,
-            *stateTracker,
-            cmd->modifications());
+        if (!cmd->empty())
+            arr->PreProcessStates(
+                *bd,
+                *stateTracker);
     };
 
     void visit(const CustomCommand *cmd) noexcept override {
@@ -438,11 +438,11 @@ public:
 
     void visit(const DrawRasterSceneCommand *cmd) noexcept {
         auto cs = reinterpret_cast<RasterShader *>(cmd->handle());
+        UniformAlign(16);
         size_t beforeSize = argBuffer->size();
         auto rtvs = cmd->rtv_texs();
         auto dsv = cmd->dsv_tex();
         DecodeCmd(cmd->arguments(), Visitor{this, cs->Args().data(), *cmd, true});
-        UniformAlign(16);
         size_t afterSize = argBuffer->size();
         argVecs->emplace_back(beforeSize, afterSize - beforeSize);
 
@@ -959,10 +959,21 @@ public:
         });
 #endif
         auto arr = reinterpret_cast<BindlessArray *>(cmd->handle());
-        arr->UpdateStates(
-            *bd,
-            *stateTracker,
-            cmd->modifications());
+        cmd->visit_modifications([&]<typename T>(T const &t) {
+            if constexpr (std::is_same_v<T, luisa::vector<BindlessArrayUpdateCommand::Texture3DModification>>) {
+                arr->UpdateStates(
+                    *bd,
+                    *stateTracker,
+                    luisa::span{
+                        reinterpret_cast<BindlessArrayUpdateCommand::Texture2DModification const *>(t.data()),
+                        t.size()});
+            } else {
+                arr->UpdateStates(
+                    *bd,
+                    *stateTracker,
+                    luisa::span{t});
+            }
+        });
     }
     void visit(const DXCustomCmd *cmd) noexcept {
         cmd->execute(
@@ -1139,6 +1150,8 @@ void LCCmdBuffer::Execute(
     auto allocator = queue.CreateAllocator(maxAlloc);
     auto allocType = allocator->Type();
     bool cmdListIsEmpty = commands.empty();
+    luisa::fixed_vector<std::pair<IDXGISwapChain *, bool>, 4> present_swapchains;
+    present_swapchains.reserve(cmdList.presents().size());
     {
         std::unique_lock lck{mtx};
         LCPreProcessVisitor ppVisitor;
@@ -1186,12 +1199,49 @@ void LCCmdBuffer::Execute(
         visitor.bd = &cmdBuilder;
         ppVisitor.bd = &cmdBuilder;
         reorder.clear();
+        size_t uniformSize = 0;
+        auto addSize = [&](auto const &c, Argument const &a) {
+            if (a.tag != Argument::Tag::UNIFORM) [[likely]]
+                return;
+
+            // uniform_buffer_size +=
+            auto bf = c.uniform(a.uniform);
+            uniformSize += std::max<size_t>(4, bf.size_bytes());
+        };
         for (auto &&command : commands) {
             // if (command->tag() == Command::Tag::EBindlessArrayUpdateCommand) {
             //     auto cmd = static_cast<BindlessArrayUpdateCommand const *>(command.get());
             //     reinterpret_cast<BindlessArray *>(cmd->handle())->Bind(cmd->modifications());
             // }
             command->accept(reorder);
+            switch (command->tag()) {
+                case Command::Tag::EShaderDispatchCommand: {
+                    auto c = static_cast<ShaderDispatchCommand const *>(command.get());
+                    auto cs = reinterpret_cast<ComputeShader *>(c->handle());
+                    uniformSize = (uniformSize + 15ull) & (~(15ull));
+                    for (auto &&i : cs->ArgBindings()) {
+                        addSize(*c, i);
+                    }
+                    for (auto &&i : c->arguments()) {
+                        addSize(*c, i);
+                    }
+                } break;
+                case Command::Tag::ECustomCommand: {
+                    if (static_cast<CustomCommand const *>(command.get())->uuid() ==
+                        to_underlying(CustomCommandUUID::RASTER_DRAW_SCENE)) {
+                        auto c = static_cast<DrawRasterSceneCommand const *>(command.get());
+                        for (auto &&i : c->arguments()) {
+                            addSize(*c, i);
+                        }
+                    }
+                } break;
+            }
+        }
+        // Upload CBuffers
+        if (uniformSize > 0) {
+            visitor.argBuffer = allocator->GetTempUploadBuffer(uniformSize, 16);
+        } else {
+            visitor.argBuffer = {};
         }
         auto cmdLists = reorder.command_lists();
         ID3D12DescriptorHeap *h[2] = {
@@ -1206,7 +1256,6 @@ void LCCmdBuffer::Execute(
 
             // Clear caches
             ppVisitor.argVecs->clear();
-            ppVisitor.argBuffer->clear();
             ppVisitor.accelOffset->clear();
             ppVisitor.bottomAccelDatas->clear();
             ppVisitor.buildAccelSize = 0;
@@ -1222,39 +1271,9 @@ void LCCmdBuffer::Execute(
                 accelScratchBuffer = allocator->AllocateScratchBuffer(ppVisitor.buildAccelSize);
                 visitor.accelScratchOffsets = ppVisitor.accelOffset->data();
                 visitor.accelScratchBuffer = accelScratchBuffer;
-                tracker->Record(accelScratchBuffer, EnhancedBarrierTracker::Usage::ComputeUAV);
+                tracker->Record(accelScratchBuffer, EnhancedBarrierTracker::Usage::BuildAccelScratch);
             }
-            // Upload CBuffers
-            if (ppVisitor.argBuffer->empty()) {
-                visitor.argBuffer = {};
-            } else {
-// Use default buffer as arguments buffer
-#if false
-                auto uploadBuffer = allocator->GetTempDefaultBuffer(ppVisitor.argBuffer->size(), 16);
-                tracker->RecordState(
-                    uploadBuffer.buffer,
-                    D3D12_RESOURCE_STATE_COPY_DEST);
-                // Update recorded states
-                tracker->UpdateState(
-                    cmdBuilder);
-                cmdBuilder.Upload(
-                    uploadBuffer,
-                    ppVisitor.argBuffer->data());
-                tracker->RecordState(
-                    uploadBuffer.buffer,
-                    tracker->ReadState(ResourceReadUsage::Srv));
-#else
-                // use upload buffer maybe faster?
-                auto uploadBuffer = allocator->GetTempUploadBuffer(ppVisitor.argBuffer->size(), 16);
-                static_cast<UploadBuffer const *>(uploadBuffer.buffer)
-                    ->CopyData(
-                        uploadBuffer.offset,
-                        {reinterpret_cast<uint8_t const *>(
-                             ppVisitor.argBuffer->data()),
-                         ppVisitor.argBuffer->size()});
-#endif
-                visitor.argBuffer = uploadBuffer;
-            }
+
             tracker->UpdateState(
                 &barrier_callback);
             visitor.bufferVec = ppVisitor.argVecs->data();
@@ -1293,20 +1312,71 @@ void LCCmdBuffer::Execute(
                 lck.lock();
             }
         }
+        if (visitor.argBuffer.buffer) {
+            static_cast<UploadBuffer const *>(visitor.argBuffer.buffer)
+                ->CopyData(
+                    visitor.argBuffer.offset,
+                    {reinterpret_cast<uint8_t const *>(
+                         argBuffer.data()),
+                     argBuffer.size()});
+            auto aligned_size = (argBuffer.size() + 15ull) & (~15ull);
+            uniformSize = (uniformSize + 15ull) & (~(15ull));
+            LUISA_DEBUG_ASSERT(aligned_size == uniformSize);
+        }
+
+        for (auto &&present : cmdList.presents()) {
+            auto swapchain = reinterpret_cast<LCSwapChain *>(present.chain->handle());
+            auto &&rt = &swapchain->m_renderTargets[swapchain->frameIndex];
+            auto img = reinterpret_cast<TextureBase *>(present.frame.handle());
+            auto mip = present.frame.level();
+            tracker->Record(
+                rt,
+                EnhancedBarrierTracker::Range(0, 1),
+                D3D12_BARRIER_SYNC_COPY,
+                D3D12_BARRIER_ACCESS_COPY_DEST,
+                D3D12_BARRIER_LAYOUT_COPY_DEST);
+            tracker->Record(
+                img,
+                EnhancedBarrierTracker::Range(mip, 1),
+                D3D12_BARRIER_SYNC_COPY,
+                D3D12_BARRIER_ACCESS_COPY_SOURCE,
+                D3D12_BARRIER_LAYOUT_COPY_SOURCE);
+            // tracker->UpdateState(&barrier_callback);
+        }
+        if (!cmdList.presents().empty()) {
+            tracker->UpdateState(&barrier_callback);
+        }
+        for (auto &&present : cmdList.presents()) {
+            auto swapchain = reinterpret_cast<LCSwapChain *>(present.chain->handle());
+            auto &&rt = &swapchain->m_renderTargets[swapchain->frameIndex];
+            auto img = reinterpret_cast<TextureBase *>(present.frame.handle());
+            auto mip = present.frame.level();
+            swapchain->frameIndex += 1;
+            swapchain->frameIndex %= swapchain->frameCount;
+            D3D12_TEXTURE_COPY_LOCATION sourceLocation;
+            sourceLocation.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+            sourceLocation.SubresourceIndex = mip;
+            D3D12_TEXTURE_COPY_LOCATION destLocation;
+            destLocation.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+            destLocation.SubresourceIndex = 0;
+            sourceLocation.pResource = img->GetResource();
+            destLocation.pResource = rt->GetResource();
+            cmdBuffer->CmdList()->CopyTextureRegion(
+                &destLocation,
+                0, 0, 0,
+                &sourceLocation,
+                nullptr);
+            tracker->Record(
+                rt,
+                EnhancedBarrierTracker::Range(0, 1),
+                D3D12_BARRIER_SYNC_ALL,
+                D3D12_BARRIER_ACCESS_COMMON,
+                D3D12_BARRIER_LAYOUT_PRESENT);
+            present_swapchains.emplace_back(swapchain->swapChain.Get(), swapchain->vsync);
+        }
         tracker->RestoreState(&barrier_callback);
     }
-
-    if (funcs.empty()) {
-        if (cmdListIsEmpty)
-            queue.ExecuteEmpty(std::move(allocator));
-        else
-            queue.Execute(std::move(allocator));
-    } else {
-        if (cmdListIsEmpty)
-            queue.ExecuteEmptyCallbacks(std::move(allocator), std::move(funcs));
-        else
-            queue.ExecuteCallbacks(std::move(allocator), std::move(funcs));
-    }
+    queue.Execute(std::move(allocator), std::move(funcs), luisa::span{present_swapchains}, cmdListIsEmpty);
 }
 void LCCmdBuffer::Sync() {
     queue.Complete();
@@ -1314,6 +1384,7 @@ void LCCmdBuffer::Sync() {
 void LCCmdBuffer::Present(
     LCSwapChain *swapchain,
     TextureBase *img,
+    uint mip,
     size_t maxAlloc) {
     auto alloc = queue.CreateAllocator(maxAlloc);
     {
@@ -1343,7 +1414,7 @@ void LCCmdBuffer::Present(
             img_barrier.Transition.pResource = img->GetResource();
             img_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COMMON;
             img_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
-            img_barrier.Transition.Subresource = 0;
+            img_barrier.Transition.Subresource = mip;
             bd.GetCB()->CmdList()->ResourceBarrier(vstd::array_count(barriers), barriers);
         }
         // tracker->Record(
@@ -1353,7 +1424,7 @@ void LCCmdBuffer::Present(
         // tracker->UpdateState(bd);
         D3D12_TEXTURE_COPY_LOCATION sourceLocation;
         sourceLocation.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-        sourceLocation.SubresourceIndex = 0;
+        sourceLocation.SubresourceIndex = mip;
         D3D12_TEXTURE_COPY_LOCATION destLocation;
         destLocation.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
         destLocation.SubresourceIndex = 0;
@@ -1382,11 +1453,12 @@ void LCCmdBuffer::Present(
             img_barrier.Transition.pResource = img->GetResource();
             img_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
             img_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COMMON;
-            img_barrier.Transition.Subresource = 0;
+            img_barrier.Transition.Subresource = mip;
             bd.GetCB()->CmdList()->ResourceBarrier(vstd::array_count(barriers), barriers);
         }
     }
-    queue.ExecuteAndPresent(std::move(alloc), swapchain->swapChain.Get(), swapchain->vsync);
+    std::pair<IDXGISwapChain *, bool> sw{swapchain->swapChain.Get(), swapchain->vsync};
+    queue.Execute(std::move(alloc), {}, {&sw, 1}, false);
 }
 void LCCmdBuffer::CompressBC(
     TextureBase *rt,
@@ -1574,11 +1646,11 @@ void LCCmdBuffer::CompressBC(
         if (batch == batchNum - 1) {
             vstd::vector<vstd::function<void()>> callbacks;
             callbacks.emplace_back([backBuffer = std::move(backBuffer)] {});
-            queue.ExecuteCallbacks(
+            queue.Execute(
                 std::move(alloc),
-                std::move(callbacks));
+                std::move(callbacks), {}, false);
         } else {
-            queue.Execute(std::move(alloc));
+            queue.Execute(std::move(alloc), {}, {}, false);
         }
     }
 }

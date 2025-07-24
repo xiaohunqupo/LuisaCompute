@@ -1,12 +1,13 @@
 #pragma once
 #include "resource.h"
-#include <vulkan/vulkan_core.h>
+#include <volk.h>
 #include "vk_allocator.h"
 #include <luisa/runtime/rhi/pixel.h>
 namespace lc::vk {
 class Texture : public Resource {
     AllocatedImage _img;
     compute::PixelFormat _format;
+    uint3 _size;
     uint _mip;
     uint _dimension;
     bool _simultaneous_access;
@@ -15,6 +16,7 @@ class Texture : public Resource {
 public:
     auto simultaneous_access() const { return _simultaneous_access; }
     auto dimension() const { return _dimension; }
+    Texture(Device *device);
     Texture(
         Device *device,
         uint dimension,
@@ -24,6 +26,23 @@ public:
         bool simultaneous_access,
         bool allow_raster_target);
     ~Texture();
+    void init_as_sparse(
+        uint dimension,
+        compute::PixelFormat format,
+        uint3 size,
+        uint mip,
+        bool simultaneous_access);
+    static uint2 tex2d_tile_size(luisa::compute::PixelStorage storage);
+    static uint3 tex3d_tile_size(luisa::compute::PixelStorage storage);
+    uint3 tile_size() const {
+        if (_dimension <= 2) {
+            return make_uint3(tex2d_tile_size(luisa::compute::pixel_format_to_storage(_format)), 1);
+        } else {
+            return tex3d_tile_size(luisa::compute::pixel_format_to_storage(_format));
+        }
+    }
+    auto size() const { return _size; }
+
     auto mip() const { return _mip; }
     auto vk_image() const { return _img.image; }
     auto format() const { return _format; }

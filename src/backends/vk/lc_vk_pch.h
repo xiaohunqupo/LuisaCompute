@@ -3,7 +3,7 @@
 #ifndef LUISA_COMPUTE_VULKAN_BACKEND_PCH_H
 #define LUISA_COMPUTE_VULKAN_BACKEND_PCH_H
 
-#include <vulkan/vulkan_core.h>
+#include <volk.h>
 #include <luisa/core/logging.h>
 #include <luisa/core/basic_traits.h>
 #include <luisa/core/basic_types.h>

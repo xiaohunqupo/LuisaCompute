@@ -80,7 +80,7 @@ void ClientInterface::destroy_texture(uint64_t handle) noexcept {
 }
 
 // bindless array
-ResourceCreationInfo ClientInterface::create_bindless_array(size_t size) noexcept {
+ResourceCreationInfo ClientInterface::create_bindless_array(size_t size, BindlessSlotType type) noexcept {
     ResourceCreationInfo r;
     r.handle = _flag++;
     r.native_handle = nullptr;
@@ -88,6 +88,7 @@ ResourceCreationInfo ClientInterface::create_bindless_array(size_t size) noexcep
     SerDe::ser_value(DeviceFunc::CreateBindlessArray, _send_bytes);
     SerDe::ser_value(r.handle, _send_bytes);
     SerDe::ser_value(size, _send_bytes);
+    SerDe::ser_value(luisa::to_underlying(type), _send_bytes);
     _callback->async_send(std::move(_send_bytes));
     return r;
 }
@@ -552,14 +553,13 @@ void ClientInterface::destroy_sparse_buffer(uint64_t handle) noexcept {
 }
 
 // sparse texture
-ResourceCreationInfo ClientInterface::allocate_sparse_texture_heap(size_t byte_size, bool is_compressed_type) noexcept {
+ResourceCreationInfo ClientInterface::allocate_sparse_texture_heap(size_t byte_size) noexcept {
     ResourceCreationInfo r;
     r.handle = _flag++;
     r.native_handle = nullptr;
     SerDe::ser_value(DeviceFunc::AllocSparseTextureHeap, _send_bytes);
     SerDe::ser_value(r.handle, _send_bytes);
     SerDe::ser_value(byte_size, _send_bytes);
-    SerDe::ser_value(is_compressed_type, _send_bytes);
     _callback->async_send(std::move(_send_bytes));
     return r;
 }

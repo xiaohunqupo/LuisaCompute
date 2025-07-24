@@ -32,7 +32,7 @@ Swapchain::~Swapchain() noexcept {
     if (*this) { device()->destroy_swap_chain(handle()); }
 }
 
-void Swapchain::Present::operator()(
+void SwapchainPresent::operator()(
     DeviceInterface *device,
     uint64_t stream_handle) && noexcept {
     device->present_display_in_stream(stream_handle, chain->handle(), frame.handle());

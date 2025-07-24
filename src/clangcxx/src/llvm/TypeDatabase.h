@@ -43,7 +43,8 @@ struct TypeDatabase {
 
     // luisa::unordered_map<luisa::string, const luisa::compute::RefExpr *> globals;
     ShaderReflection refl;
-    luisa::vector<const clang::VarDecl *> extern_vars;
+    luisa::unordered_set<const clang::VarDecl *> extern_vars;
+    luisa::unordered_map<const clang::VarDecl *, const clang::VarDecl *> extern_var_redirects;
     luisa::shared_ptr<compute::detail::FunctionBuilder> kernel_builder;
     luisa::shared_ptr<compute::detail::FunctionBuilder> vertex_builder;
     luisa::shared_ptr<compute::detail::FunctionBuilder> pixel_builder;

@@ -20,6 +20,7 @@ class ComputeShader : public Shader {
     VkPipeline _pipeline;
     uint3 _block_size;
 public:
+    static bool verify_type_md5(luisa::span<const Type *const> arg_types, vstd::MD5 md5);
     auto pipeline() const { return _pipeline; }
     bool serialize_pso(vstd::vector<std::byte> &result) const override;
     auto block_size() const { return _block_size; }
@@ -33,7 +34,8 @@ public:
         vstd::span<std::byte const> cache_code,
         bool use_tex2d_bindless,
         bool use_tex3d_bindless,
-        bool use_buffer_bindless);
+        bool use_buffer_bindless,
+        vstd::vector<std::pair<luisa::string, Type const*>>&& printers);
     ~ComputeShader();
     static ComputeShader *compile(
         BinaryIO const *bin_io,

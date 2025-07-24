@@ -14,6 +14,7 @@ static constexpr D3D12_BARRIER_SYNC BarrierSyncMap[] = {
     D3D12_BARRIER_SYNC_COPY,                                                                              // CopySource,
     D3D12_BARRIER_SYNC_COPY,                                                                              // CopyDest,
     D3D12_BARRIER_SYNC_BUILD_RAYTRACING_ACCELERATION_STRUCTURE,                                           // BuildAccel,
+    D3D12_BARRIER_SYNC_BUILD_RAYTRACING_ACCELERATION_STRUCTURE,                                           // BuildAccelScratch,
     D3D12_BARRIER_SYNC_COPY_RAYTRACING_ACCELERATION_STRUCTURE,                                            // CopyAccelSrc
     D3D12_BARRIER_SYNC_COPY_RAYTRACING_ACCELERATION_STRUCTURE,                                            // CopyAccelDst
     D3D12_BARRIER_SYNC_DEPTH_STENCIL,                                                                     //DepthRead
@@ -41,6 +42,7 @@ static constexpr D3D12_BARRIER_ACCESS BarrierAccessMap[] = {
     D3D12_BARRIER_ACCESS_COPY_SOURCE,                            // CopySource,
     D3D12_BARRIER_ACCESS_COPY_DEST,                              // CopyDest,
     D3D12_BARRIER_ACCESS_RAYTRACING_ACCELERATION_STRUCTURE_WRITE,// BuildAccel,
+    D3D12_BARRIER_ACCESS_UNORDERED_ACCESS,                       // BuildAccelScratch,
     D3D12_BARRIER_ACCESS_COPY_SOURCE,                            // CopyAccelSrc
     D3D12_BARRIER_ACCESS_RAYTRACING_ACCELERATION_STRUCTURE_WRITE,// CopyAccelDst
     D3D12_BARRIER_ACCESS_DEPTH_STENCIL_READ,                     //DepthRead
@@ -68,6 +70,7 @@ static constexpr D3D12_BARRIER_LAYOUT BarrierLayoutMap[] = {
     D3D12_BARRIER_LAYOUT_COPY_SOURCE,        // CopySource,
     D3D12_BARRIER_LAYOUT_COPY_DEST,          // CopyDest,
     D3D12_BARRIER_LAYOUT_UNDEFINED,          // BuildAccel,
+    D3D12_BARRIER_LAYOUT_UNDEFINED,          // BuildAccelScratch,
     D3D12_BARRIER_LAYOUT_UNDEFINED,          // CopyAccelSrc
     D3D12_BARRIER_LAYOUT_UNDEFINED,          // CopyAccelDst
     D3D12_BARRIER_LAYOUT_DEPTH_STENCIL_READ, //DepthRead
@@ -198,6 +201,7 @@ void EnhancedBarrierTracker::Record(
         case Resource::Tag::SwapChain:
             type = ResourceStates::Type::Texture;
             Record(ResourceView(static_cast<SwapChain const *>(res)), sync, access, layout);
+            break;
         default:
             LUISA_ERROR("Bad resource for barrier.");
             break;
@@ -497,22 +501,21 @@ void EnhancedBarrierTracker::Record(
 void EnhancedBarrierTrackerImpl::UpdateResourceState(Resource const *resPtr, ResourceStates &state) {
     state.require_update = false;
     bool is_write = false;
-    if (state.layer_states.index() == 0) {
-        auto &bf = state.layer_states.get<0>();
+    if (auto bf = state.layer_states.try_get<BufferRange>()) {
         D3D12_BUFFER_BARRIER &barrier = bufferBarriers.emplace_back();
-        barrier.SyncBefore = bf.before_sync;
-        barrier.SyncAfter = bf.after_sync;
-        barrier.AccessBefore = bf.before_access;
-        barrier.AccessAfter = bf.after_access;
+        barrier.SyncBefore = bf->before_sync;
+        barrier.SyncAfter = bf->after_sync;
+        barrier.AccessBefore = bf->before_access;
+        barrier.AccessAfter = bf->after_access;
         barrier.pResource = resPtr->GetResource();
         barrier.Offset = 0;
         barrier.Size = UINT64_MAX;
         is_write |= (barrier.AccessAfter & detail::write_access) != 0;
 
-        bf.before_sync = bf.after_sync;
-        bf.after_sync = D3D12_BARRIER_SYNC_NONE;
-        bf.before_access = bf.after_access;
-        bf.after_access = D3D12_BARRIER_ACCESS_COMMON;
+        bf->before_sync = bf->after_sync;
+        bf->after_sync = D3D12_BARRIER_SYNC_NONE;
+        bf->before_access = bf->after_access;
+        bf->after_access = D3D12_BARRIER_ACCESS_COMMON;
         // bf.after_access = bf.init_access;
     } else {// Texture
         auto &vec = state.layer_states.get<1>();
@@ -589,12 +592,11 @@ void EnhancedBarrierTrackerImpl::RestoreState(BarrierCallback *cmdBuffer) {
     for (auto &i : frameStates) {
         Resource const *resPtr = i.first;
         ResourceStates &state = i.second;
-        if (state.layer_states.index() == 0) {
-            auto &bf = state.layer_states.get<0>();
+        if (auto bf = state.layer_states.try_get<BufferRange>()) {
             D3D12_BUFFER_BARRIER &barrier = bufferBarriers.emplace_back();
             barrier.SyncBefore = D3D12_BARRIER_SYNC_ALL;
             barrier.SyncAfter = D3D12_BARRIER_SYNC_NONE;
-            barrier.AccessBefore = bf.before_access;
+            barrier.AccessBefore = bf->before_access;
             barrier.AccessAfter = D3D12_BARRIER_ACCESS_COMMON;
             barrier.pResource = resPtr->GetResource();
             barrier.Offset = 0;
@@ -672,6 +674,11 @@ void FilterAccess(
             access &= (D3D12_BARRIER_ACCESS_COPY_DEST | D3D12_BARRIER_ACCESS_COPY_SOURCE | D3D12_BARRIER_ACCESS_RESOLVE_DEST | D3D12_BARRIER_ACCESS_RESOLVE_SOURCE);
             layout = D3D12_BARRIER_LAYOUT_COMMON;
         } break;
+    }
+    // Type is render-target
+    const auto tex_read_sync = D3D12_BARRIER_SYNC_INDEX_INPUT | D3D12_BARRIER_SYNC_VERTEX_SHADING | D3D12_BARRIER_SYNC_PIXEL_SHADING | D3D12_BARRIER_SYNC_COMPUTE_SHADING | D3D12_BARRIER_SYNC_NON_PIXEL_SHADING | D3D12_BARRIER_SYNC_ALL_SHADING;
+    if ((access & (D3D12_BARRIER_ACCESS_RENDER_TARGET | D3D12_BARRIER_ACCESS_DEPTH_STENCIL_WRITE)) != 0) {
+        sync &= ~tex_read_sync;
     }
 }
 }// namespace detail

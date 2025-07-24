@@ -51,7 +51,7 @@ public:
     void destroy_texture(uint64_t handle) noexcept override;
 
     // bindless array
-    [[nodiscard]] ResourceCreationInfo create_bindless_array(size_t size) noexcept override;
+    [[nodiscard]] ResourceCreationInfo create_bindless_array(size_t size, BindlessSlotType type) noexcept override;
     void destroy_bindless_array(uint64_t handle) noexcept override;
 
     // stream
@@ -113,7 +113,7 @@ public:
     void destroy_sparse_buffer(uint64_t handle) noexcept override;
 
     // sparse texture
-    [[nodiscard]] ResourceCreationInfo allocate_sparse_texture_heap(size_t byte_size, bool is_compressed_type) noexcept override;
+    [[nodiscard]] ResourceCreationInfo allocate_sparse_texture_heap(size_t byte_size) noexcept override;
     void deallocate_sparse_texture_heap(uint64_t handle) noexcept override;
     [[nodiscard]] SparseTextureCreationInfo create_sparse_texture(
         PixelFormat format, uint dimension,

@@ -121,7 +121,7 @@ void TopAccel::PreProcessInst(
     input.NumDescs = size;
     ResizeAllInstance(size);
     InitSetDesc(modifications);
-    ProcessSetDesc();
+    ProcessSetDesc(tracker);
     if (requireBuild) {
         requireBuild = false;
         update = false;
@@ -140,6 +140,7 @@ void TopAccel::ProcessSetMap() {
         update = false;
         setDesc.reserve(setDesc.size() + setMap.size());
         for (auto &&i : setMap) {
+            if (i.first >= allInstance.size()) continue;
             auto &mod = setDesc.emplace_back();
             std::memset(&mod, 0, sizeof(PackedModifier));
             mod.index = i.first;
@@ -150,7 +151,7 @@ void TopAccel::ProcessSetMap() {
     }
 }
 
-void TopAccel::ProcessSetDesc() {
+void TopAccel::ProcessSetDesc(EnhancedBarrierTracker &tracker) {
 
     for (auto &&m : setDesc) {
         auto ite = setMap.find(m.index);
@@ -168,7 +169,7 @@ void TopAccel::ProcessSetDesc() {
 
         if (ite != setMap.end()) {
             if (!updateMesh) {
-                m.primitive = ite->second->mesh->GetAccelBuffer()->GetAddress();
+                m.primitive = reinterpret_cast<uint64_t>(ite->second->mesh);
                 m.flags |= AccelBuildCommand::Modification::flag_primitive;
                 updateMesh = true;
             }
@@ -176,6 +177,7 @@ void TopAccel::ProcessSetDesc() {
         }
         if (updateMesh) {
             auto mesh = reinterpret_cast<BottomAccel *>(m.primitive);
+            tracker.Record(mesh->accelBuffer.get(), EnhancedBarrierTracker::Usage::AccelInstanceBuffer);
             SetMesh(mesh, m.index);
             m.primitive = mesh->GetAccelBuffer()->GetAddress();
             update = false;
@@ -232,7 +234,7 @@ size_t TopAccel::PreProcess(
     input.NumDescs = size;
     ResizeAllInstance(size);
     InitSetDesc(modifications);
-    ProcessSetDesc();
+    ProcessSetDesc(tracker);
     if (requireBuild) {
         requireBuild = false;
         update = false;

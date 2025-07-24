@@ -1,10 +1,11 @@
 #pragma once
 #include "resource.h"
 #include "event.h"
+#include "texture.h"
 #include "upload_buffer.h"
 #include "readback_buffer.h"
 #include "default_buffer.h"
-#include <vulkan/vulkan_core.h>
+#include <volk.h>
 #include <luisa/runtime/rhi/stream_tag.h>
 #include <luisa/runtime/rhi/command.h>
 #include <luisa/vstl/lockfree_array_queue.h>
@@ -16,6 +17,7 @@
 namespace lc::vk {
 class Event;
 class Stream;
+class Swapchain;
 using namespace luisa::compute;
 class CommandBuffer;
 namespace temp_buffer {
@@ -90,6 +92,7 @@ class CommandBuffer : public Resource {
     vstd::unique_ptr<CommandBufferState> _state;
 
 public:
+    luisa::function<void(luisa::string_view)> *logger;
     vstd::vector<VkDescriptorSet> *desc_sets;
     vstd::vector<std::byte> *uniform_data;
     vstd::vector<std::pair<size_t, size_t>> *dispatch_offsets;
@@ -117,6 +120,9 @@ struct ReorderFuncTable {
         return cs->saved_arguments()[argument_index].varUsage;
     }
     void update_bindless(uint64_t handle, luisa::span<const BindlessArrayUpdateCommand::Modification> modifications) const noexcept;
+    void update_bindless(uint64_t handle, luisa::span<const BindlessArrayUpdateCommand::BufferModification> modifications) const noexcept;
+    void update_bindless(uint64_t handle, luisa::span<const BindlessArrayUpdateCommand::Texture2DModification> modifications) const noexcept;
+    void update_bindless(uint64_t handle, luisa::span<const BindlessArrayUpdateCommand::Texture3DModification> modifications) const noexcept;
     luisa::span<const Argument> shader_bindings(uint64_t handle) const noexcept {
         auto cs = reinterpret_cast<Shader *>(handle);
         return cs->captured();
@@ -147,7 +153,7 @@ class Stream : public Resource {
     std::mutex _mtx;
     vstd::LockFreeArrayQueue<CommandBuffer> _cmdbuffers;
     vstd::vector<VkDescriptorSet> desc_sets;
-    vstd::LockFreeArrayQueue<AsyncCmd> _exec;
+    vstd::SingleThreadArrayQueue<AsyncCmd> _exec;
     ResourceBarrier resource_barrier;
     vstd::vector<std::byte> uniform_data;
     vstd::vector<std::pair<size_t, size_t>> dispatch_offsets;
@@ -159,6 +165,7 @@ class Stream : public Resource {
     vstd::vector<uint4> bindless_cache;
     StreamTag _stream_tag;
 public:
+    luisa::function<void(luisa::string_view)> logger;
     CommandReorderVisitor<ReorderFuncTable, true> reorder;
     [[nodiscard]] auto queue() const { return _queue; }
     [[nodiscard]] auto stream_tag() const { return _stream_tag; }
@@ -167,7 +174,14 @@ public:
     void dispatch(
         vstd::span<const luisa::unique_ptr<Command>> cmds,
         Callbacks &&callbacks,
+        vstd::span<const SwapchainPresent> presents,
         bool inqueue_limit);
+    void present(
+        Texture const *tex,
+        uint mip,
+        Swapchain *swapchain,
+        bool inqueue_limit);
+    void update_sparse_resources(luisa::vector<SparseUpdateTile> &&textures_update) noexcept;
     void sync();
     void signal(Event *event, uint64_t value);
     void wait(Event *event, uint64_t value);

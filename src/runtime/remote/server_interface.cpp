@@ -115,7 +115,8 @@ void ServerInterface::destroy_texture(std::byte const *&ptr, luisa::vector<std::
 void ServerInterface::create_bindless_array(std::byte const *&ptr, luisa::vector<std::byte> &result) noexcept {
     auto frontend_handle = SerDe::deser_value<uint64_t>(ptr);
     auto size = SerDe::deser_value<size_t>(ptr);
-    auto res = _impl->create_bindless_array(size);
+    auto type = SerDe::deser_value<uint>(ptr);
+    auto res = _impl->create_bindless_array(size, static_cast<BindlessSlotType>(type));
     insert_handle(frontend_handle, res.handle);
 }
 void ServerInterface::destroy_bindless_array(std::byte const *&ptr, luisa::vector<std::byte> &result) noexcept {

@@ -177,7 +177,7 @@ public:
     // see definition in rtx/accel.cpp
     [[nodiscard]] Accel create_accel(const AccelOption &option = {}) noexcept;
     // see definition in runtime/bindless_array.cpp
-    [[nodiscard]] BindlessArray create_bindless_array(size_t slots = 65536u) noexcept;
+    [[nodiscard]] BindlessArray create_bindless_array(size_t slot_count = 65536u, BindlessSlotType type = BindlessSlotType::MULTIPLE) noexcept;
 
     template<typename T>
     [[nodiscard]] auto create_image(PixelStorage pixel, uint width, uint height, uint mip_levels = 1u, bool simultaneous_access = false, bool allow_raster_target = false) noexcept {
@@ -228,7 +228,7 @@ public:
 
     [[nodiscard]] SparseBufferHeap allocate_sparse_buffer_heap(size_t byte_size) noexcept;
 
-    [[nodiscard]] SparseTextureHeap allocate_sparse_texture_heap(size_t byte_size, bool is_compressed_type) noexcept;
+    [[nodiscard]] SparseTextureHeap allocate_sparse_texture_heap(size_t byte_size) noexcept;
 
     [[nodiscard]] ByteBuffer create_byte_buffer(size_t byte_size) noexcept;
 

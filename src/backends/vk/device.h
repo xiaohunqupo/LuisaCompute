@@ -1,11 +1,12 @@
 #pragma once
-#include <vulkan/vulkan_core.h>
+#include <volk.h>
 #include <luisa/runtime/device.h>
 #include "VulkanDevice.h"
 #include <luisa/vstl/common.h>
+#include <luisa/core/first_fit.h>
 #include "../common/default_binary_io.h"
 #include "vk_allocator.h"
-#include "vk_func_table.h"
+#include <luisa/backends/ext/vk_config_ext.h>
 namespace lc::hlsl {
 class ShaderCompiler;
 }// namespace lc::hlsl
@@ -13,7 +14,28 @@ namespace lc::vk {
 class ComputeShader;
 using namespace luisa;
 using namespace luisa::compute;
+static constexpr size_t sparse_buffer_size = 65536ull;
 class Device : public DeviceInterface, public vstd::IOperatorNewBase {
+    struct Ext {
+        using Ctor = vstd::func_ptr_t<DeviceExtension *(Device *)>;
+        using Dtor = vstd::func_ptr_t<void(DeviceExtension *)>;
+        DeviceExtension *ext;
+        Ctor ctor;
+        Dtor dtor;
+        Ext(Ctor ctor, Dtor dtor) : ext{nullptr}, ctor{ctor}, dtor{dtor} {}
+        Ext(Ext const &) = delete;
+        Ext(Ext &&rhs) : ext{rhs.ext}, ctor{rhs.ctor}, dtor{rhs.dtor} {
+            rhs.ext = nullptr;
+        }
+        ~Ext() {
+            if (ext) {
+                dtor(ext);
+            }
+        }
+    };
+    std::mutex ext_mtx;
+    vstd::unordered_map<vstd::string, Ext> exts;
+    luisa::unique_ptr<VulkanDeviceConfigExt> _config_ext;
     vstd::optional<vks::VulkanDevice> _vk_device;
     VkPhysicalDeviceProperties _device_properties{};
     VkPhysicalDeviceFeatures _device_features{};
@@ -39,18 +61,25 @@ class Device : public DeviceInterface, public vstd::IOperatorNewBase {
     vstd::optional<VkAllocator> _allocator;
     BinaryIO const *_binary_io{};
     vstd::unique_ptr<DefaultBinaryIO> _default_file_io;
+    bool inqueue_limit = true;// TODO
     void _init_device(uint32_t selectedDevice, bool fallback);
+public:
     struct HeapAlloc {
         uint count = 0;
         vstd::vector<uint> release_pool;
         luisa::spin_mutex mtx;
+        luisa::FirstFit sub_allocator;
+        uint full_size;
         uint alloc();
         void dealloc(uint idx);
+        luisa::FirstFit::Node *sub_alloc(uint32_t size);
+        void free(luisa::FirstFit::Node *ptr);
+        uint get_index(luisa::FirstFit::Node const *ptr) const;
+
         HeapAlloc();
         ~HeapAlloc();
     };
 
-public:
     struct LazyLoadShader {
     public:
         using LoadFunc = vstd::func_ptr_t<ComputeShader *(Device *)>;
@@ -65,12 +94,14 @@ public:
         bool Check(Device *self);
         ~LazyLoadShader();
     };
-    VkFuncTable func_table;
+    vstd::vector<VkImageView> tex2d_bindless_imgview;
+    vstd::vector<VkImageView> tex3d_bindless_imgview;
     HeapAlloc tex2d_heap_pool;
     HeapAlloc tex3d_heap_pool;
     HeapAlloc buffer_heap_pool;
     LazyLoadShader set_bindless_kernel;
     LazyLoadShader set_accel_kernel;
+    VulkanDeviceConfigExt *config_ext() const { return _config_ext.get(); }
     auto binary_io() const { return _binary_io; }
     auto sampler_set() const { return _sampler_set; }
     auto bdls_buffer_set() const { return _bdls_buffer_set; }
@@ -109,7 +140,7 @@ public:
     void destroy_texture(uint64_t handle) noexcept override;
 
     // bindless array
-    ResourceCreationInfo create_bindless_array(size_t size) noexcept override;
+    ResourceCreationInfo create_bindless_array(size_t size, BindlessSlotType type) noexcept override;
     void destroy_bindless_array(uint64_t handle) noexcept override;
 
     // stream
@@ -153,5 +184,22 @@ public:
 
     // query
     void set_name(luisa::compute::Resource::Tag resource_tag, uint64_t resource_handle, luisa::string_view name) noexcept override;
+    ResourceCreationInfo allocate_sparse_texture_heap(size_t byte_size) noexcept override;
+    void deallocate_sparse_texture_heap(uint64_t handle) noexcept override;
+    ResourceCreationInfo allocate_sparse_buffer_heap(size_t byte_size) noexcept override;
+    void deallocate_sparse_buffer_heap(uint64_t handle) noexcept override;
+    void update_sparse_resources(
+        uint64_t stream_handle,
+        luisa::vector<SparseUpdateTile> &&textures_update) noexcept override;
+    SparseBufferCreationInfo create_sparse_buffer(const Type *element, size_t elem_count) noexcept override;
+    SparseTextureCreationInfo create_sparse_texture(
+        PixelFormat format, uint dimension,
+        uint width, uint height, uint depth,
+        uint mipmap_levels, bool simultaneous_access) noexcept override;
+    void destroy_sparse_texture(uint64_t handle) noexcept override;
+    void destroy_sparse_buffer(uint64_t handle) noexcept override;
+    void set_stream_log_callback(uint64_t stream_handle,
+                                 const StreamLogCallback &callback) noexcept override;
+    DeviceExtension *extension(vstd::string_view name) noexcept override;
 };
 }// namespace lc::vk

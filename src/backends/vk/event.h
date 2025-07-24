@@ -11,10 +11,12 @@ class Event : public Resource {
     mutable uint64 lastFence = 0;
     void update_fence(uint64_t value);
     void signal(Stream &stream, uint64_t value, VkCommandBuffer *cmdbuffer = nullptr);
+    void signal_sparse(Stream &stream, uint64_t const* value_ptr, VkBindSparseInfo *sparse_info, VkTimelineSemaphoreSubmitInfo* timeline_ptr);
     void wait(Stream &stream, uint64_t value, VkCommandBuffer *cmdbuffer = nullptr);
     void host_wait(uint64_t value);
     void notify(uint64_t value);
 public:
+    static VkTimelineSemaphoreSubmitInfo get_timeline_submit(uint64_t const *value_ptr);
     [[nodiscard]] auto semaphore() const { return _semaphore; }
     [[nodiscard]] auto last_fence() const { return lastFence; }
     [[nodiscard]] bool is_complete(uint64_t fence) const {

@@ -162,98 +162,98 @@ int main(int argc, char *argv[]) {
 
     auto spp_per_dispatch = device.backend_name() == "metal" || device.backend_name() == "cpu" || device.backend_name() == "fallback" ? 1u : 64u;
 
-    Kernel2D raytracing_kernel = [&](ImageFloat image, ImageUInt seed_image, AccelVar accel, UInt2 resolution) noexcept {
-        set_block_size(16u, 16u, 1u);
-        UInt2 coord = dispatch_id().xy();
-        Float frame_size = min(resolution.x, resolution.y).cast<float>();
-        UInt state = seed_image.read(coord).x;
-        Float rx = lcg(state);
-        Float ry = lcg(state);
-        Float2 pixel = (make_float2(coord) + make_float2(rx, ry)) / frame_size * 2.0f - 1.0f;
-        Float3 radiance = def(make_float3(0.0f));
-        $for (i, spp_per_dispatch) {
-            Var<Ray> ray = generate_ray(pixel * make_float2(1.0f, -1.0f));
-            Float3 beta = def(make_float3(1.0f));
-            Float pdf_bsdf = def(0.0f);
-            constexpr float3 light_position = make_float3(-0.24f, 1.98f, 0.16f);
-            constexpr float3 light_u = make_float3(-0.24f, 1.98f, -0.22f) - light_position;
-            constexpr float3 light_v = make_float3(0.23f, 1.98f, 0.16f) - light_position;
-            constexpr float3 light_emission = make_float3(17.0f, 12.0f, 4.0f);
-            Float light_area = length(cross(light_u, light_v));
-            Float3 light_normal = normalize(cross(light_u, light_v));
-            $for (depth, 10u) {
-                // trace
-                Var<TriangleHit> hit = accel.intersect(ray, {});
-                reorder_shader_execution();
-                $if (hit->miss()) { $break; };
-                Var<Triangle> triangle = heap->buffer<Triangle>(hit.inst).read(hit.prim);
-                Float3 p0 = vertex_buffer->read(triangle.i0);
-                Float3 p1 = vertex_buffer->read(triangle.i1);
-                Float3 p2 = vertex_buffer->read(triangle.i2);
-                Float3 p = triangle_interpolate(hit.bary, p0, p1, p2);
-                Float3 n = normalize(cross(p1 - p0, p2 - p0));
-                Float cos_wo = dot(-ray->direction(), n);
-                $if (cos_wo < 1e-4f) { $break; };
+    // Kernel2D raytracing_kernel = [&](ImageFloat image, ImageUInt seed_image, AccelVar accel, UInt2 resolution) noexcept {
+    //     set_block_size(16u, 16u, 1u);
+    //     UInt2 coord = dispatch_id().xy();
+    //     Float frame_size = min(resolution.x, resolution.y).cast<float>();
+    //     UInt state = seed_image.read(coord).x;
+    //     Float rx = lcg(state);
+    //     Float ry = lcg(state);
+    //     Float2 pixel = (make_float2(coord) + make_float2(rx, ry)) / frame_size * 2.0f - 1.0f;
+    //     Float3 radiance = def(make_float3(0.0f));
+    //     $for (i, spp_per_dispatch) {
+    //         Var<Ray> ray = generate_ray(pixel * make_float2(1.0f, -1.0f));
+    //         Float3 beta = def(make_float3(1.0f));
+    //         Float pdf_bsdf = def(0.0f);
+    //         constexpr float3 light_position = make_float3(-0.24f, 1.98f, 0.16f);
+    //         constexpr float3 light_u = make_float3(-0.24f, 1.98f, -0.22f) - light_position;
+    //         constexpr float3 light_v = make_float3(0.23f, 1.98f, 0.16f) - light_position;
+    //         constexpr float3 light_emission = make_float3(17.0f, 12.0f, 4.0f);
+    //         Float light_area = length(cross(light_u, light_v));
+    //         Float3 light_normal = normalize(cross(light_u, light_v));
+    //         $for (depth, 10u) {
+    //             // trace
+    //             Var<TriangleHit> hit = accel.intersect(ray, {});
+    //             reorder_shader_execution();
+    //             $if (hit->miss()) { $break; };
+    //             Var<Triangle> triangle = heap->buffer<Triangle>(hit.inst).read(hit.prim);
+    //             Float3 p0 = vertex_buffer->read(triangle.i0);
+    //             Float3 p1 = vertex_buffer->read(triangle.i1);
+    //             Float3 p2 = vertex_buffer->read(triangle.i2);
+    //             Float3 p = triangle_interpolate(hit.bary, p0, p1, p2);
+    //             Float3 n = normalize(cross(p1 - p0, p2 - p0));
+    //             Float cos_wo = dot(-ray->direction(), n);
+    //             $if (cos_wo < 1e-4f) { $break; };
 
-                // hit light
-                $if (hit.inst == static_cast<uint>(meshes.size() - 1u)) {
-                    $if (depth == 0u) {
-                        radiance += light_emission;
-                    }
-                    $else {
-                        Float pdf_light = length_squared(p - ray->origin()) / (light_area * cos_wo);
-                        Float mis_weight = balanced_heuristic(pdf_bsdf, pdf_light);
-                        radiance += mis_weight * beta * light_emission;
-                    };
-                    $break;
-                };
+    //             // hit light
+    //             $if (hit.inst == static_cast<uint>(meshes.size() - 1u)) {
+    //                 $if (depth == 0u) {
+    //                     radiance += light_emission;
+    //                 }
+    //                 $else {
+    //                     Float pdf_light = length_squared(p - ray->origin()) / (light_area * cos_wo);
+    //                     Float mis_weight = balanced_heuristic(pdf_bsdf, pdf_light);
+    //                     radiance += mis_weight * beta * light_emission;
+    //                 };
+    //                 $break;
+    //             };
 
-                // sample light
-                Float ux_light = lcg(state);
-                Float uy_light = lcg(state);
-                Float3 p_light = light_position + ux_light * light_u + uy_light * light_v;
-                Float3 pp = offset_ray_origin(p, n);
-                Float3 pp_light = offset_ray_origin(p_light, light_normal);
-                Float d_light = distance(pp, pp_light);
-                Float3 wi_light = normalize(pp_light - pp);
-                Var<Ray> shadow_ray = make_ray(offset_ray_origin(pp, n), wi_light, 0.f, d_light);
-                Bool occluded = accel.intersect_any(shadow_ray, {});
-                Float cos_wi_light = dot(wi_light, n);
-                Float cos_light = -dot(light_normal, wi_light);
-                Float3 albedo = materials.read(hit.inst);
-                $if (!occluded & cos_wi_light > 1e-4f & cos_light > 1e-4f) {
-                    Float pdf_light = (d_light * d_light) / (light_area * cos_light);
-                    Float pdf_bsdf = cos_wi_light * inv_pi;
-                    Float mis_weight = balanced_heuristic(pdf_light, pdf_bsdf);
-                    Float3 bsdf = albedo * inv_pi * cos_wi_light;
-                    radiance += beta * bsdf * mis_weight * light_emission / max(pdf_light, 1e-4f);
-                };
+    //             // sample light
+    //             Float ux_light = lcg(state);
+    //             Float uy_light = lcg(state);
+    //             Float3 p_light = light_position + ux_light * light_u + uy_light * light_v;
+    //             Float3 pp = offset_ray_origin(p, n);
+    //             Float3 pp_light = offset_ray_origin(p_light, light_normal);
+    //             Float d_light = distance(pp, pp_light);
+    //             Float3 wi_light = normalize(pp_light - pp);
+    //             Var<Ray> shadow_ray = make_ray(offset_ray_origin(pp, n), wi_light, 0.f, d_light);
+    //             Bool occluded = accel.intersect_any(shadow_ray, {});
+    //             Float cos_wi_light = dot(wi_light, n);
+    //             Float cos_light = -dot(light_normal, wi_light);
+    //             Float3 albedo = materials.read(hit.inst);
+    //             $if (!occluded & cos_wi_light > 1e-4f & cos_light > 1e-4f) {
+    //                 Float pdf_light = (d_light * d_light) / (light_area * cos_light);
+    //                 Float pdf_bsdf = cos_wi_light * inv_pi;
+    //                 Float mis_weight = balanced_heuristic(pdf_light, pdf_bsdf);
+    //                 Float3 bsdf = albedo * inv_pi * cos_wi_light;
+    //                 radiance += beta * bsdf * mis_weight * light_emission / max(pdf_light, 1e-4f);
+    //             };
 
-                // sample BSDF
-                Var<Onb> onb = make_onb(n);
-                Float ux = lcg(state);
-                Float uy = lcg(state);
-                Float3 wi_local = cosine_sample_hemisphere(make_float2(ux, uy));
-                Float cos_wi = abs(wi_local.z);
-                Float3 new_direction = onb->to_world(wi_local);
-                ray = make_ray(pp, new_direction);
-                pdf_bsdf = cos_wi * inv_pi;
-                beta *= albedo;// * cos_wi * inv_pi / pdf_bsdf => * 1.f
+    //             // sample BSDF
+    //             Var<Onb> onb = make_onb(n);
+    //             Float ux = lcg(state);
+    //             Float uy = lcg(state);
+    //             Float3 wi_local = cosine_sample_hemisphere(make_float2(ux, uy));
+    //             Float cos_wi = abs(wi_local.z);
+    //             Float3 new_direction = onb->to_world(wi_local);
+    //             ray = make_ray(pp, new_direction);
+    //             pdf_bsdf = cos_wi * inv_pi;
+    //             beta *= albedo;// * cos_wi * inv_pi / pdf_bsdf => * 1.f
 
-                // rr
-                Float l = dot(make_float3(0.212671f, 0.715160f, 0.072169f), beta);
-                $if (l == 0.0f) { $break; };
-                Float q = max(l, 0.05f);
-                Float r = lcg(state);
-                $if (r >= q) { $break; };
-                beta *= 1.0f / q;
-            };
-        };
-        radiance /= static_cast<float>(spp_per_dispatch);
-        seed_image.write(coord, make_uint4(state));
-        $if (any(dsl::isnan(radiance))) { radiance = make_float3(0.0f); };
-        image.write(dispatch_id().xy(), make_float4(clamp(radiance, 0.0f, 30.0f), 1.0f));
-    };
+    //             // rr
+    //             Float l = dot(make_float3(0.212671f, 0.715160f, 0.072169f), beta);
+    //             $if (l == 0.0f) { $break; };
+    //             Float q = max(l, 0.05f);
+    //             Float r = lcg(state);
+    //             $if (r >= q) { $break; };
+    //             beta *= 1.0f / q;
+    //         };
+    //     };
+    //     radiance /= static_cast<float>(spp_per_dispatch);
+    //     seed_image.write(coord, make_uint4(state));
+    //     $if (any(dsl::isnan(radiance))) { radiance = make_float3(0.0f); };
+    //     image.write(dispatch_id().xy(), make_float4(clamp(radiance, 0.0f, 30.0f), 1.0f));
+    // };
 
     Kernel2D accumulate_kernel = [&](ImageFloat accum_image, ImageFloat curr_image) noexcept {
         UInt2 p = dispatch_id().xy();
@@ -299,11 +299,9 @@ int main(int argc, char *argv[]) {
 
     Kernel2D hdr2ldr_kernel = [&](ImageFloat hdr_image, ImageFloat ldr_image, Float scale, Int mode, Float3 white_point, Bool aces) noexcept {
         UInt2 coord = dispatch_id().xy();
-        Float4 hdr = hdr_image.read(coord);
-        Float3 ldr = hdr.xyz() / hdr.w * scale;
-        $if (aces) {
-            ldr = (filmic_aces(ldr) / filmic_aces(11.2f * white_point)) * white_point;
-        };
+        Float2 uv = (make_float2(0.5f) + make_float2(coord)) / make_float2(dispatch_size().xy());
+        Float3 hdr = sin(make_float3(uv.x * 100.f)) * 0.5f + 0.5f;
+        Float3 ldr = hdr.xyz() * white_point;
         $switch (mode) {
             // sRGB
             $case (0) {
@@ -333,10 +331,10 @@ int main(int argc, char *argv[]) {
     auto clear_shader = device.compile(clear_kernel, o);
     auto hdr2ldr_shader = device.compile(hdr2ldr_kernel, o);
     auto accumulate_shader = device.compile(accumulate_kernel, o);
-    auto raytracing_shader = device.compile(raytracing_kernel, ShaderOption{.name = "path_tracing"});
+    // auto raytracing_shader = device.compile(raytracing_kernel, ShaderOption{.name = "path_tracing"});
     auto make_sampler_shader = device.compile(make_sampler_kernel, o);
 
-    static constexpr uint2 resolution = make_uint2(1024u);
+    static constexpr uint2 resolution = make_uint2(3840, 2160);
     Image<float> framebuffer = device.create_image<float>(PixelStorage::HALF4, resolution);
     Image<float> accum_image = device.create_image<float>(PixelStorage::FLOAT4, resolution);
     CommandList cmd_list;
@@ -395,16 +393,12 @@ int main(int argc, char *argv[]) {
         } else if (swap_chain.backend_storage() == PixelStorage::HALF4) {
             mode = 2;
         }
-        cmd_list << raytracing_shader(framebuffer, seed_image, accel, resolution)
-                        .dispatch(resolution)
-                 << accumulate_shader(accum_image, framebuffer)
-                        .dispatch(resolution);
         cmd_list << hdr2ldr_shader(accum_image, ldr_image, scale, mode, white_point, use_aces).dispatch(resolution);
         stream << cmd_list.commit()
                << swap_chain.present(ldr_image) << synchronize();
         window.poll_events();
         double dt = clock.toc() - last_time;
-        LUISA_INFO("dt = {:.2f}ms ({:.2f} spp/s)", dt, spp_per_dispatch / dt * 1000);
+        // LUISA_INFO("dt = {:.2f}ms ({:.2f} spp/s)", dt, spp_per_dispatch / dt * 1000);
         last_time = clock.toc();
         frame_count += spp_per_dispatch;
     }

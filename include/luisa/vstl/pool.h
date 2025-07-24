@@ -20,7 +20,7 @@ class Pool<T, true> {
 
 private:
     vector<T *> allPtrs;
-    vector<void *> allocatedPtrs;
+    vector<std::pair<void *, size_t>> allocatedPtrs;
     size_t capacity;
     static void *PoolMalloc(size_t size) {
         return vengine_malloc(size);
@@ -40,7 +40,7 @@ private:
                 return (T *)(ptr + i);
             });
 
-        allocatedPtrs.push_back(ptr);
+        allocatedPtrs.emplace_back(ptr, capacity);
         capacity = capacity * 2;
     }
 
@@ -59,6 +59,19 @@ public:
         allPtrs.pop_back();
         new (value) T(std::forward<Args>(args)...);
         return value;
+    }
+    void destroy_all() {
+        allPtrs.clear();
+        for (auto &i : allocatedPtrs) {
+            using StorageT = Storage<T, 1>;
+            auto ptr = reinterpret_cast<StorageT *>(i.first);
+            push_back_func(
+                allPtrs,
+                i.second,
+                [&](size_t idx) {
+                    return (T *)(ptr + idx);
+                });
+        }
     }
     template<typename Mutex, typename... Args>
         requires(luisa::is_constructible_v<T, Args && ...>)
@@ -88,7 +101,7 @@ public:
 
     ~Pool() {
         for (auto &&i : allocatedPtrs) {
-            PoolFree(i);
+            PoolFree(i.first);
         }
     }
 };

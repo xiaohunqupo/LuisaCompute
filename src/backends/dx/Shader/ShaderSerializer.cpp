@@ -49,12 +49,12 @@ std::pair<vstd::string, Type const *> DeserPrinterSize(BinaryStream *streamer) {
     r.first.resize(strAndTypeSize.first);
     streamer->read({reinterpret_cast<std::byte *>(r.first.data()), strAndTypeSize.first});
     BinaryBlob typeDesc = streamer->read(strAndTypeSize.second);
-    r.second = Type::from(vstd::string_view{reinterpret_cast<char const*>(typeDesc.data()), typeDesc.size()});
+    r.second = Type::from(vstd::string_view{reinterpret_cast<char const *>(typeDesc.data()), typeDesc.size()});
     return r;
 }
 }// namespace detail
 static constexpr size_t kRootSigReserveSize = 16384;
-static constexpr uint64 kHeaderVersion = 2ull;
+static constexpr uint64 kHeaderVersion = 4ull;
 vstd::vector<std::byte>
 ShaderSerializer::Serialize(
     vstd::span<hlsl::Property const> properties,
@@ -289,7 +289,12 @@ RasterShader *ShaderSerializer::RasterDeSerialize(
     vstd::optional<vstd::MD5> const &typeMD5) {
     using namespace shader_ser;
     auto binStream = ReadBinaryIO(cacheType, &streamFunc, name);
-    if (binStream == nullptr || binStream->length() <= sizeof(RasterHeader)) return nullptr;
+    if (binStream == nullptr || binStream->length() <= sizeof(RasterHeader)){
+        if(binStream) {
+            LUISA_INFO("size {}", binStream->length());
+        }
+        return nullptr;
+    }
     RasterHeader header;
     binStream->read(
         {reinterpret_cast<std::byte *>(&header),

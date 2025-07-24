@@ -2,24 +2,22 @@
 
 #include <utility>
 
-#include <luisa/core/spin_mutex.h>
-#include <luisa/runtime/rhi/resource.h>
 #include <luisa/runtime/event.h>
-#include <luisa/runtime/command_list.h>
 #include <luisa/runtime/image.h>
+#include <luisa/runtime/command_list.h>
 #include <luisa/runtime/stream_event.h>
 
 namespace luisa::compute {
-
+class Swapchain;
+struct LC_RUNTIME_API SwapchainPresent {
+    const Swapchain *chain{nullptr};
+    ImageView<float> frame;
+    void operator()(DeviceInterface *device, uint64_t stream_handle) && noexcept;
+};
 class LC_RUNTIME_API Swapchain final : public Resource {
 
 public:
-    struct LC_RUNTIME_API Present {
-        const Swapchain *chain{nullptr};
-        ImageView<float> frame;
-        void operator()(DeviceInterface *device, uint64_t stream_handle) && noexcept;
-    };
-
+    using Present = SwapchainPresent;
 private:
     friend class Device;
     friend class ResourceGenerator;
@@ -51,6 +49,6 @@ public:
     }
 };
 
-LUISA_MARK_STREAM_EVENT_TYPE(Swapchain::Present)
+LUISA_MARK_STREAM_EVENT_TYPE(SwapchainPresent)
 
 }// namespace luisa::compute

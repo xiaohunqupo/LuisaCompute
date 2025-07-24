@@ -265,9 +265,9 @@ ResourceCreationInfo LCDevice::create_texture(
 void LCDevice::destroy_texture(uint64 handle) noexcept {
     delete reinterpret_cast<TextureBase *>(handle);
 }
-ResourceCreationInfo LCDevice::create_bindless_array(size_t size) noexcept {
+ResourceCreationInfo LCDevice::create_bindless_array(size_t size, BindlessSlotType type) noexcept {
     ResourceCreationInfo info;
-    auto res = new BindlessArray(&nativeDevice, size);
+    auto res = new BindlessArray(&nativeDevice, size, type);
     info.handle = resource_to_handle(res);
     info.native_handle = res->GetResource();
     return info;
@@ -542,7 +542,7 @@ void LCDevice::present_display_in_stream(uint64 stream_handle, uint64 swapchain_
     reinterpret_cast<LCCmdBuffer *>(stream_handle)
         ->Present(
             reinterpret_cast<LCSwapChain *>(swapchain_handle),
-            reinterpret_cast<TextureBase *>(image_handle), nativeDevice.maxAllocatorCount);
+            reinterpret_cast<TextureBase *>(image_handle), 0, nativeDevice.maxAllocatorCount);
 }
 ResourceCreationInfo DxRasterExt::create_raster_shader(
     Function vert,
@@ -841,9 +841,9 @@ void LCDevice::deallocate_sparse_buffer_heap(uint64_t handle) noexcept {
     nativeDevice.defaultAllocator->Release(heap->allocation);
     vengine_free(heap);
 }
-ResourceCreationInfo LCDevice::allocate_sparse_texture_heap(size_t byte_size, bool is_compressed_type) noexcept {
+ResourceCreationInfo LCDevice::allocate_sparse_texture_heap(size_t byte_size) noexcept {
     auto heap = reinterpret_cast<SparseHeap *>(vengine_malloc(sizeof(SparseHeap)));
-    heap->allocation = nativeDevice.defaultAllocator->AllocateTextureHeap(&nativeDevice, "sparse texture heap", byte_size, &heap->heap, &heap->offset, !is_compressed_type, D3D12_HEAP_FLAG_NONE, true);
+    heap->allocation = nativeDevice.defaultAllocator->AllocateTextureHeap(&nativeDevice, "sparse texture heap", byte_size, &heap->heap, &heap->offset, false, D3D12_HEAP_FLAG_NONE, true);
     heap->size_bytes = byte_size;
     ResourceCreationInfo r;
     r.handle = reinterpret_cast<uint64>(heap);

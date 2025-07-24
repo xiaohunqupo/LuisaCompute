@@ -6,7 +6,19 @@
 #include "log.h"
 #include "blas.h"
 #include "tlas.h"
+#include "swapchain.h"
+#include "sparse_buffer.h"
+#include <luisa/runtime/swapchain.h>
+#include <luisa/backends/ext/vk_custom_cmd.h>
+#include "../common/shader_print_formatter.h"
 namespace lc::vk {
+struct PresentCommand {
+    luisa::fixed_vector<VkSemaphore, 1> submit_wait_semaphores;
+    luisa::fixed_vector<VkSemaphore, 1> signal_semaphores;
+    luisa::fixed_vector<VkPipelineStageFlags, 1> wait_stages;
+    luisa::fixed_vector<VkSemaphore, 1> present_wait_semaphores;
+    luisa::fixed_vector<uint, 1> image_indices;
+};
 template<typename Visitor>
 void DecodeCmd(vstd::span<const Argument> args, Visitor &&visitor) {
     using Tag = Argument::Tag;
@@ -44,6 +56,16 @@ void ReorderFuncTable::unlock_bindless(uint64_t bindless_handle) const noexcept 
 }
 void ReorderFuncTable::update_bindless(uint64_t handle, luisa::span<const BindlessArrayUpdateCommand::Modification> modifications) const noexcept {
     reinterpret_cast<BindlessArray *>(handle)->bind(modifications);
+}
+void ReorderFuncTable::update_bindless(uint64_t handle, luisa::span<const BindlessArrayUpdateCommand::BufferModification> modifications) const noexcept {
+    reinterpret_cast<BindlessArray *>(handle)->bind(modifications);
+}
+void ReorderFuncTable::update_bindless(uint64_t handle, luisa::span<const BindlessArrayUpdateCommand::Texture2DModification> modifications) const noexcept {
+    reinterpret_cast<BindlessArray *>(handle)->bind(modifications);
+}
+void ReorderFuncTable::update_bindless(uint64_t handle, luisa::span<const BindlessArrayUpdateCommand::Texture3DModification> modifications) const noexcept {
+    reinterpret_cast<BindlessArray *>(handle)->bind({reinterpret_cast<const BindlessArrayUpdateCommand::Texture2DModification *>(modifications.data()),
+                                                     modifications.size()});
 }
 struct ResourceBarrierVisitor {
     ResourceBarrier *barrier;
@@ -130,7 +152,7 @@ struct ResourceBarrierVisitor {
             uint value = v ? std::numeric_limits<uint>::max() : 0;
             emplace_data(value);
         } else {
-            emplace_data(bf.data(), arg->structSize);
+            emplace_data(bf.data(), bf.size_bytes());
         }
         ++arg;
     }
@@ -162,7 +184,7 @@ struct BindPropVisitor {
         auto idx = desc_index++;
         auto buffer_descs = cmdbuffer->temp_desc->allocate_memory<VkDescriptorBufferInfo>();
         *buffer_descs = VkDescriptorBufferInfo{
-            reinterpret_cast<DefaultBuffer const *>(bf.handle)->vk_buffer(),
+            reinterpret_cast<Buffer const *>(bf.handle)->vk_buffer(),
             bf.offset,
             bf.size};
         auto &a = cmdbuffer->write_desc_sets->emplace_back(VkWriteDescriptorSet{
@@ -219,6 +241,7 @@ struct BindPropVisitor {
         ++arg;
     }
     void operator()(Argument::Uniform const &a) {
+        ++arg;
     }
     void operator()(Argument::BindlessArray const &bf) {
         auto &buffer = reinterpret_cast<BindlessArray const *>(bf.handle)->indices_buffer();
@@ -378,16 +401,16 @@ void CommandBufferState::init(Device &device, StreamTag tag) {
     readback_alloc.visitor.device = &device;
     {
         VkDescriptorPoolSize pool_sizes[3];
-        pool_sizes[0].descriptorCount = 262144;
+        pool_sizes[0].descriptorCount = 65536;
         pool_sizes[0].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        pool_sizes[1].descriptorCount = 262144;
+        pool_sizes[1].descriptorCount = 65536;
         pool_sizes[1].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-        pool_sizes[2].descriptorCount = 262144;
+        pool_sizes[2].descriptorCount = 65536;
         pool_sizes[2].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
         VkDescriptorPoolCreateInfo createInfo{
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-            .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
-            .maxSets = 65536,
+            .flags = 0,
+            .maxSets = 262144,
             .poolSizeCount = vstd::array_count(pool_sizes),
             .pPoolSizes = pool_sizes};
         VK_CHECK_RESULT(vkCreateDescriptorPool(device.logic_device(), &createInfo, Device::alloc_callbacks(), &_desc_pool));
@@ -444,7 +467,11 @@ Stream::Stream(Device *device, StreamTag tag)
       reorder({}),
       _thd([this]() {
           auto loop_cmd = [&]() {
-              while (auto p = _exec.pop()) {
+              while (true) {
+                  _mtx.lock();
+                  auto p = _exec.pop();
+                  _mtx.unlock();
+                  if (!p) break;
                   p->visit(
                       [&]<typename T>(T &t) {
                           if constexpr (std::is_same_v<T, Callbacks>) {
@@ -506,11 +533,104 @@ Stream::~Stream() {
     while (auto p = _cmdbuffers.pop()) {
     }
 }
+
+void Stream::present(
+    Texture const *tex,
+    uint mip,
+    Swapchain *swapchain,
+    bool inqueue_limit) {
+    temp_desc.clear();
+    if (inqueue_limit) {
+        if (_evt.last_fence() > 2) {
+            _evt.sync(_evt.last_fence() - 2);
+        }
+    }
+    auto fence = _evt.last_fence() + 1;
+    {
+        CommandBuffer cmdbuffer = [&]() {
+            auto p = _cmdbuffers.pop();
+            if (p) return std::move(*p);
+            return CommandBuffer{*this};
+        }();
+        scratch_buffer_alloc_visitor.cmdbuffer = &cmdbuffer;
+        scratch_buffer_alloc_visitor.device = device();
+
+        auto cb = cmdbuffer.cmdbuffer();
+
+        cmdbuffer.resource_barrier = &resource_barrier;
+        cmdbuffer.uniform_data = &uniform_data;
+        cmdbuffer.desc_sets = &desc_sets;
+        cmdbuffer.logger = &logger;
+        cmdbuffer.dispatch_offsets = &dispatch_offsets;
+        cmdbuffer.write_desc_sets = &write_desc_sets;
+        cmdbuffer.bindless_cache = &bindless_cache;
+        cmdbuffer.temp_desc = &temp_desc;
+        cmdbuffer.scratch_buffer_alloc = &scratch_buffer_alloc;
+        cmdbuffer.begin();
+        PresentCommand present_cmd;
+        present_cmd.submit_wait_semaphores.emplace_back();
+        present_cmd.signal_semaphores.emplace_back();
+        present_cmd.wait_stages.emplace_back();
+        present_cmd.present_wait_semaphores.emplace_back();
+        present_cmd.image_indices.emplace_back();
+        swapchain->present(
+            cmdbuffer,
+            present_cmd.submit_wait_semaphores.back(), present_cmd.signal_semaphores.back(),
+            present_cmd.wait_stages.back(),
+            present_cmd.present_wait_semaphores.back(),
+            present_cmd.image_indices.back(),
+            tex,
+            mip);
+
+        resource_barrier.restore_states(cmdbuffer.cmdbuffer());
+        cmdbuffer.end();
+
+        {
+            VkSubmitInfo submit_info{};
+            submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+            submit_info.waitSemaphoreCount = present_cmd.submit_wait_semaphores.size();
+            submit_info.pWaitSemaphores = present_cmd.submit_wait_semaphores.data();
+            submit_info.pWaitDstStageMask = present_cmd.wait_stages.data();
+            submit_info.signalSemaphoreCount = present_cmd.signal_semaphores.size();
+            submit_info.pSignalSemaphores = present_cmd.signal_semaphores.data();
+            submit_info.commandBufferCount = 1;
+            auto _cmdbuffer = cmdbuffer.cmdbuffer();
+            submit_info.pCommandBuffers = &_cmdbuffer;
+            VK_CHECK_RESULT(vkQueueSubmit(_queue, 1u, &submit_info, nullptr));
+        }
+        {
+            VkPresentInfoKHR present_info{};
+            present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+            auto swp_ptr = swapchain->swapchain();
+            present_info.pSwapchains = &swp_ptr;
+            present_info.swapchainCount = 1u;
+            present_info.waitSemaphoreCount = present_cmd.present_wait_semaphores.size();
+            present_info.pWaitSemaphores = present_cmd.present_wait_semaphores.data();
+            present_info.pImageIndices = present_cmd.image_indices.data();
+            VK_CHECK_RESULT(vkQueuePresentKHR(_queue, &present_info));
+        }
+        _evt.signal(*this, fence);
+        _mtx.lock();
+        _exec.push(SyncExt{
+            .evt = &_evt,
+            .value = fence});
+        _exec.push(std::move(cmdbuffer));
+        _exec.push(NotifyEvt{
+            .evt = &_evt,
+            .value = fence});
+
+        _mtx.unlock();
+        _cv.notify_one();
+    }
+}
 void Stream::dispatch(
     vstd::span<const luisa::unique_ptr<Command>> cmds,
     luisa::vector<luisa::move_only_function<void()>> &&callbacks,
+    vstd::span<const SwapchainPresent> presents,
     bool inqueue_limit) {
-
+    PresentCommand present_cmd;
+    luisa::fixed_vector<VkSwapchainKHR, 1> vk_swapchains;
+    temp_desc.clear();
     if (cmds.empty() && callbacks.empty()) {
         return;
     }
@@ -530,10 +650,12 @@ void Stream::dispatch(
         scratch_buffer_alloc_visitor.device = device();
 
         auto cb = cmdbuffer.cmdbuffer();
+        auto cb_ptr = &cb;
 
         cmdbuffer.resource_barrier = &resource_barrier;
         cmdbuffer.uniform_data = &uniform_data;
         cmdbuffer.desc_sets = &desc_sets;
+        cmdbuffer.logger = &logger;
         cmdbuffer.dispatch_offsets = &dispatch_offsets;
         cmdbuffer.write_desc_sets = &write_desc_sets;
         cmdbuffer.bindless_cache = &bindless_cache;
@@ -541,14 +663,65 @@ void Stream::dispatch(
         cmdbuffer.scratch_buffer_alloc = &scratch_buffer_alloc;
         cmdbuffer.begin();
         cmdbuffer.execute(cmds);
+        for (auto &i : presents) {
+            auto swapchain = reinterpret_cast<lc::vk::Swapchain *>(i.chain->handle());
+            auto tex = reinterpret_cast<Texture *>(i.frame.handle());
+            auto mip = i.frame.level();
+
+            present_cmd.submit_wait_semaphores.emplace_back();
+            present_cmd.signal_semaphores.emplace_back();
+            present_cmd.wait_stages.emplace_back();
+            present_cmd.present_wait_semaphores.emplace_back();
+            present_cmd.image_indices.emplace_back();
+            vk_swapchains.emplace_back(swapchain->swapchain());
+
+            swapchain->present(
+                cmdbuffer,
+                present_cmd.submit_wait_semaphores.back(), present_cmd.signal_semaphores.back(),
+                present_cmd.wait_stages.back(),
+                present_cmd.present_wait_semaphores.back(),
+                present_cmd.image_indices.back(),
+                tex,
+                mip);
+        }
+        resource_barrier.restore_states(cmdbuffer.cmdbuffer());
         cmdbuffer.end();
-        _evt.signal(*this, fence, &cb);
+        if (!presents.empty()) {
+            VkSubmitInfo submit_info{};
+            submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+            submit_info.waitSemaphoreCount = present_cmd.submit_wait_semaphores.size();
+            submit_info.pWaitSemaphores = present_cmd.submit_wait_semaphores.data();
+            submit_info.pWaitDstStageMask = present_cmd.wait_stages.data();
+            submit_info.signalSemaphoreCount = present_cmd.signal_semaphores.size();
+            submit_info.pSignalSemaphores = present_cmd.signal_semaphores.data();
+            submit_info.commandBufferCount = 1;
+            if (device()->config_ext() && device()->config_ext()->execute_command_buffer(cb)) {
+                cb_ptr = nullptr;
+            }
+            submit_info.pCommandBuffers = cb_ptr;
+            VK_CHECK_RESULT(vkQueueSubmit(_queue, 1u, &submit_info, nullptr));
+
+            VkPresentInfoKHR present_info{};
+            present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+            present_info.pSwapchains = vk_swapchains.data();
+            present_info.swapchainCount = vk_swapchains.size();
+            present_info.waitSemaphoreCount = present_cmd.present_wait_semaphores.size();
+            present_info.pWaitSemaphores = present_cmd.present_wait_semaphores.data();
+            present_info.pImageIndices = present_cmd.image_indices.data();
+            VK_CHECK_RESULT(vkQueuePresentKHR(_queue, &present_info));
+        }
+        if (cb_ptr && device()->config_ext() && device()->config_ext()->execute_command_buffer(cb)) {
+            cb_ptr = nullptr;
+        }
+        _evt.signal(*this, fence, cb_ptr);
+        _mtx.lock();
         _exec.push(SyncExt{
             .evt = &_evt,
             .value = fence});
         _exec.push(std::move(cmdbuffer));
     } else {
         _evt.update_fence(fence);
+        _mtx.lock();
     }
     if (!callbacks.empty()) {
         _exec.push(std::move(callbacks));
@@ -557,7 +730,138 @@ void Stream::dispatch(
         .evt = &_evt,
         .value = fence});
 
+    _mtx.unlock();
+    _cv.notify_one();
+}
+void Stream::update_sparse_resources(luisa::vector<SparseUpdateTile> &&textures_update) noexcept {
+    temp_desc.clear();
+    if (textures_update.empty()) [[unlikely]]
+        return;
+    VkBindSparseInfo info{
+        .sType = VK_STRUCTURE_TYPE_BIND_SPARSE_INFO,
+    };
+    auto fence = _evt.last_fence() + 1;
+    struct Alloc {
+        size_t size{};
+        void *ptr{};
+        bool is_buffer{};
+    };
+    vstd::unordered_map<uint64_t, Alloc> counter;
+    size_t buffer_bind_count = 0;
+    size_t img_bind_count = 0;
+    for (auto &i : textures_update) {
+        auto &v = counter.try_emplace(i.handle, 0).first->second;
+        v.size += 1;
+        luisa::visit(
+            [&]<typename T>(T const &op) {
+                if constexpr (std::is_same_v<SparseTextureMapOperation, T> || std::is_same_v<SparseTextureUnMapOperation, T>) {
+                    img_bind_count += 1;
+                    v.is_buffer = false;
+                } else {
+                    buffer_bind_count += 1;
+                    v.is_buffer = true;
+                }
+            },
+            i.operations);
+    }
+    auto buffer_ptr_chunk = temp_desc.allocate(sizeof(VkSparseBufferMemoryBindInfo) * buffer_bind_count, alignof(VkSparseBufferMemoryBindInfo));
+    auto img_ptr_chunk = temp_desc.allocate(sizeof(VkSparseImageMemoryBindInfo) * img_bind_count, alignof(VkSparseImageMemoryBindInfo));
+    auto buffer_ptr = reinterpret_cast<VkSparseBufferMemoryBindInfo *>(buffer_ptr_chunk.handle + buffer_ptr_chunk.offset);
+    auto img_ptr = reinterpret_cast<VkSparseImageMemoryBindInfo *>(img_ptr_chunk.handle + img_ptr_chunk.offset);
+    info.pBufferBinds = buffer_ptr;
+    info.pImageBinds = img_ptr;
+    info.bufferBindCount = buffer_bind_count;
+    info.imageBindCount = img_bind_count;
+    // Bind ptr
+    for (auto &i : counter) {
+        auto &a = i.second;
+        if (a.is_buffer) {
+            auto chunk = temp_desc.allocate(sizeof(VkSparseMemoryBind) * a.size, alignof(VkSparseMemoryBind));
+            auto ptr = reinterpret_cast<VkSparseMemoryBind *>(chunk.handle + chunk.offset);
+            a.ptr = ptr;
+            buffer_ptr->buffer = reinterpret_cast<SparseBuffer *>(i.first)->vk_buffer();
+            buffer_ptr->bindCount = a.size;
+            buffer_ptr->pBinds = ptr;
+            ++buffer_ptr;
+        } else {
+            auto chunk = temp_desc.allocate(sizeof(VkSparseImageMemoryBind) * a.size, alignof(VkSparseImageMemoryBind));
+            auto ptr = reinterpret_cast<VkSparseImageMemoryBind *>(chunk.handle + chunk.offset);
+            a.ptr = ptr;
+            img_ptr->image = reinterpret_cast<Texture *>(i.first)->vk_image();
+            img_ptr->bindCount = a.size;
+            img_ptr->pBinds = ptr;
+            ++img_ptr;
+        }
+    }
+    // Write value
+    for (auto &i : textures_update) {
+        auto &v = counter.try_emplace(i.handle, 0).first->second;
+        luisa::visit([&]<typename T>(T const &op) {
+            if constexpr (std::is_same_v<SparseTextureMapOperation, T>) {
+                auto ptr = reinterpret_cast<VkSparseImageMemoryBind *>(v.ptr);
+                auto heap = reinterpret_cast<std::pair<VmaAllocation, VmaAllocationInfo> *>(op.allocated_heap);
+                auto tex = reinterpret_cast<Texture const *>(i.handle);
+                ptr->subresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                ptr->subresource.mipLevel = op.mip_level;
+                ptr->subresource.arrayLayer = 0;
+                auto tile_size = tex->tile_size();
+                auto start_size = op.start_tile * tile_size;
+                auto extent = op.tile_count * tile_size;
+                ptr->offset = VkOffset3D{(int)start_size.x, (int)start_size.y, (int)start_size.z};
+                ptr->extent = VkExtent3D{extent.x, extent.y, extent.z};
+                ptr->memory = heap->second.deviceMemory;
+                ptr->memoryOffset = heap->second.offset;
+                ptr->flags = 0;
+                ++ptr;
+                v.ptr = ptr;
+            } else if constexpr (std::is_same_v<SparseTextureUnMapOperation, T>) {
+                auto ptr = reinterpret_cast<VkSparseImageMemoryBind *>(v.ptr);
+                auto tex = reinterpret_cast<Texture const *>(i.handle);
+                ptr->subresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                ptr->subresource.mipLevel = op.mip_level;
+                ptr->subresource.arrayLayer = 0;
+                auto tile_size = tex->tile_size();
+                auto start_size = op.start_tile * tile_size;
+                auto extent = op.tile_count * tile_size;
+                ptr->offset = VkOffset3D{(int)start_size.x, (int)start_size.y, (int)start_size.z};
+                ptr->extent = VkExtent3D{extent.x, extent.y, extent.z};
+                ptr->memory = VK_NULL_HANDLE;
+                ptr->flags = 0;
+                ++ptr;
+                v.ptr = ptr;
+            } else if constexpr (std::is_same_v<SparseBufferMapOperation, T>) {
+                auto ptr = reinterpret_cast<VkSparseMemoryBind *>(v.ptr);
+                auto heap = reinterpret_cast<std::pair<VmaAllocation, VmaAllocationInfo> *>(op.allocated_heap);
+                ptr->memory = heap->second.deviceMemory;
+                ptr->memoryOffset = heap->second.offset;
+                ptr->resourceOffset = op.start_tile * sparse_buffer_size;
+                ptr->size = sparse_buffer_size * op.tile_count;
+                ptr->flags = 0;
+                ++ptr;
+                v.ptr = ptr;
+            } else if constexpr (std::is_same_v<SparseBufferUnMapOperation, T>) {
+                auto ptr = reinterpret_cast<VkSparseMemoryBind *>(v.ptr);
+                ptr->memory = VK_NULL_HANDLE;
+                ptr->resourceOffset = op.start_tile * sparse_buffer_size;
+                ptr->size = sparse_buffer_size * op.tile_count;
+                ptr->flags = 0;
+                ++ptr;
+                v.ptr = ptr;
+            }
+        },
+                     i.operations);
+    }
+    VkTimelineSemaphoreSubmitInfo timeline;
+    _evt.signal_sparse(*this, &fence, &info, &timeline);
+    VK_CHECK_RESULT(vkQueueBindSparse(
+        _queue,
+        1,
+        &info,
+        VK_NULL_HANDLE));
     _mtx.lock();
+    _exec.push(NotifyEvt{
+        .evt = &_evt,
+        .value = fence});
     _mtx.unlock();
     _cv.notify_one();
 }
@@ -569,11 +873,17 @@ CommandBuffer::CommandBuffer(Stream &stream)
       stream(stream),
       _state(vstd::make_unique<CommandBufferState>()) {
     _state->init(*stream.device(), stream.stream_tag());
-    VkCommandBufferAllocateInfo cb_ci{
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .commandPool = _state->_pool,
-        .commandBufferCount = 1};
-    VK_CHECK_RESULT(vkAllocateCommandBuffers(device()->logic_device(), &cb_ci, &_cmdbuffer));
+    _cmdbuffer = nullptr;
+    if (device()->config_ext()) {
+        _cmdbuffer = device()->config_ext()->borrow_command_buffer(stream.stream_tag());
+    }
+    if (!_cmdbuffer) {
+        VkCommandBufferAllocateInfo cb_ci{
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+            .commandPool = _state->_pool,
+            .commandBufferCount = 1};
+        VK_CHECK_RESULT(vkAllocateCommandBuffers(device()->logic_device(), &cb_ci, &_cmdbuffer));
+    }
     // VkFenceCreateInfo fence_info{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
     // VK_CHECK_RESULT(vkCreateFence(device()->logic_device(), &fence_info, Device::alloc_callbacks(), nullptr));
 }
@@ -599,9 +909,9 @@ CommandBuffer::CommandBuffer(CommandBuffer &&rhs)
 }
 void Stream::signal(Event *event, uint64_t value) {
     event->signal(*this, value);
+    _mtx.lock();
     _exec.push(SyncExt{event, value});
     _exec.push(NotifyEvt{event, value});
-    _mtx.lock();
     _mtx.unlock();
     _cv.notify_one();
 }
@@ -609,16 +919,51 @@ void Stream::wait(Event *event, uint64_t value) {
     event->wait(*this, value);
 }
 void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
+    // collect argument buffer
+    size_t uniform_buffer_size = 0;
+    auto add_size = [&](ShaderDispatchCommand const &c, Argument const &a) {
+        if (a.tag != Argument::Tag::UNIFORM) [[likely]]
+            return;
+
+        // uniform_buffer_size +=
+        auto bf = c.uniform(a.uniform);
+        uniform_buffer_size += std::max<size_t>(4, bf.size_bytes());
+    };
     for (auto &&command : cmds) {
         command->accept(stream.reorder);
+        if (command->tag() != Command::Tag::EShaderDispatchCommand) continue;
+        auto c = static_cast<ShaderDispatchCommand const *>(command.get());
+        auto shader = reinterpret_cast<Shader const *>(c->handle());
+        uniform_buffer_size = (uniform_buffer_size + 15ull) & (~(15ull));
+        for (auto &i : shader->captured()) {
+            add_size(*c, i);
+        }
+        for (auto &i : c->arguments()) {
+            add_size(*c, i);
+        }
     }
     auto cmd_lists = stream.reorder.command_lists();
     auto clear_reorder = vstd::scope_exit([&] {
         stream.reorder.clear();
     });
+    uniform_data->clear();
+    uniform_data->reserve(uniform_buffer_size);
+#ifndef NDEBUG
+    auto check_uniform = vstd::scope_exit([&]() {
+        auto aligned_size = (uniform_data->size_bytes() + 15ull) & (~15ull);
+        uniform_buffer_size = (uniform_buffer_size + 15ull) & (~(15ull));
+
+        if (aligned_size != uniform_buffer_size) [[unlikely]] {
+            LUISA_ERROR("Bad uniform size.");
+        }
+    });
+#endif
+    BufferView arg_buffer;
+    if (uniform_buffer_size > 0) {
+        arg_buffer = _state->upload_alloc.allocate(uniform_buffer_size, 16);
+    }
     for (auto &&lst : cmd_lists) {
         dispatch_offsets->clear();
-        uniform_data->clear();
         auto delay_clear = vstd::scope_exit([&]() {
             scratch_buffer_alloc->clear();
         });
@@ -744,17 +1089,52 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                 case Command::Tag::ECurveBuildCommand: {
                 } break;
                 case Command::Tag::EProceduralPrimitiveBuildCommand: {
+                    auto c = static_cast<ProceduralPrimitiveBuildCommand const *>(cmd);
+                    reinterpret_cast<Blas *>(c->handle())->pre_build(*this, c);
                 } break;
                 case Command::Tag::EBindlessArrayUpdateCommand: {
                     auto c = static_cast<BindlessArrayUpdateCommand const *>(cmd);
                     reinterpret_cast<BindlessArray *>(c->handle())->pre_update(resource_barrier);
-
+                } break;
+                case Command::Tag::ECustomCommand: {
+                    auto c = static_cast<CustomCommand const *>(cmd);
+                    switch (c->uuid()) {
+                        case to_underlying(CustomCommandUUID::CUSTOM_DISPATCH): {
+                            auto custom_cmd = static_cast<VKCustomCmd const *>(c);
+                            for (auto &&i : const_cast<VKCustomCmd *>(custom_cmd)->get_resource_usages()) {
+                                luisa::visit(
+                                    [&]<typename T>(T const &t) {
+                                        if constexpr (std::is_same_v<T, Argument::Buffer>) {
+                                            auto buffer = reinterpret_cast<Buffer const *>(t.handle);
+                                            resource_barrier->record(
+                                                BufferView(buffer, t.offset, t.size),
+                                                i.stage, i.access, i.texture_layout);
+                                        } else if constexpr (std::is_same_v<T, Argument::Texture>) {
+                                            auto tex = reinterpret_cast<Texture const *>(t.handle);
+                                            resource_barrier->record(
+                                                TexView(tex, t.level),
+                                                i.stage, i.access, i.texture_layout);
+                                        } else {
+                                            auto bdls = reinterpret_cast<BindlessArray const *>(t.handle);
+                                            auto &buffer = bdls->indices_buffer();
+                                            resource_barrier->record(
+                                                BufferView(&buffer, 0, buffer.byte_size()),
+                                                i.stage, i.access, i.texture_layout);
+                                            resource_barrier->process_bindless(bdls, ResourceBarrier::Usage::ComputeRead);
+                                        }
+                                    },
+                                    i.resource);
+                            }
+                        } break;
+                        //TODO: other commands
+                        default: {
+                            LUISA_ERROR("Command type not supported.");
+                        } break;
+                    }
                 } break;
                 default: break;
             }
         }
-        auto arg_buffer = _state->upload_alloc.allocate(uniform_data->size(), 16);
-        static_cast<UploadBuffer const *>(arg_buffer.buffer)->copy_from(uniform_data->data(), arg_buffer.offset, uniform_data->size());
         resource_barrier->update_states(_cmdbuffer);
         auto offset_ptr = dispatch_offsets->data();
         // Execute
@@ -775,7 +1155,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                         VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2,
                         nullptr,
                         chunk.buffer->vk_buffer(),
-                        reinterpret_cast<DefaultBuffer const *>(c->handle())->vk_buffer(),
+                        reinterpret_cast<Buffer const *>(c->handle())->vk_buffer(),
                         1,
                         &buffer_copy};
                     vkCmdCopyBuffer2(
@@ -797,7 +1177,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                     VkCopyBufferInfo2 copy_info2{
                         VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2,
                         nullptr,
-                        reinterpret_cast<DefaultBuffer const *>(c->handle())->vk_buffer(),
+                        reinterpret_cast<Buffer const *>(c->handle())->vk_buffer(),
                         chunk.buffer->vk_buffer(),
                         1,
                         &buffer_copy};
@@ -816,8 +1196,8 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                     VkCopyBufferInfo2 copy_info2{
                         VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2,
                         nullptr,
-                        reinterpret_cast<DefaultBuffer const *>(c->src_handle())->vk_buffer(),
-                        reinterpret_cast<DefaultBuffer const *>(c->dst_handle())->vk_buffer(),
+                        reinterpret_cast<Buffer const *>(c->src_handle())->vk_buffer(),
+                        reinterpret_cast<Buffer const *>(c->dst_handle())->vk_buffer(),
                         1,
                         &buffer_copy};
                     vkCmdCopyBuffer2(
@@ -842,7 +1222,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                     VkCopyBufferToImageInfo2 copy_info{
                         VK_STRUCTURE_TYPE_COPY_BUFFER_TO_IMAGE_INFO_2,
                         nullptr,
-                        reinterpret_cast<DefaultBuffer const *>(c->buffer())->vk_buffer(),
+                        reinterpret_cast<Buffer const *>(c->buffer())->vk_buffer(),
                         tex->vk_image(),
                         resource_barrier->get_layout(tex, c->level()),
                         1,
@@ -891,6 +1271,93 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                     visitor.arg = shader->saved_arguments().data();
                     DecodeCmd(shader->captured(), visitor);
                     DecodeCmd(c->arguments(), visitor);
+                    constexpr size_t max_printer_count = 1024ull * 1024ull;
+                    BufferView count_buffer;
+                    BufferView data_buffer;
+                    if (!shader->printers().empty()) {
+                        auto count_chunk = scratch_buffer_alloc->allocate(4, 16);
+                        auto data_chunk = scratch_buffer_alloc->allocate(max_printer_count, 16);
+                        count_buffer = BufferView(
+                            reinterpret_cast<Buffer const *>(count_chunk.handle),
+                            count_chunk.offset,
+                            4);
+                        auto upload_buffer = states()->upload_alloc.allocate(4);
+                        uint zero = 0;
+                        static_cast<UploadBuffer const *>(upload_buffer.buffer)->copy_from(&zero, upload_buffer.offset, 4);
+
+                        resource_barrier->record(
+                            count_buffer,
+                            ResourceBarrier::Usage::CopyDest);
+                        resource_barrier->update_states(_cmdbuffer);
+                        VkBufferCopy2 buffer_copy{
+                            VK_STRUCTURE_TYPE_BUFFER_COPY_2,
+                            nullptr,
+                            upload_buffer.offset,
+                            count_buffer.offset,
+                            4};
+                        VkCopyBufferInfo2 copy_info2{
+                            VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2,
+                            nullptr,
+                            upload_buffer.buffer->vk_buffer(),
+                            count_buffer.buffer->vk_buffer(),
+                            1,
+                            &buffer_copy};
+                        vkCmdCopyBuffer2(
+                            _cmdbuffer,
+                            &copy_info2);
+
+                        data_buffer = BufferView{
+                            reinterpret_cast<Buffer const *>(data_chunk.handle),
+                            data_chunk.offset,
+                            max_printer_count};
+                        // bind counter
+                        {
+                            auto idx = visitor.desc_index++;
+                            auto buffer_descs = temp_desc->allocate_memory<VkDescriptorBufferInfo>();
+                            *buffer_descs = VkDescriptorBufferInfo{
+                                count_buffer.buffer->vk_buffer(),
+                                count_buffer.offset,
+                                4};
+                            auto &a = write_desc_sets->emplace_back(VkWriteDescriptorSet{
+                                VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                                nullptr,
+                                visitor.desc_set,
+                                idx,
+                                0,
+                                1,
+                                VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                nullptr,
+                                buffer_descs,
+                                nullptr});
+                        }
+                        // bind data
+                        {
+                            auto idx = visitor.desc_index++;
+                            auto buffer_descs = temp_desc->allocate_memory<VkDescriptorBufferInfo>();
+                            *buffer_descs = VkDescriptorBufferInfo{
+                                data_buffer.buffer->vk_buffer(),
+                                data_buffer.offset,
+                                max_printer_count};
+                            auto &a = write_desc_sets->emplace_back(VkWriteDescriptorSet{
+                                VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                                nullptr,
+                                visitor.desc_set,
+                                idx,
+                                0,
+                                1,
+                                VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                nullptr,
+                                buffer_descs,
+                                nullptr});
+                        }
+                        resource_barrier->record(
+                            data_buffer,
+                            ResourceBarrier::Usage::ComputeUAV);
+                        resource_barrier->record(
+                            count_buffer,
+                            ResourceBarrier::Usage::ComputeUAV);
+                        resource_barrier->update_states(_cmdbuffer);
+                    }
                     if (!write_desc_sets->empty()) {
                         vkUpdateDescriptorSets(
                             device()->logic_device(),
@@ -951,6 +1418,84 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                             16,
                             &value);
                         vkCmdDispatch(_cmdbuffer, calc(disp_size.x, blk.x), calc(disp_size.y, blk.y), calc(disp_size.z, blk.z));
+                    }
+                    if (!shader->printers().empty()) {
+                        resource_barrier->record(
+                            count_buffer,
+                            ResourceBarrier::Usage::CopySource);
+                        resource_barrier->record(
+                            data_buffer,
+                            ResourceBarrier::Usage::CopySource);
+                        resource_barrier->update_states(_cmdbuffer);
+                        auto counter_readback = states()->readback_alloc.allocate(4, 16);
+                        auto data_readback = states()->readback_alloc.allocate(max_printer_count, 16);
+                        // Copy counter
+                        {
+                            VkBufferCopy2 buffer_copy{
+                                VK_STRUCTURE_TYPE_BUFFER_COPY_2,
+                                nullptr,
+                                count_buffer.offset,
+                                counter_readback.offset,
+                                4};
+                            VkCopyBufferInfo2 copy_info2{
+                                VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2,
+                                nullptr,
+                                count_buffer.buffer->vk_buffer(),
+                                reinterpret_cast<Buffer const *>(counter_readback.buffer)->vk_buffer(),
+                                1,
+                                &buffer_copy};
+
+                            vkCmdCopyBuffer2(
+                                _cmdbuffer,
+                                &copy_info2);
+                        }
+                        // Copy data
+                        {
+                            VkBufferCopy2 buffer_copy{
+                                VK_STRUCTURE_TYPE_BUFFER_COPY_2,
+                                nullptr,
+                                data_buffer.offset,
+                                data_readback.offset,
+                                max_printer_count};
+                            VkCopyBufferInfo2 copy_info2{
+                                VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2,
+                                nullptr,
+                                data_buffer.buffer->vk_buffer(),
+                                reinterpret_cast<Buffer const *>(data_readback.buffer)->vk_buffer(),
+                                1,
+                                &buffer_copy};
+                            vkCmdCopyBuffer2(
+                                _cmdbuffer,
+                                &copy_info2);
+                        }
+                        states()->_callbacks.emplace_back(
+                            [printers = shader->printers(),
+                             logger = this->logger,
+                             counter_readback,
+                             data_readback]() {
+                                uint counter = 0;
+                                static_cast<ReadbackBuffer const *>(counter_readback.buffer)->copy_to(&counter, counter_readback.offset, 4);
+                                luisa::vector<std::byte> data;
+                                data.push_back_uninitialized(counter);
+                                static_cast<ReadbackBuffer const *>(data_readback.buffer)->copy_to(data.data(), data_readback.offset, counter);
+                                size_t offset = 0;
+                                const auto ptr = data.data();
+                                const auto end = data.size();
+                                while (offset < end) {
+                                    uint flagTypeIdx = *reinterpret_cast<uint32_t *>(ptr + offset);
+                                    auto &type = printers[flagTypeIdx];
+                                    ShaderPrintFormatter formatter{type.first, type.second, false};
+                                    luisa::string result;
+                                    auto align = std::max<size_t>(4, type.second->alignment());
+                                    formatter(result, {ptr + offset + align, type.second->size()});
+                                    size_t ele_size = align + type.second->size();
+                                    ele_size = ((ele_size + 15ull) & (~15ull));
+                                    offset += ele_size;
+                                    if (logger) [[likely]] {
+                                        (*logger)(result);
+                                    }
+                                }
+                            });
                     }
                     offset_ptr++;
                 } break;
@@ -1063,7 +1608,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                         nullptr,
                         tex->vk_image(),
                         resource_barrier->get_layout(tex, c->level()),
-                        reinterpret_cast<DefaultBuffer const *>(c->buffer())->vk_buffer(),
+                        reinterpret_cast<Buffer const *>(c->buffer())->vk_buffer(),
                         1,
                         &region};
                     vkCmdCopyImageToBuffer2(
@@ -1122,10 +1667,15 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                 case Command::Tag::ECurveBuildCommand: {
                 } break;
                 case Command::Tag::EProceduralPrimitiveBuildCommand: {
+                    auto c = static_cast<ProceduralPrimitiveBuildCommand const *>(cmd);
+                    reinterpret_cast<Blas *>(c->handle())->build(*this, c);
                 } break;
                 case Command::Tag::EBindlessArrayUpdateCommand: {
                     auto c = static_cast<BindlessArrayUpdateCommand const *>(cmd);
-                    reinterpret_cast<BindlessArray *>(c->handle())->update(this, *write_desc_sets, *bindless_cache, c->modifications());
+                    auto bdls = reinterpret_cast<BindlessArray *>(c->handle());
+                    c->visit_modifications([&](auto &&t) {
+                        bdls->update(this, *write_desc_sets, *bindless_cache, luisa::span{t});
+                    });
                     // LOG bindless indices
 
                     // auto &bf = reinterpret_cast<BindlessArray *>(c->handle())->indices_buffer();
@@ -1134,9 +1684,8 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                     //     ResourceBarrier::Usage::CopySource);
                     // resource_barrier->update_states(_cmdbuffer);
 
-                    // luisa::vector<std::array<uint, 3>> vec(16);
+                    // luisa::vector<std::array<uint, 3>> vec(3);
                     // auto chunk = _state->readback_alloc.allocate(vec.size(), 16);
-
                     // VkBufferCopy2 buffer_copy{
                     //     VK_STRUCTURE_TYPE_BUFFER_COPY_2,
                     //     nullptr,
@@ -1157,17 +1706,34 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                     // _state->_callbacks.emplace_back([chunk, vec = std::move(vec)]() mutable {
                     //     static_cast<ReadbackBuffer const *>(chunk.buffer)->copy_to(vec.data(), chunk.offset, vec.size_bytes());
                     //     for (auto &i : vec) {
-                    //         LUISA_INFO(uint3(i[0], i[1], i[2]));
+                    //         LUISA_INFO(uint3(i[0], i[1] & ((1u<<24u) - 1), i[2] & ((1u<<24u) - 1)));
                     //     }
                     // });
+                } break;
+                case Command::Tag::ECustomCommand: {
+                    auto c = static_cast<CustomCommand const *>(cmd);
+                    switch (c->uuid()) {
+                        case to_underlying(CustomCommandUUID::CUSTOM_DISPATCH): {
+                            static_cast<VKCustomCmd const *>(c)->execute(
+                                device()->physical_device(),
+                                device()->logic_device(),
+                                stream.queue(),
+                                _cmdbuffer,
+                                _state->_desc_pool);
+                        } break;
+                        //TODO: other commands
+                        default: {
+                            LUISA_ERROR("Command type not supported.");
+                        } break;
+                    }
                 } break;
                 default: break;
             }
         }
     }
-    resource_barrier->restore_states(_cmdbuffer);
-
-    temp_desc->clear();
+    if (uniform_buffer_size > 0) {
+        static_cast<UploadBuffer const *>(arg_buffer.buffer)->copy_from(uniform_data->data(), arg_buffer.offset, uniform_data->size());
+    }
 }
 
 vstd::span<VkDescriptorSet> Shader::allocate_desc_set(VkDescriptorPool pool, vstd::vector<VkDescriptorSet> &descs) const {

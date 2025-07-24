@@ -215,7 +215,7 @@ TypeDatabase::Commenter TypeDatabase::CommentStmt(compute::detail::FunctionBuild
 
 const luisa::compute::Type *TypeDatabase::RecordAsPrimitiveType(const clang::QualType Ty) {
     const luisa::compute::Type *_type = nullptr;
-    const clang::BuiltinType* builtin = Ty->getAs<clang::BuiltinType>();
+    const clang::BuiltinType *builtin = Ty->getAs<clang::BuiltinType>();
     if (auto enumType = Ty->getAs<clang::EnumType>()) {
         builtin = enumType->getDecl()->getIntegerType()->getAs<clang::BuiltinType>();
     }
@@ -322,14 +322,21 @@ const luisa::compute::Type *TypeDatabase::RecordAsBuiltinType(const QualType Ty)
                             default: {
                                 clangcxx_log_error("unsupported type: {}, kind {}", Ty.getAsString(), luisa::to_string(EType->getKind()));
                             } break;
-#undef CASE_VEC_TYPE
                         }
                     // clang-format on
+                } else if (Arguments.size() >= 2) {
+                    auto name = Arguments.get(0).getAsType().getAsString();
+                    if (name.size() > 4 && name.substr(name.size() - 4, 4) == "half") {
+                        auto N = Arguments.get(1).getAsIntegral().getLimitedValue();
+                        CASE_VEC_TYPE(half)
+                    }
                 }
+#undef CASE_VEC_TYPE
+
             } else {
                 Ty->dump();
             }
-        } else if (builtin_type_name == "array") {
+        } else if (builtin_type_name == "array" || builtin_type_name == "shared_array") {
             if (auto TSD = GetClassTemplateSpecializationDecl(Ty)) {
                 auto &Arguments = TSD->getTemplateArgs();
                 clang::Expr::EvalResult Result;

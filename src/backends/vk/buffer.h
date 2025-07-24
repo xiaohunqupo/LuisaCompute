@@ -1,7 +1,14 @@
 #pragma once
 #include "resource.h"
-#include <vulkan/vulkan_core.h>
+#include <volk.h>
 namespace lc::vk {
+class Buffer;
+struct BufferFlusher {
+    std::atomic_size_t _begin{std::numeric_limits<size_t>::max()};
+    std::atomic_size_t _end{};
+    void mark_dirty(size_t begin, size_t end);
+    void flush(Device *device, void *alloc);
+};
 class Buffer : public Resource {
     size_t _byte_size;
 
@@ -15,6 +22,7 @@ public:
     virtual VkBuffer vk_buffer() const = 0;
     Tag tag() const override { return Tag::Buffer; }
     uint64_t get_device_address() const;
+    virtual bool flush_host() const { return false; }
 };
 class BufferView {
 public:

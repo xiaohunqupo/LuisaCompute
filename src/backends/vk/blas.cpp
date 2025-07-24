@@ -3,28 +3,15 @@
 #include "log.h"
 #include "tlas.h"
 #include "stream.h"
+#include <luisa/runtime/rtx/aabb.h>
 namespace lc::vk {
 Blas::Blas(Device *device, AccelOption const &option)
     : Resource(device), option(option) {}
-void Blas::pre_build(
+void Blas::_pre_build(
     CommandBuffer &cmdbuffer,
-    MeshBuildCommand const *cmd) {
-    VkDeviceOrHostAddressConstKHR vertex_data_device_address{};
-    VkDeviceOrHostAddressConstKHR index_data_device_address{};
-    vertex_data_device_address.deviceAddress = reinterpret_cast<DefaultBuffer const *>(cmd->vertex_buffer())->get_device_address() + cmd->vertex_buffer_offset();
-    index_data_device_address.deviceAddress = reinterpret_cast<DefaultBuffer const *>(cmd->triangle_buffer())->get_device_address() + cmd->triangle_buffer_offset();
-
-    auto acceleration_structure_geometry = cmdbuffer.temp_desc->allocate_memory<VkAccelerationStructureGeometryKHR>();
-    acceleration_structure_geometry->sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
-    acceleration_structure_geometry->geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
-    acceleration_structure_geometry->flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
-    acceleration_structure_geometry->geometry.triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
-    acceleration_structure_geometry->geometry.triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
-    acceleration_structure_geometry->geometry.triangles.vertexData = vertex_data_device_address;
-    acceleration_structure_geometry->geometry.triangles.maxVertex = cmd->vertex_buffer_size() / cmd->vertex_stride();
-    acceleration_structure_geometry->geometry.triangles.vertexStride = cmd->vertex_stride();
-    acceleration_structure_geometry->geometry.triangles.indexType = VK_INDEX_TYPE_UINT32;
-    acceleration_structure_geometry->geometry.triangles.indexData = index_data_device_address;
+    VkAccelerationStructureGeometryKHR *acceleration_structure_geometry,
+    uint32_t primitive_count,
+    AccelBuildRequest request) {
 
     acceleration_build_geometry_info = cmdbuffer.temp_desc->allocate_memory<VkAccelerationStructureBuildGeometryInfoKHR>();
     acceleration_build_geometry_info->sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
@@ -35,25 +22,25 @@ void Blas::pre_build(
     }
     acceleration_build_geometry_info->geometryCount = 1;
     acceleration_build_geometry_info->pGeometries = acceleration_structure_geometry;
-    bool update = option.allow_update && cmd->request() == AccelBuildRequest::PREFER_UPDATE;
+    bool update = option.allow_update && request == AccelBuildRequest::PREFER_UPDATE;
 
     VkAccelerationStructureBuildSizesInfoKHR acceleration_structure_build_sizes_info{};
     acceleration_structure_build_sizes_info.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
     acceleration_build_geometry_info->mode = update ? VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR : VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
-    const uint32_t primitive_count = cmd->triangle_buffer_size() / 12;
-    device()->func_table.vkGetAccelerationStructureBuildSizesKHR(
+    vkGetAccelerationStructureBuildSizesKHR(
         device()->logic_device(), VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
         acceleration_build_geometry_info,
         &primitive_count,
         &acceleration_structure_build_sizes_info);
     uint scratch_buffer_size = update ? acceleration_structure_build_sizes_info.updateScratchSize : acceleration_structure_build_sizes_info.buildScratchSize;
-    if (_accel_buffer && _accel_buffer->byte_size() != acceleration_structure_build_sizes_info.accelerationStructureSize) {
+    if (_accel_buffer && _accel_buffer->byte_size() < acceleration_structure_build_sizes_info.accelerationStructureSize) {
         cmdbuffer.states()->dispose_after_flush(std::move(_accel_buffer));
     }
     if (!_accel_buffer) {
+        update = false;
         _accel_buffer = vstd::make_unique<DefaultBuffer>(
             device(),
-            acceleration_structure_build_sizes_info.accelerationStructureSize,
+            (acceleration_structure_build_sizes_info.accelerationStructureSize + 65535u) & (~65535u),
             false, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR);
     }
     cmdbuffer.resource_barrier->record(
@@ -64,27 +51,87 @@ void Blas::pre_build(
     acceleration_structure_create_info.buffer = _accel_buffer->vk_buffer();
     acceleration_structure_create_info.size = acceleration_structure_build_sizes_info.accelerationStructureSize;
     acceleration_structure_create_info.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+    bool sync = _accel;
     if (_accel) {
         cmdbuffer.states()->_callbacks.emplace_back([a = _accel, device = device()]() {
-            device->func_table.vkDestroyAccelerationStructureKHR(device->logic_device(), a, Device::alloc_callbacks());
+            vkDestroyAccelerationStructureKHR(device->logic_device(), a, Device::alloc_callbacks());
         });
-        sync_tlas();
     }
-    VK_CHECK_RESULT(device()->func_table.vkCreateAccelerationStructureKHR(device()->logic_device(), &acceleration_structure_create_info, Device::alloc_callbacks(), &_accel));
+    VK_CHECK_RESULT(vkCreateAccelerationStructureKHR(device()->logic_device(), &acceleration_structure_create_info, Device::alloc_callbacks(), &_accel));
     scratch_buffer_size = (scratch_buffer_size + 255) & (~(255u));
     auto scratch_chunk = cmdbuffer.scratch_buffer_alloc->allocate(scratch_buffer_size);
 
-    scratch_buffer = reinterpret_cast<DefaultBuffer const *>(scratch_chunk.handle);
+    scratch_buffer = reinterpret_cast<Buffer const *>(scratch_chunk.handle);
     scratch_buffer_offset = scratch_chunk.offset;
     cmdbuffer.resource_barrier->record(
         scratch_buffer,
         ResourceBarrier::Usage::ComputeUAV);
+    if (sync) {
+        sync_tlas();
+    }
+}
+void Blas::pre_build(
+    CommandBuffer &cmdbuffer,
+    ProceduralPrimitiveBuildCommand const *cmd) {
+    auto acceleration_structure_geometry = cmdbuffer.temp_desc->allocate_memory<VkAccelerationStructureGeometryKHR>();
+    acceleration_structure_geometry->sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+    acceleration_structure_geometry->geometryType = VK_GEOMETRY_TYPE_AABBS_KHR;
+    acceleration_structure_geometry->flags = 0;
+    VkDeviceOrHostAddressConstKHR aabb_data_device_address{};
+    aabb_data_device_address.deviceAddress = reinterpret_cast<Buffer const *>(cmd->aabb_buffer())->get_device_address() + cmd->aabb_buffer_offset();
+
+    auto &aabbs = acceleration_structure_geometry->geometry.aabbs;
+    aabbs.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_AABBS_DATA_KHR;
+    aabbs.data = aabb_data_device_address;
+    aabbs.stride = sizeof(luisa::compute::AABB);
+    _pre_build(cmdbuffer, acceleration_structure_geometry, cmd->aabb_buffer_size() / sizeof(luisa::compute::AABB), cmd->request());
     cmdbuffer.resource_barrier->record(
-        reinterpret_cast<DefaultBuffer const *>(cmd->vertex_buffer()),
+        reinterpret_cast<Buffer const *>(cmd->aabb_buffer()),
+        ResourceBarrier::Usage::AccelInstanceBuffer);
+}
+void Blas::pre_build(
+    CommandBuffer &cmdbuffer,
+    MeshBuildCommand const *cmd) {
+    VkDeviceOrHostAddressConstKHR vertex_data_device_address{};
+    VkDeviceOrHostAddressConstKHR index_data_device_address{};
+    vertex_data_device_address.deviceAddress = reinterpret_cast<Buffer const *>(cmd->vertex_buffer())->get_device_address() + cmd->vertex_buffer_offset();
+    index_data_device_address.deviceAddress = reinterpret_cast<Buffer const *>(cmd->triangle_buffer())->get_device_address() + cmd->triangle_buffer_offset();
+
+    auto acceleration_structure_geometry = cmdbuffer.temp_desc->allocate_memory<VkAccelerationStructureGeometryKHR>();
+    acceleration_structure_geometry->sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+    acceleration_structure_geometry->geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
+    acceleration_structure_geometry->flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
+    auto &triangles = acceleration_structure_geometry->geometry.triangles;
+    triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
+    triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
+    triangles.vertexData = vertex_data_device_address;
+    triangles.maxVertex = cmd->vertex_buffer_size() / cmd->vertex_stride();
+    triangles.vertexStride = cmd->vertex_stride();
+    triangles.indexType = VK_INDEX_TYPE_UINT32;
+    triangles.indexData = index_data_device_address;
+    _pre_build(cmdbuffer, acceleration_structure_geometry, cmd->triangle_buffer_size() / 12, cmd->request());
+    cmdbuffer.resource_barrier->record(
+        reinterpret_cast<Buffer const *>(cmd->vertex_buffer()),
         ResourceBarrier::Usage::AccelInstanceBuffer);
     cmdbuffer.resource_barrier->record(
-        reinterpret_cast<DefaultBuffer const *>(cmd->triangle_buffer()),
+        reinterpret_cast<Buffer const *>(cmd->triangle_buffer()),
         ResourceBarrier::Usage::AccelInstanceBuffer);
+}
+void Blas::build(
+    CommandBuffer &cmdbuffer,
+    ProceduralPrimitiveBuildCommand const *cmd) {
+    acceleration_build_geometry_info->dstAccelerationStructure = _accel;
+    acceleration_build_geometry_info->scratchData.deviceAddress = scratch_buffer->get_device_address() + scratch_buffer_offset;
+    auto acceleration_structure_build_range_info = cmdbuffer.temp_desc->allocate_memory<VkAccelerationStructureBuildRangeInfoKHR>();
+    acceleration_structure_build_range_info->primitiveCount = cmd->aabb_buffer_size() / sizeof(luisa::compute::AABB);
+    acceleration_structure_build_range_info->primitiveOffset = 0;
+    acceleration_structure_build_range_info->firstVertex = 0;
+    acceleration_structure_build_range_info->transformOffset = 0;
+    vkCmdBuildAccelerationStructuresKHR(
+        cmdbuffer.cmdbuffer(),
+        1,
+        acceleration_build_geometry_info,
+        &acceleration_structure_build_range_info);
 }
 void Blas::build(
     CommandBuffer &cmdbuffer,
@@ -96,7 +143,7 @@ void Blas::build(
     acceleration_structure_build_range_info->primitiveOffset = 0;
     acceleration_structure_build_range_info->firstVertex = 0;
     acceleration_structure_build_range_info->transformOffset = 0;
-    device()->func_table.vkCmdBuildAccelerationStructuresKHR(
+    vkCmdBuildAccelerationStructuresKHR(
         cmdbuffer.cmdbuffer(),
         1,
         acceleration_build_geometry_info,
@@ -107,13 +154,13 @@ Blas::~Blas() {
         i->accel->allInstance[i->accelIndex].handle = nullptr;
         MeshHandle::DestroyHandle(i);
     }
-    device()->func_table.vkDestroyAccelerationStructureKHR(device()->logic_device(), _accel, Device::alloc_callbacks());
+    vkDestroyAccelerationStructureKHR(device()->logic_device(), _accel, Device::alloc_callbacks());
 }
 uint64_t Blas::get_accel_device_address() const {
     VkAccelerationStructureDeviceAddressInfoKHR acceleration_device_address_info{};
     acceleration_device_address_info.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
     acceleration_device_address_info.accelerationStructure = _accel;
-    return device()->func_table.vkGetAccelerationStructureDeviceAddressKHR(device()->logic_device(), &acceleration_device_address_info);
+    return vkGetAccelerationStructureDeviceAddressKHR(device()->logic_device(), &acceleration_device_address_info);
 }
 void Blas::remove_accel_ref(MeshHandle *handle) {
     LUISA_ASSUME(handle->mesh == this);

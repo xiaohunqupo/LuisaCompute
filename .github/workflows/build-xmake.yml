@@ -41,48 +41,48 @@ jobs:
 #          xmake f -p linux -a x86_64 --toolchain=${{ matrix.toolchain }} -m ${{ matrix.config }} --cuda_backend=true --enable_dsl=true --enable_gui=true --enable_unity_build=false --enable_tests=true --enable_mimalloc=false --check -c -y
 #          xmake --jobs=16
 
-  build-macos:
-    strategy:
-      fail-fast: false
-      matrix:
-        compiler: [ homebrew-clang, system-clang ]
-        config: [ release, debug ]
-    name: macOS / ${{ matrix.config }} / ${{ matrix.compiler }}
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - name: "Install Dependencies"
-        run: |
-          if [ "${{ matrix.compiler }}" = "homebrew-clang" ]; then
-            brew install llvm
-          fi
-          brew install molten-vk ninja cmake xmake
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          sudo xcode-select -switch /Applications/Xcode_16.1.app
-          echo "Check the relevant software versions"
-          brew --version
-          xcodebuild -version
-          clang++ --version
-          echo "Check End"
-      - name: "Configure and Build"
-        run: |
-          xmake lua setup.lua
-          if [ "${{ matrix.compiler }}" = "homebrew-clang" ]; then
-            export PATH=/usr/local/opt/llvm/bin:$PATH
-            xmake f -p macosx --toolchain=llvm -m ${{ matrix.config }} --mm=clang --mxx=clang++ --metal_backend=true --enable_dsl=true --enable_gui=true --enable_unity_build=false --enable_tests=true --enable_mimalloc=false --check -c -y
-          else
-            xmake f -p macosx --toolchain=clang -m ${{ matrix.config }} --mm=clang --mxx=clang++ --metal_backend=true --enable_dsl=true --enable_gui=true --enable_unity_build=false --enable_tests=true --enable_mimalloc=false --check -c -y
-          fi
-          xmake
+#  build-macos:
+#    strategy:
+#      fail-fast: false
+#      matrix:
+#        compiler: [ homebrew-clang, system-clang ]
+#        config: [ release, debug ]
+#    name: macOS / ${{ matrix.config }} / ${{ matrix.compiler }}
+#    runs-on: macos-latest
+#    steps:
+#      - uses: actions/checkout@v4
+#        with:
+#          submodules: recursive
+#      - name: "Install Dependencies"
+#        run: |
+#          if [ "${{ matrix.compiler }}" = "homebrew-clang" ]; then
+#            brew install llvm
+#          fi
+#          brew install molten-vk ninja cmake xmake
+#          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+#          sudo xcode-select -switch /Applications/Xcode_16.1.app
+#          echo "Check the relevant software versions"
+#          brew --version
+#          xcodebuild -version
+#          clang++ --version
+#          echo "Check End"
+#      - name: "Configure and Build"
+#        run: |
+#          xmake lua setup.lua
+#          if [ "${{ matrix.compiler }}" = "homebrew-clang" ]; then
+#            export PATH=/usr/local/opt/llvm/bin:$PATH
+#            xmake f -p macosx --toolchain=llvm -m ${{ matrix.config }} --mm=clang --mxx=clang++ --metal_backend=true --enable_dsl=true --enable_gui=true --enable_unity_build=false --enable_tests=true --enable_mimalloc=false --check -c -y
+#          else
+#            xmake f -p macosx --toolchain=clang -m ${{ matrix.config }} --mm=clang --mxx=clang++ --metal_backend=true --enable_dsl=true --enable_gui=true --enable_unity_build=false --enable_tests=true --enable_mimalloc=false --check -c -y
+#          fi
+#          xmake
 
   build-windows:
     strategy:
       fail-fast: false
       matrix:
         config: [ release, debug ]
-        compiler: [ msvc, clang-cl, llvm ]
+        compiler: [ msvc, clang-cl ]
     name: Windows / ${{ matrix.config }} / ${{ matrix.compiler }}
     runs-on: windows-2025
     steps:

@@ -13,6 +13,8 @@ struct ShaderSerHeader {
     uint64 spv_byte_size;
     uint block_size[3];
     uint kernel_arg_count;
+    uint printer_count;
+    uint printer_size_bytes;
     bool use_bindless_buffer;
     bool use_bindless_tex2d;
     bool use_bindless_tex3d;
@@ -34,17 +36,22 @@ void ShaderSerializer::serialize_bytecode(
     BinaryIO const *bin_io,
     bool use_tex2d_bindless,
     bool use_tex3d_bindless,
-    bool use_buffer_bindless) {
+    bool use_buffer_bindless,
+    vstd::span<std::pair<vstd::string, Type const *> const> printers) {
     using namespace detail;
     vstd::vector<std::byte> results;
     ShaderSerHeader header{
         .md5 = shader_md5,
         .type_md5 = type_md5,
-        .block_size = {block_size.x, block_size.y, block_size.z},
         .property_size = binds.size(),
         .spv_byte_size = spv_code.size_bytes(),
+        .block_size = {block_size.x, block_size.y, block_size.z},
         .kernel_arg_count = (uint)saved_args.size()};
-    uint64_t final_size = sizeof(ShaderSerHeader) + header.property_size * sizeof(hlsl::Property) + header.spv_byte_size + header.kernel_arg_count * sizeof(SavedArgument);
+    uint printer_size_bytes = 0;
+    for (auto &i : printers) {
+        printer_size_bytes += i.first.size() + i.second->description().size() + 2;// zero-end string
+    }
+    uint64_t final_size = sizeof(ShaderSerHeader) + header.property_size * sizeof(hlsl::Property) + header.spv_byte_size + header.kernel_arg_count * sizeof(SavedArgument) + printer_size_bytes;
     results.push_back_uninitialized(final_size);
     auto data_ptr = results.data();
     auto save = [&]<typename T>(T const &t) {
@@ -58,10 +65,19 @@ void ShaderSerializer::serialize_bytecode(
     header.use_bindless_buffer = use_buffer_bindless;
     header.use_bindless_tex2d = use_tex2d_bindless;
     header.use_bindless_tex3d = use_tex3d_bindless;
+    header.printer_count = printers.size();
+    header.printer_size_bytes = printer_size_bytes;
     save(header);
     save_arr(binds.data(), binds.size());
     save_arr(saved_args.data(), saved_args.size());
     save_arr(spv_code.data(), spv_code.size());
+    for (auto &i : printers) {
+        save_arr(i.first.c_str(), i.first.size() + 1);
+        auto desc = i.second->description();
+        save_arr(desc.data(), desc.size());
+        *data_ptr = (std::byte)0;
+        ++data_ptr;
+    }
 
     switch (serde_type) {
         case SerdeType::Cache:
@@ -92,6 +108,7 @@ void ShaderSerializer::serialize_pso(
 
     bin_io->write_shader_cache(file_name, pso_data);
 }
+
 ShaderSerializer::DeserResult ShaderSerializer::try_deser_compute(
     Device *device,
     // invalid md5 for AOT
@@ -108,6 +125,7 @@ ShaderSerializer::DeserResult ShaderSerializer::try_deser_compute(
         .shader = nullptr};
     uint3 block_size;
     ShaderSerHeader header;
+    vstd::vector<std::pair<luisa::string, Type const *>> printers;
     {
         auto read_stream = [&]() {
             switch (serde_type) {
@@ -120,9 +138,10 @@ ShaderSerializer::DeserResult ShaderSerializer::try_deser_compute(
             }
         }();
         if (!read_stream) return result;
-        if (read_stream->length() < sizeof(ShaderSerHeader)) return result;
+        auto stream_len = read_stream->length();
+        if (stream_len < sizeof(ShaderSerHeader)) return result;
         read_stream->read({reinterpret_cast<std::byte *>(&header), sizeof(ShaderSerHeader)});
-        if (read_stream->length() != (header.property_size * sizeof(hlsl::Property) + header.spv_byte_size + header.kernel_arg_count * sizeof(SavedArgument)))
+        if (stream_len != read_stream->pos() + (header.printer_size_bytes + header.property_size * sizeof(hlsl::Property) + header.spv_byte_size + header.kernel_arg_count * sizeof(SavedArgument)))
             return result;
         if (shader_md5 && *shader_md5 != header.md5)
             return result;
@@ -134,6 +153,23 @@ ShaderSerializer::DeserResult ShaderSerializer::try_deser_compute(
         read_stream->read({reinterpret_cast<std::byte *>(saved_args.data()), saved_args.size_bytes()});
         spv.push_back_uninitialized(header.spv_byte_size / sizeof(uint));
         read_stream->read({reinterpret_cast<std::byte *>(spv.data()), spv.size_bytes()});
+        luisa::vector<char> printer_data;
+        printers.reserve(header.printer_count);
+        if (header.printer_size_bytes > 0) {
+            printer_data.push_back_uninitialized(header.printer_size_bytes);
+            read_stream->read({reinterpret_cast<std::byte *>(printer_data.data()),
+                               printer_data.size()});
+            auto ptr = printer_data.data();
+            for (auto i : vstd::range(header.printer_count)) {
+                auto printer_len = strlen(ptr);
+                luisa::string_view printer_val{ptr, printer_len};
+                ptr += printer_len + 1;
+                auto type_desc_len = strlen(ptr);
+                auto type = Type::from(luisa::string_view{ptr, type_desc_len});
+                ptr += type_desc_len + 1;
+                printers.emplace_back(luisa::string{printer_val}, type);
+            }
+        }
     }
     vstd::vector<std::byte> pso_data;
     vstd::string pso_name;
@@ -146,13 +182,14 @@ ShaderSerializer::DeserResult ShaderSerializer::try_deser_compute(
         pso_name = pso_md5.to_string(false);
         auto read_stream = bin_io->read_shader_cache(pso_name);
         if (read_stream) {
-            if (read_stream->length() >= sizeof(VkPipelineCacheHeaderVersionOne)) {
+            auto stream_len = read_stream->length();
+            if (stream_len >= sizeof(VkPipelineCacheHeaderVersionOne)) {
                 pso_data.push_back_uninitialized(sizeof(VkPipelineCacheHeaderVersionOne));
                 read_stream->read(pso_data);
                 if (!device->is_pso_same(*reinterpret_cast<VkPipelineCacheHeaderVersionOne const *>(pso_data.data()))) {
                     pso_data.clear();
                 } else {
-                    auto last_size = read_stream->length();
+                    auto last_size = stream_len - read_stream->pos();
                     pso_data.push_back_uninitialized(last_size);
                     read_stream->read({pso_data.data() + sizeof(VkPipelineCacheHeaderVersionOne), last_size});
                 }
@@ -169,7 +206,8 @@ ShaderSerializer::DeserResult ShaderSerializer::try_deser_compute(
         pso_data,
         header.use_bindless_tex2d,
         header.use_bindless_tex3d,
-        header.use_bindless_buffer};
+        header.use_bindless_buffer,
+        std::move(printers)};
     if (pso_data.empty() &&
         shader->serialize_pso(pso_data)) {
         bin_io->write_shader_cache(pso_name, pso_data);

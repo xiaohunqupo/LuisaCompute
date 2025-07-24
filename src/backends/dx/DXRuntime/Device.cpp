@@ -257,8 +257,8 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
                 LUISA_INFO("Adapter mismatch, shader cache cleared.");
                 fileIo->clear_shader_cache();
             }
-            static_cast<void>(fileIo->write_shader_cache("dx_adapterid", {reinterpret_cast<std::byte const *>(&adapterID), sizeof(vstd::MD5)}));
         }
+        static_cast<void>(fileIo->write_shader_cache("dx_adapterid", {reinterpret_cast<std::byte const *>(&adapterID), sizeof(vstd::MD5)}));
         if (allocSettings)
             defaultAllocator = vstd::make_unique<GpuAllocator>(
                 this,
@@ -273,7 +273,7 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
             new DescriptorHeap(
                 this,
                 D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-                524288,
+                1000000ull, // Max allowed in Tier 3
                 true));
         samplerHeap = vstd::create_unique(
             new DescriptorHeap(

@@ -18,6 +18,11 @@
 #include "bindless_array.h"
 #include "blas.h"
 #include "tlas.h"
+#include "swapchain.h"
+#include "sparse_buffer.h"
+#include "pinned_memory_ext.h"
+#include "vk_raster_ext.h"
+#include <luisa/backends/ext/raster_ext_interface.h>
 namespace lc::vk {
 static constexpr uint k_shader_model = 65u;
 
@@ -124,8 +129,9 @@ vstd::vector<VkExtensionProperties> supported_exts(VkPhysicalDevice physical_dev
     return props;
 }
 VkInstance create_instance(bool enableValidation) {
-    vstd::vector<const char *> instance_exts = {VK_KHR_SURFACE_EXTENSION_NAME};
-    vstd::vector<const char *> enable_inst_ext;
+    volkInitialize();
+    vstd::vector<const char *> instance_exts;
+    instance_exts.reserve(8);
     vstd::unordered_set<vstd::string> supported_instance_exts;
 
     // Validation can also be forced via a define
@@ -138,6 +144,8 @@ VkInstance create_instance(bool enableValidation) {
     appInfo.apiVersion = VK_API_VERSION_1_3;
 
     // Enable surface extensions depending on os
+    instance_exts.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
+    instance_exts.push_back(VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME);
 #if defined(_WIN32)
     instance_exts.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
 #elif defined(VK_USE_PLATFORM_ANDROID_KHR)
@@ -171,20 +179,10 @@ VkInstance create_instance(bool enableValidation) {
     }
 #if (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK))
     // SRS - When running on iOS/macOS with MoltenVK, enable VK_KHR_get_physical_device_properties2 if not already enabled by the example (required by VK_KHR_portability_subset)
-    if (std::find(enable_inst_ext.begin(), enable_inst_ext.end(), VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME) == enable_inst_ext.end()) {
-        enable_inst_ext.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+    if (std::find(instance_exts.begin(), instance_exts.end(), VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME) == instance_exts.end()) {
+        instance_exts.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
     }
 #endif
-    // Enabled requested instance extensions
-    if (enable_inst_ext.size() > 0) {
-        for (const char *enabledExtension : enable_inst_ext) {
-            // Output message if requested extension is not available
-            if (supported_instance_exts.find(enabledExtension) == supported_instance_exts.end()) {
-                LUISA_ERROR("Enabled instance extension \"{}\"  is not present at instance level", enabledExtension);
-            }
-            instance_exts.push_back(enabledExtension);
-        }
-    }
 
     VkInstanceCreateInfo instanceCreateInfo = {};
     instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -235,6 +233,7 @@ VkInstance create_instance(bool enableValidation) {
 
     VkInstance instance;
     VK_CHECK_RESULT(vkCreateInstance(&instanceCreateInfo, Device::alloc_callbacks(), &instance));
+    volkLoadInstance(instance);
     return instance;
 }
 
@@ -256,11 +255,10 @@ void Device::destroy_mesh(uint64_t handle) noexcept {
 
 ResourceCreationInfo Device::create_procedural_primitive(
     const AccelOption &option) noexcept {
-    LUISA_ERROR("procedural primitive not implemented.");
-    return ResourceCreationInfo::make_invalid();
+    return create_mesh(option);
 }
 void Device::destroy_procedural_primitive(uint64_t handle) noexcept {
-    LUISA_ERROR("procedural primitive not implemented.");
+    destroy_mesh(handle);
 }
 
 ResourceCreationInfo Device::create_accel(const AccelOption &option) noexcept {
@@ -270,7 +268,7 @@ ResourceCreationInfo Device::create_accel(const AccelOption &option) noexcept {
         .native_handle = accel->accel()};
 }
 void Device::destroy_accel(uint64_t handle) noexcept {
-    delete reinterpret_cast<Tlas*>(handle);
+    delete reinterpret_cast<Tlas *>(handle);
 }
 //////////////// Not implemented area
 Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
@@ -278,8 +276,11 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
       set_bindless_kernel(BuiltinKernel::LoadBindlessSetKernel),
       set_accel_kernel(BuiltinKernel::LoadAccelSetKernel) {
     bool headless = false;
-    uint device_idx = 0;
+    uint device_idx = -1;
     if (configs) {
+        if (configs->extension) {
+            _config_ext = luisa::unique_ptr<VulkanDeviceConfigExt>{reinterpret_cast<VulkanDeviceConfigExt *>(configs->extension.get())};
+        }
         headless = configs->headless;
         device_idx = configs->device_index;
         _binary_io = configs->binary_io;
@@ -290,6 +291,10 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
         if (gDxcRefCount == 0)
             gDxcCompiler.create(ctx.runtime_directory());
         gDxcRefCount++;
+    }
+    if (!_binary_io) {
+        _default_file_io = vstd::make_unique<DefaultBinaryIO>(context(), headless);
+        _binary_io = _default_file_io.get();
     }
     if (!headless) {
         // init instance
@@ -304,19 +309,48 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
                 detail::vk_instance = detail::create_instance(enableValidation);
             }
         }
-        _init_device(device_idx, false);
+        bool fallback = false;
+        if (_config_ext) {
+            fallback = _config_ext->enable_fallback();
+        }
+        _init_device(device_idx, fallback);
+
+        if (_config_ext) {
+            _config_ext->readback_vulkan_device(instance(), physical_device(), logic_device(), alloc_callbacks(), _pso_header, _graphics_queue, _compute_queue, _copy_queue, gDxcCompiler->compiler(), gDxcCompiler->library(), gDxcCompiler->utils());
+        }
+        exts.try_emplace(
+#ifdef LUISA_USE_SYSTEM_STL
+            luisa::string{PinnedMemoryExt::name},
+#else
+            PinnedMemoryExt::name,
+#endif
+            [](Device *device) -> DeviceExtension * {
+                return new VkPinnedMemoryExt(device);
+            },
+            [](DeviceExtension *ext) {
+                delete static_cast<VkPinnedMemoryExt *>(ext);
+            });
+        exts.try_emplace(
+#ifdef LUISA_USE_SYSTEM_STL
+            luisa::string{RasterExt::name},
+#else
+            RasterExt::name,
+#endif
+            [](Device *device) -> DeviceExtension * {
+                return new VkRasterExt(device);
+            },
+            [](DeviceExtension *ext) {
+                delete static_cast<VkRasterExt *>(ext);
+            });
     }
     // auto exts = detail::supported_exts(physical_device());
     // for(auto&& i : exts){
     //     LUISA_INFO("{}", i.extensionName);
     // }
-    auto ctx_inst = context();
-    if (!_binary_io) {
-        _default_file_io = vstd::make_unique<DefaultBinaryIO>(std::move(ctx_inst), headless);
-        _binary_io = _default_file_io.get();
-    }
-    func_table.init(this);
+
+    // func_table.init(this);
 }
+
 void Device::_init_device(uint32_t selectedDevice, bool fallback) {
     VkResult err;
 
@@ -346,7 +380,8 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
 
     // Select physical device to be used for the Vulkan example
     // Defaults to the first device unless specified by command line
-    if (!fallback) {
+    if (selectedDevice == -1) {
+        selectedDevice = 0;
         for (auto &&i : physical_devices) {
             vkGetPhysicalDeviceProperties(i, &_device_properties);
             luisa::string device_name{_device_properties.deviceName};
@@ -373,9 +408,9 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
     _vk_device.create(physical_device);
     _enable_device_exts.emplace_back(VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME);
     if (!fallback) {
+        // _enable_device_exts.emplace_back(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
+        // _enable_device_exts.emplace_back(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
         _enable_device_exts.emplace_back(VK_KHR_RAY_QUERY_EXTENSION_NAME);
-        _enable_device_exts.emplace_back(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
-        _enable_device_exts.emplace_back(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
         _enable_device_exts.emplace_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
         _enable_device_exts.emplace_back(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
     }
@@ -388,16 +423,17 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
     VkPhysicalDeviceDescriptorIndexingFeatures enable_bindless_features{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES,
         .pNext = &device_buffer_feature,
-        .shaderInputAttachmentArrayDynamicIndexing = VK_TRUE,
-        .shaderUniformTexelBufferArrayDynamicIndexing = VK_TRUE,
-        .shaderStorageTexelBufferArrayDynamicIndexing = VK_TRUE,
-        .shaderUniformBufferArrayNonUniformIndexing = VK_TRUE,
+        // .shaderInputAttachmentArrayDynamicIndexing = VK_TRUE,
+        // .shaderUniformTexelBufferArrayDynamicIndexing = VK_TRUE,
+        // .shaderStorageTexelBufferArrayDynamicIndexing = VK_TRUE,
+        // .shaderUniformBufferArrayNonUniformIndexing = VK_TRUE,
         .shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
-        .shaderStorageBufferArrayNonUniformIndexing = VK_TRUE,
-        .shaderStorageImageArrayNonUniformIndexing = VK_TRUE,
-        .shaderInputAttachmentArrayNonUniformIndexing = VK_TRUE,
-        .shaderUniformTexelBufferArrayNonUniformIndexing = VK_TRUE,
-        .shaderStorageTexelBufferArrayNonUniformIndexing = VK_TRUE,
+        .descriptorBindingPartiallyBound = VK_TRUE,
+        // .shaderStorageBufferArrayNonUniformIndexing = VK_TRUE,
+        // .shaderStorageImageArrayNonUniformIndexing = VK_TRUE,
+        // .shaderInputAttachmentArrayNonUniformIndexing = VK_TRUE,
+        // .shaderUniformTexelBufferArrayNonUniformIndexing = VK_TRUE,
+        // .shaderStorageTexelBufferArrayNonUniformIndexing = VK_TRUE,
         .runtimeDescriptorArray = VK_TRUE};
 
     VkPhysicalDeviceRayQueryFeaturesKHR enable_rayquery_features{
@@ -411,7 +447,7 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
 
     VkPhysicalDeviceTimelineSemaphoreFeatures enable_timeline_feature{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES,
-        .pNext = fallback ? nullptr : &enabledAccelerationStructureFeatures,
+        .pNext = &enabledAccelerationStructureFeatures,
         .timelineSemaphore = VK_TRUE};
     VkPhysicalDeviceSynchronization2Features barrier_feature{
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES,
@@ -420,6 +456,7 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
     void *ext_chain = &barrier_feature;
     VK_CHECK_RESULT(_vk_device->createLogicalDevice(_device_features, _enable_device_exts, ext_chain));
     auto device = _vk_device->logicalDevice;
+    volkLoadDevice(device);
 
     // Get a graphics queue from the device
     vkGetDeviceQueue(device, _vk_device->queueFamilyIndices.graphics, 0, &_graphics_queue);
@@ -435,8 +472,9 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
 
     // bindless buffer desc_pool
     {
+        buffer_heap_pool.full_size = 262144;
         VkDescriptorPoolSize pool_size;
-        pool_size.descriptorCount = 65536;
+        pool_size.descriptorCount = buffer_heap_pool.full_size;
         pool_size.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         VkDescriptorPoolCreateInfo createInfo{
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
@@ -448,7 +486,7 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
         VkDescriptorSetLayoutBinding binding{
             0,
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            65536,
+            buffer_heap_pool.full_size,
             VK_SHADER_STAGE_COMPUTE_BIT,
             nullptr};
         VkDescriptorSetLayoutCreateInfo descriptorLayout{
@@ -465,8 +503,9 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
     }
     // bindless tex2d desc_pool
     {
+        tex2d_heap_pool.full_size = 262144;
         VkDescriptorPoolSize pool_size;
-        pool_size.descriptorCount = 65536;
+        pool_size.descriptorCount = tex2d_heap_pool.full_size;
         pool_size.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
         VkDescriptorPoolCreateInfo createInfo{
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
@@ -478,7 +517,7 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
         VkDescriptorSetLayoutBinding binding{
             0,
             VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-            65536,
+            tex2d_heap_pool.full_size,
             VK_SHADER_STAGE_COMPUTE_BIT,
             nullptr};
         VkDescriptorSetLayoutCreateInfo descriptorLayout{
@@ -492,11 +531,13 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
             .descriptorSetCount = 1,
             .pSetLayouts = &_bdls_tex2d_set_layout};
         VK_CHECK_RESULT(vkAllocateDescriptorSets(logic_device(), &alloc_info, &_bdls_tex2d_set));
+        tex2d_bindless_imgview.resize(tex2d_heap_pool.full_size);
     }
     // bindless tex3d desc_pool
     {
+        tex3d_heap_pool.full_size = 262144;
         VkDescriptorPoolSize pool_size;
-        pool_size.descriptorCount = 65536;
+        pool_size.descriptorCount = tex3d_heap_pool.full_size;
         pool_size.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
         VkDescriptorPoolCreateInfo createInfo{
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
@@ -508,7 +549,7 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
         VkDescriptorSetLayoutBinding binding{
             0,
             VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-            65536,
+            tex3d_heap_pool.full_size,
             VK_SHADER_STAGE_COMPUTE_BIT,
             nullptr};
         VkDescriptorSetLayoutCreateInfo descriptorLayout{
@@ -522,6 +563,7 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
             .descriptorSetCount = 1,
             .pSetLayouts = &_bdls_tex3d_set_layout};
         VK_CHECK_RESULT(vkAllocateDescriptorSets(logic_device(), &alloc_info, &_bdls_tex3d_set));
+        tex3d_bindless_imgview.resize(tex3d_heap_pool.full_size);
     }
     // sampler desc_pool
     {
@@ -616,20 +658,31 @@ bool Device::is_pso_same(VkPipelineCacheHeaderVersionOne const &pso) {
     return std::memcmp(&pso, &_pso_header, sizeof(VkPipelineCacheHeaderVersionOne)) == 0;
 }
 Device::~Device() {
-    vkDestroyDescriptorSetLayout(logic_device(), _sampler_set_layout, alloc_callbacks());
-    vkDestroyDescriptorSetLayout(logic_device(), _bdls_buffer_set_layout, alloc_callbacks());
-    vkDestroyDescriptorSetLayout(logic_device(), _bdls_tex2d_set_layout, alloc_callbacks());
-    vkDestroyDescriptorSetLayout(logic_device(), _bdls_tex3d_set_layout, alloc_callbacks());
-    vkDestroyDescriptorPool(logic_device(), _sampler_pool, alloc_callbacks());
-    vkDestroyDescriptorPool(logic_device(), _bdls_tex3d_desc_pool, alloc_callbacks());
-    vkDestroyDescriptorPool(logic_device(), _bdls_tex2d_desc_pool, alloc_callbacks());
-    vkDestroyDescriptorPool(logic_device(), _bdls_buffer_desc_pool, alloc_callbacks());
-    for (auto &i : _samplers) {
-        vkDestroySampler(logic_device(), i, alloc_callbacks());
+    if (_vk_device) {
+        vkDestroyDescriptorSetLayout(logic_device(), _sampler_set_layout, alloc_callbacks());
+        vkDestroyDescriptorSetLayout(logic_device(), _bdls_buffer_set_layout, alloc_callbacks());
+        vkDestroyDescriptorSetLayout(logic_device(), _bdls_tex2d_set_layout, alloc_callbacks());
+        vkDestroyDescriptorSetLayout(logic_device(), _bdls_tex3d_set_layout, alloc_callbacks());
+        vkDestroyDescriptorPool(logic_device(), _sampler_pool, alloc_callbacks());
+        vkDestroyDescriptorPool(logic_device(), _bdls_tex3d_desc_pool, alloc_callbacks());
+        vkDestroyDescriptorPool(logic_device(), _bdls_tex2d_desc_pool, alloc_callbacks());
+        vkDestroyDescriptorPool(logic_device(), _bdls_buffer_desc_pool, alloc_callbacks());
+        for (auto &i : tex2d_bindless_imgview) {
+            if (i) vkDestroyImageView(logic_device(), i, alloc_callbacks());
+        }
+        for (auto &i : tex3d_bindless_imgview) {
+            if (i) vkDestroyImageView(logic_device(), i, alloc_callbacks());
+        }
+        for (auto &i : _samplers) {
+            vkDestroySampler(logic_device(), i, alloc_callbacks());
+        }
     }
-    std::lock_guard lck(gDxcMutex);
-    if (--gDxcRefCount == 0) {
-        gDxcCompiler.destroy();
+    _default_file_io = nullptr;
+    {
+        std::lock_guard lck(gDxcMutex);
+        if (--gDxcRefCount == 0) {
+            gDxcCompiler.destroy();
+        }
     }
 }
 void *Device::native_handle() const noexcept { return _vk_device->logicalDevice; }
@@ -669,10 +722,22 @@ ResourceCreationInfo Device::create_texture(
 void Device::destroy_texture(uint64_t handle) noexcept {
     delete reinterpret_cast<Texture *>(handle);
 }
-
+luisa::FirstFit::Node *Device::HeapAlloc::sub_alloc(uint32_t size) {
+    auto ptr = sub_allocator.allocate_best_fit(size);
+    if (ptr->offset() + ptr->size() > (full_size - count)) [[unlikely]] {
+        vengine_log("bindless allocator out or range!\n");
+    }
+    return ptr;
+}
+void Device::HeapAlloc::free(luisa::FirstFit::Node *ptr) {
+    sub_allocator.free(ptr);
+}
+uint Device::HeapAlloc::get_index(luisa::FirstFit::Node const *ptr) const {
+    return full_size - (ptr->offset() + ptr->size());
+}
 // bindless array
-ResourceCreationInfo Device::create_bindless_array(size_t size) noexcept {
-    auto r = new BindlessArray(this, size);
+ResourceCreationInfo Device::create_bindless_array(size_t size, BindlessSlotType type) noexcept {
+    auto r = new BindlessArray(this, type, size);
     return ResourceCreationInfo{
         .handle = reinterpret_cast<uint64_t>(r),
         .native_handle = &r->indices_buffer()};
@@ -697,13 +762,33 @@ void Device::synchronize_stream(uint64_t stream_handle) noexcept {
 }
 void Device::dispatch(
     uint64_t stream_handle, CommandList &&list) noexcept {
-    reinterpret_cast<Stream *>(stream_handle)->dispatch(list.commands(), list.steal_callbacks(), true);
+    reinterpret_cast<Stream *>(stream_handle)->dispatch(list.commands(), list.steal_callbacks(), list.presents(), inqueue_limit);
 }
 
 // swap chain
-SwapchainCreationInfo Device::create_swapchain(const SwapchainOption &option, uint64_t stream_handle) noexcept { return SwapchainCreationInfo{ResourceCreationInfo::make_invalid()}; }
-void Device::destroy_swap_chain(uint64_t handle) noexcept {}
-void Device::present_display_in_stream(uint64_t stream_handle, uint64_t swapchain_handle, uint64_t image_handle) noexcept {}
+SwapchainCreationInfo Device::create_swapchain(const SwapchainOption &option, uint64_t stream_handle) noexcept {
+    auto ptr = new Swapchain(this);
+    ptr->create_swapchain(
+        option.display,
+        option.window,
+        option.size.x,
+        option.size.y,
+        option.back_buffer_count + 1,
+        false,
+        option.wants_hdr,
+        option.wants_vsync);
+    SwapchainCreationInfo r;
+    r.handle = reinterpret_cast<uint64_t>(ptr);
+    r.storage = option.wants_hdr ? PixelStorage::HALF4 : PixelStorage::BYTE4;
+    r.native_handle = ptr->swapchain();
+    return r;
+}
+void Device::destroy_swap_chain(uint64_t handle) noexcept {
+    delete reinterpret_cast<Swapchain *>(handle);
+}
+void Device::present_display_in_stream(uint64_t stream_handle, uint64_t swapchain_handle, uint64_t image_handle) noexcept {
+    reinterpret_cast<Stream *>(stream_handle)->present(reinterpret_cast<Texture const *>(image_handle), 0, reinterpret_cast<Swapchain *>(swapchain_handle), inqueue_limit);
+}
 
 // kernel
 ShaderCreationInfo Device::create_shader(const ShaderOption &option, Function kernel) noexcept {
@@ -720,6 +805,7 @@ ShaderCreationInfo Device::create_shader(const ShaderOption &option, Function ke
     vstd::MD5 check_md5({reinterpret_cast<uint8_t const *>(code.result.data() + code.immutableHeaderSize), code.result.size() - code.immutableHeaderSize});
     if (option.compile_only) {
         assert(!option.name.empty());
+        info.invalidate();
         auto comp_result = Device::Compiler()->compile_compute(
             code.result.view(),
             true,
@@ -741,7 +827,8 @@ ShaderCreationInfo Device::create_shader(const ShaderOption &option, Function ke
                     SerdeType::ByteCode,
                     _binary_io, code.useTex2DBindless,
                     code.useTex3DBindless,
-                    code.useBufferBindless);
+                    code.useBufferBindless,
+                    code.printers);
             },
             [](auto &&err) {
                 LUISA_ERROR("Compile Error: {}", err);
@@ -781,7 +868,24 @@ ShaderCreationInfo Device::create_shader(const ShaderOption &option, Function ke
     return info;
 }
 ShaderCreationInfo Device::create_shader(const ShaderOption &option, const ir::KernelModule *kernel) noexcept { return ShaderCreationInfo::make_invalid(); }
-ShaderCreationInfo Device::load_shader(luisa::string_view name, luisa::span<const Type *const> arg_types) noexcept { return ShaderCreationInfo::make_invalid(); }
+ShaderCreationInfo Device::load_shader(luisa::string_view name, luisa::span<const Type *const> arg_types) noexcept {
+    ShaderCreationInfo info;
+    auto deser_result = ShaderSerializer::try_deser_compute(this, {}, {}, name, SerdeType::ByteCode, _binary_io);
+    if (!deser_result.shader) {
+        info.invalidate();
+        return info;
+    }
+    if (!ComputeShader::verify_type_md5(arg_types, deser_result.type_md5)) {
+        LUISA_WARNING("Shader {} arguments not match.", name);
+        info.invalidate();
+        return info;
+    }
+    auto shader = static_cast<ComputeShader *>(deser_result.shader);
+    info.handle = reinterpret_cast<uint64_t>(deser_result.shader);
+    info.native_handle = shader->pipeline();
+    info.block_size = shader->block_size();
+    return info;
+}
 Usage Device::shader_argument_usage(uint64_t handle, size_t index) noexcept {
     auto shader = reinterpret_cast<Shader const *>(handle);
     return shader->saved_arguments()[index].varUsage;
@@ -873,7 +977,7 @@ void Device::HeapAlloc::dealloc(uint idx) {
     std::lock_guard lck{mtx};
     release_pool.emplace_back(idx);
 }
-Device::HeapAlloc::HeapAlloc() = default;
+Device::HeapAlloc::HeapAlloc() : sub_allocator(std::numeric_limits<uint32_t>::max(), 1) {}
 Device::HeapAlloc::~HeapAlloc() = default;
 Device::LazyLoadShader::LazyLoadShader(LoadFunc loadFunc) : loadFunc(loadFunc) {}
 Device::LazyLoadShader::~LazyLoadShader() {}
@@ -891,5 +995,86 @@ bool Device::LazyLoadShader::Check(Device *self) {
         return true;
     }
     return false;
+}
+ResourceCreationInfo Device::allocate_sparse_texture_heap(size_t byte_size) noexcept {
+    VkMemoryRequirements req{
+        .size = byte_size,
+        .alignment = sparse_buffer_size,
+        .memoryTypeBits = std::numeric_limits<uint>::max()};
+    auto allocation = vengine_new<std::pair<VmaAllocation, VmaAllocationInfo>>();
+    VmaAllocationCreateInfo allocInfo = {
+        .flags = VMA_ALLOCATION_CREATE_STRATEGY_BEST_FIT_BIT,
+        .usage = VMA_MEMORY_USAGE_GPU_ONLY};
+    _allocator->alloc_sparse(req, &allocInfo, allocation->first, &allocation->second);
+    return ResourceCreationInfo{
+        .handle = reinterpret_cast<uint64_t>(allocation),
+        .native_handle = allocation->first};
+}
+void Device::deallocate_sparse_texture_heap(uint64_t handle) noexcept {
+    auto ptr = reinterpret_cast<std::pair<VmaAllocation, VmaAllocationInfo> *>(handle);
+    _allocator->dealloc_sparse(ptr->first);
+    vengine_delete(ptr);
+}
+ResourceCreationInfo Device::allocate_sparse_buffer_heap(size_t byte_size) noexcept {
+    return allocate_sparse_texture_heap(byte_size);
+}
+void Device::deallocate_sparse_buffer_heap(uint64_t handle) noexcept {
+    deallocate_sparse_texture_heap(handle);
+}
+void Device::update_sparse_resources(
+    uint64_t stream_handle,
+    luisa::vector<SparseUpdateTile> &&textures_update) noexcept {
+    reinterpret_cast<Stream *>(stream_handle)->update_sparse_resources(std::move(textures_update));
+}
+SparseBufferCreationInfo Device::create_sparse_buffer(const Type *element, size_t elem_count) noexcept {
+    SparseBufferCreationInfo info;
+    auto ptr = new SparseBuffer(this, element->size() * elem_count, true);
+    info.element_stride = (element == Type::of<void>()) ? 1 : element->size();
+    info.handle = reinterpret_cast<uint64_t>(ptr);
+    info.native_handle = ptr->vk_buffer();
+    info.total_size_bytes = ptr->byte_size();
+    info.tile_size_bytes = sparse_buffer_size;
+    return info;
+}
+SparseTextureCreationInfo Device::create_sparse_texture(
+    PixelFormat format, uint dimension,
+    uint width, uint height, uint depth,
+    uint mipmap_levels, bool simultaneous_access) noexcept {
+    auto ptr = new Texture(this);
+    ptr->init_as_sparse(dimension, format, uint3(width, height, depth), mipmap_levels, simultaneous_access);
+    SparseTextureCreationInfo r;
+    r.handle = reinterpret_cast<uint64_t>(ptr);
+    r.native_handle = ptr->vk_image();
+    r.tile_size_bytes = sparse_buffer_size;
+    r.tile_size = [&]() {
+        if (dimension == 2) {
+            return make_uint3(Texture::tex2d_tile_size(pixel_format_to_storage(format)), 1);
+        } else {
+            return Texture::tex3d_tile_size(pixel_format_to_storage(format));
+        }
+    }();
+    return r;
+}
+DeviceExtension *Device::extension(vstd::string_view name) noexcept {
+    auto ite = exts.find(name);
+    if (ite == exts.end()) return nullptr;
+    auto &v = ite->second;
+    {
+        std::lock_guard lck{ext_mtx};
+        if (v.ext == nullptr) {
+            v.ext = v.ctor(this);
+        }
+    }
+    return v.ext;
+}
+void Device::destroy_sparse_texture(uint64_t handle) noexcept {
+    delete reinterpret_cast<Texture *>(handle);
+}
+void Device::destroy_sparse_buffer(uint64_t handle) noexcept {
+    delete reinterpret_cast<SparseBuffer *>(handle);
+}
+void Device::set_stream_log_callback(uint64_t stream_handle,
+                                     const StreamLogCallback &callback) noexcept {
+    reinterpret_cast<Stream *>(stream_handle)->logger = callback;
 }
 }// namespace lc::vk

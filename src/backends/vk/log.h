@@ -1,6 +1,7 @@
 #pragma once
-#include <vulkan/vulkan_core.h>
+#include <volk.h>
 #include <luisa/core/logging.h>
+#include "VulkanTools.h"
 
 namespace lc::vk {
 #ifdef NDEBUG

@@ -60,6 +60,7 @@ luisa::vector<luisa::string> Compiler::compile_args(
     bool is_export) LUISA_NOEXCEPT {
     luisa::vector<luisa::string> arg_list = {
         "-std=c++23",
+        "-D__SHADER_LANG__",
         // swizzle uses reference member in union
         "-fms-extensions",
         "-Wno-microsoft-union-member-reference"};

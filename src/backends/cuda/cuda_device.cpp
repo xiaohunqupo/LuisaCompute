@@ -441,7 +441,8 @@ void CUDADevice::destroy_texture(uint64_t handle) noexcept {
     });
 }
 
-ResourceCreationInfo CUDADevice::create_bindless_array(size_t size) noexcept {
+ResourceCreationInfo CUDADevice::create_bindless_array(size_t size, BindlessSlotType type) noexcept {
+    LUISA_ASSERT(type == BindlessSlotType::MULTIPLE);
     auto p = with_handle([size] { return new_with_allocator<CUDABindlessArray>(size); });
     return {.handle = reinterpret_cast<uint64_t>(p),
             .native_handle = reinterpret_cast<void *>(p->handle())};

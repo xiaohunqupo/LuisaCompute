@@ -4,6 +4,7 @@
 #include <luisa/vstl/lockfree_array_queue.h>
 #include <DXRuntime/EnhancedBarrierTracker.h>
 #include <luisa/runtime/rhi/command.h>
+#include <luisa/core/first_fit.h>
 namespace lc::dx {
 using namespace luisa::compute;
 class TextureBase;
@@ -26,6 +27,7 @@ public:
             tex3D = tex | (s << 28);
         }
     };
+
     struct MapIndicies {
         MapIndex buffer;
         MapIndex tex2D;
@@ -33,14 +35,20 @@ public:
     };
 
 private:
-    vstd::vector<std::pair<BindlessStruct, MapIndicies>> binded;
+    vstd::variant<
+        vstd::vector<std::pair<BindlessStruct, MapIndicies>>,
+        vstd::vector<MapIndex>>
+        typed_binded;
     Map ptrMap;
     mutable std::mutex mtx;
     DefaultBuffer buffer;
+    luisa::FirstFit::Node *_buffer_node = nullptr;
+    void Deref(MapIndex &index);
     void TryReturnIndex(MapIndex &index, uint &originValue);
     void TryReturnIndexTex(MapIndex &index, uint &originValue);
     MapIndex AddIndex(size_t ptr);
     mutable vstd::vector<uint> freeQueue;
+    mutable bool offset_setted = false;
 
 public:
     void Lock() const {
@@ -56,20 +64,35 @@ public:
         BufferView,
         std::pair<TextureBase const *, Sampler>>;
     void Bind(vstd::span<const BindlessArrayUpdateCommand::Modification> mods);
+    void Bind(vstd::span<const BindlessArrayUpdateCommand::BufferModification> mods);
+    void Bind(vstd::span<const BindlessArrayUpdateCommand::Texture2DModification> mods);
     void PreProcessStates(
         CommandBufferBuilder &builder,
-        EnhancedBarrierTracker &tracker,
-        vstd::span<const BindlessArrayUpdateCommand::Modification> mods) const;
+        EnhancedBarrierTracker &tracker) const;
     void UpdateStates(
         CommandBufferBuilder &builder,
         EnhancedBarrierTracker &tracker,
         vstd::span<const BindlessArrayUpdateCommand::Modification> mods) const;
+    template<typename T>
+    void _UpdateStates(
+        CommandBufferBuilder &builder,
+        EnhancedBarrierTracker &tracker,
+        vstd::span<const T> mods) const;
+    void UpdateStates(
+        CommandBufferBuilder &builder,
+        EnhancedBarrierTracker &tracker,
+        vstd::span<const BindlessArrayUpdateCommand::BufferModification> mods) const;
+    void UpdateStates(
+        CommandBufferBuilder &builder,
+        EnhancedBarrierTracker &tracker,
+        vstd::span<const BindlessArrayUpdateCommand::Texture2DModification> mods) const;
 
     DefaultBuffer const *BindlessBuffer() const { return &buffer; }
     Tag GetTag() const override { return Tag::BindlessArray; }
     BindlessArray(
         Device *device,
-        uint arraySize);
+        uint arraySize,
+        BindlessSlotType type);
     ~BindlessArray();
     ID3D12Resource *GetResource() const override {
         return buffer.GetResource();

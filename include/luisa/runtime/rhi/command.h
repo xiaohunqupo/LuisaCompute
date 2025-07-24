@@ -119,10 +119,15 @@ protected:
     ~ShaderDispatchCommandBase() noexcept = default;
 
 public:
+    void set_handle(uint64_t handle) noexcept { _handle = handle; }
     [[nodiscard]] auto handle() const noexcept { return _handle; }
     [[nodiscard]] auto arguments() const noexcept {
         return luisa::span{reinterpret_cast<const Argument *>(_argument_buffer.data()), _argument_count};
     }
+    [[nodiscard]] auto arguments() noexcept {
+        return luisa::span{reinterpret_cast<Argument *>(_argument_buffer.data()), _argument_count};
+    }
+
     [[nodiscard]] auto uniform(const Argument::Uniform &u) const noexcept {
         return luisa::span{_argument_buffer}.subspan(u.offset, u.size);
     }
@@ -179,6 +184,10 @@ public:
                         const void *data) noexcept
         : Command{Command::Tag::EBufferUploadCommand},
           _handle{handle}, _offset{offset_bytes}, _size{size_bytes}, _data{data} {}
+    void set_handle(uint64_t handle) noexcept { _handle = handle; }
+    void set_offset(size_t offset) noexcept { _offset = offset; }
+    void set_size(size_t size) noexcept { _size = size; }
+    void set_data(const void *data) noexcept { _data = data; }
     [[nodiscard]] auto handle() const noexcept { return _handle; }
     [[nodiscard]] auto offset() const noexcept { return _offset; }
     [[nodiscard]] auto size() const noexcept { return _size; }
@@ -202,6 +211,10 @@ public:
     BufferDownloadCommand(uint64_t handle, size_t offset_bytes, size_t size_bytes, void *data) noexcept
         : Command{Command::Tag::EBufferDownloadCommand},
           _handle{handle}, _offset{offset_bytes}, _size{size_bytes}, _data{data} {}
+    void set_handle(uint64_t handle) noexcept { _handle = handle; }
+    void set_offset(size_t offset) noexcept { _offset = offset; }
+    void set_size(size_t size) noexcept { _size = size; }
+    void set_data(void *data) noexcept { _data = data; }
     [[nodiscard]] auto handle() const noexcept { return _handle; }
     [[nodiscard]] auto offset() const noexcept { return _offset; }
     [[nodiscard]] auto size() const noexcept { return _size; }
@@ -227,6 +240,11 @@ public:
         : Command{Command::Tag::EBufferCopyCommand},
           _src_handle{src}, _dst_handle{dst},
           _src_offset{src_offset}, _dst_offset{dst_offset}, _size{size} {}
+    void set_src_handle(uint64_t handle) noexcept { _src_handle = handle; }
+    void set_dst_handle(uint64_t handle) noexcept { _dst_handle = handle; }
+    void set_src_offset(size_t src_offset) noexcept { _src_offset = src_offset; }
+    void set_dst_offset(size_t dst_offset) noexcept { _dst_offset = dst_offset; }
+    void set_size(size_t size) noexcept { _size = size; }
     [[nodiscard]] auto src_handle() const noexcept { return _src_handle; }
     [[nodiscard]] auto dst_handle() const noexcept { return _dst_handle; }
     [[nodiscard]] auto src_offset() const noexcept { return _src_offset; }
@@ -259,6 +277,9 @@ public:
           _texture_handle{texture}, _pixel_storage{storage}, _texture_level{level},
           _texture_offset{texture_offset.x, texture_offset.y, texture_offset.z},
           _texture_size{size.x, size.y, size.z} {}
+    void set_buffer_handle(uint64_t handle) noexcept { _buffer_handle = handle; }
+    void set_buffer_offset(uint64_t offset) noexcept { _buffer_offset = offset; }
+    void set_texture_handle(uint64_t handle) noexcept { _texture_handle = handle; }
     [[nodiscard]] auto buffer() const noexcept { return _buffer_handle; }
     [[nodiscard]] auto buffer_offset() const noexcept { return _buffer_offset; }
     [[nodiscard]] auto texture() const noexcept { return _texture_handle; }
@@ -293,6 +314,9 @@ public:
           _texture_handle{texture}, _pixel_storage{storage}, _texture_level{level},
           _texture_offset{texture_offset.x, texture_offset.y, texture_offset.z},
           _texture_size{size.x, size.y, size.z} {}
+    void set_buffer_handle(uint64_t handle) noexcept { _buffer_handle = handle; }
+    void set_buffer_offset(uint64_t offset) noexcept { _buffer_offset = offset; }
+    void set_texture_handle(uint64_t handle) noexcept { _texture_handle = handle; }
     [[nodiscard]] auto buffer() const noexcept { return _buffer_handle; }
     [[nodiscard]] auto buffer_offset() const noexcept { return _buffer_offset; }
     [[nodiscard]] auto texture() const noexcept { return _texture_handle; }
@@ -327,6 +351,8 @@ public:
           _src_offset{src_offset.x, src_offset.y, src_offset.z},
           _dst_offset{dst_offset.x, dst_offset.y, dst_offset.z},
           _size{size.x, size.y, size.z}, _src_level{src_level}, _dst_level{dst_level} {}
+    void set_src_handle(uint64_t handle) noexcept { _src_handle = handle; }
+    void set_dst_handle(uint64_t handle) noexcept { _dst_handle = handle; }
     [[nodiscard]] auto storage() const noexcept { return _storage; }
     [[nodiscard]] auto src_handle() const noexcept { return _src_handle; }
     [[nodiscard]] auto dst_handle() const noexcept { return _dst_handle; }
@@ -361,6 +387,8 @@ public:
           _offset{offset.x, offset.y, offset.z},
           _size{size.x, size.y, size.z},
           _data{data} {}
+    void set_handle(uint64_t handle) noexcept { _handle = handle; }
+    void set_data(const void *data) noexcept { _data = data; }
     [[nodiscard]] auto handle() const noexcept { return _handle; }
     [[nodiscard]] auto storage() const noexcept { return _storage; }
     [[nodiscard]] auto level() const noexcept { return _level; }
@@ -393,6 +421,8 @@ public:
           _offset{offset.x, offset.y, offset.z},
           _size{size.x, size.y, size.z},
           _data{data} {}
+    void set_handle(uint64_t handle) noexcept { _handle = handle; }
+    void set_data(void *data) noexcept { _data = data; }
     [[nodiscard]] auto handle() const noexcept { return _handle; }
     [[nodiscard]] auto storage() const noexcept { return _storage; }
     [[nodiscard]] auto level() const noexcept { return _level; }
@@ -434,6 +464,13 @@ public:
           _triangle_buffer{triangle_buffer}, _triangle_buffer_offset{triangle_buffer_offset},
           _triangle_buffer_size{triangle_buffer_size} {
     }
+    void set_handle(uint64_t handle) noexcept { _handle = handle; }
+    void set_vertex_buffer(uint64_t vertex_buffer) noexcept { _vertex_buffer = vertex_buffer; }
+    void set_vertex_offset(uint64_t offset) noexcept { _vertex_buffer_offset = offset; }
+    void set_vertex_size(uint64_t size) noexcept { _vertex_buffer_size = size; }
+    void set_triangle_offset(uint64_t offset) noexcept { _triangle_buffer_offset = offset; }
+    void set_triangle_size(uint64_t size) noexcept { _triangle_buffer_size = size; }
+    void set_triangle_buffer(uint64_t triangle_buffer) noexcept { _triangle_buffer = triangle_buffer; }
     [[nodiscard]] auto handle() const noexcept { return _handle; }
     [[nodiscard]] auto request() const noexcept { return _request; }
     [[nodiscard]] auto vertex_buffer() const noexcept { return _vertex_buffer; }
@@ -476,6 +513,11 @@ public:
           _seg_buffer{seg_buffer}, _seg_buffer_offset{seg_buffer_offset} {}
 
 public:
+    void set_handle(uint64_t handle) noexcept { _handle = handle; }
+    void set_cp_buffer(uint64_t cp_buffer) noexcept { _cp_buffer = cp_buffer; }
+    void set_seg_buffer(uint64_t seg_buffer) noexcept { _seg_buffer = seg_buffer; }
+    void set_cp_buffer_offset(uint64_t offset) noexcept { _cp_buffer_offset = offset; }
+    void set_seg_buffer_offset(uint64_t offset) noexcept { _seg_buffer_offset = offset; }
     [[nodiscard]] auto handle() const noexcept { return _handle; }
     [[nodiscard]] auto request() const { return _request; }
     [[nodiscard]] auto basis() const { return _basis; }
@@ -504,6 +546,10 @@ public:
         : Command{Command::Tag::EProceduralPrimitiveBuildCommand},
           _handle{handle}, _request{request}, _aabb_buffer{aabb_buffer},
           _aabb_buffer_offset{aabb_buffer_offset}, _aabb_buffer_size{aabb_buffer_size} {}
+    void set_handle(uint64_t handle) noexcept { _handle = handle; }
+    void set_aabb_buffer(uint64_t aabb_buffer) noexcept { _aabb_buffer = aabb_buffer; }
+    void set_aabb_buffer_offset(uint64_t offset) noexcept { _aabb_buffer_offset = offset; }
+    void set_aabb_buffer_size(uint64_t size) noexcept { _aabb_buffer_size = size; }
     [[nodiscard]] auto handle() const noexcept { return _handle; }
     [[nodiscard]] auto request() const noexcept { return _request; }
     [[nodiscard]] auto aabb_buffer() const noexcept { return _aabb_buffer; }
@@ -524,6 +570,11 @@ public:
                                luisa::vector<MotionInstanceTransform> keyframes) noexcept
         : Command{Command::Tag::EMotionInstanceBuildCommand},
           _handle{handle}, _child{child}, _keyframes{std::move(keyframes)} {}
+    void set_handle(uint64_t handle) noexcept { _handle = handle; }
+    void set_child_handle(uint64_t handle) noexcept { _child = handle; }
+    void set_keyframes(luisa::vector<MotionInstanceTransform> &&keyframes) noexcept {
+        _keyframes = std::move(keyframes);
+    }
     [[nodiscard]] auto handle() const noexcept { return _handle; }
     [[nodiscard]] auto child() const noexcept { return _child; }
     [[nodiscard]] auto keyframes() const noexcept { return luisa::span{_keyframes}; }
@@ -610,6 +661,10 @@ public:
           _handle{handle}, _instance_count{instance_count},
           _request{request}, _update_instance_buffer_only{update_instance_buffer_only},
           _modifications{std::move(modifications)} {}
+    void set_handle(uint64_t handle) noexcept { _handle = handle; }
+    void set_modifications(luisa::vector<Modification> &&modifications) noexcept {
+        _modifications = std::move(modifications);
+    }
     [[nodiscard]] auto handle() const noexcept { return _handle; }
     [[nodiscard]] auto request() const noexcept { return _request; }
     [[nodiscard]] auto instance_count() const noexcept { return _instance_count; }
@@ -621,47 +676,51 @@ public:
 
 class BindlessArrayUpdateCommand final : public Command {
 
+    [[noreturn]] LC_RUNTIME_API static void report_unmatched_bindless_slot_type(luisa::string_view expected) noexcept;
+
 public:
+    enum struct Operation : uint {
+        NONE,
+        EMPLACE,
+        REMOVE,
+    };
+
+    struct ModifiedBuffer {
+        uint64_t handle;
+        size_t offset_bytes;
+        Operation op;
+        ModifiedBuffer() noexcept
+            : handle{0}, offset_bytes{0u}, op{Operation::NONE} {}
+        ModifiedBuffer(uint64_t handle, size_t offset_bytes, Operation op) noexcept
+            : handle{handle}, offset_bytes{offset_bytes}, op{op} {}
+        [[nodiscard]] static auto emplace(uint64_t handle, size_t offset_bytes) noexcept {
+            return ModifiedBuffer{handle, offset_bytes, Operation::EMPLACE};
+        }
+        [[nodiscard]] static auto remove() noexcept {
+            return ModifiedBuffer{0u, 0u, Operation::REMOVE};
+        }
+    };
+
+    struct ModifiedTexture {
+        uint64_t handle;
+        Sampler sampler;
+        Operation op;
+        ModifiedTexture() noexcept
+            : handle{0u}, sampler{}, op{Operation::NONE} {}
+        ModifiedTexture(uint64_t handle, Sampler sampler, Operation op) noexcept
+            : handle{handle}, sampler{sampler}, op{op} {}
+        [[nodiscard]] static auto emplace(uint64_t handle, Sampler sampler) noexcept {
+            return ModifiedTexture{handle, sampler, Operation::EMPLACE};
+        }
+        [[nodiscard]] static auto remove() noexcept {
+            return ModifiedTexture{0u, Sampler{}, Operation::REMOVE};
+        }
+    };
+
     struct Modification {
-
-        enum struct Operation : uint {
-            NONE,
-            EMPLACE,
-            REMOVE,
-        };
-
-        struct Buffer {
-            uint64_t handle;
-            size_t offset_bytes;
-            Operation op;
-            Buffer() noexcept
-                : handle{0}, offset_bytes{0u}, op{Operation::NONE} {}
-            Buffer(uint64_t handle, size_t offset_bytes, Operation op) noexcept
-                : handle{handle}, offset_bytes{offset_bytes}, op{op} {}
-            [[nodiscard]] static auto emplace(uint64_t handle, size_t offset_bytes) noexcept {
-                return Buffer{handle, offset_bytes, Operation::EMPLACE};
-            }
-            [[nodiscard]] static auto remove() noexcept {
-                return Buffer{0u, 0u, Operation::REMOVE};
-            }
-        };
-
-        struct Texture {
-            uint64_t handle;
-            Sampler sampler;
-            Operation op;
-            Texture() noexcept
-                : handle{0u}, sampler{}, op{Operation::NONE} {}
-            Texture(uint64_t handle, Sampler sampler, Operation op) noexcept
-                : handle{handle}, sampler{sampler}, op{op} {}
-            [[nodiscard]] static auto emplace(uint64_t handle, Sampler sampler) noexcept {
-                return Texture{handle, sampler, Operation::EMPLACE};
-            }
-            [[nodiscard]] static auto remove() noexcept {
-                return Texture{0u, Sampler{}, Operation::REMOVE};
-            }
-        };
-
+        using Operation = BindlessArrayUpdateCommand::Operation;
+        using Buffer = BindlessArrayUpdateCommand::ModifiedBuffer;
+        using Texture = BindlessArrayUpdateCommand::ModifiedTexture;
         size_t slot;
         Buffer buffer;
         Texture tex2d;
@@ -676,19 +735,130 @@ public:
 
     static_assert(sizeof(Modification) == 64u);
 
+    struct BufferModification {
+        using Operation = BindlessArrayUpdateCommand::Operation;
+        using Buffer = BindlessArrayUpdateCommand::ModifiedBuffer;
+        size_t slot;
+        Buffer buffer;
+        explicit BufferModification(size_t slot) noexcept
+            : slot{slot}, buffer{} {}
+
+        explicit BufferModification(size_t slot, Buffer buffer) noexcept
+            : slot{slot}, buffer{buffer} {}
+    };
+
+    struct Texture2DModification {
+        using Operation = BindlessArrayUpdateCommand::Operation;
+        using Texture = BindlessArrayUpdateCommand::ModifiedTexture;
+        size_t slot;
+        Texture tex2d;
+        explicit Texture2DModification(size_t slot) noexcept
+            : slot{slot}, tex2d{} {}
+
+        explicit Texture2DModification(size_t slot, Texture tex2d) noexcept
+            : slot{slot}, tex2d{tex2d} {}
+    };
+
+    struct Texture3DModification {
+        using Operation = BindlessArrayUpdateCommand::Operation;
+        using Texture = BindlessArrayUpdateCommand::ModifiedTexture;
+        size_t slot;
+        Texture tex3d;
+        explicit Texture3DModification(size_t slot) noexcept
+            : slot{slot}, tex3d{} {}
+
+        explicit Texture3DModification(size_t slot, Texture tex3d) noexcept
+            : slot{slot}, tex3d{tex3d} {}
+    };
+
 private:
     uint64_t _handle;
-    luisa::vector<Modification> _modifications;
+    luisa::variant<
+        luisa::vector<Modification>,
+        luisa::vector<BufferModification>,
+        luisa::vector<Texture2DModification>,
+        luisa::vector<Texture3DModification>>
+        _modifications;
 
 public:
     BindlessArrayUpdateCommand(uint64_t handle,
                                luisa::vector<Modification> &&mods) noexcept
         : Command{Command::Tag::EBindlessArrayUpdateCommand},
           _handle{handle}, _modifications{std::move(mods)} {}
+    BindlessArrayUpdateCommand(uint64_t handle,
+                               luisa::vector<BufferModification> &&mods) noexcept
+        : Command{Command::Tag::EBindlessArrayUpdateCommand},
+          _handle{handle}, _modifications{std::move(mods)} {}
+    BindlessArrayUpdateCommand(uint64_t handle,
+                               luisa::vector<Texture2DModification> &&mods) noexcept
+        : Command{Command::Tag::EBindlessArrayUpdateCommand},
+          _handle{handle}, _modifications{std::move(mods)} {}
+    BindlessArrayUpdateCommand(uint64_t handle,
+                               luisa::vector<Texture3DModification> &&mods) noexcept
+        : Command{Command::Tag::EBindlessArrayUpdateCommand},
+          _handle{handle}, _modifications{std::move(mods)} {}
+    void set_handle(uint64_t handle) noexcept { _handle = handle; }
+
     [[nodiscard]] auto handle() const noexcept { return _handle; }
-    [[nodiscard]] auto steal_modifications() noexcept { return std::move(_modifications); }
-    [[nodiscard]] auto set_modifications(luisa::vector<Modification> &&mods) noexcept { return _modifications = std::move(mods); }
-    [[nodiscard]] luisa::span<const Modification> modifications() const noexcept { return _modifications; }
+    template<typename Func>
+    auto visit_modifications(Func &&func) const {
+        return luisa::visit(func, _modifications);
+    }
+    template<typename Func>
+    auto visit_modifications(Func &&func) {
+        return luisa::visit(func, _modifications);
+    }
+    [[nodiscard]] auto empty() const noexcept {
+        return luisa::visit([](auto &&t) { return t.empty(); }, _modifications);
+    }
+    [[nodiscard]] auto steal_modifications() noexcept {
+        if (auto mods = luisa::get_if<luisa::vector<Modification>>(&_modifications)) [[likely]] {
+            return std::move(*mods);
+        }
+        report_unmatched_bindless_slot_type("MULTIPLE");
+    }
+    [[nodiscard]] auto steal_buffer_modifications() noexcept {
+        if (auto mods = luisa::get_if<luisa::vector<BufferModification>>(&_modifications)) [[likely]] {
+            return std::move(*mods);
+        }
+        report_unmatched_bindless_slot_type("BUFFER_ONLY");
+    }
+    [[nodiscard]] auto steal_tex2d_modifications() noexcept {
+        if (auto mods = luisa::get_if<luisa::vector<Texture2DModification>>(&_modifications)) [[likely]] {
+            return std::move(*mods);
+        }
+        report_unmatched_bindless_slot_type("TEXTURE2D_ONLY");
+    }
+    [[nodiscard]] auto steal_tex3d_modifications() noexcept {
+        if (auto mods = luisa::get_if<luisa::vector<Texture3DModification>>(&_modifications)) [[likely]] {
+            return std::move(*mods);
+        }
+        report_unmatched_bindless_slot_type("TEXTURE3D_ONLY");
+    }
+    [[nodiscard]] luisa::span<const Modification> modifications() const noexcept {
+        if (auto mods = luisa::get_if<luisa::vector<Modification>>(&_modifications)) [[likely]] {
+            return *mods;
+        }
+        report_unmatched_bindless_slot_type("MULTIPLE");
+    }
+    [[nodiscard]] luisa::span<const BufferModification> buffer_modifications() const noexcept {
+        if (auto mods = luisa::get_if<luisa::vector<BufferModification>>(&_modifications)) [[likely]] {
+            return *mods;
+        }
+        report_unmatched_bindless_slot_type("BUFFER_ONLY");
+    }
+    [[nodiscard]] luisa::span<const Texture2DModification> tex2d_modifications() const noexcept {
+        if (auto mods = luisa::get_if<luisa::vector<Texture2DModification>>(&_modifications)) [[likely]] {
+            return *mods;
+        }
+        report_unmatched_bindless_slot_type("TEXTURE2D_ONLY");
+    }
+    [[nodiscard]] luisa::span<const Texture3DModification> tex3d_modifications() const noexcept {
+        if (auto mods = luisa::get_if<luisa::vector<Texture3DModification>>(&_modifications)) [[likely]] {
+            return *mods;
+        }
+        report_unmatched_bindless_slot_type("TEXTURE3D_ONLY");
+    }
     LUISA_MAKE_COMMAND_COMMON(StreamTag::COMPUTE)
 };
 
@@ -698,7 +868,7 @@ public:
     explicit CustomCommand() noexcept
         : Command{Command::Tag::ECustomCommand} {}
     [[nodiscard]] virtual uint64_t uuid() const noexcept = 0;
-    virtual ~CustomCommand() noexcept override = default;
+    ~CustomCommand() noexcept override = default;
     LUISA_MAKE_COMMAND_COMMON_ACCEPT()
 };
 
@@ -715,18 +885,27 @@ public:
         virtual void visit(const Argument::BindlessArray &, Usage usage) noexcept = 0;
         virtual void visit(const Argument::Accel &, Usage usage) noexcept = 0;
     };
+    class MutableArgumentVisitor {
+    public:
+        virtual ~MutableArgumentVisitor() noexcept = default;
+        virtual void visit(Argument::Buffer &, Usage usage) noexcept = 0;
+        virtual void visit(Argument::Texture &, Usage usage) noexcept = 0;
+        virtual void visit(Argument::BindlessArray &, Usage usage) noexcept = 0;
+        virtual void visit(Argument::Accel &, Usage usage) noexcept = 0;
+    };
 
 public:
     explicit CustomDispatchCommand() noexcept = default;
     ~CustomDispatchCommand() noexcept override = default;
 
+    virtual void traverse_arguments(MutableArgumentVisitor &visitor) noexcept = 0;
     virtual void traverse_arguments(ArgumentVisitor &visitor) const noexcept = 0;
 
     // For backend reorder
     [[nodiscard]] virtual uint3 max_dispatch_size() const noexcept { return uint3{65535u * 32u}; }
 
     template<typename F>
-        requires(!std::derived_from<std::remove_cvref_t<F>, ArgumentVisitor>)
+        requires((!std::derived_from<std::remove_cvref_t<F>, MutableArgumentVisitor>) && (!std::derived_from<std::remove_cvref_t<F>, ArgumentVisitor>))
     void traverse_arguments(F &&f) const noexcept {
         class Adapter final : public ArgumentVisitor {
         private:
@@ -744,6 +923,31 @@ public:
                 _f(resource, usage);
             }
             void visit(const Argument::Accel &resource, Usage usage) noexcept override {
+                _f(resource, usage);
+            }
+        };
+        Adapter adapter{f};
+        this->traverse_arguments(adapter);
+    }
+    template<typename F>
+        requires((!std::derived_from<std::remove_cvref_t<F>, MutableArgumentVisitor>) && (!std::derived_from<std::remove_cvref_t<F>, ArgumentVisitor>))
+    void traverse_arguments(F &&f) noexcept {
+        class Adapter final : public MutableArgumentVisitor {
+        private:
+            F &_f;
+
+        public:
+            explicit Adapter(F &f) noexcept : _f{f} {}
+            void visit(Argument::Buffer &resource, Usage usage) noexcept override {
+                _f(resource, usage);
+            }
+            void visit(Argument::Texture &resource, Usage usage) noexcept override {
+                _f(resource, usage);
+            }
+            void visit(Argument::BindlessArray &resource, Usage usage) noexcept override {
+                _f(resource, usage);
+            }
+            void visit(Argument::Accel &resource, Usage usage) noexcept override {
                 _f(resource, usage);
             }
         };

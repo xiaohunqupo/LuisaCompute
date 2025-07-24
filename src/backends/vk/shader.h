@@ -1,6 +1,6 @@
 #pragma once
 #include "resource.h"
-#include <vulkan/vulkan_core.h>
+#include <volk.h>
 #include "../common/hlsl/shader_property.h"
 #include <luisa/runtime/rhi/argument.h>
 #include "buffer.h"
@@ -33,6 +33,7 @@ protected:
     vstd::vector<hlsl::Property> _binds;
     vstd::vector<Argument> _captured;
     vstd::vector<SavedArgument> _saved_arguments;
+    vstd::vector<std::pair<luisa::string, Type const *>> _printers;
     bool _use_tex2d_bindless;
     bool _use_tex3d_bindless;
     bool _use_buffer_bindless;
@@ -46,6 +47,7 @@ public:
     bool use_tex2d_bindless() const { return _use_tex2d_bindless; };
     bool use_tex3d_bindless() const { return _use_tex3d_bindless; };
     bool use_buffer_bindless() const { return _use_buffer_bindless; };
+    auto printers() const { return luisa::span{_printers}; }
     Shader(
         Device *device,
         ShaderTag tag,
@@ -54,7 +56,8 @@ public:
         vstd::span<hlsl::Property const> binds,
         bool use_tex2d_bindless,
         bool use_tex3d_bindless,
-        bool use_buffer_bindless);
+        bool use_buffer_bindless,
+        vstd::vector<std::pair<luisa::string, Type const *>> &&printers);
     virtual ~Shader();
     vstd::span<VkDescriptorSet> allocate_desc_set(VkDescriptorPool pool, vstd::vector<VkDescriptorSet> &descs) const;
     void update_desc_set(

@@ -1,5 +1,5 @@
 #pragma once
-#include <vulkan/vulkan_core.h>
+#include <volk.h>
 #include "buffer.h"
 #include "texture.h"
 #include <luisa/vstl/common.h>
@@ -7,6 +7,7 @@ namespace lc::vk {
 class BindlessArray;
 class Buffer;
 class ResourceBarrier {
+public:
     struct Range {
         int64_t min;
         int64_t max;
@@ -69,6 +70,7 @@ class ResourceBarrier {
     using ResourceView = vstd::variant<
         BufferView,
         TexView>;
+private:
     vstd::HashMap<Resource const *, ResourceStates> frame_states;
     vstd::vector<std::pair<Resource const *, ResourceStates *>> current_update_states;
     vstd::HashMap<Resource const *, size_t /* size */> write_state_map;
@@ -83,6 +85,7 @@ public:
         CopySource,
         CopyDest,
         BuildAccel,
+        BuildAccelScratch,
         CopyAccelSrc,
         CopyAccelDst,
         DepthRead,
@@ -120,6 +123,6 @@ public:
     void barrier_filter(VkBufferMemoryBarrier2 &barrier) const;
     void barrier_filter(VkImageMemoryBarrier2 &barrier) const;
     VkImageLayout get_layout(Resource const *res, uint level) const;
-    void process_bindless(BindlessArray *bdls_arr, Usage dst_usage);
+    void process_bindless(BindlessArray const *bdls_arr, Usage dst_usage);
 };
 }// namespace lc::vk

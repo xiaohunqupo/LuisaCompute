@@ -1,7 +1,11 @@
 #include "texture.h"
 #include "device.h"
+#include "log.h"
 namespace lc::vk {
 using namespace luisa::compute;
+Texture::Texture(Device *device)
+    : Resource(device) {
+}
 Texture::Texture(
     Device *device,
     uint dimension,
@@ -30,13 +34,91 @@ Texture::Texture(
               VK_IMAGE_USAGE_SAMPLED_BIT |
               VK_IMAGE_USAGE_STORAGE_BIT)),
       _format(format),
+      _size(size),
       _mip(mip),
       _dimension(dimension),
       _simultaneous_access(simultaneous_access) {
     _layouts.resize(mip);
 }
 Texture::~Texture() {
-    device()->allocator().destroy_image(_img);
+    if (_img.allocation)
+        device()->allocator().destroy_image(_img);
+    else
+        vkDestroyImage(device()->logic_device(), _img.image, Device::alloc_callbacks());
+}
+
+void Texture::init_as_sparse(
+    uint dimension,
+    compute::PixelFormat format,
+    uint3 size,
+    uint mip,
+    bool simultaneous_access) {
+    auto img_type = [&]() {
+        switch (dimension) {
+            case 1:
+                return VK_IMAGE_TYPE_1D;
+            case 2:
+                return VK_IMAGE_TYPE_2D;
+            case 3:
+                return VK_IMAGE_TYPE_3D;
+        };
+    }();
+    VkImageCreateInfo img_create_info{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .flags = VK_IMAGE_CREATE_SPARSE_BINDING_BIT | VK_IMAGE_CREATE_SPARSE_RESIDENCY_BIT,
+        .imageType = img_type,
+        .format = to_vk_format(format),
+        .extent = VkExtent3D{size.x, size.y, size.z},
+        .mipLevels = mip,
+        .arrayLayers = 1,
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
+    VK_CHECK_RESULT(vkCreateImage(device()->logic_device(), &img_create_info, Device::alloc_callbacks(), &_img.image));
+    _format = format;
+    _size = size;
+    _mip = mip;
+    _dimension = dimension;
+    _simultaneous_access = simultaneous_access;
+    _layouts.resize(mip);
+    // TODO
+}
+uint2 Texture::tex2d_tile_size(luisa::compute::PixelStorage storage) {
+    auto size = pixel_storage_size(storage, is_block_compressed(storage) ? uint3(4, 4, 1) : uint3(1));
+    switch (size) {
+        case 1:
+            return {256, 256};
+        case 2:
+            return {256, 128};
+        case 4:
+            return {128, 128};
+        case 8:
+            return {128, 64};
+        case 16:
+            return {64, 64};
+        default:
+            LUISA_ERROR("Invalid format.");
+            return {};
+    }
+}
+uint3 Texture::tex3d_tile_size(luisa::compute::PixelStorage storage) {
+    auto size = pixel_storage_size(storage, is_block_compressed(storage) ? uint3(4, 4, 1) : uint3(1));
+    switch (size) {
+        case 1:
+            return {64, 32, 32};
+        case 2:
+            return {32, 32, 32};
+        case 4:
+            return {32, 32, 16};
+        case 8:
+            return {32, 16, 16};
+        case 16:
+            return {16, 16, 16};
+        default:
+            LUISA_ERROR("Invalid format.");
+            return {};
+    }
 }
 
 VkFormat Texture::to_vk_format(PixelFormat format) {
@@ -106,7 +188,7 @@ VkFormat Texture::to_vk_format(PixelFormat format) {
         case PixelFormat::R10G10B10A2UInt:
             return VK_FORMAT_A2R10G10B10_UINT_PACK32;
         case PixelFormat::R10G10B10A2UNorm:
-            return VK_FORMAT_A2R10G10B10_UNORM_PACK32;
+            return VK_FORMAT_A2B10G10R10_UNORM_PACK32;
         case PixelFormat::R11G11B10F:
             return VK_FORMAT_B10G11R11_UFLOAT_PACK32;
         case PixelFormat::BC1UNorm:
