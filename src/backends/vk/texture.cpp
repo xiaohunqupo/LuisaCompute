@@ -122,6 +122,23 @@ uint3 Texture::tex3d_tile_size(luisa::compute::PixelStorage storage) {
 }
 
 VkFormat Texture::to_vk_format(PixelFormat format) {
+    // depth
+    if (luisa::to_underlying(format) > 65535u) {
+        auto depth_format = static_cast<compute::DepthFormat>(luisa::to_underlying(format) & 65535u);
+        switch (depth_format) {
+            case compute::DepthFormat::D16:
+                return VK_FORMAT_D16_UNORM;
+            case compute::DepthFormat::D24S8:
+                return VK_FORMAT_D24_UNORM_S8_UINT;
+            case compute::DepthFormat::D32:
+                return VK_FORMAT_D32_SFLOAT;
+            case compute::DepthFormat::D32S8A24:
+                return VK_FORMAT_D32_SFLOAT_S8_UINT;
+            default:
+                return VK_FORMAT_UNDEFINED;
+        }
+    }
+
     switch (format) {
         case PixelFormat::R8SInt:
             return VK_FORMAT_R8_SINT;
@@ -205,7 +222,8 @@ VkFormat Texture::to_vk_format(PixelFormat format) {
             return VK_FORMAT_BC6H_UFLOAT_BLOCK;
         case PixelFormat::BC7UNorm:
             return VK_FORMAT_BC7_UNORM_BLOCK;
+        default:
+            return VK_FORMAT_UNDEFINED;
     }
-    return {};
 }
 }// namespace lc::vk

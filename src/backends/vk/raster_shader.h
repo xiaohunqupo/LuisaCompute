@@ -3,6 +3,8 @@
 #include <luisa/runtime/raster/raster_state.h>
 namespace lc::vk {
 class RasterShader : public Shader {
+    vstd::vector<uint> _vertex_spv_code;
+    vstd::vector<uint> _pixel_spv_code;
     struct Pipeline {
         VkPipeline pipeline{};
         VkRenderPass render_pass{};
@@ -53,6 +55,11 @@ class RasterShader : public Shader {
         MeshFormat const &mesh_format,
         RasterState const &state,
         VkPipelineVertexInputStateCreateInfo &vertex_input_create_info);
+    static void _create_render_pass(
+        Device *device,
+        luisa::span<Argument::Texture const> rtv_textures,
+        Argument::Texture dsv_textures,
+        VkRenderPass &render_pass);
 public:
     RasterShader(
         Device *device,
@@ -60,11 +67,14 @@ public:
         vstd::vector<SavedArgument> &&saved_arguments,
         vstd::span<hlsl::Property const> binds,
         vstd::span<std::byte const> cache_code,
+        vstd::vector<uint>&& vertex_spv_code,
+        vstd::vector<uint>&& pixel_spv_code,
         bool use_tex2d_bindless,
         bool use_tex3d_bindless,
         bool use_buffer_bindless);
     void create_pipeline(
-        vstd::span<uint const> spv_code,
+        luisa::span<Argument::Texture const> rtv_textures,
+        Argument::Texture dsv_textures,
         MeshFormat const &mesh_format,
         RasterState const &state);
     ~RasterShader();
