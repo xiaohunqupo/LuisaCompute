@@ -37,8 +37,7 @@ private:
     Device *device;
     GpuAllocator *resourceAllocator;
     D3D12_COMMAND_LIST_TYPE type;
-    std::mutex mtx;
-    std::condition_variable waitCv;
+    luisa::spin_mutex mtx;
     DxPtr<ID3D12CommandQueue> queue;
     Microsoft::WRL::ComPtr<ID3D12Fence> cmdFence;
     vstd::LockFreeArrayQueue<AllocatorPtr> allocatorPool;

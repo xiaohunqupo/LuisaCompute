@@ -37,9 +37,8 @@ void DStorageCommandQueue::ExecuteThread() {
             device->WaitFence(evt->fence.Get(), fence);
             {
                 std::lock_guard lck(evt->eventMtx);
-                evt->finishedEvent = std::max(fence, evt->finishedEvent);
+                evt->finishedEvent = std::max<uint64_t>(fence, evt->finishedEvent);
             }
-            evt->cv.notify_all();
             if (wakeupThread) {
                 executedFrame++;
             }
@@ -58,9 +57,12 @@ void DStorageCommandQueue::ExecuteThread() {
                 ExecuteCallbacks,
                 ExecuteEvent);
         }
-        std::unique_lock lck(mtx);
-        while (enabled && executedAllocators.length() == 0) {
-            waitCv.wait(lck);
+        while (enabled) {
+            {
+                std::lock_guard lck{mtx};
+                if (executedAllocators.length() != 0) break;
+            }
+            std::this_thread::yield();
         }
     }
 }
@@ -69,7 +71,6 @@ void DStorageCommandQueue::AddEvent(LCEvent const *evt, uint64 fenceIdx) {
     mtx.lock();
     executedAllocators.push(evt, fenceIdx, true);
     mtx.unlock();
-    waitCv.notify_one();
 }
 uint64 DStorageCommandQueue::Execute(luisa::compute::CommandList &&list) {
     size_t curFrame;
@@ -252,7 +253,6 @@ uint64 DStorageCommandQueue::Execute(luisa::compute::CommandList &&list) {
             executedAllocators.push(list.steal_callbacks(), curFrame, true);
         }
     }
-    waitCv.notify_one();
     return curFrame;
 }
 void DStorageCommandQueue::Complete(uint64 fence) {
@@ -300,7 +300,6 @@ DStorageCommandQueue::~DStorageCommandQueue() {
         std::lock_guard lck(mtx);
         enabled = false;
     }
-    waitCv.notify_one();
     thd.join();
 }
 }// namespace lc::dx

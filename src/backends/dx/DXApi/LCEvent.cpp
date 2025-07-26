@@ -13,10 +13,8 @@ LCEvent::~LCEvent() {
 }
 
 void LCEvent::Sync(uint64_t fenceIdx) const {
-    auto fc = fenceIdx;
-    std::unique_lock lck(eventMtx);
-    while (finishedEvent < fc) {
-        cv.wait(lck);
+    while (finishedEvent < fenceIdx) {
+        std::this_thread::yield();
     }
 }
 void LCEvent::Signal(CommandQueue *queue, uint64 fenceIdx) const {

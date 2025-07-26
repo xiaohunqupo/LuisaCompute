@@ -72,7 +72,7 @@ protected:
     vstd::vector<BindProperty> bindProps;
     vstd::vector<ButtomCompactCmd> updateAccel;
     vstd::vector<D3D12_VERTEX_BUFFER_VIEW> vbv;
-    std::mutex mtx;
+    luisa::spin_mutex mtx;
 
     vstd::vector<std::pair<size_t, size_t>> argVecs;
     vstd::vector<uint8_t> argBuffer;

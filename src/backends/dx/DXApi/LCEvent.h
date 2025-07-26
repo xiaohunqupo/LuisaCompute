@@ -7,10 +7,9 @@ class DStorageCommandQueue;
 class LCEvent : public Resource {
 public:
     ComPtr<ID3D12Fence> fence;
-    mutable std::mutex eventMtx;
-    mutable std::condition_variable cv;
-    mutable uint64 finishedEvent = 0;
-    mutable uint64 lastFence = 0;
+    mutable std::atomic_uint64_t finishedEvent = 0;
+    mutable luisa::spin_mutex eventMtx;
+    mutable uint64_t lastFence = 0;
     Tag GetTag() const override { return Tag::Event; }
     ID3D12Fence *Fence() const { return fence.Get(); }
     LCEvent(Device *device, bool shared = false);
