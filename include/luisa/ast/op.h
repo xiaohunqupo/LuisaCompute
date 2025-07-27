@@ -337,6 +337,9 @@ enum struct CallOp : uint32_t {
     // optimization hints
     ASSUME,     // ()
     UNREACHABLE,// ()
+    FLATTEN, // for if-statement
+    BRANCH, // for if-statement
+    FORCE_CASE, // for switch-statement
 
     // used by the IR module
     ZERO,

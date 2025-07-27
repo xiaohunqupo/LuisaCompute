@@ -1038,6 +1038,15 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             }
             return;
         }
+        case CallOp::FLATTEN:
+            opt->cond_opt_value = (CodegenStackData::CondOptValue)(luisa::to_underlying(opt->cond_opt_value) | luisa::to_underlying(CodegenStackData::CondOptValue::Flatten));
+            return;
+        case CallOp::BRANCH:
+            opt->cond_opt_value = (CodegenStackData::CondOptValue)(luisa::to_underlying(opt->cond_opt_value) | luisa::to_underlying(CodegenStackData::CondOptValue::Branch));
+            return;
+        case CallOp::FORCE_CASE:
+            opt->cond_opt_value = (CodegenStackData::CondOptValue)(luisa::to_underlying(opt->cond_opt_value) | luisa::to_underlying(CodegenStackData::CondOptValue::ForceCase));
+            return;
         case CallOp::BINDLESS_TEXTURE2D_SAMPLE:
             opt->useTex2DBindless = true;
             if (opt->isPixelShader) {

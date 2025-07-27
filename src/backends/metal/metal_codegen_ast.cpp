@@ -1028,6 +1028,10 @@ void MetalCodegenAST::visit(const CallExpr *expr) noexcept {
         case CallOp::MAKE_FLOAT4X4: _scratch << "float4x4"; break;
         case CallOp::ASSERT: _scratch << "lc_assert"; break;
         case CallOp::ASSUME: _scratch << "lc_assume"; break;
+        case CallOp::FLATTEN:
+        case CallOp::BRANCH:
+        case CallOp::FORCE_CASE:
+            break;
         case CallOp::UNREACHABLE: {
             _scratch << "lc_unreachable";
             if (auto type = expr->type()) {

@@ -43,9 +43,9 @@ struct CodegenResult {
 };
 struct RegisterIndexer;
 class CodegenUtility {
+public:
     vstd::unique_ptr<CodegenStackData> opt{};
     vstd::unordered_map<vstd::string, std::pair<vstd::string, Type const *>> attributes;
-public:
 #ifdef USE_SPIRV
     CodegenStackData *StackData() const;
 #endif

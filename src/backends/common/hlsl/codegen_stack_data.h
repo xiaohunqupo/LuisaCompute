@@ -35,6 +35,13 @@ struct CodegenStackData : public vstd::IOperatorNewBase {
     bool useTex2DBindless = false;
     bool useTex3DBindless = false;
     bool useBufferBindless = false;
+    enum class CondOptValue : uint32_t {
+        None = 0,
+        Flatten = 1,
+        Branch = 2,
+        ForceCase = 4
+    };
+    CondOptValue cond_opt_value = CondOptValue::None;
     uint64 structCount = 0;
     uint64 argOffset = 0;
     int64_t appdataId = -1;
