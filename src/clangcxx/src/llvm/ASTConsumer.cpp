@@ -1211,6 +1211,8 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                     offset = (offset + align) & (~align);
                 }
                 current = fb->literal(Type::of<uint32_t>(), offset);
+            } else if (auto _const = llvm::dyn_cast<clang::ConceptSpecializationExpr>(x)) {
+                current = fb->literal(Type::of<bool>(), _const->isSatisfied());
             } else if (auto _str_literal = llvm::dyn_cast<clang::StringLiteral>(x)) {
             } else if (auto _control_flow = llvm::dyn_cast<CompoundStmt>(x)) {       // CONTROL FLOW
             } else if (auto _control_flow = llvm::dyn_cast<clang::IfStmt>(x)) {      // CONTROL FLOW
