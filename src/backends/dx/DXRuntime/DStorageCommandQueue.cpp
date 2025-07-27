@@ -57,11 +57,7 @@ void DStorageCommandQueue::ExecuteThread() {
                 ExecuteCallbacks,
                 ExecuteEvent);
         }
-        while (enabled) {
-            {
-                std::lock_guard lck{mtx};
-                if (executedAllocators.length() != 0) break;
-            }
+        while (enabled && executedAllocators.length() == 0) {
             std::this_thread::yield();
         }
     }

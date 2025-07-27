@@ -491,13 +491,7 @@ Stream::Stream(Device *device, StreamTag tag)
           };
           while (_enabled) {
               loop_cmd();
-              while (_enabled) {
-                  {
-                      std::lock_guard lck{_mtx};
-                      if (_exec.length() != 0) {
-                          break;
-                      }
-                  }
+              while (_enabled && _exec.length() == 0) {
                   std::this_thread::yield();
               }
           }

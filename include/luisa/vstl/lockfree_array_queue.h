@@ -155,8 +155,8 @@ public:
 template<typename T, VEngine_AllocType allocType = VEngine_AllocType::VEngine>
 class SingleThreadArrayQueue {
     using Allocator = VAllocHandle<allocType>;
-    size_t head;
-    size_t tail;
+    std::atomic_size_t head;
+    std::atomic_size_t tail;
     size_t capacity;
     T *arr;
 
@@ -178,8 +178,8 @@ public:
         arr = (T *)Allocator().Malloc(sizeof(T) * capacity);
     }
     SingleThreadArrayQueue(SelfType &&v)
-        : head(v.head),
-          tail(v.tail),
+        : head(v.head.load()),
+          tail(v.tail.load()),
           capacity(v.capacity),
           arr(v.arr) {
         v.arr = nullptr;
