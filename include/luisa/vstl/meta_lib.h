@@ -32,6 +32,168 @@ LC_VSTL_API void vengine_log(char const *chunk);
 #define VE_SUB_TEMPLATE template<typename...> \
 class
 namespace vstd {
+
+[[noreturn]] inline void unreachable() {
+    assert(false);
+    // Uses compiler specific extensions if possible.
+    // Even if no extension is used, undefined behavior is still raised by
+    // an empty function body and the noreturn attribute.
+#if defined(_MSC_VER) && !defined(__clang__)// MSVC
+    __assume(false);
+#else// GCC, Clang
+    __builtin_unreachable();
+#endif
+}
+template<size_t N, class T, class... Ts>
+struct get_type {
+    using type = typename get_type<N - 1, Ts...>::type;
+};
+
+template<class T, class... Ts>
+struct get_type<0, T, Ts...> {
+    using type = T;
+};
+
+template<size_t N, class... Ts>
+using get_type_t = typename get_type<N, Ts...>::type;
+
+template<class T, class... Ts>
+struct index_of;
+
+template<class T, class... Ts>
+struct index_of<T, T, Ts...> : std::integral_constant<size_t, 0> {};
+
+template<class T, class U, class... Ts>
+struct index_of<T, U, Ts...> : std::integral_constant<size_t, 1 + index_of<T, Ts...>::value> {};
+
+template<size_t N, int Strategy>
+struct visit_strategy;
+
+template<size_t N>
+struct visit_strategy<N, 0> {
+    template<class Ret, class Fn, class... Args>
+    static constexpr Ret invoke(size_t idx, Fn &&fn, Args &&...args) {
+        return static_cast<Fn &&>(fn).template operator()<0>(static_cast<Args &&>(args)...);
+    }// namespace vstd
+};
+// visitor from @OEOTYAN
+#ifndef LUISA_VISIT_CASE
+#define LUISA_VISIT_CASE(n)                                                                        \
+    case (n):                                                                                      \
+        if constexpr ((n) < N) {                                                                   \
+            return static_cast<Fn &&>(fn).template operator()<(n)>(static_cast<Args &&>(args)...); \
+        }                                                                                          \
+        unreachable();                                                                             \
+        [[fallthrough]]
+#endif
+#define LUISA_VISIT_STAMP(stamper, n)       \
+    static_assert(N > (n) / 4 && N <= (n)); \
+    switch (idx) {                          \
+        stamper(0, LUISA_VISIT_CASE);       \
+        default:                            \
+            unreachable();                  \
+            break;                          \
+    }
+
+#define LUISA_STAMP4(n, x) \
+    x(n);                  \
+    x(n + 1);              \
+    x(n + 2);              \
+    x(n + 3)
+#define LUISA_STAMP16(n, x) \
+    LUISA_STAMP4(n, x);     \
+    LUISA_STAMP4(n + 4, x); \
+    LUISA_STAMP4(n + 8, x); \
+    LUISA_STAMP4(n + 12, x)
+#define LUISA_STAMP64(n, x)   \
+    LUISA_STAMP16(n, x);      \
+    LUISA_STAMP16(n + 16, x); \
+    LUISA_STAMP16(n + 32, x); \
+    LUISA_STAMP16(n + 48, x)
+#define LUISA_STAMP256(n, x)   \
+    LUISA_STAMP64(n, x);       \
+    LUISA_STAMP64(n + 64, x);  \
+    LUISA_STAMP64(n + 128, x); \
+    LUISA_STAMP64(n + 192, x)
+
+#define LUISA_STAMP(n, x) x(LUISA_STAMP##n, n)
+
+template<size_t N>
+struct visit_strategy<N, 1> {
+    template<class Ret, class Fn, class... Args>
+    static constexpr Ret invoke(size_t idx, Fn &&fn, Args &&...args) {
+        LUISA_STAMP(4, LUISA_VISIT_STAMP);
+        if constexpr (!std::is_void_v<Ret>) {
+            unreachable();
+            return *reinterpret_cast<Ret *>(114514);// make compiler happy
+        }
+    }
+};
+
+template<size_t N>
+struct visit_strategy<N, 2> {
+    template<class Ret, class Fn, class... Args>
+    static constexpr Ret invoke(size_t idx, Fn &&fn, Args &&...args) {
+        LUISA_STAMP(16, LUISA_VISIT_STAMP);
+        if constexpr (!std::is_void_v<Ret>) {
+            unreachable();
+            return *reinterpret_cast<Ret *>(114514);// make compiler happy
+        }
+    }
+};
+
+template<size_t N>
+struct visit_strategy<N, 3> {
+    template<class Ret, class Fn, class... Args>
+    static constexpr Ret invoke(size_t idx, Fn &&fn, Args &&...args) {
+        LUISA_STAMP(64, LUISA_VISIT_STAMP);
+        if constexpr (!std::is_void_v<Ret>) {
+            unreachable();
+            return *reinterpret_cast<Ret *>(114514);// make compiler happy
+        }
+    }
+};
+
+template<size_t N>
+struct visit_strategy<N, 4> {
+    template<class Ret, class Fn, class... Args>
+    static constexpr Ret invoke(size_t idx, Fn &&fn, Args &&...args) {
+        LUISA_STAMP(256, LUISA_VISIT_STAMP);
+        if constexpr (!std::is_void_v<Ret>) {
+            unreachable();
+            return *reinterpret_cast<Ret *>(114514);// make compiler happy
+        }
+    }
+};
+
+template<size_t N, class Fn, class... Args>
+    requires(N <= 256)
+constexpr decltype(auto) visit_index(size_t index, Fn &&fn, Args &&...args) {
+    constexpr int s = N == 1 ? 0 : N <= 4 ? 1 :
+                               N <= 16    ? 2 :
+                               N <= 64    ? 3 :
+                                            4;
+    using Ret = decltype((std::declval<Fn>().template operator()<0>(std::declval<Args>()...)));
+    return (visit_strategy<N, s>::template invoke<Ret>(index, static_cast<Fn &&>(fn), static_cast<Args &&>(args)...));
+}
+
+template<class Ret, size_t N, class Fn, class... Args>
+    requires(N <= 256)
+constexpr Ret visit_index(size_t index, Fn &&fn, Args &&...args) {
+    constexpr int s = N == 1 ? 0 : N <= 4 ? 1 :
+                               N <= 16    ? 2 :
+                               N <= 64    ? 3 :
+                                            4;
+    return visit_strategy<N, s>::template invoke<Ret>(index, static_cast<Fn &&>(fn), static_cast<Args &&>(args)...);
+}
+#undef LUISA_VISIT_CASE
+#undef LUISA_VISIT_STAMP
+#undef LUISA_STAMP
+#undef LUISA_STAMP256
+#undef LUISA_STAMP64
+#undef LUISA_STAMP16
+#undef LUISA_STAMP4
+
 template<typename T, typename... Args>
     requires(luisa::is_constructible_v<T, Args && ...>)
 constexpr void construct_at(T *ptr, Args &&...args) noexcept {
@@ -439,6 +601,25 @@ decltype(auto) get_const_lvalue(T &&data) {
     return static_cast<std::remove_reference_t<T> const &>(data);
 }
 namespace detail {
+template<typename T, typename... Args>
+struct MapConstructible {
+    static constexpr bool value = luisa::is_constructible_v<T, Args...>;
+};
+
+template<typename... Args>
+struct MapConstructible<void, Args...> {
+    static constexpr bool value = (sizeof...(Args) == 0);
+};
+
+template<size_t i, typename T, typename... Types>
+constexpr auto select_type() {
+    if constexpr (i == 0) {
+        return vstd::TypeOf<T>{};
+    } else {
+        return select_type<i - 1, Types...>();
+    }
+}
+
 template<VE_SUB_TEMPLATE map, bool reverse, typename... Tar>
 struct AnyMap {
     template<typename T, typename... Args>
@@ -461,35 +642,7 @@ constexpr size_t max_size() {
     }
     return v;
 }
-template<typename T, typename... Args>
-struct MapConstructible {
-    static constexpr bool value = luisa::is_constructible_v<T, Args...>;
-};
 
-template<typename... Args>
-struct MapConstructible<void, Args...> {
-    static constexpr bool value = (sizeof...(Args) == 0);
-};
-template<typename T>
-using GetVoidType_t = SelectType_t<void const, void, std::is_const_v<std::remove_reference_t<T>>>;
-template<typename Func, typename PtrType>
-constexpr static void FuncTable(GetVoidType_t<PtrType> *ptr, GetVoidType_t<Func> *func) {
-    if constexpr (std::is_invocable_v<Func, PtrType &&>) {
-        using PureFunc = std::remove_cvref_t<Func>;
-        PureFunc *realFunc = reinterpret_cast<PureFunc *>(func);
-        (std::forward<Func>(*realFunc))(std::forward<PtrType>(*reinterpret_cast<std::remove_reference_t<PtrType> *>(ptr)));
-    }
-}
-template<typename Ret, typename Eval, typename Func, typename PtrType>
-constexpr static Ret FuncTableRet(GetVoidType_t<PtrType> *ptr, GetVoidType_t<Func> *func, Eval &&ret) {
-    if constexpr (std::is_invocable_v<Func, PtrType &&>) {
-        using PureFunc = std::remove_cvref_t<Func>;
-        PureFunc *realFunc = reinterpret_cast<PureFunc *>(func);
-        return (std::forward<Func>(*realFunc))(std::forward<PtrType>(*reinterpret_cast<std::remove_reference_t<PtrType> *>(ptr)));
-    } else {
-        return std::forward<Eval>(ret);
-    }
-}
 template<typename... Args>
 struct VariantConstructible {
     template<size_t i, typename T, typename... Ts>
@@ -512,27 +665,28 @@ static void Visitor(
     size_t id,
     VoidPtr *ptr,
     Func &&func) {
-    constexpr static auto table =
-        {
-            FuncTable<
-                std::remove_reference_t<Func>,
-                Types>...};
-    table.begin()[id](ptr, &func);
+    visit_index<sizeof...(Types)>(id, [&]<size_t i>() {
+        using Type = decltype(detail::select_type<i, Types...>())::Type;
+        if constexpr (std::is_const_v<VoidPtr>) {
+            func(*static_cast<std::add_pointer_t<Type const>>(ptr));
+        } else {
+            func(*static_cast<std::add_pointer_t<Type>>(ptr));
+        }
+    });
 }
-template<typename Ret, typename Eval, typename Func, typename VoidPtr, typename... Types>
+template<typename Ret, typename Func, typename VoidPtr, typename... Types>
 static Ret VisitorRet(
     size_t id,
     VoidPtr *ptr,
-    Func &&func,
-    Eval &&ret) {
-    constexpr static auto table =
-        {
-            FuncTableRet<
-                Ret,
-                Eval,
-                std::remove_reference_t<Func>,
-                Types>...};
-    return table.begin()[id](ptr, std::addressof(func), std::forward<Eval>(ret));
+    Func &&func) {
+    return visit_index<Ret, sizeof...(Types)>(id, [&]<size_t i>() {
+        using Type = decltype(detail::select_type<i, Types...>())::Type;
+        if constexpr (std::is_const_v<VoidPtr>) {
+            return func(*static_cast<std::add_pointer_t<Type const>>(ptr));
+        } else {
+            return func(*static_cast<std::add_pointer_t<Type>>(ptr));
+        }
+    });
 }
 template<size_t idx, VE_SUB_TEMPLATE Judger, typename Tar, typename T, typename... Args>
 static constexpr size_t IndexOfFunc() {
@@ -793,24 +947,28 @@ public:
     }
     template<typename Func>
     void visit(Func &&func) & {
-        if (switcher >= argSize) return;
+        if (switcher >= argSize) [[unlikely]]
+            return;
         detail::Visitor<Func, void, AA &...>(switcher, place_holder(), std::forward<Func>(func));
     }
     template<typename Func>
     void visit(Func &&func) && {
-        if (switcher >= argSize) return;
+        if (switcher >= argSize) [[unlikely]]
+            return;
         detail::Visitor<Func, void, AA...>(switcher, place_holder(), std::forward<Func>(func));
     }
     template<typename Func>
     void visit(Func &&func) const & {
-        if (switcher >= argSize) return;
+        if (switcher >= argSize) [[unlikely]]
+            return;
         detail::Visitor<Func, void const, AA const &...>(switcher, place_holder(), std::forward<Func>(func));
     }
 
     template<typename... Funcs>
         requires(sizeof...(Funcs) == argSize)
     void multi_visit(Funcs &&...funcs) & {
-        if (switcher >= argSize) return;
+        if (switcher >= argSize) [[unlikely]]
+            return;
         detail::Visitor<PackedFunctors<Funcs...>, void, AA &...>(
             switcher,
             place_holder(),
@@ -819,7 +977,8 @@ public:
     template<typename... Funcs>
         requires(sizeof...(Funcs) == argSize)
     void multi_visit(Funcs &&...funcs) && {
-        if (switcher >= argSize) return;
+        if (switcher >= argSize) [[unlikely]]
+            return;
         detail::Visitor<PackedFunctors<Funcs...>, void, AA...>(
             switcher,
             place_holder(),
@@ -828,7 +987,8 @@ public:
     template<typename... Funcs>
         requires(sizeof...(Funcs) == argSize)
     void multi_visit(Funcs &&...funcs) const & {
-        if (switcher >= argSize) return;
+        if (switcher >= argSize) [[unlikely]]
+            return;
         detail::Visitor<PackedFunctors<Funcs...>, void const, AA const &...>(
             switcher,
             place_holder(),
@@ -842,18 +1002,16 @@ public:
         if constexpr (std::is_base_of_v<Evaluable, RetType>) {
             using EvalType = typename RetType::EvalType;
             if (switcher >= argSize) return std::forward<Ret>(r).operator EvalType();
-            return detail::VisitorRet<EvalType, Ret, PackedFunctors<Funcs...>, void, AA &...>(
+            return detail::VisitorRet<EvalType, PackedFunctors<Funcs...>, void, AA &...>(
                 switcher,
                 place_holder(),
-                PackedFunctors<Funcs...>(std::forward<Funcs>(funcs)...),
-                std::forward<Ret>(r));
+                PackedFunctors<Funcs...>(std::forward<Funcs>(funcs)...));
         } else {
             if (switcher >= argSize) return Ret{std::forward<Ret>(r)};
-            return detail::VisitorRet<Ret, Ret, PackedFunctors<Funcs...>, void, AA &...>(
+            return detail::VisitorRet<Ret, PackedFunctors<Funcs...>, void, AA &...>(
                 switcher,
                 place_holder(),
-                PackedFunctors<Funcs...>(std::forward<Funcs>(funcs)...),
-                std::forward<Ret>(r));
+                PackedFunctors<Funcs...>(std::forward<Funcs>(funcs)...));
         }
     }
     template<typename Ret, typename... Funcs>
@@ -864,18 +1022,16 @@ public:
         if constexpr (std::is_base_of_v<Evaluable, RetType>) {
             using EvalType = typename RetType::EvalType;
             if (switcher >= argSize) return std::forward<Ret>(r).operator EvalType();
-            return detail::VisitorRet<EvalType, Ret, PackedFunctors<Funcs...>, void, AA...>(
+            return detail::VisitorRet<EvalType, PackedFunctors<Funcs...>, void, AA...>(
                 switcher,
                 place_holder(),
-                PackedFunctors<Funcs...>(std::forward<Funcs>(funcs)...),
-                std::forward<Ret>(r));
+                PackedFunctors<Funcs...>(std::forward<Funcs>(funcs)...));
         } else {
             if (switcher >= argSize) return Ret{std::forward<Ret>(r)};
-            return detail::VisitorRet<Ret, Ret, PackedFunctors<Funcs...>, void, AA...>(
+            return detail::VisitorRet<Ret, PackedFunctors<Funcs...>, void, AA...>(
                 switcher,
                 place_holder(),
-                PackedFunctors<Funcs...>(std::forward<Funcs>(funcs)...),
-                std::forward<Ret>(r));
+                PackedFunctors<Funcs...>(std::forward<Funcs>(funcs)...));
         }
     }
     template<typename Ret, typename... Funcs>
@@ -886,18 +1042,16 @@ public:
         if constexpr (std::is_base_of_v<Evaluable, RetType>) {
             using EvalType = typename RetType::EvalType;
             if (switcher >= argSize) return std::forward<Ret>(r).operator EvalType();
-            return detail::VisitorRet<EvalType, Ret, PackedFunctors<Funcs...>, void const, AA const &...>(
+            return detail::VisitorRet<EvalType, PackedFunctors<Funcs...>, void const, AA const &...>(
                 switcher,
                 place_holder(),
-                PackedFunctors<Funcs...>(std::forward<Funcs>(funcs)...),
-                std::forward<Ret>(r));
+                PackedFunctors<Funcs...>(std::forward<Funcs>(funcs)...));
         } else {
             if (switcher >= argSize) return Ret{std::forward<Ret>(r)};
-            return detail::VisitorRet<Ret, Ret, PackedFunctors<Funcs...>, void const, AA const &...>(
+            return detail::VisitorRet<Ret, PackedFunctors<Funcs...>, void const, AA const &...>(
                 switcher,
                 place_holder(),
-                PackedFunctors<Funcs...>(std::forward<Funcs>(funcs)...),
-                std::forward<Ret>(r));
+                PackedFunctors<Funcs...>(std::forward<Funcs>(funcs)...));
         }
     }
 
@@ -907,10 +1061,10 @@ public:
         if constexpr (std::is_base_of_v<Evaluable, RetType>) {
             using EvalType = typename RetType::EvalType;
             if (switcher >= argSize) return std::forward<Ret>(r).operator EvalType();
-            return detail::VisitorRet<EvalType, Ret, Func, void, AA &...>(switcher, place_holder(), std::forward<Func>(func), std::forward<Ret>(r));
+            return detail::VisitorRet<EvalType, Func, void, AA &...>(switcher, place_holder(), std::forward<Func>(func));
         } else {
             if (switcher >= argSize) return Ret{std::forward<Ret>(r)};
-            return detail::VisitorRet<Ret, Ret, Func, void, AA &...>(switcher, place_holder(), std::forward<Func>(func), std::forward<Ret>(r));
+            return detail::VisitorRet<Ret, Func, void, AA &...>(switcher, place_holder(), std::forward<Func>(func));
         }
     }
     template<typename Ret, typename Func>
@@ -919,10 +1073,10 @@ public:
         if constexpr (std::is_base_of_v<Evaluable, RetType>) {
             using EvalType = typename RetType::EvalType;
             if (switcher >= argSize) return std::forward<Ret>(r).operator EvalType();
-            return detail::VisitorRet<EvalType, Ret, Func, void, AA...>(switcher, place_holder(), std::forward<Func>(func), std::forward<Ret>(r));
+            return detail::VisitorRet<EvalType, Func, void, AA...>(switcher, place_holder(), std::forward<Func>(func));
         } else {
             if (switcher >= argSize) return Ret{std::forward<Ret>(r)};
-            return detail::VisitorRet<Ret, Ret, Func, void, AA...>(switcher, place_holder(), std::forward<Func>(func), std::forward<Ret>(r));
+            return detail::VisitorRet<Ret, Func, void, AA...>(switcher, place_holder(), std::forward<Func>(func));
         }
     }
     template<typename Ret, typename Func>
@@ -931,10 +1085,10 @@ public:
         if constexpr (std::is_base_of_v<Evaluable, RetType>) {
             using EvalType = typename RetType::EvalType;
             if (switcher >= argSize) return std::forward<Ret>(r).operator EvalType();
-            return detail::VisitorRet<EvalType, Ret, Func, void const, AA const &...>(switcher, place_holder(), std::forward<Func>(func), std::forward<Ret>(r));
+            return detail::VisitorRet<EvalType, Func, void const, AA const &...>(switcher, place_holder(), std::forward<Func>(func));
         } else {
             if (switcher >= argSize) return Ret{std::forward<Ret>(r)};
-            return detail::VisitorRet<Ret, Ret, Func, void const, AA const &...>(switcher, place_holder(), std::forward<Func>(func), std::forward<Ret>(r));
+            return detail::VisitorRet<Ret, Func, void const, AA const &...>(switcher, place_holder(), std::forward<Func>(func));
         }
     }
     void dispose() {
