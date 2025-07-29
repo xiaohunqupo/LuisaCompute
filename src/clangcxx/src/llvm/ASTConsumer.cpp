@@ -1435,11 +1435,13 @@ auto FunctionBuilderBuilder::build(const clang::FunctionDecl *S, bool allowKerne
                 // this arg
                 if (is_method) {
                     auto Method = llvm::dyn_cast<clang::CXXMethodDecl>(S);
-                    if (auto lcType = db->FindOrAddType(methodThisType, Method->getBeginLoc())) {
-                        auto this_local = builder->reference(lcType);
-                        db->SetFunctionThis(builder, this_local);
-                    } else {
-                        clangcxx_log_error("???");
+                    if (!Method->isStatic()) {
+                        if (auto lcType = db->FindOrAddType(methodThisType, Method->getBeginLoc())) {
+                            auto this_local = builder->reference(lcType);
+                            db->SetFunctionThis(builder, this_local);
+                        } else {
+                            clangcxx_log_error("???");
+                        }
                     }
                 }
 
