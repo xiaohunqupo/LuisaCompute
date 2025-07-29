@@ -5,6 +5,7 @@ class Device;
 using namespace luisa;
 using namespace luisa::compute;
 class VkRasterExt : public RasterExt {
+    Device *_device;
 public:
     VkRasterExt(Device *device);
     ~VkRasterExt();

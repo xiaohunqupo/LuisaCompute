@@ -330,19 +330,19 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
             [](DeviceExtension *ext) {
                 delete static_cast<VkPinnedMemoryExt *>(ext);
             });
-        exts.try_emplace(
-#ifdef LUISA_USE_SYSTEM_STL
-            luisa::string{RasterExt::name},
-#else
-            RasterExt::name,
-#endif
-            [](Device *device) -> DeviceExtension * {
-                return new VkRasterExt(device);
-            },
-            [](DeviceExtension *ext) {
-                delete static_cast<VkRasterExt *>(ext);
-            });
     }
+    exts.try_emplace(
+#ifdef LUISA_USE_SYSTEM_STL
+        luisa::string{RasterExt::name},
+#else
+        RasterExt::name,
+#endif
+        [](Device *device) -> DeviceExtension * {
+            return new VkRasterExt(device);
+        },
+        [](DeviceExtension *ext) {
+            delete static_cast<VkRasterExt *>(ext);
+        });
     // auto exts = detail::supported_exts(physical_device());
     // for(auto&& i : exts){
     //     LUISA_INFO("{}", i.extensionName);
@@ -808,11 +808,11 @@ ShaderCreationInfo Device::create_shader(const ShaderOption &option, Function ke
         info.invalidate();
         auto comp_result = Device::Compiler()->compile_compute(
             code.result.view(),
-            true,
+            !option.enable_debug_info,
             k_shader_model,
             option.enable_fast_math,
             true,
-            false);
+            option.enable_debug_info);
         comp_result.multi_visit(
             [&](Microsoft::WRL::ComPtr<IDxcBlob> const &buffer) {
                 auto saved_args = ShaderSerializer::serialize_saved_args(kernel);

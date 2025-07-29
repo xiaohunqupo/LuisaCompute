@@ -2472,7 +2472,7 @@ CodegenResult CodegenUtility::RasterCodegen(
     if (isSpirV) {
         codegenData << R"(};
 cbuffer CB:register(b1){
-uint obj_id;
+uint obj_id;}
 )"sv;
         bind_count += 2;
     } else {
