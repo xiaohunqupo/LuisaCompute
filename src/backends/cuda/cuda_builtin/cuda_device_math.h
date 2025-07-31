@@ -2708,6 +2708,8 @@ struct lc_float2x2 {
     __device__ inline constexpr static auto one() noexcept { return lc_float2x2{lc_float2::one(), lc_float2::one()}; }
     __device__ inline constexpr lc_float2x2(lc_float2 c0, lc_float2 c1) noexcept
         : cols{c0, c1} {}
+    [[nodiscard]] __device__ inline constexpr auto operator+() const noexcept { return *this; }
+    [[nodiscard]] __device__ inline constexpr auto operator-() const noexcept { return lc_float2x2{-cols[0], -cols[1]}; }
     [[nodiscard]] __device__ inline constexpr auto &operator[](lc_uint i) noexcept { return cols[i]; }
     [[nodiscard]] __device__ inline constexpr auto operator[](lc_uint i) const noexcept { return cols[i]; }
     [[nodiscard]] __device__ inline constexpr auto comp_mul(const lc_float2x2 &rhs) const noexcept { return lc_float2x2{cols[0] * rhs[0], cols[1] * rhs[1]}; }
@@ -2723,6 +2725,8 @@ struct lc_float3x3 {
     __device__ inline constexpr static auto one() noexcept { return lc_float3x3{lc_float3::one(), lc_float3::one(), lc_float3::one()}; }
     __device__ inline constexpr lc_float3x3(lc_float3 c0, lc_float3 c1, lc_float3 c2) noexcept
         : cols{c0, c1, c2} {}
+    [[nodiscard]] __device__ inline constexpr auto operator+() const noexcept { return *this; }
+    [[nodiscard]] __device__ inline constexpr auto operator-() const noexcept { return lc_float3x3{-cols[0], -cols[1], -cols[2]}; }
     [[nodiscard]] __device__ inline constexpr auto &operator[](lc_uint i) noexcept { return cols[i]; }
     [[nodiscard]] __device__ inline constexpr auto operator[](lc_uint i) const noexcept { return cols[i]; }
     [[nodiscard]] __device__ inline constexpr auto comp_mul(const lc_float3x3 &rhs) const noexcept { return lc_float3x3{cols[0] * rhs[0], cols[1] * rhs[1], cols[2] * rhs[2]}; }
@@ -2738,6 +2742,8 @@ struct lc_float4x4 {
     __device__ inline constexpr static auto one() noexcept { return lc_float4x4{lc_float4::one(), lc_float4::one(), lc_float4::one(), lc_float4::one()}; }
     __device__ inline constexpr lc_float4x4(lc_float4 c0, lc_float4 c1, lc_float4 c2, lc_float4 c3) noexcept
         : cols{c0, c1, c2, c3} {}
+    [[nodiscard]] __device__ inline constexpr auto operator+() const noexcept { return *this; }
+    [[nodiscard]] __device__ inline constexpr auto operator-() const noexcept { return lc_float4x4{-cols[0], -cols[1], -cols[2], -cols[3]}; }
     [[nodiscard]] __device__ inline constexpr auto &operator[](lc_uint i) noexcept { return cols[i]; }
     [[nodiscard]] __device__ inline constexpr auto operator[](lc_uint i) const noexcept { return cols[i]; }
     [[nodiscard]] __device__ inline constexpr auto comp_mul(const lc_float4x4 &rhs) const noexcept { return lc_float4x4{cols[0] * rhs[0], cols[1] * rhs[1], cols[2] * rhs[2], cols[3] * rhs[3]}; }

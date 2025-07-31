@@ -289,6 +289,8 @@ struct lc_float{i}x{i} {{
     __device__ inline constexpr static auto one() noexcept {{ return lc_float{i}x{i}{{{", ".join(f"lc_float{i}::one()" for j in range(i))}}}; }}
     __device__ inline constexpr lc_float{i}x{i}({", ".join(f"lc_float{i} c{j}" for j in range(i))}) noexcept
         : cols{{{", ".join(f"c{j}" for j in range(i))}}} {{}}
+    [[nodiscard]] __device__ inline constexpr auto operator+() const noexcept {{ return *this; }}
+    [[nodiscard]] __device__ inline constexpr auto operator-() const noexcept {{ return lc_float{i}x{i}{{{", ".join(f"-cols[{j}]" for j in range(i))}}}; }}
     [[nodiscard]] __device__ inline constexpr auto &operator[](lc_uint i) noexcept {{ return cols[i]; }}
     [[nodiscard]] __device__ inline constexpr auto operator[](lc_uint i) const noexcept {{ return cols[i]; }}
     [[nodiscard]] __device__ inline constexpr auto comp_mul(const lc_float{i}x{i} &rhs) const noexcept {{ return lc_float{i}x{i}{{{", ".join(f"cols[{j}] * rhs[{j}]" for j in range(i))}}}; }}
