@@ -313,17 +313,31 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
         // }
     } else {
         if (deviceSettings) {
-            deviceSettings->ReadbackDX12Device(
-                nullptr,
-                nullptr,
-                nullptr,
-                nullptr,
-                fileIo,
-                gDxcCompiler->compiler(),
-                gDxcCompiler->library(),
-                gDxcCompiler->utils(),
-                nullptr,
-                nullptr);
+            if (gDxcCompiler) {
+                deviceSettings->ReadbackDX12Device(
+                    nullptr,
+                    nullptr,
+                    nullptr,
+                    nullptr,
+                    fileIo,
+                    gDxcCompiler->compiler(),
+                    gDxcCompiler->library(),
+                    gDxcCompiler->utils(),
+                    nullptr,
+                    nullptr);
+            } else {
+                deviceSettings->ReadbackDX12Device(
+                    nullptr,
+                    nullptr,
+                    nullptr,
+                    nullptr,
+                    fileIo,
+                    nullptr,
+                    nullptr,
+                    nullptr,
+                    nullptr,
+                    nullptr);
+            }
         }
     }
     last_device_handle = device.Get();

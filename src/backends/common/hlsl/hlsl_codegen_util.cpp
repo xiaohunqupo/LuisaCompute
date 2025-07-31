@@ -1986,9 +1986,15 @@ void CodegenUtility::GenerateCBuffer(
         }
         size += size_cache;
     }
-    result << R"(};
+    if (opt->noRegister) {
+        result << R"(};
+StructuredBuffer<_Args> _Global;
+)"sv;
+    } else {
+        result << R"(};
 StructuredBuffer<_Args> _Global:register(t0);
 )"sv;
+    }
     bind_count += 2;
 }
 void CodegenUtility::GenerateBindless(
@@ -2006,20 +2012,32 @@ void CodegenUtility::GenerateBindless(
     };
 
     if (opt->useBufferBindless) {
-        str << "ByteAddressBuffer bdls[]:register(t0,space"sv << vstd::to_string(table_idx) << ");\n"sv;
+        if (opt->noRegister) {
+            str << "ByteAddressBuffer bdls[];\n";
+        } else {
+            str << "ByteAddressBuffer bdls[]:register(t0,space"sv << vstd::to_string(table_idx) << ");\n"sv;
+        }
         add_prop(ShaderVariableType::SRVBufferHeap);
         table_idx++;
         bind_count += 1;
     }
     if (opt->useTex2DBindless) {
-        str << "Texture2D<float4> _BindlessTex[]:register(t0,space"sv << vstd::to_string(table_idx) << ");"sv;
+        if (opt->noRegister) {
+            str << "Texture2D<float4> _BindlessTex[];\n";
+        } else {
+            str << "Texture2D<float4> _BindlessTex[]:register(t0,space"sv << vstd::to_string(table_idx) << ");"sv;
+        }
         add_prop(ShaderVariableType::SRVTextureHeap);
         table_idx++;
         str << CodegenUtility::ReadInternalHLSLFile("tex2d_bindless");
         bind_count += 1;
     }
     if (opt->useTex3DBindless) {
-        str << "Texture3D<float4> _BindlessTex3D[]:register(t0,space"sv << vstd::to_string(table_idx) << ");"sv;
+        if (opt->noRegister) {
+            str << "Texture3D<float4> _BindlessTex3D[];\n"sv;
+        } else {
+            str << "Texture3D<float4> _BindlessTex3D[]:register(t0,space"sv << vstd::to_string(table_idx) << ");"sv;
+        }
         add_prop(ShaderVariableType::SRVTextureHeap);
         table_idx++;
         str << CodegenUtility::ReadInternalHLSLFile("tex3d_bindless");
@@ -2196,9 +2214,13 @@ void CodegenUtility::CodegenProperties(
                 print();
                 properties.emplace_back(prop);
             }
-            varData << ":register("sv << v;
-            vstd::to_string(r, varData);
-            varData << ");\n"sv;
+            if (!opt->noRegister) {
+                varData << ":register("sv << v;
+                vstd::to_string(r, varData);
+                varData << ");\n"sv;
+            } else {
+                varData << ";\n"sv;
+            }
             r++;
             switch (sT) {
                 case ShaderVariableType::ConstantBuffer:
@@ -2260,7 +2282,11 @@ void CodegenUtility::CodegenProperties(
                 .register_index = r,
                 .array_size = 1};
             properties.emplace_back(prop);
-            varData << "RWStructuredBuffer<uint> _printCounter:register(u"sv;
+            if (opt->noRegister) {
+                varData << "RWStructuredBuffer<uint> _printCounter;\n";
+            } else {
+                varData << "RWStructuredBuffer<uint> _printCounter:register(u"sv;
+            }
             vstd::to_string(r, varData);
             varData << ");\n"sv;
             r += 1;
@@ -2272,7 +2298,11 @@ void CodegenUtility::CodegenProperties(
                 .register_index = r,
                 .array_size = 1};
             properties.emplace_back(prop);
-            varData << "RWByteAddressBuffer _printBuffer:register(u"sv;
+            if (opt->noRegister) {
+                varData << "RWByteAddressBuffer _printBuffer;\n";
+            } else {
+                varData << "RWByteAddressBuffer _printBuffer:register(u"sv;
+            }
             vstd::to_string(r, varData);
             varData << ");\n"sv;
             r += 1;
@@ -2342,9 +2372,10 @@ CodegenUtility::CodegenUtility() {
 CodegenUtility::~CodegenUtility() {}
 
 CodegenResult CodegenUtility::Codegen(
-    Function kernel, luisa::string_view native_code, uint custom_mask, bool isSpirV) {
+    Function kernel, luisa::string_view native_code, uint custom_mask, bool isSpirV, bool noRegister) {
     opt = CodegenStackData::Allocate(this);
     opt->isSpirv = isSpirV;
+    opt->noRegister = noRegister;
     auto disposeOpt = vstd::scope_exit([&] {
         CodegenStackData::DeAllocate(std::move(opt));
     });
@@ -2371,15 +2402,28 @@ CodegenResult CodegenUtility::Codegen(
         GenerateCBuffer({&argRange}, varData, bind_count);
     }
     if (isSpirV) {
-        varData << R"(
+        if (opt->noRegister) {
+            varData << R"(
+struct _CBType{
+uint4 v;
+};
+[[vk::push_constant]] ConstantBuffer<_CBType> dsp_c;
+)"sv;
+        } else {
+            varData << R"(
 struct _CBType{
 uint4 v;
 };
 [[vk::push_constant]] ConstantBuffer<_CBType> dsp_c:register(b0);
 )"sv;
+        }
         bind_count += 2;
     } else {
-        varData << "uint4 dsp_c:register(b0);\n"sv;
+        if (opt->noRegister) {
+            varData << "uint4 dsp_c;\n"sv;
+        } else {
+            varData << "uint4 dsp_c:register(b0);\n"sv;
+        }
         bind_count += 2;
     }
     CodegenResult::Properties properties;
@@ -2410,14 +2454,15 @@ uint4 v;
 CodegenResult CodegenUtility::RasterCodegen(
     Function vertFunc,
     Function pixelFunc,
-
     luisa::string_view native_code,
     uint custom_mask,
-    bool isSpirV) {
+    bool isSpirV,
+    bool noRegister) {
     opt = CodegenStackData::Allocate(this);
     opt->isSpirv = isSpirV;
     // CodegenStackData::ThreadLocalSpirv() = false;
     opt->kernel = vertFunc;
+    opt->noRegister = noRegister;
     opt->isRaster = true;
     auto disposeOpt = vstd::scope_exit([&] {
         opt->isRaster = false;
@@ -2470,15 +2515,28 @@ CodegenResult CodegenUtility::RasterCodegen(
     }
     uint bind_count = 2;
     if (isSpirV) {
-        codegenData << R"(};
+        if (opt->noRegister) {
+            codegenData << R"(};
+cbuffer CB{
+uint obj_id;}
+)"sv;
+        } else {
+            codegenData << R"(};
 cbuffer CB:register(b1){
 uint obj_id;}
 )"sv;
+        }
         bind_count += 2;
     } else {
-        codegenData << R"(};
+        if (opt->noRegister) {
+            codegenData << R"(};
+uint obj_id;
+)"sv;
+        } else {
+            codegenData << R"(};
 uint obj_id:register(b0);
 )"sv;
+        }
         bind_count += 2;
     }
     codegenData << "#ifdef VS\n";
