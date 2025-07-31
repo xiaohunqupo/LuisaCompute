@@ -34,7 +34,7 @@ void DXAllocatorImpl::DeAllocateHeap(uint64_t handle) const noexcept {
     device->defaultAllocator->Release(handle);
 }
 static luisa::spin_mutex gDxcMutex;
-static vstd::StackObject<hlsl::ShaderCompiler, false> gDxcCompiler;
+static vstd::optional<hlsl::ShaderCompiler> gDxcCompiler;
 static int32 gDxcRefCount = 0;
 
 Device::LazyLoadShader::~LazyLoadShader() {}
@@ -76,7 +76,7 @@ bool Device::LazyLoadShader::Check(Device *self) {
 }
 
 hlsl::ShaderCompiler *Device::Compiler() {
-    return gDxcCompiler;
+    return gDxcCompiler ? gDxcCompiler.ptr() : nullptr;
 }
 Device::Device(Context &&ctx, DeviceConfig const *settings)
     : setBindlessKernel(BuiltinKernel::LoadBindlessSetKernel),
@@ -91,12 +91,6 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
     using Microsoft::WRL::ComPtr;
     size_t index{std::numeric_limits<size_t>::max()};
     bool useRuntime = true;
-    {
-        std::lock_guard lck(gDxcMutex);
-        if (gDxcRefCount == 0)
-            gDxcCompiler.create(ctx.runtime_directory());
-        gDxcRefCount++;
-    }
     if (settings) {
         index = settings->device_index;
         // auto select
@@ -107,6 +101,13 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
         if (settings->extension) {
             deviceSettings = vstd::create_unique(static_cast<DirectXDeviceConfigExt *>(settings->extension.release()));
         }
+    }
+    if (!deviceSettings || deviceSettings->LoadDXC()) {
+        std::lock_guard lck(gDxcMutex);
+        if (gDxcRefCount == 0) {
+            gDxcCompiler.create(ctx.runtime_directory());
+        }
+        gDxcRefCount++;
     }
     if (fileIo == nullptr) {
         serVisitor = vstd::make_unique<DefaultBinaryIO>(std::move(ctx), !useRuntime);
@@ -273,7 +274,7 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
             new DescriptorHeap(
                 this,
                 D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-                1000000ull, // Max allowed in Tier 3
+                1000000ull,// Max allowed in Tier 3
                 true));
         samplerHeap = vstd::create_unique(
             new DescriptorHeap(

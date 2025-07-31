@@ -72,7 +72,7 @@ void RasterShader::GetMeshFormatState(
     for (auto i : vstd::range(meshFormat.vertex_stream_count())) {
         auto vec = meshFormat.attributes(i);
         for (auto &&attr : vec) {
-            size_t size = pixel_format_size(attr.format, uint3(1,1,1));
+            size_t size = pixel_format_size(attr.format, uint3(1, 1, 1));
             auto format = static_cast<DXGI_FORMAT>(TextureBase::ToGFXFormat(attr.format));
             auto &offset = offsets[i];
             offset = CalcAlign(offset, pixel_format_align(attr.format));
@@ -364,39 +364,45 @@ void RasterShader::SaveRaster(
         fclose(f);
     }
     if (ShaderSerializer::CheckMD5(fileName, md5, *fileIo)) return;
-    auto compResult = Device::Compiler()->compile_raster(
-        str.result.view(),
-        true,
-        shaderModel,
-        enableUnsafeMath,
-        false, debug);
+    auto compiler = Device::Compiler();
+    if (compiler) {
+        auto compResult = compiler->compile_raster(
+            str.result.view(),
+            true,
+            shaderModel,
+            enableUnsafeMath,
+            false, debug);
 
-    if (compResult.vertex.is_type_of<vstd::string>()) [[unlikely]] {
-        LUISA_WARNING("DXC compile vertex-shader error: {}", compResult.vertex.get<1>());
-        return;
+        if (compResult.vertex.is_type_of<vstd::string>()) [[unlikely]] {
+            LUISA_WARNING("DXC compile vertex-shader error: {}", compResult.vertex.get<1>());
+            return;
+        }
+        if (compResult.pixel.is_type_of<vstd::string>()) [[unlikely]] {
+            LUISA_WARNING("DXC compile pixel-shader error: {}", compResult.pixel.get<1>());
+            return;
+        }
+        auto kernelArgs = RasterShaderDetail::GetKernelArgs(vertexKernel, pixelKernel);
+        auto GetSpan = [&](ComPtr<IDxcBlob> &blob) {
+            return vstd::span{
+                reinterpret_cast<std::byte const *>(blob->GetBufferPointer()),
+                blob->GetBufferSize()};
+        };
+        auto vertBin = GetSpan(compResult.vertex.get<0>());
+        auto pixelBin = GetSpan(compResult.pixel.get<0>());
+        uint bdlsBufferCount = 0;
+        if (str.useBufferBindless) bdlsBufferCount++;
+        if (str.useTex2DBindless) bdlsBufferCount++;
+        if (str.useTex3DBindless) bdlsBufferCount++;
+        auto serData = ShaderSerializer::RasterSerialize(
+            str.properties,
+            kernelArgs,
+            vertBin, pixelBin, md5, str.typeMD5, bdlsBufferCount,
+            str.printers);
+        static_cast<void>(fileIo->write_shader_bytecode(fileName, {reinterpret_cast<std::byte const *>(serData.data()), luisa::size_bytes(serData)}));
+    } else {
+        // write HLSL code if compiler not initialized
+        static_cast<void>(fileIo->write_shader_bytecode(fileName, {reinterpret_cast<std::byte const *>(str.result.data()), str.result.size()}));
     }
-    if (compResult.pixel.is_type_of<vstd::string>()) [[unlikely]] {
-        LUISA_WARNING("DXC compile pixel-shader error: {}", compResult.pixel.get<1>());
-        return;
-    }
-    auto kernelArgs = RasterShaderDetail::GetKernelArgs(vertexKernel, pixelKernel);
-    auto GetSpan = [&](ComPtr<IDxcBlob> &blob) {
-        return vstd::span{
-            reinterpret_cast<std::byte const*>(blob->GetBufferPointer()),
-            blob->GetBufferSize()};
-    };
-    auto vertBin = GetSpan(compResult.vertex.get<0>());
-    auto pixelBin = GetSpan(compResult.pixel.get<0>());
-    uint bdlsBufferCount = 0;
-    if (str.useBufferBindless) bdlsBufferCount++;
-    if (str.useTex2DBindless) bdlsBufferCount++;
-    if (str.useTex3DBindless) bdlsBufferCount++;
-    auto serData = ShaderSerializer::RasterSerialize(
-        str.properties,
-        kernelArgs,
-        vertBin, pixelBin, md5, str.typeMD5, bdlsBufferCount,
-        str.printers);
-    static_cast<void>(fileIo->write_shader_bytecode(fileName, {reinterpret_cast<std::byte const *>(serData.data()), luisa::size_bytes(serData)}));
 }
 RasterShader *RasterShader::LoadRaster(
     BinaryIO const *fileIo,

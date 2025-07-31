@@ -193,40 +193,46 @@ void ComputeShader::SaveCompute(
             profiler->after_load_shader_bytecode(fileName, false);
         }
     }
-    if (profiler) [[unlikely]] {
-        profiler->before_compile_shader_bytecode(fileName);
+    auto compiler = Device::Compiler();
+    if (compiler) {
+        if (profiler) [[unlikely]] {
+            profiler->before_compile_shader_bytecode(fileName);
+        }
+        auto compResult = compiler->compile_compute(
+            str.result.view(),
+            true,
+            shaderModel,
+            enableUnsafeMath,
+            false, debug);
+        if (profiler) [[unlikely]] {
+            profiler->after_compile_shader_bytecode(fileName);
+        }
+        compResult.multi_visit(
+            [&](ComPtr<IDxcBlob> &buffer) {
+                auto kernelArgs = ShaderSerializer::SerializeKernel(kernel);
+                uint bdlsBufferCount = 0;
+                if (str.useBufferBindless) bdlsBufferCount++;
+                if (str.useTex2DBindless) bdlsBufferCount++;
+                if (str.useTex3DBindless) bdlsBufferCount++;
+                auto serData = ShaderSerializer::Serialize(
+                    str.properties,
+                    kernelArgs,
+                    {reinterpret_cast<std::byte const *>(buffer->GetBufferPointer()),
+                     buffer->GetBufferSize()},
+                    md5,
+                    str.typeMD5,
+                    bdlsBufferCount,
+                    blockSize,
+                    str.printers);
+                static_cast<void>(fileIo->write_shader_bytecode(fileName, {reinterpret_cast<std::byte const *>(serData.data()), luisa::size_bytes(serData)}));
+            },
+            [](auto &&err) {
+                LUISA_ERROR("DXC compute-shader compile error: {}", err);
+            });
+    } else {
+        // write HLSL code if compiler not initialized
+        static_cast<void>(fileIo->write_shader_bytecode(fileName, {reinterpret_cast<std::byte const *>(str.result.data()), str.result.size()}));
     }
-    auto compResult = Device::Compiler()->compile_compute(
-        str.result.view(),
-        true,
-        shaderModel,
-        enableUnsafeMath,
-        false, debug);
-    if (profiler) [[unlikely]] {
-        profiler->after_compile_shader_bytecode(fileName);
-    }
-    compResult.multi_visit(
-        [&](ComPtr<IDxcBlob> &buffer) {
-            auto kernelArgs = ShaderSerializer::SerializeKernel(kernel);
-            uint bdlsBufferCount = 0;
-            if (str.useBufferBindless) bdlsBufferCount++;
-            if (str.useTex2DBindless) bdlsBufferCount++;
-            if (str.useTex3DBindless) bdlsBufferCount++;
-            auto serData = ShaderSerializer::Serialize(
-                str.properties,
-                kernelArgs,
-                {reinterpret_cast<std::byte const *>(buffer->GetBufferPointer()),
-                 buffer->GetBufferSize()},
-                md5,
-                str.typeMD5,
-                bdlsBufferCount,
-                blockSize,
-                str.printers);
-            static_cast<void>(fileIo->write_shader_bytecode(fileName, {reinterpret_cast<std::byte const *>(serData.data()), luisa::size_bytes(serData)}));
-        },
-        [](auto &&err) {
-            LUISA_ERROR("DXC compute-shader compile error: {}", err);
-        });
 }
 ID3D12CommandSignature *ComputeShader::CmdSig() const {
     std::lock_guard lck(cmdSigMtx);
