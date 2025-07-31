@@ -5,10 +5,9 @@ class Stream;
 class Event : public Resource {
     friend class Stream;
     VkSemaphore _semaphore;
-    mutable std::mutex eventMtx;
-    mutable std::condition_variable cv;
-    mutable uint64 finishedEvent = 0;
-    mutable uint64 lastFence = 0;
+    mutable std::atomic_uint64_t finishedEvent = 0;
+    mutable luisa::spin_mutex eventMtx;
+    mutable uint64_t lastFence = 0;
     void update_fence(uint64_t value);
     void signal(Stream &stream, uint64_t value, VkCommandBuffer *cmdbuffer = nullptr);
     void signal_sparse(Stream &stream, uint64_t const* value_ptr, VkBindSparseInfo *sparse_info, VkTimelineSemaphoreSubmitInfo* timeline_ptr);

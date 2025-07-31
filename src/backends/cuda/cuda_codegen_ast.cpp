@@ -957,6 +957,10 @@ void CUDACodegenAST::visit(const CallExpr *expr) {
             break;
         }
         case CallOp::ASSUME: _scratch << "lc_assume"; break;
+        case CallOp::FLATTEN:
+        case CallOp::BRANCH:
+        case CallOp::FORCE_CASE:
+            break;
         case CallOp::UNREACHABLE:
             if (expr->arguments().empty()) {
                 _scratch << "lc_unreachable<";

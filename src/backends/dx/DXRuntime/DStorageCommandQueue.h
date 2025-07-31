@@ -38,9 +38,8 @@ class DStorageCommandQueue : public CmdQueueBase {
     std::atomic_bool enabled = true;
     std::atomic_uint64_t executedFrame = 0;
     std::atomic_uint64_t lastFrame = 0;
-    std::mutex mtx;
-    std::mutex exec_mtx;
-    std::condition_variable waitCv;
+    luisa::spin_mutex mtx;
+    luisa::spin_mutex exec_mtx;
     DSTORAGE_REQUEST_SOURCE_TYPE sourceType;
     ComPtr<IDStorageQueue2> queue;
     vstd::SingleThreadArrayQueue<CallbackEvent> executedAllocators;

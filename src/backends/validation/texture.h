@@ -11,5 +11,6 @@ public:
     auto dim() const { return _dim; }
     auto format() const { return _format; }
     auto tile_size() const { return _tile_size; }
+    static constexpr luisa::string_view validation_res_name{"Texture"};
 };
 }// namespace lc::validation

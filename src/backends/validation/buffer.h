@@ -7,5 +7,6 @@ class Buffer : public RWResource {
 public:
     Buffer(uint64_t handle, uint64_t tile_size) : RWResource(handle, Tag::BUFFER, false), _tile_size{tile_size} {}
     auto tile_size() const { return _tile_size; }
+    static constexpr luisa::string_view validation_res_name{"Buffer"};
 };
 }// namespace lc::validation

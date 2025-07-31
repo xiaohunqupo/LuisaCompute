@@ -33,7 +33,7 @@ VkTimelineSemaphoreSubmitInfo Event::get_timeline_submit(uint64_t const *value_p
 
     return timelineInfo1;
 }
-void Event::signal_sparse(Stream &stream, uint64_t const* value_ptr, VkBindSparseInfo *sparse_info, VkTimelineSemaphoreSubmitInfo* timeline_ptr) {
+void Event::signal_sparse(Stream &stream, uint64_t const *value_ptr, VkBindSparseInfo *sparse_info, VkTimelineSemaphoreSubmitInfo *timeline_ptr) {
     {
         std::lock_guard lck(eventMtx);
         lastFence = std::max(lastFence, *value_ptr);
@@ -101,12 +101,10 @@ void Event::notify(uint64_t value) {
         std::lock_guard lck(eventMtx);
         finishedEvent = std::max<uint64_t>(finishedEvent, value);
     }
-    cv.notify_all();
 }
 void Event::sync(uint64_t value) {
-    std::unique_lock lck(eventMtx);
     while (finishedEvent < value) {
-        cv.wait(lck);
+        std::this_thread::yield();
     }
 }
 

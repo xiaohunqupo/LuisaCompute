@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <luisa/core/stl/memory.h>
+#include <luisa/core/logging.h>
 
 namespace luisa {
 

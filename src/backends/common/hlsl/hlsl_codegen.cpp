@@ -373,6 +373,12 @@ void StringStateVisitor::visit(const CommentStmt *state) {
 #endif
 }
 void StringStateVisitor::visit(const IfStmt *state) {
+    if ((luisa::to_underlying(util->opt->cond_opt_value) & luisa::to_underlying(CodegenStackData::CondOptValue::Branch)) != 0) {
+        str << "[[branch]] "sv;
+    } else if ((luisa::to_underlying(util->opt->cond_opt_value) & luisa::to_underlying(CodegenStackData::CondOptValue::Flatten)) != 0) {
+        str << "[[flatten]] "sv;
+    }
+    util->opt->cond_opt_value = CodegenStackData::CondOptValue::None;
     str << "if(";
     state->condition()->accept(*this);
     str << ")";
@@ -400,6 +406,15 @@ void StringStateVisitor::visit(const ExprStmt *state) {
     str << ";\n";
 }
 void StringStateVisitor::visit(const SwitchStmt *state) {
+    if ((luisa::to_underlying(util->opt->cond_opt_value) & luisa::to_underlying(CodegenStackData::CondOptValue::Branch)) != 0) {
+        str << "[[branch]] "sv;
+    } else if ((luisa::to_underlying(util->opt->cond_opt_value) & luisa::to_underlying(CodegenStackData::CondOptValue::Flatten)) != 0) {
+        str << "[[flatten]] "sv;
+    }
+    if ((luisa::to_underlying(util->opt->cond_opt_value) & luisa::to_underlying(CodegenStackData::CondOptValue::ForceCase)) != 0) {
+        str << "[[forcecase]] "sv;
+    }
+    util->opt->cond_opt_value = CodegenStackData::CondOptValue::None;
 #ifdef USE_SPIRV
     auto stackData = util->StackData();
     stackData->tempSwitchExpr = state->expression();

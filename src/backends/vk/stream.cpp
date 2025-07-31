@@ -491,9 +491,8 @@ Stream::Stream(Device *device, StreamTag tag)
           };
           while (_enabled) {
               loop_cmd();
-              std::unique_lock lck{_mtx};
               while (_enabled && _exec.length() == 0) {
-                  _cv.wait(lck);
+                  std::this_thread::yield();
               }
           }
           loop_cmd();
@@ -527,7 +526,6 @@ Stream::~Stream() {
         std::lock_guard lck{_mtx};
         _enabled = false;
     }
-    _cv.notify_one();
     _thd.join();
     scratch_buffer_alloc_visitor._buffers.clear();
     while (auto p = _cmdbuffers.pop()) {
@@ -620,7 +618,6 @@ void Stream::present(
             .value = fence});
 
         _mtx.unlock();
-        _cv.notify_one();
     }
 }
 void Stream::dispatch(
@@ -731,7 +728,6 @@ void Stream::dispatch(
         .value = fence});
 
     _mtx.unlock();
-    _cv.notify_one();
 }
 void Stream::update_sparse_resources(luisa::vector<SparseUpdateTile> &&textures_update) noexcept {
     temp_desc.clear();
@@ -863,7 +859,6 @@ void Stream::update_sparse_resources(luisa::vector<SparseUpdateTile> &&textures_
         .evt = &_evt,
         .value = fence});
     _mtx.unlock();
-    _cv.notify_one();
 }
 void Stream::sync() {
     _evt.sync(_evt.last_fence());
@@ -913,7 +908,6 @@ void Stream::signal(Event *event, uint64_t value) {
     _exec.push(SyncExt{event, value});
     _exec.push(NotifyEvt{event, value});
     _mtx.unlock();
-    _cv.notify_one();
 }
 void Stream::wait(Event *event, uint64_t value) {
     event->wait(*this, value);

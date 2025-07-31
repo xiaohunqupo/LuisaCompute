@@ -58,7 +58,6 @@ void CommandQueue::AddEvent(LCEvent const *evt, uint64 fenceIdx) {
     mtx.lock();
     executedAllocators.push(evt, fenceIdx, true);
     mtx.unlock();
-    waitCv.notify_one();
 }
 
 void CommandQueue::ExecuteThread() {
@@ -90,9 +89,8 @@ void CommandQueue::ExecuteThread() {
             device->WaitFence(evt->fence.Get(), fence);
             {
                 std::lock_guard lck(evt->eventMtx);
-                evt->finishedEvent = std::max(fence, evt->finishedEvent);
+                evt->finishedEvent = std::max<uint64_t>(fence, evt->finishedEvent);
             }
-            evt->cv.notify_all();
             if (wakeupThread) {
                 executedFrame++;
             }
@@ -116,9 +114,8 @@ void CommandQueue::ExecuteThread() {
                 ExecuteEvent,
                 ExecuteHandle);
         }
-        std::unique_lock lck(mtx);
         while (enabled && executedAllocators.length() == 0) {
-            waitCv.wait(lck);
+            std::this_thread::yield();
         }
     }
 }
@@ -140,7 +137,6 @@ CommandQueue::~CommandQueue() {
         std::lock_guard lck(mtx);
         enabled = false;
     }
-    waitCv.notify_one();
     thd.join();
 }
 void CommandQueue::WaitFrame(uint64 lastFrame) {
@@ -153,7 +149,6 @@ void CommandQueue::Signal() {
     mtx.lock();
     executedAllocators.push(WaitFence{}, curFrame, true);
     mtx.unlock();
-    waitCv.notify_one();
 }
 void CommandQueue::Execute(AllocatorPtr &&alloc, vstd::vector<vstd::function<void()>> &&callbacks, luisa::span<std::pair<IDXGISwapChain *, bool>> swapChains, bool cmdlist_is_empty) {
     auto curFrame = ++lastFrame;
@@ -168,8 +163,6 @@ void CommandQueue::Execute(AllocatorPtr &&alloc, vstd::vector<vstd::function<voi
         if (!callbacks.empty())
             executedAllocators.push(std::move(callbacks), curFrame, true);
         mtx.unlock();
-
-        waitCv.notify_one();
     }
 }
 

@@ -12,7 +12,7 @@ struct RWInfo {
 };
 class RWResource : public Resource {
     friend struct ResMap;
-    vstd::unordered_map<uint64_t , RWInfo> _info;
+    vstd::unordered_map<uint64_t, RWInfo> _info;
     bool _non_simultaneous;
     uint64_t _handle;
 
@@ -36,8 +36,8 @@ public:
         requires(std::is_same_v<T, RWResource> || std::is_base_of_v<RWResource, T>)
     static T *get(uint64_t handle) {
         auto ptr = static_cast<T *>(_get(handle));
-        if(ptr == nullptr) [[unlikely]]{
-            LUISA_ERROR("Type {} instance not found.", typeid(T).name());
+        if (ptr == nullptr) [[unlikely]] {
+            LUISA_ERROR("Type {} instance not found.", T::validation_res_name);
         }
         return ptr;
     }
@@ -45,7 +45,7 @@ public:
         requires(std::is_same_v<T, RWResource> || std::is_base_of_v<RWResource, T>)
     static T *get(uint64_t handle, luisa::string_view type_name) {
         auto ptr = static_cast<T *>(_get(handle));
-        if(ptr == nullptr) [[unlikely]]{
+        if (ptr == nullptr) [[unlikely]] {
             LUISA_ERROR("Type {} instance not found.", type_name);
         }
         return ptr;
@@ -55,5 +55,6 @@ public:
     static T *try_get(uint64_t handle) {
         return static_cast<T *>(_get(handle));
     }
+    static constexpr luisa::string_view validation_res_name{"Resource"};
 };
 }// namespace lc::validation

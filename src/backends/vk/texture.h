@@ -3,6 +3,7 @@
 #include <volk.h>
 #include "vk_allocator.h"
 #include <luisa/runtime/rhi/pixel.h>
+#include <luisa/runtime/depth_format.h>
 namespace lc::vk {
 class Texture : public Resource {
     AllocatedImage _img;
@@ -35,6 +36,7 @@ public:
     static uint2 tex2d_tile_size(luisa::compute::PixelStorage storage);
     static uint3 tex3d_tile_size(luisa::compute::PixelStorage storage);
     uint3 tile_size() const {
+        if (luisa::to_underlying(_format) > 65535u) return {}; // depth
         if (_dimension <= 2) {
             return make_uint3(tex2d_tile_size(luisa::compute::pixel_format_to_storage(_format)), 1);
         } else {
@@ -45,7 +47,14 @@ public:
 
     auto mip() const { return _mip; }
     auto vk_image() const { return _img.image; }
-    auto format() const { return _format; }
+    auto format() const { 
+        if (luisa::to_underlying(_format) > 65535u) return static_cast<compute::PixelFormat>(-1); // depth
+        return _format;
+    }
+    auto depth_format() const {
+        if (luisa::to_underlying(_format) <= 65535u) return compute::DepthFormat::None;
+        return static_cast<compute::DepthFormat>(luisa::to_underlying(_format) & 65535u);
+    }
     auto layout(uint level) const {
         std::lock_guard lck{_layout_mtx};
         return _layouts[level];

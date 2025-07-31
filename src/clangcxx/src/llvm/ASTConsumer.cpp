@@ -896,12 +896,10 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
             } else if (auto _cxxParen = llvm::dyn_cast<ParenExpr>(x)) {
                 current = stack->GetExpr(_cxxParen->getSubExpr());
             } else if (auto implicit_cast = llvm::dyn_cast<ImplicitCastExpr>(x)) {
-                auto lcSubExpr = stack->GetExpr(implicit_cast->getSubExpr()); 
-                if (lcSubExpr == db->GetFunctionThis(fb))
-                {
+                auto lcSubExpr = stack->GetExpr(implicit_cast->getSubExpr());
+                if (lcSubExpr == db->GetFunctionThis(fb)) {
                     current = lcSubExpr;
-                }
-                else if (lcSubExpr != nullptr) {
+                } else if (lcSubExpr != nullptr) {
                     const auto lcCastType = db->FindOrAddType(implicit_cast->getType(), x->getBeginLoc());
                     if (lcSubExpr->type() != lcCastType)
                         current = fb->cast(lcCastType, CastOp::STATIC, lcSubExpr);
@@ -1134,7 +1132,8 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                         const auto isTemplateInstant = funcDecl->isTemplateInstantiation();
                         const auto isLambda = methodDecl && methodDecl->getParent()->isLambda();
                         if (!db->lambda_builders.contains(calleeDecl) && !db->func_builders.contains(calleeDecl)) {
-                            FunctionBuilderBuilder fbfb(db, *stack);
+                            auto new_stack = *stack;
+                            FunctionBuilderBuilder fbfb(db, new_stack);
                             fbfb.build(calleeDecl->getAsFunction(), false);
                             calleeDecl = funcDecl;
                         }
@@ -1193,6 +1192,27 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
             } else if (auto _init_list = llvm::dyn_cast<clang::InitListExpr>(x)) {// TODO
                 db->DumpWithLocation(x);
                 clangcxx_log_error("InitList is banned! Explicit use constructor instead!");
+            } else if (auto offset_of = llvm::dyn_cast<clang::OffsetOfExpr>(x)) {
+                auto &&location = offset_of->getBeginLoc();
+                auto &&fields = offset_of->getComponent(0).getField()->getParent()->fields();
+                auto field_idx = offset_of->getComponent(0).getField()->getFieldIndex();
+                auto iter = fields.begin();
+                uint32_t offset = 0;
+                for (uint32_t i = 0; i < field_idx; ++i) {
+                    auto lc_type = db->FindOrAddType(iter->getType(), location);
+                    auto align = lc_type->alignment() - 1;
+                    offset = (offset + align) & (~align);
+                    offset += lc_type->size();
+                    iter++;
+                }
+                {
+                    auto lc_type = db->FindOrAddType(iter->getType(), location);
+                    auto align = lc_type->alignment() - 1;
+                    offset = (offset + align) & (~align);
+                }
+                current = fb->literal(Type::of<uint32_t>(), offset);
+            } else if (auto _const = llvm::dyn_cast<clang::ConceptSpecializationExpr>(x)) {
+                current = fb->literal(Type::of<bool>(), _const->isSatisfied());
             } else if (auto _str_literal = llvm::dyn_cast<clang::StringLiteral>(x)) {
             } else if (auto _control_flow = llvm::dyn_cast<CompoundStmt>(x)) {       // CONTROL FLOW
             } else if (auto _control_flow = llvm::dyn_cast<clang::IfStmt>(x)) {      // CONTROL FLOW
@@ -1415,11 +1435,13 @@ auto FunctionBuilderBuilder::build(const clang::FunctionDecl *S, bool allowKerne
                 // this arg
                 if (is_method) {
                     auto Method = llvm::dyn_cast<clang::CXXMethodDecl>(S);
-                    if (auto lcType = db->FindOrAddType(methodThisType, Method->getBeginLoc())) {
-                        auto this_local = builder->reference(lcType);
-                        db->SetFunctionThis(builder, this_local);
-                    } else {
-                        clangcxx_log_error("???");
+                    if (!Method->isStatic()) {
+                        if (auto lcType = db->FindOrAddType(methodThisType, Method->getBeginLoc())) {
+                            auto this_local = builder->reference(lcType);
+                            db->SetFunctionThis(builder, this_local);
+                        } else {
+                            clangcxx_log_error("???");
+                        }
                     }
                 }
 

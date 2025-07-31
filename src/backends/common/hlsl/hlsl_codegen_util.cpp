@@ -1038,6 +1038,15 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             }
             return;
         }
+        case CallOp::FLATTEN:
+            opt->cond_opt_value = (CodegenStackData::CondOptValue)(luisa::to_underlying(opt->cond_opt_value) | luisa::to_underlying(CodegenStackData::CondOptValue::Flatten));
+            return;
+        case CallOp::BRANCH:
+            opt->cond_opt_value = (CodegenStackData::CondOptValue)(luisa::to_underlying(opt->cond_opt_value) | luisa::to_underlying(CodegenStackData::CondOptValue::Branch));
+            return;
+        case CallOp::FORCE_CASE:
+            opt->cond_opt_value = (CodegenStackData::CondOptValue)(luisa::to_underlying(opt->cond_opt_value) | luisa::to_underlying(CodegenStackData::CondOptValue::ForceCase));
+            return;
         case CallOp::BINDLESS_TEXTURE2D_SAMPLE:
             opt->useTex2DBindless = true;
             if (opt->isPixelShader) {
@@ -2463,7 +2472,7 @@ CodegenResult CodegenUtility::RasterCodegen(
     if (isSpirV) {
         codegenData << R"(};
 cbuffer CB:register(b1){
-uint obj_id;
+uint obj_id;}
 )"sv;
         bind_count += 2;
     } else {

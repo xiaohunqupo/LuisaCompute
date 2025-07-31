@@ -46,5 +46,6 @@ public:
     void signal(Event *evt, uint64_t fence);
     void wait(Event *evt, uint64_t fence);
     void check_compete();
+    static constexpr luisa::string_view validation_res_name{"Stream"};
 };
 }// namespace lc::validation

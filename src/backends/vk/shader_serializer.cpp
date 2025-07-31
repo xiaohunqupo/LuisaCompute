@@ -2,6 +2,7 @@
 #include "shader.h"
 #include "../common/hlsl/shader_property.h"
 #include "compute_shader.h"
+#include "raster_shader.h"
 
 namespace lc::vk {
 namespace detail {
@@ -19,11 +20,98 @@ struct ShaderSerHeader {
     bool use_bindless_tex2d;
     bool use_bindless_tex3d;
 };
+struct RasterSerHeader {
+    uint64 header_ver;
+    vstd::MD5 md5;
+    vstd::MD5 type_md5;
+    uint64 property_size;
+    uint64 vert_spv_byte_size;
+    uint64 pixel_spv_byte_size;
+    uint kernel_arg_count;
+    uint printer_count;
+    uint printer_size_bytes;
+    bool use_bindless_buffer;
+    bool use_bindless_tex2d;
+    bool use_bindless_tex3d;
+};
 struct PSODataPackage {
     VkPipelineCacheHeaderVersionOne header;
     std::byte md5[sizeof(vstd::MD5)];
 };
 }// namespace detail
+void ShaderSerializer::serialize_raster(
+    vstd::span<const hlsl::Property> binds,
+    vstd::span<const SavedArgument> saved_args,
+    vstd::MD5 shader_md5,
+    vstd::MD5 type_md5,
+    vstd::string_view file_name,
+    vstd::span<const uint> vert_spv_code,
+    vstd::span<const uint> pixel_spv_code,
+    SerdeType serde_type,
+    BinaryIO const *bin_io,
+    bool use_tex2d_bindless,
+    bool use_tex3d_bindless,
+    bool use_buffer_bindless,
+    vstd::span<std::pair<vstd::string, Type const *> const> printers) {
+    vstd::vector<std::byte> results;
+    using namespace detail;
+    RasterSerHeader header{
+        .md5 = shader_md5,
+        .type_md5 = type_md5,
+        .property_size = binds.size(),
+        .vert_spv_byte_size = vert_spv_code.size_bytes(),
+        .pixel_spv_byte_size = pixel_spv_code.size_bytes(),
+        .kernel_arg_count = (uint)saved_args.size()};
+    uint printer_size_bytes = 0;
+    for (auto &i : printers) {
+        printer_size_bytes += i.first.size() + i.second->description().size() + 2;// zero-end string
+    }
+    uint64_t final_size = sizeof(RasterSerHeader) +
+                          header.property_size * sizeof(hlsl::Property) +
+                          header.vert_spv_byte_size +
+                          header.pixel_spv_byte_size +
+                          header.kernel_arg_count * sizeof(SavedArgument) +
+                          printer_size_bytes;
+    results.push_back_uninitialized(final_size);
+    auto data_ptr = results.data();
+    auto save = [&]<typename T>(T const &t) {
+        memcpy(data_ptr, &t, sizeof(T));
+        data_ptr += sizeof(T);
+    };
+    auto save_arr = [&]<typename T>(T const *t, size_t size) {
+        memcpy(data_ptr, t, sizeof(T) * size);
+        data_ptr += sizeof(T) * size;
+    };
+    save_arr(binds.data(), binds.size());
+    save_arr(saved_args.data(), saved_args.size());
+    save_arr(vert_spv_code.data(), vert_spv_code.size());
+    save_arr(pixel_spv_code.data(), pixel_spv_code.size());
+    for (auto &i : printers) {
+        save_arr(i.first.c_str(), i.first.size() + 1);
+        auto desc = i.second->description();
+        save_arr(desc.data(), desc.size());
+        *data_ptr = (std::byte)0;
+        ++data_ptr;
+    }
+    header.use_bindless_buffer = use_buffer_bindless;
+    header.use_bindless_tex2d = use_tex2d_bindless;
+    header.use_bindless_tex3d = use_tex3d_bindless;
+    header.printer_count = printers.size();
+    header.printer_size_bytes = printer_size_bytes;
+    save(header);
+
+    switch (serde_type) {
+        case SerdeType::Cache:
+            bin_io->write_shader_cache(file_name, results);
+            break;
+        case SerdeType::Builtin:
+            bin_io->write_internal_shader(file_name, results);
+            break;
+        case SerdeType::ByteCode:
+            bin_io->write_shader_bytecode(file_name, results);
+            break;
+    }
+}
 void ShaderSerializer::serialize_bytecode(
     vstd::span<const hlsl::Property> binds,
     vstd::span<const SavedArgument> saved_args,
@@ -51,7 +139,11 @@ void ShaderSerializer::serialize_bytecode(
     for (auto &i : printers) {
         printer_size_bytes += i.first.size() + i.second->description().size() + 2;// zero-end string
     }
-    uint64_t final_size = sizeof(ShaderSerHeader) + header.property_size * sizeof(hlsl::Property) + header.spv_byte_size + header.kernel_arg_count * sizeof(SavedArgument) + printer_size_bytes;
+    uint64_t final_size = sizeof(ShaderSerHeader) +
+                          header.property_size * sizeof(hlsl::Property) +
+                          header.spv_byte_size +
+                          header.kernel_arg_count * sizeof(SavedArgument) +
+                          printer_size_bytes;
     results.push_back_uninitialized(final_size);
     auto data_ptr = results.data();
     auto save = [&]<typename T>(T const &t) {
@@ -107,6 +199,88 @@ void ShaderSerializer::serialize_pso(
     auto file_name = pso_md5.to_string(false);
 
     bin_io->write_shader_cache(file_name, pso_data);
+}
+auto ShaderSerializer::try_deser_raster(
+    Device *device,
+    // invalid md5 for AOT
+    vstd::optional<vstd::MD5> shader_md5,
+    vstd::vector<Argument> &&captured,
+    vstd::string_view file_name,
+    SerdeType serde_type,
+    BinaryIO const *bin_io) -> RasterDeserResult {
+    vstd::vector<hlsl::Property> properties;
+    vstd::vector<SavedArgument> saved_args;
+    vstd::vector<uint> vert_spv;
+    vstd::vector<uint> pixel_spv;
+    RasterDeserResult result{
+        .shader = nullptr};
+    uint3 block_size;
+    using namespace detail;
+    RasterSerHeader header;
+    vstd::vector<std::pair<luisa::string, Type const *>> printers;
+    {
+        auto read_stream = [&]() {
+            switch (serde_type) {
+                case SerdeType::Cache:
+                    return bin_io->read_shader_cache(file_name);
+                case SerdeType::Builtin:
+                    return bin_io->read_internal_shader(file_name);
+                case SerdeType::ByteCode:
+                    return bin_io->read_shader_bytecode(file_name);
+            }
+        }();
+        if (!read_stream) return result;
+        auto stream_len = read_stream->length();
+        if (stream_len < sizeof(RasterSerHeader)) return result;
+        read_stream->read({reinterpret_cast<std::byte *>(&header), sizeof(RasterSerHeader)});
+        uint64_t final_size = sizeof(RasterSerHeader) +
+                              header.property_size * sizeof(hlsl::Property) +
+                              header.vert_spv_byte_size +
+                              header.pixel_spv_byte_size +
+                              header.kernel_arg_count * sizeof(SavedArgument) +
+                              header.printer_size_bytes;
+        if (final_size != stream_len) return result;
+        if (shader_md5 && *shader_md5 != header.md5)
+            return result;
+        result.type_md5 = header.type_md5;
+        properties.push_back_uninitialized(header.property_size);
+        read_stream->read({reinterpret_cast<std::byte *>(properties.data()), properties.size_bytes()});
+        saved_args.push_back_uninitialized(header.kernel_arg_count);
+        read_stream->read({reinterpret_cast<std::byte *>(saved_args.data()), saved_args.size_bytes()});
+        vert_spv.push_back_uninitialized(header.vert_spv_byte_size / sizeof(uint));
+        read_stream->read({reinterpret_cast<std::byte *>(vert_spv.data()), vert_spv.size_bytes()});
+        pixel_spv.push_back_uninitialized(header.pixel_spv_byte_size / sizeof(uint));
+        read_stream->read({reinterpret_cast<std::byte *>(pixel_spv.data()), pixel_spv.size_bytes()});
+        luisa::vector<char> printer_data;
+        printers.reserve(header.printer_count);
+        if (header.printer_size_bytes > 0) {
+            printer_data.push_back_uninitialized(header.printer_size_bytes);
+            read_stream->read({reinterpret_cast<std::byte *>(printer_data.data()),
+                               printer_data.size()});
+            auto ptr = printer_data.data();
+            for (auto i : vstd::range(header.printer_count)) {
+                auto printer_len = strlen(ptr);
+                luisa::string_view printer_val{ptr, printer_len};
+                ptr += printer_len + 1;
+                auto type_desc_len = strlen(ptr);
+                auto type = Type::from(luisa::string_view{ptr, type_desc_len});
+                ptr += type_desc_len + 1;
+                printers.emplace_back(luisa::string{printer_val}, type);
+            }
+        }
+    }
+    result.shader = new RasterShader(
+        device,
+        std::move(captured),
+        std::move(saved_args),
+        properties,
+        {},
+        std::move(vert_spv),
+        std::move(pixel_spv),
+        header.use_bindless_tex2d,
+        header.use_bindless_tex3d,
+        header.use_bindless_buffer);
+    return result;
 }
 
 ShaderSerializer::DeserResult ShaderSerializer::try_deser_compute(
@@ -234,4 +408,5 @@ vstd::vector<SavedArgument> ShaderSerializer::serialize_saved_args(
     }
     return result;
 }
+
 }// namespace lc::vk

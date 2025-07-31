@@ -15,6 +15,7 @@ public:
     explicit MotionInstance(uint64_t handle)
         : RWResource(handle, Tag::MOTION_INSTANCE, false) {}
     void set(Stream *stream, Usage usage, Range range) override;
+    static constexpr luisa::string_view validation_res_name{"MotionInstance"};
 };
 
 }// namespace lc::validation

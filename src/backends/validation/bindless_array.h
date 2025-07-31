@@ -4,5 +4,6 @@ namespace lc::validation {
 class BindlessArray : public RWResource {
 public:
     BindlessArray(uint64_t handle) : RWResource(handle, Tag::BINDLESS_ARRAY, false) {}
+    static constexpr luisa::string_view validation_res_name{"BindlessArray"};
 };
 }// namespace lc::validation

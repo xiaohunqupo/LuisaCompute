@@ -336,7 +336,7 @@ int main(int argc, char *argv[]) {
     auto raytracing_shader = device.compile(raytracing_kernel, ShaderOption{.name = "path_tracing"});
     auto make_sampler_shader = device.compile(make_sampler_kernel, o);
 
-    static constexpr uint2 resolution = make_uint2(1024u);
+    static constexpr uint2 resolution = make_uint2(1024);
     Image<float> framebuffer = device.create_image<float>(PixelStorage::HALF4, resolution);
     Image<float> accum_image = device.create_image<float>(PixelStorage::FLOAT4, resolution);
     CommandList cmd_list;
