@@ -12,5 +12,6 @@ public:
     Mesh(uint64_t handle)
         : RWResource(handle, Tag::MESH, false) {}
     void set(Stream *stream, Usage usage, Range range) override;
+    static constexpr luisa::string_view validation_res_name{"Mesh"};
 };
 }// namespace lc::validation

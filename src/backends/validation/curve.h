@@ -20,6 +20,7 @@ public:
     explicit Curve(uint64_t handle)
         : RWResource(handle, Tag::CURVE, false) {}
     void set(Stream *stream, Usage usage, Range range) override;
+    static constexpr luisa::string_view validation_res_name{"Curve"};
 };
 
 }// namespace lc::validation

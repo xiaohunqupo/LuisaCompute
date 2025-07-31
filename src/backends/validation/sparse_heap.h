@@ -8,5 +8,6 @@ public:
     auto size() const { return _size; }
     SparseHeap(uint64_t handle, uint64_t size) : RWResource(handle, Tag::SPARSE_BUFFER_HEAP, false), _size{size} {}
     ~SparseHeap();
+    static constexpr luisa::string_view validation_res_name{"SparseHeap"};
 };
 }// namespace lc::validation

@@ -12,7 +12,7 @@ public:
     luisa::span<const Function::Binding> bound_arguments() const { return _bound_arguments; }
     Shader(
         uint64_t handle, luisa::span<const Function::Binding> bound_arguments) : RWResource(handle, Tag::SHADER, false), _bound_arguments{bound_arguments.begin(), bound_arguments.end()} {}
+    static constexpr luisa::string_view validation_res_name{"Shader"};
 };
 
 }// namespace lc::validation
-

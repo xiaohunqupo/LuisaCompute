@@ -9,5 +9,6 @@ public:
     ProceduralPrimitives(uint64_t handle)
         : RWResource(handle, Tag::PROCEDURAL_PRIMITIVE, false) {}
     void set(Stream *stream, Usage usage, Range range) override;
+    static constexpr luisa::string_view name = "ProceduralPrimitive";
 };
 }// namespace lc::validation

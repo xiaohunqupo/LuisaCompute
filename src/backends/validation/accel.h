@@ -12,5 +12,6 @@ public:
     Accel(uint64_t handle) : RWResource(handle, Tag::ACCEL, false) {}
     void set(Stream *stream, Usage usage, Range range) override;
     void modify(size_t size, Stream *stream, luisa::span<AccelBuildCommand::Modification const> modifies);
+    static constexpr luisa::string_view validation_res_name{"Accel"};
 };
 }// namespace lc::validation
