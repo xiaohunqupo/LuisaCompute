@@ -8,11 +8,23 @@ namespace luisa::compute {
 
 class VulkanDeviceConfigExt : public DeviceConfigExt {
 public:
+    struct ExternalDevice {
+        VkInstance instance{};
+        VkPhysicalDevice physical_device{};
+        VkDevice device{};
+        VkQueue graphics_queue{};
+        VkQueue compute_queue{};
+        VkQueue copy_queue{};
+    };
     VulkanDeviceConfigExt() = default;
     ~VulkanDeviceConfigExt() = default;
+    [[nodiscard]] virtual ExternalDevice create_external_device() {
+        return {};
+    }
     [[nodiscard]] virtual bool enable_fallback() const {
         return false;
     }
+
     virtual VkCommandBuffer borrow_command_buffer(
         StreamTag stream_tag) noexcept { return nullptr; }
     virtual bool execute_command_buffer(VkCommandBuffer cmd_buffer) noexcept { return false; }

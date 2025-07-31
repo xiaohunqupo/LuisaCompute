@@ -128,113 +128,111 @@ vstd::vector<VkExtensionProperties> supported_exts(VkPhysicalDevice physical_dev
     vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &extensions_count, props.data());
     return props;
 }
-VkInstance create_instance(bool enableValidation) {
+void create_instance(bool enableValidation, VkInstance &instance) {
     volkInitialize();
-    vstd::vector<const char *> instance_exts;
-    instance_exts.reserve(8);
-    vstd::unordered_set<vstd::string> supported_instance_exts;
+    if (!instance) {
+        vstd::vector<const char *> instance_exts;
+        instance_exts.reserve(8);
+        vstd::unordered_set<vstd::string> supported_instance_exts;
 
-    // Validation can also be forced via a define
-    settings.validation = enableValidation;
+        // Validation can also be forced via a define
+        settings.validation = enableValidation;
 
-    VkApplicationInfo appInfo = {};
-    appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    appInfo.pApplicationName = "luisa_compute";
-    appInfo.pEngineName = appInfo.pApplicationName;
-    appInfo.apiVersion = VK_API_VERSION_1_3;
+        VkApplicationInfo appInfo = {};
+        appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+        appInfo.pApplicationName = "luisa_compute";
+        appInfo.pEngineName = appInfo.pApplicationName;
+        appInfo.apiVersion = VK_API_VERSION_1_3;
 
-    // Enable surface extensions depending on os
-    instance_exts.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
-    instance_exts.push_back(VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME);
+        // Enable surface extensions depending on os
+        instance_exts.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
+        instance_exts.push_back(VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME);
 #if defined(_WIN32)
-    instance_exts.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
+        instance_exts.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
 #elif defined(VK_USE_PLATFORM_ANDROID_KHR)
-    instance_exts.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
+        instance_exts.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
 #elif defined(_DIRECT2DISPLAY)
-    instance_exts.push_back(VK_KHR_DISPLAY_EXTENSION_NAME);
+        instance_exts.push_back(VK_KHR_DISPLAY_EXTENSION_NAME);
 #elif defined(VK_USE_PLATFORM_DIRECTFB_EXT)
-    instance_exts.push_back(VK_EXT_DIRECTFB_SURFACE_EXTENSION_NAME);
+        instance_exts.push_back(VK_EXT_DIRECTFB_SURFACE_EXTENSION_NAME);
 #elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
-    instance_exts.push_back(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
+        instance_exts.push_back(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
 #elif defined(VK_USE_PLATFORM_XCB_KHR)
-    instance_exts.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
+        instance_exts.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
 #elif defined(VK_USE_PLATFORM_IOS_MVK)
-    instance_exts.push_back(VK_MVK_IOS_SURFACE_EXTENSION_NAME);
+        instance_exts.push_back(VK_MVK_IOS_SURFACE_EXTENSION_NAME);
 #elif defined(VK_USE_PLATFORM_MACOS_MVK)
-    instance_exts.push_back(VK_MVK_MACOS_SURFACE_EXTENSION_NAME);
+        instance_exts.push_back(VK_MVK_MACOS_SURFACE_EXTENSION_NAME);
 #elif defined(VK_USE_PLATFORM_HEADLESS_EXT)
-    instance_exts.push_back(VK_EXT_HEADLESS_SURFACE_EXTENSION_NAME);
+        instance_exts.push_back(VK_EXT_HEADLESS_SURFACE_EXTENSION_NAME);
 #endif
 
-    // Get extensions supported by the instance and store for later use
-    uint32_t extCount = 0;
-    vkEnumerateInstanceExtensionProperties(nullptr, &extCount, nullptr);
-    if (extCount > 0) {
-        vstd::vector<VkExtensionProperties> extensions(extCount);
-        if (vkEnumerateInstanceExtensionProperties(nullptr, &extCount, &extensions.front()) == VK_SUCCESS) {
-            for (VkExtensionProperties extension : extensions) {
-                supported_instance_exts.emplace(extension.extensionName);
+        // Get extensions supported by the instance and store for later use
+        uint32_t extCount = 0;
+        vkEnumerateInstanceExtensionProperties(nullptr, &extCount, nullptr);
+        if (extCount > 0) {
+            vstd::vector<VkExtensionProperties> extensions(extCount);
+            if (vkEnumerateInstanceExtensionProperties(nullptr, &extCount, &extensions.front()) == VK_SUCCESS) {
+                for (VkExtensionProperties extension : extensions) {
+                    supported_instance_exts.emplace(extension.extensionName);
+                }
             }
         }
-    }
 #if (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK))
-    // SRS - When running on iOS/macOS with MoltenVK, enable VK_KHR_get_physical_device_properties2 if not already enabled by the example (required by VK_KHR_portability_subset)
-    if (std::find(instance_exts.begin(), instance_exts.end(), VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME) == instance_exts.end()) {
-        instance_exts.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
-    }
+        // SRS - When running on iOS/macOS with MoltenVK, enable VK_KHR_get_physical_device_properties2 if not already enabled by the example (required by VK_KHR_portability_subset)
+        if (std::find(instance_exts.begin(), instance_exts.end(), VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME) == instance_exts.end()) {
+            instance_exts.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+        }
 #endif
+        VkInstanceCreateInfo instanceCreateInfo = {};
+        instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+        instanceCreateInfo.pNext = NULL;
+        instanceCreateInfo.pApplicationInfo = &appInfo;
 
-    VkInstanceCreateInfo instanceCreateInfo = {};
-    instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    instanceCreateInfo.pNext = NULL;
-    instanceCreateInfo.pApplicationInfo = &appInfo;
-
-    // The VK_LAYER_KHRONOS_validation contains all current validation functionality.
-    // Note that on Android this layer requires at least NDK r20
-    const char *validationLayerName = "VK_LAYER_KHRONOS_validation";
-    if (settings.validation) {
-        // Check if this layer is available at instance level
-        uint32_t instanceLayerCount;
-        vkEnumerateInstanceLayerProperties(&instanceLayerCount, nullptr);
-        vstd::vector<VkLayerProperties> instanceLayerProperties(instanceLayerCount);
-        vkEnumerateInstanceLayerProperties(&instanceLayerCount, instanceLayerProperties.data());
-        bool validationLayerPresent = false;
-        for (VkLayerProperties layer : instanceLayerProperties) {
-            if (strcmp(layer.layerName, validationLayerName) == 0) {
-                validationLayerPresent = true;
-                break;
+        // The VK_LAYER_KHRONOS_validation contains all current validation functionality.
+        // Note that on Android this layer requires at least NDK r20
+        const char *validationLayerName = "VK_LAYER_KHRONOS_validation";
+        if (settings.validation) {
+            // Check if this layer is available at instance level
+            uint32_t instanceLayerCount;
+            vkEnumerateInstanceLayerProperties(&instanceLayerCount, nullptr);
+            vstd::vector<VkLayerProperties> instanceLayerProperties(instanceLayerCount);
+            vkEnumerateInstanceLayerProperties(&instanceLayerCount, instanceLayerProperties.data());
+            bool validationLayerPresent = false;
+            for (VkLayerProperties layer : instanceLayerProperties) {
+                if (strcmp(layer.layerName, validationLayerName) == 0) {
+                    validationLayerPresent = true;
+                    break;
+                }
+            }
+            if (validationLayerPresent) {
+                instanceCreateInfo.ppEnabledLayerNames = &validationLayerName;
+                instanceCreateInfo.enabledLayerCount = 1;
+            } else {
+                LUISA_WARNING("Validation layer VK_LAYER_KHRONOS_validation not present, validation is disabled");
+                settings.validation = false;
             }
         }
-        if (validationLayerPresent) {
-            instanceCreateInfo.ppEnabledLayerNames = &validationLayerName;
-            instanceCreateInfo.enabledLayerCount = 1;
-        } else {
-            LUISA_WARNING("Validation layer VK_LAYER_KHRONOS_validation not present, validation is disabled");
-            settings.validation = false;
-        }
-    }
 
 #if (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK)) && defined(VK_KHR_portability_enumeration)
-    // SRS - When running on iOS/macOS with MoltenVK and VK_KHR_portability_enumeration is defined and supported by the instance, enable the extension and the flag
-    if (supported_instance_exts.find(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME) == supported_instance_exts.end()) {
-        instance_exts.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-        instanceCreateInfo.flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-    }
+        // SRS - When running on iOS/macOS with MoltenVK and VK_KHR_portability_enumeration is defined and supported by the instance, enable the extension and the flag
+        if (supported_instance_exts.find(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME) == supported_instance_exts.end()) {
+            instance_exts.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+            instanceCreateInfo.flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+        }
 #endif
 
-    if (instance_exts.size() > 0) {
-        if (settings.validation) {
-            instance_exts.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);// SRS - Dependency when VK_EXT_DEBUG_MARKER is enabled
-            instance_exts.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+        if (instance_exts.size() > 0) {
+            if (settings.validation) {
+                instance_exts.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);// SRS - Dependency when VK_EXT_DEBUG_MARKER is enabled
+                instance_exts.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+            }
+            instanceCreateInfo.enabledExtensionCount = (uint32_t)instance_exts.size();
+            instanceCreateInfo.ppEnabledExtensionNames = instance_exts.data();
         }
-        instanceCreateInfo.enabledExtensionCount = (uint32_t)instance_exts.size();
-        instanceCreateInfo.ppEnabledExtensionNames = instance_exts.data();
+        VK_CHECK_RESULT(vkCreateInstance(&instanceCreateInfo, Device::alloc_callbacks(), &instance));
     }
-
-    VkInstance instance;
-    VK_CHECK_RESULT(vkCreateInstance(&instanceCreateInfo, Device::alloc_callbacks(), &instance));
     volkLoadInstance(instance);
-    return instance;
 }
 
 }// namespace detail
@@ -285,6 +283,28 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
         device_idx = configs->device_index;
         _binary_io = configs->binary_io;
     }
+    VkPhysicalDevice ext_phy_device{};
+    VkDevice ext_device{};
+    if (_config_ext) {
+        auto external_device = _config_ext->create_external_device();
+        ext_phy_device = external_device.physical_device;
+        ext_device = external_device.device;
+        if ((ext_phy_device != nullptr) != (ext_device != nullptr)) [[unlikely]] {
+            LUISA_ERROR("External physical device must all have instance or all be null.");
+        }
+        if (external_device.instance) {
+            std::lock_guard lck{detail::instance_mtx};
+            detail::vk_instance = external_device.instance;
+        }
+        _graphics_queue = external_device.graphics_queue;
+        _compute_queue = external_device.compute_queue;
+        _copy_queue = external_device.copy_queue;
+        _external_instance = external_device.instance;
+        _external_device = external_device.device;
+        _external_graphics_queue = external_device.graphics_queue;
+        _external_compute_queue = external_device.compute_queue;
+        _external_copy_queue = external_device.copy_queue;
+    }
     Context ctx{this->_ctx_impl};
     {
         std::lock_guard lck(gDxcMutex);
@@ -300,20 +320,20 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
         // init instance
         {
             std::lock_guard lck{detail::instance_mtx};
-            if (!detail::vk_instance) {
+            if (!detail::vk_instance || _external_instance) {
 #ifdef NDEBUG
                 constexpr bool enableValidation = false;
 #else
                 constexpr bool enableValidation = true;
 #endif
-                detail::vk_instance = detail::create_instance(enableValidation);
+                detail::create_instance(enableValidation, detail::vk_instance);
             }
         }
         bool fallback = false;
         if (_config_ext) {
             fallback = _config_ext->enable_fallback();
         }
-        _init_device(device_idx, fallback);
+        _init_device(ext_phy_device, ext_device, device_idx, fallback);
 
         if (_config_ext) {
             _config_ext->readback_vulkan_device(instance(), physical_device(), logic_device(), alloc_callbacks(), _pso_header, _graphics_queue, _compute_queue, _copy_queue, gDxcCompiler->compiler(), gDxcCompiler->library(), gDxcCompiler->utils());
@@ -351,50 +371,53 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
     // func_table.init(this);
 }
 
-void Device::_init_device(uint32_t selectedDevice, bool fallback) {
-    VkResult err;
+void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice external_device, uint32_t selectedDevice, bool fallback) {
+    VkPhysicalDevice physical_device = external_physical_device;
+    if (!physical_device) {
+        VkResult err;
 
-    // If requested, we enable the default validation layers for debugging
-    if (detail::settings.validation) {
-        detail::setupDebugging(detail::vk_instance);
-    }
-
-    // Physical device
-    uint32_t gpuCount = 0;
-    // Get number of available physical devices
-    VK_CHECK_RESULT(vkEnumeratePhysicalDevices(detail::vk_instance, &gpuCount, nullptr));
-    if (gpuCount == 0) {
-        LUISA_ERROR("No device with Vulkan support found");
-        return;
-    }
-    vstd::vector<VkPhysicalDevice> physical_devices;
-    // Enumerate devices
-    physical_devices.push_back_uninitialized(gpuCount);
-    err = vkEnumeratePhysicalDevices(detail::vk_instance, &gpuCount, physical_devices.data());
-    if (err) [[unlikely]] {
-        LUISA_ERROR("Could not enumerate physical devices : {}", (int)err);
-        return;
-    }
-
-    // GPU selection
-
-    // Select physical device to be used for the Vulkan example
-    // Defaults to the first device unless specified by command line
-    if (selectedDevice == -1) {
-        selectedDevice = 0;
-        for (auto &&i : physical_devices) {
-            vkGetPhysicalDeviceProperties(i, &_device_properties);
-            luisa::string device_name{_device_properties.deviceName};
-            if (device_name.find("GeForce") != luisa::string::npos ||
-                device_name.find("Radeon") != luisa::string::npos ||
-                device_name.find("Arc") != luisa::string::npos) {
-                LUISA_INFO("Select device: {}", device_name);
-                break;
-            }
-            selectedDevice++;
+        // If requested, we enable the default validation layers for debugging
+        if (detail::settings.validation) {
+            detail::setupDebugging(detail::vk_instance);
         }
+
+        // Physical device
+        uint32_t gpuCount = 0;
+        // Get number of available physical devices
+        VK_CHECK_RESULT(vkEnumeratePhysicalDevices(detail::vk_instance, &gpuCount, nullptr));
+        if (gpuCount == 0) {
+            LUISA_ERROR("No device with Vulkan support found");
+            return;
+        }
+        vstd::vector<VkPhysicalDevice> physical_devices;
+        // Enumerate devices
+        physical_devices.push_back_uninitialized(gpuCount);
+        err = vkEnumeratePhysicalDevices(detail::vk_instance, &gpuCount, physical_devices.data());
+        if (err) [[unlikely]] {
+            LUISA_ERROR("Could not enumerate physical devices : {}", (int)err);
+            return;
+        }
+
+        // GPU selection
+
+        // Select physical device to be used for the Vulkan example
+        // Defaults to the first device unless specified by command line
+        if (selectedDevice == -1) {
+            selectedDevice = 0;
+            for (auto &&i : physical_devices) {
+                vkGetPhysicalDeviceProperties(i, &_device_properties);
+                luisa::string device_name{_device_properties.deviceName};
+                if (device_name.find("GeForce") != luisa::string::npos ||
+                    device_name.find("Radeon") != luisa::string::npos ||
+                    device_name.find("Arc") != luisa::string::npos) {
+                    LUISA_INFO("Select device: {}", device_name);
+                    break;
+                }
+                selectedDevice++;
+            }
+        }
+        physical_device = physical_devices[selectedDevice];
     }
-    auto physical_device = physical_devices[selectedDevice];
 
     // Store properties (including limits), features and memory properties of the physical device (so that examples can check against them)
     vkGetPhysicalDeviceFeatures(physical_device, &_device_features);
@@ -406,6 +429,7 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
     // This is handled by a separate class that gets a logical device representation
     // and encapsulates functions related to a device
     _vk_device.create(physical_device);
+    _vk_device->logicalDevice = external_device;
     _enable_device_exts.emplace_back(VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME);
     if (!fallback) {
         // _enable_device_exts.emplace_back(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
@@ -459,9 +483,12 @@ void Device::_init_device(uint32_t selectedDevice, bool fallback) {
     volkLoadDevice(device);
 
     // Get a graphics queue from the device
-    vkGetDeviceQueue(device, _vk_device->queueFamilyIndices.graphics, 0, &_graphics_queue);
-    vkGetDeviceQueue(device, _vk_device->queueFamilyIndices.compute, 0, &_compute_queue);
-    vkGetDeviceQueue(device, _vk_device->queueFamilyIndices.transfer, 0, &_copy_queue);
+    if (!_external_graphics_queue)
+        vkGetDeviceQueue(device, _vk_device->queueFamilyIndices.graphics, 0, &_graphics_queue);
+    if (!_external_compute_queue)
+        vkGetDeviceQueue(device, _vk_device->queueFamilyIndices.compute, 0, &_compute_queue);
+    if (!_external_copy_queue)
+        vkGetDeviceQueue(device, _vk_device->queueFamilyIndices.transfer, 0, &_copy_queue);
     _pso_header.headerSize = sizeof(VkPipelineCacheHeaderVersionOne);
     _pso_header.headerVersion = VK_PIPELINE_CACHE_HEADER_VERSION_ONE;
     _pso_header.vendorID = _vk_device->properties.vendorID;
@@ -683,6 +710,10 @@ Device::~Device() {
         if (--gDxcRefCount == 0) {
             gDxcCompiler.destroy();
         }
+    }
+    if (_external_device) {
+        _vk_device->logicalDevice = nullptr;
+        _vk_device->physicalDevice = nullptr;
     }
 }
 void *Device::native_handle() const noexcept { return _vk_device->logicalDevice; }
@@ -927,7 +958,7 @@ VSTL_EXPORT_C void backend_device_names(luisa::vector<luisa::string> &r) {
 #else
             constexpr bool enableValidation = true;
 #endif
-            detail::vk_instance = detail::create_instance(enableValidation);
+            detail::create_instance(enableValidation, detail::vk_instance);
         }
     }
     vstd::vector<VkPhysicalDevice> physical_devices;

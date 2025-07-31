@@ -62,7 +62,7 @@ class Device : public DeviceInterface, public vstd::IOperatorNewBase {
     BinaryIO const *_binary_io{};
     vstd::unique_ptr<DefaultBinaryIO> _default_file_io;
     bool inqueue_limit = true;// TODO
-    void _init_device(uint32_t selectedDevice, bool fallback);
+    void _init_device(VkPhysicalDevice external_physical_device, VkDevice external_device, uint32_t selectedDevice, bool fallback);
 public:
     struct HeapAlloc {
         uint count = 0;
@@ -101,6 +101,12 @@ public:
     HeapAlloc buffer_heap_pool;
     LazyLoadShader set_bindless_kernel;
     LazyLoadShader set_accel_kernel;
+    bool _external_instance : 1 {false};
+    bool _external_device : 1 {false};
+    bool _external_graphics_queue : 1 {false};
+    bool _external_compute_queue : 1 {false};
+    bool _external_copy_queue : 1 {false};
+
     VulkanDeviceConfigExt *config_ext() const { return _config_ext.get(); }
     auto binary_io() const { return _binary_io; }
     auto sampler_set() const { return _sampler_set; }

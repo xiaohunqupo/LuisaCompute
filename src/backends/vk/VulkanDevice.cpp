@@ -279,15 +279,17 @@ VkResult VulkanDevice::createLogicalDevice(VkPhysicalDeviceFeatures &enabledFeat
     }
 
     this->enabledFeatures = enabledFeatures;
+    if (!logicalDevice) {
+        VkResult result = vkCreateDevice(physicalDevice, &deviceCreateInfo, lc::vk::Device::alloc_callbacks(), &logicalDevice);
+        if (result != VK_SUCCESS) {
+            return result;
+        }
 
-    VkResult result = vkCreateDevice(physicalDevice, &deviceCreateInfo, lc::vk::Device::alloc_callbacks(), &logicalDevice);
-    if (result != VK_SUCCESS) {
+        // Create a default command pool for graphics command buffers
+
         return result;
     }
-
-    // Create a default command pool for graphics command buffers
-
-    return result;
+    return VK_SUCCESS;
 }
 
 bool VulkanDevice::extensionSupported(vstd::string_view extension) {
