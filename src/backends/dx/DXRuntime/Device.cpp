@@ -138,10 +138,29 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
             allocSettings = deviceSettings->GetGPUAllocatorSettings();
             use_dred = deviceSettings->UseDRED();
         }
-        if (extDevice) {
+        if (extDevice && extDevice->device) {
             device = {static_cast<ID3D12Device5 *>(extDevice->device), false};
-            adapter = {extDevice->adapter, false};
-            dxgiFactory = {extDevice->factory, false};
+            if (extDevice->adapter) {
+                adapter = {extDevice->adapter, false};
+            } else {
+                IDXGIDevice *pDXGIDevice = nullptr;
+                auto dispose_pDXGIDevice = vstd::scope_exit([&] {
+                    if (pDXGIDevice)
+                        pDXGIDevice->Release();
+                });
+                ThrowIfFailed(device->QueryInterface(IID_PPV_ARGS(&pDXGIDevice)));
+                // Query for IDXGIAdapter from IDXGIDevice
+                IDXGIAdapter *pAdapter = nullptr;
+                ThrowIfFailed(pDXGIDevice->GetAdapter(&pAdapter));
+                adapter = {static_cast<IDXGIAdapter1 *>(pAdapter), true};
+            }
+            if (extDevice->factory) {
+                dxgiFactory = {extDevice->factory, false};
+            } else {
+                IDXGIFactory *pDxgiFactory;
+                ThrowIfFailed(adapter->GetParent(IID_PPV_ARGS(&pDxgiFactory)));
+                dxgiFactory = {static_cast<IDXGIFactory2 *>(pDxgiFactory), true};
+            }
             DXGI_ADAPTER_DESC1 desc;
             adapter->GetDesc1(&desc);
             adapterID = GenAdapterGUID(desc);
