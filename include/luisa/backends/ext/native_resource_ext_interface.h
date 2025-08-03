@@ -19,10 +19,8 @@ class Swapchain;
 
 class NativeResourceExt : public DeviceExtension {
 
-private:
-    DeviceInterface *_device;
-
 protected:
+    DeviceInterface *_device;
     ~NativeResourceExt() noexcept = default;
 
 public:

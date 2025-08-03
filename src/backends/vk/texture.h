@@ -11,13 +11,23 @@ class Texture : public Resource {
     uint3 _size;
     uint _mip;
     uint _dimension;
-    bool _simultaneous_access;
+    bool _contained : 1 {true};
+    bool _simultaneous_access : 1;
     mutable luisa::spin_mutex _layout_mtx;
     mutable vstd::vector<VkImageLayout> _layouts;
 public:
     auto simultaneous_access() const { return _simultaneous_access; }
     auto dimension() const { return _dimension; }
     Texture(Device *device);
+    // external
+    Texture(
+        Device *device,
+        VkImage external_image,
+        uint dimension,
+        VkFormat format,
+        uint3 size,
+        uint mip,
+        bool simultaneous_access);
     Texture(
         Device *device,
         uint dimension,
@@ -36,7 +46,7 @@ public:
     static uint2 tex2d_tile_size(luisa::compute::PixelStorage storage);
     static uint3 tex3d_tile_size(luisa::compute::PixelStorage storage);
     uint3 tile_size() const {
-        if (luisa::to_underlying(_format) > 65535u) return {}; // depth
+        if (luisa::to_underlying(_format) > 65535u) return {};// depth
         if (_dimension <= 2) {
             return make_uint3(tex2d_tile_size(luisa::compute::pixel_format_to_storage(_format)), 1);
         } else {
@@ -47,8 +57,8 @@ public:
 
     auto mip() const { return _mip; }
     auto vk_image() const { return _img.image; }
-    auto format() const { 
-        if (luisa::to_underlying(_format) > 65535u) return static_cast<compute::PixelFormat>(-1); // depth
+    auto format() const {
+        if (luisa::to_underlying(_format) > 65535u) return static_cast<compute::PixelFormat>(-1);// depth
         return _format;
     }
     auto depth_format() const {

@@ -3,6 +3,7 @@
 #include "../common/hlsl/shader_compiler.h"
 #include "../common/hlsl/hlsl_codegen.h"
 #include "shader_serializer.h"
+#include "compute_shader.h"
 namespace lc::vk {
 static constexpr uint k_shader_model = 65u;
 ResourceCreationInfo VkRasterExt::create_raster_shader(
@@ -69,7 +70,17 @@ ResourceCreationInfo VkRasterExt::create_raster_shader(
 ResourceCreationInfo VkRasterExt::load_raster_shader(
     luisa::span<Type const *const> types,
     luisa::string_view ser_path) noexcept {
-    return ResourceCreationInfo::make_invalid();
+    auto deser_result = ShaderSerializer::try_deser_raster(_device, {}, {}, ser_path, SerdeType::ByteCode, _device->binary_io());
+    if (!deser_result.shader)
+        return ResourceCreationInfo::make_invalid();
+    ResourceCreationInfo info{};
+    info.handle = reinterpret_cast<uint64_t>(deser_result.shader);
+    if (!ComputeShader::verify_type_md5(types, deser_result.type_md5)) {
+        LUISA_WARNING("Shader {} arguments not match.", name);
+        info.invalidate();
+        return info;
+    }
+    return info;
 }
 
 VkRasterExt::VkRasterExt(Device *device) {
@@ -77,7 +88,9 @@ VkRasterExt::VkRasterExt(Device *device) {
 }
 VkRasterExt::~VkRasterExt() {}
 
-void VkRasterExt::destroy_raster_shader(uint64_t handle) noexcept {}
+void VkRasterExt::destroy_raster_shader(uint64_t handle) noexcept {
+    delete reinterpret_cast<RasterShader*>(handle);
+}
 
 // depth buffer
 ResourceCreationInfo VkRasterExt::create_depth_buffer(DepthFormat format, uint width, uint height) noexcept {

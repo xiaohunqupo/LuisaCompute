@@ -88,7 +88,7 @@ BufferCreationInfo DxNativeResourceExt::register_external_buffer(
     auto res = static_cast<Buffer *>(new ExternalBuffer(
         dx_device,
         reinterpret_cast<ID3D12Resource *>(external_ptr),
-        *reinterpret_cast<D3D12_RESOURCE_STATES const *>(custom_data)));
+        custom_data ? *reinterpret_cast<D3D12_RESOURCE_STATES const *>(custom_data) : D3D12_RESOURCE_STATE_COMMON));
     BufferCreationInfo info;
     info.handle = resource_to_handle(res);
     info.native_handle = res->GetResource();
@@ -104,7 +104,7 @@ ResourceCreationInfo DxNativeResourceExt::register_external_image(
     void *custom_data) noexcept {
     auto desc = reinterpret_cast<NativeTextureDesc const *>(custom_data);
     GFXFormat gfxFormat;
-    if (desc->custom_format == DXGI_FORMAT_UNKNOWN) {
+    if (!desc || desc->custom_format == DXGI_FORMAT_UNKNOWN) {
         gfxFormat = TextureBase::ToGFXFormat(format);
     } else {
         gfxFormat = static_cast<GFXFormat>(desc->custom_format);
@@ -112,14 +112,14 @@ ResourceCreationInfo DxNativeResourceExt::register_external_image(
     auto res = static_cast<TextureBase *>(new ExternalTexture(
         dx_device,
         reinterpret_cast<ID3D12Resource *>(external_ptr),
-        desc->initState,
+        desc ? desc->initState : D3D12_RESOURCE_STATE_COMMON,
         width,
         height,
         gfxFormat,
         (TextureDimension)dimension,
         depth,
         mipmap_levels,
-        desc->allowUav));
+        desc ? desc->allowUav : true));
     return {
         reinterpret_cast<uint64_t>(res),
         external_ptr};

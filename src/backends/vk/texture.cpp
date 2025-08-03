@@ -8,6 +8,24 @@ Texture::Texture(Device *device)
 }
 Texture::Texture(
     Device *device,
+    VkImage external_image,
+    uint dimension,
+    VkFormat format,
+    uint3 size,
+    uint mip,
+    bool simultaneous_access)
+    : Resource(device),
+      _img(external_image),
+      _format(
+          static_cast<compute::PixelFormat>(static_cast<uint>(format) | (1u << 31u))),
+      _size(size),
+      _mip(mip),
+      _dimension(dimension),
+      _contained{false},
+      _simultaneous_access(simultaneous_access) {}
+
+Texture::Texture(
+    Device *device,
     uint dimension,
     PixelFormat format,
     uint3 size,
@@ -43,7 +61,7 @@ Texture::Texture(
 Texture::~Texture() {
     if (_img.allocation)
         device()->allocator().destroy_image(_img);
-    else
+    else if (_contained)
         vkDestroyImage(device()->logic_device(), _img.image, Device::alloc_callbacks());
 }
 
@@ -122,8 +140,12 @@ uint3 Texture::tex3d_tile_size(luisa::compute::PixelStorage storage) {
 }
 
 VkFormat Texture::to_vk_format(PixelFormat format) {
+    // native format
+    if ((luisa::to_underlying(format) & (1u << 31u)) != 0) {
+        return static_cast<VkFormat>(luisa::to_underlying(format) & ((1u << 31u) - 1u));
+    }
     // depth
-    if (luisa::to_underlying(format) > 65535u) {
+    else if (luisa::to_underlying(format) > 65535u) {
         auto depth_format = static_cast<compute::DepthFormat>(luisa::to_underlying(format) & 65535u);
         switch (depth_format) {
             case compute::DepthFormat::D16:

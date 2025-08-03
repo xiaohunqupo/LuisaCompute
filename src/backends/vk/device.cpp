@@ -22,6 +22,7 @@
 #include "sparse_buffer.h"
 #include "pinned_memory_ext.h"
 #include "vk_raster_ext.h"
+#include "vk_native_res_ext.h"
 #include <luisa/backends/ext/raster_ext_interface.h>
 namespace lc::vk {
 static constexpr uint k_shader_model = 65u;
@@ -362,6 +363,18 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
         },
         [](DeviceExtension *ext) {
             delete static_cast<VkRasterExt *>(ext);
+        });
+    exts.try_emplace(
+#ifdef LUISA_USE_SYSTEM_STL
+        luisa::string{NativeResourceExt::name},
+#else
+        NativeResourceExt::name,
+#endif
+        [](Device *device) -> DeviceExtension * {
+            return new VkNativeResourceExt(device);
+        },
+        [](DeviceExtension *ext) {
+            delete static_cast<VkNativeResourceExt *>(ext);
         });
     // auto exts = detail::supported_exts(physical_device());
     // for(auto&& i : exts){
@@ -728,7 +741,7 @@ BufferCreationInfo Device::create_buffer(const Type *element, size_t elem_count,
 }
 BufferCreationInfo Device::create_buffer(const ir::CArc<ir::Type> *element, size_t elem_count, void *external_ptr) noexcept { return BufferCreationInfo::make_invalid(); }
 void Device::destroy_buffer(uint64_t handle) noexcept {
-    delete reinterpret_cast<DefaultBuffer *>(handle);
+    delete reinterpret_cast<Buffer *>(handle);
 }
 
 // texture

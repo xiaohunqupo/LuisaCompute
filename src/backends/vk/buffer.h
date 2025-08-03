@@ -24,6 +24,18 @@ public:
     uint64_t get_device_address() const;
     virtual bool flush_host() const { return false; }
 };
+class ExternalBuffer : public Buffer {
+    VkBuffer _buffer{};
+
+public:
+    ExternalBuffer(Device *device, VkBuffer vk_buffer, size_t size_bytes)
+        : Buffer{device, size_bytes},
+          _buffer(vk_buffer) {
+    }
+    ExternalBuffer(ExternalBuffer &&rhs) = default;
+    ~ExternalBuffer() = default;
+    VkBuffer vk_buffer() const override { return _buffer; }
+};
 class BufferView {
 public:
     Buffer const *buffer;
