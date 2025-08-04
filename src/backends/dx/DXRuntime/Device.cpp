@@ -50,6 +50,7 @@ Device::~Device() {
 
 void Device::WaitFence(ID3D12Fence *fence, uint64 fenceIndex) {
     if (fenceIndex <= 0) return;
+    if (deviceSettings && deviceSettings->SyncFence(fence, fenceIndex)) return;
     HANDLE eventHandle = CreateEventEx(nullptr, nullptr, false, EVENT_ALL_ACCESS);
     auto d = vstd::scope_exit([&] {
         CloseHandle(eventHandle);

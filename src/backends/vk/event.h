@@ -11,7 +11,7 @@ class Event : public Resource {
     void update_fence(uint64_t value);
     void signal(Stream &stream, uint64_t value, VkCommandBuffer *cmdbuffer = nullptr);
     void signal_sparse(Stream &stream, uint64_t const* value_ptr, VkBindSparseInfo *sparse_info, VkTimelineSemaphoreSubmitInfo* timeline_ptr);
-    void wait(Stream &stream, uint64_t value, VkCommandBuffer *cmdbuffer = nullptr);
+    void wait(Stream &stream, uint64_t value);
     void host_wait(uint64_t value);
     void notify(uint64_t value);
 public:

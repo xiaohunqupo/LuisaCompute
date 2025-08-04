@@ -76,7 +76,10 @@ struct DirectXDeviceConfigExt : public DeviceConfigExt {
     virtual bool SignalFence(
         ID3D12CommandQueue *queue,
         ID3D12Fence *fence, uint64_t fenceIndex) noexcept { return false; }
-
+    virtual bool WaitFence(
+        ID3D12CommandQueue *queue,
+        ID3D12Fence *fence, uint64_t fenceIndex) noexcept { return false; }
+    virtual bool SyncFence(ID3D12Fence *fence, uint64_t fenceIndex) { return false; }
     virtual ~DirectXDeviceConfigExt() noexcept override = default;
 };
 

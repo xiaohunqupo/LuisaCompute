@@ -19,7 +19,8 @@ void LCEvent::Sync(uint64_t fenceIdx) const {
 }
 void LCEvent::Signal(CommandQueue *queue, uint64 fenceIdx) const {
     std::lock_guard lck(eventMtx);
-    queue->Queue()->Signal(fence.Get(), fenceIdx);
+    if (!device->deviceSettings || !device->deviceSettings->SignalFence(queue->Queue(), fence.Get(), fenceIdx))
+        queue->Queue()->Signal(fence.Get(), fenceIdx);
     lastFence = std::max(lastFence, fenceIdx);
     queue->AddEvent(this, fenceIdx);
 }
@@ -31,7 +32,8 @@ void LCEvent::Signal(DStorageCommandQueue *queue, uint64 fenceIdx) const {
 }
 void LCEvent::Wait(CommandQueue *queue, uint64 fenceIdx) const {
     std::lock_guard lck(eventMtx);
-    queue->Queue()->Wait(fence.Get(), fenceIdx);
+    if (!device->deviceSettings || !device->deviceSettings->WaitFence(queue->Queue(), fence.Get(), fenceIdx))
+        queue->Queue()->Wait(fence.Get(), fenceIdx);
 }
 bool LCEvent::IsComplete(uint64 fenceIdx) const {
     std::lock_guard lck(eventMtx);

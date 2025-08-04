@@ -51,6 +51,8 @@ void Event::signal(Stream &stream, uint64_t value, VkCommandBuffer *cmdbuffer) {
         std::lock_guard lck(eventMtx);
         lastFence = std::max(lastFence, value);
     }
+    if (device()->config_ext() && device()->config_ext()->signal_semaphore(stream.queue(), _semaphore, value))
+        return;
     auto timelineInfo1 = get_timeline_submit(&value);
     VkSubmitInfo info1{};
     info1.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -65,7 +67,9 @@ void Event::signal(Stream &stream, uint64_t value, VkCommandBuffer *cmdbuffer) {
 
     VK_CHECK_RESULT(vkQueueSubmit(stream.queue(), 1, &info1, VK_NULL_HANDLE));
 }
-void Event::wait(Stream &stream, uint64_t value, VkCommandBuffer *cmdbuffer) {
+void Event::wait(Stream &stream, uint64_t value) {
+    if (device()->config_ext() && device()->config_ext()->wait_semaphore(stream.queue(), _semaphore, value))
+        return;
     VkTimelineSemaphoreSubmitInfo timelineInfo1{};
     timelineInfo1.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
     timelineInfo1.pNext = nullptr;
@@ -84,11 +88,13 @@ void Event::wait(Stream &stream, uint64_t value, VkCommandBuffer *cmdbuffer) {
     info1.signalSemaphoreCount = 0;
     info1.pSignalSemaphores = nullptr;
     // ... Enqueue initial device work here.
-    info1.commandBufferCount = cmdbuffer ? 1 : 0;
-    info1.pCommandBuffers = cmdbuffer;
+    info1.commandBufferCount = 0;
+    info1.pCommandBuffers = nullptr;
     VK_CHECK_RESULT(vkQueueSubmit(stream.queue(), 1, &info1, VK_NULL_HANDLE));
 }
 void Event::host_wait(uint64_t value) {
+    if (device()->config_ext() && device()->config_ext()->sync_semaphore(_semaphore, value))
+        return;
     VkSemaphoreWaitInfo info{
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
         .semaphoreCount = 1,

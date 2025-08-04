@@ -28,6 +28,9 @@ public:
     virtual VkCommandBuffer borrow_command_buffer(
         StreamTag stream_tag) noexcept { return nullptr; }
     virtual bool execute_command_buffer(VkCommandBuffer cmd_buffer) noexcept { return false; }
+    virtual bool signal_semaphore(VkQueue queue, VkSemaphore _semaphore, uint64_t index) { return false; }
+    virtual bool wait_semaphore(VkQueue queue, VkSemaphore _semaphore, uint64_t index) { return false; }
+    virtual bool sync_semaphore(VkSemaphore _semaphore, uint64_t index) { return false; }
     virtual void readback_vulkan_device(
         VkInstance instance,
         VkPhysicalDevice physical_device,
