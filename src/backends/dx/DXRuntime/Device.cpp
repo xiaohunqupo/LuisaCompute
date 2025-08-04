@@ -140,26 +140,40 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
         }
         if (extDevice && extDevice->device) {
             device = {static_cast<ID3D12Device5 *>(extDevice->device), false};
-            if (extDevice->adapter) {
-                adapter = {extDevice->adapter, false};
-            } else {
-                IDXGIDevice *pDXGIDevice = nullptr;
-                auto dispose_pDXGIDevice = vstd::scope_exit([&] {
-                    if (pDXGIDevice)
-                        pDXGIDevice->Release();
-                });
-                ThrowIfFailed(device->QueryInterface(IID_PPV_ARGS(&pDXGIDevice)));
-                // Query for IDXGIAdapter from IDXGIDevice
-                IDXGIAdapter *pAdapter = nullptr;
-                ThrowIfFailed(pDXGIDevice->GetAdapter(&pAdapter));
-                adapter = {static_cast<IDXGIAdapter1 *>(pAdapter), true};
-            }
             if (extDevice->factory) {
                 dxgiFactory = {extDevice->factory, false};
             } else {
-                IDXGIFactory *pDxgiFactory;
-                ThrowIfFailed(adapter->GetParent(IID_PPV_ARGS(&pDxgiFactory)));
-                dxgiFactory = {static_cast<IDXGIFactory2 *>(pDxgiFactory), true};
+                ThrowIfFailed(CreateDXGIFactory2(0, IID_PPV_ARGS(dxgiFactory.GetAddressOf())));
+                // IDXGIFactory *pDxgiFactory;
+                // ThrowIfFailed(adapter->GetParent(IID_PPV_ARGS(&pDxgiFactory)));
+                // dxgiFactory = {static_cast<IDXGIFactory2 *>(pDxgiFactory), true};
+            }
+            if (extDevice->adapter) {
+                adapter = {extDevice->adapter, false};
+            } else {
+                DxPtr<IDXGIAdapter1> local_adapter;
+                auto device_id = device->GetAdapterLuid();
+                for (auto adapterIndex = 0u; dxgiFactory->EnumAdapters1(adapterIndex, local_adapter.GetAddressOf()) != DXGI_ERROR_NOT_FOUND; adapterIndex++) {
+                    DXGI_ADAPTER_DESC1 desc;
+                    local_adapter->GetDesc1(&desc);
+                    if (std::memcmp(&desc.AdapterLuid, &device_id, sizeof(LUID)) == 0) {
+                        adapter = std::move(local_adapter);
+                        break;
+                    }
+                }
+                if (!adapter) {
+                    LUISA_ERROR("Adapter not found.");
+                }
+                // IDXGIDevice *pDXGIDevice = nullptr;
+                // auto dispose_pDXGIDevice = vstd::scope_exit([&] {
+                //     if (pDXGIDevice)
+                //         pDXGIDevice->Release();
+                // });
+                // ThrowIfFailed(device->QueryInterface(IID_PPV_ARGS(&pDXGIDevice)));
+                // // Query for IDXGIAdapter from IDXGIDevice
+                // IDXGIAdapter *pAdapter = nullptr;
+                // ThrowIfFailed(pDXGIDevice->GetAdapter(&pAdapter));
+                // adapter = {static_cast<IDXGIAdapter1 *>(pAdapter), true};
             }
             DXGI_ADAPTER_DESC1 desc;
             adapter->GetDesc1(&desc);
