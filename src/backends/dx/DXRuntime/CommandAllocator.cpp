@@ -93,9 +93,7 @@ void CommandAllocator::Execute(
         }
         for (auto &i : swapChains)
             present(i.first, i.second);
-        if (!device->deviceSettings->SignalFence(cmdQueue, fence, fenceIndex)) {
-            ThrowIfFailed(cmdQueue->Signal(fence, fenceIndex));
-        }
+        ThrowIfFailed(cmdQueue->Signal(fence, fenceIndex));
     } else {
         if (!cmdlist_is_empty) {
             if (!device->deviceSettings->ExecuteCommandList(cmdQueue, static_cast<ID3D12GraphicsCommandList *>(cmdList)))
