@@ -93,7 +93,9 @@ void CommandAllocator::Execute(
         }
         for (auto &i : swapChains)
             present(i.first, i.second);
-        ThrowIfFailed(cmdQueue->Signal(fence, fenceIndex));
+        if (!device->deviceSettings->SignalFence(cmdQueue, fence, fenceIndex)) {
+            ThrowIfFailed(cmdQueue->Signal(fence, fenceIndex));
+        }
     } else {
         if (!cmdlist_is_empty) {
             if (!device->deviceSettings->ExecuteCommandList(cmdQueue, static_cast<ID3D12GraphicsCommandList *>(cmdList)))
@@ -139,17 +141,23 @@ CommandAllocator::CommandAllocator(
       readbackAllocator(TEMP_SIZE),
       rtvAllocator(64, &rtvVisitor),
       dsvAllocator(64, &dsvVisitor) {
-    ThrowIfFailed(
-        device->device->CreateCommandAllocator(type, IID_PPV_ARGS(allocator.GetAddressOf())));
+
     cbuffer.create(
         device,
         this);
-    ThrowIfFailed(
-        allocator->Reset());
     cbuffer->Reset();
     uploadAllocator.visitor.self = this;
     defaultAllocator.visitor.self = this;
     readbackAllocator.visitor.self = this;
+}
+ID3D12CommandAllocator *CommandAllocator::Allocator() {
+    if (!allocator) {
+        ThrowIfFailed(
+            device->device->CreateCommandAllocator(type, IID_PPV_ARGS(allocator.GetAddressOf())));
+        ThrowIfFailed(
+            allocator->Reset());
+    }
+    return allocator.Get();
 }
 
 CommandAllocator::~CommandAllocator() {
@@ -161,8 +169,9 @@ void CommandAllocator::Reset(CommandQueue *queue) {
     defaultAllocator.Clear();
     rtvAllocator.clear();
     dsvAllocator.clear();
-    ThrowIfFailed(
-        allocator->Reset());
+    if (allocator)
+        ThrowIfFailed(
+            allocator->Reset());
     cbuffer->Reset();
 }
 

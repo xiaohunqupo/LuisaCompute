@@ -111,6 +111,7 @@ public:
 class StringStateVisitor final : public StmtVisitor, public ExprVisitor {
     Function f;
     CodegenUtility *util;
+    luisa::fixed_vector<uint, 4> switchCount;
     struct Scope {
         StringStateVisitor *self;
         Scope(StringStateVisitor *self);

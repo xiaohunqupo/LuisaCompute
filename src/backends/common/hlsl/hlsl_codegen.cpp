@@ -414,6 +414,10 @@ void StringStateVisitor::visit(const SwitchStmt *state) {
     if ((luisa::to_underlying(util->opt->cond_opt_value) & luisa::to_underlying(CodegenStackData::CondOptValue::ForceCase)) != 0) {
         str << "[[forcecase]] "sv;
     }
+    switchCount.emplace_back(0);
+    auto dsp = vstd::scope_exit([&]() {
+        switchCount.pop_back();
+    });
     util->opt->cond_opt_value = CodegenStackData::CondOptValue::None;
 #ifdef USE_SPIRV
     auto stackData = util->StackData();
@@ -430,8 +434,15 @@ void StringStateVisitor::visit(const SwitchStmt *state) {
         state->body()->accept(*this);
     }
 #endif
+    if (switchCount.back() == 0) {
+        str << "{ default: break; }\n";
+    }
 }
 void StringStateVisitor::visit(const SwitchCaseStmt *state) {
+    if (state->body()->statements().empty()) {
+        return;
+    }
+    switchCount.back()++;
 #ifdef USE_SPIRV
     auto stackData = util->StackData();
     if (stackData->tempSwitchCounter == 0) {
@@ -468,6 +479,10 @@ void StringStateVisitor::visit(const SwitchCaseStmt *state) {
 #endif
 }
 void StringStateVisitor::visit(const SwitchDefaultStmt *state) {
+    if (state->body()->statements().empty()) {
+        return;
+    }
+    switchCount.back()++;
 #ifdef USE_SPIRV
     auto stackData = util->StackData();
     if (stackData->tempSwitchCounter == 0) {

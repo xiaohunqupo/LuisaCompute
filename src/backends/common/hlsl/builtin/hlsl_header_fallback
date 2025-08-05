@@ -1,6 +1,41 @@
 #define _INF_f (1.#INF)
-SamplerState samplers[16]:register(s0,space1);
-#define _GETSMP(idx) samplers[NonUniformResourceIndex(idx)]
+SamplerState s_0;
+SamplerState s_1;
+SamplerState s_2;
+SamplerState s_3;
+SamplerState s_4;
+SamplerState s_5;
+SamplerState s_6;
+SamplerState s_7;
+SamplerState s_8;
+SamplerState s_9;
+SamplerState s_10;
+SamplerState s_11;
+SamplerState s_12;
+SamplerState s_13;
+SamplerState s_14;
+SamplerState s_15;
+SamplerState _GETSMP(uint index){
+switch(index){
+case 0: return s_0;
+case 1: return s_1;
+case 2: return s_2;
+case 3: return s_3;
+case 4: return s_4;
+case 5: return s_5;
+case 6: return s_6;
+case 7: return s_7;
+case 8: return s_8;
+case 9: return s_9;
+case 10: return s_10;
+case 11: return s_11;
+case 12: return s_12;
+case 13: return s_13;
+case 14: return s_14;
+default: return s_15;
+}
+}
+
 template<typename T>
 T _acosh(T v){return log(v+sqrt(v*v-1.0));}
 template<typename T>

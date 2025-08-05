@@ -90,8 +90,8 @@ vstd::string_view CodegenUtility::ReadInternalHLSLFile(vstd::string_view name) {
     return {v.result.data(), v.result.size()};
 }
 namespace detail {
-static size_t AddHeader(CallOpSet const &ops, vstd::StringBuilder &builder, bool isRaster, bool is_spirv) {
-    builder << CodegenUtility::ReadInternalHLSLFile("hlsl_header");
+static size_t AddHeader(CallOpSet const &ops, vstd::StringBuilder &builder, bool isRaster, bool is_spirv, bool fallback) {
+    builder << CodegenUtility::ReadInternalHLSLFile(fallback ? "hlsl_header_fallback" : "hlsl_header");
     size_t immutable_size = builder.size();
     if (ops.uses_raytracing()) {
         builder << CodegenUtility::ReadInternalHLSLFile("raytracing_header");
@@ -2389,7 +2389,7 @@ CodegenResult CodegenUtility::Codegen(
     vstd::StringBuilder finalResult;
     opt->incrementalFunc = &incrementalFunc;
     finalResult.reserve(65500);
-    uint64 immutableHeaderSize = detail::AddHeader(kernel.propagated_builtin_callables(), finalResult, false, isSpirV);
+    uint64 immutableHeaderSize = detail::AddHeader(kernel.propagated_builtin_callables(), finalResult, false, isSpirV, noRegister);
     finalResult << native_code << "\n//"sv;
     static_cast<void>(vstd::to_string(custom_mask));
     finalResult << '\n';
@@ -2476,7 +2476,7 @@ CodegenResult CodegenUtility::RasterCodegen(
     finalResult.reserve(65500);
     auto opSet = vertFunc.propagated_builtin_callables();
     opSet.propagate(pixelFunc.propagated_builtin_callables());
-    uint64 immutableHeaderSize = detail::AddHeader(opSet, finalResult, true, isSpirV);
+    uint64 immutableHeaderSize = detail::AddHeader(opSet, finalResult, true, isSpirV, noRegister);
     finalResult << native_code << "\n//"sv;
     static_cast<void>(vstd::to_string(custom_mask));
     finalResult << '\n';

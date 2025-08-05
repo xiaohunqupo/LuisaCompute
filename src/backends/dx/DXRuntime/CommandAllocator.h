@@ -76,11 +76,11 @@ public:
         std::lock_guard lck{resDisposeListMtx};
         resDisposeList.emplace_back(std::move(res));
     }
-    ID3D12CommandAllocator *Allocator() const { return allocator.Get(); }
+    ID3D12CommandAllocator *Allocator();
     D3D12_COMMAND_LIST_TYPE Type() const { return type; }
     ~CommandAllocator();
     CommandBuffer *GetBuffer() const;
-    void Execute(CommandQueue *queue, ID3D12Fence *fence, uint64 fenceIndex, luisa::span<std::pair<IDXGISwapChain *, bool>> swapChains,  bool cmdlist_is_empty);
+    void Execute(CommandQueue *queue, ID3D12Fence *fence, uint64 fenceIndex, luisa::span<std::pair<IDXGISwapChain *, bool>> swapChains, bool cmdlist_is_empty);
     void Complete(CommandQueue *queue, ID3D12Fence *fence, uint64 fenceIndex);
     DefaultBuffer const *AllocateScratchBuffer(size_t targetSize);
     BufferView GetTempReadbackBuffer(uint64 size, size_t align = 0);
