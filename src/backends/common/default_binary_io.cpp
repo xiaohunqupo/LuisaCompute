@@ -240,8 +240,10 @@ luisa::filesystem::path DefaultBinaryIO::write_internal_shader(luisa::string_vie
 }
 
 void DefaultBinaryIO::clear_shader_cache() const noexcept {
-    if (!_use_lmdb) return;
-    _cache_lmdb.destroy();
+    std::lock_guard lck{_global_mtx};
+    if (_use_lmdb) {
+        _cache_lmdb.destroy();
+    }
     std::error_code ec;
     for (auto &&dir : std::filesystem::directory_iterator(_cache_dir)) {
         std::filesystem::remove_all(dir, ec);
@@ -251,7 +253,9 @@ void DefaultBinaryIO::clear_shader_cache() const noexcept {
                 to_string(dir), ec.message());
         }
     }
-    _cache_lmdb.create(_cache_dir);
+    if (_use_lmdb) {
+        _cache_lmdb.create(_cache_dir);
+    }
 }
 
 }// namespace luisa::compute
