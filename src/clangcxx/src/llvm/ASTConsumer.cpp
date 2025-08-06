@@ -1453,8 +1453,10 @@ auto FunctionBuilderBuilder::build(const clang::FunctionDecl *S, bool allowKerne
                     //     LUISA_WARNING("Set kernel arg. {}", luisa::string_view{});
                     // }
                     if (auto lcType = db->FindOrAddType(Ty, param->getBeginLoc())) {
+                        BuildArgument *build_arg = nullptr;
                         if (is_kernel) {
-                            db->refl.kernel_args.emplace_back(lcType, luisa::string{param->getName().data(), param->getName().size()});
+                            db->refl.kernel_args.emplace_back(lcType, luisa::string{param->getName().data(), param->getName().size()}, ~0u);
+                            build_arg = &db->refl.kernel_args.back();
                         }
                         const luisa::compute::RefExpr *local = nullptr;
                         switch (lcType->tag()) {
@@ -1484,6 +1486,9 @@ auto FunctionBuilderBuilder::build(const clang::FunctionDecl *S, bool allowKerne
                                 */
                                 local = LC_ArgOrRef(Ty, builder, lcType);
                             } break;
+                        }
+                        if (build_arg && local) {
+                            build_arg->resource_var_id = local->variable().uid();
                         }
                         stack.SetLocal(param, local);
                         return local;
@@ -1692,6 +1697,10 @@ ASTConsumer::~ASTConsumer() {
     } else {
         if (kernel_arg_reflect) {
             *kernel_arg_reflect = std::move(db.refl);
+            kernel_arg_reflect->block_size = db.kernel_builder->block_size();
+            for (auto &i : kernel_arg_reflect->kernel_args) {
+                i.var_usage = db.kernel_builder->variable_usage(i.resource_var_id);
+            }
         }
         device->impl()->create_shader(option, luisa::compute::Function{db.kernel_builder.get()});
     }
