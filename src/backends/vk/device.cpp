@@ -275,12 +275,14 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
       set_bindless_kernel(BuiltinKernel::LoadBindlessSetKernel),
       set_accel_kernel(BuiltinKernel::LoadAccelSetKernel) {
     bool headless = false;
+    bool use_lmdb = false;
     uint device_idx = -1;
     if (configs) {
         if (configs->extension) {
             _config_ext = luisa::unique_ptr<VulkanDeviceConfigExt>{reinterpret_cast<VulkanDeviceConfigExt *>(configs->extension.get())};
         }
         headless = configs->headless;
+        use_lmdb = configs->use_lmdb;
         device_idx = configs->device_index;
         _binary_io = configs->binary_io;
     }
@@ -314,7 +316,7 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
         gDxcRefCount++;
     }
     if (!_binary_io) {
-        _default_file_io = vstd::make_unique<DefaultBinaryIO>(context(), headless);
+        _default_file_io = vstd::make_unique<DefaultBinaryIO>(context(), headless, use_lmdb);
         _binary_io = _default_file_io.get();
     }
     if (!headless) {

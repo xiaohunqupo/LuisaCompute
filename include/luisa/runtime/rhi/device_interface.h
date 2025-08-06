@@ -85,6 +85,7 @@ struct DeviceConfig {
     size_t device_index{std::numeric_limits<size_t>::max()};
     bool inqueue_buffer_limit{true};
     bool headless{false};
+    bool use_lmdb{false};
 };
 
 class DeviceExtension {

@@ -117,21 +117,26 @@ void DefaultBinaryIO::_write(const luisa::string &file_path, luisa::span<std::by
     _unlock(idx, true);
 }
 
-DefaultBinaryIO::DefaultBinaryIO(Context &&ctx, bool headless) noexcept
+DefaultBinaryIO::DefaultBinaryIO(Context &&ctx, bool headless, bool use_lmdb) noexcept
     : _ctx(std::move(ctx)),
-      _headless(headless) {
+      _headless(headless),
+      _use_lmdb(use_lmdb) {
     if (!headless) {
         _cache_dir = _ctx.create_runtime_subdir(".cache"sv);
         _data_dir = _ctx.create_runtime_subdir(".data"sv);
-        _data_lmdb.create(_data_dir, std::max<size_t>(126ull, std::thread::hardware_concurrency() * 2));
-        _cache_lmdb.create(_cache_dir, std::max<size_t>(126ull, std::thread::hardware_concurrency() * 2));
+        if (use_lmdb) {
+            _data_lmdb.create(_data_dir, std::max<size_t>(126ull, std::thread::hardware_concurrency() * 2));
+            _cache_lmdb.create(_cache_dir, std::max<size_t>(126ull, std::thread::hardware_concurrency() * 2));
+        }
     }
 }
 
 DefaultBinaryIO::~DefaultBinaryIO() noexcept {
     if (!_headless) {
-        _data_lmdb.destroy();
-        _cache_lmdb.destroy();
+        if (_use_lmdb) {
+            _data_lmdb.destroy();
+            _cache_lmdb.destroy();
+        }
     }
 }
 
@@ -145,15 +150,33 @@ luisa::unique_ptr<BinaryStream> DefaultBinaryIO::read_shader_bytecode(luisa::str
 }
 
 luisa::unique_ptr<BinaryStream> DefaultBinaryIO::read_shader_cache(luisa::string_view name) const noexcept {
-    auto r = _cache_lmdb->read(name);
-    if (r.empty()) return {};
-    return luisa::make_unique<LMDBBinaryStream>(r.data(), r.size());
+    if (_use_lmdb) {
+        auto r = _cache_lmdb->read(name);
+        if (r.empty()) return {};
+        return luisa::make_unique<LMDBBinaryStream>(r.data(), r.size());
+    } else {
+        std::filesystem::path local_path{name};
+        if (local_path.is_absolute()) {
+            return _read(luisa::to_string(name));
+        }
+        auto file_path = luisa::to_string(_cache_dir / name);
+        return _read(file_path);
+    }
 }
 
 luisa::unique_ptr<BinaryStream> DefaultBinaryIO::read_internal_shader(luisa::string_view name) const noexcept {
-    auto r = _data_lmdb->read(name);
-    if (r.empty()) return {};
-    return luisa::make_unique<LMDBBinaryStream>(r.data(), r.size());
+    if (_use_lmdb) {
+        auto r = _data_lmdb->read(name);
+        if (r.empty()) return {};
+        return luisa::make_unique<LMDBBinaryStream>(r.data(), r.size());
+    } else {
+        std::filesystem::path local_path{name};
+        if (local_path.is_absolute()) {
+            return _read(luisa::to_string(name));
+        }
+        auto file_path = luisa::to_string(_data_dir / name);
+        return _read(file_path);
+    }
 }
 
 luisa::unique_ptr<BinaryStream> DefaultBinaryIO::read_shader_source(luisa::string_view name) const noexcept {
@@ -185,16 +208,39 @@ luisa::filesystem::path DefaultBinaryIO::write_shader_source(luisa::string_view 
 }
 
 luisa::filesystem::path DefaultBinaryIO::write_shader_cache(luisa::string_view name, luisa::span<std::byte const> data) const noexcept {
-    _cache_lmdb->write(name, data);
-    return _cache_dir / name;
+    if (_use_lmdb) {
+        _cache_lmdb->write(name, data);
+        return _cache_dir / name;
+    } else {
+        std::filesystem::path local_path{name};
+        if (local_path.is_absolute()) {
+            _write(luisa::to_string(name), data);
+            return local_path;
+        }
+        auto file_path = _cache_dir / name;
+        _write(luisa::to_string(file_path), data);
+        return file_path;
+    }
 }
 
 luisa::filesystem::path DefaultBinaryIO::write_internal_shader(luisa::string_view name, luisa::span<std::byte const> data) const noexcept {
-    _data_lmdb->write(name, data);
-    return _data_dir / name;
+    if (_use_lmdb) {
+        _data_lmdb->write(name, data);
+        return _data_dir / name;
+    } else {
+        std::filesystem::path local_path{name};
+        if (local_path.is_absolute()) {
+            _write(luisa::to_string(name), data);
+            return local_path;
+        }
+        auto file_path = _data_dir / name;
+        _write(luisa::to_string(file_path), data);
+        return file_path;
+    }
 }
 
 void DefaultBinaryIO::clear_shader_cache() const noexcept {
+    if (!_use_lmdb) return;
     _cache_lmdb.destroy();
     std::error_code ec;
     for (auto &&dir : std::filesystem::directory_iterator(_cache_dir)) {

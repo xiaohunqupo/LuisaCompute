@@ -23,6 +23,7 @@ class DefaultBinaryIO final : public BinaryIO {
 private:
     Context _ctx;
     bool _headless;
+    bool _use_lmdb;
     mutable luisa::spin_mutex _global_mtx;
     mutable MutexMap _mutex_map;
     std::filesystem::path _cache_dir;
@@ -37,7 +38,7 @@ private:
     void _unlock(MapIndex const &idx, bool is_write) const noexcept;
 
 public:
-    explicit DefaultBinaryIO(Context &&ctx, bool headless = false) noexcept;
+    explicit DefaultBinaryIO(Context &&ctx, bool headless = false, bool use_lmdb = true) noexcept;
     ~DefaultBinaryIO() noexcept override;
     luisa::unique_ptr<BinaryStream> read_shader_bytecode(luisa::string_view name) const noexcept override;
     luisa::unique_ptr<BinaryStream> read_shader_cache(luisa::string_view name) const noexcept override;

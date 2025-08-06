@@ -92,10 +92,12 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
     using Microsoft::WRL::ComPtr;
     size_t index{std::numeric_limits<size_t>::max()};
     bool useRuntime = true;
+    bool use_lmdb = false;
     if (settings) {
         index = settings->device_index;
         // auto select
         useRuntime = !settings->headless;
+        use_lmdb = settings->use_lmdb;
         maxAllocatorCount = settings->inqueue_buffer_limit ? 2 : std::numeric_limits<size_t>::max();
         fileIo = settings->binary_io;
         profiler = settings->profiler;
@@ -111,7 +113,7 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
         gDxcRefCount++;
     }
     if (fileIo == nullptr) {
-        serVisitor = vstd::make_unique<DefaultBinaryIO>(std::move(ctx), !useRuntime);
+        serVisitor = vstd::make_unique<DefaultBinaryIO>(std::move(ctx), !useRuntime, use_lmdb);
         fileIo = serVisitor.get();
     }
     if (useRuntime) {
