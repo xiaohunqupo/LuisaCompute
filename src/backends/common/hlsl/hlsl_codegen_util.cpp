@@ -79,6 +79,9 @@ vstd::string_view CodegenUtility::ReadInternalHLSLFile(vstd::string_view name) {
         std::lock_guard lck{v.mtx};
         if (v.result.empty()) {
             auto compressed = lc_hlsl::get_hlsl_builtin(name);
+            if (compressed.uncompressed_size == 0) {
+                return {};
+            }
             luisa::enlarge_by(v.result, compressed.uncompressed_size);
             uLong dest_len = compressed.uncompressed_size;
             auto r = uncompress((Bytef *)v.result.data(), &dest_len, (Bytef const *)compressed.ptr, compressed.compressed_size);

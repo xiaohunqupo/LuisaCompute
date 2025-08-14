@@ -1,6 +1,7 @@
 #include "shader_serializer.h"
 #include "shader.h"
 #include "../common/hlsl/shader_property.h"
+#include "../common/hlsl/hlsl_codegen.h"
 #include "compute_shader.h"
 #include "raster_shader.h"
 
@@ -39,6 +40,38 @@ struct PSODataPackage {
     std::byte md5[sizeof(vstd::MD5)];
 };
 }// namespace detail
+class StringViewBinaryStream : public BinaryStream {
+
+public:
+    luisa::string_view strv;
+    size_t _pos{};
+    StringViewBinaryStream(luisa::string_view strv) : strv(strv) {}
+    [[nodiscard]] size_t length() const noexcept override { return strv.size(); }
+    [[nodiscard]] size_t pos() const noexcept override { return _pos; }
+    void read(luisa::span<std::byte> dst) noexcept override {
+        LUISA_DEBUG_ASSERT(dst.size() + _pos <= strv.size());
+        std::memcpy(dst.data(), strv.data() + _pos, dst.size());
+        _pos += dst.size();
+    }
+    ~StringViewBinaryStream() noexcept = default;
+};
+
+luisa::unique_ptr<luisa::BinaryStream> read_binary_io(SerdeType type, luisa::BinaryIO const *bin_io, luisa::string_view file_name) {
+    switch (type) {
+        case SerdeType::Cache:
+            return bin_io->read_shader_cache(file_name);
+        case SerdeType::Builtin: {
+            auto internal_data = hlsl::CodegenUtility::ReadInternalHLSLFile(file_name);
+            if (!internal_data.empty()) {
+                return luisa::make_unique<StringViewBinaryStream>(internal_data);
+            }
+            return bin_io->read_internal_shader(file_name);
+        }
+        case SerdeType::ByteCode:
+            return bin_io->read_shader_bytecode(file_name);
+    }
+    return luisa::unique_ptr<luisa::BinaryStream>{};
+}
 void ShaderSerializer::serialize_raster(
     vstd::span<const hlsl::Property> binds,
     vstd::span<const SavedArgument> saved_args,
@@ -220,14 +253,7 @@ auto ShaderSerializer::try_deser_raster(
     vstd::vector<std::pair<luisa::string, Type const *>> printers;
     {
         auto read_stream = [&]() {
-            switch (serde_type) {
-                case SerdeType::Cache:
-                    return bin_io->read_shader_cache(file_name);
-                case SerdeType::Builtin:
-                    return bin_io->read_internal_shader(file_name);
-                case SerdeType::ByteCode:
-                    return bin_io->read_shader_bytecode(file_name);
-            }
+            return read_binary_io(serde_type, bin_io, file_name);
         }();
         if (!read_stream) return result;
         auto stream_len = read_stream->length();
@@ -302,14 +328,7 @@ ShaderSerializer::DeserResult ShaderSerializer::try_deser_compute(
     vstd::vector<std::pair<luisa::string, Type const *>> printers;
     {
         auto read_stream = [&]() {
-            switch (serde_type) {
-                case SerdeType::Cache:
-                    return bin_io->read_shader_cache(file_name);
-                case SerdeType::Builtin:
-                    return bin_io->read_internal_shader(file_name);
-                case SerdeType::ByteCode:
-                    return bin_io->read_shader_bytecode(file_name);
-            }
+            return read_binary_io(serde_type, bin_io, file_name);
         }();
         if (!read_stream) return result;
         auto stream_len = read_stream->length();

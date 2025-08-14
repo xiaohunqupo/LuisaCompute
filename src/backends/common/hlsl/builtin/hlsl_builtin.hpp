@@ -29,10 +29,14 @@ extern unsigned char copy_sign[];
 extern unsigned char bindless_common[];
 extern unsigned char auto_diff[];
 extern unsigned char reduce[];
+extern unsigned char accel_process_vk_dxil[];
+extern unsigned char load_bdls_dxil[];
+extern unsigned char load_bdls_vk_dxil[];
+extern unsigned char set_accel4_dxil[];
 struct HLSLCompressedHeader {
-    void const* ptr;
-    size_t compressed_size;
-    size_t uncompressed_size;
+    void const* ptr{};
+    size_t compressed_size{};
+    size_t uncompressed_size{};
 };
 static HLSLCompressedHeader get_hlsl_builtin(luisa::string_view ss) {
     struct Dict {
@@ -66,9 +70,15 @@ static HLSLCompressedHeader get_hlsl_builtin(luisa::string_view ss) {
 			dict.try_emplace("bindless_common", HLSLCompressedHeader{bindless_common, 375, 1615});
 			dict.try_emplace("auto_diff", HLSLCompressedHeader{auto_diff, 345, 1795});
 			dict.try_emplace("reduce", HLSLCompressedHeader{reduce, 743, 6372});
+			dict.try_emplace("accel_process_vk.dxil", HLSLCompressedHeader{accel_process_vk_dxil, 1229, 3604});
+			dict.try_emplace("load_bdls.dxil", HLSLCompressedHeader{load_bdls_dxil, 2432, 4168});
+			dict.try_emplace("load_bdls_vk.dxil", HLSLCompressedHeader{load_bdls_vk_dxil, 610, 1556});
+			dict.try_emplace("set_accel4.dxil", HLSLCompressedHeader{set_accel4_dxil, 3397, 5512});
 		}
 	};
 	static Dict dict;
-	return dict.dict.find(ss)->second;
+	auto iter = dict.dict.find(ss);
+	if (iter == dict.dict.end()) return {};
+	return iter->second;
 }
 }
