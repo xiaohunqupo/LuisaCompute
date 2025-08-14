@@ -339,7 +339,7 @@ void LCDevice::set_stream_log_callback(uint64_t stream_handle,
 }
 
 ShaderCreationInfo LCDevice::create_shader(const ShaderOption &option, Function kernel) noexcept {
-
+    LUISA_ASSERT(Device::Compiler(), "Shader compiler not loaded.");
     if (kernel.propagated_builtin_callables().test(CallOp::BACKWARD)) {
 #ifdef LUISA_ENABLE_IR
         auto ir = AST2IR::build_kernel(kernel);
