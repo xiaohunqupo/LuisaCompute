@@ -1,10 +1,6 @@
 #pragma once
 #include <luisa/core/stl/string.h>
 namespace lc_hlsl{
-extern unsigned char accel_process[];
-extern unsigned char accel_process_vk[];
-extern unsigned char bindless_upload[];
-extern unsigned char bindless_upload_vk[];
 extern unsigned char bc6_encode_block[];
 extern unsigned char bc6_header[];
 extern unsigned char bc6_trymode_g10cs[];
@@ -42,10 +38,6 @@ static HLSLCompressedHeader get_hlsl_builtin(luisa::string_view ss) {
     struct Dict {
         luisa::unordered_map<luisa::string_view, HLSLCompressedHeader> dict;
         Dict(){
-			dict.try_emplace("accel_process", HLSLCompressedHeader{accel_process, 525, 1491});
-			dict.try_emplace("accel_process_vk", HLSLCompressedHeader{accel_process_vk, 554, 1548});
-			dict.try_emplace("bindless_upload", HLSLCompressedHeader{bindless_upload, 225, 334});
-			dict.try_emplace("bindless_upload_vk", HLSLCompressedHeader{bindless_upload_vk, 253, 386});
 			dict.try_emplace("bc6_encode_block", HLSLCompressedHeader{bc6_encode_block, 1805, 11021});
 			dict.try_emplace("bc6_header", HLSLCompressedHeader{bc6_header, 6209, 80770});
 			dict.try_emplace("bc6_trymode_g10cs", HLSLCompressedHeader{bc6_trymode_g10cs, 1311, 6513});
