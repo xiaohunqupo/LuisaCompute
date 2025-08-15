@@ -89,6 +89,15 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
       bc7TryMode137(BuiltinKernel::LoadBC7TryMode137CSKernel),
       bc7TryMode02(BuiltinKernel::LoadBC7TryMode02CSKernel),
       bc7EncodeBlock(BuiltinKernel::LoadBC7EncodeBlockCSKernel) {
+    auto load_all_shader = vstd::scope_exit([&]() {
+        bc6TryModeG10.Get(this);
+        bc6TryModeLE10.Get(this);
+        bc6EncodeBlock.Get(this);
+        bc7TryMode456.Get(this);
+        bc7TryMode137.Get(this);
+        bc7TryMode02.Get(this);
+        bc7EncodeBlock.Get(this);
+    });
     using Microsoft::WRL::ComPtr;
     size_t index{std::numeric_limits<size_t>::max()};
     bool useRuntime = true;

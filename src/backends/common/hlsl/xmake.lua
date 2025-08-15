@@ -1,6 +1,6 @@
 target("lc-hlsl-codegen")
 _config_project({
-    project_kind = "static",
+    project_kind = "object",
     batch_size = 2
 })
 add_deps("lc-vstl")

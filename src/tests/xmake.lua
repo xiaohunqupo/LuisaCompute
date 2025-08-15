@@ -156,16 +156,21 @@ test_proj("test_pinned_mem")
 test_proj("test_imgui", true, function()
     add_deps("imgui")
 end)
-test_proj("test_zip", false, function()
-    if get_config("lc_xrepo_dir") then
-        add_packages("zlib", {
-            public = false,
-            inherit = false
-        })
-    else
-        add_deps("zlib")
-    end
-end)
+target("test_zip")
+_config_project({
+    project_kind = "binary"
+})
+add_files("test_zip.cpp")
+add_deps("lc-core")
+if get_config("lc_xrepo_dir") then
+    add_packages("zlib", {
+        public = false,
+        inherit = false
+    })
+else
+    add_deps("zlib")
+end
+target_end()
 if get_config("dx_backend") then
     test_proj("test_raster", true)
     if get_config("cuda_backend") then
