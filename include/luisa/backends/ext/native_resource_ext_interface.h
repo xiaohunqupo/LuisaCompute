@@ -36,7 +36,7 @@ public:
         // custom data see backends' header
         void *custom_data) noexcept = 0;
 
-    virtual ResourceCreationInfo register_external_image(
+    virtual ResourceCreationInfo register_external_texture(
         void *image_ptr,
         PixelFormat format, uint dimension,
         uint width, uint height, uint depth,

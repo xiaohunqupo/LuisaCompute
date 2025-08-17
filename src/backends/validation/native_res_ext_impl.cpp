@@ -16,14 +16,14 @@ BufferCreationInfo NativeResourceExtImpl::register_external_buffer(
     return bf;
 }
 
-ResourceCreationInfo NativeResourceExtImpl::register_external_image(
+ResourceCreationInfo NativeResourceExtImpl::register_external_texture(
     void *image_ptr,
     PixelFormat format, uint dimension,
     uint width, uint height, uint depth,
     uint mipmap_levels,
     // custom data see backends' header
     void *custom_data) noexcept {
-    auto tex = _native->register_external_image(image_ptr, format, dimension, width, height, depth, mipmap_levels, custom_data);
+    auto tex = _native->register_external_texture(image_ptr, format, dimension, width, height, depth, mipmap_levels, custom_data);
     new Texture{tex.handle, dimension, false, uint3(0, 0, 0), format};
     return tex;
 }

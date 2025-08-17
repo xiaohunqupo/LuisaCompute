@@ -13,7 +13,7 @@ public:
         // custom data see backends' header
         void *custom_data) noexcept override;
 
-    ResourceCreationInfo register_external_image(
+    ResourceCreationInfo register_external_texture(
         void *image_ptr,
         PixelFormat format, uint dimension,
         uint width, uint height, uint depth,

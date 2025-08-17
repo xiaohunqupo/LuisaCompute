@@ -96,7 +96,7 @@ BufferCreationInfo DxNativeResourceExt::register_external_buffer(
     info.total_size_bytes = element->size() * elem_count;
     return info;
 }
-ResourceCreationInfo DxNativeResourceExt::register_external_image(
+ResourceCreationInfo DxNativeResourceExt::register_external_texture(
     void *external_ptr,
     PixelFormat format, uint dimension,
     uint width, uint height, uint depth,

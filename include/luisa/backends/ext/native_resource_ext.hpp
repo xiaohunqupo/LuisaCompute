@@ -75,7 +75,7 @@ Image<T> NativeResourceExt::create_native_image(
     void *custom_data) noexcept {
     auto fmt = pixel_storage_to_format<T>(storage);
     return ResourceGenerator::create_native_image<T>(
-        register_external_image(external_ptr, fmt, 2, width, height, 1, mip, custom_data),
+        register_external_texture(external_ptr, fmt, 2, width, height, 1, mip, custom_data),
         _device,
         storage,
         uint2{width, height},
@@ -93,7 +93,7 @@ Volume<T> NativeResourceExt::create_native_volume(
     void *custom_data) noexcept {
     auto fmt = pixel_storage_to_format<T>(storage);
     return ResourceGenerator::create_native_volume<T>(
-        register_external_image(external_ptr, fmt, 3, width, height, volume, mip, custom_data),
+        register_external_texture(external_ptr, fmt, 3, width, height, volume, mip, custom_data),
         _device, storage, uint3{width, height, volume}, mip);
 }
 
