@@ -14,9 +14,12 @@ RenderTexture::RenderTexture(
     bool allowRaster,
     GpuAllocator *allocator,
     bool shared_adaptor)
-    : TextureBase(device, width, height, format, dimension, depth, mip, GetInitState()),
+    : TextureBase(device, width, height, format, dimension, depth, mip, GetInitState(), allowUav),
       allocHandle(allocator),
       allowSimul(allowSimul) {
+    if (format == GFXFormat_BC7_UNorm_SRGB || format == GFXFormat_R8G8B8A8_UNorm_SRGB) {
+        allowUav = false;
+    }
     auto texDesc = GetResourceDescBase(allowUav, allowSimul, allowRaster, false);
     if (!allocator) {
         auto prop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);

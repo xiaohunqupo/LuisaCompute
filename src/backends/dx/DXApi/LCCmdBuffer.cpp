@@ -139,6 +139,9 @@ public:
             auto rt = reinterpret_cast<TextureBase *>(bf.handle);
             //UAV
             if (((uint)arg->varUsage & (uint)Usage::WRITE) != 0) {
+                if (!rt->AllowUAV()) [[unlikely]] {
+                    LUISA_ERROR("Texture not allowed for Unordered-Access.");
+                }
                 self->stateTracker->Record(
                     EnhancedBarrierTracker::TexView{rt, bf.level},
                     uav_usage);

@@ -73,6 +73,9 @@ public:
         std::lock_guard lck{_layout_mtx};
         _layouts[level] = layout;
     }
+    bool allow_uav() const {
+        return !is_srgb(_format) && (luisa::to_underlying(_format) <= 65535u);
+    }
     static VkFormat to_vk_format(compute::PixelFormat format);
     Tag tag() const override { return Tag::Texture; }
 };

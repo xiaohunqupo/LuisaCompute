@@ -41,7 +41,7 @@ DepthBuffer::DepthBuffer(
           device, width, height,
           GetDepthFormat(format),
           TextureDimension::Tex2D, 1, 1,
-          GetInitState()),
+          GetInitState(), false),
       allocHandle(alloc) {
     D3D12_RESOURCE_DESC texDesc{};
     texDesc.Alignment = 0;

@@ -124,6 +124,9 @@ struct ResourceBarrierVisitor {
         auto rt = reinterpret_cast<Texture *>(bf.handle);
         //UAV
         if (((uint)arg->varUsage & (uint)Usage::WRITE) != 0) {
+            if (!rt->allow_uav()) {
+                LUISA_ERROR("Texture not allowed for Unordered-Access.");
+            }
             barrier->record(
                 TexView{rt, bf.level},
                 uav_usage);

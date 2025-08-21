@@ -9,6 +9,7 @@ private:
     mutable vstd::unordered_map<uint, uint> srvIdcs;
     mutable std::mutex allocMtx;
     uint3 tileSize;
+    bool allowUAV;
 
 public:
     uint3 TilingSize() const;

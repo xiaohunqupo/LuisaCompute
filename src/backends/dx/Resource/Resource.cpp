@@ -108,6 +108,7 @@ uint64 Resource::GetTexturePixelSize(GFXFormat format) {
         case GFXFormat_R8G8B8A8_UInt:
         case GFXFormat_R8G8B8A8_UNorm:
         case GFXFormat_R8G8B8A8_SNorm:
+        case GFXFormat_R8G8B8A8_UNorm_SRGB:
         case GFXFormat_R8G8B8A8_SInt:
             return 4;
         case GFXFormat_R8G8_Typeless:

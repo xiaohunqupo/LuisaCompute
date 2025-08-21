@@ -11,7 +11,8 @@ TextureBase::TextureBase(
     TextureDimension dimension,
     uint depth,
     uint mip,
-    D3D12_RESOURCE_STATES initState)
+    D3D12_RESOURCE_STATES initState,
+    bool allowUAV)
     : Resource(device),
       width(width),
       height(height),
@@ -19,7 +20,8 @@ TextureBase::TextureBase(
       dimension(dimension),
       depth(depth),
       mip(mip),
-      initState(initState) {
+      initState(initState),
+      allowUAV(allowUAV) {
     this->depth = std::max<uint>(this->depth, 1);
     this->mip = std::max<uint>(this->mip, 1);
     switch (dimension) {
@@ -175,6 +177,8 @@ GFXFormat TextureBase::ToGFXFormat(PixelFormat format) {
             return GFXFormat_R8G8B8A8_SInt;
         case PixelFormat::RGBA8UInt:
             return GFXFormat_R8G8B8A8_UInt;
+        case PixelFormat::RGBA8SRGB:
+            return GFXFormat_R8G8B8A8_UNorm_SRGB;
         case PixelFormat::RGBA8UNorm:
             return GFXFormat_R8G8B8A8_UNorm;
         case PixelFormat::R16SInt:
@@ -221,6 +225,8 @@ GFXFormat TextureBase::ToGFXFormat(PixelFormat format) {
             return GFXFormat_R32G32B32A32_Float;
         case PixelFormat::BC6HUF16:
             return GFXFormat_BC6H_UF16;
+        case PixelFormat::BC7SRGB:
+            return GFXFormat_BC7_UNorm_SRGB;
         case PixelFormat::BC7UNorm:
             return GFXFormat_BC7_UNorm;
         case PixelFormat::BC5UNorm:
