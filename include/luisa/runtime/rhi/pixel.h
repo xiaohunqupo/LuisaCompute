@@ -16,7 +16,6 @@ enum struct PixelStorage : uint32_t {
     BYTE1,
     BYTE2,
     BYTE4,
-    BYTE4_SRGB,
 
     SHORT1,
     SHORT2,
@@ -45,6 +44,7 @@ enum struct PixelStorage : uint32_t {
     BC6,
     BC7,
     BC7_SRGB,
+    BYTE4_SRGB,
     //TODO: ASTC
 };
 
@@ -60,7 +60,6 @@ enum struct PixelFormat : uint32_t {
 
     RGBA8SInt,
     RGBA8UInt,
-    RGBA8SRGB,
     RGBA8UNorm,
 
     R16SInt,
@@ -102,14 +101,15 @@ enum struct PixelFormat : uint32_t {
     BC4UNorm,
     BC5UNorm,
     BC6HUF16,
-    BC7SRGB,
     BC7UNorm,
+    BC7SRGB,
+    RGBA8SRGB,
 
     //TODO: ASTC
 };
 
-constexpr auto pixel_storage_count = to_underlying(PixelStorage::BC7_SRGB) + 1u;
-constexpr auto pixel_format_count = to_underlying(PixelFormat::BC7UNorm) + 1u;
+constexpr auto pixel_storage_count = to_underlying(PixelStorage::BYTE4_SRGB) + 1u;
+constexpr auto pixel_format_count = to_underlying(PixelFormat::RGBA8SRGB) + 1u;
 
 [[nodiscard]] constexpr auto is_block_compressed(PixelStorage s) noexcept {
     return luisa::to_underlying(s) >= luisa::to_underlying(PixelStorage::BC1) &&
@@ -118,7 +118,7 @@ constexpr auto pixel_format_count = to_underlying(PixelFormat::BC7UNorm) + 1u;
 
 [[nodiscard]] constexpr auto is_block_compressed(PixelFormat f) noexcept {
     return luisa::to_underlying(f) >= luisa::to_underlying(PixelFormat::BC1UNorm) &&
-           luisa::to_underlying(f) <= luisa::to_underlying(PixelFormat::BC7UNorm);
+           luisa::to_underlying(f) <= luisa::to_underlying(PixelFormat::BC7SRGB);
 }
 
 [[nodiscard]] constexpr auto pixel_format_to_storage(PixelFormat format) noexcept {
