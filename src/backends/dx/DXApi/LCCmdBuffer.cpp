@@ -192,7 +192,7 @@ public:
         }
         void operator()(Argument::Accel const &bf) {
             auto accel = reinterpret_cast<TopAccel *>(bf.handle);
-            if (accel->GetInstBuffer()) {
+            if (accel->GetInstBuffer()) [[likely]] {
                 if (((uint)arg->varUsage & (uint)Usage::WRITE) != 0) {
                     self->stateTracker->Record(
                         BufferView{accel->GetInstBuffer(), 0, accel->GetInstBuffer()->GetByteSize()},
@@ -201,10 +201,15 @@ public:
                     self->stateTracker->Record(
                         BufferView{accel->GetInstBuffer(), 0, accel->GetInstBuffer()->GetByteSize()},
                         read_usage);
+                    if (!accel->GetAccelBuffer()) [[unlikely]] {
+                        LUISA_ERROR("Accel not initialized.");
+                    }
                     self->stateTracker->Record(
                         BufferView{accel->GetAccelBuffer(), 0, accel->GetAccelBuffer()->GetByteSize()},
                         accel_read_usage);
                 }
+            } else {
+                LUISA_ERROR("Accel not initialized.");
             }
             ++arg;
         }

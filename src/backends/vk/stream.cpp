@@ -161,11 +161,17 @@ struct ResourceBarrierVisitor {
     }
     void operator()(Argument::Accel const &bf) {
         auto tlas = reinterpret_cast<Tlas *>(bf.handle);
+        if (!tlas->instance_buffer()) [[unlikely]] {
+            LUISA_ERROR("Accel not initialized.");
+        }
         if ((luisa::to_underlying(arg->varUsage) & luisa::to_underlying(Usage::WRITE)) != 0) {
             barrier->record(
                 BufferView(tlas->instance_buffer()),
                 ResourceBarrier::Usage::ComputeUAV);
         } else {
+            if (!tlas->accel_buffer()) [[unlikely]] {
+                LUISA_ERROR("Accel not initialized.");
+            }
             barrier->record(
                 BufferView(tlas->instance_buffer()),
                 ResourceBarrier::Usage::ComputeRead);
