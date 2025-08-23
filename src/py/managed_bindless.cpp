@@ -4,7 +4,7 @@
 namespace luisa::compute {
 
 ManagedBindless::ManagedBindless(DeviceInterface *device, size_t slots) noexcept
-    : collector(3), array(device, slots) {}
+    : collector(3), array(device, slots, BindlessSlotType::MULTIPLE) {}
 
 void ManagedBindless::emplace_buffer(size_t index, uint64 handle, size_t offset) noexcept {
     collector.InRef(index, 0, handle);
