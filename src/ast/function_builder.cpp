@@ -1013,7 +1013,7 @@ bool is_expr_statically_evaluated(const Expression *expr) noexcept {
         case Expression::Tag::CALL: {
             auto e = static_cast<CallExpr const *>(expr);
             if (e->is_external()) { return false; }
-            return std::all_of(e->arguments().cbegin(), e->arguments().cend(),
+            return std::all_of(e->arguments().begin(), e->arguments().end(),
                                [](auto x) noexcept {
                                    return is_expr_statically_evaluated(x);
                                });
