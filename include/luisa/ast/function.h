@@ -156,6 +156,8 @@ public:
     [[nodiscard]] bool requires_printing() const noexcept;
     /// Return required curve bases
     [[nodiscard]] CurveBasisSet required_curve_bases() const noexcept;
+    // warp size
+    [[nodiscard]] luisa::optional<uint8_t> allowed_warp_size() const noexcept;
     /// Return function builder
     [[nodiscard]] auto builder() const noexcept { return _builder; }
     /// Return shared pointer to function builder

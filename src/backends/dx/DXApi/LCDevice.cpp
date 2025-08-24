@@ -45,6 +45,7 @@
 namespace lc::dx {
 using namespace lc::dx;
 static constexpr uint kShaderModel = 65u;
+static constexpr uint kHighShaderModel = 66u;
 LCDevice::LCDevice(Context &&ctx, DeviceConfig const *settings)
     : DeviceInterface(std::move(ctx)),
       nativeDevice(Context{_ctx_impl}, settings) {
@@ -373,7 +374,7 @@ ShaderCreationInfo LCDevice::create_shader(const ShaderOption &option, Function 
             kernel,
             code,
             kernel.block_size(),
-            kShaderModel,
+            kernel.allowed_warp_size().has_value() ? kHighShaderModel : kShaderModel,
             option.name,
             option.enable_fast_math,
             option.enable_debug_info);
@@ -404,7 +405,7 @@ ShaderCreationInfo LCDevice::create_shader(const ShaderOption &option, Function 
             checkMD5,
             hlsl::binding_to_arg(kernel.bound_arguments()),
             kernel.block_size(),
-            kShaderModel,
+            kernel.allowed_warp_size().has_value() ? kHighShaderModel : kShaderModel,
             file_name,
             cacheType,
             option.enable_fast_math,
@@ -572,35 +573,7 @@ ResourceCreationInfo DxRasterExt::create_raster_shader(
             option.enable_debug_info);
         return ResourceCreationInfo::make_invalid();
     } else {
-        // vstd::string_view file_name;
-        // vstd::string str_cache;
-        // CacheType cacheType{};
-        // if (option.enable_cache) {
-        //     if (option.name.empty()) {
-        //         str_cache << checkMD5.to_string(false) << ".dxil"sv;
-        //         file_name = str_cache;
-        //         cacheType = CacheType::Cache;
-        //     } else {
-        //         file_name = option.name;
-        //         cacheType = CacheType::ByteCode;
-        //     }
-        // }
         ResourceCreationInfo info{};
-        // auto res = RasterShader::CompileRaster(
-        //     nativeDevice.fileIo,
-        //     &nativeDevice,
-        //     vert,
-        //     pixel,
-        //     [&] { return std::move(code); },
-        //     checkMD5,
-        //     kShaderModel,
-        //     mesh_format,
-        //     file_name,
-        //     cacheType,
-        //     option.enable_fast_math);
-        // info.handle = reinterpret_cast<uint64>(res);
-        // info.native_handle = nullptr;
-        // return info;
         return info;
     }
 }

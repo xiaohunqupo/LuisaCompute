@@ -1213,5 +1213,29 @@ const Expression *FunctionBuilder::_internalize(const Expression *expr) noexcept
     _captured_external_variables.emplace(expr, internalized);
     return internalized;
 }
-
+luisa::optional<uint8_t> FunctionBuilder::allowed_warp_size() const noexcept {
+    if (_allowed_warp_size != 255) {
+        return {_allowed_warp_size};
+    } else {
+        return {};
+    }
+}
+void FunctionBuilder::set_allowed_warp_size(uint8_t value) noexcept {
+    switch (value) {
+        case 4:
+        case 8:
+        case 16:
+        case 32:
+        case 64:
+        case 128:
+            _allowed_warp_size = value;
+            break;
+        default:
+            LUISA_ERROR("Illegal warp size, must be 4, 8, 165, 32, 64, or 128");
+            break;
+    }
+}
+void FunctionBuilder::clear_allowed_warp_size() noexcept {
+    _allowed_warp_size = 255;
+}
 }// namespace luisa::compute::detail

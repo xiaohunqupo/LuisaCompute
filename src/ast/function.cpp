@@ -139,5 +139,7 @@ bool Function::requires_printing() const noexcept {
 CurveBasisSet Function::required_curve_bases() const noexcept {
     return _builder->required_curve_bases();
 }
-
+luisa::optional<uint8_t> Function::allowed_warp_size() const noexcept {
+    return _builder->allowed_warp_size();
+}
 }// namespace luisa::compute

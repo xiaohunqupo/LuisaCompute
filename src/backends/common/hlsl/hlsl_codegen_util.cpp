@@ -1748,6 +1748,10 @@ void CodegenUtility::CodegenFunction(Function func, vstd::StringBuilder &result,
 #endif
         if (func.tag() == Function::Tag::KERNEL) {
             opt->funcType = CodegenStackData::FuncType::Kernel;
+            auto warp_size = func.allowed_warp_size();
+            if (warp_size.has_value()) {
+                result << luisa::format("[WaveSize({})]\n", int(warp_size.value()));
+            }
             result << "[numthreads("
                    << vstd::to_string(func.block_size().x)
                    << ','
