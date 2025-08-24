@@ -12,12 +12,12 @@ if is_plat("windows") then
     add_defines("UNICODE", "_CRT_SECURE_NO_WARNINGS")
 end
 on_load(function(target)
-    if get_config("enable_win_pix") then
+    if get_config("lc_enable_win_pix") then
         target:add("linkdirs", target:targetdir())
         target:add("links", "WinPixEventRuntime")
         target:add("defines", "LCDX_ENABLE_WINPIX")
     end
-    if get_config("enable_dxagsdk") then
+    if get_config("lc_enable_dxagsdk") then
         target:add("defines", "LCDX_ENABLE_AGILITY_SDK")
     end
     if get_config("lc_backend_lto") then
@@ -27,7 +27,7 @@ on_load(function(target)
             target:add("shflags", "-fuse-ld=lld-link")
         end
     end
-    if get_config("dx_cuda_interop") then
+    if get_config("lc_dx_cuda_interop") then
         local cuda_path = os.getenv("CUDA_PATH")
         if not cuda_path then
             utils.error("CUDA_PATH not found.")
