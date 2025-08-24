@@ -12,7 +12,7 @@ ExternalDepth::ExternalDepth(
     : TextureBase{
           device, width, height,
           DepthBuffer::GetDepthFormat(format),
-          TextureDimension::Tex2D, 1, 1, initState},
+          TextureDimension::Tex2D, 1, 1, initState, false},
       resource{res} {
 }
 D3D12_DEPTH_STENCIL_VIEW_DESC ExternalDepth::GetDepthDesc() const {

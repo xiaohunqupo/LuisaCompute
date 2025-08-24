@@ -43,6 +43,8 @@ enum struct PixelStorage : uint32_t {
     BC5,
     BC6,
     BC7,
+    BC7_SRGB,
+    BYTE4_SRGB,
     //TODO: ASTC
 };
 
@@ -100,21 +102,23 @@ enum struct PixelFormat : uint32_t {
     BC5UNorm,
     BC6HUF16,
     BC7UNorm,
+    BC7SRGB,
+    RGBA8SRGB,
 
     //TODO: ASTC
 };
 
-constexpr auto pixel_storage_count = to_underlying(PixelStorage::BC7) + 1u;
-constexpr auto pixel_format_count = to_underlying(PixelFormat::BC7UNorm) + 1u;
+constexpr auto pixel_storage_count = to_underlying(PixelStorage::BYTE4_SRGB) + 1u;
+constexpr auto pixel_format_count = to_underlying(PixelFormat::RGBA8SRGB) + 1u;
 
 [[nodiscard]] constexpr auto is_block_compressed(PixelStorage s) noexcept {
     return luisa::to_underlying(s) >= luisa::to_underlying(PixelStorage::BC1) &&
-           luisa::to_underlying(s) <= luisa::to_underlying(PixelStorage::BC7);
+           luisa::to_underlying(s) <= luisa::to_underlying(PixelStorage::BC7_SRGB);
 }
 
 [[nodiscard]] constexpr auto is_block_compressed(PixelFormat f) noexcept {
     return luisa::to_underlying(f) >= luisa::to_underlying(PixelFormat::BC1UNorm) &&
-           luisa::to_underlying(f) <= luisa::to_underlying(PixelFormat::BC7UNorm);
+           luisa::to_underlying(f) <= luisa::to_underlying(PixelFormat::BC7SRGB);
 }
 
 [[nodiscard]] constexpr auto pixel_format_to_storage(PixelFormat format) noexcept {
@@ -131,6 +135,8 @@ constexpr auto pixel_format_count = to_underlying(PixelFormat::BC7UNorm) + 1u;
         case PixelFormat::RGBA8UInt:
         case PixelFormat::RGBA8UNorm:
             return PixelStorage::BYTE4;
+        case PixelFormat::RGBA8SRGB:
+            return PixelStorage::BYTE4_SRGB;
         case PixelFormat::R16SInt:
         case PixelFormat::R16UInt:
         case PixelFormat::R16UNorm:
@@ -168,6 +174,8 @@ constexpr auto pixel_format_count = to_underlying(PixelFormat::BC7UNorm) + 1u;
             return PixelStorage::BC6;
         case PixelFormat::BC7UNorm:
             return PixelStorage::BC7;
+        case PixelFormat::BC7SRGB:
+            return PixelStorage::BC7_SRGB;
         case PixelFormat::BC5UNorm:
             return PixelStorage::BC5;
         case PixelFormat::BC4UNorm:
@@ -189,6 +197,36 @@ constexpr auto pixel_format_count = to_underlying(PixelFormat::BC7UNorm) + 1u;
     return PixelStorage{};
 }
 
+[[nodiscard]] constexpr bool is_srgb(PixelStorage storage) noexcept {
+    return storage == PixelStorage::BC7_SRGB || storage == PixelStorage::BYTE4_SRGB;
+}
+
+[[nodiscard]] constexpr bool is_srgb(PixelFormat format) noexcept {
+    return format == PixelFormat::BC7SRGB || format == PixelFormat::RGBA8SRGB;
+}
+
+[[nodiscard]] constexpr PixelStorage decay_srgb(PixelStorage storage) noexcept {
+    switch (storage) {
+        case PixelStorage::BC7_SRGB:
+            return PixelStorage::BC7;
+        case PixelStorage::BYTE4_SRGB:
+            return PixelStorage::BYTE4;
+        default:
+            return storage;
+    }
+}
+
+[[nodiscard]] constexpr PixelFormat decay_srgb(PixelFormat format) noexcept {
+    switch (format) {
+        case PixelFormat::BC7SRGB:
+            return PixelFormat::BC7UNorm;
+        case PixelFormat::RGBA8SRGB:
+            return PixelFormat::RGBA8UNorm;
+        default:
+            return format;
+    }
+}
+
 [[nodiscard]] constexpr size_t pixel_storage_align(PixelStorage storage) noexcept {
     if (is_block_compressed(storage)) {
         switch (storage) {
@@ -198,7 +236,9 @@ constexpr auto pixel_format_count = to_underlying(PixelFormat::BC7UNorm) + 1u;
             case PixelStorage::BC3:
             case PixelStorage::BC5:
             case PixelStorage::BC6:
-            case PixelStorage::BC7: return 16u;
+            case PixelStorage::BC7:
+            case PixelStorage::BC7_SRGB:
+                return 16u;
             default: break;
         }
         detail::error_pixel_invalid_format("unknown.");
@@ -206,7 +246,8 @@ constexpr auto pixel_format_count = to_underlying(PixelFormat::BC7UNorm) + 1u;
     switch (storage) {
         case PixelStorage::BYTE1: return alignof(std::byte) * 1u;
         case PixelStorage::BYTE2: return alignof(std::byte) * 2u;
-        case PixelStorage::BYTE4: return alignof(std::byte) * 4u;
+        case PixelStorage::BYTE4:
+        case PixelStorage::BYTE4_SRGB: return alignof(std::byte) * 4u;
         case PixelStorage::SHORT1: return alignof(short) * 1u;
         case PixelStorage::SHORT2: return alignof(short) * 2u;
         case PixelStorage::SHORT4: return alignof(short) * 4u;
@@ -239,7 +280,9 @@ constexpr auto pixel_format_count = to_underlying(PixelFormat::BC7UNorm) + 1u;
             case PixelStorage::BC3:
             case PixelStorage::BC5:
             case PixelStorage::BC6:
-            case PixelStorage::BC7: return block_count * 16u;
+            case PixelStorage::BC7:
+            case PixelStorage::BC7_SRGB:
+                return block_count * 16u;
             default: break;
         }
         detail::error_pixel_invalid_format("unknown.");
@@ -248,6 +291,7 @@ constexpr auto pixel_format_count = to_underlying(PixelFormat::BC7UNorm) + 1u;
     switch (storage) {
         case PixelStorage::BYTE1: return pixel_count * sizeof(std::byte) * 1u;
         case PixelStorage::BYTE2: return pixel_count * sizeof(std::byte) * 2u;
+        case PixelStorage::BYTE4_SRGB:
         case PixelStorage::BYTE4: return pixel_count * sizeof(std::byte) * 4u;
         case PixelStorage::SHORT1: return pixel_count * sizeof(short) * 1u;
         case PixelStorage::SHORT2: return pixel_count * sizeof(short) * 2u;
@@ -277,6 +321,7 @@ constexpr auto pixel_format_count = to_underlying(PixelFormat::BC7UNorm) + 1u;
     switch (storage) {
         case PixelStorage::BYTE1: return 1u;
         case PixelStorage::BYTE2: return 2u;
+        case PixelStorage::BYTE4_SRGB:
         case PixelStorage::BYTE4: return 4u;
         case PixelStorage::SHORT1: return 1u;
         case PixelStorage::SHORT2: return 2u;
@@ -300,7 +345,9 @@ constexpr auto pixel_format_count = to_underlying(PixelFormat::BC7UNorm) + 1u;
         case PixelStorage::BC6: return 3u;
         case PixelStorage::BC2:
         case PixelStorage::BC3:
-        case PixelStorage::BC7: return 4u;
+        case PixelStorage::BC7:
+        case PixelStorage::BC7_SRGB:
+            return 4u;
         default: break;
     }
     return 0u;
@@ -313,6 +360,7 @@ template<typename T>
             case PixelStorage::BYTE1: return PixelFormat::R8UNorm;
             case PixelStorage::BYTE2: return PixelFormat::RG8UNorm;
             case PixelStorage::BYTE4: return PixelFormat::RGBA8UNorm;
+            case PixelStorage::BYTE4_SRGB: return PixelFormat::RGBA8SRGB;
             case PixelStorage::SHORT1: return PixelFormat::R16UNorm;
             case PixelStorage::SHORT2: return PixelFormat::RG16UNorm;
             case PixelStorage::SHORT4: return PixelFormat::RGBA16UNorm;
@@ -331,6 +379,7 @@ template<typename T>
             case PixelStorage::BC5: return PixelFormat ::BC5UNorm;
             case PixelStorage::BC6: return PixelFormat ::BC6HUF16;
             case PixelStorage::BC7: return PixelFormat ::BC7UNorm;
+            case PixelStorage::BC7_SRGB: return PixelFormat ::BC7SRGB;
             default: detail::error_pixel_invalid_format("float");
         }
     } else if constexpr (std::is_same_v<T, int>) {

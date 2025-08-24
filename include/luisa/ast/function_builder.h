@@ -117,6 +117,7 @@ private:
     uint3 _block_size;
     CurveBasisSet _required_curve_bases;
     Tag _tag;
+    uint8_t _allowed_warp_size{255u};
     bool _hash_computed{false};
     bool _requires_atomic_float{false};
     bool _requires_printing{false};
@@ -454,7 +455,10 @@ public:
     void mark_variable_usage(uint32_t uid, Usage usage) noexcept;
     /// Separate arguments and bindings, make command need no bindings info, only work with kernel.
     void sort_bindings() noexcept;
-
+    // warp size
+    [[nodiscard]] luisa::optional<uint8_t> allowed_warp_size() const noexcept;
+    void set_allowed_warp_size(uint8_t value) noexcept;
+    void clear_allowed_warp_size() noexcept;
     /// Return a Function object constructed from this
     [[nodiscard]] auto function() const noexcept { return Function{this}; }
 

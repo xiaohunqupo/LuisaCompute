@@ -14,6 +14,38 @@ static const bool PRINT_CODE = ([] {
     return std::string_view{env} == "1";
 })();
 }// namespace ComputeShaderDetail
+class StringViewBinaryStream : public BinaryStream {
+
+public:
+    luisa::string_view strv;
+    size_t _pos{};
+    StringViewBinaryStream(luisa::string_view strv) : strv(strv) {}
+    [[nodiscard]] size_t length() const noexcept override { return strv.size(); }
+    [[nodiscard]] size_t pos() const noexcept override { return _pos; }
+    void read(luisa::span<std::byte> dst) noexcept override {
+        LUISA_DEBUG_ASSERT(dst.size() + _pos <= strv.size());
+        std::memcpy(dst.data(), strv.data() + _pos, dst.size());
+        _pos += dst.size();
+    }
+    ~StringViewBinaryStream() noexcept = default;
+};
+
+luisa::unique_ptr<luisa::BinaryStream> ReadBinaryIO(CacheType type, luisa::BinaryIO const *binIo, luisa::string_view name) {
+    switch (type) {
+        case CacheType::ByteCode:
+            return binIo->read_shader_bytecode(name);
+        case CacheType::Cache:
+            return binIo->read_shader_cache(name);
+        case CacheType::Internal: {
+            auto internal_data = hlsl::CodegenUtility::ReadInternalHLSLFile(name);
+            if (!internal_data.empty()) {
+                return luisa::make_unique<StringViewBinaryStream>(internal_data);
+            }
+            return binIo->read_internal_shader(name);
+        }
+    }
+    return luisa::unique_ptr<luisa::BinaryStream>{};
+}
 ComputeShader *ComputeShader::LoadPresetCompute(
     BinaryIO const *fileIo,
     luisa::compute::Profiler *profiler,

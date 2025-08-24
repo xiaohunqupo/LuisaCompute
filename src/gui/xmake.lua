@@ -26,16 +26,13 @@ target_end()
 target("imgui")
 set_basename("lc-ext-imgui")
 _config_project({
-    project_kind = "shared"
+    project_kind = "static"
 })
 add_headerfiles("../ext/imgui/*.h", "../ext/imgui/backends/*.h")
 add_files("../ext/imgui/*.cpp", "../ext/imgui/backends/imgui_impl_glfw.cpp")
 add_includedirs("../ext/imgui", "../ext/imgui/backends", {
     public = true
 })
-if is_plat("windows") then
-    add_defines("IMGUI_API=__declspec(dllexport)")
-end
 add_defines("ImDrawIdx=unsigned int", {public = true})
 add_deps("glfw", "lc-dsl")
 target_end()
@@ -48,7 +45,4 @@ add_headerfiles("../../include/luisa/gui/**.h")
 add_files("*.cpp")
 add_defines("LC_GUI_EXPORT_DLL", "GLFW_DLL")
 add_deps("glfw", "lc-runtime", "imgui")
-if is_plat("windows") then
-    add_defines("IMGUI_API=__declspec(dllimport)", {public = true})
-end
 target_end()

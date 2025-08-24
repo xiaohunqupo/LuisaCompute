@@ -85,6 +85,7 @@ inline static bool isExpr(const clang::AnnotateAttr *Anno) { return isLuisaAttri
 inline static bool isCast(const clang::AnnotateAttr *Anno) { return isLuisaAttribute(Anno, "cast"); }
 inline static bool isSwizzle(const clang::AnnotateAttr *Anno) { return isLuisaAttribute(Anno, "swizzle"); }
 inline static bool isExport(const clang::AnnotateAttr *Anno) { return isLuisaAttribute(Anno, "export"); }
+inline static bool isWaveSize(const clang::AnnotateAttr *Anno) { return isLuisaAttribute(Anno, "wave_size"); }
 inline static bool isVertex(const clang::AnnotateAttr *Anno) { return isLuisaAttribute(Anno, "vertex"); }
 inline static bool isPixel(const clang::AnnotateAttr *Anno) { return isLuisaAttribute(Anno, "pixel"); }
 

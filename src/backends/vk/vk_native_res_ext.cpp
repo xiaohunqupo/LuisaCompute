@@ -22,7 +22,7 @@ BufferCreationInfo VkNativeResourceExt::register_external_buffer(
     info.total_size_bytes = size;
     return info;
 }
-ResourceCreationInfo VkNativeResourceExt::register_external_image(
+ResourceCreationInfo VkNativeResourceExt::register_external_texture(
     void *image_ptr,
     PixelFormat format, uint dimension,
     uint width, uint height, uint depth,

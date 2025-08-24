@@ -12,6 +12,7 @@ protected:
     TextureDimension dimension;
     uint depth;
     uint mip;
+    bool allowUAV;
     mutable std::atomic<D3D12_RESOURCE_STATES> initState;
     //	vstd::unique_ptr<std::atomic<D3D12_BARRIER_LAYOUT>> layouts;
     D3D12_UNORDERED_ACCESS_VIEW_DESC GetColorUavDescBase(uint targetMipLevel) const;
@@ -47,8 +48,12 @@ public:
         TextureDimension dimension,
         uint depth,
         uint mip,
-        D3D12_RESOURCE_STATES initState);
+        D3D12_RESOURCE_STATES initState,
+        bool allowUAV);
     virtual ~TextureBase() override;
+    virtual bool AllowUAV() const {
+        return allowUAV && !(format == GFXFormat_R8G8B8A8_UNorm_SRGB || format == GFXFormat_BC7_UNorm_SRGB);
+    }
     TextureBase(TextureBase &&) = delete;
     KILL_COPY_CONSTRUCT(TextureBase)
 };

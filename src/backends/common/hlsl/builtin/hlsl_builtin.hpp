@@ -1,19 +1,6 @@
 #pragma once
 #include <luisa/core/stl/string.h>
 namespace lc_hlsl{
-extern unsigned char accel_process[];
-extern unsigned char accel_process_vk[];
-extern unsigned char bindless_upload[];
-extern unsigned char bindless_upload_vk[];
-extern unsigned char bc6_encode_block[];
-extern unsigned char bc6_header[];
-extern unsigned char bc6_trymode_g10cs[];
-extern unsigned char bc6_trymode_le10cs[];
-extern unsigned char bc7_encode_block[];
-extern unsigned char bc7_header[];
-extern unsigned char bc7_trymode_02cs[];
-extern unsigned char bc7_trymode_137cs[];
-extern unsigned char bc7_trymode_456cs[];
 extern unsigned char hlsl_header[];
 extern unsigned char hlsl_header_fallback[];
 extern unsigned char raytracing_header[];
@@ -29,28 +16,26 @@ extern unsigned char copy_sign[];
 extern unsigned char bindless_common[];
 extern unsigned char auto_diff[];
 extern unsigned char reduce[];
+extern unsigned char accel_process_vk_dxil[];
+extern unsigned char load_bdls_dxil[];
+extern unsigned char load_bdls_vk_dxil[];
+extern unsigned char set_accel4_dxil[];
+extern unsigned char bc6_encodeblock_dxil[];
+extern unsigned char bc6_trymodeg10_dxil[];
+extern unsigned char bc6_trymodele10_dxil[];
+extern unsigned char bc7_encodeblock_dxil[];
+extern unsigned char bc7_trymode02_dxil[];
+extern unsigned char bc7_trymode137_dxil[];
+extern unsigned char bc7_trymode456_dxil[];
 struct HLSLCompressedHeader {
-    void const* ptr;
-    size_t compressed_size;
-    size_t uncompressed_size;
+    void const* ptr{};
+    size_t compressed_size{};
+    size_t uncompressed_size{};
 };
 static HLSLCompressedHeader get_hlsl_builtin(luisa::string_view ss) {
     struct Dict {
         luisa::unordered_map<luisa::string_view, HLSLCompressedHeader> dict;
         Dict(){
-			dict.try_emplace("accel_process", HLSLCompressedHeader{accel_process, 525, 1491});
-			dict.try_emplace("accel_process_vk", HLSLCompressedHeader{accel_process_vk, 554, 1548});
-			dict.try_emplace("bindless_upload", HLSLCompressedHeader{bindless_upload, 225, 334});
-			dict.try_emplace("bindless_upload_vk", HLSLCompressedHeader{bindless_upload_vk, 253, 386});
-			dict.try_emplace("bc6_encode_block", HLSLCompressedHeader{bc6_encode_block, 1805, 11021});
-			dict.try_emplace("bc6_header", HLSLCompressedHeader{bc6_header, 6209, 80770});
-			dict.try_emplace("bc6_trymode_g10cs", HLSLCompressedHeader{bc6_trymode_g10cs, 1311, 6513});
-			dict.try_emplace("bc6_trymode_le10cs", HLSLCompressedHeader{bc6_trymode_le10cs, 1581, 6872});
-			dict.try_emplace("bc7_encode_block", HLSLCompressedHeader{bc7_encode_block, 1809, 9429});
-			dict.try_emplace("bc7_header", HLSLCompressedHeader{bc7_header, 4517, 25981});
-			dict.try_emplace("bc7_trymode_02cs", HLSLCompressedHeader{bc7_trymode_02cs, 1782, 7820});
-			dict.try_emplace("bc7_trymode_137cs", HLSLCompressedHeader{bc7_trymode_137cs, 1814, 7852});
-			dict.try_emplace("bc7_trymode_456cs", HLSLCompressedHeader{bc7_trymode_456cs, 2391, 11171});
 			dict.try_emplace("hlsl_header", HLSLCompressedHeader{hlsl_header, 1452, 5648});
 			dict.try_emplace("hlsl_header_fallback", HLSLCompressedHeader{hlsl_header_fallback, 1568, 6256});
 			dict.try_emplace("raytracing_header", HLSLCompressedHeader{raytracing_header, 889, 3045});
@@ -66,9 +51,22 @@ static HLSLCompressedHeader get_hlsl_builtin(luisa::string_view ss) {
 			dict.try_emplace("bindless_common", HLSLCompressedHeader{bindless_common, 375, 1615});
 			dict.try_emplace("auto_diff", HLSLCompressedHeader{auto_diff, 345, 1795});
 			dict.try_emplace("reduce", HLSLCompressedHeader{reduce, 743, 6372});
+			dict.try_emplace("accel_process_vk.dxil", HLSLCompressedHeader{accel_process_vk_dxil, 1229, 3604});
+			dict.try_emplace("load_bdls.dxil", HLSLCompressedHeader{load_bdls_dxil, 2432, 4168});
+			dict.try_emplace("load_bdls_vk.dxil", HLSLCompressedHeader{load_bdls_vk_dxil, 610, 1556});
+			dict.try_emplace("set_accel4.dxil", HLSLCompressedHeader{set_accel4_dxil, 3397, 5512});
+			dict.try_emplace("bc6_encodeblock.dxil", HLSLCompressedHeader{bc6_encodeblock_dxil, 16807, 24120});
+			dict.try_emplace("bc6_trymodeg10.dxil", HLSLCompressedHeader{bc6_trymodeg10_dxil, 9862, 14072});
+			dict.try_emplace("bc6_trymodele10.dxil", HLSLCompressedHeader{bc6_trymodele10_dxil, 12813, 17396});
+			dict.try_emplace("bc7_encodeblock.dxil", HLSLCompressedHeader{bc7_encodeblock_dxil, 23505, 33400});
+			dict.try_emplace("bc7_trymode02.dxil", HLSLCompressedHeader{bc7_trymode02_dxil, 9953, 14032});
+			dict.try_emplace("bc7_trymode137.dxil", HLSLCompressedHeader{bc7_trymode137_dxil, 10722, 15088});
+			dict.try_emplace("bc7_trymode456.dxil", HLSLCompressedHeader{bc7_trymode456_dxil, 9338, 13692});
 		}
 	};
 	static Dict dict;
-	return dict.dict.find(ss)->second;
+	auto iter = dict.dict.find(ss);
+	if (iter == dict.dict.end()) return {};
+	return iter->second;
 }
 }

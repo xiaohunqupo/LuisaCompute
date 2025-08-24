@@ -79,6 +79,9 @@ vstd::string_view CodegenUtility::ReadInternalHLSLFile(vstd::string_view name) {
         std::lock_guard lck{v.mtx};
         if (v.result.empty()) {
             auto compressed = lc_hlsl::get_hlsl_builtin(name);
+            if (compressed.uncompressed_size == 0) {
+                return {};
+            }
             luisa::enlarge_by(v.result, compressed.uncompressed_size);
             uLong dest_len = compressed.uncompressed_size;
             auto r = uncompress((Bytef *)v.result.data(), &dest_len, (Bytef const *)compressed.ptr, compressed.compressed_size);
@@ -1745,6 +1748,10 @@ void CodegenUtility::CodegenFunction(Function func, vstd::StringBuilder &result,
 #endif
         if (func.tag() == Function::Tag::KERNEL) {
             opt->funcType = CodegenStackData::FuncType::Kernel;
+            auto warp_size = func.allowed_warp_size();
+            if (warp_size.has_value()) {
+                result << luisa::format("[WaveSize({})]\n", int(warp_size.value()));
+            }
             result << "[numthreads("
                    << vstd::to_string(func.block_size().x)
                    << ','

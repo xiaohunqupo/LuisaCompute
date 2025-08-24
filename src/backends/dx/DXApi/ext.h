@@ -49,7 +49,7 @@ public:
         size_t elem_count,
         // D3D12_RESOURCE_STATES const*
         void *custom_data) noexcept override;
-    ResourceCreationInfo register_external_image(
+    ResourceCreationInfo register_external_texture(
         void *external_ptr,
         PixelFormat format, uint dimension,
         uint width, uint height, uint depth,

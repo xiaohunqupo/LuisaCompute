@@ -276,6 +276,7 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
       set_accel_kernel(BuiltinKernel::LoadAccelSetKernel) {
     bool headless = false;
     bool use_lmdb = false;
+    bool load_dxc = true;
     uint device_idx = -1;
     if (configs) {
         if (configs->extension) {
@@ -299,6 +300,7 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
             std::lock_guard lck{detail::instance_mtx};
             detail::vk_instance = external_device.instance;
         }
+        load_dxc = _config_ext->load_dxc();
         _graphics_queue = external_device.graphics_queue;
         _compute_queue = external_device.compute_queue;
         _copy_queue = external_device.copy_queue;
@@ -309,7 +311,7 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
         _external_copy_queue = external_device.copy_queue;
     }
     Context ctx{this->_ctx_impl};
-    {
+    if (load_dxc) {
         std::lock_guard lck(gDxcMutex);
         if (gDxcRefCount == 0)
             gDxcCompiler.create(ctx.runtime_directory());
@@ -720,7 +722,7 @@ Device::~Device() {
         }
     }
     _default_file_io = nullptr;
-    {
+    if (gDxcCompiler) {
         std::lock_guard lck(gDxcMutex);
         if (--gDxcRefCount == 0) {
             gDxcCompiler.destroy();
@@ -838,6 +840,7 @@ void Device::present_display_in_stream(uint64_t stream_handle, uint64_t swapchai
 
 // kernel
 ShaderCreationInfo Device::create_shader(const ShaderOption &option, Function kernel) noexcept {
+    LUISA_ASSERT(Device::Compiler(), "Shader compiler not loaded.");
     ShaderCreationInfo info;
     uint mask = 0;
     if (option.enable_fast_math) {
@@ -998,7 +1001,7 @@ VSTL_EXPORT_C void backend_device_names(luisa::vector<luisa::string> &r) {
     }
 }
 hlsl::ShaderCompiler *Device::Compiler() {
-    return gDxcCompiler.ptr();
+    return gDxcCompiler ? gDxcCompiler.ptr() : nullptr;
 }
 VkInstance Device::instance() const {
     return detail::vk_instance;

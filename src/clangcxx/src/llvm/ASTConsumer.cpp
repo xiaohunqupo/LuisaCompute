@@ -1260,12 +1260,12 @@ auto FunctionBuilderBuilder::build(const clang::FunctionDecl *S, bool allowKerne
     bool is_vertex = false;
     bool is_pixel = false;
     uint3 kernelSize;
+    uint8_t waveSize = 255;
     bool is_template = S->isTemplateDecl() && !S->isTemplateInstantiation();
     bool is_scope = false;
     bool is_method = false;
     bool is_lambda = false;
     bool is_static = S->isStatic();
-    ;
     QualType methodThisType;
 
     auto params = S->parameters();
@@ -1293,8 +1293,18 @@ auto FunctionBuilderBuilder::build(const clang::FunctionDecl *S, bool allowKerne
         }
         if (isDump(Anno))
             db->DumpWithLocation(S);
+        if (isWaveSize(Anno)) {
+            auto arg = Anno->args_begin();
+            const auto N = Anno->args_size();
+            LUISA_ASSERT(N == 2, "Wave size must have one argument.");
+            arg++;
+            if (auto IntLiteral = llvm::dyn_cast<clang::IntegerLiteral>((*arg)->IgnoreParenCasts())) {
+                waveSize = IntLiteral->getValue().getLimitedValue();
+            } else {
+                LUISA_ERROR("Wave size argument illegal.");
+            }
+        }
     }
-
     const auto TemplateKind = S->getTemplatedKind();
     is_template |= (TemplateKind == clang::FunctionDecl::TemplatedKind::TK_FunctionTemplate);
 
@@ -1413,6 +1423,9 @@ auto FunctionBuilderBuilder::build(const clang::FunctionDecl *S, bool allowKerne
             {
                 if (is_kernel) {
                     builder->set_block_size(kernelSize);
+                    if (waveSize != 255) {
+                        builder->set_allowed_warp_size(waveSize);
+                    }
                 }
 
                 // comment name

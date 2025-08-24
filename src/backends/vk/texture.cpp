@@ -50,7 +50,7 @@ Texture::Texture(
           VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
               VK_IMAGE_USAGE_TRANSFER_DST_BIT |
               VK_IMAGE_USAGE_SAMPLED_BIT |
-              VK_IMAGE_USAGE_STORAGE_BIT)),
+              (is_srgb(format) ? 0 : VK_IMAGE_USAGE_STORAGE_BIT))),
       _format(format),
       _size(size),
       _mip(mip),
@@ -91,8 +91,11 @@ void Texture::init_as_sparse(
         .arrayLayers = 1,
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .tiling = VK_IMAGE_TILING_OPTIMAL,
-        .usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+        .usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
+    if (!is_srgb(format)) {
+        img_create_info.usage |= VK_IMAGE_USAGE_STORAGE_BIT;
+    }
     VK_CHECK_RESULT(vkCreateImage(device()->logic_device(), &img_create_info, Device::alloc_callbacks(), &_img.image));
     _format = format;
     _size = size;
@@ -178,6 +181,8 @@ VkFormat Texture::to_vk_format(PixelFormat format) {
             return VK_FORMAT_R8G8B8A8_SINT;
         case PixelFormat::RGBA8UInt:
             return VK_FORMAT_R8G8B8A8_UINT;
+        case PixelFormat::RGBA8SRGB:
+            return VK_FORMAT_R8G8B8A8_SRGB;
         case PixelFormat::RGBA8UNorm:
             return VK_FORMAT_R8G8B8A8_UNORM;
 
@@ -242,6 +247,8 @@ VkFormat Texture::to_vk_format(PixelFormat format) {
             return VK_FORMAT_BC5_UNORM_BLOCK;
         case PixelFormat::BC6HUF16:
             return VK_FORMAT_BC6H_UFLOAT_BLOCK;
+        case PixelFormat::BC7SRGB:
+            return VK_FORMAT_BC7_SRGB_BLOCK;
         case PixelFormat::BC7UNorm:
             return VK_FORMAT_BC7_UNORM_BLOCK;
         default:

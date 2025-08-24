@@ -24,17 +24,7 @@ enum class CacheType : uint8_t {
     Cache,
     ByteCode
 };
-inline static auto ReadBinaryIO(CacheType type, luisa::BinaryIO const *binIo, luisa::string_view name) {
-    switch (type) {
-        case CacheType::ByteCode:
-            return binIo->read_shader_bytecode(name);
-        case CacheType::Cache:
-            return binIo->read_shader_cache(name);
-        case CacheType::Internal:
-            return binIo->read_internal_shader(name);
-    }
-    return luisa::unique_ptr<luisa::BinaryStream>{};
-}
+luisa::unique_ptr<luisa::BinaryStream> ReadBinaryIO(CacheType type, luisa::BinaryIO const *binIo, luisa::string_view name);
 inline static void WriteBinaryIO(CacheType type, luisa::BinaryIO const *binIo, luisa::string_view name, luisa::span<std::byte const> data) {
     switch (type) {
         case CacheType::ByteCode:

@@ -120,7 +120,7 @@ static ComputeShader *LoadBCKernel(
         return code;
     };
     vstd::string fileName;
-    vstd::string_view extName = "2.dxil"sv;
+    vstd::string_view extName = ".dxil"sv;
     fileName.reserve(codePath.size() + extName.size());
     fileName << codePath << extName;
     return ComputeShader::CompileCompute(

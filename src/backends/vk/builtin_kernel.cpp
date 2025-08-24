@@ -65,7 +65,7 @@ ComputeShader *BuiltinKernel::LoadBindlessSetKernel(Device *device) {
         vstd::MD5{"bindless_upload_vk"sv},
         {},
         uint3(256, 1, 1),
-        "load_bdls.dxil"sv,
+        "load_bdls_vk.dxil"sv,
         SerdeType::Builtin,
         62, true);
 }

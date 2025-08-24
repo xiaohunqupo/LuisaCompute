@@ -31,6 +31,7 @@ public:
     virtual bool signal_semaphore(VkQueue queue, VkSemaphore _semaphore, uint64_t index) { return false; }
     virtual bool wait_semaphore(VkQueue queue, VkSemaphore _semaphore, uint64_t index) { return false; }
     virtual bool sync_semaphore(VkSemaphore _semaphore, uint64_t index) { return false; }
+    virtual bool load_dxc() const { return true; }
     virtual void readback_vulkan_device(
         VkInstance instance,
         VkPhysicalDevice physical_device,

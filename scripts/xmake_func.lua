@@ -52,7 +52,7 @@ set_default(false)
 set_showmenu(false)
 add_deps("dx_backend", "vk_backend", "cuda_backend",
     "metal_backend", "cpu_backend", "enable_tests", "py_include",
-    "cuda_ext_lcub", "enable_ir", "enable_dsl",
+    "cuda_ext_lcub", "enable_ir", "enable_dsl", "enable_clangcxx",
     "enable_gui", "bin_dir", "_lc_enable_py", "_lc_enable_rust")
 before_check(function(option)
     if path.absolute(path.join(os.projectdir(), "scripts")) == path.absolute(os.scriptdir()) then

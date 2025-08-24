@@ -27,7 +27,7 @@ MipmapView::MipmapView(uint64_t handle, uint3 size, uint32_t level, PixelStorage
             "(src: [{}, {}], dest: [{}, {}]).",
             src._size.x, src._size.y, _size.x, _size.y);
     }
-    if (src._storage != _storage) [[unlikely]] {
+    if (decay_srgb(src._storage) != decay_srgb(_storage)) [[unlikely]] {
         LUISA_ERROR_WITH_LOCATION(
             "MipmapView storages mismatch "
             "(src = {}, dst = {})",

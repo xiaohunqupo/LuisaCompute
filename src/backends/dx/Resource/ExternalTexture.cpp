@@ -20,7 +20,7 @@ ExternalTexture::ExternalTexture(
           dimension,
           depth,
           mip,
-          initState},
+          initState, allowUav},
       resource{resource}{
 }
 ExternalTexture::~ExternalTexture() {
