@@ -7,11 +7,19 @@ add_deps("lc-runtime", "lc-vstl", "lc-hlsl-codegen")
 add_files("**.cpp")
 add_headerfiles("**.h", "../common/default_binary_io.h")
 add_includedirs("./")
-add_syslinks("D3D12", "dxgi")
+add_syslinks("dxgi")
 if is_plat("windows") then
     add_defines("UNICODE", "_CRT_SECURE_NO_WARNINGS")
 end
 on_load(function(target)
+    local dx_sdk = get_config("lc_dx_sdk_dir")
+    if dx_sdk then
+        target:add("linkdirs", dx_sdk)
+        target:add("links", "D3D12")
+        target:add("defines", "LUISA_DX_SDK")
+    else
+        target:add("syslinks", "D3D12")
+    end
     if get_config("lc_enable_win_pix") then
         target:add("linkdirs", target:targetdir())
         target:add("links", "WinPixEventRuntime")

@@ -35,6 +35,12 @@ set_default(true)
 set_showmenu(true)
 option_end()
 
+option("lc_dx_sdk_dir")
+set_values(true, false)
+set_default(false)
+set_showmenu(true)
+option_end()
+
 option("lc_external_marl")
 set_values(true, false)
 set_default(false)
