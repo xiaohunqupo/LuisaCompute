@@ -1089,9 +1089,13 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                         if (call->getCallReturnType(*astContext)->isVoidType())
                             fb->call(op, lcArgs);
                         else if (auto lcReturnType = db->FindOrAddType(call->getCallReturnType(*astContext), x->getBeginLoc())) {
-                            auto ret_value = LC_Local(fb, lcReturnType, Usage::WRITE);
-                            fb->assign(ret_value, fb->call(lcReturnType, op, lcArgs));
-                            current = ret_value;
+                            if (lcReturnType->is_basic() || lcReturnType->is_structure() || lcReturnType->is_array()) {
+                                auto ret_value = LC_Local(fb, lcReturnType, Usage::WRITE);
+                                fb->assign(ret_value, fb->call(lcReturnType, op, lcArgs));
+                                current = ret_value;
+                            } else {
+                                current = fb->call(lcReturnType, op, lcArgs);
+                            }
                         } else
                             clangcxx_log_error(
                                 "unfound return type: {}",

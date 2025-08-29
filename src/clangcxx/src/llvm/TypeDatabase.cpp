@@ -28,7 +28,6 @@ inline static luisa::string GetNonQualifiedTypeName(clang::QualType type, const 
 TypeDatabase::TypeDatabase() {
     using namespace luisa;
     using namespace luisa::compute;
-
     call_ops_map.reserve(call_op_count);
     for (auto i : vstd::range(call_op_count)) {
         const auto op = (CallOp)i;
@@ -345,6 +344,17 @@ const luisa::compute::Type *TypeDatabase::RecordAsBuiltinType(const QualType Ty)
                     _type = Type::array(lcType, N);
                 } else {
                     clangcxx_log_error("unfound array element type: {}", Arguments[0].getAsType().getAsString());
+                }
+            }
+        } else if (builtin_type_name == "coop_vec") {
+            if (auto TSD = GetClassTemplateSpecializationDecl(Ty)) {
+                auto &Arguments = TSD->getTemplateArgs();
+                clang::Expr::EvalResult Result;
+                auto N = Arguments.get(1).getAsIntegral().getLimitedValue();
+                if (auto lcType = FindOrAddType(Arguments[0].getAsType(), TSD->getBeginLoc())) {
+                    _type = Type::cooperative_vector(lcType, N);
+                } else {
+                    clangcxx_log_error("unfound cooperative-vector element type: {}", Arguments[0].getAsType().getAsString());
                 }
             }
         } else if (builtin_type_name == "matrix") {

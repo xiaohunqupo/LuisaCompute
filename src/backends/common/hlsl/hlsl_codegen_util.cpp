@@ -93,7 +93,7 @@ vstd::string_view CodegenUtility::ReadInternalHLSLFile(vstd::string_view name) {
     return {v.result.data(), v.result.size()};
 }
 namespace detail {
-static size_t AddHeader(CallOpSet const &ops, vstd::StringBuilder &builder, bool isRaster, bool is_spirv, bool fallback) {
+static size_t AddHeader(CallOpSet const &ops, vstd::StringBuilder &builder, bool isRaster, bool is_spirv, bool fallback, bool linalg) {
     builder << CodegenUtility::ReadInternalHLSLFile(fallback ? "hlsl_header_fallback" : "hlsl_header");
     size_t immutable_size = builder.size();
     if (ops.uses_raytracing()) {
@@ -110,6 +110,21 @@ static size_t AddHeader(CallOpSet const &ops, vstd::StringBuilder &builder, bool
     }
     if (ops.test(CallOp::BUFFER_SIZE) || ops.test(CallOp::TEXTURE_SIZE) || ops.test(CallOp::BYTE_BUFFER_SIZE)) {
         builder << CodegenUtility::ReadInternalHLSLFile("resource_size");
+    }
+    if (linalg ||
+        ops.test(CallOp::COOPERATIVE_MUL_ADD_FP8E5M2) ||
+        ops.test(CallOp::COOPERATIVE_MUL_FP8E5M2) ||
+        ops.test(CallOp::COOPERATIVE_MUL_ADD_FP8E4M3) ||
+        ops.test(CallOp::COOPERATIVE_MUL_FP8E4M3) ||
+        ops.test(CallOp::COOPERATIVE_MUL_ADD_FP16) ||
+        ops.test(CallOp::COOPERATIVE_MUL_FP16) ||
+        ops.test(CallOp::COOPERATIVE_MUL_ADD_FP32) ||
+        ops.test(CallOp::COOPERATIVE_MUL_FP32)) {
+        if (!is_spirv) {
+            builder << CodegenUtility::ReadInternalHLSLFile("dx_linalg");
+        } else {
+            LUISA_ERROR("Vulkan tensor not supported yet.");
+        }
     }
     bool useBindless = false;
     for (auto i : vstd::range(
@@ -344,6 +359,11 @@ void CodegenUtility::GetTypeName(Type const &type, vstd::StringBuilder &str, Usa
         case Type::Tag::UINT64:
             str << "uint64_t"sv;
             return;
+        case Type::Tag::COOPERATIVE_VECTOR:
+            str << "vector<";
+            GetTypeName(*type.element(), str, usage);
+            str << luisa::format(",{}>", type.dimension());
+            return;
         case Type::Tag::MATRIX: {
             GetTypeName(*type.element(), str, usage);
             vstd::to_string(type.dimension(), str);
@@ -504,6 +524,18 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             str << ',';
         }
         args.back()->accept(vis);
+    };
+    auto TypeToCoop = [](Type const &type, vstd::StringBuilder &sb) {
+        switch (type.tag()) {
+            case Type::Tag::FLOAT16:
+                sb << "dx::linalg::DATA_TYPE_FLOAT16";
+                break;
+            case Type::Tag::FLOAT32:
+                sb << "dx::linalg::DATA_TYPE_FLOAT32";
+                break;
+            default:
+                LUISA_ERROR("Illegal coop type.");
+        }
     };
     switch (expr->op()) {
         case CallOp::CUSTOM:
@@ -1551,6 +1583,94 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
         case CallOp::SHADER_EXECUTION_REORDER:
             str << "(void)";
             break;
+        case CallOp::COOPERATIVE_MUL_ADD_FP8E5M2:
+            str << "dx::linalg::CoopMulAdd<";
+            GetTypeName(*args[0]->type(), str, args[0]->usage());
+            str << ',';
+            GetTypeName(*args[2]->type(), str, args[2]->usage());
+            str << ',';
+            GetTypeName(*args[4]->type()->element(), str, Usage::NONE);
+            str << ',';
+            GetTypeName(*expr->type()->element(), str, Usage::NONE);
+            str << ",dx::linalg::DATA_TYPE_FLOAT8_E5M2,";
+            TypeToCoop(*args[4]->type()->element(), str);
+            str << luisa::format(",{},{}>", args[4]->type()->dimension(), expr->type()->dimension());
+            break;
+        case CallOp::COOPERATIVE_MUL_FP8E5M2:
+            str << "dx::linalg::CoopMul<";
+            GetTypeName(*args[0]->type(), str, args[0]->usage());
+            str << ',';
+            GetTypeName(*args[2]->type()->element(), str, Usage::NONE);
+            str << ',';
+            GetTypeName(*expr->type()->element(), str, Usage::NONE);
+            str << luisa::format(",dx::linalg::DATA_TYPE_FLOAT8_E5M2,{},{}>", args[2]->type()->dimension(), expr->type()->dimension());
+            break;
+        case CallOp::COOPERATIVE_MUL_ADD_FP8E4M3:
+            str << "dx::linalg::CoopMulAdd<";
+            GetTypeName(*args[0]->type(), str, args[0]->usage());
+            str << ',';
+            GetTypeName(*args[2]->type(), str, args[2]->usage());
+            str << ',';
+            GetTypeName(*args[4]->type()->element(), str, Usage::NONE);
+            str << ',';
+            GetTypeName(*expr->type()->element(), str, Usage::NONE);
+            str << ",dx::linalg::DATA_TYPE_FLOAT8_E4M3,";
+            TypeToCoop(*args[4]->type()->element(), str);
+            str << luisa::format(",{},{}>", args[4]->type()->dimension(), expr->type()->dimension());
+            break;
+        case CallOp::COOPERATIVE_MUL_FP8E4M3:
+            str << "dx::linalg::CoopMul<";
+            GetTypeName(*args[0]->type(), str, args[0]->usage());
+            str << ',';
+            GetTypeName(*args[2]->type()->element(), str, Usage::NONE);
+            str << ',';
+            GetTypeName(*expr->type()->element(), str, Usage::NONE);
+            str << luisa::format(",dx::linalg::DATA_TYPE_FLOAT8_E4M3,{},{}>", args[2]->type()->dimension(), expr->type()->dimension());
+            break;
+        case CallOp::COOPERATIVE_MUL_ADD_FP16:
+            str << "dx::linalg::CoopMulAdd<";
+            GetTypeName(*args[0]->type(), str, args[0]->usage());
+            str << ',';
+            GetTypeName(*args[2]->type(), str, args[2]->usage());
+            str << ',';
+            GetTypeName(*args[4]->type()->element(), str, Usage::NONE);
+            str << ',';
+            GetTypeName(*expr->type()->element(), str, Usage::NONE);
+            str << ",dx::linalg::DATA_TYPE_FLOAT16,";
+            TypeToCoop(*args[4]->type()->element(), str);
+            str << luisa::format(",{},{}>", args[4]->type()->dimension(), expr->type()->dimension());
+            break;
+        case CallOp::COOPERATIVE_MUL_FP16:
+            str << "dx::linalg::CoopMul<";
+            GetTypeName(*args[0]->type(), str, args[0]->usage());
+            str << ',';
+            GetTypeName(*args[2]->type()->element(), str, Usage::NONE);
+            str << ',';
+            GetTypeName(*expr->type()->element(), str, Usage::NONE);
+            str << luisa::format(",dx::linalg::DATA_TYPE_FLOAT16,{},{}>", args[2]->type()->dimension(), expr->type()->dimension());
+            break;
+        case CallOp::COOPERATIVE_MUL_ADD_FP32:
+            str << "dx::linalg::CoopMulAdd<";
+            GetTypeName(*args[0]->type(), str, args[0]->usage());
+            str << ',';
+            GetTypeName(*args[2]->type(), str, args[2]->usage());
+            str << ',';
+            GetTypeName(*args[4]->type()->element(), str, Usage::NONE);
+            str << ',';
+            GetTypeName(*expr->type()->element(), str, Usage::NONE);
+            str << ",dx::linalg::DATA_TYPE_FLOAT32,";
+            TypeToCoop(*args[4]->type()->element(), str);
+            str << luisa::format(",{},{}>", args[4]->type()->dimension(), expr->type()->dimension());
+            break;
+        case CallOp::COOPERATIVE_MUL_FP32:
+            str << "dx::linalg::CoopMul<";
+            GetTypeName(*args[0]->type(), str, args[0]->usage());
+            str << ',';
+            GetTypeName(*args[2]->type()->element(), str, Usage::NONE);
+            str << ',';
+            GetTypeName(*expr->type()->element(), str, Usage::NONE);
+            str << luisa::format(",dx::linalg::DATA_TYPE_FLOAT32,{},{}>", args[2]->type()->dimension(), expr->type()->dimension());
+            break;
         default:
             LUISA_ERROR("Bad op.");
             break;
@@ -2396,7 +2516,7 @@ CodegenResult CodegenUtility::Codegen(
     vstd::StringBuilder finalResult;
     opt->incrementalFunc = &incrementalFunc;
     finalResult.reserve(65500);
-    uint64 immutableHeaderSize = detail::AddHeader(kernel.propagated_builtin_callables(), finalResult, false, isSpirV, noRegister);
+    uint64 immutableHeaderSize = detail::AddHeader(kernel.propagated_builtin_callables(), finalResult, false, isSpirV, noRegister, kernel.use_cooperative_operations());
     finalResult << native_code << "\n//"sv;
     static_cast<void>(vstd::to_string(custom_mask));
     finalResult << '\n';
@@ -2483,7 +2603,7 @@ CodegenResult CodegenUtility::RasterCodegen(
     finalResult.reserve(65500);
     auto opSet = vertFunc.propagated_builtin_callables();
     opSet.propagate(pixelFunc.propagated_builtin_callables());
-    uint64 immutableHeaderSize = detail::AddHeader(opSet, finalResult, true, isSpirV, noRegister);
+    uint64 immutableHeaderSize = detail::AddHeader(opSet, finalResult, true, isSpirV, noRegister, vertFunc.use_cooperative_operations() || pixelFunc.use_cooperative_operations());
     finalResult << native_code << "\n//"sv;
     static_cast<void>(vstd::to_string(custom_mask));
     finalResult << '\n';

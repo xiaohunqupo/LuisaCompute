@@ -285,6 +285,7 @@ const LiteralExpr *FunctionBuilder::literal(const Type *type, LiteralExpr::Value
 }
 
 const RefExpr *FunctionBuilder::local(const Type *type) noexcept {
+    _use_cooperative_operations |= type->is_cooperative_vector();
     Variable v{type, Variable::Tag::LOCAL, _next_variable_uid()};
     _local_variables.emplace_back(v);
     return _ref(v);
@@ -728,6 +729,7 @@ const FuncRefExpr *FunctionBuilder::func_ref(Function custom) noexcept {
         // propagate used builtin/custom callables and constants
         _propagated_builtin_callables.propagate(f->_propagated_builtin_callables);
         _required_curve_bases.propagate(f->_required_curve_bases);
+        _use_cooperative_operations |= f->_use_cooperative_operations;
         _requires_atomic_float |= f->_requires_atomic_float;
         _requires_printing |= f->_requires_printing;
     }
@@ -806,6 +808,7 @@ const CallExpr *FunctionBuilder::call(const Type *type, Function custom, luisa::
         // propagate used builtin/custom callables and constants
         _propagated_builtin_callables.propagate(f->_propagated_builtin_callables);
         _required_curve_bases.propagate(f->_required_curve_bases);
+        _use_cooperative_operations |= f->_use_cooperative_operations;
         _requires_atomic_float |= f->_requires_atomic_float;
         _requires_printing |= f->_requires_printing;
     }

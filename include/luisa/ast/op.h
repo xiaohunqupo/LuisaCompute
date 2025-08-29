@@ -337,8 +337,8 @@ enum struct CallOp : uint32_t {
     // optimization hints
     ASSUME,     // ()
     UNREACHABLE,// ()
-    FLATTEN, // for if-statement
-    BRANCH, // for if-statement
+    FLATTEN,    // for if-statement
+    BRANCH,     // for if-statement
     FORCE_CASE, // for switch-statement
 
     // used by the IR module
@@ -443,6 +443,16 @@ enum struct CallOp : uint32_t {
 
     // SER
     SHADER_EXECUTION_REORDER,// (uint hint, uint hint_bits): void
+
+    // cooperative
+    COOPERATIVE_MUL_ADD_FP8E5M2,// (cooperative_matrix_ref(byte_buffer, byte_offset), bias_vector(byte_buffer, byte_offset), cooperative_vector)
+    COOPERATIVE_MUL_FP8E5M2,    // (cooperative_matrix_ref(byte_buffer, byte_offset), cooperative_vector)
+    COOPERATIVE_MUL_ADD_FP8E4M3,// (cooperative_matrix_ref(byte_buffer, byte_offset), bias_vector(byte_buffer, byte_offset), cooperative_vector)
+    COOPERATIVE_MUL_FP8E4M3,    // (cooperative_matrix_ref(byte_buffer, byte_offset), cooperative_vector)
+    COOPERATIVE_MUL_ADD_FP16,   // (cooperative_matrix_ref(byte_buffer, byte_offset), bias_vector(byte_buffer, byte_offset), cooperative_vector)
+    COOPERATIVE_MUL_FP16,       // (cooperative_matrix_ref(byte_buffer, byte_offset), cooperative_vector)
+    COOPERATIVE_MUL_ADD_FP32,   // (cooperative_matrix_ref(byte_buffer, byte_offset), bias_vector(byte_buffer, byte_offset), cooperative_vector)
+    COOPERATIVE_MUL_FP32,       // (cooperative_matrix_ref(byte_buffer, byte_offset), cooperative_vector)
 
     // Clock
     CLOCK,// (): uint64
@@ -568,4 +578,4 @@ public:
 
 }// namespace luisa::compute
 
-LUISA_MAGIC_ENUM_RANGE(luisa::compute::CallOp, CUSTOM, SHADER_EXECUTION_REORDER)
+LUISA_MAGIC_ENUM_RANGE(luisa::compute::CallOp, CUSTOM, CLOCK)

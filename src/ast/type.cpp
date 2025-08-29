@@ -142,6 +142,7 @@ const Type *TypeRegistry::custom_type(luisa::string_view name) noexcept {
                      name != "double" &&
                      name != "bool" &&
                      !name.starts_with("vector<") &&
+                     !name.starts_with("coopvec<") &&
                      !name.starts_with("matrix<") &&
                      !name.starts_with("array<") &&
                      !name.starts_with("struct<") &&
@@ -338,6 +339,21 @@ const TypeImpl *TypeRegistry::_decode(luisa::string_view desc) noexcept {
         }
         info->alignment = info->members.front()->alignment();
         info->size = info->members.front()->size() * info->dimension;
+    } else if (type_identifier == "coopvec"sv) {
+        info->tag = Type::Tag::COOPERATIVE_VECTOR;
+        match('<');
+        info->members.emplace_back(_decode(split()));
+        match(',');
+        info->dimension = read_number();
+        match('>');
+        auto m = info->members.back();
+        if (!m->is_scalar()) [[unlikely]] {
+            LUISA_ERROR_WITH_LOCATION(
+                "Arrays are not allowed to "
+                "hold buffers or images.");
+        }
+        info->alignment = info->members.front()->alignment();
+        info->size = info->members.front()->size() * info->dimension;
     } else if (type_identifier == "struct"sv) {
         info->tag = Type::Tag::STRUCTURE;
         match('<');
@@ -473,7 +489,7 @@ luisa::span<const Attribute> Type::member_attributes() const noexcept {
 
 const Type *Type::element() const noexcept {
     if (is_scalar()) { return this; }
-    LUISA_ASSERT(is_array() || is_vector() || is_matrix() || is_buffer() || is_texture(),
+    LUISA_ASSERT(is_array() || is_cooperative_vector() || is_vector() || is_matrix() || is_buffer() || is_texture(),
                  "Calling element() on a non-array/vector/matrix/buffer/image type {}.",
                  description());
     return static_cast<const detail::TypeImpl *>(this)->members.front();
@@ -545,7 +561,7 @@ luisa::string_view Type::description() const noexcept {
 }
 
 uint Type::dimension() const noexcept {
-    LUISA_ASSERT(is_scalar() || is_array() || is_vector() || is_matrix() || is_texture(),
+    LUISA_ASSERT(is_scalar() || is_array() || is_cooperative_vector() || is_vector() || is_matrix() || is_texture(),
                  "Calling dimension() on a non-array, non-vector, "
                  "non-matrix, or non-image type {}.",
                  description());
@@ -596,6 +612,7 @@ bool Type::is_basic() const noexcept {
 }
 
 bool Type::is_array() const noexcept { return tag() == Tag::ARRAY; }
+bool Type::is_cooperative_vector() const noexcept { return tag() == Tag::COOPERATIVE_VECTOR; }
 bool Type::is_vector() const noexcept { return tag() == Tag::VECTOR; }
 bool Type::is_matrix() const noexcept { return tag() == Tag::MATRIX; }
 bool Type::is_structure() const noexcept { return tag() == Tag::STRUCTURE; }
@@ -607,6 +624,10 @@ bool Type::is_custom() const noexcept { return tag() == Tag::CUSTOM; }
 
 const Type *Type::array(const Type *elem, size_t n) noexcept {
     return from(luisa::format("array<{},{}>", elem->description(), n));
+}
+
+const Type *Type::cooperative_vector(const Type *elem, size_t n) noexcept {
+    return from(luisa::format("coopvec<{},{}>", elem->description(), n));
 }
 
 const Type *Type::vector(const Type *elem, size_t n) noexcept {
@@ -622,6 +643,7 @@ const Type *Type::matrix(size_t n) noexcept {
 
 const Type *Type::buffer(const Type *elem, luisa::span<const Attribute> attributes) noexcept {
     LUISA_ASSERT(!elem->is_buffer() && !elem->is_texture(), "Buffer cannot hold buffers or images.");
+    LUISA_ASSERT(!elem->is_cooperative_vector(), "Buffer cannot hold cooperative data-structure.");
     LUISA_ASSERT(!elem->is_structure() || elem->member_attributes().empty(), "Buffer cannot hold structure with custom attributes.");
     if (!attributes.empty()) [[unlikely]] /*usually would not use attribute*/ {
         luisa::string r{"buffer"};

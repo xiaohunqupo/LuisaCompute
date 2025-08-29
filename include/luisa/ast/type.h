@@ -317,6 +317,7 @@ public:
         BINDLESS_ARRAY,
         ACCEL,
 
+        COOPERATIVE_VECTOR,
         CUSTOM
     };
 
@@ -344,6 +345,8 @@ public:
     [[nodiscard]] static auto of(T &&) noexcept { return of<std::remove_cvref_t<T>>(); }
     /// Return array type of type T
     [[nodiscard]] static const Type *array(const Type *elem, size_t n) noexcept;
+    /// Return cooperative_vector type of type T
+    [[nodiscard]] static const Type *cooperative_vector(const Type *elem, size_t n) noexcept;
     /// Return vector type of type T
     [[nodiscard]] static const Type *vector(const Type *elem, size_t n) noexcept;
     /// Return matrix type of type T
@@ -443,6 +446,7 @@ public:
 
     /// Basic = scalar || vector || matrix
     [[nodiscard]] bool is_basic() const noexcept;
+    [[nodiscard]] bool is_cooperative_vector() const noexcept;
     [[nodiscard]] bool is_array() const noexcept;
     [[nodiscard]] bool is_vector() const noexcept;
     [[nodiscard]] bool is_bool_vector() const noexcept;
