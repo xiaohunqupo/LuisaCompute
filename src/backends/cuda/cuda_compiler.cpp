@@ -179,18 +179,11 @@ size_t CUDACompiler::type_size(const Type *type) noexcept {
 
 CUDACompiler::CUDACompiler(const CUDADevice *device) noexcept
     : _device{device},
-      _device_library{[] {
+      _device_library{[device] {
           luisa::string device_library;
-          auto device_half = luisa::string_view{
-              luisa_cuda_builtin_cuda_device_half,
-              sizeof(luisa_cuda_builtin_cuda_device_half)};
-          auto device_math = luisa::string_view{
-              luisa_cuda_builtin_cuda_device_math,
-              sizeof(luisa_cuda_builtin_cuda_device_math)};
-          auto device_resource = luisa::string_view{
-              luisa_cuda_builtin_cuda_device_resource,
-              sizeof(luisa_cuda_builtin_cuda_device_resource)};
-
+          auto const &device_half = device->get_builtin_code("cuda_device_half");
+          auto const &device_math = device->get_builtin_code("cuda_device_math");
+          auto const &device_resource = device->get_builtin_code("cuda_device_resource");
           device_library.resize(device_half.size() +
                                 device_math.size() +
                                 device_resource.size());

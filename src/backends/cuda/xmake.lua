@@ -93,6 +93,14 @@ add_links("cuda")
 --         -- TODO: linux
 --     end
 -- end)
+if get_config("lc_xrepo_dir") then
+    add_packages("zlib", {
+        public = false,
+        inherit = false
+    })
+else
+    add_deps("zlib")
+end
 target_end()
 
 target("lc-nvrtc")
