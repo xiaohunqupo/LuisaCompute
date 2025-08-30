@@ -786,6 +786,45 @@ template<class T>
             {arr.expression(), index.expression()}));
 }
 
+template<typename OutType, typename InType>
+inline CoopVector<OutType> cooperative_mat_mul_add(
+    Expr<ByteBuffer> matrix_buffer,
+    CoopMatrixRef const &matrix_offset,
+    Expr<ByteBuffer> bias_buffer,
+    CoopVectorRef const &vector_offset,
+    Expr<CoopVector<InType>> input_vector) {
+    CoopVector<OutType> var(matrix_offset.size().y);
+    detail::FunctionBuilder::current()->assign(
+        var.expression(),
+        detail::FunctionBuilder::current()->call(
+            Type::cooperative_vector(Type::of<OutType>(), var.size()),
+            CallOp::COOPERATIVE_MUL_ADD,
+            {matrix_buffer.expression(),
+             matrix_offset.expression(),
+             bias_buffer.expression(),
+             vector_offset.expression(),
+             input_vector.expression()}));
+    return var;
+}
+
+template<typename OutType, typename InType>
+inline CoopVector<OutType> cooperative_mat_mul(
+    Expr<ByteBuffer> matrix_buffer,
+    CoopMatrixRef const &matrix_offset,
+    Expr<CoopVector<InType>> input_vector) {
+    CoopVector<OutType> var(matrix_offset.size().y);
+    detail::FunctionBuilder::current()->assign(
+        var.expression(),
+        detail::FunctionBuilder::current()->call(
+            Type::cooperative_vector(Type::of<OutType>(), var.size()),
+            CallOp::COOPERATIVE_MUL,
+            {matrix_buffer.expression(),
+             matrix_offset.expression(),
+             input_vector.expression()}));
+    return var;
+}
+
+
 }// namespace dsl
 
 }// namespace luisa::compute

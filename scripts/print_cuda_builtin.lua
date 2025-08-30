@@ -3,7 +3,7 @@
 -- to execute this script and gen new files
 -- 'accel_process', 'accel_process_vk', 'bindless_upload', 'bindless_upload_vk', 'bc6_encode_block', 'bc6_header', 'bc6_trymode_g10cs','bc6_trymode_le10cs', 'bc7_encode_block', 'bc7_header', 'bc7_trymode_02cs', 'bc7_trymode_137cs', 'bc7_trymode_456cs'
 local files_list = {'cuda_builtin_kernels', 'cuda_device_half', 'cuda_device_math', 'cuda_device_resource'}
-local file_ext = {".cu", ".h", ".h", ".h"}
+local file_ext = {".cu"}
 local lib = import("lib")
 
 local cuda_builtin_path = path.join(os.projectdir(), "src/backends/cuda/cuda_builtin")
@@ -18,7 +18,11 @@ function main()
     for i, file in ipairs(files_list) do
         -- make this file ignored by git
         local compressed_file = file .. ".msi"
-        local file_with_ext = file .. file_ext[i]
+        local curr_ext = ".h"
+        if i <= #file_ext then
+            curr_ext = file_ext[i] 
+        end
+        local file_with_ext = file .. curr_ext
         os.runv(test_zip_dir, {path.join(cuda_builtin_path, file_with_ext), path.join(cuda_builtin_path, compressed_file), "y"})
         local uncompressed_size
         try {function()

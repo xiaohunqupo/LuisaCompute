@@ -357,6 +357,23 @@ const luisa::compute::Type *TypeDatabase::RecordAsBuiltinType(const QualType Ty)
                     clangcxx_log_error("unfound cooperative-vector element type: {}", Arguments[0].getAsType().getAsString());
                 }
             }
+        } else if (builtin_type_name == "coop_vec_ref") {
+            if (auto TSD = GetClassTemplateSpecializationDecl(Ty)) {
+                auto &Arguments = TSD->getTemplateArgs();
+                clang::Expr::EvalResult Result;
+                auto DataType = Arguments.get(0).getAsIntegral().getLimitedValue();
+                auto N = Arguments.get(1).getAsIntegral().getLimitedValue();
+                _type = Type::cooperative_vector_ref(static_cast<CoopRefVecType>(DataType), N);
+            }
+        } else if (builtin_type_name == "coop_mat_ref") {
+            if (auto TSD = GetClassTemplateSpecializationDecl(Ty)) {
+                auto &Arguments = TSD->getTemplateArgs();
+                clang::Expr::EvalResult Result;
+                auto DataType = Arguments.get(0).getAsIntegral().getLimitedValue();
+                auto N = Arguments.get(1).getAsIntegral().getLimitedValue();
+                auto M = Arguments.get(2).getAsIntegral().getLimitedValue();
+                _type = Type::cooperative_matrix_ref(static_cast<CoopRefVecType>(DataType), N, M);
+            }
         } else if (builtin_type_name == "matrix") {
             if (auto TSD = GetClassTemplateSpecializationDecl(Ty)) {
                 auto &Arguments = TSD->getTemplateArgs();

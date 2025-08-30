@@ -253,7 +253,7 @@ enum struct CallOp : uint32_t {
     TYPED_UNIFORM_BINDLESS_BUFFER_SIZE,     // (bindless_array, index: uint, stride: uint) -> size
     TYPED_UNIFORM_BINDLESS_BUFFER_TYPE,     // (bindless_array, index: uint) -> uint64 (type id of the element); the returned value
     TYPED_UNIFORM_BINDLESS_BUFFER_ADDRESS,  // (bindless_array, index: uint) -> uint64 (address of the buffer)
-    
+
     // Non uniform typed
     TYPED_BINDLESS_TEXTURE2D_SAMPLE,           // (bindless_array, index: uint, uv: float2): float4
     TYPED_BINDLESS_TEXTURE2D_SAMPLE_LEVEL,     // (bindless_array, index: uint, uv: float2, level: float): float4
@@ -445,14 +445,8 @@ enum struct CallOp : uint32_t {
     SHADER_EXECUTION_REORDER,// (uint hint, uint hint_bits): void
 
     // cooperative
-    COOPERATIVE_MUL_ADD_FP8E5M2,// (cooperative_matrix_ref(byte_buffer, byte_offset), bias_vector(byte_buffer, byte_offset), cooperative_vector)
-    COOPERATIVE_MUL_FP8E5M2,    // (cooperative_matrix_ref(byte_buffer, byte_offset), cooperative_vector)
-    COOPERATIVE_MUL_ADD_FP8E4M3,// (cooperative_matrix_ref(byte_buffer, byte_offset), bias_vector(byte_buffer, byte_offset), cooperative_vector)
-    COOPERATIVE_MUL_FP8E4M3,    // (cooperative_matrix_ref(byte_buffer, byte_offset), cooperative_vector)
-    COOPERATIVE_MUL_ADD_FP16,   // (cooperative_matrix_ref(byte_buffer, byte_offset), bias_vector(byte_buffer, byte_offset), cooperative_vector)
-    COOPERATIVE_MUL_FP16,       // (cooperative_matrix_ref(byte_buffer, byte_offset), cooperative_vector)
-    COOPERATIVE_MUL_ADD_FP32,   // (cooperative_matrix_ref(byte_buffer, byte_offset), bias_vector(byte_buffer, byte_offset), cooperative_vector)
-    COOPERATIVE_MUL_FP32,       // (cooperative_matrix_ref(byte_buffer, byte_offset), cooperative_vector)
+    COOPERATIVE_MUL_ADD,// (coop_vec<OutType, M> (matrix_buffer: byte_buffer, matrix_offset: coop_mat_ref<N, M, CoopRefType>, bias_buffer: byte_buffer, bias_offset: coop_vec_ref<M, CoopRefType>, input_vector: coop_vec<N>)
+    COOPERATIVE_MUL, // (coop_vec<OutType, M> (matrix_buffer: byte_buffer, matrix_offset: coop_mat_ref<N, M, CoopRefType>input_vector: coop_vec<N>)
 
     // Clock
     CLOCK,// (): uint64
@@ -573,6 +567,10 @@ public:
                test(CallOp::ACCUMULATE_GRADIENT) ||
                test(CallOp::BACKWARD) ||
                test(CallOp::DETACH);
+    }
+    [[nodiscard]] auto uses_cooperative() const noexcept {
+        return test(CallOp::COOPERATIVE_MUL_ADD) ||
+               test(CallOp::COOPERATIVE_MUL);
     }
 };
 

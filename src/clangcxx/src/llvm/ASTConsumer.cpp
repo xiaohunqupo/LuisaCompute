@@ -778,7 +778,7 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                                         clangcxx_log_error("unhandled array constructor: {}", cxxCtor->getNameAsString());
                                 }
                             }
-                        } else if (builtinName == "coop_vec") {
+                        } else if (builtinName == "coop_vec" || builtinName == "coop_vec_ref" || builtinName == "coop_mat_ref") {
                         } else {
                             clangcxx_log_error("unhandled builtin constructor: {}", cxxCtor->getNameAsString());
                         }

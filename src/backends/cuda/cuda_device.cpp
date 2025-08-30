@@ -273,6 +273,12 @@ CUDADevice::CUDADevice(Context &&ctx,
             luisa_cuda_builtin_cuda_device_resource_size,
             sizeof(luisa_cuda_builtin_cuda_device_resource),
             luisa_cuda_builtin_cuda_device_resource});
+    _builtin_codes.try_emplace(
+        "coop_vec_builtin",
+        BuiltinCode{
+            luisa_cuda_builtin_coop_vec_builtin_size,
+            sizeof(luisa_cuda_builtin_coop_vec_builtin),
+            luisa_cuda_builtin_coop_vec_builtin});
     // provide a default binary IO
     if (_io == nullptr) {
         _default_io = luisa::make_unique<DefaultBinaryIO>(context());
@@ -806,7 +812,7 @@ ShaderCreationInfo CUDADevice::create_shader(const ShaderOption &option, Functio
             Clock clk;
             CUDACodegenXIR codegen{scratch, !_cudadevrt_library.empty()};
             codegen.emit(xir_module.get(), kernel.bound_arguments(),
-                         _compiler->device_library(), option.native_include);
+                         _compiler->get_device_library(), option.native_include);
             LUISA_INFO("CUDA Codegen XIR generated source in {} ms.", clk.toc());
             // dump for debugging
             {
@@ -819,7 +825,10 @@ ShaderCreationInfo CUDADevice::create_shader(const ShaderOption &option, Functio
 #endif
         Clock clk;
         CUDACodegenAST codegen{scratch, !_cudadevrt_library.empty()};
-        codegen.emit(kernel, _compiler->device_library(), option.native_include);
+        codegen.emit(kernel, [&](StringScratch& scratch) {
+            _compiler->get_device_library()(scratch);
+            _compiler->get_device_optional_library()(scratch, kernel);
+        }, option.native_include);
         LUISA_VERBOSE("Generated CUDA source in {} ms.", clk.toc());
         return std::move(codegen).move_print_formats();
     }();

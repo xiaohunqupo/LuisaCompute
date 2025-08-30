@@ -112,14 +112,7 @@ static size_t AddHeader(CallOpSet const &ops, vstd::StringBuilder &builder, bool
         builder << CodegenUtility::ReadInternalHLSLFile("resource_size");
     }
     if (linalg ||
-        ops.test(CallOp::COOPERATIVE_MUL_ADD_FP8E5M2) ||
-        ops.test(CallOp::COOPERATIVE_MUL_FP8E5M2) ||
-        ops.test(CallOp::COOPERATIVE_MUL_ADD_FP8E4M3) ||
-        ops.test(CallOp::COOPERATIVE_MUL_FP8E4M3) ||
-        ops.test(CallOp::COOPERATIVE_MUL_ADD_FP16) ||
-        ops.test(CallOp::COOPERATIVE_MUL_FP16) ||
-        ops.test(CallOp::COOPERATIVE_MUL_ADD_FP32) ||
-        ops.test(CallOp::COOPERATIVE_MUL_FP32)) {
+        ops.uses_cooperative()) {
         if (!is_spirv) {
             builder << CodegenUtility::ReadInternalHLSLFile("dx_linalg");
         } else {
@@ -338,6 +331,8 @@ void CodegenUtility::GetTypeName(Type const &type, vstd::StringBuilder &str, Usa
         case Type::Tag::INT32:
             str << "int"sv;
             return;
+        case Type::Tag::COOPERATIVE_MATRIX_REF:
+        case Type::Tag::COOPERATIVE_VECTOR_REF:
         case Type::Tag::UINT32:
             str << "uint"sv;
             return;
@@ -525,13 +520,19 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
         }
         args.back()->accept(vis);
     };
-    auto TypeToCoop = [](Type const &type, vstd::StringBuilder &sb) {
-        switch (type.tag()) {
-            case Type::Tag::FLOAT16:
+    auto TypeToCoop = [](CoopRefVecType type, vstd::StringBuilder &sb) {
+        switch (type) {
+            case CoopRefVecType::FLOAT16:
                 sb << "dx::linalg::DATA_TYPE_FLOAT16";
                 break;
-            case Type::Tag::FLOAT32:
+            case CoopRefVecType::FLOAT32:
                 sb << "dx::linalg::DATA_TYPE_FLOAT32";
+                break;
+            case CoopRefVecType::FLOAT8_E4M3:
+                sb << "dx::linalg::DATA_TYPE_FLOAT8_E4M3";
+                break;
+            case CoopRefVecType::FLOAT8_E5M2:
+                sb << "dx::linalg::DATA_TYPE_FLOAT8_E5M2";
                 break;
             default:
                 LUISA_ERROR("Illegal coop type.");
@@ -1583,7 +1584,23 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
         case CallOp::SHADER_EXECUTION_REORDER:
             str << "(void)";
             break;
-        case CallOp::COOPERATIVE_MUL_ADD_FP8E5M2:
+        case CallOp::COOPERATIVE_MUL_ADD: {
+            LUISA_ASSERT(expr->type()->is_cooperative_vector() &&
+                             args.size() == 5 &&
+                             args[0]->type()->is_buffer() &&
+                             args[1]->type()->is_cooperative_matrix_ref() &&
+                             args[2]->type()->is_buffer() &&
+                             args[3]->type()->is_cooperative_vector_ref() &&
+                             args[4]->type()->is_cooperative_vector(),
+                         "Cooperative call argument type mistmatch.");
+            // https://developer.nvidia.com/blog/neural-rendering-in-nvidia-optix-using-cooperative-vectors/
+            auto matrix_dimension = args[1]->type()->coop_matrix_dimension();// weight is KxN
+            LUISA_ASSERT(
+                expr->type()->dimension() == matrix_dimension.y &&       // output is N
+                    args[3]->type()->dimension() == matrix_dimension.y &&// bias is N
+                    args[4]->type()->dimension() == matrix_dimension.x   // input is K
+                ,
+                "Dimension mismatch.");
             str << "dx::linalg::CoopMulAdd<";
             GetTypeName(*args[0]->type(), str, args[0]->usage());
             str << ',';
@@ -1592,85 +1609,36 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             GetTypeName(*args[4]->type()->element(), str, Usage::NONE);
             str << ',';
             GetTypeName(*expr->type()->element(), str, Usage::NONE);
-            str << ",dx::linalg::DATA_TYPE_FLOAT8_E5M2,";
-            TypeToCoop(*args[4]->type()->element(), str);
-            str << luisa::format(",{},{}>", args[4]->type()->dimension(), expr->type()->dimension());
+            str << ',';
+            TypeToCoop(args[1]->type()->coop_vec_ref_type(), str);
+            str << ',';
+            TypeToCoop(args[3]->type()->coop_vec_ref_type(), str);
+            str << luisa::format(",{},{}>", matrix_dimension.x, matrix_dimension.y);
             break;
-        case CallOp::COOPERATIVE_MUL_FP8E5M2:
+        }
+        case CallOp::COOPERATIVE_MUL: {
+            LUISA_ASSERT(expr->type()->is_cooperative_vector() &&
+                             args.size() == 3 &&
+                             args[0]->type()->is_buffer() &&
+                             args[1]->type()->is_cooperative_matrix_ref() &&
+                             args[2]->type()->is_cooperative_vector(),
+                         "Cooperative call argument type mistmatch.");
+            auto matrix_dimension = args[1]->type()->coop_matrix_dimension();// weight is KxN
+            LUISA_ASSERT(
+                expr->type()->dimension() == matrix_dimension.y &&    // output is N
+                    args[2]->type()->dimension() == matrix_dimension.x// input is K
+                ,
+                "Dimension mismatch.");
             str << "dx::linalg::CoopMul<";
             GetTypeName(*args[0]->type(), str, args[0]->usage());
             str << ',';
             GetTypeName(*args[2]->type()->element(), str, Usage::NONE);
             str << ',';
             GetTypeName(*expr->type()->element(), str, Usage::NONE);
-            str << luisa::format(",dx::linalg::DATA_TYPE_FLOAT8_E5M2,{},{}>", args[2]->type()->dimension(), expr->type()->dimension());
-            break;
-        case CallOp::COOPERATIVE_MUL_ADD_FP8E4M3:
-            str << "dx::linalg::CoopMulAdd<";
-            GetTypeName(*args[0]->type(), str, args[0]->usage());
             str << ',';
-            GetTypeName(*args[2]->type(), str, args[2]->usage());
-            str << ',';
-            GetTypeName(*args[4]->type()->element(), str, Usage::NONE);
-            str << ',';
-            GetTypeName(*expr->type()->element(), str, Usage::NONE);
-            str << ",dx::linalg::DATA_TYPE_FLOAT8_E4M3,";
-            TypeToCoop(*args[4]->type()->element(), str);
-            str << luisa::format(",{},{}>", args[4]->type()->dimension(), expr->type()->dimension());
-            break;
-        case CallOp::COOPERATIVE_MUL_FP8E4M3:
-            str << "dx::linalg::CoopMul<";
-            GetTypeName(*args[0]->type(), str, args[0]->usage());
-            str << ',';
-            GetTypeName(*args[2]->type()->element(), str, Usage::NONE);
-            str << ',';
-            GetTypeName(*expr->type()->element(), str, Usage::NONE);
-            str << luisa::format(",dx::linalg::DATA_TYPE_FLOAT8_E4M3,{},{}>", args[2]->type()->dimension(), expr->type()->dimension());
-            break;
-        case CallOp::COOPERATIVE_MUL_ADD_FP16:
-            str << "dx::linalg::CoopMulAdd<";
-            GetTypeName(*args[0]->type(), str, args[0]->usage());
-            str << ',';
-            GetTypeName(*args[2]->type(), str, args[2]->usage());
-            str << ',';
-            GetTypeName(*args[4]->type()->element(), str, Usage::NONE);
-            str << ',';
-            GetTypeName(*expr->type()->element(), str, Usage::NONE);
-            str << ",dx::linalg::DATA_TYPE_FLOAT16,";
-            TypeToCoop(*args[4]->type()->element(), str);
-            str << luisa::format(",{},{}>", args[4]->type()->dimension(), expr->type()->dimension());
-            break;
-        case CallOp::COOPERATIVE_MUL_FP16:
-            str << "dx::linalg::CoopMul<";
-            GetTypeName(*args[0]->type(), str, args[0]->usage());
-            str << ',';
-            GetTypeName(*args[2]->type()->element(), str, Usage::NONE);
-            str << ',';
-            GetTypeName(*expr->type()->element(), str, Usage::NONE);
-            str << luisa::format(",dx::linalg::DATA_TYPE_FLOAT16,{},{}>", args[2]->type()->dimension(), expr->type()->dimension());
-            break;
-        case CallOp::COOPERATIVE_MUL_ADD_FP32:
-            str << "dx::linalg::CoopMulAdd<";
-            GetTypeName(*args[0]->type(), str, args[0]->usage());
-            str << ',';
-            GetTypeName(*args[2]->type(), str, args[2]->usage());
-            str << ',';
-            GetTypeName(*args[4]->type()->element(), str, Usage::NONE);
-            str << ',';
-            GetTypeName(*expr->type()->element(), str, Usage::NONE);
-            str << ",dx::linalg::DATA_TYPE_FLOAT32,";
-            TypeToCoop(*args[4]->type()->element(), str);
-            str << luisa::format(",{},{}>", args[4]->type()->dimension(), expr->type()->dimension());
-            break;
-        case CallOp::COOPERATIVE_MUL_FP32:
-            str << "dx::linalg::CoopMul<";
-            GetTypeName(*args[0]->type(), str, args[0]->usage());
-            str << ',';
-            GetTypeName(*args[2]->type()->element(), str, Usage::NONE);
-            str << ',';
-            GetTypeName(*expr->type()->element(), str, Usage::NONE);
-            str << luisa::format(",dx::linalg::DATA_TYPE_FLOAT32,{},{}>", args[2]->type()->dimension(), expr->type()->dimension());
-            break;
+            TypeToCoop(args[1]->type()->coop_vec_ref_type(), str);
+            str << luisa::format(",{},{}>", matrix_dimension.x, matrix_dimension.y);
+        } break;
         default:
             LUISA_ERROR("Bad op.");
             break;
