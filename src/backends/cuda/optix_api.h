@@ -6,7 +6,7 @@
 namespace luisa::compute::optix {
 
 // versions
-static constexpr auto VERSION = 80000u;
+static constexpr auto VERSION = 90000u;
 static constexpr auto ABI_VERSION = 87u;
 
 // types

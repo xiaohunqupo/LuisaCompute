@@ -282,6 +282,10 @@ struct TypeVisitor {
     virtual ~TypeVisitor() noexcept = default;
 };
 enum struct CoopRefVecType : uint32_t {
+    UINT8,
+    INT8,
+    UINT32,
+    INT32,
     FLOAT16,
     FLOAT32,
     FLOAT8_E4M3,

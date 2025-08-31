@@ -522,6 +522,18 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
     };
     auto TypeToCoop = [](CoopRefVecType type, vstd::StringBuilder &sb) {
         switch (type) {
+            case CoopRefVecType::UINT8:
+                sb << "dx::linalg::DATA_TYPE_UINT8";
+                break;
+            case CoopRefVecType::INT8:
+                sb << "dx::linalg::DATA_TYPE_SINT8";
+                break;
+            case CoopRefVecType::UINT32:
+                sb << "dx::linalg::DATA_TYPE_UINT32";
+                break;
+            case CoopRefVecType::INT32:
+                sb << "dx::linalg::DATA_TYPE_SINT32";
+                break;
             case CoopRefVecType::FLOAT16:
                 sb << "dx::linalg::DATA_TYPE_FLOAT16";
                 break;

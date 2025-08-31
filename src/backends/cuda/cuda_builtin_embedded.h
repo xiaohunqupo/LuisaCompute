@@ -6,3 +6,5 @@ extern "C" const unsigned char luisa_cuda_builtin_cuda_device_math[26337];
 constexpr uint64_t luisa_cuda_builtin_cuda_device_math_size = 500416ull;
 extern "C" const unsigned char luisa_cuda_builtin_cuda_device_resource[14612];
 constexpr uint64_t luisa_cuda_builtin_cuda_device_resource_size = 118097ull;
+extern "C" const unsigned char luisa_cuda_builtin_cuda_device_coop[9465];
+constexpr uint64_t luisa_cuda_builtin_cuda_device_coop_size = 76548ull;

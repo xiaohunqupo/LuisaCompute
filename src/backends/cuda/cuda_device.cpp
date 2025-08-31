@@ -273,6 +273,12 @@ CUDADevice::CUDADevice(Context &&ctx,
             luisa_cuda_builtin_cuda_device_resource_size,
             sizeof(luisa_cuda_builtin_cuda_device_resource),
             luisa_cuda_builtin_cuda_device_resource});
+    _builtin_codes.try_emplace(
+        "cuda_device_coop",
+        BuiltinCode{
+            luisa_cuda_builtin_cuda_device_coop_size,
+            sizeof(luisa_cuda_builtin_cuda_device_coop),
+            luisa_cuda_builtin_cuda_device_coop});
     // _builtin_codes.try_emplace(
     //     "coop_vec_builtin",
     //     BuiltinCode{
@@ -825,10 +831,9 @@ ShaderCreationInfo CUDADevice::create_shader(const ShaderOption &option, Functio
 #endif
         Clock clk;
         CUDACodegenAST codegen{scratch, !_cudadevrt_library.empty()};
-        codegen.emit(kernel, [&](StringScratch& scratch) {
+        codegen.emit(kernel, [&](StringScratch &scratch) {
             _compiler->get_device_library()(scratch);
-            _compiler->get_device_optional_library()(scratch, kernel);
-        }, option.native_include);
+            _compiler->get_device_optional_library()(scratch, kernel); }, option.native_include);
         LUISA_VERBOSE("Generated CUDA source in {} ms.", clk.toc());
         return std::move(codegen).move_print_formats();
     }();

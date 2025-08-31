@@ -411,17 +411,43 @@ struct is_signed<lc_long> {
     static constexpr bool value = true;
 };
 template <typename T>
-struct OptixCoopVecElemTypeTrait
-{
-    static const OptixCoopVecElemType elementType = TT<is_integral<T>::value, is_signed<T>::value, sizeof( T )>::value;
-    using bitType                                 = typename TB<sizeof( T )>::bitType;
-};
+struct OptixCoopVecElemTypeTrait;
 
 template <>
-struct OptixCoopVecElemTypeTrait<half>
+struct OptixCoopVecElemTypeTrait<lc_half>
 {
     static const OptixCoopVecElemType elementType = OPTIX_COOP_VEC_ELEM_TYPE_FLOAT16;
-    using bitType                                 = typename TB<sizeof( half )>::bitType;
+    using bitType                                 = typename TB<sizeof( lc_half )>::bitType;
+};
+template <>
+struct OptixCoopVecElemTypeTrait<lc_float>
+{
+    static const OptixCoopVecElemType elementType = OPTIX_COOP_VEC_ELEM_TYPE_FLOAT32;
+    using bitType                                 = typename TB<sizeof( lc_float )>::bitType;
+};
+template <>
+struct OptixCoopVecElemTypeTrait<lc_ubyte>
+{
+    static const OptixCoopVecElemType elementType = OPTIX_COOP_VEC_ELEM_TYPE_UINT8;
+    using bitType                                 = typename TB<sizeof( lc_ubyte )>::bitType;
+};
+template <>
+struct OptixCoopVecElemTypeTrait<lc_byte>
+{
+    static const OptixCoopVecElemType elementType = OPTIX_COOP_VEC_ELEM_TYPE_INT8;
+    using bitType                                 = typename TB<sizeof( lc_byte )>::bitType;
+};
+template <>
+struct OptixCoopVecElemTypeTrait<lc_uint>
+{
+    static const OptixCoopVecElemType elementType = OPTIX_COOP_VEC_ELEM_TYPE_UINT32;
+    using bitType                                 = typename TB<sizeof( lc_uint )>::bitType;
+};
+template <>
+struct OptixCoopVecElemTypeTrait<lc_int>
+{
+    static const OptixCoopVecElemType elementType = OPTIX_COOP_VEC_ELEM_TYPE_INT32;
+    using bitType                                 = typename TB<sizeof( lc_int )>::bitType;
 };
 }  // end namespace coop_vec_type_traits
 }  // end namespace optix_internal

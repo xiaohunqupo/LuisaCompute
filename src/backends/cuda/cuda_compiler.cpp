@@ -186,9 +186,8 @@ CUDACompiler::CUDACompiler(const CUDADevice *device) noexcept
           scratch << device_half << device_math << device_resource;
       }},
       _get_device_optional_library([device](StringScratch &scratch, Function func) {
-          auto const &device_half = device->get_builtin_code("cuda_device_half");
           if (func.use_cooperative_operations() || func.propagated_builtin_callables().uses_cooperative()) {
-              scratch << device->get_builtin_code("coop_vec_builtin");
+              scratch << device->get_builtin_code("cuda_device_coop");
           }
       }),
       _cache{Cache::create(max_cache_item_count)},

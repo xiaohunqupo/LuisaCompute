@@ -2,7 +2,7 @@
 -- xmake lua printer_text_arr.lua
 -- to execute this script and gen new files
 -- 'accel_process', 'accel_process_vk', 'bindless_upload', 'bindless_upload_vk', 'bc6_encode_block', 'bc6_header', 'bc6_trymode_g10cs','bc6_trymode_le10cs', 'bc7_encode_block', 'bc7_header', 'bc7_trymode_02cs', 'bc7_trymode_137cs', 'bc7_trymode_456cs'
-local files_list = {'cuda_builtin_kernels', 'cuda_device_half', 'cuda_device_math', 'cuda_device_resource'}
+local files_list = {'cuda_builtin_kernels', 'cuda_device_half', 'cuda_device_math', 'cuda_device_resource', 'cuda_device_coop'}
 local file_ext = {".cu"}
 local lib = import("lib")
 

@@ -800,7 +800,60 @@ void CUDACodegenAST::visit(const RefExpr *expr) {
 }
 
 void CUDACodegenAST::visit(const CallExpr *expr) {
-
+    auto args = expr->arguments();
+    auto to_coopvec_elemtype = [&]<typename T>(T type) {
+        if constexpr (std::is_same_v<T, CoopRefVecType>) {
+            switch (type) {
+                case CoopRefVecType::UINT8:
+                    _scratch << "OPTIX_COOP_VEC_ELEM_TYPE_UINT8";
+                    break;
+                case CoopRefVecType::INT8:
+                    _scratch << "OPTIX_COOP_VEC_ELEM_TYPE_INT8";
+                    break;
+                case CoopRefVecType::UINT32:
+                    _scratch << "OPTIX_COOP_VEC_ELEM_TYPE_UINT32";
+                    break;
+                case CoopRefVecType::INT32:
+                    _scratch << "OPTIX_COOP_VEC_ELEM_TYPE_INT32";
+                    break;
+                case CoopRefVecType::FLOAT16:
+                    _scratch << "OPTIX_COOP_VEC_ELEM_TYPE_FLOAT16";
+                    break;
+                case CoopRefVecType::FLOAT32:
+                    _scratch << "OPTIX_COOP_VEC_ELEM_TYPE_FLOAT32";
+                    break;
+                case CoopRefVecType::FLOAT8_E4M3:
+                    _scratch << "OPTIX_COOP_VEC_ELEM_TYPE_FLOAT8_E4M3";
+                    break;
+                case CoopRefVecType::FLOAT8_E5M2:
+                    _scratch << "OPTIX_COOP_VEC_ELEM_TYPE_FLOAT8_E5M2";
+                    break;
+            }
+        } else {
+            switch (type->tag()) {
+                case Type::Tag::UINT8:
+                    _scratch << "OPTIX_COOP_VEC_ELEM_TYPE_UINT8";
+                    break;
+                case Type::Tag::INT8:
+                    _scratch << "OPTIX_COOP_VEC_ELEM_TYPE_INT8";
+                    break;
+                case Type::Tag::UINT32:
+                    _scratch << "OPTIX_COOP_VEC_ELEM_TYPE_UINT32";
+                    break;
+                case Type::Tag::INT32:
+                    _scratch << "OPTIX_COOP_VEC_ELEM_TYPE_INT32";
+                    break;
+                case Type::Tag::FLOAT16:
+                    _scratch << "OPTIX_COOP_VEC_ELEM_TYPE_FLOAT16";
+                    break;
+                case Type::Tag::FLOAT32:
+                    _scratch << "OPTIX_COOP_VEC_ELEM_TYPE_FLOAT32";
+                    break;
+                default:
+                    LUISA_ERROR("Coop type unsupported.");
+            }
+        }
+    };
     switch (expr->op()) {
         case CallOp::PACK: _scratch << "lc_pack_to"; break;
         case CallOp::UNPACK: {
@@ -1052,6 +1105,51 @@ void CUDACodegenAST::visit(const CallExpr *expr) {
         case CallOp::RAY_TRACING_INSTANCE_MOTION_SRT: _scratch << "lc_accel_instance_motion_srt"; break;
         case CallOp::RAY_TRACING_SET_INSTANCE_MOTION_MATRIX: _scratch << "lc_accel_set_instance_motion_matrix"; break;
         case CallOp::RAY_TRACING_SET_INSTANCE_MOTION_SRT: _scratch << "lc_accel_set_instance_motion_srt"; break;
+        case CallOp::COOPERATIVE_MUL_ADD: {
+            LUISA_ASSERT(
+                expr->type()->is_cooperative_vector() &&
+                    args.size() == 5 &&
+                    args[0]->type()->is_buffer() &&
+                    args[1]->type()->is_cooperative_matrix_ref() &&
+                    args[2]->type()->is_buffer() &&
+                    args[3]->type()->is_cooperative_vector_ref() &&
+                    args[4]->type()->is_cooperative_vector(),
+                "Cooperative call argument type mistmatch.");
+            // https://developer.nvidia.com/blog/neural-rendering-in-nvidia-optix-using-cooperative-vectors/
+            auto matrix_dimension = args[1]->type()->coop_matrix_dimension();// weight is KxN
+            LUISA_ASSERT(
+                expr->type()->dimension() == matrix_dimension.y &&       // output is N
+                    args[3]->type()->dimension() == matrix_dimension.y &&// bias is N
+                    args[4]->type()->dimension() == matrix_dimension.x   // input is K
+                ,
+                "Dimension mismatch.");
+
+            _scratch << "optixCoopVecMatMul<";
+            _emit_type_name(expr->type());// VecTOut;
+            _scratch << ",";
+            _emit_type_name(args[4]->type());// VecTIn
+            _scratch << ",";
+            to_coopvec_elemtype(args[1]->type()->coop_vec_ref_type());
+            _scratch << ",OPTIX_COOP_VEC_MATRIX_LAYOUT_INFERENCING_OPTIMAL,false,";
+            _scratch << luisa::format("{},{},", matrix_dimension.y, matrix_dimension.x);
+            to_coopvec_elemtype(args[1]->type()->coop_vec_ref_type());
+            _scratch << ",";
+            to_coopvec_elemtype(args[3]->type()->coop_vec_ref_type());
+            _scratch << ">(";
+            args[4]->accept(*this);       // const VecTIn& inputVector
+            _scratch << ",(CUdeviceptr)(";// CUdeviceptr matrix
+            args[0]->accept(*this);
+            _scratch << ".ptr),";
+            args[1]->accept(*this);       //unsigned  matrixOffsetInBytes
+            _scratch << ",(CUdeviceptr)(";// CUdeviceptr bias
+            args[2]->accept(*this);
+            _scratch << ".ptr),";
+            args[3]->accept(*this);// unsigned biasOffsetInBytes
+            _scratch << ")";
+        }
+            return;
+        case CallOp::COOPERATIVE_MUL:
+            break;
 
         // not supported
         case CallOp::RAY_QUERY_PROCEED: [[fallthrough]];
@@ -1078,7 +1176,6 @@ void CUDACodegenAST::visit(const CallExpr *expr) {
     _scratch << "(";
     if (auto op = expr->op(); is_atomic_operation(op)) {
         // lower access chain to atomic operation
-        auto args = expr->arguments();
         auto access_chain = args.subspan(
             0u,
             op == CallOp::ATOMIC_COMPARE_EXCHANGE ?
@@ -1746,6 +1843,8 @@ void CUDACodegenAST::_emit_type_name(const Type *type, bool hack_float_to_int) n
         case Type::Tag::INT16: _scratch << "lc_short"; break;
         case Type::Tag::UINT16: _scratch << "lc_ushort"; break;
         case Type::Tag::INT32: _scratch << "lc_int"; break;
+        case Type::Tag::COOPERATIVE_MATRIX_REF:
+        case Type::Tag::COOPERATIVE_VECTOR_REF:
         case Type::Tag::UINT32: _scratch << "lc_uint"; break;
         case Type::Tag::INT64: _scratch << "lc_long"; break;
         case Type::Tag::UINT64: _scratch << "lc_ulong"; break;
