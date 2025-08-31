@@ -550,6 +550,7 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
                 LUISA_ERROR("Illegal coop type.");
         }
     };
+    check_builtin_call_valid(expr->op(), expr->type(), args);
     switch (expr->op()) {
         case CallOp::CUSTOM:
             str << "custom_"sv << vstd::to_string((opt->GetFuncCount(expr->custom())));
@@ -1596,23 +1597,23 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
         case CallOp::SHADER_EXECUTION_REORDER:
             str << "(void)";
             break;
-        case CallOp::COOPERATIVE_MUL_ADD: {
-            LUISA_ASSERT(expr->type()->is_cooperative_vector() &&
-                             args.size() == 5 &&
-                             args[0]->type()->is_buffer() &&
-                             args[1]->type()->is_cooperative_matrix_ref() &&
-                             args[2]->type()->is_buffer() &&
-                             args[3]->type()->is_cooperative_vector_ref() &&
-                             args[4]->type()->is_cooperative_vector(),
-                         "Cooperative call argument type mistmatch.");
-            // https://developer.nvidia.com/blog/neural-rendering-in-nvidia-optix-using-cooperative-vectors/
+        case CallOp::COOPERATIVE_PRODUCT_ACCUMULATE: {
             auto matrix_dimension = args[1]->type()->coop_matrix_dimension();// weight is KxN
-            LUISA_ASSERT(
-                expr->type()->dimension() == matrix_dimension.y &&       // output is N
-                    args[3]->type()->dimension() == matrix_dimension.y &&// bias is N
-                    args[4]->type()->dimension() == matrix_dimension.x   // input is K
-                ,
-                "Dimension mismatch.");
+            str << "dx::linalg::CoopOuterProductAccum<";
+            GetTypeName(*args[0]->type(), str, args[0]->usage());
+            str << ',';
+            GetTypeName(*args[2]->type()->element(), str, args[2]->usage());
+            str << luisa::format(",{},{},", matrix_dimension.x, matrix_dimension.y);
+            TypeToCoop(args[1]->type()->coop_vec_ref_type(), str);
+            str << '>';
+        } break;
+        case CallOp::COOPERATIVE_VECTOR_ACCUMULATE: {
+            str << "dx::linalg::CoopVectorAccumulate<";
+            GetTypeName(*args[2]->type()->element(), str, args[2]->usage());
+            str << luisa::format(",{}>", args[2]->type()->dimension());
+        } break;
+        case CallOp::COOPERATIVE_MUL_ADD: {
+            auto matrix_dimension = args[1]->type()->coop_matrix_dimension();// weight is KxN
             str << "dx::linalg::CoopMulAdd<";
             GetTypeName(*args[0]->type(), str, args[0]->usage());
             str << ',';
@@ -1626,21 +1627,9 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             str << ',';
             TypeToCoop(args[3]->type()->coop_vec_ref_type(), str);
             str << luisa::format(",{},{}>", matrix_dimension.x, matrix_dimension.y);
-            break;
-        }
+        } break;
         case CallOp::COOPERATIVE_MUL: {
-            LUISA_ASSERT(expr->type()->is_cooperative_vector() &&
-                             args.size() == 3 &&
-                             args[0]->type()->is_buffer() &&
-                             args[1]->type()->is_cooperative_matrix_ref() &&
-                             args[2]->type()->is_cooperative_vector(),
-                         "Cooperative call argument type mistmatch.");
             auto matrix_dimension = args[1]->type()->coop_matrix_dimension();// weight is KxN
-            LUISA_ASSERT(
-                expr->type()->dimension() == matrix_dimension.y &&    // output is N
-                    args[2]->type()->dimension() == matrix_dimension.x// input is K
-                ,
-                "Dimension mismatch.");
             str << "dx::linalg::CoopMul<";
             GetTypeName(*args[0]->type(), str, args[0]->usage());
             str << ',';

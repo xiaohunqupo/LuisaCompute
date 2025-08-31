@@ -854,6 +854,7 @@ void CUDACodegenAST::visit(const CallExpr *expr) {
             }
         }
     };
+    check_builtin_call_valid(expr->op(), expr->type(), args);
     switch (expr->op()) {
         case CallOp::PACK: _scratch << "lc_pack_to"; break;
         case CallOp::UNPACK: {
@@ -1106,24 +1107,7 @@ void CUDACodegenAST::visit(const CallExpr *expr) {
         case CallOp::RAY_TRACING_SET_INSTANCE_MOTION_MATRIX: _scratch << "lc_accel_set_instance_motion_matrix"; break;
         case CallOp::RAY_TRACING_SET_INSTANCE_MOTION_SRT: _scratch << "lc_accel_set_instance_motion_srt"; break;
         case CallOp::COOPERATIVE_MUL_ADD: {
-            LUISA_ASSERT(
-                expr->type()->is_cooperative_vector() &&
-                    args.size() == 5 &&
-                    args[0]->type()->is_buffer() &&
-                    args[1]->type()->is_cooperative_matrix_ref() &&
-                    args[2]->type()->is_buffer() &&
-                    args[3]->type()->is_cooperative_vector_ref() &&
-                    args[4]->type()->is_cooperative_vector(),
-                "Cooperative call argument type mistmatch.");
-            // https://developer.nvidia.com/blog/neural-rendering-in-nvidia-optix-using-cooperative-vectors/
             auto matrix_dimension = args[1]->type()->coop_matrix_dimension();// weight is KxN
-            LUISA_ASSERT(
-                expr->type()->dimension() == matrix_dimension.y &&       // output is N
-                    args[3]->type()->dimension() == matrix_dimension.y &&// bias is N
-                    args[4]->type()->dimension() == matrix_dimension.x   // input is K
-                ,
-                "Dimension mismatch.");
-
             _scratch << "optixCoopVecMatMul<";
             _emit_type_name(expr->type());// VecTOut;
             _scratch << ",";
@@ -1148,10 +1132,8 @@ void CUDACodegenAST::visit(const CallExpr *expr) {
             _scratch << ")";
         }
             return;
-        case CallOp::COOPERATIVE_MUL:
-            break;
-
         // not supported
+        case CallOp::COOPERATIVE_MUL: [[fallthrough]];
         case CallOp::RAY_QUERY_PROCEED: [[fallthrough]];
         case CallOp::RAY_QUERY_IS_TRIANGLE_CANDIDATE: [[fallthrough]];
         case CallOp::RAY_QUERY_IS_PROCEDURAL_CANDIDATE: [[fallthrough]];

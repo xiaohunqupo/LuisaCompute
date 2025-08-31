@@ -445,8 +445,11 @@ enum struct CallOp : uint32_t {
     SHADER_EXECUTION_REORDER,// (uint hint, uint hint_bits): void
 
     // cooperative
-    COOPERATIVE_MUL_ADD,// (coop_vec<OutType, M> (matrix_buffer: byte_buffer, matrix_offset: coop_mat_ref<N, M, CoopRefType>, bias_buffer: byte_buffer, bias_offset: coop_vec_ref<M, CoopRefType>, input_vector: coop_vec<N>)
-    COOPERATIVE_MUL, // (coop_vec<OutType, M> (matrix_buffer: byte_buffer, matrix_offset: coop_mat_ref<N, M, CoopRefType>input_vector: coop_vec<N>)
+    COOPERATIVE_MUL_ADD,           // (coop_vec<OutType, M> (matrix_buffer: byte_buffer, matrix_offset: coop_mat_ref<N, M, CoopRefType>, bias_buffer: byte_buffer, bias_offset: coop_vec_ref<M, CoopRefType>, input_vector: coop_vec<N>)
+    COOPERATIVE_MUL,               // (coop_vec<OutType, M> (matrix_buffer: byte_buffer, matrix_offset: coop_mat_ref<N, M, CoopRefType>input_vector: coop_vec<N>)
+    COOPERATIVE_PRODUCT_ACCUMULATE,// ResultMatrix += InputVector1 * Transpose(InputVector2);
+    // void(matrix_buffer: byte_buffer, matrix_offset: coop_mat_ref, input_vec1 : coop_vector, input_vec2 : coop_vector, )
+    COOPERATIVE_VECTOR_ACCUMULATE,// void(vector_buffer: byte_buffer, vector_offset: coop_vec_ref, input_vec: coop_vector)
 
     // Clock
     CLOCK,// (): uint64
@@ -478,6 +481,8 @@ static constexpr size_t call_op_count = to_underlying(CallOp::CLOCK) + 1u;
            op == CallOp::MAKE_FLOAT3X3 ||
            op == CallOp::MAKE_FLOAT4X4;
 }
+class Expression;
+LC_AST_API void check_builtin_call_valid(CallOp op, const Type *return_type, luisa::span<const Expression *const> args) noexcept;
 
 /**
  * @brief Set of call operations.
@@ -570,7 +575,9 @@ public:
     }
     [[nodiscard]] auto uses_cooperative() const noexcept {
         return test(CallOp::COOPERATIVE_MUL_ADD) ||
-               test(CallOp::COOPERATIVE_MUL);
+               test(CallOp::COOPERATIVE_MUL) ||
+               test(CallOp::COOPERATIVE_PRODUCT_ACCUMULATE) ||
+               test(CallOp::COOPERATIVE_VECTOR_ACCUMULATE);
     }
 };
 

@@ -38,7 +38,7 @@ static HLSLCompressedHeader get_hlsl_builtin(luisa::string_view ss) {
         luisa::unordered_map<luisa::string_view, HLSLCompressedHeader> dict;
         Dict(){
 			dict.try_emplace("hlsl_header", HLSLCompressedHeader{hlsl_header, 1452, 5648});
-			dict.try_emplace("dx_linalg", HLSLCompressedHeader{dx_linalg, 1778, 7492});
+			dict.try_emplace("dx_linalg", HLSLCompressedHeader{dx_linalg, 1845, 8047});
 			dict.try_emplace("hlsl_header_fallback", HLSLCompressedHeader{hlsl_header_fallback, 1568, 6256});
 			dict.try_emplace("raytracing_header", HLSLCompressedHeader{raytracing_header, 889, 3045});
 			dict.try_emplace("tex2d_bindless", HLSLCompressedHeader{tex2d_bindless, 738, 8883});

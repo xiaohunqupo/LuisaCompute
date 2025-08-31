@@ -187,8 +187,7 @@ void OuterProductAccumulate(
 //
 
 template <typename ElTy, int ElCount>
-void VectorAccumulate(vector<ElTy, ElCount> InputVector,
-                      RWByteAddressBuffer Buffer, uint Offset) {
+void CoopVectorAccumulate(RWByteAddressBuffer Buffer, uint Offset,vector<ElTy, ElCount> InputVector) {
   __builtin_VectorAccumulate(InputVector, Buffer, Offset);
 }
 template <typename MatrixBuffer, typename BiasBuffer, typename InType, typename OutType, DataType MatRefType, DataType BiasRefType, uint in_dim, uint out_dim>
@@ -199,8 +198,8 @@ vector<OutType, out_dim> CoopMulAdd(
     uint bias_offset,
     vector<InType, in_dim> input_vec
 ) {
-    MatrixRef<MatRefType, out_dim, in_dim, MATRIX_LAYOUT_MUL_OPTIMAL> mat = {mat_buffer, mat_offset, 0};
-    VectorRef<BiasRefType> bias = {bias_buffer, bias_offset};
+    MatrixRefImpl<MatrixBuffer, MatRefType, out_dim, in_dim, MATRIX_LAYOUT_MUL_OPTIMAL, false> mat = {mat_buffer, mat_offset, 0};
+    VectorRefImpl<BiasBuffer, BiasRefType> bias = {bias_buffer, bias_offset};
     return MulAdd<OutType>(mat, MakeInterpretedVector<MatRefType>(input_vec), bias);
 }
 
@@ -210,8 +209,17 @@ vector<OutType, out_dim> CoopMul(
     uint mat_offset,
     vector<InType, in_dim> input_vec
 ) {
-    MatrixRef<MatRefType, out_dim, in_dim, MATRIX_LAYOUT_MUL_OPTIMAL> mat = {mat_buffer, mat_offset, 0};
+    MatrixRefImpl<MatrixBuffer, MatRefType, out_dim, in_dim, MATRIX_LAYOUT_MUL_OPTIMAL, false> mat = {mat_buffer, mat_offset, 0};
     return Mul<OutType>(mat, MakeInterpretedVector<MatRefType>(input_vec));
+}
+template <typename MatrixBuffer, typename ElTy, int MatrixM, int MatrixN, DataType MatrixDT>
+void CoopOuterProductAccum(
+  MatrixBuffer buffer,
+  uint buffer_offset,
+  vector<ElTy, MatrixM> InputVector1, vector<ElTy, MatrixN> InputVector2
+){
+  RWMatrixRef<MatrixDT, MatrixM, MatrixN, MATRIX_LAYOUT_OUTER_PRODUCT_OPTIMAL, false> Matrix = {buffer, buffer_offset, 0};
+  OuterProductAccumulate<ElTy, MatrixM, MatrixN, MatrixDT, MATRIX_LAYOUT_OUTER_PRODUCT_OPTIMAL>(InputVector1, InputVector2, Matrix);
 }
 } // namespace linalg
 } // namespace dx

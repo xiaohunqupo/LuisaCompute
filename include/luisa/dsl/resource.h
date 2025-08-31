@@ -824,6 +824,31 @@ inline CoopVector<OutType> cooperative_mat_mul(
     return var;
 }
 
+template<typename VecElemType>
+inline void cooperative_outer_product_accumulate(
+    Expr<ByteBuffer> matrix_buffer,
+    CoopMatrixRef const &matrix_offset,
+    Expr<CoopVector<VecElemType>> input_vector1,
+    Expr<CoopVector<VecElemType>> input_vector2) {
+    detail::FunctionBuilder::current()->call(
+        CallOp::COOPERATIVE_PRODUCT_ACCUMULATE,
+        {matrix_buffer.expression(),
+         matrix_offset.expression(),
+         input_vector1.expression(),
+         input_vector2.expression()});
+}
+
+template<typename VecElemType>
+inline void cooperative_vector_accumulate(
+    Expr<ByteBuffer> vector_buffer,
+    CoopVectorRef const &vector_offset,
+    Expr<CoopVector<VecElemType>> input_vector) {
+    detail::FunctionBuilder::current()->call(
+        CallOp::COOPERATIVE_VECTOR_ACCUMULATE,
+        {vector_buffer.expression(),
+         vector_offset.expression(),
+         input_vector.expression()});
+}
 
 }// namespace dsl
 

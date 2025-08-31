@@ -656,6 +656,7 @@ const RefExpr *FunctionBuilder::accel() noexcept {
 
 // call builtin functions
 const CallExpr *FunctionBuilder::call(const Type *type, CallOp call_op, luisa::span<const Expression *const> args, CurveBasisSet curve_basis_set) noexcept {
+
     if (call_op == CallOp::CUSTOM) [[unlikely]] {
         LUISA_ERROR_WITH_LOCATION(
             "Custom functions are not allowed to "
@@ -677,6 +678,7 @@ const CallExpr *FunctionBuilder::call(const Type *type, CallOp call_op, luisa::s
         _void_expr(expr);
         return nullptr;
     }
+    ////////// argument check
     return expr;
 }
 
