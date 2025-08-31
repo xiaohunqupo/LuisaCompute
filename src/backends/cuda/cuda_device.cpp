@@ -273,12 +273,12 @@ CUDADevice::CUDADevice(Context &&ctx,
             luisa_cuda_builtin_cuda_device_resource_size,
             sizeof(luisa_cuda_builtin_cuda_device_resource),
             luisa_cuda_builtin_cuda_device_resource});
-    _builtin_codes.try_emplace(
-        "coop_vec_builtin",
-        BuiltinCode{
-            luisa_cuda_builtin_coop_vec_builtin_size,
-            sizeof(luisa_cuda_builtin_coop_vec_builtin),
-            luisa_cuda_builtin_coop_vec_builtin});
+    // _builtin_codes.try_emplace(
+    //     "coop_vec_builtin",
+    //     BuiltinCode{
+    //         luisa_cuda_builtin_coop_vec_builtin_size,
+    //         sizeof(luisa_cuda_builtin_coop_vec_builtin),
+    //         luisa_cuda_builtin_coop_vec_builtin});
     // provide a default binary IO
     if (_io == nullptr) {
         _default_io = luisa::make_unique<DefaultBinaryIO>(context());
