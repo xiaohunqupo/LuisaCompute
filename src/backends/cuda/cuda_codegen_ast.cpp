@@ -1132,7 +1132,68 @@ void CUDACodegenAST::visit(const CallExpr *expr) {
             _scratch << ")";
         }
             return;
+        case CallOp::BINDLESS_COOPERATIVE_MUL_ADD: {
+            auto matrix_dimension = args[2]->type()->coop_matrix_dimension();// weight is KxN
+            _scratch << "optixCoopVecMatMul<";
+            _emit_type_name(expr->type());// VecTOut;
+            _scratch << ",";
+            _emit_type_name(args[5]->type());// VecTIn
+            _scratch << ",";
+            to_coopvec_elemtype(args[2]->type()->coop_vec_ref_type());
+            _scratch << ",OPTIX_COOP_VEC_MATRIX_LAYOUT_INFERENCING_OPTIMAL,false,";
+            _scratch << luisa::format("{},{},", matrix_dimension.y, matrix_dimension.x);
+            to_coopvec_elemtype(args[2]->type()->coop_vec_ref_type());
+            _scratch << ",";
+            to_coopvec_elemtype(args[4]->type()->coop_vec_ref_type());
+            _scratch << ">(";
+            args[5]->accept(*this);                                  // const VecTIn& inputVector
+            _scratch << ",(CUdeviceptr)lc_bindless_buffer_address(";// CUdeviceptr matrix
+            args[0]->accept(*this);
+            _scratch << ",";
+            args[1]->accept(*this);
+            _scratch << "),";
+            args[2]->accept(*this);                                  //unsigned  matrixOffsetInBytes
+            _scratch << ",(CUdeviceptr)lc_bindless_buffer_address(";// CUdeviceptr bias
+            args[0]->accept(*this);
+            _scratch << ",";
+            args[3]->accept(*this);
+            _scratch << "),";
+            args[4]->accept(*this);// unsigned biasOffsetInBytes
+            _scratch << ")";
+        }
+            return;
+        case CallOp::COOPERATIVE_OUTER_PRODUCT_ACCUMULATE: {
+            auto matrix_dimension = args[1]->type()->coop_matrix_dimension();// weight is KxN
+            _scratch << "optixCoopVecOuterProductAccumulate<";
+            _emit_type_name(args[2]->type());
+            _scratch << ",";
+            _emit_type_name(args[3]->type());
+            _scratch << ">(";
+            args[2]->accept(*this);
+            _scratch << ",";
+            args[3]->accept(*this);
+            _scratch << ",(CUdeviceptr)(";// CUdeviceptr bias
+            args[0]->accept(*this);
+            _scratch << ".ptr),";
+            args[1]->accept(*this);
+            _scratch << ")";
+        }
+            return;
+        case CallOp::COOPERATIVE_VECTOR_ACCUMULATE: {
+            _scratch << "optixCoopVecReduceSumAccumulate<";
+            _emit_type_name(args[2]->type());
+            _scratch << ">(";
+            args[2]->accept(*this);
+            _scratch << ",(CUdeviceptr)(";// CUdeviceptr bias
+            args[0]->accept(*this);
+            _scratch << ".ptr),";
+            args[1]->accept(*this);
+            _scratch << ")";
+        }
+            return;
         // not supported
+        case CallOp::TYPED_BINDLESS_COOPERATIVE_MUL: [[fallthrough]];
+        case CallOp::TYPED_BINDLESS_COOPERATIVE_MUL_ADD: [[fallthrough]];
         case CallOp::COOPERATIVE_MUL: [[fallthrough]];
         case CallOp::RAY_QUERY_PROCEED: [[fallthrough]];
         case CallOp::RAY_QUERY_IS_TRIANGLE_CANDIDATE: [[fallthrough]];
@@ -1144,14 +1205,14 @@ void CUDACodegenAST::visit(const CallExpr *expr) {
         case CallOp::TEXTURE3D_SAMPLE: [[fallthrough]];
         case CallOp::TEXTURE3D_SAMPLE_LEVEL: [[fallthrough]];
         case CallOp::TEXTURE3D_SAMPLE_GRAD: [[fallthrough]];
-        case CallOp::TEXTURE3D_SAMPLE_GRAD_LEVEL: LUISA_NOT_IMPLEMENTED();
-        case CallOp::BINDLESS_TEXTURE2D_SAMPLE_SAMPLER: LUISA_NOT_IMPLEMENTED();
-        case CallOp::BINDLESS_TEXTURE2D_SAMPLE_LEVEL_SAMPLER: LUISA_NOT_IMPLEMENTED();
-        case CallOp::BINDLESS_TEXTURE2D_SAMPLE_GRAD_SAMPLER: LUISA_NOT_IMPLEMENTED();
-        case CallOp::BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL_SAMPLER: LUISA_NOT_IMPLEMENTED();
-        case CallOp::BINDLESS_TEXTURE3D_SAMPLE_SAMPLER: LUISA_NOT_IMPLEMENTED();
-        case CallOp::BINDLESS_TEXTURE3D_SAMPLE_LEVEL_SAMPLER: LUISA_NOT_IMPLEMENTED();
-        case CallOp::BINDLESS_TEXTURE3D_SAMPLE_GRAD_SAMPLER: LUISA_NOT_IMPLEMENTED();
+        case CallOp::TEXTURE3D_SAMPLE_GRAD_LEVEL: [[fallthrough]];
+        case CallOp::BINDLESS_TEXTURE2D_SAMPLE_SAMPLER: [[fallthrough]];
+        case CallOp::BINDLESS_TEXTURE2D_SAMPLE_LEVEL_SAMPLER: [[fallthrough]];
+        case CallOp::BINDLESS_TEXTURE2D_SAMPLE_GRAD_SAMPLER: [[fallthrough]];
+        case CallOp::BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL_SAMPLER: [[fallthrough]];
+        case CallOp::BINDLESS_TEXTURE3D_SAMPLE_SAMPLER: [[fallthrough]];
+        case CallOp::BINDLESS_TEXTURE3D_SAMPLE_LEVEL_SAMPLER: [[fallthrough]];
+        case CallOp::BINDLESS_TEXTURE3D_SAMPLE_GRAD_SAMPLER: [[fallthrough]];
         case CallOp::BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL_SAMPLER: LUISA_NOT_IMPLEMENTED();
         case CallOp::CLOCK: _scratch << "clock64"; break;
     }

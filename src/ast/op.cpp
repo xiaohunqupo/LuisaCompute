@@ -143,7 +143,7 @@ LC_AST_API void check_builtin_call_valid(CallOp op, const Type *return_type, lui
                 LUISA_ERROR("Accel must not be writable when tracing.");
             }
         } break;
-        case CallOp::COOPERATIVE_PRODUCT_ACCUMULATE: {
+        case CallOp::COOPERATIVE_OUTER_PRODUCT_ACCUMULATE: {
             if (!(return_type == Type::of<void>() &&
                   args.size() == 4 &&
                   args[0]->type()->is_buffer() &&

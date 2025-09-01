@@ -21,6 +21,7 @@ public:
     [[nodiscard]] auto expression() const noexcept { return _expression; }
     [[nodiscard]] auto size() const noexcept { return _size; }
     [[nodiscard]] operator Expr<CoopVector>() const noexcept;
+    [[nodiscard]] auto size_bytes() const noexcept { return size_t(_size) * sizeof(T); }
 
     /// Access at index
     template<typename U>
@@ -55,6 +56,7 @@ public:
 
     [[nodiscard]] auto expression() const noexcept { return _expression; }
     [[nodiscard]] auto size() const noexcept { return _size; }
+    [[nodiscard]] auto size_bytes() const noexcept { return size_t(_size) * coop_ref_vec_type_size(_coop_ref_type); }
     [[nodiscard]] Expr<uint> byte_offset() const noexcept;
     [[nodiscard]] operator Expr<uint>() const noexcept;
     void set_byte_offset(uint value) noexcept;
@@ -77,6 +79,7 @@ public:
     void set_byte_offset(Expr<uint> value) noexcept;
     [[nodiscard]] auto expression() const noexcept { return _expression; }
     [[nodiscard]] auto size() const noexcept { return _size; }
+    [[nodiscard]] auto size_bytes() const noexcept { return size_t(_size.x) * size_t(_size.y) * coop_ref_vec_type_size(_coop_ref_type); }
     [[nodiscard]] Expr<uint> byte_offset() const noexcept;
     [[nodiscard]] operator Expr<uint>() const noexcept;
 };

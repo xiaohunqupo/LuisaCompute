@@ -913,7 +913,7 @@ inline void cooperative_outer_product_accumulate(
     Expr<CoopVector<VecElemType>> input_vector1,
     Expr<CoopVector<VecElemType>> input_vector2) {
     detail::FunctionBuilder::current()->call(
-        CallOp::COOPERATIVE_PRODUCT_ACCUMULATE,
+        CallOp::COOPERATIVE_OUTER_PRODUCT_ACCUMULATE,
         {matrix_buffer.expression(),
          matrix_offset.expression(),
          input_vector1.expression(),

@@ -451,7 +451,7 @@ enum struct CallOp : uint32_t {
     COOPERATIVE_MUL,                   // (coop_vec<OutType, M> (matrix_buffer: byte_buffer, matrix_offset: coop_mat_ref<N, M, CoopRefType>input_vector: coop_vec<N>)
     BINDLESS_COOPERATIVE_MUL,          // (coop_vec<OutType, M> (bindless_array, matrix_buffer: uint, matrix_offset: coop_mat_ref<N, M, CoopRefType>input_vector: coop_vec<N>)
     TYPED_BINDLESS_COOPERATIVE_MUL,    // (coop_vec<OutType, M> (bindless_array, matrix_buffer: uint, matrix_offset: coop_mat_ref<N, M, CoopRefType>input_vector: coop_vec<N>)
-    COOPERATIVE_PRODUCT_ACCUMULATE,    // ResultMatrix += InputVector1 * Transpose(InputVector2);
+    COOPERATIVE_OUTER_PRODUCT_ACCUMULATE,    // ResultMatrix += InputVector1 * Transpose(InputVector2);
     // void(matrix_buffer: byte_buffer, matrix_offset: coop_mat_ref, input_vec1 : coop_vector, input_vec2 : coop_vector, )
     COOPERATIVE_VECTOR_ACCUMULATE,// void(vector_buffer: byte_buffer, vector_offset: coop_vec_ref, input_vec: coop_vector)
 
@@ -584,7 +584,7 @@ public:
                test(CallOp::COOPERATIVE_MUL) ||
                test(CallOp::BINDLESS_COOPERATIVE_MUL) ||
                test(CallOp::TYPED_BINDLESS_COOPERATIVE_MUL) ||
-               test(CallOp::COOPERATIVE_PRODUCT_ACCUMULATE) ||
+               test(CallOp::COOPERATIVE_OUTER_PRODUCT_ACCUMULATE) ||
                test(CallOp::COOPERATIVE_VECTOR_ACCUMULATE);
     }
 };

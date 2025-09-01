@@ -1604,7 +1604,7 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
         case CallOp::SHADER_EXECUTION_REORDER:
             str << "(void)";
             break;
-        case CallOp::COOPERATIVE_PRODUCT_ACCUMULATE: {
+        case CallOp::COOPERATIVE_OUTER_PRODUCT_ACCUMULATE: {
             auto matrix_dimension = args[1]->type()->coop_matrix_dimension();// weight is KxN
             str << "dx::linalg::CoopOuterProductAccum<";
             GetTypeName(*args[0]->type(), str, args[0]->usage());

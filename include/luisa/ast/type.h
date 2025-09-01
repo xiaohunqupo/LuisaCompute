@@ -291,6 +291,24 @@ enum struct CoopRefVecType : uint32_t {
     FLOAT8_E4M3,
     FLOAT8_E5M2
 };
+constexpr size_t coop_ref_vec_type_size(CoopRefVecType type) {
+    switch (type) {
+        case CoopRefVecType::FLOAT8_E4M3: [[fallthrough]];
+        case CoopRefVecType::FLOAT8_E5M2: [[fallthrough]];
+        case CoopRefVecType::UINT8: [[fallthrough]];
+        case CoopRefVecType::INT8:
+            return 1;
+        case CoopRefVecType::FLOAT16:
+            [[fallthrough]];
+            return 2;
+        case CoopRefVecType::FLOAT32: [[fallthrough]];
+        case CoopRefVecType::INT32: [[fallthrough]];
+        case CoopRefVecType::UINT32:
+            return 4;
+        default:
+            return 0;
+    }
+}
 /// Type class
 class LC_AST_API Type {
     friend class ::luisa::MemorySanitizer;
