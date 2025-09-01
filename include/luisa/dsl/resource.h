@@ -806,6 +806,50 @@ inline CoopVector<OutType> cooperative_mat_mul_add(
              input_vector.expression()}));
     return var;
 }
+template<typename OutType, typename InType>
+inline CoopVector<OutType> bindless_cooperative_mat_mul_add(
+    Expr<BindlessArray> bindless_array,
+    Expr<uint> matrix_buffer,
+    CoopMatrixRef const &matrix_offset,
+    Expr<uint> bias_buffer,
+    CoopVectorRef const &vector_offset,
+    Expr<CoopVector<InType>> input_vector) {
+    CoopVector<OutType> var(matrix_offset.size().y);
+    detail::FunctionBuilder::current()->assign(
+        var.expression(),
+        detail::FunctionBuilder::current()->call(
+            Type::cooperative_vector(Type::of<OutType>(), var.size()),
+            CallOp::BINDLESS_COOPERATIVE_MUL_ADD,
+            {bindless_array.expression(),
+             matrix_buffer.expression(),
+             matrix_offset.expression(),
+             bias_buffer.expression(),
+             vector_offset.expression(),
+             input_vector.expression()}));
+    return var;
+}
+template<typename OutType, typename InType>
+inline CoopVector<OutType> typed_bindless_cooperative_mat_mul_add(
+    Expr<BindlessArray> bindless_array,
+    Expr<uint> matrix_buffer,
+    CoopMatrixRef const &matrix_offset,
+    Expr<uint> bias_buffer,
+    CoopVectorRef const &vector_offset,
+    Expr<CoopVector<InType>> input_vector) {
+    CoopVector<OutType> var(matrix_offset.size().y);
+    detail::FunctionBuilder::current()->assign(
+        var.expression(),
+        detail::FunctionBuilder::current()->call(
+            Type::cooperative_vector(Type::of<OutType>(), var.size()),
+            CallOp::TYPED_BINDLESS_COOPERATIVE_MUL_ADD,
+            {bindless_array.expression(),
+             matrix_buffer.expression(),
+             matrix_offset.expression(),
+             bias_buffer.expression(),
+             vector_offset.expression(),
+             input_vector.expression()}));
+    return var;
+}
 
 template<typename OutType, typename InType>
 inline CoopVector<OutType> cooperative_mat_mul(
@@ -819,6 +863,44 @@ inline CoopVector<OutType> cooperative_mat_mul(
             Type::cooperative_vector(Type::of<OutType>(), var.size()),
             CallOp::COOPERATIVE_MUL,
             {matrix_buffer.expression(),
+             matrix_offset.expression(),
+             input_vector.expression()}));
+    return var;
+}
+
+template<typename OutType, typename InType>
+inline CoopVector<OutType> bindless_cooperative_mat_mul(
+    Expr<BindlessArray> bindless_array,
+    Expr<uint> matrix_buffer,
+    CoopMatrixRef const &matrix_offset,
+    Expr<CoopVector<InType>> input_vector) {
+    CoopVector<OutType> var(matrix_offset.size().y);
+    detail::FunctionBuilder::current()->assign(
+        var.expression(),
+        detail::FunctionBuilder::current()->call(
+            Type::cooperative_vector(Type::of<OutType>(), var.size()),
+            CallOp::BINDLESS_COOPERATIVE_MUL,
+            {bindless_array.expression(),
+             matrix_buffer.expression(),
+             matrix_offset.expression(),
+             input_vector.expression()}));
+    return var;
+}
+
+template<typename OutType, typename InType>
+inline CoopVector<OutType> typed_bindless_cooperative_mat_mul(
+    Expr<BindlessArray> bindless_array,
+    Expr<uint> matrix_buffer,
+    CoopMatrixRef const &matrix_offset,
+    Expr<CoopVector<InType>> input_vector) {
+    CoopVector<OutType> var(matrix_offset.size().y);
+    detail::FunctionBuilder::current()->assign(
+        var.expression(),
+        detail::FunctionBuilder::current()->call(
+            Type::cooperative_vector(Type::of<OutType>(), var.size()),
+            CallOp::TYPED_BINDLESS_COOPERATIVE_MUL,
+            {bindless_array.expression(),
+             matrix_buffer.expression(),
              matrix_offset.expression(),
              input_vector.expression()}));
     return var;

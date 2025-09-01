@@ -194,6 +194,27 @@ LC_AST_API void check_builtin_call_valid(CallOp op, const Type *return_type, lui
                 LUISA_ERROR("Cooperative-Mul-Add call dimension mismatch.");
             }
         } break;
+        case CallOp::TYPED_BINDLESS_COOPERATIVE_MUL_ADD:
+        case CallOp::BINDLESS_COOPERATIVE_MUL_ADD: {
+            if (!(return_type->is_cooperative_vector() &&
+                  args.size() == 6 &&
+                  args[0]->type()->is_bindless_array() &&
+                  args[1]->type()->is_uint32() &&
+                  args[2]->type()->is_cooperative_matrix_ref() &&
+                  args[3]->type()->is_uint32() &&
+                  args[4]->type()->is_cooperative_vector_ref() &&
+                  args[5]->type()->is_cooperative_vector())) [[unlikely]] {
+                LUISA_ERROR("Cooperative-Mul-Add call argument type mistmatch.");
+            }
+            // https://developer.nvidia.com/blog/neural-rendering-in-nvidia-optix-using-cooperative-vectors/
+            auto matrix_dimension = args[2]->type()->coop_matrix_dimension();// weight is KxN
+            if (!(return_type->dimension() == matrix_dimension.y &&          // output is N
+                  args[4]->type()->dimension() == matrix_dimension.y &&      // bias is N
+                  args[5]->type()->dimension() == matrix_dimension.x         // input is K
+                  )) [[unlikely]] {
+                LUISA_ERROR("Cooperative-Mul-Add call dimension mismatch.");
+            }
+        } break;
         case CallOp::COOPERATIVE_MUL: {
             if (!((luisa::to_underlying(args[0]->usage()) & luisa::to_underlying(Usage::WRITE)) == 0)) [[unlikely]] {
                 LUISA_ERROR("Matrix-buffer must not be writable.");
@@ -208,6 +229,24 @@ LC_AST_API void check_builtin_call_valid(CallOp op, const Type *return_type, lui
             auto matrix_dimension = args[1]->type()->coop_matrix_dimension();// weight is KxN
             if (!(return_type->dimension() == matrix_dimension.y &&          // output is N
                   args[2]->type()->dimension() == matrix_dimension.x         // input is K
+                  )) [[unlikely]] {
+                LUISA_ERROR("Cooperative-Mul calldimension mismatch.");
+            }
+            break;
+        }
+        case CallOp::TYPED_BINDLESS_COOPERATIVE_MUL:
+        case CallOp::BINDLESS_COOPERATIVE_MUL: {
+            if (!(return_type->is_cooperative_vector() &&
+                  args.size() == 4 &&
+                  args[0]->type()->is_bindless_array() &&
+                  args[1]->type()->is_uint32() &&
+                  args[2]->type()->is_cooperative_matrix_ref() &&
+                  args[3]->type()->is_cooperative_vector())) [[unlikely]] {
+                LUISA_ERROR("Cooperative-Mul call argument type mistmatch.");
+            }
+            auto matrix_dimension = args[2]->type()->coop_matrix_dimension();// weight is KxN
+            if (!(return_type->dimension() == matrix_dimension.y &&          // output is N
+                  args[3]->type()->dimension() == matrix_dimension.x         // input is K
                   )) [[unlikely]] {
                 LUISA_ERROR("Cooperative-Mul calldimension mismatch.");
             }

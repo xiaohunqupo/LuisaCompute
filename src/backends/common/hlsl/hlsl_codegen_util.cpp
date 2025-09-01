@@ -128,6 +128,13 @@ static size_t AddHeader(CallOpSet const &ops, vstd::StringBuilder &builder, bool
             break;
         }
     }
+    if (
+        ops.test(CallOp::BINDLESS_COOPERATIVE_MUL_ADD) ||
+        ops.test(CallOp::TYPED_BINDLESS_COOPERATIVE_MUL_ADD) ||
+        ops.test(CallOp::BINDLESS_COOPERATIVE_MUL) ||
+        ops.test(CallOp::TYPED_BINDLESS_COOPERATIVE_MUL)) {
+        useBindless = true;
+    }
     if (useBindless) {
         builder << CodegenUtility::ReadInternalHLSLFile("bindless_common");
     }
@@ -1628,6 +1635,53 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             TypeToCoop(args[3]->type()->coop_vec_ref_type(), str);
             str << luisa::format(",{},{}>", matrix_dimension.x, matrix_dimension.y);
         } break;
+        case CallOp::TYPED_BINDLESS_COOPERATIVE_MUL_ADD:
+        case CallOp::BINDLESS_COOPERATIVE_MUL_ADD: {
+            opt->useBufferBindless = true;
+            auto matrix_dimension = args[2]->type()->coop_matrix_dimension();// weight is KxN
+            str << "dx::linalg::CoopMulAdd<ByteAddressBuffer,ByteAddressBuffer,";
+            GetTypeName(*args[5]->type()->element(), str, Usage::NONE);
+            str << ',';
+            GetTypeName(*expr->type()->element(), str, Usage::NONE);
+            str << ',';
+            TypeToCoop(args[2]->type()->coop_vec_ref_type(), str);
+            str << ',';
+            TypeToCoop(args[4]->type()->coop_vec_ref_type(), str);
+            str << luisa::format(",{},{}>(", matrix_dimension.x, matrix_dimension.y);
+            str << "bdls[NonUniformResourceIndex(";
+            if (expr->op() == CallOp::TYPED_BINDLESS_COOPERATIVE_MUL_ADD) {
+                args[0]->accept(vis);
+                str << "[0]+";
+                args[1]->accept(vis);
+            } else {
+                str << "_ReadBdlsBuffer(";
+                args[0]->accept(vis);
+                str << ',';
+                args[1]->accept(vis);
+                str << ')';
+            }
+            str << ")],";
+            args[2]->accept(vis);
+            str << ",bdls[NonUniformResourceIndex(";
+            if (expr->op() == CallOp::TYPED_BINDLESS_COOPERATIVE_MUL_ADD) {
+                args[0]->accept(vis);
+                str << "[0]+";
+                args[3]->accept(vis);
+            } else {
+                str << "_ReadBdlsBuffer(";
+                args[0]->accept(vis);
+                str << ',';
+                args[3]->accept(vis);
+                str << ')';
+            }
+            str << ")]";
+            for (auto &i : args.subspan(4)) {
+                str << ',';
+                i->accept(vis);
+            }
+            str << ')';
+        }
+            return;
         case CallOp::COOPERATIVE_MUL: {
             auto matrix_dimension = args[1]->type()->coop_matrix_dimension();// weight is KxN
             str << "dx::linalg::CoopMul<";
@@ -1640,6 +1694,38 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             TypeToCoop(args[1]->type()->coop_vec_ref_type(), str);
             str << luisa::format(",{},{}>", matrix_dimension.x, matrix_dimension.y);
         } break;
+        case CallOp::TYPED_BINDLESS_COOPERATIVE_MUL:
+        case CallOp::BINDLESS_COOPERATIVE_MUL: {
+            opt->useBufferBindless = true;
+            auto matrix_dimension = args[2]->type()->coop_matrix_dimension();// weight is KxN
+            str << "dx::linalg::CoopMul<ByteAddressBuffer,";
+            GetTypeName(*args[3]->type()->element(), str, Usage::NONE);
+            str << ',';
+            GetTypeName(*expr->type()->element(), str, Usage::NONE);
+            str << ',';
+            TypeToCoop(args[2]->type()->coop_vec_ref_type(), str);
+            str << luisa::format(",{},{}>(", matrix_dimension.x, matrix_dimension.y);
+
+            str << "bdls[NonUniformResourceIndex(";
+            if (expr->op() == CallOp::TYPED_BINDLESS_COOPERATIVE_MUL) {
+                args[0]->accept(vis);
+                str << "[0]+";
+                args[1]->accept(vis);
+            } else {
+                str << "_ReadBdlsBuffer(";
+                args[0]->accept(vis);
+                str << ',';
+                args[1]->accept(vis);
+                str << ')';
+            }
+            str << ")]";
+            for (auto &i : args.subspan(2)) {
+                str << ',';
+                i->accept(vis);
+            }
+            str << ')';
+        }
+            return;
         default:
             LUISA_ERROR("Bad op.");
             break;
