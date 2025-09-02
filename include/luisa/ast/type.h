@@ -299,7 +299,6 @@ constexpr size_t coop_ref_vec_type_size(CoopRefVecType type) {
         case CoopRefVecType::INT8:
             return 1;
         case CoopRefVecType::FLOAT16:
-            [[fallthrough]];
             return 2;
         case CoopRefVecType::FLOAT32: [[fallthrough]];
         case CoopRefVecType::INT32: [[fallthrough]];
