@@ -247,7 +247,8 @@ CUDADevice::BuiltinCode::BuiltinCode(BuiltinCode &&rhs) noexcept
 
 CUDADevice::CUDADevice(Context &&ctx,
                        size_t device_id,
-                       const BinaryIO *io) noexcept
+                       const BinaryIO *io,
+                       bool use_lmdb) noexcept
     : DeviceInterface{std::move(ctx)}, _handle{device_id}, _io{io} {
     _builtin_codes.try_emplace(
         "cuda_builtin_kernels",
@@ -287,7 +288,7 @@ CUDADevice::CUDADevice(Context &&ctx,
     //         luisa_cuda_builtin_coop_vec_builtin});
     // provide a default binary IO
     if (_io == nullptr) {
-        _default_io = luisa::make_unique<DefaultBinaryIO>(context());
+        _default_io = luisa::make_unique<DefaultBinaryIO>(context(), false, use_lmdb);
         _io = _default_io.get();
     }
     _compiler = luisa::make_unique<CUDACompiler>(this);
@@ -1389,14 +1390,16 @@ LUISA_EXPORT_API luisa::compute::DeviceInterface *create(luisa::compute::Context
                                                          const luisa::compute::DeviceConfig *config) noexcept {
     auto device_id = 0ull;
     auto binary_io = static_cast<const luisa::BinaryIO *>(nullptr);
+    auto use_lmdb = false;
     if (config != nullptr) {
         device_id = config->device_index;
         binary_io = config->binary_io;
         LUISA_ASSERT(!config->headless,
                      "Headless mode is not implemented yet for CUDA backend.");
+        use_lmdb = config->use_lmdb;
     }
     return luisa::new_with_allocator<luisa::compute::cuda::CUDADevice>(
-        std::move(ctx), device_id, binary_io);
+        std::move(ctx), device_id, binary_io, use_lmdb);
 }
 
 LUISA_EXPORT_API void destroy(luisa::compute::DeviceInterface *device) noexcept {
