@@ -53,7 +53,7 @@ set_showmenu(false)
 add_deps("lc_dx_backend", "lc_vk_backend", "lc_cuda_backend",
     "lc_metal_backend", "lc_cpu_backend", "lc_enable_tests", "lc_py_include",
     "lc_cuda_ext_lcub", "lc_enable_ir", "lc_enable_dsl", "lc_enable_clangcxx",
-    "lc_enable_gui", "lc_bin_dir", "lc_enable_custom_malloc", "lc_external_marl", "_lc_enable_py", "_lc_enable_rust")
+    "lc_enable_gui", "lc_bin_dir", "lc_enable_custom_malloc", "lc_external_marl", "lc_dx_cuda_interop", "_lc_enable_py", "_lc_enable_rust")
 before_check(function(option)
     if path.absolute(path.join(os.projectdir(), "scripts")) == path.absolute(os.scriptdir()) then
         local v = import("options", {
@@ -139,6 +139,11 @@ before_check(function(option)
         option:dep("lc_enable_gui"):enable(true, {
             force = true
         })
+    end
+    -- dx cuda interop
+    local lc_dx_cuda_interop = option:dep("lc_dx_cuda_interop")
+    if lc_cuda_backend:enabled() and lc_dx_backend:enabled() then
+        lc_dx_cuda_interop:enable(true)
     end
     -- checking rust
     local lc_enable_ir = option:dep("lc_enable_ir")
