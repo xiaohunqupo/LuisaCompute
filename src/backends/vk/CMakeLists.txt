@@ -1,3 +1,4 @@
+message(STATUS "Building Vulkan backend")
 # put source files into LUISA_COMPUTE_VK_SOURCES variable
 file(GLOB_RECURSE LUISA_COMPUTE_VK_SOURCES CONFIGURE_DEPENDS *.cpp *.h)
 # set(LUISA_COMPUTE_VK_SOURCES "${LUISA_COMPUTE_VK_SOURCES} ${CMAKE_CURRENT_SOURCE_DIR}/../common/default_binary_io.h ${CMAKE_CURRENT_SOURCE_DIR}/../common/default_binary_io.cpp")

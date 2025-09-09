@@ -818,8 +818,13 @@ ShaderCreationInfo CUDADevice::create_shader(const ShaderOption &option, Functio
             auto xir_module = luisa_cuda_backend_translate_ast_to_xir(kernel, option);
             Clock clk;
             CUDACodegenXIR codegen{scratch, !_cudadevrt_library.empty()};
+            StringScratch s;
             codegen.emit(xir_module.get(), kernel.bound_arguments(),
-                         _compiler->get_device_library(), option.native_include);
+                         ([&] {
+                             _compiler->get_device_library()(s);
+                             return s.string_view();
+                         })(),
+                         option.native_include);
             LUISA_INFO("CUDA Codegen XIR generated source in {} ms.", clk.toc());
             // dump for debugging
             {
