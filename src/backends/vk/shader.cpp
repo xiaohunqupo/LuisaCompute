@@ -69,7 +69,7 @@ Shader::Shader(
                 break;
         }
         v.descriptorCount = i.array_size == ~0u ? 262144u : i.array_size;
-        v.stageFlags = stage_bits;
+        v.stageFlags = (v.pImmutableSamplers != nullptr || i.array_size == ~0u) ? VK_SHADER_STAGE_ALL : stage_bits;
     }
     vstd::push_back_all(_binds, binds);
     _desc_set_layout.reserve(bindings.size());

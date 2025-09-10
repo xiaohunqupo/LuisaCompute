@@ -531,7 +531,7 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
             0,
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
             buffer_heap_pool.full_size,
-            VK_SHADER_STAGE_COMPUTE_BIT,
+            VK_SHADER_STAGE_ALL,
             nullptr};
         VkDescriptorSetLayoutCreateInfo descriptorLayout{
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
@@ -562,7 +562,7 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
             0,
             VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
             tex2d_heap_pool.full_size,
-            VK_SHADER_STAGE_COMPUTE_BIT,
+            VK_SHADER_STAGE_ALL,
             nullptr};
         VkDescriptorSetLayoutCreateInfo descriptorLayout{
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
@@ -594,7 +594,7 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
             0,
             VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
             tex3d_heap_pool.full_size,
-            VK_SHADER_STAGE_COMPUTE_BIT,
+            VK_SHADER_STAGE_ALL,
             nullptr};
         VkDescriptorSetLayoutCreateInfo descriptorLayout{
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
@@ -621,7 +621,6 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
             .poolSizeCount = 1,
             .pPoolSizes = &pool_size};
         VK_CHECK_RESULT(vkCreateDescriptorPool(logic_device(), &createInfo, alloc_callbacks(), &_sampler_pool));
-        VK_CHECK_RESULT(vkCreateDescriptorPool(logic_device(), &createInfo, alloc_callbacks(), &_graphics_sampler_pool));
         _samplers.resize(16);
         size_t idx = 0;
         for (auto x : vstd::range(4))
@@ -678,44 +677,23 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
                 info.maxLod = VK_LOD_CLAMP_NONE;
                 VK_CHECK_RESULT(vkCreateSampler(logic_device(), &info, alloc_callbacks(), &_samplers[idx]));
             }
-        {
-            VkDescriptorSetLayoutBinding binding{
-                0,
-                VK_DESCRIPTOR_TYPE_SAMPLER,
-                16,
-                VK_SHADER_STAGE_COMPUTE_BIT,
-                _samplers.data()};
-            VkDescriptorSetLayoutCreateInfo descriptorLayout{
-                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-                .bindingCount = 1,
-                .pBindings = &binding};
-            VK_CHECK_RESULT(vkCreateDescriptorSetLayout(logic_device(), &descriptorLayout, alloc_callbacks(), &_sampler_set_layout));
-            VkDescriptorSetAllocateInfo alloc_info{
-                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-                .descriptorPool = _sampler_pool,
-                .descriptorSetCount = 1,
-                .pSetLayouts = &_sampler_set_layout};
-            VK_CHECK_RESULT(vkAllocateDescriptorSets(logic_device(), &alloc_info, &_sampler_set));
-        }
-        {
-            VkDescriptorSetLayoutBinding binding{
-                0,
-                VK_DESCRIPTOR_TYPE_SAMPLER,
-                16,
-                VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-                _samplers.data()};
-            VkDescriptorSetLayoutCreateInfo descriptorLayout{
-                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-                .bindingCount = 1,
-                .pBindings = &binding};
-            VK_CHECK_RESULT(vkCreateDescriptorSetLayout(logic_device(), &descriptorLayout, alloc_callbacks(), &_graphics_sampler_set_layout));
-            VkDescriptorSetAllocateInfo alloc_info{
-                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-                .descriptorPool = _graphics_sampler_pool,
-                .descriptorSetCount = 1,
-                .pSetLayouts = &_graphics_sampler_set_layout};
-            VK_CHECK_RESULT(vkAllocateDescriptorSets(logic_device(), &alloc_info, &_graphics_sampler_set));
-        }
+        VkDescriptorSetLayoutBinding binding{
+            0,
+            VK_DESCRIPTOR_TYPE_SAMPLER,
+            16,
+            VK_SHADER_STAGE_ALL,
+            _samplers.data()};
+        VkDescriptorSetLayoutCreateInfo descriptorLayout{
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            .bindingCount = 1,
+            .pBindings = &binding};
+        VK_CHECK_RESULT(vkCreateDescriptorSetLayout(logic_device(), &descriptorLayout, alloc_callbacks(), &_sampler_set_layout));
+        VkDescriptorSetAllocateInfo alloc_info{
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+            .descriptorPool = _sampler_pool,
+            .descriptorSetCount = 1,
+            .pSetLayouts = &_sampler_set_layout};
+        VK_CHECK_RESULT(vkAllocateDescriptorSets(logic_device(), &alloc_info, &_sampler_set));
     }
 }
 bool Device::is_pso_same(VkPipelineCacheHeaderVersionOne const &pso) {
@@ -723,12 +701,10 @@ bool Device::is_pso_same(VkPipelineCacheHeaderVersionOne const &pso) {
 }
 Device::~Device() {
     if (_vk_device) {
-        vkDestroyDescriptorSetLayout(logic_device(), _graphics_sampler_set_layout, alloc_callbacks());
         vkDestroyDescriptorSetLayout(logic_device(), _sampler_set_layout, alloc_callbacks());
         vkDestroyDescriptorSetLayout(logic_device(), _bdls_buffer_set_layout, alloc_callbacks());
         vkDestroyDescriptorSetLayout(logic_device(), _bdls_tex2d_set_layout, alloc_callbacks());
         vkDestroyDescriptorSetLayout(logic_device(), _bdls_tex3d_set_layout, alloc_callbacks());
-        vkDestroyDescriptorPool(logic_device(), _graphics_sampler_pool, alloc_callbacks());
         vkDestroyDescriptorPool(logic_device(), _sampler_pool, alloc_callbacks());
         vkDestroyDescriptorPool(logic_device(), _bdls_tex3d_desc_pool, alloc_callbacks());
         vkDestroyDescriptorPool(logic_device(), _bdls_tex2d_desc_pool, alloc_callbacks());
