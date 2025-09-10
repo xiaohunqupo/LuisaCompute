@@ -66,7 +66,6 @@ public:
     auto mip() const { return _mip; }
     auto vk_image() const { return _img.image; }
     auto format() const {
-        if (luisa::to_underlying(_format) > 65535u) return static_cast<compute::PixelFormat>(-1);// depth
         return _format;
     }
     auto depth_format() const {

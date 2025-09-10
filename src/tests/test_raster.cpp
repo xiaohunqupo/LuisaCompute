@@ -57,6 +57,12 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
     Device device = context.create_device(argv[1], nullptr);
+    Stream stream = device.create_stream(StreamTag::GRAPHICS);
+    static constexpr uint width = 1024;
+    static constexpr uint height = 1024;
+    auto shader = device.load_raster_shader<float, float>("test.bin");
+
+    DepthBuffer depth_buffer = device.create_depth_buffer(DepthFormat::D32, uint2(width, height));
     auto clear_shader = device.compile(clear_kernel);
     MeshFormat mesh_format;
     VertexAttribute attributes[] = {
@@ -67,9 +73,7 @@ int main(int argc, char *argv[]) {
         {VertexAttributeType::Color, PixelFormat::RG32F},
     };
     mesh_format.emplace_vertex_stream(attributes);
-    static constexpr uint width = 1024;
-    static constexpr uint height = 1024;
-    Stream stream = device.create_stream(StreamTag::GRAPHICS);
+
     Window window{"Test raster", width, height};
     Swapchain swap_chain = device.create_swapchain(
         stream,
@@ -81,10 +85,9 @@ int main(int argc, char *argv[]) {
             .wants_vsync = false,
             .back_buffer_count = 2,
         });
-    Image<float> out_img = device.create_image<float>(swap_chain.backend_storage(), width, height);
+    Image<float> out_img = device.create_image<float>(swap_chain.backend_storage(), width, height, 1, false, true);
     PixelFormat img_format = out_img.format();
-    DepthBuffer depth_buffer = device.create_depth_buffer(DepthFormat::D32, uint2(width, height));
-    auto shader = device.load_raster_shader<float, float>("test.bin");
+    
     Vertex vertices[6];
     vertices[0].pos = {-0.5f, 0.5f, 0.5f};
     vertices[1].pos = {0.5f, 0.5f, 0.5f};

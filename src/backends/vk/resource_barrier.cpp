@@ -60,7 +60,7 @@ static constexpr VkImageLayout BarrierLayoutMap[] = {
     VK_IMAGE_LAYOUT_GENERAL,                         // CopyAccelDst
     VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, //DepthRead
     VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,//DepthWrite
-    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,//DepthClear
+    VK_IMAGE_LAYOUT_GENERAL,                         //DepthClear
     VK_IMAGE_LAYOUT_GENERAL,                         // IndirectArgs
     VK_IMAGE_LAYOUT_GENERAL,                         //VertexRead,
     VK_IMAGE_LAYOUT_GENERAL,                         //  IndexRead,

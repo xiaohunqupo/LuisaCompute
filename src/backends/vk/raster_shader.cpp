@@ -54,16 +54,16 @@ auto RasterShader::_make_pipeline_key(
         luisa::fixed_vector<uint32_t, 16> offsets;
         offsets.reserve(mesh_format.vertex_stream_count());
         vertex_input_create_info.pVertexAttributeDescriptions = (const VkVertexInputAttributeDescription *)ptr;
+        uint32_t location = 0;
         for (auto stream_idx : vstd::range(mesh_format.vertex_stream_count())) {
-            uint32_t binding = 0;
             uint32_t offset = 0;
             for (auto &&attrs : mesh_format.attributes(stream_idx)) {
                 VkVertexInputAttributeDescription desc{
-                    .location = (uint32_t)stream_idx,
-                    .binding = binding,
+                    .location = location,
+                    .binding = (uint32_t)stream_idx,
                     .format = Texture::to_vk_format(attrs.format),
                     .offset = offset};
-                ++binding;
+                ++location;
                 offset += pixel_format_size(attrs.format, uint3(1));
                 std::memcpy(ptr, &desc, sizeof(desc));
                 ptr += sizeof(desc);
@@ -349,7 +349,7 @@ VkRenderPass RasterShader::create_render_pass(
     Device *device,
     luisa::span<Argument::Texture const> rtv_textures,
     Argument::Texture dsv_textures) {
-    VkAttachmentLoadOp color_attachment_load_op = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    VkAttachmentLoadOp color_attachment_load_op = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     VkAttachmentStoreOp color_attachment_store_op = VK_ATTACHMENT_STORE_OP_STORE;
     VkImageLayout color_attachment_image_layout = VK_IMAGE_LAYOUT_UNDEFINED;
 
@@ -372,26 +372,26 @@ VkRenderPass RasterShader::create_render_pass(
         a.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
         a.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
         a.initialLayout = color_attachment_image_layout;
-        a.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        a.finalLayout = VK_IMAGE_LAYOUT_GENERAL;
         auto &color_reference = color_references.emplace_back();
         color_reference.attachment = attach_idx;
         color_reference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     }
     // DSV
-    {
+    if (dsv_textures.handle != invalid_resource_handle) {
         auto attach_idx = attachments.size();
         auto &a = attachments.emplace_back();
         auto tex = reinterpret_cast<Texture *>(dsv_textures.handle);
         a.format = Texture::to_vk_format(tex->format());
         a.samples = VK_SAMPLE_COUNT_1_BIT;
-        a.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        a.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        a.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        a.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        a.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        a.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        a.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+        a.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        a.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+        a.stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
+        a.initialLayout = VK_IMAGE_LAYOUT_GENERAL;
+        a.finalLayout = VK_IMAGE_LAYOUT_GENERAL;
         depth_reference.attachment = attach_idx;
-        depth_reference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        depth_reference.layout = a.finalLayout;
     }
     VkSubpassDescription subpass_description = {};
     subpass_description.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;

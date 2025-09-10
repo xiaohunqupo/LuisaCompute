@@ -44,8 +44,11 @@ class Device : public DeviceInterface, public vstd::IOperatorNewBase {
     VkQueue _graphics_queue{};
     VkQueue _compute_queue{};
     VkQueue _copy_queue{};
+    VkDescriptorPool _graphics_sampler_pool;
     VkDescriptorPool _sampler_pool;
+    VkDescriptorSet _graphics_sampler_set;
     VkDescriptorSet _sampler_set;
+    VkDescriptorSetLayout _graphics_sampler_set_layout;
     VkDescriptorSetLayout _sampler_set_layout;
     VkDescriptorPool _bdls_buffer_desc_pool;
     VkDescriptorSet _bdls_buffer_set;
@@ -109,6 +112,7 @@ public:
 
     VulkanDeviceConfigExt *config_ext() const { return _config_ext.get(); }
     auto binary_io() const { return _binary_io; }
+    auto graphics_sampler_set() const { return _graphics_sampler_set; }
     auto sampler_set() const { return _sampler_set; }
     auto bdls_buffer_set() const { return _bdls_buffer_set; }
     auto bdls_tex2d_set() const { return _bdls_tex2d_set; }
