@@ -1186,6 +1186,22 @@ string CUDADevice::query(luisa::string_view property) noexcept {
     if (property == "device_name") {
         return "cuda";
     }
+    if (property == "total_memory") {
+        string memory = "0";
+        with_handle([&memory]{
+            size_t free_mem, total_mem;
+            cuMemGetInfo(&free_mem, &total_mem);
+            memory = to_string(total_mem);
+        });
+        return memory;
+    }
+    if (property == "free_memory") {
+        string memory = "0";
+        with_handle([&memory]{
+            size_t free_mem, total_mem;
+            cuMemGetInfo(&free_mem, &total_mem);
+            memory = to_string(free_mem);
+        });
     LUISA_WARNING_WITH_LOCATION("Unknown device property '{}'.", property);
     return {};
 }
