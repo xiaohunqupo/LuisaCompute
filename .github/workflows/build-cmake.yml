@@ -80,7 +80,7 @@ jobs:
           submodules: recursive
       - name: "Install Dependencies"
         run: |
-          brew install llvm molten-vk ninja cmake embree vulkan-headers vulkan-loader
+          brew install llvm molten-vk ninja embree vulkan-headers vulkan-loader
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
       - name: "Configure and Build"
         run: |
