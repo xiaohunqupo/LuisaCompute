@@ -1221,10 +1221,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
             }
             desc_sets->clear();
             desc_sets->push_back(visitor.desc_set);
-            if (bind_point == VK_PIPELINE_BIND_POINT_COMPUTE)
-                desc_sets->push_back(device()->sampler_set());
-            else
-                desc_sets->push_back(device()->graphics_sampler_set());
+            desc_sets->push_back(device()->sampler_set());
             if (shader->use_buffer_bindless()) {
                 desc_sets->push_back(device()->bdls_buffer_set());
             }
