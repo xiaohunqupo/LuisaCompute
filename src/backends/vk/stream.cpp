@@ -11,6 +11,7 @@
 #include <luisa/runtime/swapchain.h>
 #include <luisa/backends/ext/vk_custom_cmd.h>
 #include "../common/shader_print_formatter.h"
+#include "raster_shader.h"
 namespace lc::vk {
 struct PresentCommand {
     luisa::fixed_vector<VkSemaphore, 1> submit_wait_semaphores;
@@ -222,7 +223,7 @@ struct BindPropVisitor {
             Texture::to_vk_format(tex->format()),
             VkComponentMapping{VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY},
             VkImageSubresourceRange{
-                VK_IMAGE_ASPECT_COLOR_BIT,
+                tex->get_aspect(),
                 bf.level,
                 1,
                 0,
@@ -965,6 +966,21 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
     if (uniform_buffer_size > 0) {
         arg_buffer = _state->upload_alloc.allocate(uniform_buffer_size, 16);
     }
+    auto preprocess_arguments = [this](Shader const *shader, ShaderDispatchCommandBase const *c) {
+        uniform_data->resize_uninitialized((uniform_data->size() + 15) & (~(15ull)));
+        std::pair<size_t, size_t> sizes;
+        sizes.first = uniform_data->size_bytes();
+        ResourceBarrierVisitor visitor{
+            resource_barrier,
+            shader->saved_arguments().data(),
+            uniform_data,
+            *c,
+            false};
+        DecodeCmd(shader->captured(), visitor);
+        DecodeCmd(c->arguments(), visitor);
+        sizes.second = uniform_data->size() - sizes.first;
+        dispatch_offsets->emplace_back(sizes);
+    };
     for (auto &&lst : cmd_lists) {
         dispatch_offsets->clear();
         auto delay_clear = vstd::scope_exit([&]() {
@@ -1024,19 +1040,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                 case Command::Tag::EShaderDispatchCommand: {
                     auto c = static_cast<ShaderDispatchCommand const *>(cmd);
                     auto shader = reinterpret_cast<Shader const *>(c->handle());
-                    uniform_data->resize_uninitialized((uniform_data->size() + 15) & (~(15ull)));
-                    std::pair<size_t, size_t> sizes;
-                    sizes.first = uniform_data->size_bytes();
-                    ResourceBarrierVisitor visitor{
-                        resource_barrier,
-                        shader->saved_arguments().data(),
-                        uniform_data,
-                        *c,
-                        false};
-                    DecodeCmd(shader->captured(), visitor);
-                    DecodeCmd(c->arguments(), visitor);
-                    sizes.second = uniform_data->size() - sizes.first;
-                    dispatch_offsets->emplace_back(sizes);
+                    preprocess_arguments(shader, c);
                 } break;
                 case Command::Tag::ETextureUploadCommand: {
                     auto c = static_cast<TextureUploadCommand const *>(cmd);
@@ -1102,6 +1106,18 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                 case Command::Tag::ECustomCommand: {
                     auto c = static_cast<CustomCommand const *>(cmd);
                     switch (c->uuid()) {
+                        case to_underlying(CustomCommandUUID::RASTER_CLEAR_DEPTH): {
+                            auto cmd = static_cast<ClearDepthCommand const *>(c);
+                            auto tex = reinterpret_cast<Texture const *>(cmd->handle());
+                            resource_barrier->record(
+                                TexView(tex, 0),
+                                ResourceBarrier::Usage::DepthClear);
+                        } break;
+                        case to_underlying(CustomCommandUUID::RASTER_DRAW_SCENE): {
+                            auto cmd = static_cast<DrawRasterSceneCommand const *>(c);
+                            auto shader = reinterpret_cast<RasterShader *>(cmd->handle());
+                            preprocess_arguments(shader, cmd);
+                        } break;
                         case to_underlying(CustomCommandUUID::CUSTOM_DISPATCH): {
                             auto custom_cmd = static_cast<VKCustomCmd const *>(c);
                             for (auto &&i : const_cast<VKCustomCmd *>(custom_cmd)->get_resource_usages()) {
@@ -1218,7 +1234,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                         c->buffer_offset(),
                         0,
                         0,
-                        VkImageSubresourceLayers{VK_IMAGE_ASPECT_COLOR_BIT, c->level(), 0, 1},
+                        VkImageSubresourceLayers{tex->get_aspect(), c->level(), 0, 1},
                         VkOffset3D{tex_offset.x, tex_offset.y, tex_offset.z},
                         VkExtent3D{size.x, size.y, size.z}};
 
@@ -1516,7 +1532,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                         buffer.offset,
                         0,
                         0,
-                        VkImageSubresourceLayers{VK_IMAGE_ASPECT_COLOR_BIT, c->level(), 0, 1},
+                        VkImageSubresourceLayers{tex->get_aspect(), c->level(), 0, 1},
                         VkOffset3D{tex_offset.x, tex_offset.y, tex_offset.z},
                         VkExtent3D{size.x, size.y, size.z}};
 
@@ -1549,7 +1565,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                         buffer.offset,
                         0,
                         0,
-                        VkImageSubresourceLayers{VK_IMAGE_ASPECT_COLOR_BIT, c->level(), 0, 1},
+                        VkImageSubresourceLayers{tex->get_aspect(), c->level(), 0, 1},
                         VkOffset3D{tex_offset.x, tex_offset.y, tex_offset.z},
                         VkExtent3D{size.x, size.y, size.z}};
                     VkCopyImageToBufferInfo2 info{
@@ -1574,9 +1590,9 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                     VkImageCopy2 copy{
                         VK_STRUCTURE_TYPE_IMAGE_COPY_2,
                         nullptr,
-                        VkImageSubresourceLayers{VK_IMAGE_ASPECT_COLOR_BIT, c->src_level(), 0, 1},
+                        VkImageSubresourceLayers{src_tex->get_aspect(), c->src_level(), 0, 1},
                         VkOffset3D{src_tex_offset.x, src_tex_offset.y, src_tex_offset.z},
-                        VkImageSubresourceLayers{VK_IMAGE_ASPECT_COLOR_BIT, c->dst_level(), 0, 1},
+                        VkImageSubresourceLayers{dst_tex->get_aspect(), c->dst_level(), 0, 1},
                         VkOffset3D{dst_tex_offset.x, dst_tex_offset.y, dst_tex_offset.z},
                         VkExtent3D{size.x, size.y, size.z}};
                     VkCopyImageInfo2 info{
@@ -1603,7 +1619,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                         c->buffer_offset(),
                         0,
                         0,
-                        VkImageSubresourceLayers{VK_IMAGE_ASPECT_COLOR_BIT, c->level(), 0, 1},
+                        VkImageSubresourceLayers{tex->get_aspect(), c->level(), 0, 1},
                         VkOffset3D{tex_offset.x, tex_offset.y, tex_offset.z},
                         VkExtent3D{size.x, size.y, size.z}};
                     VkCopyImageToBufferInfo2 info{
@@ -1716,6 +1732,34 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                 case Command::Tag::ECustomCommand: {
                     auto c = static_cast<CustomCommand const *>(cmd);
                     switch (c->uuid()) {
+                        // TODO
+                        case to_underlying(CustomCommandUUID::RASTER_CLEAR_DEPTH): {
+                            auto cmd = static_cast<ClearDepthCommand const *>(c);
+                            auto tex = reinterpret_cast<Texture *>(cmd->handle());
+                            VkClearDepthStencilValue depth_stencil_value{
+                                .depth = cmd->value(),
+                                .stencil = 0};
+                            auto depth_format = tex->depth_format();
+                            VkImageSubresourceRange sub_range{
+                                .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
+                                .baseMipLevel = 0,
+                                .levelCount = 1,
+                                .baseArrayLayer = 0,
+                                .layerCount = 1};
+                            if (depth_format == DepthFormat::D24S8 || depth_format == DepthFormat::D32S8A24) {
+                                sub_range.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+                            }
+                            vkCmdClearDepthStencilImage(
+                                _cmdbuffer,
+                                tex->vk_image(),
+                                resource_barrier->get_layout(tex, 0),
+                                &depth_stencil_value,
+                                1,
+                                &sub_range);
+                        } break;
+                        case to_underlying(CustomCommandUUID::RASTER_DRAW_SCENE): {
+                            LUISA_ERROR("Not implemented.");
+                        } break;
                         case to_underlying(CustomCommandUUID::CUSTOM_DISPATCH): {
                             static_cast<VKCustomCmd const *>(c)->execute(
                                 device()->physical_device(),
@@ -1830,7 +1874,7 @@ void Shader::update_desc_set(
                     }
                 }(),
                 .format = Texture::to_vk_format(tex->format()),
-                .subresourceRange = VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .baseMipLevel = t.level, .levelCount = 1, .baseArrayLayer = 0, .layerCount = 1}};
+                .subresourceRange = VkImageSubresourceRange{.aspectMask = tex->get_aspect(), .baseMipLevel = t.level, .levelCount = 1, .baseArrayLayer = 0, .layerCount = 1}};
             VK_CHECK_RESULT(vkCreateImageView(device()->logic_device(), &img_view_create_info, Device::alloc_callbacks(), &img_view));
             image_info.imageView = img_view;
             image_info.imageLayout = tex->layout(t.level);

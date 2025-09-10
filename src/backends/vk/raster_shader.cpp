@@ -84,11 +84,11 @@ auto RasterShader::_make_pipeline_key(
     }
     return result;
 }
-void RasterShader::create_pipeline(
+auto RasterShader::create_pipeline(
     luisa::span<Argument::Texture const> rtv_textures,
     Argument::Texture dsv_textures,
     MeshFormat const &mesh_format,
-    RasterState const &state) {
+    RasterState const &state) -> Pipeline {
     VkPrimitiveTopology topo;
     VkCullModeFlags cull_mode;
     VkPipelineVertexInputStateCreateInfo vertex_input;
@@ -97,7 +97,8 @@ void RasterShader::create_pipeline(
         state,
         vertex_input);
     auto iter = _pipelines.try_emplace(std::move(binary_blob));
-    if (!iter.second) return;
+    auto &v = iter.first.value();
+    if (!iter.second) return v;
     switch (state.cull_mode) {
         case CullMode::None:
             cull_mode = VK_CULL_MODE_NONE;
@@ -321,8 +322,7 @@ void RasterShader::create_pipeline(
             .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
             .module = pixel_shader_module,
             .pName = "main"}};
-    auto &v = iter.first.value();
-    _create_render_pass(device(), rtv_textures, dsv_textures, v.render_pass);
+    v.render_pass = create_render_pass(device(), rtv_textures, dsv_textures);
     VkGraphicsPipelineCreateInfo graphics_pipeline_create_info{
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
         .stageCount = vstd::array_count(shader_stages),
@@ -343,12 +343,12 @@ void RasterShader::create_pipeline(
         .basePipelineIndex = ~0};
 
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(device()->logic_device(), _pipe_cache, 1, &graphics_pipeline_create_info, Device::alloc_callbacks(), &v.pipeline));
+    return v;
 }
-void RasterShader::_create_render_pass(
+VkRenderPass RasterShader::create_render_pass(
     Device *device,
     luisa::span<Argument::Texture const> rtv_textures,
-    Argument::Texture dsv_textures,
-    VkRenderPass &render_pass) {
+    Argument::Texture dsv_textures) {
     VkAttachmentLoadOp color_attachment_load_op = VK_ATTACHMENT_LOAD_OP_CLEAR;
     VkAttachmentStoreOp color_attachment_store_op = VK_ATTACHMENT_STORE_OP_STORE;
     VkImageLayout color_attachment_image_layout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -429,6 +429,8 @@ void RasterShader::_create_render_pass(
     render_pass_create_info.pSubpasses = &subpass_description;
     render_pass_create_info.dependencyCount = static_cast<uint32_t>(dependencies.size());
     render_pass_create_info.pDependencies = dependencies.data();
+    VkRenderPass render_pass;
     VK_CHECK_RESULT(vkCreateRenderPass(device->logic_device(), &render_pass_create_info, Device::alloc_callbacks(), &render_pass));
+    return render_pass;
 }
 }// namespace lc::vk
