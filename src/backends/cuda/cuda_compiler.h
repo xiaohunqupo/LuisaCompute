@@ -4,6 +4,7 @@
 
 #include <luisa/core/dynamic_module.h>
 #include <luisa/core/stl/lru_cache.h>
+#include <luisa/core/string_scratch.h>
 #include <luisa/ast/function.h>
 #include <luisa/runtime/context.h>
 
@@ -26,7 +27,8 @@ public:
 
 private:
     const CUDADevice *_device;
-    luisa::string _device_library;
+    luisa::move_only_function<void(StringScratch &)> _get_device_library;
+    luisa::move_only_function<void(StringScratch &, Function)> _get_device_optional_library;
     mutable luisa::unique_ptr<Cache> _cache;
     luisa::string _nvrtc_path;
     uint32_t _nvrtc_version;
@@ -38,7 +40,8 @@ public:
     CUDACompiler &operator=(CUDACompiler &&) noexcept = default;
     CUDACompiler &operator=(const CUDACompiler &) noexcept = delete;
     [[nodiscard]] auto nvrtc_version() const noexcept { return _nvrtc_version; }
-    [[nodiscard]] auto device_library() const noexcept { return luisa::string_view{_device_library}; }
+    [[nodiscard]] auto const &get_device_library() const noexcept { return _get_device_library; }
+    [[nodiscard]] auto const &get_device_optional_library() const noexcept { return _get_device_optional_library; }
     [[nodiscard]] luisa::vector<std::byte> compile(const luisa::string &src, const luisa::string &src_filename,
                                                    luisa::span<const char *const> options,
                                                    const CUDAShaderMetadata *metadata = nullptr) const noexcept;

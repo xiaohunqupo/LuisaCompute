@@ -2,7 +2,11 @@
 
 #include <luisa/runtime/rhi/command.h>
 #include <luisa/core/stl/functional.h>
+#ifdef LUISA_DX_SDK
+#include <LCAgilitySDK/d3d12.h>
+#else
 #include <d3d12.h>
+#endif
 #include <dxgi1_2.h>
 #include <luisa/backends/ext/registry.h>
 #include <luisa/core/stl/optional.h>
