@@ -3,12 +3,14 @@
 #include <luisa/runtime/raster/raster_state.h>
 namespace lc::vk {
 class RasterShader : public Shader {
-    vstd::vector<uint> _vertex_spv_code;
-    vstd::vector<uint> _pixel_spv_code;
+public:
     struct Pipeline {
         VkPipeline pipeline{};
         VkRenderPass render_pass{};
     };
+private:
+    vstd::vector<uint> _vertex_spv_code;
+    vstd::vector<uint> _pixel_spv_code;
     struct BinaryBlob {
         std::byte *_ptr;
         size_t _size;
@@ -55,11 +57,6 @@ class RasterShader : public Shader {
         MeshFormat const &mesh_format,
         RasterState const &state,
         VkPipelineVertexInputStateCreateInfo &vertex_input_create_info);
-    static void _create_render_pass(
-        Device *device,
-        luisa::span<Argument::Texture const> rtv_textures,
-        Argument::Texture dsv_textures,
-        VkRenderPass &render_pass);
 public:
     RasterShader(
         Device *device,
@@ -67,16 +64,20 @@ public:
         vstd::vector<SavedArgument> &&saved_arguments,
         vstd::span<hlsl::Property const> binds,
         vstd::span<std::byte const> cache_code,
-        vstd::vector<uint>&& vertex_spv_code,
-        vstd::vector<uint>&& pixel_spv_code,
+        vstd::vector<uint> &&vertex_spv_code,
+        vstd::vector<uint> &&pixel_spv_code,
         bool use_tex2d_bindless,
         bool use_tex3d_bindless,
         bool use_buffer_bindless);
-    void create_pipeline(
+    Pipeline create_pipeline(
         luisa::span<Argument::Texture const> rtv_textures,
         Argument::Texture dsv_textures,
         MeshFormat const &mesh_format,
         RasterState const &state);
+    static VkRenderPass create_render_pass(
+        Device *device,
+        luisa::span<Argument::Texture const> rtv_textures,
+        Argument::Texture dsv_textures);
     ~RasterShader();
 };
 }// namespace lc::vk

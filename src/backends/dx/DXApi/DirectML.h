@@ -9,7 +9,7 @@
 #elif _GAMING_XBOX_XBOXONE
 #include "d3d12_x.h"
 #else
-#include "d3d12.h"
+#include <LCAgilitySDK/d3d12.h>
 #endif
 
 #if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_APP | WINAPI_PARTITION_GAMES)

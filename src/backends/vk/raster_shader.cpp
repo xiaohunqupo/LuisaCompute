@@ -54,16 +54,16 @@ auto RasterShader::_make_pipeline_key(
         luisa::fixed_vector<uint32_t, 16> offsets;
         offsets.reserve(mesh_format.vertex_stream_count());
         vertex_input_create_info.pVertexAttributeDescriptions = (const VkVertexInputAttributeDescription *)ptr;
+        uint32_t location = 0;
         for (auto stream_idx : vstd::range(mesh_format.vertex_stream_count())) {
-            uint32_t binding = 0;
             uint32_t offset = 0;
             for (auto &&attrs : mesh_format.attributes(stream_idx)) {
                 VkVertexInputAttributeDescription desc{
-                    .location = (uint32_t)stream_idx,
-                    .binding = binding,
+                    .location = location,
+                    .binding = (uint32_t)stream_idx,
                     .format = Texture::to_vk_format(attrs.format),
                     .offset = offset};
-                ++binding;
+                ++location;
                 offset += pixel_format_size(attrs.format, uint3(1));
                 std::memcpy(ptr, &desc, sizeof(desc));
                 ptr += sizeof(desc);
@@ -84,11 +84,11 @@ auto RasterShader::_make_pipeline_key(
     }
     return result;
 }
-void RasterShader::create_pipeline(
+auto RasterShader::create_pipeline(
     luisa::span<Argument::Texture const> rtv_textures,
     Argument::Texture dsv_textures,
     MeshFormat const &mesh_format,
-    RasterState const &state) {
+    RasterState const &state) -> Pipeline {
     VkPrimitiveTopology topo;
     VkCullModeFlags cull_mode;
     VkPipelineVertexInputStateCreateInfo vertex_input;
@@ -97,7 +97,8 @@ void RasterShader::create_pipeline(
         state,
         vertex_input);
     auto iter = _pipelines.try_emplace(std::move(binary_blob));
-    if (!iter.second) return;
+    auto &v = iter.first.value();
+    if (!iter.second) return v;
     switch (state.cull_mode) {
         case CullMode::None:
             cull_mode = VK_CULL_MODE_NONE;
@@ -321,8 +322,7 @@ void RasterShader::create_pipeline(
             .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
             .module = pixel_shader_module,
             .pName = "main"}};
-    auto &v = iter.first.value();
-    _create_render_pass(device(), rtv_textures, dsv_textures, v.render_pass);
+    v.render_pass = create_render_pass(device(), rtv_textures, dsv_textures);
     VkGraphicsPipelineCreateInfo graphics_pipeline_create_info{
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
         .stageCount = vstd::array_count(shader_stages),
@@ -343,13 +343,13 @@ void RasterShader::create_pipeline(
         .basePipelineIndex = ~0};
 
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(device()->logic_device(), _pipe_cache, 1, &graphics_pipeline_create_info, Device::alloc_callbacks(), &v.pipeline));
+    return v;
 }
-void RasterShader::_create_render_pass(
+VkRenderPass RasterShader::create_render_pass(
     Device *device,
     luisa::span<Argument::Texture const> rtv_textures,
-    Argument::Texture dsv_textures,
-    VkRenderPass &render_pass) {
-    VkAttachmentLoadOp color_attachment_load_op = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    Argument::Texture dsv_textures) {
+    VkAttachmentLoadOp color_attachment_load_op = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     VkAttachmentStoreOp color_attachment_store_op = VK_ATTACHMENT_STORE_OP_STORE;
     VkImageLayout color_attachment_image_layout = VK_IMAGE_LAYOUT_UNDEFINED;
 
@@ -372,26 +372,26 @@ void RasterShader::_create_render_pass(
         a.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
         a.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
         a.initialLayout = color_attachment_image_layout;
-        a.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        a.finalLayout = VK_IMAGE_LAYOUT_GENERAL;
         auto &color_reference = color_references.emplace_back();
         color_reference.attachment = attach_idx;
         color_reference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     }
     // DSV
-    {
+    if (dsv_textures.handle != invalid_resource_handle) {
         auto attach_idx = attachments.size();
         auto &a = attachments.emplace_back();
         auto tex = reinterpret_cast<Texture *>(dsv_textures.handle);
         a.format = Texture::to_vk_format(tex->format());
         a.samples = VK_SAMPLE_COUNT_1_BIT;
-        a.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        a.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        a.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        a.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        a.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        a.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        a.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+        a.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        a.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+        a.stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
+        a.initialLayout = VK_IMAGE_LAYOUT_GENERAL;
+        a.finalLayout = VK_IMAGE_LAYOUT_GENERAL;
         depth_reference.attachment = attach_idx;
-        depth_reference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        depth_reference.layout = a.finalLayout;
     }
     VkSubpassDescription subpass_description = {};
     subpass_description.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
@@ -429,6 +429,8 @@ void RasterShader::_create_render_pass(
     render_pass_create_info.pSubpasses = &subpass_description;
     render_pass_create_info.dependencyCount = static_cast<uint32_t>(dependencies.size());
     render_pass_create_info.pDependencies = dependencies.data();
+    VkRenderPass render_pass;
     VK_CHECK_RESULT(vkCreateRenderPass(device->logic_device(), &render_pass_create_info, Device::alloc_callbacks(), &render_pass));
+    return render_pass;
 }
 }// namespace lc::vk

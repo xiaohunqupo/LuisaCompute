@@ -228,7 +228,11 @@ void CodegenUtility::GetVariableName(Variable::Tag type, uint id, vstd::StringBu
             break;
         case Variable::Tag::OBJECT_ID:
             LUISA_ASSERT(opt->isRaster, "object id only allowed in raster shader");
-            str << "obj_id"sv;
+            if (opt->isSpirv)
+                str << "obj_id.v"sv;
+            else
+                str << "obj_id"sv;
+
             break;
         case Variable::Tag::WARP_LANE_COUNT:
             if (opt->funcType == CodegenStackData::FuncType::Callable) {
@@ -2673,9 +2677,13 @@ CodegenResult CodegenUtility::RasterCodegen(
         size_t memberIdx = 0;
         bool pos = false;
         for (auto &&i : v2pType->members()) {
+            bool is_sv_pos = v2pType->member_attributes()[memberIdx].key == "position"sv;
+            if (!is_sv_pos && opt->isSpirv) {
+                codegenData << luisa::format("[[vk::location({})]] ", memberIdx - 1);
+            }
             GetTypeName(*i, codegenData, Usage::READ);
             codegenData << " v"sv << vstd::to_string(memberIdx);
-            if (v2pType->member_attributes()[memberIdx].key == "position"sv) {
+            if (is_sv_pos) {
                 if (pos) [[unlikely]] {
                     LUISA_ERROR("Vertex-to-pixel structure can only have one position.");
                 }
@@ -2697,17 +2705,12 @@ CodegenResult CodegenUtility::RasterCodegen(
     }
     uint bind_count = 2;
     if (isSpirV) {
-        if (opt->noRegister) {
-            codegenData << R"(};
-cbuffer CB{
-uint obj_id;}
+        codegenData << R"(};
+struct _CBType{
+uint v;
+};
+[[vk::push_constant]] ConstantBuffer<_CBType> obj_id:register(b0);
 )"sv;
-        } else {
-            codegenData << R"(};
-cbuffer CB:register(b1){
-uint obj_id;}
-)"sv;
-        }
         bind_count += 2;
     } else {
         if (opt->noRegister) {
@@ -2752,6 +2755,9 @@ uint obj_id:register(b0);
 
             if (iter->second.second && iter->second.second != member) [[unlikely]] {
                 LUISA_ERROR("Attribute {} type {} mismatch with {}", attr.key, iter->second.second->description(), member->description());
+            }
+            if (opt->isSpirv) {
+                codegenData << luisa::format("[[vk::location({})]] ", i);
             }
             GetTypeName(*member, codegenData, Usage::READ);
             codegenData

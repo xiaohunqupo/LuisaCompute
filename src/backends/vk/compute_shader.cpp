@@ -7,7 +7,8 @@
 #include <luisa/core/logging.h>
 #include "../common/hlsl/shader_compiler.h"
 
-static const bool PRINT_CODE = ([] {
+namespace lc::vk {
+static const bool COMPUTE_PRINT_CODE = ([] {
     // read env LUISA_DUMP_SOURCE
     auto env = std::getenv("LUISA_DUMP_SOURCE");
     if (env == nullptr) {
@@ -16,7 +17,6 @@ static const bool PRINT_CODE = ([] {
     return std::string_view{env} == "1";
 })();
 
-namespace lc::vk {
 bool ComputeShader::verify_type_md5(luisa::span<const Type *const> arg_types, vstd::MD5 md5) {
     return hlsl::CodegenUtility::GetTypeMD5(arg_types) == md5;
 }
@@ -102,7 +102,7 @@ ComputeShader *ComputeShader::compile(
                 md5 = vstd::MD5({reinterpret_cast<uint8_t const *>(str.result.data() + str.immutableHeaderSize), str.result.size() - str.immutableHeaderSize});
             }
         }
-        if (PRINT_CODE) {
+        if (COMPUTE_PRINT_CODE) {
             auto f = fopen("hlsl_output.hlsl", "ab");
             fwrite(str.result.data(), str.result.size(), 1, f);
             fclose(f);

@@ -90,6 +90,7 @@ public:
         CopyAccelDst,
         DepthRead,
         DepthWrite,
+        DepthClear,
         IndirectArgs,
         VertexRead,
         IndexRead,
