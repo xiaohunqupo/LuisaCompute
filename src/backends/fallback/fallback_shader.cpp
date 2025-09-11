@@ -15,6 +15,7 @@
 #include <llvm/Analysis/LoopAnalysisManager.h>
 #include <llvm/Passes/PassBuilder.h>
 #include <llvm/IR/LegacyPassManager.h>
+#include <llvm/IR/Operator.h>
 
 #include <luisa/core/stl.h>
 #include <luisa/core/logging.h>

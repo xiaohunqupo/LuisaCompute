@@ -3185,7 +3185,7 @@ private:
             case xir::DerivedInstructionTag::AUTODIFF_SCOPE: LUISA_ERROR_WITH_LOCATION("Unexpected autodiff_scope instruction. Run autodiff pass first.");
             case xir::DerivedInstructionTag::AUTODIFF_INTRINSIC: LUISA_ERROR_WITH_LOCATION("Unexpected autodiff_intrinsic instruction. Run autodiff pass first.");
             case xir::DerivedInstructionTag::CLOCK: {
-                auto call = b.CreateIntrinsic(llvm::Intrinsic::readcyclecounter, {}, {});
+                auto call = b.CreateIntrinsic(llvm::Intrinsic::readcyclecounter, {}, {}, {}, "clock");
                 auto llvm_result_type = _translate_type(inst->type(), true);
                 return b.CreateZExtOrTrunc(call, llvm_result_type);
             }
