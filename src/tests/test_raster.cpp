@@ -60,7 +60,7 @@ int main(int argc, char *argv[]) {
     Stream stream = device.create_stream(StreamTag::GRAPHICS);
     static constexpr uint width = 1024;
     static constexpr uint height = 1024;
-    auto shader = device.load_raster_shader<float, float>("test.bin");
+    auto shader = device.load_raster_shader<float, float>(luisa::format("test_{}.bin", argv[1]));
 
     DepthBuffer depth_buffer = device.create_depth_buffer(DepthFormat::D32, uint2(width, height));
     auto clear_shader = device.compile(clear_kernel);

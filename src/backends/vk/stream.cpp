@@ -1807,14 +1807,12 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                                 VK_CHECK_RESULT(vkCreateImageView(device()->logic_device(), &imgview_create_info, Device::alloc_callbacks(), &img_view));
                             };
                             uint2 resolution;
-                            vstd::fixed_vector<VkClearValue, 9> clear_values;
                             for (auto &i : cmd->rtv_texs()) {
                                 auto &img_view = _state->img_views.emplace_back();
                                 auto tex = reinterpret_cast<Texture *>(i.handle);
                                 emplace_img_view(img_view, tex, i.level);
                                 VkClearValue clear_value;
                                 std::memset(&clear_value, 0, sizeof(VkClearValue));
-                                clear_values.emplace_back(clear_value);
                             }
                             if (!cmd->rtv_texs().empty()) {
                                 auto &&i = cmd->rtv_texs()[0];
@@ -1829,7 +1827,6 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                                 VkClearValue clear_value;
                                 std::memset(&clear_value, 0, sizeof(VkClearValue));
                                 clear_value.depthStencil.depth = 0.f;// TODO: may set depth_buffer default value
-                                clear_values.emplace_back(clear_value);
                             }
 
                             VkFramebufferCreateInfo framebuffer_create_info{
@@ -1855,6 +1852,69 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                                 .clearValueCount = 0,
                                 .pClearValues = nullptr};
                             vkCmdBeginRenderPass(_cmdbuffer, &begin_pass_info, VK_SUBPASS_CONTENTS_INLINE);
+                            auto &&cmd_vp = cmd->viewport();
+                            VkViewport viewport{};
+                            viewport.x = static_cast<float>(cmd_vp.start.x);
+                            viewport.y = static_cast<float>(cmd_vp.start.y);
+                            viewport.width = std::max(1.f, static_cast<float>(cmd_vp.size.x));
+                            viewport.height = std::max(1.f, static_cast<float>(cmd_vp.size.y));
+                            viewport.minDepth = 0.0f;
+                            viewport.maxDepth = 1.0f;
+                            vkCmdSetViewport(_cmdbuffer, 0, 1, &viewport);
+
+                            VkRect2D scissor{};
+                            scissor.offset = {(int)cmd_vp.start.x, (int)cmd_vp.start.y};
+                            scissor.extent = {cmd_vp.size.x, cmd_vp.size.y};
+                            vkCmdSetScissor(_cmdbuffer, 0, 1, &scissor);
+                            vstd::fixed_vector<VkBuffer, 4> vertex_buffers;
+                            vstd::fixed_vector<VkDeviceSize, 4> vertex_buffer_offsets;
+                            for (auto &mesh : cmd->scene()) {
+                                auto vb = mesh.vertex_buffers();
+                                vertex_buffers.clear();
+                                vertex_buffer_offsets.clear();
+                                vertex_buffers.reserve(vb.size());
+                                vertex_buffer_offsets.reserve(vb.size());
+                                for (auto &i : vb) {
+                                    vertex_buffers.emplace_back(reinterpret_cast<Buffer *>(i.handle())->vk_buffer());
+                                    vertex_buffer_offsets.emplace_back(i.offset());
+                                }
+                                vkCmdBindVertexBuffers(_cmdbuffer, 0, vb.size(), vertex_buffers.data(), vertex_buffer_offsets.data());
+                                auto before_draw = [&]() {
+                                    uint value = mesh.object_id();
+                                    vkCmdPushConstants(
+                                        _cmdbuffer,
+                                        shader->pipeline_layout(),
+                                        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                                        0,
+                                        4,
+                                        &value);
+                                };
+                                luisa::visit([&]<typename T>(T const &t) {
+                                    // Draw
+                                    if constexpr (std::is_integral_v<T>) {
+                                        before_draw();
+                                        vkCmdDraw(
+                                            _cmdbuffer,
+                                            t,
+                                            mesh.instance_count(),
+                                            mesh.vertex_offset(),
+                                            0);
+                                    } else {
+                                        auto buffer = reinterpret_cast<Buffer *>(t.handle());
+                                        vkCmdBindIndexBuffer(_cmdbuffer, buffer->vk_buffer(), t.offset_bytes(), VK_INDEX_TYPE_UINT32);
+                                        before_draw();
+                                        vkCmdDrawIndexed(
+                                            _cmdbuffer,
+                                            t.size_bytes() / sizeof(uint),
+                                            mesh.instance_count(),
+                                            0,
+                                            mesh.vertex_offset(),
+                                            0);
+                                    }
+                                    // Draw indexed
+                                },
+                                             mesh.index());
+                            }
                             vkCmdEndRenderPass(_cmdbuffer);
                             _state->_dispose_pool.emplace_back(fb, [](Stream *stream, CommandBufferState *state, void *ptr) {
                                 vkDestroyFramebuffer(
