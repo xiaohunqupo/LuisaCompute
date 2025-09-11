@@ -344,8 +344,8 @@ public:
         ACCEL,
 
         COOPERATIVE_VECTOR,
-        COOPERATIVE_VECTOR_REF,// should be uint32 for backend, only for meta data
-        COOPERATIVE_MATRIX_REF,// should be uint32 for backend, only for meta data
+        COOPERATIVE_VECTOR_REF,// should be uint32 for backend, only for metadata
+        COOPERATIVE_MATRIX_REF,// should be uint32 for backend, only for metadata
         CUSTOM
     };
 

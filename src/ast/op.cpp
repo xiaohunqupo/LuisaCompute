@@ -129,20 +129,22 @@ LC_AST_API TypePromotion promote_types(BinaryOp op, const Type *lhs, const Type 
             .rhs = v,
             .result = v};
 }
+
 LC_AST_API void check_builtin_call_valid(CallOp op, const Type *return_type, luisa::span<const Expression *const> args) noexcept {
     switch (op) {
         case CallOp::RAY_TRACING_TRACE_CLOSEST:
+        case CallOp::RAY_TRACING_TRACE_ANY:
         case CallOp::RAY_TRACING_QUERY_ALL:
         case CallOp::RAY_TRACING_QUERY_ANY:
-        case CallOp::RAY_TRACING_TRACE_ANY:
         case CallOp::RAY_TRACING_TRACE_CLOSEST_MOTION_BLUR:
         case CallOp::RAY_TRACING_TRACE_ANY_MOTION_BLUR:
         case CallOp::RAY_TRACING_QUERY_ALL_MOTION_BLUR:
         case CallOp::RAY_TRACING_QUERY_ANY_MOTION_BLUR: {
-            if (!(luisa::to_underlying(args[0]->usage()) & luisa::to_underlying(Usage::WRITE)) == 0) [[unlikely]] {
+            if ((luisa::to_underlying(args[0]->usage()) & luisa::to_underlying(Usage::WRITE)) != 0) [[unlikely]] {
                 LUISA_ERROR("Accel must not be writable when tracing.");
             }
-        } break;
+            break;
+        }
         case CallOp::COOPERATIVE_OUTER_PRODUCT_ACCUMULATE: {
             if (!(return_type == Type::of<void>() &&
                   args.size() == 4 &&
@@ -158,21 +160,23 @@ LC_AST_API void check_builtin_call_valid(CallOp op, const Type *return_type, lui
                   args[3]->type()->dimension() == matrix_dimension.y)) [[unlikely]] {
                 LUISA_ERROR("Cooperative-Outer-Product-Accumulate call dimension mismatch.");
             }
-        } break;
+            break;
+        }
         case CallOp::COOPERATIVE_VECTOR_ACCUMULATE: {
             if (!(return_type == Type::of<void>() &&
                   args.size() == 3 &&
                   args[0]->type()->is_buffer() &&
                   args[1]->type()->is_cooperative_vector_ref() &&
                   args[2]->type()->is_cooperative_vector())) [[unlikely]] {
-                LUISA_ERROR("Cooperative-Vector-Accumulate call argument type mistmatch.");
+                LUISA_ERROR("Cooperative-Vector-Accumulate call argument type mismatch.");
             }
-            if (!(args[1]->type()->dimension() == args[1]->type()->dimension())) [[unlikely]] {
+            if (args[1]->type()->dimension() != args[2]->type()->dimension()) [[unlikely]] {
                 LUISA_ERROR("Cooperative-Vector-Accumulate call dimension mismatch.");
             }
-        } break;
+            break;
+        }
         case CallOp::COOPERATIVE_MUL_ADD: {
-            if (!(luisa::to_underlying(args[0]->usage()) & luisa::to_underlying(Usage::WRITE)) == 0 &&
+            if ((luisa::to_underlying(args[0]->usage()) & luisa::to_underlying(Usage::WRITE)) != 0 &&
                 (luisa::to_underlying(args[2]->usage()) & luisa::to_underlying(Usage::WRITE)) == 0) [[unlikely]] {
                 LUISA_ERROR("Matrix-buffer and bias-buffer must not be writable.");
             }
@@ -193,7 +197,8 @@ LC_AST_API void check_builtin_call_valid(CallOp op, const Type *return_type, lui
                   )) [[unlikely]] {
                 LUISA_ERROR("Cooperative-Mul-Add call dimension mismatch.");
             }
-        } break;
+            break;
+        }
         case CallOp::TYPED_BINDLESS_COOPERATIVE_MUL_ADD:
         case CallOp::BINDLESS_COOPERATIVE_MUL_ADD: {
             if (!(return_type->is_cooperative_vector() &&
@@ -214,9 +219,10 @@ LC_AST_API void check_builtin_call_valid(CallOp op, const Type *return_type, lui
                   )) [[unlikely]] {
                 LUISA_ERROR("Cooperative-Mul-Add call dimension mismatch.");
             }
-        } break;
+            break;
+        }
         case CallOp::COOPERATIVE_MUL: {
-            if (!((luisa::to_underlying(args[0]->usage()) & luisa::to_underlying(Usage::WRITE)) == 0)) [[unlikely]] {
+            if ((luisa::to_underlying(args[0]->usage()) & luisa::to_underlying(Usage::WRITE)) != 0) [[unlikely]] {
                 LUISA_ERROR("Matrix-buffer must not be writable.");
             }
             if (!(return_type->is_cooperative_vector() &&
@@ -252,6 +258,8 @@ LC_AST_API void check_builtin_call_valid(CallOp op, const Type *return_type, lui
             }
             break;
         }
+        default: break;
     }
 }
+
 }// namespace luisa::compute
