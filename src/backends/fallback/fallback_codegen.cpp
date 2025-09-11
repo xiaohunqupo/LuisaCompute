@@ -2908,7 +2908,9 @@ private:
         llvm_print_func->setDoesNotFreeMemory();
         for (auto &&llvm_print_arg : llvm_print_func->args()) {
             if (llvm_print_arg.getType()->isPointerTy()) {
+#if LLVM_VERSION_MAJOR < 21
                 llvm_print_arg.addAttr(llvm::Attribute::NoCapture);
+#endif
                 llvm_print_arg.addAttr(llvm::Attribute::NoAlias);
                 llvm_print_arg.addAttr(llvm::Attribute::ReadOnly);
                 llvm_print_arg.addAttr(llvm::Attribute::NoUndef);
