@@ -2,8 +2,9 @@
 
 #include <luisa/core/logging.h>
 #include <luisa/core/stl/unordered_map.h>
-#include <luisa/ast/op.h>
+#include <luisa/ast/type_registry.h>
 #include <luisa/ast/expression.h>
+#include <luisa/ast/op.h>
 
 namespace luisa::compute {
 
