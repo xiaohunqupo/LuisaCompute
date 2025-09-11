@@ -200,9 +200,6 @@ if (LUISA_COMPUTE_USE_SYSTEM_STL)
 else ()
     target_link_libraries(luisa-compute-ext-marl-interface INTERFACE EASTL-interface)
 endif ()
-if (APPLE) # LLVM 21 on macOS has some regressions
-    target_compile_definitions(luisa-compute-ext-marl-interface INTERFACE _LIBCPP_INTRODUCED_IN_LLVM_21=0)
-endif ()
 target_compile_definitions(luisa-compute-ext-marl PRIVATE MARL_BUILDING_DLL=1)
 target_link_libraries(luisa-compute-ext-marl PRIVATE luisa-compute-ext-marl-interface)
 
