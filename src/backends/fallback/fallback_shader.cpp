@@ -286,7 +286,11 @@ FallbackShader::FallbackShader(FallbackDevice *device, const ShaderOption &optio
     }
 
     llvm_module->setDataLayout(_target_machine->createDataLayout());
+#if LLVM_VERSION_MAJOR >= 21
+    llvm_module->setTargetTriple(_target_machine->getTargetTriple());
+#else
     llvm_module->setTargetTriple(_target_machine->getTargetTriple().str());
+#endif
 
     // add fast-math flags to instructions
     for (auto &&f : *llvm_module) {
