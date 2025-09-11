@@ -36,6 +36,11 @@ if (LUISA_COMPUTE_ENABLE_GUI)
         target_compile_definitions(luisa-compute-gui PRIVATE
                 "IMGUI_API=__declspec(dllexport)"
                 "IMGUI_IMPL_API=__declspec(dllexport)")
+    elseif (UNIX AND NOT APPLE)
+        find_package(X11 QUIET)
+        if (X11_FOUND)
+            target_link_libraries(luisa-compute-gui PRIVATE X11::X11)
+        endif ()
     endif ()
     set_target_properties(luisa-compute-gui PROPERTIES
             UNITY_BUILD ${LUISA_COMPUTE_ENABLE_UNITY_BUILD}
