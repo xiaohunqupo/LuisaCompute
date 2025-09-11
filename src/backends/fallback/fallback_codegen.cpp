@@ -2379,7 +2379,11 @@ private:
 #endif
             }
             case xir::ArithmeticOp::ATAN2: {
+#if LLVM_VERSION_MAJOR >= 20
+                return _translate_binary_fp_math_operation(current, b, inst->operand(0), inst->operand(1), llvm::Intrinsic::atan2);
+#else
                 return _translate_binary_fp_math_operation(current, b, inst->operand(0), inst->operand(1), "atan2");
+#endif
             }
             case xir::ArithmeticOp::ATANH: {
                 // atanh(x) = 0.5 * log((1 + x) / (1 - x))
@@ -3321,7 +3325,8 @@ private:
         {
             auto i = 0u;
             for (auto arg : f->arguments()) {
-                auto arg_type = arg->type();LUISA_ASSERT(_get_type_alignment(arg_type) <= param_alignment, "Invalid argument alignment.");
+                auto arg_type = arg->type();
+                LUISA_ASSERT(_get_type_alignment(arg_type) <= param_alignment, "Invalid argument alignment.");
                 auto param_offset = luisa::align(param_size_accum, param_alignment);
                 // pad if necessary
                 if (param_offset > param_size_accum) {
