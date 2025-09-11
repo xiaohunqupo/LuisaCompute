@@ -585,6 +585,18 @@ void Swapchain::create_swapchain(
                 }
             }
             for (auto format : formats) {
+                if (format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR && format.format == VK_FORMAT_A2B10G10R10_UNORM_PACK32) {
+                    return format;
+                }
+            }
+            for (auto format : formats) {
+                if (format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR &&
+                    (format.format == VK_FORMAT_R8G8B8A8_UNORM ||
+                     format.format == VK_FORMAT_B8G8R8A8_UNORM)) {
+                    return format;
+                }
+            }
+            for (auto format : formats) {
                 if (format.format == VK_FORMAT_R16G16B16A16_SFLOAT) {
                     return format;
                 }
