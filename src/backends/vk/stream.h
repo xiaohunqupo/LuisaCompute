@@ -149,7 +149,7 @@ class Stream : public Resource {
     Event _evt;
     VkQueue _queue;
     std::atomic_bool _enabled{true};
-    luisa::spin_mutex _dispatch_mtx;
+    std::mutex _dispatch_mtx;
     luisa::spin_mutex _mtx;
     vstd::LockFreeArrayQueue<CommandBuffer> _cmdbuffers;
     vstd::vector<VkDescriptorSet> desc_sets;
