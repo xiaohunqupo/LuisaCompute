@@ -32,8 +32,10 @@ Shader::Shader(
         }
     }();
     vstd::vector<vstd::vector<VkDescriptorSetLayoutBinding>> bindings;
+    vstd::fixed_vector<bool, 4> is_bindless;
     for (auto &&i : binds) {
         bindings.resize(std::max<size_t>(bindings.size(), i.space_index + 1));
+        is_bindless.resize(bindings.size());
         auto &vec = bindings[i.space_index];
         vec.resize(std::max<size_t>(vec.size(), i.register_index + 1));
         auto &v = vec[i.register_index];
@@ -68,18 +70,29 @@ Shader::Shader(
                 assert(false);
                 break;
         }
+        is_bindless[i.space_index] = i.array_size == ~0u;
         v.descriptorCount = i.array_size == ~0u ? 262144u : i.array_size;
         v.stageFlags = (v.pImmutableSamplers != nullptr || i.array_size == ~0u) ? VK_SHADER_STAGE_ALL : stage_bits;
     }
     vstd::push_back_all(_binds, binds);
     _desc_set_layout.reserve(bindings.size());
+    auto is_bindless_iter = is_bindless.begin();
+    VkDescriptorBindingFlags desc_binding_flag =
+        VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
+    VkDescriptorSetLayoutBindingFlagsCreateInfo bindless_binding_flags{
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
+        .bindingCount = 1,
+        .pBindingFlags = &desc_binding_flag};
     for (auto &&i : bindings) {
         VkDescriptorSetLayoutCreateInfo descriptorLayout{
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            .pNext = (*is_bindless_iter) ? &bindless_binding_flags : nullptr,
+            .flags = (*is_bindless_iter) ? (VkDescriptorSetLayoutCreateFlags)VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT : (VkDescriptorSetLayoutCreateFlags)0,
             .bindingCount = static_cast<uint>(i.size()),
             .pBindings = i.data()};
         auto &r = _desc_set_layout.emplace_back();
         VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device->logic_device(), &descriptorLayout, Device::alloc_callbacks(), &r));
+        ++is_bindless_iter;
     }
     VkPushConstantRange push_const_range{
         VkShaderStageFlags(stage_bits),

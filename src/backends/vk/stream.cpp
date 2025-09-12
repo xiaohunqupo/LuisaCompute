@@ -1941,6 +1941,18 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                                     static_cast<VkFramebuffer>(ptr),
                                     Device::alloc_callbacks());
                             });
+                            for (auto &i : cmd->rtv_texs()) {
+                                auto tex = reinterpret_cast<Texture const *>(i.handle);
+                                resource_barrier->force_refresh_layout(
+                                    tex, i.level,
+                                    VK_IMAGE_LAYOUT_GENERAL);
+                            }
+                            if (cmd->dsv_tex().handle != invalid_resource_handle) {
+                                auto tex = reinterpret_cast<Texture const *>(cmd->dsv_tex().handle);
+                                resource_barrier->force_refresh_layout(
+                                    tex, 0,
+                                    VK_IMAGE_LAYOUT_GENERAL);
+                            }
 
                         } break;
                         case to_underlying(CustomCommandUUID::CUSTOM_DISPATCH): {

@@ -450,7 +450,7 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
     _enable_device_exts.emplace_back(VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME);
     if (!fallback) {
         // _enable_device_exts.emplace_back(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
-        // _enable_device_exts.emplace_back(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
+        _enable_device_exts.emplace_back(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
         _enable_device_exts.emplace_back(VK_KHR_RAY_QUERY_EXTENSION_NAME);
         _enable_device_exts.emplace_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
         _enable_device_exts.emplace_back(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
@@ -464,18 +464,15 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
     VkPhysicalDeviceDescriptorIndexingFeatures enable_bindless_features{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES,
         .pNext = &device_buffer_feature,
-        // .shaderInputAttachmentArrayDynamicIndexing = VK_TRUE,
-        // .shaderUniformTexelBufferArrayDynamicIndexing = VK_TRUE,
-        // .shaderStorageTexelBufferArrayDynamicIndexing = VK_TRUE,
-        // .shaderUniformBufferArrayNonUniformIndexing = VK_TRUE,
         .shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
-        .descriptorBindingPartiallyBound = VK_TRUE,
-        // .shaderStorageBufferArrayNonUniformIndexing = VK_TRUE,
-        // .shaderStorageImageArrayNonUniformIndexing = VK_TRUE,
-        // .shaderInputAttachmentArrayNonUniformIndexing = VK_TRUE,
-        // .shaderUniformTexelBufferArrayNonUniformIndexing = VK_TRUE,
-        // .shaderStorageTexelBufferArrayNonUniformIndexing = VK_TRUE,
-        .runtimeDescriptorArray = VK_TRUE};
+        .shaderStorageImageArrayNonUniformIndexing = VK_TRUE,
+
+        .descriptorBindingSampledImageUpdateAfterBind = VK_TRUE,
+        .descriptorBindingStorageImageUpdateAfterBind = VK_TRUE,
+        .descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE,
+
+        .runtimeDescriptorArray = VK_TRUE,
+    };
 
     VkPhysicalDeviceRayQueryFeaturesKHR enable_rayquery_features{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR,
@@ -513,7 +510,12 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
     memcpy(_pso_header.pipelineCacheUUID, _vk_device->properties.pipelineCacheUUID, VK_UUID_SIZE);
     _allocator.create(*this);
     // bind desc_pool
-
+    VkDescriptorBindingFlags desc_binding_flag =
+        VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
+    VkDescriptorSetLayoutBindingFlagsCreateInfo bindless_binding_flags{
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
+        .bindingCount = 1,
+        .pBindingFlags = &desc_binding_flag};
     // bindless buffer desc_pool
     {
         buffer_heap_pool.full_size = 262144;
@@ -522,7 +524,7 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
         pool_size.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         VkDescriptorPoolCreateInfo createInfo{
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-            .flags = 0,
+            .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
             .maxSets = 1,
             .poolSizeCount = 1,
             .pPoolSizes = &pool_size};
@@ -535,6 +537,8 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
             nullptr};
         VkDescriptorSetLayoutCreateInfo descriptorLayout{
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            .pNext = &bindless_binding_flags,
+            .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
             .bindingCount = 1,
             .pBindings = &binding};
         VK_CHECK_RESULT(vkCreateDescriptorSetLayout(logic_device(), &descriptorLayout, alloc_callbacks(), &_bdls_buffer_set_layout));
@@ -553,7 +557,7 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
         pool_size.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
         VkDescriptorPoolCreateInfo createInfo{
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-            .flags = 0,
+            .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
             .maxSets = 1,
             .poolSizeCount = 1,
             .pPoolSizes = &pool_size};
@@ -566,6 +570,8 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
             nullptr};
         VkDescriptorSetLayoutCreateInfo descriptorLayout{
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            .pNext = &bindless_binding_flags,
+            .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
             .bindingCount = 1,
             .pBindings = &binding};
         VK_CHECK_RESULT(vkCreateDescriptorSetLayout(logic_device(), &descriptorLayout, alloc_callbacks(), &_bdls_tex2d_set_layout));
@@ -585,7 +591,7 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
         pool_size.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
         VkDescriptorPoolCreateInfo createInfo{
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-            .flags = 0,
+            .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
             .maxSets = 1,
             .poolSizeCount = 1,
             .pPoolSizes = &pool_size};
@@ -598,6 +604,8 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
             nullptr};
         VkDescriptorSetLayoutCreateInfo descriptorLayout{
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            .pNext = &bindless_binding_flags,
+            .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
             .bindingCount = 1,
             .pBindings = &binding};
         VK_CHECK_RESULT(vkCreateDescriptorSetLayout(logic_device(), &descriptorLayout, alloc_callbacks(), &_bdls_tex3d_set_layout));

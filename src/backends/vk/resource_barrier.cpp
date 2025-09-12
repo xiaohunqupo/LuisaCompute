@@ -206,6 +206,17 @@ void ResourceBarrier::record(
             }
         });
 }
+
+void ResourceBarrier::force_refresh_layout(
+    Resource const *res, uint level,
+    VkImageLayout before_layout) {
+    auto iter = frame_states.find(res);
+    if (!(iter && iter.value().layer_states.index() == 1)) return;
+    auto &v = iter.value();
+    auto &ranges = v.layer_states.get<1>();
+    LUISA_ASSERT(ranges.size() > level);
+    ranges[level].before_layout = before_layout;
+}
 ResourceBarrier::~ResourceBarrier() {
 }
 

@@ -118,6 +118,10 @@ public:
         VkPipelineStageFlagBits2 stage,
         VkAccessFlagBits2 access,
         VkImageLayout layout);
+    // only used after render pass
+    void force_refresh_layout(
+        Resource const *res, uint level,
+        VkImageLayout before_layout);
     void update_states(
         VkCommandBuffer cmd_buffer);
     void restore_states(VkCommandBuffer cmd_buffer);
