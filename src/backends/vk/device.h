@@ -33,6 +33,7 @@ class Device : public DeviceInterface, public vstd::IOperatorNewBase {
             }
         }
     };
+    luisa::spin_mutex _queue_mtx;
     std::mutex ext_mtx;
     vstd::unordered_map<vstd::string, Ext> exts;
     luisa::unique_ptr<VulkanDeviceConfigExt> _config_ext;
@@ -106,7 +107,7 @@ public:
     bool _external_graphics_queue : 1 {false};
     bool _external_compute_queue : 1 {false};
     bool _external_copy_queue : 1 {false};
-
+    auto &queue_mtx() { return _queue_mtx; }
     VulkanDeviceConfigExt *config_ext() const { return _config_ext.get(); }
     auto binary_io() const { return _binary_io; }
     auto sampler_set() const { return _sampler_set; }
