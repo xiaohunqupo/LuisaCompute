@@ -289,7 +289,22 @@ void FilterAccess(
                      VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT |
                      VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT |
                      VK_PIPELINE_STAGE_2_HOST_BIT);
-            layout = VK_IMAGE_LAYOUT_GENERAL;
+            switch (layout) {
+                case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+                case VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL:
+                case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
+                case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
+                case VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL:
+                case VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_STENCIL_READ_ONLY_OPTIMAL:
+                case VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL:
+                case VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL:
+                case VK_IMAGE_LAYOUT_STENCIL_ATTACHMENT_OPTIMAL:
+                case VK_IMAGE_LAYOUT_STENCIL_READ_ONLY_OPTIMAL:
+                case VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL:
+                case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:
+                    layout = VK_IMAGE_LAYOUT_GENERAL;
+                    break;
+            }
         } break;
     }
     const auto tex_read_sync = VK_PIPELINE_STAGE_2_COPY_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT | raster_stage;

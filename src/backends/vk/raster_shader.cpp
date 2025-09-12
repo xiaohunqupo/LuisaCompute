@@ -360,7 +360,8 @@ VkRenderPass RasterShader::create_render_pass(
     // }
     luisa::fixed_vector<VkAttachmentDescription, 9> attachments;
     luisa::fixed_vector<VkAttachmentReference, 8> color_references;
-    VkAttachmentReference depth_reference;
+    VkAttachmentReference depth_reference{};
+    VkAttachmentReference *depth_reference_ptr{};
     for (auto &i : rtv_textures) {
         auto attach_idx = attachments.size();
         auto &a = attachments.emplace_back();
@@ -392,12 +393,13 @@ VkRenderPass RasterShader::create_render_pass(
         a.finalLayout = VK_IMAGE_LAYOUT_GENERAL;
         depth_reference.attachment = attach_idx;
         depth_reference.layout = a.finalLayout;
+        depth_reference_ptr = &depth_reference;
     }
     VkSubpassDescription subpass_description = {};
     subpass_description.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass_description.colorAttachmentCount = color_references.size();
     subpass_description.pColorAttachments = color_references.data();
-    subpass_description.pDepthStencilAttachment = &depth_reference;
+    subpass_description.pDepthStencilAttachment = depth_reference_ptr;
     subpass_description.inputAttachmentCount = 0;
     subpass_description.pInputAttachments = nullptr;
     subpass_description.preserveAttachmentCount = 0;

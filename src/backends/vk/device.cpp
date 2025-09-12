@@ -280,7 +280,7 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
     uint device_idx = -1;
     if (configs) {
         if (configs->extension) {
-            _config_ext = luisa::unique_ptr<VulkanDeviceConfigExt>{reinterpret_cast<VulkanDeviceConfigExt *>(configs->extension.get())};
+            _config_ext = luisa::unique_ptr<VulkanDeviceConfigExt>{reinterpret_cast<VulkanDeviceConfigExt *>(configs->extension.release())};
         }
         headless = configs->headless;
         use_lmdb = configs->use_lmdb;

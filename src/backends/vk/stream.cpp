@@ -481,7 +481,9 @@ Stream::Stream(Device *device, StreamTag tag)
                   _mtx.lock();
                   auto p = _exec.pop();
                   _mtx.unlock();
-                  if (!p) break;
+                  if (!p) {
+                      break;
+                  }
                   p->visit(
                       [&]<typename T>(T &t) {
                           if constexpr (std::is_same_v<T, Callbacks>) {
@@ -547,6 +549,7 @@ void Stream::present(
     uint mip,
     Swapchain *swapchain,
     bool inqueue_limit) {
+    std::lock_guard lck{_dispatch_mtx};
     temp_desc.clear();
     if (inqueue_limit) {
         if (_evt.last_fence() > 2) {
@@ -635,6 +638,7 @@ void Stream::dispatch(
     luisa::vector<luisa::move_only_function<void()>> &&callbacks,
     vstd::span<const SwapchainPresent> presents,
     bool inqueue_limit) {
+    std::lock_guard lck{_dispatch_mtx};
     PresentCommand present_cmd;
     luisa::fixed_vector<VkSwapchainKHR, 1> vk_swapchains;
     temp_desc.clear();
@@ -740,6 +744,7 @@ void Stream::dispatch(
     _mtx.unlock();
 }
 void Stream::update_sparse_resources(luisa::vector<SparseUpdateTile> &&textures_update) noexcept {
+    std::lock_guard lck{_dispatch_mtx};
     temp_desc.clear();
     if (textures_update.empty()) [[unlikely]]
         return;
@@ -913,6 +918,7 @@ CommandBuffer::CommandBuffer(CommandBuffer &&rhs)
     rhs._cmdbuffer = nullptr;
 }
 void Stream::signal(Event *event, uint64_t value) {
+    std::lock_guard lck{_dispatch_mtx};
     event->signal(*this, value);
     _mtx.lock();
     _exec.push(SyncExt{event, value});
@@ -920,6 +926,7 @@ void Stream::signal(Event *event, uint64_t value) {
     _mtx.unlock();
 }
 void Stream::wait(Event *event, uint64_t value) {
+    std::lock_guard lck{_dispatch_mtx};
     event->wait(*this, value);
 }
 void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
@@ -1131,6 +1138,18 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                             auto cmd = static_cast<DrawRasterSceneCommand const *>(c);
                             auto shader = reinterpret_cast<RasterShader *>(cmd->handle());
                             preprocess_arguments(shader, cmd, true);
+                            for (auto &i : cmd->rtv_texs()) {
+                                auto tex = reinterpret_cast<Texture const *>(i.handle);
+                                resource_barrier->record(
+                                    TexView(tex, i.level),
+                                    ResourceBarrier::Usage::RenderTarget);
+                            }
+                            if (cmd->dsv_tex().handle != invalid_resource_handle) {
+                                auto tex = reinterpret_cast<Texture const *>(cmd->dsv_tex().handle);
+                                resource_barrier->record(
+                                    TexView(tex, 0),
+                                    ResourceBarrier::Usage::DepthWrite);
+                            }
                         } break;
                         case to_underlying(CustomCommandUUID::CUSTOM_DISPATCH): {
                             auto custom_cmd = static_cast<VKCustomCmd const *>(c);
