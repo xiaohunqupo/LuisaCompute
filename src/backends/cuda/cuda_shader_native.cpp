@@ -1,6 +1,5 @@
-#include <fstream>
-
 #include <luisa/runtime/rhi/command.h>
+
 #include "cuda_error.h"
 #include "cuda_device.h"
 #include "cuda_buffer.h"
