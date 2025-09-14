@@ -872,10 +872,10 @@ void Swapchain::present(
         image_index);
     // submit command buffer
     wait = _image_available_semaphores[_current_frame];
-    signal = _render_finished_semaphores[_current_frame];
+    signal = _render_finished_semaphores[image_index];
     // fence = _in_flight_fences[_current_frame];
     wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    present_wait = _render_finished_semaphores[_current_frame];
+    present_wait = _render_finished_semaphores[image_index];
     _current_frame = (_current_frame + 1u) % _swapchain_images.size();
 }
 }// namespace lc::vk
