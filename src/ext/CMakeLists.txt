@@ -85,7 +85,6 @@ endif ()
 # stb
 add_subdirectory(stb)
 target_link_libraries(luisa-compute-ext INTERFACE luisa-compute-ext-stb-interface)
-
 luisa_compute_install_extension(luisa-compute-ext-stb-interface HEADER_FILES
         stb/stb/stb_image.h
         stb/stb/stb_image_resize2.h
@@ -147,6 +146,7 @@ endif ()
 if (LUISA_COMPUTE_USE_SYSTEM_HALF)
     find_path(HALF_INCLUDE_DIRS "half.hpp")
     target_include_directories(luisa-compute-ext INTERFACE ${HALF_INCLUDE_DIRS})
+    target_compile_definitions(luisa-compute-ext INTERFACE LUISA_USE_SYSTEM_HALF=1)
 else ()
     add_library(half INTERFACE)
     target_include_directories(half INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/half/include>)
@@ -296,18 +296,12 @@ endif ()
 
 install(TARGETS luisa-compute-ext EXPORT LuisaComputeTargets)
 
-# for rust bindings
-# if (LUISA_COMPUTE_ENABLE_RUST)
-#     add_subdirectory(corrosion)
-# endif ()
-
-
 # volk
 if (LUISA_COMPUTE_ENABLE_VULKAN)
     if (LUISA_COMPUTE_USE_SYSTEM_VOLK)
         find_package(volk REQUIRED)
         target_link_libraries(luisa-compute-ext INTERFACE volk::volk)
-        target_compile_definitions(luisa-compute-ext INTERFACE LUISA_USE_SYSTEM_VULKAN=1)
+        target_compile_definitions(luisa-compute-ext INTERFACE LUISA_USE_SYSTEM_VOLK=1)
     else ()
         add_subdirectory(volk)
     endif ()

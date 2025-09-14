@@ -58,6 +58,7 @@ option(LUISA_COMPUTE_USE_SYSTEM_YYJSON "Use system yyjson instead of the bundled
 option(LUISA_COMPUTE_USE_SYSTEM_VOLK "Use system volk instead of the bundled one" ${LUISA_COMPUTE_USE_SYSTEM_LIBS})
 option(LUISA_COMPUTE_USE_SYSTEM_MAGIC_ENUM "Use system magic enum instead of the bundled one" ${LUISA_COMPUTE_USE_SYSTEM_LIBS})
 option(LUISA_COMPUTE_USE_SYSTEM_MARL "Use system marl instead of the bundled one" ${LUISA_COMPUTE_USE_SYSTEM_LIBS})
+option(LUISA_COMPUTE_USE_SYSTEM_PYBIND11 "Use system pybind11 instead of the bundled one" ${LUISA_COMPUTE_USE_SYSTEM_LIBS})
 #option(LUISA_COMPUTE_USE_SYSTEM_STB "Use system stb instead of the bundled one" ${LUISA_COMPUTE_USE_SYSTEM_LIBS})
 
 option(LUISA_COMPUTE_ENABLE_SANITIZERS "Enable sanitizers" OFF)
