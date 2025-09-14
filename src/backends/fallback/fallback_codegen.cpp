@@ -1669,9 +1669,7 @@ private:
         // outer_product(lhs, rhs) = lhs * transpose(rhs)
         auto lhs = inst->operand(0u);
         auto rhs = inst->operand(1u);
-        auto llvm_func_name = [&] {
-            auto lhs_type = lhs->type();
-            auto rhs_type = rhs->type();
+        auto llvm_func_name = [lhs_type = lhs->type(), rhs_type = rhs->type(), result_type] {
             LUISA_ASSERT(lhs_type != nullptr && rhs_type != nullptr,
                          "Invalid outer product operands.");
             LUISA_ASSERT((lhs_type->is_matrix() && rhs_type->is_matrix()) ||
@@ -1683,10 +1681,9 @@ private:
                              lhs_type->element() == result_type->element() &&
                              rhs_type->element() == result_type->element(),
                          "Dimension and/or element mismatch.");
-            return luisa::format(lhs_type->is_matrix() && rhs_type->is_matrix() ?
-                                     "luisa.matrix{}d.outer.product" :
-                                     "luisa.vector{}d.outer.product",
-                                 result_type->dimension());
+            return lhs_type->is_matrix() && rhs_type->is_matrix() ?
+                       luisa::format("luisa.matrix{}d.outer.product", result_type->dimension()) :
+                       luisa::format("luisa.vector{}d.outer.product", result_type->dimension());
         }();
         auto llvm_lhs = _lookup_value(current, b, lhs);
         auto llvm_rhs = _lookup_value(current, b, rhs);

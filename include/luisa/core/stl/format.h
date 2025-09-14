@@ -8,7 +8,12 @@
 #endif
 
 #include <algorithm>// for std::copy
+
+#if LUISA_USE_SYSTEM_SPDLOG
+#include <spdlog/fmt/xchar.h>
+#else
 #include <spdlog/fmt/bundled/xchar.h>
+#endif
 
 #include <luisa/core/basic_types.h>
 #include <luisa/core/stl/string.h>

@@ -19,16 +19,20 @@ find_package(Threads REQUIRED)
 add_library(luisa-compute-core SHARED ${LUISA_COMPUTE_CORE_STL_SOURCES} ${LUISA_COMPUTE_CORE_SOURCES})
 target_compile_definitions(luisa-compute-core PRIVATE LC_CORE_EXPORT_DLL=1)
 
-target_link_libraries(luisa-compute-core
-        PUBLIC
+target_link_libraries(luisa-compute-core PUBLIC
         luisa-compute-include
         luisa-compute-ext
         Threads::Threads
         ${CMAKE_DL_LIBS}
-        $<$<PLATFORM_ID:Windows>:dbghelp>
-        PRIVATE
-        luisa-compute-ext-marl
-        luisa-compute-ext-yyjson)
+        $<$<PLATFORM_ID:Windows>:dbghelp>)
+
+if (NOT LUISA_COMPUTE_USE_SYSTEM_MARL)
+    target_link_libraries(luisa-compute-core PRIVATE luisa-compute-ext-marl)
+endif ()
+
+if (NOT LUISA_COMPUTE_USE_SYSTEM_YYJSON)
+    target_link_libraries(luisa-compute-core PRIVATE luisa-compute-ext-yyjson)
+endif ()
 
 if (NOT LUISA_COMPUTE_USE_SYSTEM_STL)
     target_link_libraries(luisa-compute-core PRIVATE EASTL-object)
