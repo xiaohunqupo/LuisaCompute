@@ -51,7 +51,9 @@ public:
     uint64 LastFrame() const { return lastFrame; }
     DStorageCommandQueue(IDStorageFactory *factory, Device *device, luisa::compute::DStorageStreamSource source);
     void AddEvent(LCEvent const *evt, uint64 fenceIdx);
-    uint64 Execute(luisa::compute::CommandList &&list);
+    uint64 Execute(
+        vstd::span<const luisa::unique_ptr<luisa::compute::Command>> commands,
+        luisa::vector<luisa::move_only_function<void()>> &&funcs);
     void Complete(uint64 fence);
     void Complete();
     KILL_MOVE_CONSTRUCT(DStorageCommandQueue)
