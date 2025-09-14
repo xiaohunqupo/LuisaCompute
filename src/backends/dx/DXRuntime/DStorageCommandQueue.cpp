@@ -68,13 +68,16 @@ void DStorageCommandQueue::AddEvent(LCEvent const *evt, uint64 fenceIdx) {
     executedAllocators.push(evt, fenceIdx, true);
     mtx.unlock();
 }
-uint64 DStorageCommandQueue::Execute(luisa::compute::CommandList &&list) {
+uint64 DStorageCommandQueue::Execute(
+    vstd::span<const luisa::unique_ptr<luisa::compute::Command>> commands,
+        luisa::vector<luisa::move_only_function<void()>> &&funcs
+) {
     size_t curFrame;
     WaitQueueHandle waitQueueHandle;
     waitQueueHandle.handle = nullptr;
     {
         std::lock_guard lck{exec_mtx};
-        for (auto &&i : list.commands()) {
+        for (auto &&i : commands) {
             if (i->tag() != luisa::compute::Command::Tag::ECustomCommand ||
                 static_cast<luisa::compute::CustomCommand const *>(i.get())->uuid() != luisa::to_underlying(CustomCommandUUID::DSTORAGE_READ)) [[unlikely]] {
                 LUISA_ERROR("Only DStorage command allowed in this stream.");
@@ -234,19 +237,19 @@ uint64 DStorageCommandQueue::Execute(luisa::compute::CommandList &&list) {
                 },
                 cmd->source());
         }
-        if (!list.commands().empty()) {
+        if (!commands.empty()) {
             waitQueueHandle.handle = CreateEventEx(nullptr, nullptr, false, EVENT_ALL_ACCESS);
             queue->EnqueueSetEvent(waitQueueHandle.handle);
             queue->Submit();
         }
     }
-    bool callbackEmpty = list.callbacks().empty();
+    bool callbackEmpty = funcs.empty();
     curFrame = ++lastFrame;
     {
         std::unique_lock lck(mtx);
         executedAllocators.push(waitQueueHandle, curFrame, callbackEmpty);
         if (!callbackEmpty) {
-            executedAllocators.push(list.steal_callbacks(), curFrame, true);
+            executedAllocators.push(std::move(funcs), curFrame, true);
         }
     }
     return curFrame;

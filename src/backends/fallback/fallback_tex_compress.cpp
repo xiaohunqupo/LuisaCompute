@@ -154,12 +154,6 @@ void run_bc_encode_shader(Func *f, FallbackCommandQueue &queue, const RGBASurfac
 
 class FallbackTexCompressExt final : public FallbackTexCompressInterface {
 
-private:
-    std::unique_ptr<::llvm::orc::LLJIT> _jit;
-    std::unique_ptr<::llvm::TargetMachine> _target_machine;
-    func_type_bc6h_encode_blocks *_bc6h_encode_blocks;
-    func_type_bc7_encode_blocks *_bc7_encode_blocks;
-
 public:
     FallbackTexCompressExt() noexcept {
         ::llvm::orc::LLJITBuilder jit_builder;
@@ -221,7 +215,11 @@ public:
                                       luisa::string_view{parse_error.getMessage()});
         }
         llvm_module->setDataLayout(_target_machine->createDataLayout());
+#if LLVM_VERSION_MAJOR >= 21
+        llvm_module->setTargetTriple(_target_machine->getTargetTriple());
+#else
         llvm_module->setTargetTriple(_target_machine->getTargetTriple().str());
+#endif
 
         // compile to machine code
         auto m = llvm::orc::ThreadSafeModule(std::move(llvm_module), std::move(llvm_ctx));
@@ -235,6 +233,12 @@ public:
         _bc7_encode_blocks = _jit->lookup(fallback_tex_compress_llvm_bc_bc7_kernel_name)
                                  ->toPtr<func_type_bc7_encode_blocks>();
     }
+    std::unique_ptr<::llvm::orc::LLJIT> _jit;
+    std::unique_ptr<::llvm::TargetMachine> _target_machine;
+    func_type_bc6h_encode_blocks *_bc6h_encode_blocks;
+    func_type_bc7_encode_blocks *_bc7_encode_blocks;
+
+public:
     Result check_builtin_shader() noexcept override { return TexCompressExt::Result::Success; }
     Result compress_bc6h(Stream &stream, const ImageView<float> &src, const BufferView<uint> &result) noexcept override {
         auto queue = reinterpret_cast<FallbackStream *>(stream.handle())->queue();

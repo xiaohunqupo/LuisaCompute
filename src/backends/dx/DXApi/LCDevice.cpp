@@ -326,10 +326,12 @@ void LCDevice::dispatch(uint64 stream_handle, CommandList &&list) noexcept {
     switch (queue->Tag()) {
         case CmdQueueTag::MainCmd:
             reinterpret_cast<LCCmdBuffer *>(stream_handle)
-                ->Execute(std::move(list), nativeDevice.maxAllocatorCount);
+                ->Execute(
+                    list.commands(), list.steal_callbacks(), list.presents(),
+                    nativeDevice.maxAllocatorCount);
             break;
         case CmdQueueTag::DStorage:
-            static_cast<DStorageCommandQueue *>(queue)->Execute(std::move(list));
+            static_cast<DStorageCommandQueue *>(queue)->Execute(list.commands(), list.steal_callbacks());
             break;
     }
 }

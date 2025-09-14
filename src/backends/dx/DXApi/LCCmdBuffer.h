@@ -86,7 +86,9 @@ public:
         GpuAllocator *resourceAllocator,
         D3D12_COMMAND_LIST_TYPE type);
     void Execute(
-        CommandList &&cmdList,
+        vstd::span<const luisa::unique_ptr<Command>> cmds,
+        luisa::vector<luisa::move_only_function<void()>> &&callbacks,
+        vstd::span<const SwapchainPresent> presents,
         size_t maxAlloc);
     void Sync();
     void Present(

@@ -14,8 +14,9 @@ class Texture : public Resource {
     bool _contained : 1 {true};
     bool _simultaneous_access : 1;
     mutable luisa::spin_mutex _layout_mtx;
-    mutable vstd::vector<VkImageLayout> _layouts;
+    mutable vstd::fixed_vector<VkImageLayout, 1> _layouts;
 public:
+    static VkImageAspectFlags get_aspect_from_format(VkFormat format);
     auto simultaneous_access() const { return _simultaneous_access; }
     auto dimension() const { return _dimension; }
     Texture(Device *device);
@@ -36,6 +37,10 @@ public:
         uint mip,
         bool simultaneous_access,
         bool allow_raster_target);
+    Texture(
+        Device *device,
+        compute::DepthFormat format,
+        uint2 size);
     ~Texture();
     void init_as_sparse(
         uint dimension,
@@ -43,6 +48,9 @@ public:
         uint3 size,
         uint mip,
         bool simultaneous_access);
+    VkImageAspectFlags get_aspect() const {
+        return get_aspect_from_format(to_vk_format(_format));
+    }
     static uint2 tex2d_tile_size(luisa::compute::PixelStorage storage);
     static uint3 tex3d_tile_size(luisa::compute::PixelStorage storage);
     uint3 tile_size() const {
@@ -58,7 +66,6 @@ public:
     auto mip() const { return _mip; }
     auto vk_image() const { return _img.image; }
     auto format() const {
-        if (luisa::to_underlying(_format) > 65535u) return static_cast<compute::PixelFormat>(-1);// depth
         return _format;
     }
     auto depth_format() const {

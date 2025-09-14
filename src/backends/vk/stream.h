@@ -66,12 +66,12 @@ struct CommandBufferState {
     temp_buffer::BufferAllocator<ReadbackBuffer> readback_alloc;
     VkDescriptorPool _desc_pool;
     vstd::vector<VkImageView> img_views;
-    vstd::vector<std::pair<void *, vstd::func_ptr_t<void(void *)>>> _dispose_pool;
+    vstd::vector<std::pair<void *, vstd::func_ptr_t<void(Stream *, CommandBufferState *, void *)>>> _dispose_pool;
     vstd::vector<vstd::function<void()>> _callbacks;
     CommandBufferState();
     ~CommandBufferState();
     void init(Device &device, StreamTag tag);
-    void reset(Device &device);
+    void reset(Stream* stream, Device &device);
     template<typename TT>
         requires(!std::is_trivially_destructible_v<TT> && !std::is_reference_v<TT>)
     void dispose_after_flush(TT &&value) {
@@ -79,7 +79,7 @@ struct CommandBufferState {
         new (ptr) TT(std::forward<TT>(value));
         _dispose_pool.emplace_back(
             ptr,
-            [](void *ptr) {
+            [](Stream *, CommandBufferState *, void *ptr) {
                 std::destroy_at(reinterpret_cast<std::remove_cvref_t<TT> *>(ptr));
                 vengine_free(ptr);
             });
@@ -149,6 +149,7 @@ class Stream : public Resource {
     Event _evt;
     VkQueue _queue;
     std::atomic_bool _enabled{true};
+    std::mutex _dispatch_mtx;
     luisa::spin_mutex _mtx;
     vstd::LockFreeArrayQueue<CommandBuffer> _cmdbuffers;
     vstd::vector<VkDescriptorSet> desc_sets;

@@ -8,13 +8,13 @@
 namespace luisa {
 
 LC_CORE_API uint64_t hash64(const void *ptr, size_t size, uint64_t seed) noexcept {
-    return XXH_INLINE_XXH3_64bits_withSeed(ptr, size, seed);
+    return XXH3_64bits_withSeed(ptr, size, seed);
 }
 
 LC_CORE_API Hash128 hash128(const void *ptr, size_t size, uint64_t seed) noexcept {
     static_assert(sizeof(Hash128) == sizeof(XXH128_hash_t));
-    auto result =  XXH_INLINE_XXH3_128bits_withSeed(ptr, size, seed);
-    return reinterpret_cast<Hash128&>(result);
+    auto result = XXH3_128bits_withSeed(ptr, size, seed);
+    return reinterpret_cast<Hash128 &>(result);
 }
 
 luisa::string Hash128::to_string() const noexcept {
@@ -50,4 +50,3 @@ Hash128::Hash128(luisa::string_view s) noexcept {
 }
 
 }// namespace luisa
-

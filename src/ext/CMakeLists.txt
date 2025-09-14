@@ -33,39 +33,54 @@ function(luisa_compute_install_extension target)
     endif ()
 endfunction()
 
-set(SPDLOG_ENABLE_PCH OFF CACHE BOOL "" FORCE)
-set(SPDLOG_BUILD_SHARED ON CACHE BOOL "" FORCE)
-set(SPDLOG_NO_EXCEPTIONS ON CACHE BOOL "" FORCE)
-set(SPDLOG_NO_THREAD_ID ON CACHE BOOL "" FORCE)
-set(SPDLOG_FMT_EXTERNAL OFF CACHE BOOL "" FORCE)
-set(SPDLOG_FMT_EXTERNAL_HO OFF CACHE BOOL "" FORCE)
-set(SPDLOG_DISABLE_DEFAULT_LOGGER ON CACHE BOOL "" FORCE)
-add_subdirectory(spdlog)
-target_compile_definitions(spdlog_header_only INTERFACE
-        FMT_USE_CONSTEVAL=0
-        FMT_EXCEPTIONS=0
-        FMT_HEADER_ONLY=1
-        FMT_USE_NOEXCEPT=1)
-target_compile_definitions(spdlog PUBLIC
-        FMT_USE_CONSTEVAL=0
-        FMT_EXCEPTIONS=0
-        FMT_HEADER_ONLY=1
-        FMT_USE_NOEXCEPT=1)
-set_target_properties(spdlog PROPERTIES EXCLUDE_FROM_ALL ON)
-target_link_libraries(luisa-compute-ext INTERFACE spdlog::spdlog_header_only)
-luisa_compute_install_extension(spdlog_header_only INCLUDE spdlog/include/spdlog)
+if (LUISA_COMPUTE_USE_SYSTEM_SPDLOG)
+    find_package(spdlog REQUIRED)
+    target_link_libraries(luisa-compute-ext INTERFACE spdlog::spdlog_header_only)
+    target_compile_definitions(luisa-compute-ext INTERFACE LUISA_USE_SYSTEM_SPDLOG=1)
+else ()
+    set(SPDLOG_ENABLE_PCH OFF CACHE BOOL "" FORCE)
+    set(SPDLOG_BUILD_SHARED ON CACHE BOOL "" FORCE)
+    set(SPDLOG_NO_EXCEPTIONS ON CACHE BOOL "" FORCE)
+    set(SPDLOG_NO_THREAD_ID ON CACHE BOOL "" FORCE)
+    set(SPDLOG_FMT_EXTERNAL OFF CACHE BOOL "" FORCE)
+    set(SPDLOG_FMT_EXTERNAL_HO OFF CACHE BOOL "" FORCE)
+    set(SPDLOG_DISABLE_DEFAULT_LOGGER ON CACHE BOOL "" FORCE)
+    add_subdirectory(spdlog)
+    target_compile_definitions(spdlog_header_only INTERFACE
+            FMT_USE_CONSTEVAL=0
+            FMT_EXCEPTIONS=0
+            FMT_HEADER_ONLY=1
+            FMT_USE_NOEXCEPT=1)
+    target_compile_definitions(spdlog PUBLIC
+            FMT_USE_CONSTEVAL=0
+            FMT_EXCEPTIONS=0
+            FMT_HEADER_ONLY=1
+            FMT_USE_NOEXCEPT=1)
+    set_target_properties(spdlog PROPERTIES EXCLUDE_FROM_ALL ON)
+    target_link_libraries(luisa-compute-ext INTERFACE spdlog::spdlog_header_only)
+    luisa_compute_install_extension(spdlog_header_only INCLUDE spdlog/include/spdlog)
+endif ()
 
-add_library(xxhash INTERFACE)
-target_include_directories(xxhash INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/xxHash>)
-target_compile_definitions(xxhash INTERFACE XXH_INLINE_ALL)
-set_target_properties(xxhash PROPERTIES
-        UNITY_BUILD ${LUISA_COMPUTE_ENABLE_UNITY_BUILD}
-        OUTPUT_NAME lc-ext-xxhash)
-target_link_libraries(luisa-compute-ext INTERFACE xxhash)
-luisa_compute_install_extension(xxhash HEADER_FILES
-        xxHash/xxh3.h
-        xxHash/xxhash.h
-        HEADER_DESTINATION xxHash)
+if (LUISA_COMPUTE_USE_SYSTEM_XXHASH)
+    # xxhash provides only pkg-config for finding the library
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(XXHASH REQUIRED libxxhash)
+    target_include_directories(luisa-compute-ext INTERFACE ${XXHASH_INCLUDE_DIRS})
+    target_link_libraries(luisa-compute-ext INTERFACE ${XXHASH_LIBRARIES})
+    target_compile_definitions(luisa-compute-ext INTERFACE LUISA_USE_SYSTEM_XXHASH=1)
+else ()
+    add_library(xxhash INTERFACE)
+    target_include_directories(xxhash INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/xxHash>)
+    target_compile_definitions(xxhash INTERFACE XXH_INLINE_ALL)
+    set_target_properties(xxhash PROPERTIES
+            UNITY_BUILD ${LUISA_COMPUTE_ENABLE_UNITY_BUILD}
+            OUTPUT_NAME lc-ext-xxhash)
+    target_link_libraries(luisa-compute-ext INTERFACE xxhash)
+    luisa_compute_install_extension(xxhash HEADER_FILES
+            xxHash/xxh3.h
+            xxHash/xxhash.h
+            HEADER_DESTINATION xxHash)
+endif ()
 
 # stb
 add_subdirectory(stb)
@@ -78,25 +93,37 @@ luisa_compute_install_extension(luisa-compute-ext-stb-interface HEADER_FILES
         HEADER_DESTINATION stb)
 
 # magic enum
-add_library(magic_enum INTERFACE)
-target_include_directories(magic_enum INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/magic_enum/include>)
-target_link_libraries(luisa-compute-ext INTERFACE magic_enum)
-luisa_compute_install_extension(magic_enum INCLUDE magic_enum/include/magic_enum)
+if (LUISA_COMPUTE_USE_SYSTEM_MAGIC_ENUM)
+    find_package(magic_enum REQUIRED)
+    target_link_libraries(luisa-compute-ext INTERFACE magic_enum::magic_enum)
+    target_compile_definitions(luisa-compute-ext INTERFACE LUISA_USE_SYSTEM_MAGIC_ENUM=1)
+else ()
+    add_library(magic_enum INTERFACE)
+    target_include_directories(magic_enum INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/magic_enum/include>)
+    target_link_libraries(luisa-compute-ext INTERFACE magic_enum)
+    luisa_compute_install_extension(magic_enum INCLUDE magic_enum/include/magic_enum)
+endif ()
 
 # glfw
 if (LUISA_COMPUTE_ENABLE_GUI)
-    if (UNIX AND NOT APPLE)
-        set(GLFW_BUILD_WAYLAND ${LUISA_COMPUTE_ENABLE_WAYLAND} CACHE BOOL "" FORCE)
+    if (LUISA_COMPUTE_USE_SYSTEM_GLFW)
+        find_package(glfw3 REQUIRED)
+        target_link_libraries(luisa-compute-ext INTERFACE glfw)
+        target_compile_definitions(luisa-compute-ext INTERFACE LUISA_USE_SYSTEM_GLFW=1)
+    else ()
+        if (UNIX AND NOT APPLE)
+            set(GLFW_BUILD_WAYLAND ${LUISA_COMPUTE_ENABLE_WAYLAND} CACHE BOOL "" FORCE)
+        endif ()
+        set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+        set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+        set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+        set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
+        set(GLFW_LIBRARY_TYPE SHARED CACHE STRING "" FORCE)
+        add_subdirectory(glfw)
+        set_target_properties(glfw PROPERTIES OUTPUT_NAME lc-ext-glfw)
+        target_link_libraries(luisa-compute-ext INTERFACE glfw)
+        luisa_compute_install_extension(glfw)
     endif ()
-    set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-    set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-    set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
-    set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
-    set(GLFW_LIBRARY_TYPE SHARED CACHE STRING "" FORCE)
-    add_subdirectory(glfw)
-    set_target_properties(glfw PROPERTIES OUTPUT_NAME lc-ext-glfw)
-    target_link_libraries(luisa-compute-ext INTERFACE glfw)
-    luisa_compute_install_extension(glfw)
 endif ()
 
 if (LUISA_COMPUTE_USE_SYSTEM_STL)
@@ -124,60 +151,72 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION
     target_compile_options(half INTERFACE
             -Wno-invalid-specialization
             -Wno-deprecated-literal-operator
-            -Wno-elaborated-enum-base
-    )
+            -Wno-elaborated-enum-base)
 endif ()
 
 # reproc
-set(REPROC_DEVELOP OFF CACHE BOOL "" FORCE)
-set(REPROC_TEST OFF CACHE BOOL "" FORCE)
-set(REPROC_EXAMPLES OFF CACHE BOOL "" FORCE)
-set(REPROC_WARNINGS ON CACHE BOOL "" FORCE)
-set(REPROC_TIDY OFF CACHE BOOL "" FORCE)
-set(REPROC_SANITIZERS OFF CACHE BOOL "" FORCE)
-set(REPROC_WARNINGS_AS_ERRORS OFF CACHE BOOL "" FORCE)
-set(REPROC_OBJECT_LIBRARIES ON CACHE BOOL "" FORCE)
-set(REPROC_INSTALL OFF CACHE BOOL "" FORCE)
-set(REPROC_INSTALL_PKGCONFIG OFF CACHE BOOL "" FORCE)
-set(REPROC++ ON CACHE BOOL "" FORCE)
-set(REPROC_MULTITHREADED ON CACHE BOOL "" FORCE)
-add_subdirectory(reproc)
-if (UNIX AND NOT APPLE)
-    set_target_properties(reproc PROPERTIES POSITION_INDEPENDENT_CODE ON)
-    set_target_properties(reproc++ PROPERTIES POSITION_INDEPENDENT_CODE ON)
+if (LUISA_COMPUTE_USE_SYSTEM_REPROC)
+    find_package(reproc REQUIRED)
+    find_package(reproc++ REQUIRED)
+    target_link_libraries(luisa-compute-ext INTERFACE reproc reproc++)
+    target_compile_definitions(luisa-compute-ext INTERFACE LUISA_USE_SYSTEM_REPROC=1)
+else ()
+    set(REPROC_DEVELOP OFF CACHE BOOL "" FORCE)
+    set(REPROC_TEST OFF CACHE BOOL "" FORCE)
+    set(REPROC_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(REPROC_WARNINGS ON CACHE BOOL "" FORCE)
+    set(REPROC_TIDY OFF CACHE BOOL "" FORCE)
+    set(REPROC_SANITIZERS OFF CACHE BOOL "" FORCE)
+    set(REPROC_WARNINGS_AS_ERRORS OFF CACHE BOOL "" FORCE)
+    set(REPROC_OBJECT_LIBRARIES ON CACHE BOOL "" FORCE)
+    set(REPROC_INSTALL OFF CACHE BOOL "" FORCE)
+    set(REPROC_INSTALL_PKGCONFIG OFF CACHE BOOL "" FORCE)
+    set(REPROC++ ON CACHE BOOL "" FORCE)
+    set(REPROC_MULTITHREADED ON CACHE BOOL "" FORCE)
+    add_subdirectory(reproc)
+    if (UNIX AND NOT APPLE)
+        set_target_properties(reproc PROPERTIES POSITION_INDEPENDENT_CODE ON)
+        set_target_properties(reproc++ PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    endif ()
+    add_library(reproc-interface INTERFACE)
+    target_compile_definitions(reproc-interface INTERFACE REPROC_SHARED REPROCXX_SHARED)
+    target_include_directories(reproc-interface INTERFACE
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/reproc/reproc/include>
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/reproc/reproc++/include>)
+    target_link_libraries(luisa-compute-ext INTERFACE reproc-interface)
+    install(TARGETS reproc-interface EXPORT LuisaComputeTargets)
+
+    target_compile_definitions(reproc PRIVATE REPROC_BUILDING PUBLIC REPROC_SHARED)
+    target_compile_definitions(reproc++ PRIVATE REPROCXX_BUILDING PUBLIC REPROCXX_SHARED)
+    target_link_libraries(reproc PUBLIC reproc-interface)
+    target_link_libraries(reproc++ PUBLIC reproc-interface)
+
+    install(DIRECTORY reproc/reproc/include/reproc
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/luisa/ext
+            FILES_MATCHING REGEX ".*\\.h$")
+    install(DIRECTORY reproc/reproc++/include/reproc++
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/luisa/ext
+            FILES_MATCHING REGEX ".*\\.hpp$")
+    # Note: we do not link `reproc` and `reproc++` to `luisa-compute-ext` but
+    #       instead to `luisa-compute-core` since this is an OBJECT library.
 endif ()
-add_library(reproc-interface INTERFACE)
-target_compile_definitions(reproc-interface INTERFACE REPROC_SHARED REPROCXX_SHARED)
-target_include_directories(reproc-interface INTERFACE
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/reproc/reproc/include>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/reproc/reproc++/include>)
-target_link_libraries(luisa-compute-ext INTERFACE reproc-interface)
-install(TARGETS reproc-interface EXPORT LuisaComputeTargets)
-
-target_compile_definitions(reproc PRIVATE REPROC_BUILDING PUBLIC REPROC_SHARED)
-target_compile_definitions(reproc++ PRIVATE REPROCXX_BUILDING PUBLIC REPROCXX_SHARED)
-target_link_libraries(reproc PUBLIC reproc-interface)
-target_link_libraries(reproc++ PUBLIC reproc-interface)
-
-install(DIRECTORY reproc/reproc/include/reproc
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/luisa/ext
-        FILES_MATCHING REGEX ".*\\.h$")
-install(DIRECTORY reproc/reproc++/include/reproc++
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/luisa/ext
-        FILES_MATCHING REGEX ".*\\.hpp$")
-# Note: we do not link `reproc` and `reproc++` to `luisa-compute-ext` but
-#       instead to `luisa-compute-core` since this is an OBJECT library.
 
 # yyjson
-add_library(luisa-compute-ext-yyjson-interface INTERFACE)
-target_include_directories(luisa-compute-ext-yyjson-interface INTERFACE
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/yyjson/src>)
-target_compile_definitions(luisa-compute-ext-yyjson-interface INTERFACE YYJSON_IMPORTS=1)
-add_library(luisa-compute-ext-yyjson OBJECT yyjson/src/yyjson.c yyjson/src/yyjson.h)
-target_link_libraries(luisa-compute-ext-yyjson PUBLIC luisa-compute-ext-yyjson-interface)
-target_compile_definitions(luisa-compute-ext-yyjson PRIVATE YYJSON_EXPORTS=1)
-if (UNIX AND NOT APPLE)
-    set_target_properties(luisa-compute-ext-yyjson PROPERTIES POSITION_INDEPENDENT_CODE ON)
+if (LUISA_COMPUTE_USE_SYSTEM_YYJSON)
+    find_package(yyjson REQUIRED)
+    target_link_libraries(luisa-compute-ext INTERFACE yyjson::yyjson)
+    target_compile_definitions(luisa-compute-ext INTERFACE LUISA_USE_SYSTEM_YYJSON=1)
+else ()
+    add_library(luisa-compute-ext-yyjson-interface INTERFACE)
+    target_include_directories(luisa-compute-ext-yyjson-interface INTERFACE
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/yyjson/src>)
+    target_compile_definitions(luisa-compute-ext-yyjson-interface INTERFACE YYJSON_IMPORTS=1)
+    add_library(luisa-compute-ext-yyjson OBJECT yyjson/src/yyjson.c yyjson/src/yyjson.h)
+    target_link_libraries(luisa-compute-ext-yyjson PUBLIC luisa-compute-ext-yyjson-interface)
+    target_compile_definitions(luisa-compute-ext-yyjson PRIVATE YYJSON_EXPORTS=1)
+    if (UNIX AND NOT APPLE)
+        set_target_properties(luisa-compute-ext-yyjson PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    endif ()
 endif ()
 
 # marl
@@ -213,21 +252,31 @@ if (UNIX AND NOT APPLE)
 endif ()
 install(TARGETS luisa-compute-ext-marl EXPORT LuisaComputeTargets)
 
-add_library(luisa-compute-ext-lmdb OBJECT
-        liblmdb/mdb.c liblmdb/lmdb.h
-        liblmdb/midl.c liblmdb/midl.h)
-target_include_directories(luisa-compute-ext-lmdb PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/liblmdb>)
-if (UNIX AND NOT APPLE)
-    set_target_properties(luisa-compute-ext-lmdb PROPERTIES POSITION_INDEPENDENT_CODE ON)
+# lmdb
+if (LUISA_COMPUTE_USE_SYSTEM_LMDB)
+    # via pkg-config
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(LMDB REQUIRED lmdb)
+    target_include_directories(luisa-compute-ext INTERFACE ${LMDB_INCLUDE_DIRS})
+    target_link_libraries(luisa-compute-ext INTERFACE ${LMDB_LIBRARIES})
+    target_compile_definitions(luisa-compute-ext INTERFACE LUISA_USE_SYSTEM_LMDB=1)
+else ()
+    add_library(luisa-compute-ext-lmdb OBJECT
+            liblmdb/mdb.c liblmdb/lmdb.h
+            liblmdb/midl.c liblmdb/midl.h)
+    target_include_directories(luisa-compute-ext-lmdb PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/liblmdb>)
+    if (UNIX AND NOT APPLE)
+        set_target_properties(luisa-compute-ext-lmdb PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    endif ()
+    if (WIN32)
+        target_compile_options(luisa-compute-ext-lmdb PRIVATE "-UWIN32_LEAN_AND_MEAN")
+    endif ()
+    set_target_properties(luisa-compute-ext-lmdb PROPERTIES
+            UNITY_BUILD ${LUISA_COMPUTE_ENABLE_UNITY_BUILD}
+            OUTPUT_NAME lc-ext-lmdb)
+    install(TARGETS luisa-compute-ext-lmdb EXPORT LuisaComputeTargets)
 endif ()
-if (WIN32)
-    target_compile_options(luisa-compute-ext-lmdb PRIVATE "-UWIN32_LEAN_AND_MEAN")
-endif ()
-set_target_properties(luisa-compute-ext-lmdb PROPERTIES
-        UNITY_BUILD ${LUISA_COMPUTE_ENABLE_UNITY_BUILD}
-        OUTPUT_NAME lc-ext-lmdb)
-install(TARGETS luisa-compute-ext-lmdb EXPORT LuisaComputeTargets)
 
 if (SKBUILD OR LUISA_COMPUTE_FORCE_PYTHON_BINDINGS)
     add_subdirectory(pybind11)
@@ -239,3 +288,15 @@ install(TARGETS luisa-compute-ext EXPORT LuisaComputeTargets)
 # if (LUISA_COMPUTE_ENABLE_RUST)
 #     add_subdirectory(corrosion)
 # endif ()
+
+
+# volk
+if (LUISA_COMPUTE_ENABLE_VULKAN)
+    if (LUISA_COMPUTE_USE_SYSTEM_VOLK)
+        find_package(volk REQUIRED)
+        target_link_libraries(luisa-compute-ext INTERFACE volk::volk)
+        target_compile_definitions(luisa-compute-ext INTERFACE LUISA_USE_SYSTEM_VULKAN=1)
+    else ()
+        add_subdirectory(volk)
+    endif ()
+endif ()

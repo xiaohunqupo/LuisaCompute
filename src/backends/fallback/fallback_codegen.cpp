@@ -1669,9 +1669,7 @@ private:
         // outer_product(lhs, rhs) = lhs * transpose(rhs)
         auto lhs = inst->operand(0u);
         auto rhs = inst->operand(1u);
-        auto llvm_func_name = [&] {
-            auto lhs_type = lhs->type();
-            auto rhs_type = rhs->type();
+        auto llvm_func_name = [lhs_type = lhs->type(), rhs_type = rhs->type(), result_type] {
             LUISA_ASSERT(lhs_type != nullptr && rhs_type != nullptr,
                          "Invalid outer product operands.");
             LUISA_ASSERT((lhs_type->is_matrix() && rhs_type->is_matrix()) ||
@@ -1683,10 +1681,9 @@ private:
                              lhs_type->element() == result_type->element() &&
                              rhs_type->element() == result_type->element(),
                          "Dimension and/or element mismatch.");
-            return luisa::format(lhs_type->is_matrix() && rhs_type->is_matrix() ?
-                                     "luisa.matrix{}d.outer.product" :
-                                     "luisa.vector{}d.outer.product",
-                                 result_type->dimension());
+            return lhs_type->is_matrix() && rhs_type->is_matrix() ?
+                       luisa::format("luisa.matrix{}d.outer.product", result_type->dimension()) :
+                       luisa::format("luisa.vector{}d.outer.product", result_type->dimension());
         }();
         auto llvm_lhs = _lookup_value(current, b, lhs);
         auto llvm_rhs = _lookup_value(current, b, rhs);
@@ -2379,7 +2376,11 @@ private:
 #endif
             }
             case xir::ArithmeticOp::ATAN2: {
+#if LLVM_VERSION_MAJOR >= 20
+                return _translate_binary_fp_math_operation(current, b, inst->operand(0), inst->operand(1), llvm::Intrinsic::atan2);
+#else
                 return _translate_binary_fp_math_operation(current, b, inst->operand(0), inst->operand(1), "atan2");
+#endif
             }
             case xir::ArithmeticOp::ATANH: {
                 // atanh(x) = 0.5 * log((1 + x) / (1 - x))
@@ -2908,7 +2909,9 @@ private:
         llvm_print_func->setDoesNotFreeMemory();
         for (auto &&llvm_print_arg : llvm_print_func->args()) {
             if (llvm_print_arg.getType()->isPointerTy()) {
+#if LLVM_VERSION_MAJOR < 21
                 llvm_print_arg.addAttr(llvm::Attribute::NoCapture);
+#endif
                 llvm_print_arg.addAttr(llvm::Attribute::NoAlias);
                 llvm_print_arg.addAttr(llvm::Attribute::ReadOnly);
                 llvm_print_arg.addAttr(llvm::Attribute::NoUndef);
@@ -3185,7 +3188,7 @@ private:
             case xir::DerivedInstructionTag::AUTODIFF_SCOPE: LUISA_ERROR_WITH_LOCATION("Unexpected autodiff_scope instruction. Run autodiff pass first.");
             case xir::DerivedInstructionTag::AUTODIFF_INTRINSIC: LUISA_ERROR_WITH_LOCATION("Unexpected autodiff_intrinsic instruction. Run autodiff pass first.");
             case xir::DerivedInstructionTag::CLOCK: {
-                auto call = b.CreateIntrinsic(llvm::Intrinsic::readcyclecounter, {}, {});
+                auto call = b.CreateIntrinsic(llvm::Intrinsic::readcyclecounter, {}, {}, {}, "clock");
                 auto llvm_result_type = _translate_type(inst->type(), true);
                 return b.CreateZExtOrTrunc(call, llvm_result_type);
             }
@@ -3319,7 +3322,8 @@ private:
         {
             auto i = 0u;
             for (auto arg : f->arguments()) {
-                auto arg_type = arg->type();LUISA_ASSERT(_get_type_alignment(arg_type) <= param_alignment, "Invalid argument alignment.");
+                auto arg_type = arg->type();
+                LUISA_ASSERT(_get_type_alignment(arg_type) <= param_alignment, "Invalid argument alignment.");
                 auto param_offset = luisa::align(param_size_accum, param_alignment);
                 // pad if necessary
                 if (param_offset > param_size_accum) {

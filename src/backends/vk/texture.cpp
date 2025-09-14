@@ -50,6 +50,7 @@ Texture::Texture(
           VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
               VK_IMAGE_USAGE_TRANSFER_DST_BIT |
               VK_IMAGE_USAGE_SAMPLED_BIT |
+              (allow_raster_target ? VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT : 0) |
               (is_srgb(format) ? 0 : VK_IMAGE_USAGE_STORAGE_BIT))),
       _format(format),
       _size(size),
@@ -57,6 +58,44 @@ Texture::Texture(
       _dimension(dimension),
       _simultaneous_access(simultaneous_access) {
     _layouts.resize(mip);
+}
+
+VkImageAspectFlags Texture::get_aspect_from_format(VkFormat format) {
+    switch (format) {
+        case VK_FORMAT_D32_SFLOAT:
+        case VK_FORMAT_X8_D24_UNORM_PACK32:
+        case VK_FORMAT_D16_UNORM:
+            return VK_IMAGE_ASPECT_DEPTH_BIT;
+        case VK_FORMAT_S8_UINT:
+            return VK_IMAGE_ASPECT_STENCIL_BIT;
+        case VK_FORMAT_D16_UNORM_S8_UINT:
+        case VK_FORMAT_D24_UNORM_S8_UINT:
+        case VK_FORMAT_D32_SFLOAT_S8_UINT:
+            return VK_IMAGE_ASPECT_STENCIL_BIT | VK_IMAGE_ASPECT_DEPTH_BIT;
+        default:
+            return VK_IMAGE_ASPECT_COLOR_BIT;
+    }
+}
+Texture::Texture(
+    Device *device,
+    compute::DepthFormat format,
+    uint2 size)
+    : Resource(device),
+      _img(device->allocator().allocate_image(
+          VK_IMAGE_TYPE_2D,
+          to_vk_format(static_cast<compute::PixelFormat>(static_cast<uint>(format) | (1u << 16u))),
+          make_uint3(size, 1),
+          1,
+          VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+              VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+              VK_IMAGE_USAGE_SAMPLED_BIT |
+              VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)),
+      _format(static_cast<compute::PixelFormat>(static_cast<uint>(format) | (1u << 16u))),
+      _size(make_uint3(size, 1)),
+      _mip(1),
+      _dimension(2),
+      _simultaneous_access(false) {
+    _layouts.resize(1);
 }
 Texture::~Texture() {
     if (_img.allocation)

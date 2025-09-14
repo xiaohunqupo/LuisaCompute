@@ -115,6 +115,12 @@ void ShaderSerializer::serialize_raster(
         memcpy(data_ptr, t, sizeof(T) * size);
         data_ptr += sizeof(T) * size;
     };
+    header.use_bindless_buffer = use_buffer_bindless;
+    header.use_bindless_tex2d = use_tex2d_bindless;
+    header.use_bindless_tex3d = use_tex3d_bindless;
+    header.printer_count = printers.size();
+    header.printer_size_bytes = printer_size_bytes;
+    save(header);
     save_arr(binds.data(), binds.size());
     save_arr(saved_args.data(), saved_args.size());
     save_arr(vert_spv_code.data(), vert_spv_code.size());
@@ -126,12 +132,6 @@ void ShaderSerializer::serialize_raster(
         *data_ptr = (std::byte)0;
         ++data_ptr;
     }
-    header.use_bindless_buffer = use_buffer_bindless;
-    header.use_bindless_tex2d = use_tex2d_bindless;
-    header.use_bindless_tex3d = use_tex3d_bindless;
-    header.printer_count = printers.size();
-    header.printer_size_bytes = printer_size_bytes;
-    save(header);
 
     switch (serde_type) {
         case SerdeType::Cache:

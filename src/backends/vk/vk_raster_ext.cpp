@@ -4,7 +4,17 @@
 #include "../common/hlsl/hlsl_codegen.h"
 #include "shader_serializer.h"
 #include "compute_shader.h"
+#include "raster_shader.h"
+#include "texture.h"
 namespace lc::vk {
+static const bool RASTER_PRINT_CODE = ([] {
+    // read env LUISA_DUMP_SOURCE
+    auto env = std::getenv("LUISA_DUMP_SOURCE");
+    if (env == nullptr) {
+        return false;
+    }
+    return std::string_view{env} == "1";
+})();
 static constexpr uint k_shader_model = 65u;
 ResourceCreationInfo VkRasterExt::create_raster_shader(
     Function vert,
@@ -20,6 +30,11 @@ ResourceCreationInfo VkRasterExt::create_raster_shader(
         mask |= 2;
     }
     auto code = hlsl::CodegenUtility{}.RasterCodegen(vert, pixel, {}, mask, true);
+    if (RASTER_PRINT_CODE) {
+        auto f = fopen("hlsl_output.hlsl", "ab");
+        fwrite(code.result.data(), code.result.size(), 1, f);
+        fclose(f);
+    }
     vstd::MD5 check_md5({reinterpret_cast<uint8_t const *>(code.result.data() + code.immutableHeaderSize), code.result.size() - code.immutableHeaderSize});
     auto comp_result = Device::Compiler()->compile_raster(code.result.view(), !option.enable_debug_info, k_shader_model, option.enable_fast_math, true, option.enable_debug_info);
     if (comp_result.vertex.is_type_of<vstd::string>()) [[unlikely]] {
@@ -76,7 +91,7 @@ ResourceCreationInfo VkRasterExt::load_raster_shader(
     ResourceCreationInfo info{};
     info.handle = reinterpret_cast<uint64_t>(deser_result.shader);
     if (!ComputeShader::verify_type_md5(types, deser_result.type_md5)) {
-        LUISA_WARNING("Shader {} arguments not match.", name);
+        LUISA_ERROR("Shader {} arguments not match.", ser_path);
         info.invalidate();
         return info;
     }
@@ -89,12 +104,18 @@ VkRasterExt::VkRasterExt(Device *device) {
 VkRasterExt::~VkRasterExt() {}
 
 void VkRasterExt::destroy_raster_shader(uint64_t handle) noexcept {
-    delete reinterpret_cast<RasterShader*>(handle);
+    delete reinterpret_cast<RasterShader *>(handle);
 }
 
 // depth buffer
 ResourceCreationInfo VkRasterExt::create_depth_buffer(DepthFormat format, uint width, uint height) noexcept {
-    return ResourceCreationInfo::make_invalid();
+    ResourceCreationInfo r{};
+    auto tex = new Texture(_device, format, uint2(width, height));
+    r.handle = reinterpret_cast<uint64_t>(tex);
+    r.native_handle = tex->vk_image();
+    return r;
 }
-void VkRasterExt::destroy_depth_buffer(uint64_t handle) noexcept {}
+void VkRasterExt::destroy_depth_buffer(uint64_t handle) noexcept {
+    delete reinterpret_cast<Texture *>(handle);
+}
 }// namespace lc::vk

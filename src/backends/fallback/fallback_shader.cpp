@@ -15,6 +15,7 @@
 #include <llvm/Analysis/LoopAnalysisManager.h>
 #include <llvm/Passes/PassBuilder.h>
 #include <llvm/IR/LegacyPassManager.h>
+#include <llvm/IR/Operator.h>
 
 #include <luisa/core/stl.h>
 #include <luisa/core/logging.h>
@@ -286,7 +287,11 @@ FallbackShader::FallbackShader(FallbackDevice *device, const ShaderOption &optio
     }
 
     llvm_module->setDataLayout(_target_machine->createDataLayout());
+#if LLVM_VERSION_MAJOR >= 21
+    llvm_module->setTargetTriple(_target_machine->getTargetTriple());
+#else
     llvm_module->setTargetTriple(_target_machine->getTargetTriple().str());
+#endif
 
     // add fast-math flags to instructions
     for (auto &&f : *llvm_module) {

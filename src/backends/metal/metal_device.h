@@ -93,7 +93,7 @@ public:
     void destroy_procedural_primitive(uint64_t handle) noexcept override;
     ResourceCreationInfo create_accel(const AccelOption &option) noexcept override;
     void destroy_accel(uint64_t handle) noexcept override;
-    string query(luisa::string_view property) noexcept override;
+    luisa::string query(luisa::string_view property) noexcept override;
     DeviceExtension *extension(luisa::string_view name) noexcept override;
     void set_name(luisa::compute::Resource::Tag resource_tag, uint64_t resource_handle, luisa::string_view name) noexcept override;
 };

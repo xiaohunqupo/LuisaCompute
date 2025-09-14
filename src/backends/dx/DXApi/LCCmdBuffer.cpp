@@ -1151,15 +1151,15 @@ LCCmdBuffer::LCCmdBuffer(
           type) {
 }
 void LCCmdBuffer::Execute(
-    CommandList &&cmdList,
+    vstd::span<const luisa::unique_ptr<Command>> commands,
+    luisa::vector<luisa::move_only_function<void()>> &&funcs,
+    vstd::span<const SwapchainPresent> presents,
     size_t maxAlloc) {
-    auto commands = cmdList.commands();
-    auto funcs = std::move(cmdList).steal_callbacks();
     auto allocator = queue.CreateAllocator(maxAlloc);
     auto allocType = allocator->Type();
     bool cmdListIsEmpty = commands.empty();
     luisa::fixed_vector<std::pair<IDXGISwapChain *, bool>, 4> present_swapchains;
-    present_swapchains.reserve(cmdList.presents().size());
+    present_swapchains.reserve(presents.size());
     {
         std::unique_lock lck{mtx};
         LCPreProcessVisitor ppVisitor;
@@ -1332,7 +1332,7 @@ void LCCmdBuffer::Execute(
             LUISA_DEBUG_ASSERT(aligned_size == uniformSize);
         }
 
-        for (auto &&present : cmdList.presents()) {
+        for (auto &&present : presents) {
             auto swapchain = reinterpret_cast<LCSwapChain *>(present.chain->handle());
             auto &&rt = &swapchain->m_renderTargets[swapchain->frameIndex];
             auto img = reinterpret_cast<TextureBase *>(present.frame.handle());
@@ -1351,10 +1351,10 @@ void LCCmdBuffer::Execute(
                 D3D12_BARRIER_LAYOUT_COPY_SOURCE);
             // tracker->UpdateState(&barrier_callback);
         }
-        if (!cmdList.presents().empty()) {
+        if (!presents.empty()) {
             tracker->UpdateState(&barrier_callback);
         }
-        for (auto &&present : cmdList.presents()) {
+        for (auto &&present : presents) {
             auto swapchain = reinterpret_cast<LCSwapChain *>(present.chain->handle());
             auto &&rt = &swapchain->m_renderTargets[swapchain->frameIndex];
             auto img = reinterpret_cast<TextureBase *>(present.frame.handle());

@@ -80,7 +80,8 @@ jobs:
           submodules: recursive
       - name: "Install Dependencies"
         run: |
-          brew install llvm molten-vk ninja cmake embree vulkan-headers vulkan-loader
+          brew reinstall cmake
+          brew install llvm molten-vk ninja embree vulkan-headers vulkan-loader
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
       - name: "Configure and Build"
         run: |
@@ -93,6 +94,7 @@ jobs:
             export CC=/usr/bin/clang
             export CXX=/usr/bin/clang++
           fi
+          export SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
           cmake -S . -B build -G Ninja -D LUISA_COMPUTE_ENABLE_RUST=OFF -D LUISA_COMPUTE_ENABLE_REMOTE=OFF -D LUISA_COMPUTE_ENABLE_CPU=OFF -D CMAKE_BUILD_TYPE=${{ matrix.config }} -D LUISA_COMPUTE_ENABLE_UNITY_BUILD=OFF
           cmake --build build
       - name: "Install"

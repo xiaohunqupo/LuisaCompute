@@ -666,7 +666,7 @@ static void Visitor(
     VoidPtr *ptr,
     Func &&func) {
     visit_index<sizeof...(Types)>(id, [&]<size_t i>() {
-        using Type = decltype(detail::select_type<i, Types...>())::Type;
+        using Type = typename decltype(detail::select_type<i, Types...>())::Type;
         if constexpr (std::is_const_v<VoidPtr>) {
             func(*static_cast<std::add_pointer_t<Type const>>(ptr));
         } else {
@@ -680,7 +680,7 @@ static Ret VisitorRet(
     VoidPtr *ptr,
     Func &&func) {
     return visit_index<Ret, sizeof...(Types)>(id, [&]<size_t i>() {
-        using Type = decltype(detail::select_type<i, Types...>())::Type;
+        using Type = typename decltype(detail::select_type<i, Types...>())::Type;
         if constexpr (std::is_const_v<VoidPtr>) {
             return func(*static_cast<std::add_pointer_t<Type const>>(ptr));
         } else {

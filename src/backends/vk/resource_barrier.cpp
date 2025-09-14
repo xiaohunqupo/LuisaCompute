@@ -15,6 +15,7 @@ static constexpr VkPipelineStageFlagBits2 BarrierSyncMap[] = {
     VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_COPY_BIT_KHR,                                   // CopyAccelDst
     VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,//DepthRead
     VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,//DepthWrite
+    VK_PIPELINE_STAGE_2_CLEAR_BIT,                                                             //DepthClear
     VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,                                                     //IndirectArgs
     VK_PIPELINE_STAGE_2_VERTEX_ATTRIBUTE_INPUT_BIT,                                            //VertexRead,
     VK_PIPELINE_STAGE_2_INDEX_INPUT_BIT,                                                       //  IndexRead,
@@ -36,6 +37,7 @@ static constexpr VkAccessFlagBits2 BarrierAccessMap[] = {
     VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,// CopyAccelDst
     VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT,   //DepthRead
     VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,  //DepthWrite
+    VK_ACCESS_2_TRANSFER_WRITE_BIT,                  //DepthClear
     VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT,           // IndirectArgs
     VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT,           //VertexRead,
     VK_ACCESS_2_INDEX_READ_BIT,                      //  IndexRead,
@@ -58,7 +60,8 @@ static constexpr VkImageLayout BarrierLayoutMap[] = {
     VK_IMAGE_LAYOUT_GENERAL,                         // CopyAccelDst
     VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, //DepthRead
     VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,//DepthWrite
-    VK_IMAGE_LAYOUT_GENERAL,                         // DepthWrite
+    VK_IMAGE_LAYOUT_GENERAL,                         //DepthClear
+    VK_IMAGE_LAYOUT_GENERAL,                         // IndirectArgs
     VK_IMAGE_LAYOUT_GENERAL,                         //VertexRead,
     VK_IMAGE_LAYOUT_GENERAL,                         //  IndexRead,
     VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,              //RenderTarget
@@ -203,6 +206,17 @@ void ResourceBarrier::record(
             }
         });
 }
+
+void ResourceBarrier::force_refresh_layout(
+    Resource const *res, uint level,
+    VkImageLayout before_layout) {
+    auto iter = frame_states.find(res);
+    if (!(iter && iter.value().layer_states.index() == 1)) return;
+    auto &v = iter.value();
+    auto &ranges = v.layer_states.get<1>();
+    LUISA_ASSERT(ranges.size() > level);
+    ranges[level].before_layout = before_layout;
+}
 ResourceBarrier::~ResourceBarrier() {
 }
 
@@ -228,6 +242,7 @@ void ResourceBarrier::_update_state(Resource const *res_ptr, ResourceStates &sta
         // bf.after_access = bf.init_access;
     } else {// Texture
         auto &vec = state.layer_states.get<1>();
+        auto tex = static_cast<Texture const *>(res_ptr);
         for (auto idx : vstd::range(vec.size())) {
             auto &i = vec[idx];
             if (!i.level_require_update) continue;
@@ -240,9 +255,9 @@ void ResourceBarrier::_update_state(Resource const *res_ptr, ResourceStates &sta
             barrier.dstAccessMask = i.after_access;
             barrier.oldLayout = i.before_layout;
             barrier.newLayout = i.after_layout;
-            barrier.image = static_cast<Texture const *>(res_ptr)->vk_image();
+            barrier.image = tex->vk_image();
             barrier.subresourceRange = VkImageSubresourceRange{
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .aspectMask = tex->get_aspect(),
                 .baseMipLevel = (uint)idx,
                 .levelCount = 1,
                 .baseArrayLayer = 0,
@@ -272,20 +287,51 @@ void FilterAccess(
             sync &= (VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT |
                      VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT |
                      VK_PIPELINE_STAGE_2_COPY_BIT |
+                     VK_PIPELINE_STAGE_2_TRANSFER_BIT |
                      VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR |
-                     VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_COPY_BIT_KHR |
                      VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT |
+                     VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_COPY_BIT_KHR |
                      VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT |
                      VK_PIPELINE_STAGE_2_HOST_BIT);
+            switch (layout) {
+                case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+                case VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL:
+                case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
+                case VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL:
+                case VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_STENCIL_READ_ONLY_OPTIMAL:
+                case VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL:
+                case VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL:
+                case VK_IMAGE_LAYOUT_STENCIL_ATTACHMENT_OPTIMAL:
+                case VK_IMAGE_LAYOUT_STENCIL_READ_ONLY_OPTIMAL:
+                case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:
+                    layout = VK_IMAGE_LAYOUT_GENERAL;
+                    break;
+            }
         } break;
         case ResourceBarrier::QueueType::Copy: {
             sync &= (VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT |
                      VK_PIPELINE_STAGE_2_COPY_BIT |
+                     VK_PIPELINE_STAGE_2_TRANSFER_BIT |
                      VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_COPY_BIT_KHR |
                      VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT |
                      VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT |
                      VK_PIPELINE_STAGE_2_HOST_BIT);
-            layout = VK_IMAGE_LAYOUT_GENERAL;
+            switch (layout) {
+                case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+                case VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL:
+                case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
+                case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
+                case VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL:
+                case VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_STENCIL_READ_ONLY_OPTIMAL:
+                case VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL:
+                case VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL:
+                case VK_IMAGE_LAYOUT_STENCIL_ATTACHMENT_OPTIMAL:
+                case VK_IMAGE_LAYOUT_STENCIL_READ_ONLY_OPTIMAL:
+                case VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL:
+                case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:
+                    layout = VK_IMAGE_LAYOUT_GENERAL;
+                    break;
+            }
         } break;
     }
     const auto tex_read_sync = VK_PIPELINE_STAGE_2_COPY_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT | raster_stage;
@@ -372,6 +418,7 @@ void ResourceBarrier::restore_states(VkCommandBuffer cmd_buffer) {
         } else {// Texture
             auto &vec = state.layer_states.get<1>();
             auto init_layout = VK_IMAGE_LAYOUT_GENERAL;
+            auto tex = static_cast<Texture const *>(resPtr);
             for (auto idx : vstd::range(vec.size())) {
                 auto &i = vec[idx];
                 if (!i.level_inited) continue;
@@ -382,10 +429,10 @@ void ResourceBarrier::restore_states(VkCommandBuffer cmd_buffer) {
                 barrier.dstAccessMask = VK_ACCESS_2_NONE;
                 barrier.oldLayout = i.before_layout;
                 barrier.newLayout = init_layout;
-                static_cast<Texture const *>(resPtr)->set_layout(idx, init_layout);
-                barrier.image = static_cast<Texture const *>(resPtr)->vk_image();
+                tex->set_layout(idx, init_layout);
+                barrier.image = tex->vk_image();
                 barrier.subresourceRange = VkImageSubresourceRange{
-                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .aspectMask = tex->get_aspect(),
                     .baseMipLevel = (uint)idx,
                     .levelCount = 1,
                     .baseArrayLayer = 0,

@@ -11,6 +11,7 @@
 #include <luisa/runtime/swapchain.h>
 #include <luisa/backends/ext/vk_custom_cmd.h>
 #include "../common/shader_print_formatter.h"
+#include "raster_shader.h"
 namespace lc::vk {
 struct PresentCommand {
     luisa::fixed_vector<VkSemaphore, 1> submit_wait_semaphores;
@@ -222,7 +223,7 @@ struct BindPropVisitor {
             Texture::to_vk_format(tex->format()),
             VkComponentMapping{VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY},
             VkImageSubresourceRange{
-                VK_IMAGE_ASPECT_COLOR_BIT,
+                tex->get_aspect(),
                 bf.level,
                 1,
                 0,
@@ -448,13 +449,13 @@ CommandBufferState::~CommandBufferState() {
     vkDestroyCommandPool(device->logic_device(), _pool, Device::alloc_callbacks());
     vkDestroyDescriptorPool(device->logic_device(), _desc_pool, Device::alloc_callbacks());
 }
-void CommandBufferState::reset(Device &device) {
+void CommandBufferState::reset(Stream *stream, Device &device) {
     for (auto &i : _callbacks) {
         i();
     }
     _callbacks.clear();
     for (auto &i : _dispose_pool) {
-        i.second(i.first);
+        i.second(stream, this, i.first);
     }
     _dispose_pool.clear();
     upload_alloc.clear();
@@ -467,7 +468,7 @@ void CommandBufferState::reset(Device &device) {
 }
 void CommandBuffer::reset() {
     VK_CHECK_RESULT(vkResetCommandBuffer(_cmdbuffer, 0));
-    _state->reset(*device());
+    _state->reset(&stream, *device());
 }
 
 Stream::Stream(Device *device, StreamTag tag)
@@ -480,7 +481,9 @@ Stream::Stream(Device *device, StreamTag tag)
                   _mtx.lock();
                   auto p = _exec.pop();
                   _mtx.unlock();
-                  if (!p) break;
+                  if (!p) {
+                      break;
+                  }
                   p->visit(
                       [&]<typename T>(T &t) {
                           if constexpr (std::is_same_v<T, Callbacks>) {
@@ -546,6 +549,7 @@ void Stream::present(
     uint mip,
     Swapchain *swapchain,
     bool inqueue_limit) {
+    std::lock_guard lck{_dispatch_mtx};
     temp_desc.clear();
     if (inqueue_limit) {
         if (_evt.last_fence() > 2) {
@@ -603,7 +607,9 @@ void Stream::present(
             submit_info.commandBufferCount = 1;
             auto _cmdbuffer = cmdbuffer.cmdbuffer();
             submit_info.pCommandBuffers = &_cmdbuffer;
+            device()->queue_mtx().lock();
             VK_CHECK_RESULT(vkQueueSubmit(_queue, 1u, &submit_info, nullptr));
+            device()->queue_mtx().unlock();
         }
         {
             VkPresentInfoKHR present_info{};
@@ -614,7 +620,9 @@ void Stream::present(
             present_info.waitSemaphoreCount = present_cmd.present_wait_semaphores.size();
             present_info.pWaitSemaphores = present_cmd.present_wait_semaphores.data();
             present_info.pImageIndices = present_cmd.image_indices.data();
+            device()->queue_mtx().lock();
             VK_CHECK_RESULT(vkQueuePresentKHR(_queue, &present_info));
+            device()->queue_mtx().unlock();
         }
         _evt.signal(*this, fence);
         _mtx.lock();
@@ -634,6 +642,7 @@ void Stream::dispatch(
     luisa::vector<luisa::move_only_function<void()>> &&callbacks,
     vstd::span<const SwapchainPresent> presents,
     bool inqueue_limit) {
+    std::lock_guard lck{_dispatch_mtx};
     PresentCommand present_cmd;
     luisa::fixed_vector<VkSwapchainKHR, 1> vk_swapchains;
     temp_desc.clear();
@@ -705,7 +714,9 @@ void Stream::dispatch(
                 cb_ptr = nullptr;
             }
             submit_info.pCommandBuffers = cb_ptr;
+            device()->queue_mtx().lock();
             VK_CHECK_RESULT(vkQueueSubmit(_queue, 1u, &submit_info, nullptr));
+            device()->queue_mtx().unlock();
 
             VkPresentInfoKHR present_info{};
             present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -714,7 +725,9 @@ void Stream::dispatch(
             present_info.waitSemaphoreCount = present_cmd.present_wait_semaphores.size();
             present_info.pWaitSemaphores = present_cmd.present_wait_semaphores.data();
             present_info.pImageIndices = present_cmd.image_indices.data();
+            device()->queue_mtx().lock();
             VK_CHECK_RESULT(vkQueuePresentKHR(_queue, &present_info));
+            device()->queue_mtx().unlock();
         }
         if (cb_ptr && device()->config_ext() && device()->config_ext()->execute_command_buffer(cb)) {
             cb_ptr = nullptr;
@@ -739,6 +752,7 @@ void Stream::dispatch(
     _mtx.unlock();
 }
 void Stream::update_sparse_resources(luisa::vector<SparseUpdateTile> &&textures_update) noexcept {
+    std::lock_guard lck{_dispatch_mtx};
     temp_desc.clear();
     if (textures_update.empty()) [[unlikely]]
         return;
@@ -858,11 +872,13 @@ void Stream::update_sparse_resources(luisa::vector<SparseUpdateTile> &&textures_
     }
     VkTimelineSemaphoreSubmitInfo timeline;
     _evt.signal_sparse(*this, &fence, &info, &timeline);
+    device()->queue_mtx().lock();
     VK_CHECK_RESULT(vkQueueBindSparse(
         _queue,
         1,
         &info,
         VK_NULL_HANDLE));
+    device()->queue_mtx().unlock();
     _mtx.lock();
     _exec.push(NotifyEvt{
         .evt = &_evt,
@@ -912,6 +928,7 @@ CommandBuffer::CommandBuffer(CommandBuffer &&rhs)
     rhs._cmdbuffer = nullptr;
 }
 void Stream::signal(Event *event, uint64_t value) {
+    std::lock_guard lck{_dispatch_mtx};
     event->signal(*this, value);
     _mtx.lock();
     _exec.push(SyncExt{event, value});
@@ -919,12 +936,13 @@ void Stream::signal(Event *event, uint64_t value) {
     _mtx.unlock();
 }
 void Stream::wait(Event *event, uint64_t value) {
+    std::lock_guard lck{_dispatch_mtx};
     event->wait(*this, value);
 }
 void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
     // collect argument buffer
     size_t uniform_buffer_size = 0;
-    auto add_size = [&](ShaderDispatchCommand const &c, Argument const &a) {
+    auto add_size = [&](ShaderDispatchCommandBase const &c, Argument const &a) {
         if (a.tag != Argument::Tag::UNIFORM) [[likely]]
             return;
 
@@ -932,17 +950,31 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
         auto bf = c.uniform(a.uniform);
         uniform_buffer_size += std::max<size_t>(4, bf.size_bytes());
     };
-    for (auto &&command : cmds) {
-        command->accept(stream.reorder);
-        if (command->tag() != Command::Tag::EShaderDispatchCommand) continue;
-        auto c = static_cast<ShaderDispatchCommand const *>(command.get());
-        auto shader = reinterpret_cast<Shader const *>(c->handle());
+    auto dispatch_shader = [&](ShaderDispatchCommandBase const *c, Shader const *shader) {
         uniform_buffer_size = (uniform_buffer_size + 15ull) & (~(15ull));
         for (auto &i : shader->captured()) {
             add_size(*c, i);
         }
         for (auto &i : c->arguments()) {
             add_size(*c, i);
+        }
+    };
+    for (auto &&command : cmds) {
+        command->accept(stream.reorder);
+        switch (command->tag()) {
+            case Command::Tag::EShaderDispatchCommand: {
+                auto c = static_cast<ShaderDispatchCommand const *>(command.get());
+                auto shader = reinterpret_cast<Shader const *>(c->handle());
+                dispatch_shader(c, shader);
+            } break;
+            case Command::Tag::ECustomCommand: {
+                auto cmd = static_cast<CustomCommand const *>(command.get());
+                if (cmd->uuid() == to_underlying(CustomCommandUUID::RASTER_DRAW_SCENE)) {
+                    auto c = static_cast<DrawRasterSceneCommand const *>(cmd);
+                    auto shader = reinterpret_cast<Shader const *>(c->handle());
+                    dispatch_shader(c, shader);
+                }
+            } break;
         }
     }
     auto cmd_lists = stream.reorder.command_lists();
@@ -965,6 +997,21 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
     if (uniform_buffer_size > 0) {
         arg_buffer = _state->upload_alloc.allocate(uniform_buffer_size, 16);
     }
+    auto preprocess_arguments = [this](Shader const *shader, ShaderDispatchCommandBase const *c, bool is_raster) {
+        uniform_data->resize_uninitialized((uniform_data->size() + 15) & (~(15ull)));
+        std::pair<size_t, size_t> sizes;
+        sizes.first = uniform_data->size_bytes();
+        ResourceBarrierVisitor visitor{
+            resource_barrier,
+            shader->saved_arguments().data(),
+            uniform_data,
+            *c,
+            is_raster};
+        DecodeCmd(shader->captured(), visitor);
+        DecodeCmd(c->arguments(), visitor);
+        sizes.second = uniform_data->size() - sizes.first;
+        dispatch_offsets->emplace_back(sizes);
+    };
     for (auto &&lst : cmd_lists) {
         dispatch_offsets->clear();
         auto delay_clear = vstd::scope_exit([&]() {
@@ -1024,19 +1071,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                 case Command::Tag::EShaderDispatchCommand: {
                     auto c = static_cast<ShaderDispatchCommand const *>(cmd);
                     auto shader = reinterpret_cast<Shader const *>(c->handle());
-                    uniform_data->resize_uninitialized((uniform_data->size() + 15) & (~(15ull)));
-                    std::pair<size_t, size_t> sizes;
-                    sizes.first = uniform_data->size_bytes();
-                    ResourceBarrierVisitor visitor{
-                        resource_barrier,
-                        shader->saved_arguments().data(),
-                        uniform_data,
-                        *c,
-                        false};
-                    DecodeCmd(shader->captured(), visitor);
-                    DecodeCmd(c->arguments(), visitor);
-                    sizes.second = uniform_data->size() - sizes.first;
-                    dispatch_offsets->emplace_back(sizes);
+                    preprocess_arguments(shader, c, false);
                 } break;
                 case Command::Tag::ETextureUploadCommand: {
                     auto c = static_cast<TextureUploadCommand const *>(cmd);
@@ -1102,6 +1137,30 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                 case Command::Tag::ECustomCommand: {
                     auto c = static_cast<CustomCommand const *>(cmd);
                     switch (c->uuid()) {
+                        case to_underlying(CustomCommandUUID::RASTER_CLEAR_DEPTH): {
+                            auto cmd = static_cast<ClearDepthCommand const *>(c);
+                            auto tex = reinterpret_cast<Texture const *>(cmd->handle());
+                            resource_barrier->record(
+                                TexView(tex, 0),
+                                ResourceBarrier::Usage::DepthClear);
+                        } break;
+                        case to_underlying(CustomCommandUUID::RASTER_DRAW_SCENE): {
+                            auto cmd = static_cast<DrawRasterSceneCommand const *>(c);
+                            auto shader = reinterpret_cast<RasterShader *>(cmd->handle());
+                            preprocess_arguments(shader, cmd, true);
+                            for (auto &i : cmd->rtv_texs()) {
+                                auto tex = reinterpret_cast<Texture const *>(i.handle);
+                                resource_barrier->record(
+                                    TexView(tex, i.level),
+                                    ResourceBarrier::Usage::RenderTarget);
+                            }
+                            if (cmd->dsv_tex().handle != invalid_resource_handle) {
+                                auto tex = reinterpret_cast<Texture const *>(cmd->dsv_tex().handle);
+                                resource_barrier->record(
+                                    TexView(tex, 0),
+                                    ResourceBarrier::Usage::DepthWrite);
+                            }
+                        } break;
                         case to_underlying(CustomCommandUUID::CUSTOM_DISPATCH): {
                             auto custom_cmd = static_cast<VKCustomCmd const *>(c);
                             for (auto &&i : const_cast<VKCustomCmd *>(custom_cmd)->get_resource_usages()) {
@@ -1140,6 +1199,77 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
         }
         resource_barrier->update_states(_cmdbuffer);
         auto offset_ptr = dispatch_offsets->data();
+        auto set_dispatch_args = [&](BindPropVisitor &visitor, ShaderDispatchCommandBase const *c, Shader const *shader) {
+            uint desc_index = 0;
+            visitor.cmdbuffer = this;
+            VkDescriptorSetAllocateInfo alloc_info{
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+                .descriptorPool = _state->_desc_pool,
+                .descriptorSetCount = 1,
+                .pSetLayouts = shader->desc_set_layout().data()};
+            VK_CHECK_RESULT(
+                vkAllocateDescriptorSets(
+                    device()->logic_device(),
+                    &alloc_info,
+                    &visitor.desc_set));
+            if (offset_ptr->second > 0) {
+                auto arg_buffer_info = temp_desc->allocate_memory<VkDescriptorBufferInfo>();
+                *arg_buffer_info = VkDescriptorBufferInfo{
+                    arg_buffer.buffer->vk_buffer(),
+                    arg_buffer.offset + offset_ptr->first,
+                    offset_ptr->second};
+                write_desc_sets->emplace_back(VkWriteDescriptorSet{
+                    VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                    nullptr,
+                    visitor.desc_set,
+                    desc_index++,
+                    0,
+                    1,
+                    VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                    nullptr,
+                    arg_buffer_info,
+                    nullptr});
+            }
+            visitor.desc_index = desc_index;
+            visitor.img_views = &_state->img_views;
+            auto size = shader->saved_arguments().size();
+
+            visitor.arg = shader->saved_arguments().data();
+            DecodeCmd(shader->captured(), visitor);
+            DecodeCmd(c->arguments(), visitor);
+            return visitor.desc_index;
+        };
+        auto bind_shader_desc = [&](BindPropVisitor &visitor, Shader const *shader, VkPipelineBindPoint bind_point) {
+            if (!write_desc_sets->empty()) {
+                vkUpdateDescriptorSets(
+                    device()->logic_device(),
+                    write_desc_sets->size(),
+                    write_desc_sets->data(), 0,
+                    nullptr);
+                write_desc_sets->clear();
+            }
+            desc_sets->clear();
+            desc_sets->push_back(visitor.desc_set);
+            desc_sets->push_back(device()->sampler_set());
+            if (shader->use_buffer_bindless()) {
+                desc_sets->push_back(device()->bdls_buffer_set());
+            }
+            if (shader->use_tex2d_bindless()) {
+                desc_sets->push_back(device()->bdls_tex2d_set());
+            }
+            if (shader->use_tex3d_bindless()) {
+                desc_sets->push_back(device()->bdls_tex3d_set());
+            }
+            vkCmdBindDescriptorSets(
+                _cmdbuffer,
+                bind_point,
+                shader->pipeline_layout(),
+                0,
+                desc_sets->size(),
+                desc_sets->data(),
+                0,
+                nullptr);
+        };
         // Execute
         for (auto i = lst; i != nullptr; i = i->p_next) {
             auto cmd = i->cmd;
@@ -1218,7 +1348,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                         c->buffer_offset(),
                         0,
                         0,
-                        VkImageSubresourceLayers{VK_IMAGE_ASPECT_COLOR_BIT, c->level(), 0, 1},
+                        VkImageSubresourceLayers{tex->get_aspect(), c->level(), 0, 1},
                         VkOffset3D{tex_offset.x, tex_offset.y, tex_offset.z},
                         VkExtent3D{size.x, size.y, size.z}};
 
@@ -1235,45 +1365,8 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                 case Command::Tag::EShaderDispatchCommand: {
                     auto c = static_cast<ShaderDispatchCommand const *>(cmd);
                     auto shader = reinterpret_cast<ComputeShader *>(c->handle());
-                    uint desc_index = 0;
-
                     BindPropVisitor visitor;
-                    visitor.cmdbuffer = this;
-                    VkDescriptorSetAllocateInfo alloc_info{
-                        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-                        .descriptorPool = _state->_desc_pool,
-                        .descriptorSetCount = 1,
-                        .pSetLayouts = shader->desc_set_layout().data()};
-                    VK_CHECK_RESULT(
-                        vkAllocateDescriptorSets(
-                            device()->logic_device(),
-                            &alloc_info,
-                            &visitor.desc_set));
-                    if (offset_ptr->second > 0) {
-                        auto arg_buffer_info = temp_desc->allocate_memory<VkDescriptorBufferInfo>();
-                        *arg_buffer_info = VkDescriptorBufferInfo{
-                            arg_buffer.buffer->vk_buffer(),
-                            arg_buffer.offset + offset_ptr->first,
-                            offset_ptr->second};
-                        write_desc_sets->emplace_back(VkWriteDescriptorSet{
-                            VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                            nullptr,
-                            visitor.desc_set,
-                            desc_index++,
-                            0,
-                            1,
-                            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                            nullptr,
-                            arg_buffer_info,
-                            nullptr});
-                    }
-                    visitor.desc_index = desc_index;
-                    visitor.img_views = &_state->img_views;
-                    auto size = shader->saved_arguments().size();
-
-                    visitor.arg = shader->saved_arguments().data();
-                    DecodeCmd(shader->captured(), visitor);
-                    DecodeCmd(c->arguments(), visitor);
+                    set_dispatch_args(visitor, c, shader);
                     constexpr size_t max_printer_count = 1024ull * 1024ull;
                     BufferView count_buffer;
                     BufferView data_buffer;
@@ -1361,35 +1454,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                             ResourceBarrier::Usage::ComputeUAV);
                         resource_barrier->update_states(_cmdbuffer);
                     }
-                    if (!write_desc_sets->empty()) {
-                        vkUpdateDescriptorSets(
-                            device()->logic_device(),
-                            write_desc_sets->size(),
-                            write_desc_sets->data(), 0,
-                            nullptr);
-                        write_desc_sets->clear();
-                    }
-                    desc_sets->clear();
-                    desc_sets->push_back(visitor.desc_set);
-                    desc_sets->push_back(device()->sampler_set());
-                    if (shader->use_buffer_bindless()) {
-                        desc_sets->push_back(device()->bdls_buffer_set());
-                    }
-                    if (shader->use_tex2d_bindless()) {
-                        desc_sets->push_back(device()->bdls_tex2d_set());
-                    }
-                    if (shader->use_tex3d_bindless()) {
-                        desc_sets->push_back(device()->bdls_tex3d_set());
-                    }
-                    vkCmdBindDescriptorSets(
-                        _cmdbuffer,
-                        VK_PIPELINE_BIND_POINT_COMPUTE,
-                        shader->pipeline_layout(),
-                        0,
-                        desc_sets->size(),
-                        desc_sets->data(),
-                        0,
-                        nullptr);
+                    bind_shader_desc(visitor, shader, VK_PIPELINE_BIND_POINT_COMPUTE);
                     vkCmdBindPipeline(_cmdbuffer, VK_PIPELINE_BIND_POINT_COMPUTE, shader->pipeline());
                     auto calc = [](uint disp, uint thd) {
                         return (disp + thd - 1u) / thd;
@@ -1516,7 +1581,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                         buffer.offset,
                         0,
                         0,
-                        VkImageSubresourceLayers{VK_IMAGE_ASPECT_COLOR_BIT, c->level(), 0, 1},
+                        VkImageSubresourceLayers{tex->get_aspect(), c->level(), 0, 1},
                         VkOffset3D{tex_offset.x, tex_offset.y, tex_offset.z},
                         VkExtent3D{size.x, size.y, size.z}};
 
@@ -1549,7 +1614,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                         buffer.offset,
                         0,
                         0,
-                        VkImageSubresourceLayers{VK_IMAGE_ASPECT_COLOR_BIT, c->level(), 0, 1},
+                        VkImageSubresourceLayers{tex->get_aspect(), c->level(), 0, 1},
                         VkOffset3D{tex_offset.x, tex_offset.y, tex_offset.z},
                         VkExtent3D{size.x, size.y, size.z}};
                     VkCopyImageToBufferInfo2 info{
@@ -1574,9 +1639,9 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                     VkImageCopy2 copy{
                         VK_STRUCTURE_TYPE_IMAGE_COPY_2,
                         nullptr,
-                        VkImageSubresourceLayers{VK_IMAGE_ASPECT_COLOR_BIT, c->src_level(), 0, 1},
+                        VkImageSubresourceLayers{src_tex->get_aspect(), c->src_level(), 0, 1},
                         VkOffset3D{src_tex_offset.x, src_tex_offset.y, src_tex_offset.z},
-                        VkImageSubresourceLayers{VK_IMAGE_ASPECT_COLOR_BIT, c->dst_level(), 0, 1},
+                        VkImageSubresourceLayers{dst_tex->get_aspect(), c->dst_level(), 0, 1},
                         VkOffset3D{dst_tex_offset.x, dst_tex_offset.y, dst_tex_offset.z},
                         VkExtent3D{size.x, size.y, size.z}};
                     VkCopyImageInfo2 info{
@@ -1603,7 +1668,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                         c->buffer_offset(),
                         0,
                         0,
-                        VkImageSubresourceLayers{VK_IMAGE_ASPECT_COLOR_BIT, c->level(), 0, 1},
+                        VkImageSubresourceLayers{tex->get_aspect(), c->level(), 0, 1},
                         VkOffset3D{tex_offset.x, tex_offset.y, tex_offset.z},
                         VkExtent3D{size.x, size.y, size.z}};
                     VkCopyImageToBufferInfo2 info{
@@ -1716,6 +1781,190 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                 case Command::Tag::ECustomCommand: {
                     auto c = static_cast<CustomCommand const *>(cmd);
                     switch (c->uuid()) {
+                        // TODO
+                        case to_underlying(CustomCommandUUID::RASTER_CLEAR_DEPTH): {
+                            auto cmd = static_cast<ClearDepthCommand const *>(c);
+                            auto tex = reinterpret_cast<Texture *>(cmd->handle());
+                            VkClearDepthStencilValue depth_stencil_value{
+                                .depth = cmd->value(),
+                                .stencil = 0};
+                            auto depth_format = tex->depth_format();
+                            VkImageSubresourceRange sub_range{
+                                .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
+                                .baseMipLevel = 0,
+                                .levelCount = 1,
+                                .baseArrayLayer = 0,
+                                .layerCount = 1};
+                            if (depth_format == DepthFormat::D24S8 || depth_format == DepthFormat::D32S8A24) {
+                                sub_range.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+                            }
+                            vkCmdClearDepthStencilImage(
+                                _cmdbuffer,
+                                tex->vk_image(),
+                                resource_barrier->get_layout(tex, 0),
+                                &depth_stencil_value,
+                                1,
+                                &sub_range);
+                        } break;
+                        case to_underlying(CustomCommandUUID::RASTER_DRAW_SCENE): {
+                            auto cmd = static_cast<DrawRasterSceneCommand const *>(c);
+                            auto shader = reinterpret_cast<RasterShader *>(cmd->handle());
+                            auto pipe = shader->create_pipeline(cmd->rtv_texs(), cmd->dsv_tex(), cmd->mesh_format(), cmd->raster_state());
+                            BindPropVisitor visitor;
+                            // bind arguments
+                            set_dispatch_args(visitor, cmd, shader);
+                            bind_shader_desc(visitor, shader, VK_PIPELINE_BIND_POINT_GRAPHICS);
+                            vkCmdBindPipeline(_cmdbuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.pipeline);
+                            // framebuffer
+                            VkFramebuffer fb;
+                            uint img_view_offset = _state->img_views.size();
+                            auto emplace_img_view = [&](VkImageView &img_view, Texture *tex, uint level) {
+                                VkImageViewCreateInfo imgview_create_info{
+                                    VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                                    nullptr,
+                                    0,
+                                    tex->vk_image(),
+                                    VkImageViewType(tex->dimension() - 1),
+                                    Texture::to_vk_format(tex->format()),
+                                    VkComponentMapping{VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY},
+                                    VkImageSubresourceRange{
+                                        tex->get_aspect(),
+                                        level,
+                                        1,
+                                        0,
+                                        1}};
+                                VK_CHECK_RESULT(vkCreateImageView(device()->logic_device(), &imgview_create_info, Device::alloc_callbacks(), &img_view));
+                            };
+                            uint2 resolution;
+                            for (auto &i : cmd->rtv_texs()) {
+                                auto &img_view = _state->img_views.emplace_back();
+                                auto tex = reinterpret_cast<Texture *>(i.handle);
+                                emplace_img_view(img_view, tex, i.level);
+                                VkClearValue clear_value;
+                                std::memset(&clear_value, 0, sizeof(VkClearValue));
+                            }
+                            if (!cmd->rtv_texs().empty()) {
+                                auto &&i = cmd->rtv_texs()[0];
+                                auto tex = reinterpret_cast<Texture *>(i.handle);
+                                resolution = tex->size().xy();
+                            }
+                            if (cmd->dsv_tex().handle != invalid_resource_handle) {
+                                auto &img_view = _state->img_views.emplace_back();
+                                auto tex = reinterpret_cast<Texture *>(cmd->dsv_tex().handle);
+                                emplace_img_view(img_view, tex, cmd->dsv_tex().level);
+                                resolution = tex->size().xy();
+                                VkClearValue clear_value;
+                                std::memset(&clear_value, 0, sizeof(VkClearValue));
+                                clear_value.depthStencil.depth = 0.f;// TODO: may set depth_buffer default value
+                            }
+
+                            VkFramebufferCreateInfo framebuffer_create_info{
+                                .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+                                .renderPass = pipe.render_pass,
+                                .attachmentCount = (uint)(_state->img_views.size() - img_view_offset),
+                                .pAttachments = _state->img_views.data() + img_view_offset,
+                                .width = resolution.x,
+                                .height = resolution.y,
+                                .layers = 1};
+                            VK_CHECK_RESULT(vkCreateFramebuffer(
+                                device()->logic_device(),
+                                &framebuffer_create_info,
+                                Device::alloc_callbacks(),
+                                &fb));
+                            VkRenderPassBeginInfo begin_pass_info{
+                                .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+                                .renderPass = pipe.render_pass,
+                                .framebuffer = fb,
+                                .renderArea = VkRect2D{
+                                    .offset = VkOffset2D{0, 0},
+                                    .extent = VkExtent2D{resolution.x, resolution.y}},
+                                .clearValueCount = 0,
+                                .pClearValues = nullptr};
+                            vkCmdBeginRenderPass(_cmdbuffer, &begin_pass_info, VK_SUBPASS_CONTENTS_INLINE);
+                            auto &&cmd_vp = cmd->viewport();
+                            VkViewport viewport{};
+                            viewport.x = static_cast<float>(cmd_vp.start.x);
+                            viewport.y = static_cast<float>(cmd_vp.start.y);
+                            viewport.width = std::max(1.f, static_cast<float>(cmd_vp.size.x));
+                            viewport.height = std::max(1.f, static_cast<float>(cmd_vp.size.y));
+                            viewport.minDepth = 0.0f;
+                            viewport.maxDepth = 1.0f;
+                            vkCmdSetViewport(_cmdbuffer, 0, 1, &viewport);
+
+                            VkRect2D scissor{};
+                            scissor.offset = {(int)cmd_vp.start.x, (int)cmd_vp.start.y};
+                            scissor.extent = {cmd_vp.size.x, cmd_vp.size.y};
+                            vkCmdSetScissor(_cmdbuffer, 0, 1, &scissor);
+                            vstd::fixed_vector<VkBuffer, 4> vertex_buffers;
+                            vstd::fixed_vector<VkDeviceSize, 4> vertex_buffer_offsets;
+                            for (auto &mesh : cmd->scene()) {
+                                auto vb = mesh.vertex_buffers();
+                                vertex_buffers.clear();
+                                vertex_buffer_offsets.clear();
+                                vertex_buffers.reserve(vb.size());
+                                vertex_buffer_offsets.reserve(vb.size());
+                                for (auto &i : vb) {
+                                    vertex_buffers.emplace_back(reinterpret_cast<Buffer *>(i.handle())->vk_buffer());
+                                    vertex_buffer_offsets.emplace_back(i.offset());
+                                }
+                                vkCmdBindVertexBuffers(_cmdbuffer, 0, vb.size(), vertex_buffers.data(), vertex_buffer_offsets.data());
+                                auto before_draw = [&]() {
+                                    uint value = mesh.object_id();
+                                    vkCmdPushConstants(
+                                        _cmdbuffer,
+                                        shader->pipeline_layout(),
+                                        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                                        0,
+                                        4,
+                                        &value);
+                                };
+                                luisa::visit([&]<typename T>(T const &t) {
+                                    // Draw
+                                    if constexpr (std::is_integral_v<T>) {
+                                        before_draw();
+                                        vkCmdDraw(
+                                            _cmdbuffer,
+                                            t,
+                                            mesh.instance_count(),
+                                            mesh.vertex_offset(),
+                                            0);
+                                    } else {
+                                        auto buffer = reinterpret_cast<Buffer *>(t.handle());
+                                        vkCmdBindIndexBuffer(_cmdbuffer, buffer->vk_buffer(), t.offset_bytes(), VK_INDEX_TYPE_UINT32);
+                                        before_draw();
+                                        vkCmdDrawIndexed(
+                                            _cmdbuffer,
+                                            t.size_bytes() / sizeof(uint),
+                                            mesh.instance_count(),
+                                            0,
+                                            mesh.vertex_offset(),
+                                            0);
+                                    }
+                                    // Draw indexed
+                                },
+                                             mesh.index());
+                            }
+                            vkCmdEndRenderPass(_cmdbuffer);
+                            _state->_dispose_pool.emplace_back(fb, [](Stream *stream, CommandBufferState *state, void *ptr) {
+                                vkDestroyFramebuffer(
+                                    stream->device()->logic_device(),
+                                    static_cast<VkFramebuffer>(ptr),
+                                    Device::alloc_callbacks());
+                            });
+                            for (auto &i : cmd->rtv_texs()) {
+                                auto tex = reinterpret_cast<Texture const *>(i.handle);
+                                resource_barrier->force_refresh_layout(
+                                    tex, i.level,
+                                    VK_IMAGE_LAYOUT_GENERAL);
+                            }
+                            if (cmd->dsv_tex().handle != invalid_resource_handle) {
+                                auto tex = reinterpret_cast<Texture const *>(cmd->dsv_tex().handle);
+                                resource_barrier->force_refresh_layout(
+                                    tex, 0,
+                                    VK_IMAGE_LAYOUT_GENERAL);
+                            }
+
+                        } break;
                         case to_underlying(CustomCommandUUID::CUSTOM_DISPATCH): {
                             static_cast<VKCustomCmd const *>(c)->execute(
                                 device()->physical_device(),
@@ -1830,7 +2079,7 @@ void Shader::update_desc_set(
                     }
                 }(),
                 .format = Texture::to_vk_format(tex->format()),
-                .subresourceRange = VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .baseMipLevel = t.level, .levelCount = 1, .baseArrayLayer = 0, .layerCount = 1}};
+                .subresourceRange = VkImageSubresourceRange{.aspectMask = tex->get_aspect(), .baseMipLevel = t.level, .levelCount = 1, .baseArrayLayer = 0, .layerCount = 1}};
             VK_CHECK_RESULT(vkCreateImageView(device()->logic_device(), &img_view_create_info, Device::alloc_callbacks(), &img_view));
             image_info.imageView = img_view;
             image_info.imageLayout = tex->layout(t.level);
