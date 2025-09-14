@@ -1053,7 +1053,7 @@ public:
         submit_info.waitSemaphoreCount = wait == nullptr ? 1u : 2u;
         submit_info.pWaitSemaphores = wait_semaphores.data();
         submit_info.pWaitDstStageMask = wait_stages.data();
-        std::array signal_semaphores = {_render_finished_semaphores[_current_frame], signal};
+        std::array signal_semaphores = {_render_finished_semaphores[image_index], signal};
         submit_info.signalSemaphoreCount = signal == nullptr ? 1u : 2u;
         submit_info.pSignalSemaphores = signal_semaphores.data();
         submit_info.commandBufferCount = 1;
@@ -1066,7 +1066,7 @@ public:
         present_info.pSwapchains = &_swapchain;
         present_info.swapchainCount = 1u;
         present_info.waitSemaphoreCount = 1u;
-        present_info.pWaitSemaphores = &_render_finished_semaphores[_current_frame];
+        present_info.pWaitSemaphores = &_render_finished_semaphores[image_index];
         present_info.pImageIndices = &image_index;
         LUISA_CHECK_VULKAN(vkQueuePresentKHR(_queue, &present_info));
 
