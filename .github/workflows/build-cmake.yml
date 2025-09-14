@@ -70,8 +70,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-#        compiler: [ homebrew-clang, system-clang ]
-        compiler: [ system-clang ]
+        compiler: [ homebrew-clang, system-clang ]
         config: [ Release, Debug ]
     name: macOS / ${{ matrix.config }} / ${{ matrix.compiler }}
     runs-on: macos-latest
