@@ -10,7 +10,12 @@ set(LUISA_COMPUTE_VSTL_SOURCES
 add_library(luisa-compute-vstl OBJECT ${LUISA_COMPUTE_VSTL_SOURCES})
 target_precompile_headers(luisa-compute-vstl PRIVATE lc_vstl_pch.h)
 
-target_link_libraries(luisa-compute-vstl PUBLIC luisa-compute-core PRIVATE luisa-compute-ext-lmdb)
+target_link_libraries(luisa-compute-vstl PUBLIC luisa-compute-core)
+
+if (NOT LUISA_COMPUTE_USE_SYSTEM_LMDB)
+    target_link_libraries(luisa-compute-vstl PRIVATE luisa-compute-ext-lmdb)
+endif ()
+
 target_compile_definitions(luisa-compute-vstl PRIVATE LC_VSTL_EXPORT_DLL=1)
 set_target_properties(luisa-compute-vstl PROPERTIES
         UNITY_BUILD ${LUISA_COMPUTE_ENABLE_UNITY_BUILD}
