@@ -90,7 +90,7 @@ void Stream::check_compete() {
                         case Resource::Tag::SPARSE_TEXTURE:
                         case Resource::Tag::SPARSE_BUFFER_HEAP:
                         case Resource::Tag::SPARSE_TEXTURE_HEAP:
-                            luisa::log_verbose(
+                            LUISA_VERBOSE(
                                 "Simultaneous-accessible resource {} is used to be {} by {} and {} by {} simultaneously.",
                                 res->get_name(),
                                 detail::usage_name(stream_iter.second.usage),
