@@ -177,6 +177,7 @@ void StringStateVisitor::visit(const AccessExpr *expr) {
     //    }
     switch (t->tag()) {
         case Type::Tag::BUFFER:
+        case Type::Tag::COOPERATIVE_VECTOR:
         case Type::Tag::VECTOR: {
             basicAccess();
         } break;
@@ -646,7 +647,7 @@ void StringStateVisitor::VisitFunction(
         util->GetVariableName(v, varName);
 
         str << typeName << ' ' << varName;
-        if (!(v.type()->is_resource() || v.type()->is_custom())) [[likely]] {
+        if (!(v.type()->is_resource() || v.type()->is_custom() || v.type()->is_cooperative_vector())) [[likely]] {
             str << "=("sv << typeName << ")0"sv;
         }
         str << ";\n";

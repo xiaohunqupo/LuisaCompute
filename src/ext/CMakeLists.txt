@@ -85,6 +85,7 @@ endif ()
 # stb
 add_subdirectory(stb)
 target_link_libraries(luisa-compute-ext INTERFACE luisa-compute-ext-stb-interface)
+
 luisa_compute_install_extension(luisa-compute-ext-stb-interface HEADER_FILES
         stb/stb/stb_image.h
         stb/stb/stb_image_resize2.h
@@ -142,22 +143,15 @@ else ()
     endif ()
 endif ()
 
-# half
-if (LUISA_COMPUTE_USE_SYSTEM_HALF)
-    find_path(HALF_INCLUDE_DIRS "half.hpp")
-    target_include_directories(luisa-compute-ext INTERFACE ${HALF_INCLUDE_DIRS})
-    target_compile_definitions(luisa-compute-ext INTERFACE LUISA_USE_SYSTEM_HALF=1)
-else ()
-    add_library(half INTERFACE)
-    target_include_directories(half INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/half/include>)
-    target_link_libraries(luisa-compute-ext INTERFACE half)
-    luisa_compute_install_extension(half HEADER_FILES half/include/half.hpp)
-    if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 20.0)
-        target_compile_options(half INTERFACE
-                -Wno-invalid-specialization
-                -Wno-deprecated-literal-operator
-                -Wno-elaborated-enum-base)
-    endif ()
+add_library(half INTERFACE)
+target_include_directories(half INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/half/include>)
+target_link_libraries(luisa-compute-ext INTERFACE half)
+luisa_compute_install_extension(half HEADER_FILES half/include/half.hpp)
+if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 20.0)
+    target_compile_options(half INTERFACE
+            -Wno-invalid-specialization
+            -Wno-deprecated-literal-operator
+            -Wno-elaborated-enum-base)
 endif ()
 
 # reproc
@@ -226,43 +220,37 @@ else ()
 endif ()
 
 # marl
-if (LUISA_COMPUTE_USE_SYSTEM_MARL)
-    find_package(marl REQUIRED)
-    target_link_libraries(luisa-compute-ext INTERFACE marl::marl)
-    target_compile_definitions(luisa-compute-ext INTERFACE LUISA_USE_SYSTEM_MARL=1)
+add_library(luisa-compute-ext-marl-interface INTERFACE)
+target_include_directories(luisa-compute-ext-marl-interface INTERFACE
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/marl/include>)
+target_compile_definitions(luisa-compute-ext-marl-interface INTERFACE MARL_DLL=1)
+target_link_libraries(luisa-compute-ext INTERFACE luisa-compute-ext-marl-interface)
+luisa_compute_install_extension(luisa-compute-ext-marl-interface INCLUDE marl/include/marl)
+
+file(GLOB LUISA_COMPUTE_MARL_HEADERS CONFIGURE_DEPENDS marl/include/marl/*.h)
+file(GLOB LUISA_COMPUTE_MARL_C_SOURCES CONFIGURE_DEPENDS marl/src/*.c)
+file(GLOB LUISA_COMPUTE_MARL_ASM_SOURCES CONFIGURE_DEPENDS marl/src/*.S)
+file(GLOB LUISA_COMPUTE_MARL_CXX_SOURCES CONFIGURE_DEPENDS marl/src/*.cpp)
+# remove the manual unity build file "build.marl.cpp" and let CMake handle it
+list(FILTER LUISA_COMPUTE_MARL_CXX_SOURCES EXCLUDE REGEX ".*build.marl.cpp$")
+add_library(luisa-compute-ext-marl OBJECT ${LUISA_COMPUTE_MARL_HEADERS} ${LUISA_COMPUTE_MARL_CXX_SOURCES})
+if (LUISA_COMPUTE_USE_SYSTEM_STL)
+    target_compile_definitions(luisa-compute-ext-marl-interface INTERFACE MARL_USE_SYSTEM_STL=1)
 else ()
-    add_library(luisa-compute-ext-marl-interface INTERFACE)
-    target_include_directories(luisa-compute-ext-marl-interface INTERFACE
-            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/marl/include>)
-    target_compile_definitions(luisa-compute-ext-marl-interface INTERFACE MARL_DLL=1)
-    target_link_libraries(luisa-compute-ext INTERFACE luisa-compute-ext-marl-interface)
-    luisa_compute_install_extension(luisa-compute-ext-marl-interface INCLUDE marl/include/marl)
-
-    file(GLOB LUISA_COMPUTE_MARL_HEADERS CONFIGURE_DEPENDS marl/include/marl/*.h)
-    file(GLOB LUISA_COMPUTE_MARL_C_SOURCES CONFIGURE_DEPENDS marl/src/*.c)
-    file(GLOB LUISA_COMPUTE_MARL_ASM_SOURCES CONFIGURE_DEPENDS marl/src/*.S)
-    file(GLOB LUISA_COMPUTE_MARL_CXX_SOURCES CONFIGURE_DEPENDS marl/src/*.cpp)
-    # remove the manual unity build file "build.marl.cpp" and let CMake handle it
-    list(FILTER LUISA_COMPUTE_MARL_CXX_SOURCES EXCLUDE REGEX ".*build.marl.cpp$")
-    add_library(luisa-compute-ext-marl OBJECT ${LUISA_COMPUTE_MARL_HEADERS} ${LUISA_COMPUTE_MARL_CXX_SOURCES})
-    if (LUISA_COMPUTE_USE_SYSTEM_STL)
-        target_compile_definitions(luisa-compute-ext-marl-interface INTERFACE MARL_USE_SYSTEM_STL=1)
-    else ()
-        target_link_libraries(luisa-compute-ext-marl-interface INTERFACE EASTL-interface)
-    endif ()
-    target_compile_definitions(luisa-compute-ext-marl PRIVATE MARL_BUILDING_DLL=1)
-    target_link_libraries(luisa-compute-ext-marl PRIVATE luisa-compute-ext-marl-interface)
-
-    set_target_properties(luisa-compute-ext-marl PROPERTIES UNITY_BUILD ${LUISA_COMPUTE_ENABLE_UNITY_BUILD})
-    if (NOT WIN32)
-        enable_language(ASM)
-        target_sources(luisa-compute-ext-marl PRIVATE ${LUISA_COMPUTE_MARL_C_SOURCES} ${LUISA_COMPUTE_MARL_ASM_SOURCES})
-    endif ()
-    if (UNIX AND NOT APPLE)
-        set_target_properties(luisa-compute-ext-marl PROPERTIES POSITION_INDEPENDENT_CODE ON)
-    endif ()
-    install(TARGETS luisa-compute-ext-marl EXPORT LuisaComputeTargets)
+    target_link_libraries(luisa-compute-ext-marl-interface INTERFACE EASTL-interface)
 endif ()
+target_compile_definitions(luisa-compute-ext-marl PRIVATE MARL_BUILDING_DLL=1)
+target_link_libraries(luisa-compute-ext-marl PRIVATE luisa-compute-ext-marl-interface)
+
+set_target_properties(luisa-compute-ext-marl PROPERTIES UNITY_BUILD ${LUISA_COMPUTE_ENABLE_UNITY_BUILD})
+if (NOT WIN32)
+    enable_language(ASM)
+    target_sources(luisa-compute-ext-marl PRIVATE ${LUISA_COMPUTE_MARL_C_SOURCES} ${LUISA_COMPUTE_MARL_ASM_SOURCES})
+endif ()
+if (UNIX AND NOT APPLE)
+    set_target_properties(luisa-compute-ext-marl PROPERTIES POSITION_INDEPENDENT_CODE ON)
+endif ()
+install(TARGETS luisa-compute-ext-marl EXPORT LuisaComputeTargets)
 
 # lmdb
 if (LUISA_COMPUTE_USE_SYSTEM_LMDB)
@@ -296,12 +284,18 @@ endif ()
 
 install(TARGETS luisa-compute-ext EXPORT LuisaComputeTargets)
 
+# for rust bindings
+# if (LUISA_COMPUTE_ENABLE_RUST)
+#     add_subdirectory(corrosion)
+# endif ()
+
+
 # volk
 if (LUISA_COMPUTE_ENABLE_VULKAN)
     if (LUISA_COMPUTE_USE_SYSTEM_VOLK)
         find_package(volk REQUIRED)
         target_link_libraries(luisa-compute-ext INTERFACE volk::volk)
-        target_compile_definitions(luisa-compute-ext INTERFACE LUISA_USE_SYSTEM_VOLK=1)
+        target_compile_definitions(luisa-compute-ext INTERFACE LUISA_USE_SYSTEM_VULKAN=1)
     else ()
         add_subdirectory(volk)
     endif ()

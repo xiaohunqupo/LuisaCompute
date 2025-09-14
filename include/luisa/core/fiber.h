@@ -1,10 +1,11 @@
 #pragma once
 
 #include <marl/event.h>
+#include <marl/future.h>
 #include <marl/waitgroup.h>
 #include <marl/finally.h>
 #include <luisa/core/shared_function.h>
-#include <luisa/core/fiber_future.h>
+#include <luisa/core/stl/functional.h>
 #include <luisa/core/concepts.h>
 
 namespace marl {
@@ -97,9 +98,8 @@ public:
         return _evt.isSignalled();
     }
 };
-
 template<typename T>
-using future = Future<T>;
+using future = marl::Future<T>;
 
 inline uint32_t worker_thread_count() {
     return marl::Scheduler::get()->config().workerThread.count;

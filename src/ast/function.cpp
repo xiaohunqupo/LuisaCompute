@@ -142,4 +142,7 @@ CurveBasisSet Function::required_curve_bases() const noexcept {
 luisa::optional<uint8_t> Function::allowed_warp_size() const noexcept {
     return _builder->allowed_warp_size();
 }
+bool Function::use_cooperative_operations() const noexcept {
+    return _builder->use_cooperative_operations();
+}
 }// namespace luisa::compute
