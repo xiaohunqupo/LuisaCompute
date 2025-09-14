@@ -165,6 +165,9 @@ private:
             case Type::Tag::BINDLESS_ARRAY: return "bindless_array";
             case Type::Tag::ACCEL: return "accel";
             case Type::Tag::CUSTOM: return luisa::format("T{}", _struct_uid(type));
+            case Type::Tag::COOPERATIVE_VECTOR: LUISA_NOT_IMPLEMENTED();
+            case Type::Tag::COOPERATIVE_VECTOR_REF: LUISA_NOT_IMPLEMENTED();
+            case Type::Tag::COOPERATIVE_MATRIX_REF: LUISA_NOT_IMPLEMENTED();
         }
         LUISA_ERROR_WITH_LOCATION("Unknown type tag.");
     }
