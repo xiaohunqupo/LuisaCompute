@@ -114,7 +114,7 @@ public:
     auto bdls_buffer_set() const { return _bdls_buffer_set; }
     auto bdls_tex2d_set() const { return _bdls_tex2d_set; }
     auto bdls_tex3d_set() const { return _bdls_tex3d_set; }
-    auto samplers() const const { return luisa::span{_samplers}; }
+    auto samplers() const { return luisa::span{_samplers}; }
     static hlsl::ShaderCompiler *Compiler();
     static VkAllocationCallbacks *alloc_callbacks();
     VkInstance instance() const;
