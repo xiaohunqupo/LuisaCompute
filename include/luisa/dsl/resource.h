@@ -10,7 +10,19 @@
 #include <luisa/dsl/atomic.h>
 
 namespace luisa::compute {
+enum struct SamplerFilter {
+    POINT = 0,
+    LINEAR_POINT = 1,
+    LINEAR_LINEAR = 2,
+    ANISOTROPIC = 3,
+};
 
+enum struct SamplerAddress {
+    EDGE = 0,
+    REPEAT = 1,
+    MIRROR = 2,
+    ZERO = 3,
+};
 namespace detail {
 
 template<typename T>
@@ -357,6 +369,14 @@ public:
     [[nodiscard]] Var<float4> sample(Expr<float2> uv, Expr<float2> dpdx, Expr<float2> dpdy) const noexcept;
     /// Sample at (u, v) with grad dpdx, dpdy, mip-level offset, mip-level clamp
     [[nodiscard]] Var<float4> sample(Expr<float2> uv, Expr<float2> dpdx, Expr<float2> dpdy, Expr<float> min_mip) const noexcept;
+    /// Sample at (u, v)
+    [[nodiscard]] Var<float4> sample(Expr<float2> uv, SamplerFilter filter, SamplerAddress address) const noexcept;
+    /// Sample at (u, v) at mip level
+    [[nodiscard]] Var<float4> sample(Expr<float2> uv, Expr<float> mip, SamplerFilter filter, SamplerAddress address) const noexcept;
+    /// Sample at (u, v) with grad dpdx, dpdy
+    [[nodiscard]] Var<float4> sample(Expr<float2> uv, Expr<float2> dpdx, Expr<float2> dpdy, SamplerFilter filter, SamplerAddress address) const noexcept;
+    /// Sample at (u, v) with grad dpdx, dpdy, mip-level offset, mip-level clamp
+    [[nodiscard]] Var<float4> sample(Expr<float2> uv, Expr<float2> dpdx, Expr<float2> dpdy, Expr<float> min_mip, SamplerFilter filter, SamplerAddress address) const noexcept;
     /// Size
     [[nodiscard]] Var<uint2> size() const noexcept;
     /// Size at level
@@ -402,6 +422,14 @@ public:
     [[nodiscard]] Var<float4> sample(Expr<float3> uvw, Expr<float3> dpdx, Expr<float3> dpdy) const noexcept;
     /// Sample at (u, v) with grad dpdx, dpdy, mip-level offset, mip-level clamp
     [[nodiscard]] Var<float4> sample(Expr<float3> uvw, Expr<float3> dpdx, Expr<float3> dpdy, Expr<float> min_mip) const noexcept;
+    /// Sample at (u, v, w)
+    [[nodiscard]] Var<float4> sample(Expr<float3> uvw, SamplerFilter filter, SamplerAddress address) const noexcept;
+    /// Sample at (u, v, w) at mip level
+    [[nodiscard]] Var<float4> sample(Expr<float3> uvw, Expr<float> mip, SamplerFilter filter, SamplerAddress address) const noexcept;
+    /// Sample at (u, v, w) with grad dpdx, dpdy
+    [[nodiscard]] Var<float4> sample(Expr<float3> uvw, Expr<float3> dpdx, Expr<float3> dpdy, SamplerFilter filter, SamplerAddress address) const noexcept;
+    /// Sample at (u, v) with grad dpdx, dpdy, mip-level offset, mip-level clamp
+    [[nodiscard]] Var<float4> sample(Expr<float3> uvw, Expr<float3> dpdx, Expr<float3> dpdy, Expr<float> min_mip, SamplerFilter filter, SamplerAddress address) const noexcept;
     /// Size
     [[nodiscard]] Var<uint3> size() const noexcept;
     /// Size at level

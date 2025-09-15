@@ -79,17 +79,19 @@ struct ResourceBarrierVisitor {
     template<typename T>
     void emplace_data(T const &data) {
         size_t sz = arg_buffer->size();
-        luisa::enlarge_by(*arg_buffer, sizeof(T));
+        auto aligned_size = (sz + 15u) & (~15u);
+        luisa::enlarge_by(*arg_buffer, sizeof(T) + aligned_size - sz);
         using PlaceHolder = luisa::aligned_storage_t<sizeof(T), 1>;
-        *reinterpret_cast<PlaceHolder *>(arg_buffer->data() + sz) =
+        *reinterpret_cast<PlaceHolder *>(arg_buffer->data() + aligned_size) =
             *reinterpret_cast<PlaceHolder const *>(&data);
     }
     template<typename T>
     void emplace_data(T const *data, size_t size) {
         size_t sz = arg_buffer->size();
+        auto aligned_size = (sz + 15u) & (~15u);
         auto byteSize = size * sizeof(T);
-        luisa::enlarge_by(*arg_buffer, byteSize);
-        std::memcpy(arg_buffer->data() + sz, data, byteSize);
+        luisa::enlarge_by(*arg_buffer, byteSize + aligned_size - sz);
+        std::memcpy(arg_buffer->data() + aligned_size, data, byteSize);
     }
     ResourceBarrierVisitor(
         ResourceBarrier *barrier,
@@ -946,12 +948,11 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
         if (a.tag != Argument::Tag::UNIFORM) [[likely]]
             return;
 
-        // uniform_buffer_size +=
         auto bf = c.uniform(a.uniform);
+        uniform_buffer_size = (uniform_buffer_size + 15ull) & (~(15ull));
         uniform_buffer_size += std::max<size_t>(4, bf.size_bytes());
     };
     auto dispatch_shader = [&](ShaderDispatchCommandBase const *c, Shader const *shader) {
-        uniform_buffer_size = (uniform_buffer_size + 15ull) & (~(15ull));
         for (auto &i : shader->captured()) {
             add_size(*c, i);
         }
@@ -989,7 +990,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
         uniform_buffer_size = (uniform_buffer_size + 15ull) & (~(15ull));
 
         if (aligned_size != uniform_buffer_size) [[unlikely]] {
-            LUISA_ERROR("Bad uniform size.");
+            LUISA_ERROR("Bad uniform size {} {}.", aligned_size, uniform_buffer_size);
         }
     });
 #endif

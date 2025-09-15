@@ -31,6 +31,38 @@ Var<float4> BindlessTexture2D::sample(Expr<float2> uv, Expr<float2> dpdx, Expr<f
         Type::of<float4>(), _is_typed ? CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL : CallOp::BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL,
         {_array, _index, uv.expression(), dpdx.expression(), dpdy.expression(), min_mip.expression()}));
 }
+Var<float4> BindlessTexture2D::sample(Expr<float2> uv, SamplerFilter filter, SamplerAddress address) const noexcept {
+    auto f = detail::FunctionBuilder::current();
+    return def<float4>(f->call(
+        Type::of<float4>(), _is_typed ? CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE_SAMPLER : CallOp::BINDLESS_TEXTURE2D_SAMPLE_SAMPLER,
+        {_array, _index, uv.expression(),
+         f->literal(Type::of<uint>(), (uint)filter),
+         f->literal(Type::of<uint>(), (uint)address)}));
+}
+
+Var<float4> BindlessTexture2D::sample(Expr<float2> uv, Expr<float> mip, SamplerFilter filter, SamplerAddress address) const noexcept {
+    auto f = detail::FunctionBuilder::current();
+    return def<float4>(f->call(
+        Type::of<float4>(), _is_typed ? CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE_LEVEL_SAMPLER : CallOp::BINDLESS_TEXTURE2D_SAMPLE_LEVEL_SAMPLER,
+        {_array, _index, uv.expression(), mip.expression(), f->literal(Type::of<uint>(), (uint)filter),
+         f->literal(Type::of<uint>(), (uint)address)}));
+}
+
+Var<float4> BindlessTexture2D::sample(Expr<float2> uv, Expr<float2> dpdx, Expr<float2> dpdy, SamplerFilter filter, SamplerAddress address) const noexcept {
+    auto f = detail::FunctionBuilder::current();
+    return def<float4>(f->call(
+        Type::of<float4>(), _is_typed ? CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE_GRAD_SAMPLER : CallOp::BINDLESS_TEXTURE2D_SAMPLE_GRAD_SAMPLER,
+        {_array, _index, uv.expression(), dpdx.expression(), dpdy.expression(), f->literal(Type::of<uint>(), (uint)filter),
+         f->literal(Type::of<uint>(), (uint)address)}));
+}
+
+Var<float4> BindlessTexture2D::sample(Expr<float2> uv, Expr<float2> dpdx, Expr<float2> dpdy, Expr<float> min_mip, SamplerFilter filter, SamplerAddress address) const noexcept {
+    auto f = detail::FunctionBuilder::current();
+    return def<float4>(f->call(
+        Type::of<float4>(), _is_typed ? CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL_SAMPLER : CallOp::BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL_SAMPLER,
+        {_array, _index, uv.expression(), dpdx.expression(), dpdy.expression(), min_mip.expression(), f->literal(Type::of<uint>(), (uint)filter),
+         f->literal(Type::of<uint>(), (uint)address)}));
+}
 
 Var<uint2> BindlessTexture2D::size() const noexcept {
     auto f = detail::FunctionBuilder::current();
@@ -86,6 +118,41 @@ Var<float4> BindlessTexture3D::sample(Expr<float3> uvw, Expr<float3> dpdx, Expr<
     return def<float4>(f->call(
         Type::of<float4>(), _is_typed ? CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL : CallOp::BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL,
         {_array, _index, uvw.expression(), dpdx.expression(), dpdy.expression(), min_mip.expression()}));
+}
+Var<float4> BindlessTexture3D::sample(Expr<float3> uvw, SamplerFilter filter, SamplerAddress address) const noexcept {
+    auto f = detail::FunctionBuilder::current();
+    return def<float4>(f->call(
+        Type::of<float4>(), _is_typed ? CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE_SAMPLER : CallOp::BINDLESS_TEXTURE3D_SAMPLE_SAMPLER,
+        {_array, _index, uvw.expression(),
+         f->literal(Type::of<uint>(), (uint)filter),
+         f->literal(Type::of<uint>(), (uint)address)}));
+}
+
+Var<float4> BindlessTexture3D::sample(Expr<float3> uvw, Expr<float> mip, SamplerFilter filter, SamplerAddress address) const noexcept {
+    auto f = detail::FunctionBuilder::current();
+    return def<float4>(f->call(
+        Type::of<float4>(), _is_typed ? CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE_LEVEL_SAMPLER : CallOp::BINDLESS_TEXTURE3D_SAMPLE_LEVEL_SAMPLER,
+        {_array, _index, uvw.expression(), mip.expression(),
+         f->literal(Type::of<uint>(), (uint)filter),
+         f->literal(Type::of<uint>(), (uint)address)}));
+}
+
+Var<float4> BindlessTexture3D::sample(Expr<float3> uvw, Expr<float3> dpdx, Expr<float3> dpdy, SamplerFilter filter, SamplerAddress address) const noexcept {
+    auto f = detail::FunctionBuilder::current();
+    return def<float4>(f->call(
+        Type::of<float4>(), _is_typed ? CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE_GRAD_SAMPLER : CallOp::BINDLESS_TEXTURE3D_SAMPLE_GRAD_SAMPLER,
+        {_array, _index, uvw.expression(), dpdx.expression(), dpdy.expression(),
+         f->literal(Type::of<uint>(), (uint)filter),
+         f->literal(Type::of<uint>(), (uint)address)}));
+}
+
+Var<float4> BindlessTexture3D::sample(Expr<float3> uvw, Expr<float3> dpdx, Expr<float3> dpdy, Expr<float> min_mip, SamplerFilter filter, SamplerAddress address) const noexcept {
+    auto f = detail::FunctionBuilder::current();
+    return def<float4>(f->call(
+        Type::of<float4>(), _is_typed ? CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL_SAMPLER : CallOp::BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL_SAMPLER,
+        {_array, _index, uvw.expression(), dpdx.expression(), dpdy.expression(), min_mip.expression(),
+         f->literal(Type::of<uint>(), (uint)filter),
+         f->literal(Type::of<uint>(), (uint)address)}));
 }
 
 Var<uint3> BindlessTexture3D::size() const noexcept {

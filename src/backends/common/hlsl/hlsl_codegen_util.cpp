@@ -1731,7 +1731,7 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
         }
             return;
         default:
-            LUISA_ERROR("Bad op.");
+            LUISA_ERROR("Bad op. {}", luisa::to_string(expr->op()));
             break;
     }
     str << '(';
@@ -2154,23 +2154,39 @@ void CodegenUtility::GenerateCBuffer(
     result << "struct _Args{\n"sv;
     size_t align = 0;
     size_t size = 0;
-    for (auto &&f : fs) {
-        size_t size_cache = 0;
-        for (auto &&i : *f) {
-            if (!detail::IsCBuffer(i.tag())) continue;
-            size_cache++;
-            GetTypeName(*i.type(), result, Usage::READ, true);
-            // vec3 need extra alignment
-            result << " l" << vstd::to_string(i.uid() + size) << ";\n"sv;
-            if (i.type()->is_vector() && i.type()->dimension() == 3) {
-                GetTypeName(*i.type()->element(), result, Usage::READ, true);
-                result << " _a"sv;
-                vstd::to_string(align, result);
-                result << ";\n"sv;
-                ++align;
+    if (opt->isSpirv) {
+        size_t struct_size = 0;
+        for (auto &&f : fs) {
+            size_t size_cache = 0;
+            for (auto &&i : *f) {
+                if (!detail::IsCBuffer(i.tag())) continue;
+                size_cache++;
+                StructGenerator::ProvideAlignVariable(16, align, struct_size, result);
+                GetTypeName(*i.type(), result, Usage::READ, true);
+                struct_size += i.type()->size();
+                result << " l" << vstd::to_string(i.uid() + size) << ";\n"sv;
             }
+            size += size_cache;
         }
-        size += size_cache;
+    } else {
+        for (auto &&f : fs) {
+            size_t size_cache = 0;
+            for (auto &&i : *f) {
+                if (!detail::IsCBuffer(i.tag())) continue;
+                size_cache++;
+                GetTypeName(*i.type(), result, Usage::READ, true);
+                // vec3 need extra alignment
+                result << " l" << vstd::to_string(i.uid() + size) << ";\n"sv;
+                if (i.type()->is_vector() && i.type()->dimension() == 3) {
+                    GetTypeName(*i.type()->element(), result, Usage::READ, true);
+                    result << " _a"sv;
+                    vstd::to_string(align, result);
+                    result << ";\n"sv;
+                    ++align;
+                }
+            }
+            size += size_cache;
+        }
     }
     if (opt->noRegister) {
         result << R"(};
