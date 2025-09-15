@@ -545,13 +545,13 @@ public:
 public:
     template<typename I>
         requires is_integral_expr_v<I>
-    [[nodiscard]] auto read(I &&index) const noexcept {
-        return Expr<T>{_buffer}.read(std::forward<I>(index));
+    [[nodiscard]] auto read(I &&byte_offset) const noexcept {
+        return Expr<T>{_buffer}.read(std::forward<I>(byte_offset));
     }
     template<typename I, typename V>
         requires is_integral_expr_v<I>
-    void write(I &&index, V &&value) const noexcept {
-        Expr<T>{_buffer}.write(std::forward<I>(index),
+    void write(I &&byte_offset, V &&value) const noexcept {
+        Expr<T>{_buffer}.write(std::forward<I>(byte_offset),
                                std::forward<V>(value));
     }
     template<typename I>
