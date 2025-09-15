@@ -117,7 +117,7 @@ jobs:
         run: |
           xmake lua setup.lua ../luisa_compute_sdks
           if "${{ matrix.compiler }}" == "llvm" (
-            xmake f -p windows -a x64 --toolchain=llvm --sdk="C:/Program Files/LLVM" -m ${{ matrix.config }} --lc_vk_backend=true --lc_dx_backend=true --lc_cuda_backend=true --lc_enable_dsl=true --lc_enable_gui=true --lc_enable_unity_build=false --lc_enable_tests=true --slc_dk_dir=../luisa_compute_sdks --check -c -y
+            xmake f -p windows -a x64 --toolchain=llvm --sdk="C:/Program Files/LLVM" -m ${{ matrix.config }} --lc_vk_backend=true --lc_dx_backend=true --lc_cuda_backend=true --lc_enable_dsl=true --lc_enable_gui=true --lc_enable_unity_build=false --lc_enable_tests=true --lc_sdk_dir=../luisa_compute_sdks --check -c -y
           ) else (
             xmake f -p windows -a x64 --toolchain=${{ matrix.compiler }} -m ${{ matrix.config }} --lc_vk_backend=true --lc_dx_backend=true --lc_cuda_backend=true --lc_enable_dsl=true --lc_enable_gui=true --lc_enable_unity_build=false --lc_enable_tests=true --lc_sdk_dir=../luisa_compute_sdks --check -c -y
           )
