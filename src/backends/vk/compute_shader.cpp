@@ -116,7 +116,7 @@ ComputeShader *ComputeShader::compile(
             false);
         return comp_result.multi_visit_or(
             vstd::UndefEval<ComputeShader *>{},
-            [&](Microsoft::WRL::ComPtr<IDxcBlob> const &buffer) {
+            [&](hlsl::ComUniquePtr<IDxcBlob> const &buffer) {
                 auto shader = new ComputeShader(
                     device,
                     blockSize,

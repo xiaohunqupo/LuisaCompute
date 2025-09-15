@@ -305,7 +305,7 @@ RasterShader *RasterShader::CompileRaster(
             return nullptr;
         }
         auto kernelArgs = RasterShaderDetail::GetKernelArgs(vertexKernel, pixelKernel);
-        auto GetVector = [&](ComPtr<IDxcBlob> &blob) {
+        auto GetVector = [&](hlsl::ComUniquePtr<IDxcBlob> &blob) {
             vstd::vector<std::byte> vec;
             luisa::enlarge_by(vec, blob->GetBufferSize());
             std::memcpy(vec.data(), blob->GetBufferPointer(), blob->GetBufferSize());
@@ -382,7 +382,7 @@ void RasterShader::SaveRaster(
             return;
         }
         auto kernelArgs = RasterShaderDetail::GetKernelArgs(vertexKernel, pixelKernel);
-        auto GetSpan = [&](ComPtr<IDxcBlob> &blob) {
+        auto GetSpan = [&](hlsl::ComUniquePtr<IDxcBlob> &blob) {
             return vstd::span{
                 reinterpret_cast<std::byte const *>(blob->GetBufferPointer()),
                 blob->GetBufferSize()};

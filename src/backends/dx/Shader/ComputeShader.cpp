@@ -123,7 +123,7 @@ ComputeShader *ComputeShader::CompileCompute(
         }
         return compResult.multi_visit_or(
             vstd::UndefEval<ComputeShader *>{},
-            [&](ComPtr<IDxcBlob> &buffer) {
+            [&](hlsl::ComUniquePtr<IDxcBlob> &buffer) {
                 uint bdlsBufferCount = 0;
                 if (str.useBufferBindless) bdlsBufferCount++;
                 if (str.useTex2DBindless) bdlsBufferCount++;
@@ -240,7 +240,7 @@ void ComputeShader::SaveCompute(
             profiler->after_compile_shader_bytecode(fileName);
         }
         compResult.multi_visit(
-            [&](ComPtr<IDxcBlob> &buffer) {
+            [&](hlsl::ComUniquePtr<IDxcBlob> &buffer) {
                 auto kernelArgs = ShaderSerializer::SerializeKernel(kernel);
                 uint bdlsBufferCount = 0;
                 if (str.useBufferBindless) bdlsBufferCount++;

@@ -65,26 +65,32 @@ CompileResult ShaderCompiler::compile(
         code.data(),
         code.size(),
         CP_ACP};
-    ComPtr<IDxcResult> compileResult;
+    ComUniquePtr<IDxcResult> compileResult;
     auto comp = compiler();
     if (comp) {
+        IDxcResult *ptr{};
         auto compile_result = comp->Compile(
             &buffer,
             args.data(),
-        args.size(),
+            args.size(),
             nullptr,
-            IID_PPV_ARGS(compileResult.GetAddressOf()));
+            IID_PPV_ARGS(&ptr));
         LC_DXC_THROW_IF_FAILED(compile_result);
+        compileResult = ComUniquePtr<IDxcResult>{ptr};
     }
     HRESULT status;
     LC_DXC_THROW_IF_FAILED(compileResult->GetStatus(&status));
     if (status == 0) {
-        ComPtr<IDxcBlob> resultBlob;
-        LC_DXC_THROW_IF_FAILED(compileResult->GetResult(resultBlob.GetAddressOf()));
+        ComUniquePtr<IDxcBlob> resultBlob;
+        IDxcBlob *resultBlobPtr{};
+        LC_DXC_THROW_IF_FAILED(compileResult->GetResult(&resultBlobPtr));
+        resultBlob = ComUniquePtr<IDxcBlob>{resultBlobPtr};
         return resultBlob;
     } else {
-        ComPtr<IDxcBlobEncoding> errBuffer;
-        LC_DXC_THROW_IF_FAILED(compileResult->GetErrorBuffer(errBuffer.GetAddressOf()));
+        ComUniquePtr<IDxcBlobEncoding> errBuffer;
+        IDxcBlobEncoding *errBufferPtr{};
+        LC_DXC_THROW_IF_FAILED(compileResult->GetErrorBuffer(&errBufferPtr));
+        errBuffer = ComUniquePtr<IDxcBlobEncoding>{errBufferPtr};
         auto errStr = vstd::string_view(
             reinterpret_cast<char const *>(errBuffer->GetBufferPointer()),
             errBuffer->GetBufferSize());

@@ -1,12 +1,17 @@
 #pragma once
 #include <filesystem>
 #include <luisa/core/dynamic_module.h>
-#include <wrl/client.h>
 #include "dxcapi.h"
 #include <luisa/vstl/common.h>
 #include <luisa/core/platform.h>
 
 namespace lc::hlsl {
+template <typename T>
+struct ComDeleter {
+    inline void operator()(T* blob) const {
+        blob->Release();
+    }
+};
 class ShaderCompilerModule : public vstd::IOperatorNewBase {
 public:
     luisa::DynamicModule dxil;
@@ -18,9 +23,10 @@ public:
     ShaderCompilerModule(std::filesystem::path const &path);
     ~ShaderCompilerModule();
 };
-using Microsoft::WRL::ComPtr;
+template <typename T>
+using ComUniquePtr = luisa::unique_ptr<T, ComDeleter<T>>;
 using CompileResult = vstd::variant<
-    ComPtr<IDxcBlob>,
+    ComUniquePtr<IDxcBlob>,
     vstd::string>;
 struct RasterBin {
     CompileResult vertex;

@@ -869,7 +869,7 @@ ShaderCreationInfo Device::create_shader(const ShaderOption &option, Function ke
             true,
             option.enable_debug_info);
         comp_result.multi_visit(
-            [&](Microsoft::WRL::ComPtr<IDxcBlob> const &buffer) {
+            [&](hlsl::ComUniquePtr<IDxcBlob> const &buffer) {
                 auto saved_args = ShaderSerializer::serialize_saved_args(kernel);
                 ShaderSerializer::serialize_bytecode(
                     code.properties,
