@@ -5,6 +5,7 @@
 #include <marl/export.h>
 #include <marl/memory.h>
 
+#include <luisa/core/stl/optional.h>
 #include <luisa/core/concepts.h>
 #include <luisa/core/stl/memory.h>
 
@@ -52,7 +53,7 @@ private:
         luisa::optional<T> result;
     };
 
-    const luisa::shared_ptr<Shared> shared;
+    const marl::shared_ptr<Shared> shared;
 };
 template<typename T>
 inline Future<T>::Shared::Shared(marl::Allocator *allocator) : cv(allocator) {}
