@@ -334,7 +334,10 @@ bool CodegenUtility::GetConstName(uint64 hash, ConstantData const &data, vstd::S
 void CodegenUtility::GetTypeName(Type const &type, vstd::StringBuilder &str, Usage usage, bool local_var) {
     switch (type.tag()) {
         case Type::Tag::BOOL:
-            str << "bool"sv;
+            if (!local_var)
+                str << "int"sv;
+            else
+                str << "bool"sv;
             return;
         case Type::Tag::FLOAT32:
             str << "float"sv;
@@ -2161,10 +2164,27 @@ void CodegenUtility::GenerateCBuffer(
             for (auto &&i : *f) {
                 if (!detail::IsCBuffer(i.tag())) continue;
                 size_cache++;
-                StructGenerator::ProvideAlignVariable(16, align, struct_size, result);
-                GetTypeName(*i.type(), result, Usage::READ, true);
+                StructGenerator::ProvideAlignVariable(std::clamp<size_t>(next_pow2(i.type()->size()), 4, 16), align, struct_size, result);
+                if (opt->isSpirv && i.type()->tag() == Type::Tag::BOOL) {
+                    result << "int";
+                } else
+                    GetTypeName(*i.type(), result, Usage::READ, true);
+                if (opt->isSpirv && i.type()->tag() != Type::Tag::BOOL && i.type()->alignment() < 4) [[unlikely]] {
+                    LUISA_ERROR("Member less than 4-byte can not be argument in SPIRV.");
+                }
                 struct_size += i.type()->size();
-                result << " l" << vstd::to_string(i.uid() + size) << ";\n"sv;
+                result << " l" << vstd::to_string(i.uid() + size);
+                if (i.type()->tag() == Type::Tag::BOOL) {
+                    result << ":8"sv;
+                }
+                result << ";\n"sv;
+                if (i.type()->is_vector() && i.type()->dimension() == 3) {
+                    GetTypeName(*i.type()->element(), result, Usage::READ, true);
+                    result << " _a"sv;
+                    vstd::to_string(align, result);
+                    result << ";\n"sv;
+                    ++align;
+                }
             }
             size += size_cache;
         }

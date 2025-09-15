@@ -34,12 +34,10 @@ void StructGenerator::ProvideAlignVariable(size_t tarAlign, size_t &alignCount, 
     auto padding = alignedSize - structSize;
     if (padding == 0) return;
     // use bitfields to fill small gaps (< 4B)
-    for (; (padding & 3) > 1; padding -= 2) {
-        structDesc << "int _a"sv << vstd::to_string(alignCount++) << ":16;\n"sv;
-    }
-    for (; (padding & 3) > 0; padding--) {
-        structDesc << "int _a"sv << vstd::to_string(alignCount++) << ":8;\n"sv;
-    }
+    auto bit_padding = (padding & 3);
+    if (bit_padding > 0)
+        structDesc << "int _a"sv << vstd::to_string(alignCount++) << ":" << vstd::to_string(bit_padding * 8) << ";\n"sv;
+    padding -= bit_padding;
     // handle remaining gaps (4 to 12B)
     if (padding != 0) {
         auto varCount = padding / 4;
@@ -67,6 +65,10 @@ void StructGenerator::InitAsStruct(
     };
     size_t varIdx = 0;
     for (auto &&i : vars) {
+        if (isSpirv) [[unlikely]] {
+            if (i->alignment() < 4 && i->tag() != Type::Tag::BOOL)
+                LUISA_ERROR("Spirv do not support member's alignment less than 4-bytes.");
+        }
         Align(i->alignment());
         switch (i->tag()) {
             case Type::Tag::STRUCTURE:
@@ -80,7 +82,7 @@ void StructGenerator::InitAsStruct(
         util->GetTypeName(*i, structDesc, Usage::READ, false);
         structDesc << " v"sv << vstd::to_string(varIdx);
         varIdx++;
-        if (!isSpirv && i->tag() == Type::Tag::BOOL) {
+        if (i->tag() == Type::Tag::BOOL) {
             structDesc << ":8"sv;
         }
         structDesc << ";\n"sv;
@@ -91,8 +93,12 @@ void StructGenerator::InitAsStruct(
 void StructGenerator::InitAsArray(
     Type const *t,
     size_t structIdx,
-    Callback const &visitor) {
+    Callback const &visitor,
+    bool isSpirv) {
     auto &&ele = t->element();
+    if (isSpirv && t->alignment() < 4) [[unlikely]] {
+        LUISA_ERROR("Spirv do not support member's alignment less than 4-bytes.");
+    }
     util->GetTypeName(*ele, structDesc, Usage::READ, false);
     structDesc << " v["sv << vstd::to_string(t->dimension()) << "];\n";
 }
@@ -100,7 +106,7 @@ void StructGenerator::Init(Callback const &visitor, bool isSpirv) {
     if (structureType->tag() == Type::Tag::STRUCTURE) {
         InitAsStruct(structureType, structureType->members(), idx, visitor, isSpirv);
     } else {
-        InitAsArray(structureType, idx, visitor);
+        InitAsArray(structureType, idx, visitor, isSpirv);
     }
 }
 StructGenerator::StructGenerator(

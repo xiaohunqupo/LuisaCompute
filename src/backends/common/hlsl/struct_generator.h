@@ -28,7 +28,8 @@ private:
     void InitAsArray(
         Type const *structureType,
         size_t structIdx,
-        Callback const &visitor);
+        Callback const &visitor,
+        bool isSpirv);
 
 public:
     static void ProvideAlignVariable(size_t tarAlign, size_t &align, size_t &structSize, vstd::StringBuilder &structDesc);

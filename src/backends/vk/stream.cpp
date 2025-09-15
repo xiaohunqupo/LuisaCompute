@@ -79,7 +79,8 @@ struct ResourceBarrierVisitor {
     template<typename T>
     void emplace_data(T const &data) {
         size_t sz = arg_buffer->size();
-        auto aligned_size = (sz + 15u) & (~15u);
+        auto alignment = std::clamp<size_t>(next_pow2(sizeof(T)), 4, 16) - 1;
+        auto aligned_size = (sz + alignment) & (~alignment);
         luisa::enlarge_by(*arg_buffer, sizeof(T) + aligned_size - sz);
         using PlaceHolder = luisa::aligned_storage_t<sizeof(T), 1>;
         *reinterpret_cast<PlaceHolder *>(arg_buffer->data() + aligned_size) =
@@ -87,8 +88,9 @@ struct ResourceBarrierVisitor {
     }
     template<typename T>
     void emplace_data(T const *data, size_t size) {
+        auto alignment = std::clamp<size_t>(next_pow2(size * sizeof(T)), 4, 16) - 1;
         size_t sz = arg_buffer->size();
-        auto aligned_size = (sz + 15u) & (~15u);
+        auto aligned_size = (sz + alignment) & (~alignment);
         auto byteSize = size * sizeof(T);
         luisa::enlarge_by(*arg_buffer, byteSize + aligned_size - sz);
         std::memcpy(arg_buffer->data() + aligned_size, data, byteSize);
@@ -949,10 +951,12 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
             return;
 
         auto bf = c.uniform(a.uniform);
-        uniform_buffer_size = (uniform_buffer_size + 15ull) & (~(15ull));
+        auto aligned_size = std::clamp<size_t>(next_pow2(a.uniform.size), 4, 16) - 1;
+        uniform_buffer_size = (uniform_buffer_size + aligned_size) & (~(aligned_size));
         uniform_buffer_size += std::max<size_t>(4, bf.size_bytes());
     };
     auto dispatch_shader = [&](ShaderDispatchCommandBase const *c, Shader const *shader) {
+        uniform_buffer_size = (uniform_buffer_size + 15) & (~(15ull));
         for (auto &i : shader->captured()) {
             add_size(*c, i);
         }
@@ -987,10 +991,11 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
 #ifndef NDEBUG
     auto check_uniform = vstd::scope_exit([&]() {
         auto aligned_size = (uniform_data->size_bytes() + 15ull) & (~15ull);
+        auto origin = uniform_buffer_size;
         uniform_buffer_size = (uniform_buffer_size + 15ull) & (~(15ull));
 
         if (aligned_size != uniform_buffer_size) [[unlikely]] {
-            LUISA_ERROR("Bad uniform size {} {}.", aligned_size, uniform_buffer_size);
+            LUISA_ERROR("Bad uniform size {} {} {} {}.", aligned_size, uniform_buffer_size, uniform_data->size_bytes(), origin);
         }
     });
 #endif
