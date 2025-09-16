@@ -1004,7 +1004,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
         arg_buffer = _state->upload_alloc.allocate(uniform_buffer_size, 16);
     }
     auto preprocess_arguments = [this](Shader const *shader, ShaderDispatchCommandBase const *c, bool is_raster) {
-        uniform_data->resize_uninitialized((uniform_data->size() + 15) & (~(15ull)));
+        luisa::vector_resize(*uniform_data, (uniform_data->size() + 15) & (~(15ull)));
         std::pair<size_t, size_t> sizes;
         sizes.first = uniform_data->size_bytes();
         ResourceBarrierVisitor visitor{
@@ -1550,7 +1550,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                                 uint counter = 0;
                                 static_cast<ReadbackBuffer const *>(counter_readback.buffer)->copy_to(&counter, counter_readback.offset, 4);
                                 luisa::vector<std::byte> data;
-                                data.push_back_uninitialized(counter);
+                                luisa::enlarge_by(data, counter);
                                 static_cast<ReadbackBuffer const *>(data_readback.buffer)->copy_to(data.data(), data_readback.offset, counter);
                                 size_t offset = 0;
                                 const auto ptr = data.data();
@@ -2001,7 +2001,7 @@ vstd::span<VkDescriptorSet> Shader::allocate_desc_set(VkDescriptorPool pool, vst
         .descriptorSetCount = static_cast<uint>(_desc_set_layout.size()),
         .pSetLayouts = _desc_set_layout.data()};
     auto last_size = descs.size();
-    descs.push_back_uninitialized(_desc_set_layout.size());
+    luisa::enlarge_by(descs, _desc_set_layout.size());
     VK_CHECK_RESULT(
         vkAllocateDescriptorSets(
             device()->logic_device(),

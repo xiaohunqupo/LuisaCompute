@@ -91,8 +91,8 @@ void VkAllocator::alloc_sparse(SparseAllocCmdList &&cmdlist, SparseAllocResult &
     }
     result.alloc_result.clear();
     result.alloc_result_info.clear();
-    result.alloc_result.push_back_uninitialized(size);
-    result.alloc_result_info.push_back_uninitialized(size);
+    luisa::enlarge_by(result.alloc_result, size);
+    luisa::enlarge_by(result.alloc_result_info, size);
     VK_CHECK_RESULT(
         vmaAllocateMemoryPages(_allocator, cmdlist.mem_requires.data(), cmdlist.create_info.data(), size, result.alloc_result.data(), result.alloc_result_info.data()));
     cmdlist.create_info.clear();

@@ -105,7 +105,7 @@ void ShaderSerializer::serialize_raster(
                           header.pixel_spv_byte_size +
                           header.kernel_arg_count * sizeof(SavedArgument) +
                           printer_size_bytes;
-    results.push_back_uninitialized(final_size);
+    luisa::enlarge_by(results, final_size);
     auto data_ptr = results.data();
     auto save = [&]<typename T>(T const &t) {
         memcpy(data_ptr, &t, sizeof(T));
@@ -177,7 +177,7 @@ void ShaderSerializer::serialize_bytecode(
                           header.spv_byte_size +
                           header.kernel_arg_count * sizeof(SavedArgument) +
                           printer_size_bytes;
-    results.push_back_uninitialized(final_size);
+    luisa::enlarge_by(results, final_size);
     auto data_ptr = results.data();
     auto save = [&]<typename T>(T const &t) {
         memcpy(data_ptr, &t, sizeof(T));
@@ -269,18 +269,18 @@ auto ShaderSerializer::try_deser_raster(
         if (shader_md5 && *shader_md5 != header.md5)
             return result;
         result.type_md5 = header.type_md5;
-        properties.push_back_uninitialized(header.property_size);
+        luisa::enlarge_by(properties, header.property_size);
         read_stream->read({reinterpret_cast<std::byte *>(properties.data()), properties.size_bytes()});
-        saved_args.push_back_uninitialized(header.kernel_arg_count);
+        luisa::enlarge_by(saved_args, header.kernel_arg_count);
         read_stream->read({reinterpret_cast<std::byte *>(saved_args.data()), saved_args.size_bytes()});
-        vert_spv.push_back_uninitialized(header.vert_spv_byte_size / sizeof(uint));
+        luisa::enlarge_by(vert_spv, header.vert_spv_byte_size / sizeof(uint));
         read_stream->read({reinterpret_cast<std::byte *>(vert_spv.data()), vert_spv.size_bytes()});
-        pixel_spv.push_back_uninitialized(header.pixel_spv_byte_size / sizeof(uint));
+        luisa::enlarge_by(pixel_spv, header.pixel_spv_byte_size / sizeof(uint));
         read_stream->read({reinterpret_cast<std::byte *>(pixel_spv.data()), pixel_spv.size_bytes()});
         luisa::vector<char> printer_data;
         printers.reserve(header.printer_count);
         if (header.printer_size_bytes > 0) {
-            printer_data.push_back_uninitialized(header.printer_size_bytes);
+            luisa::enlarge_by(printer_data, header.printer_size_bytes);
             read_stream->read({reinterpret_cast<std::byte *>(printer_data.data()),
                                printer_data.size()});
             auto ptr = printer_data.data();
@@ -340,16 +340,16 @@ ShaderSerializer::DeserResult ShaderSerializer::try_deser_compute(
             return result;
         result.type_md5 = header.type_md5;
         block_size = uint3(header.block_size[0], header.block_size[1], header.block_size[2]);
-        properties.push_back_uninitialized(header.property_size);
+        luisa::enlarge_by(properties, header.property_size);
         read_stream->read({reinterpret_cast<std::byte *>(properties.data()), properties.size_bytes()});
-        saved_args.push_back_uninitialized(header.kernel_arg_count);
+        luisa::enlarge_by(saved_args, header.kernel_arg_count);
         read_stream->read({reinterpret_cast<std::byte *>(saved_args.data()), saved_args.size_bytes()});
-        spv.push_back_uninitialized(header.spv_byte_size / sizeof(uint));
+        luisa::enlarge_by(spv, header.spv_byte_size / sizeof(uint));
         read_stream->read({reinterpret_cast<std::byte *>(spv.data()), spv.size_bytes()});
         luisa::vector<char> printer_data;
         printers.reserve(header.printer_count);
         if (header.printer_size_bytes > 0) {
-            printer_data.push_back_uninitialized(header.printer_size_bytes);
+            luisa::enlarge_by(printer_data, header.printer_size_bytes);
             read_stream->read({reinterpret_cast<std::byte *>(printer_data.data()),
                                printer_data.size()});
             auto ptr = printer_data.data();
@@ -377,13 +377,13 @@ ShaderSerializer::DeserResult ShaderSerializer::try_deser_compute(
         if (read_stream) {
             auto stream_len = read_stream->length();
             if (stream_len >= sizeof(VkPipelineCacheHeaderVersionOne)) {
-                pso_data.push_back_uninitialized(sizeof(VkPipelineCacheHeaderVersionOne));
+                luisa::enlarge_by(pso_data, sizeof(VkPipelineCacheHeaderVersionOne));
                 read_stream->read(pso_data);
                 if (!device->is_pso_same(*reinterpret_cast<VkPipelineCacheHeaderVersionOne const *>(pso_data.data()))) {
                     pso_data.clear();
                 } else {
                     auto last_size = stream_len - read_stream->pos();
-                    pso_data.push_back_uninitialized(last_size);
+                    luisa::enlarge_by(pso_data, last_size);
                     read_stream->read({pso_data.data() + sizeof(VkPipelineCacheHeaderVersionOne), last_size});
                 }
             }

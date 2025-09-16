@@ -38,13 +38,13 @@ struct TensorDescriptor {
     TensorDescriptor(
         std::initializer_list<uint64_t> dimensions,
         TensorElementType type) noexcept : _type(type) {
-        _sizes.resize_uninitialized(dimensions.size());
+        luisa::vector_resize(_sizes, dimensions.size());
         std::memcpy(_sizes.data(), dimensions.begin(), _sizes.size_bytes());
     }
     TensorDescriptor(
         luisa::span<uint64_t const> dimensions,
         TensorElementType type) noexcept : _type(type) {
-        _sizes.resize_uninitialized(dimensions.size());
+        luisa::vector_resize(_sizes, dimensions.size());
         std::memcpy(_sizes.data(), dimensions.data(), _sizes.size_bytes());
     }
 };

@@ -125,7 +125,7 @@ vstd::vector<VkExtensionProperties> supported_exts(VkPhysicalDevice physical_dev
     uint extensions_count;
     vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &extensions_count, nullptr);
     vstd::vector<VkExtensionProperties> props;
-    props.push_back_uninitialized(extensions_count);
+    luisa::enlarge_by(props, extensions_count);
     vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &extensions_count, props.data());
     return props;
 }
@@ -408,7 +408,7 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
         }
         vstd::vector<VkPhysicalDevice> physical_devices;
         // Enumerate devices
-        physical_devices.push_back_uninitialized(gpuCount);
+        luisa::enlarge_by(physical_devices, gpuCount);
         err = vkEnumeratePhysicalDevices(detail::vk_instance, &gpuCount, physical_devices.data());
         if (err) [[unlikely]] {
             LUISA_ERROR("Could not enumerate physical devices : {}", (int)err);
@@ -993,7 +993,7 @@ VSTL_EXPORT_C void backend_device_names(luisa::vector<luisa::string> &r) {
         return;
     }
     // Enumerate devices
-    physical_devices.push_back_uninitialized(gpuCount);
+    luisa::enlarge_by(physical_devices, gpuCount);
     auto err = vkEnumeratePhysicalDevices(detail::vk_instance, &gpuCount, physical_devices.data());
     if (err) {
         LUISA_ERROR("Could not enumerate physical devices : {}", (int)err);

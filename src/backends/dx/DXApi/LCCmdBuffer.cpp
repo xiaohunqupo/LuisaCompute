@@ -70,11 +70,7 @@ public:
         buildAccelSize += size;
     }
     void UniformAlign(size_t align) const {
-#ifdef LUISA_USE_SYSTEM_STL
-        argBuffer->resize(CalcAlign(argBuffer->size(), align));
-#else
-        argBuffer->resize_uninitialized(CalcAlign(argBuffer->size(), align));
-#endif
+        luisa::vector_resize(*argBuffer, CalcAlign(argBuffer->size(), align));
     }
     template<typename T>
     void EmplaceData(T const &data) {

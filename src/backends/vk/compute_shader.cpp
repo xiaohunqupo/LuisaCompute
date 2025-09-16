@@ -66,10 +66,10 @@ bool ComputeShader::serialize_pso(vstd::vector<std::byte> &result) const {
     auto last_size = result.size();
     size_t pso_size = 0;
     VK_CHECK_RESULT(vkGetPipelineCacheData(device()->logic_device(), _pipe_cache, &pso_size, nullptr));
-    result.resize_uninitialized(last_size + pso_size);
+    luisa::vector_resize(result, last_size + pso_size);
     if (pso_size <= sizeof(VkPipelineCacheHeaderVersionOne)) return false;
     VK_CHECK_RESULT(vkGetPipelineCacheData(device()->logic_device(), _pipe_cache, &pso_size, result.data() + last_size));
-    result.resize_uninitialized(last_size + pso_size);
+    luisa::vector_resize(result, last_size + pso_size);
     return true;
 }
 ComputeShader::~ComputeShader() {

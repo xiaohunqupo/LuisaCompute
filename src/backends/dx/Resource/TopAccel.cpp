@@ -188,11 +188,7 @@ void TopAccel::ProcessSetDesc(EnhancedBarrierTracker &tracker) {
 }
 void TopAccel::InitSetDesc(vstd::span<AccelBuildCommand::Modification const> const &modifications) {
     setDesc.clear();
-#ifdef LUISA_USE_SYSTEM_STL
-    setDesc.resize(modifications.size());
-#else
-    setDesc.resize_uninitialized(modifications.size());
-#endif
+    luisa::vector_resize(setDesc, modifications.size());
     {
         auto iter = setDesc.data();
         for (auto &i : modifications) {

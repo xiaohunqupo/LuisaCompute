@@ -118,7 +118,7 @@ void Tlas::pre_build(
 
         auto dsc_buffer = cmdbuffer.states()->upload_alloc.allocate((modification_size) * sizeof(TlasInputInst), 16);
         cache.clear();
-        cache.push_back_uninitialized((dsc_buffer.size_bytes + sizeof(uint4) - 1) / sizeof(uint4));
+        luisa::enlarge_by(cache, (dsc_buffer.size_bytes + sizeof(uint4) - 1) / sizeof(uint4));
         std::memset(cache.data(), 0, cache.size_bytes());
         auto inst_ptr = reinterpret_cast<TlasInputInst *>(cache.data());
 
