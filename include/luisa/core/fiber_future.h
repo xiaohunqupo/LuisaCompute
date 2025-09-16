@@ -17,7 +17,7 @@ class Future {
 public:
     Future(marl::Allocator *allocator = marl::Allocator::Default);
     template<typename... Args>
-        requires(luisa::is_constructible_v<T, Args && ...>)
+        requires(std::is_constructible_v<T, Args && ...>)
     void signal(Args &&...) const;
 
     // clear() clears the signaled state.
@@ -53,7 +53,7 @@ private:
         luisa::optional<T> result;
     };
 
-    const marl::shared_ptr<Shared> shared;
+    const std::shared_ptr<Shared> shared;
 };
 template<typename T>
 inline Future<T>::Shared::Shared(marl::Allocator *allocator) : cv(allocator) {}
@@ -71,7 +71,7 @@ inline Future<T>::Future(marl::Allocator *allocator /* = marl::Allocator::Defaul
 
 template<typename T>
 template<typename... Args>
-    requires(luisa::is_constructible_v<T, Args && ...>)
+    requires(std::is_constructible_v<T, Args && ...>)
 inline void Future<T>::signal(Args &&...args) const {
     shared->signal(std::forward<Args>(args)...);
 }
