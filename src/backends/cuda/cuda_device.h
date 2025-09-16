@@ -97,6 +97,7 @@ private:
     luisa::unique_ptr<DefaultBinaryIO> _default_io;
     const BinaryIO *_io{nullptr};
     luisa::string _cudadevrt_library;
+    uint64_t _sparse_granularity;
     struct BuiltinCode {
         uint64_t uncompressed_size{};
         uint64_t compressed_size{};
@@ -145,6 +146,7 @@ public:
     }
     void *native_handle() const noexcept override { return _handle.context(); }
     [[nodiscard]] uint compute_warp_size() const noexcept override { return 32u; }
+    [[nodiscard]] uint64_t sparse_granularity() const noexcept { return _sparse_granularity; }
 
 public:
     [[nodiscard]] const luisa::string &get_builtin_code(luisa::string const &name) const noexcept;
@@ -197,6 +199,14 @@ public:
     string query(luisa::string_view property) noexcept override;
     void set_name(luisa::compute::Resource::Tag resource_tag, uint64_t resource_handle, luisa::string_view name) noexcept override;
     DeviceExtension *extension(luisa::string_view name) noexcept override;
+    // sparse
+    SparseBufferCreationInfo create_sparse_buffer(const Type *element, size_t elem_count) noexcept override;
+    ResourceCreationInfo allocate_sparse_buffer_heap(size_t byte_size) noexcept override;
+    void deallocate_sparse_buffer_heap(uint64_t handle) noexcept override;
+    void update_sparse_resources(
+        uint64_t stream_handle,
+        luisa::vector<SparseUpdateTile> &&textures_update) noexcept override;
+    void destroy_sparse_buffer(uint64_t handle) noexcept override;
 };
 
 }// namespace luisa::compute::cuda

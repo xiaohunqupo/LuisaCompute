@@ -12,6 +12,7 @@
 #include <luisa/runtime/bindless_array.h>
 #include <luisa/runtime/dispatch_buffer.h>
 #include <luisa/ast/function_builder.h>
+#include "cuda_sparse_heap.h"
 #if __has_include(<zlib.h>)
 #include <zlib.h>
 #else
@@ -304,6 +305,13 @@ CUDADevice::CUDADevice(Context &&ctx,
                        "-ewp"};
     luisa::string builtin_kernel_src = get_builtin_code("cuda_builtin_kernels");
     auto builtin_kernel_ptx = _compiler->compile(builtin_kernel_src, "luisa_builtin.cu", options);
+    with_handle([&] {
+        CUmemAllocationProp prop = {};
+        prop.type = CU_MEM_ALLOCATION_TYPE_PINNED;
+        prop.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
+        prop.location.id = device_id;
+        LUISA_CHECK_CUDA(cuMemGetAllocationGranularity(&_sparse_granularity, &prop, CU_MEM_ALLOC_GRANULARITY_MINIMUM));
+    });
     // prepare default shaders
     with_handle([&] {
         auto error = cuModuleLoadData(&_builtin_kernel_module, builtin_kernel_ptx.data());
@@ -1187,7 +1195,7 @@ string CUDADevice::query(luisa::string_view property) noexcept {
         return "cuda";
     }
     if (property == "total_memory") {
-        return with_handle([]{
+        return with_handle([] {
             if (size_t free_mem, total_mem; cuMemGetInfo(&free_mem, &total_mem) == CUDA_SUCCESS) {
                 return luisa::format("{}", total_mem);
             }
@@ -1195,7 +1203,7 @@ string CUDADevice::query(luisa::string_view property) noexcept {
         });
     }
     if (property == "free_memory") {
-        return with_handle([]{
+        return with_handle([] {
             if (size_t free_mem, total_mem; cuMemGetInfo(&free_mem, &total_mem) == CUDA_SUCCESS) {
                 return luisa::format("{}", free_mem);
             }
@@ -1402,6 +1410,79 @@ void CUDADevice::set_name(luisa::compute::Resource::Tag resource_tag,
             case Resource::Tag::SPARSE_TEXTURE: break;
             default: break;
         }
+    });
+}
+
+SparseBufferCreationInfo CUDADevice::create_sparse_buffer(const Type *element, size_t elem_count) noexcept {
+    SparseBufferCreationInfo info;
+    with_handle([&]() {
+        CUmemAllocationProp prop = {};
+        prop.type = CU_MEM_ALLOCATION_TYPE_PINNED;
+        prop.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
+        prop.location.id = handle().index();
+        info.tile_size_bytes = _sparse_granularity;
+        info.element_stride = CUDACompiler::type_size(element);
+        info.total_size_bytes = info.element_stride * elem_count;
+        auto size_bytes = info.total_size_bytes;
+        size_bytes = ((size_bytes - 1) / _sparse_granularity + 1) * _sparse_granularity;
+        info.total_size_bytes = size_bytes;
+        auto buffer = new_with_allocator<CUDABuffer>(
+            size_bytes,
+            CUDABufferBase::Location::RESERVED_MEMORY);
+        info.handle = reinterpret_cast<uint64_t>(buffer);
+        info.native_handle = reinterpret_cast<void *>(buffer->device_address());
+    });
+    return info;
+}
+
+ResourceCreationInfo CUDADevice::allocate_sparse_buffer_heap(size_t byte_size) noexcept {
+    ResourceCreationInfo info;
+    auto heap = with_handle([&]() {
+        return new_with_allocator<CUDASparseHeap>(this, byte_size);
+    });
+    info.handle = reinterpret_cast<uint64_t>(heap);
+    info.native_handle = reinterpret_cast<void *>(heap->handle());
+    return info;
+}
+void CUDADevice::deallocate_sparse_buffer_heap(uint64_t handle) noexcept {
+    with_handle([&]() {
+        delete_with_allocator(reinterpret_cast<CUDASparseHeap *>(handle));
+    });
+}
+void CUDADevice::update_sparse_resources(
+    uint64_t stream_handle,
+    luisa::vector<SparseUpdateTile> &&textures_update) noexcept {
+    with_handle([&]() {
+        for (auto &i : textures_update) {
+            luisa::visit([&]<typename T>(T const &op) {
+                if constexpr (std::is_same_v<SparseBufferMapOperation, T>) {
+                    auto buffer = reinterpret_cast<CUDABuffer *>(i.handle);
+                    auto heap = reinterpret_cast<CUDASparseHeap *>(op.allocated_heap);
+                    auto byte_size = op.tile_count * _sparse_granularity;
+                    auto byte_offset = op.start_tile * _sparse_granularity;
+                    CUmemAccessDesc access_desc;
+                    access_desc.location.id = handle().index();
+                    access_desc.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
+                    access_desc.flags = CU_MEM_ACCESS_FLAGS_PROT_READWRITE;
+                    LUISA_CHECK_CUDA(cuMemMap(buffer->device_address(), byte_size, byte_offset,
+                                              heap->handle(), 0));
+                    LUISA_CHECK_CUDA(cuMemSetAccess(buffer->device_address() + byte_offset, byte_size, &access_desc, 1));
+                } else if constexpr (std::is_same_v<SparseBufferUnMapOperation, T>) {
+                    auto buffer = reinterpret_cast<CUDABuffer *>(i.handle);
+                    auto byte_size = op.tile_count * _sparse_granularity;
+                    auto byte_offset = op.start_tile * _sparse_granularity;
+                    LUISA_CHECK_CUDA(cuMemUnmap(buffer->device_address() + byte_offset, byte_size));
+                } else {
+                    LUISA_NOT_IMPLEMENTED("Sparse operations not implemented.");
+                }
+            },
+                         i.operations);
+        }
+    });
+}
+void CUDADevice::destroy_sparse_buffer(uint64_t handle) noexcept {
+    with_handle([&]() {
+        delete_with_allocator(reinterpret_cast<CUDABuffer *>(handle));
     });
 }
 

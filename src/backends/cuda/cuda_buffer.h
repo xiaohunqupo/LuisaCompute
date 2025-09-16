@@ -11,11 +11,13 @@ private:
     CUdeviceptr _device_address;
     size_t _size_bytes : 63;
     size_t _external_memory : 1;
+    bool _is_reserved_memory : 1;
 
 public:
     enum struct Location {
         PREFER_DEVICE,
-        FORCE_HOST
+        FORCE_HOST,
+        RESERVED_MEMORY,
     };
 
 public:

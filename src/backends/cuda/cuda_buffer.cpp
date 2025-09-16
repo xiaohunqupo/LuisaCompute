@@ -6,7 +6,7 @@ namespace luisa::compute::cuda {
 CUDABufferBase::CUDABufferBase(size_t size_bytes,
                                Location loc,
                                int host_alloc_flags) noexcept
-    : _device_address{}, _size_bytes{size_bytes}, _external_memory{false} {
+    : _device_address{}, _size_bytes{size_bytes}, _external_memory{false}, _is_reserved_memory{false} {
     switch (loc) {
         case Location::FORCE_HOST: {
             LUISA_CHECK_CUDA(cuMemHostAlloc(&_host_address, size_bytes, host_alloc_flags));
@@ -29,6 +29,14 @@ CUDABufferBase::CUDABufferBase(size_t size_bytes,
             }
             break;
         }
+        case Location::RESERVED_MEMORY: {
+            if (auto ret = cuMemAddressReserve(&_device_address, size_bytes, 0, 0, 0);
+                ret == CUDA_ERROR_OUT_OF_MEMORY) {
+                LUISA_ERROR("CUDA allocation out of device memory.");
+            }
+            _is_reserved_memory = true;
+            break;
+        }
         default: LUISA_ERROR_WITH_LOCATION("Invalid CUDABufferBase::Location.");
     }
     LUISA_VERBOSE_WITH_LOCATION(
@@ -42,7 +50,10 @@ CUDABufferBase::~CUDABufferBase() noexcept {
     if (_host_address != nullptr) {
         LUISA_CHECK_CUDA(cuMemFreeHost(_host_address));
     } else {
-        LUISA_CHECK_CUDA(cuMemFree(_device_address));
+        if (_is_reserved_memory)
+            LUISA_CHECK_CUDA(cuMemAddressFree(_device_address, _size_bytes));
+        else
+            LUISA_CHECK_CUDA(cuMemFree(_device_address));
     }
     auto size = _size_bytes;
     LUISA_VERBOSE_WITH_LOCATION(
