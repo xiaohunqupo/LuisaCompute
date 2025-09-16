@@ -1,8 +1,5 @@
 #pragma once
 
-#ifndef LUISA_COMPUTE_DSL_PCH_H
-#define LUISA_COMPUTE_DSL_PCH_H
-
 #include <luisa/core/logging.h>
 #include <luisa/core/basic_traits.h>
 #include <luisa/core/basic_types.h>
@@ -12,6 +9,3 @@
 #include <luisa/core/stl/unordered_map.h>
 #include <luisa/core/stl/string.h>
 #include <luisa/core/stl/filesystem.h>
-#include <luisa/dsl/syntax.h>
-
-#endif

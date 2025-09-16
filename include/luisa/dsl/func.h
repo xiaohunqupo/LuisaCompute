@@ -2,6 +2,7 @@
 
 #include <type_traits>
 #include <luisa/core/stl/memory.h>
+#include <luisa/core/stl/format.h>
 #include <luisa/core/stl/optional.h>
 #include <luisa/ast/external_function.h>
 #include <luisa/runtime/rhi/command.h>
@@ -493,6 +494,13 @@ public:
         }
     }
 };
+
+template<typename... Args>
+void cuda_printf(luisa::string_view fmt, Args &&...args) noexcept {
+    ExternalCallable<void(expr_value_t<Args>...)> f{
+        luisa::format("([](const auto &...args) {{ printf({:?}, args...); }})", fmt)};
+    f(std::forward<Args>(args)...);
+}
 
 namespace detail {
 
