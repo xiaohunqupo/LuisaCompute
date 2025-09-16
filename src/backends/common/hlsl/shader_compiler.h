@@ -1,9 +1,11 @@
 #pragma once
+
 #include <filesystem>
 #include <luisa/core/dynamic_module.h>
-#include "dxcapi.h"
 #include <luisa/vstl/common.h>
 #include <luisa/core/platform.h>
+
+#include "dxcapi.h"
 
 namespace lc::hlsl {
 template <typename T>
