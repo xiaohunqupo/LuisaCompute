@@ -501,6 +501,9 @@ public:
     uint compute_warp_size() const noexcept override {
         LUISA_NOT_IMPLEMENTED();
     }
+    uint64_t memory_granularity() const noexcept override {
+        LUISA_NOT_IMPLEMENTED();
+    }
 
     BufferCreationInfo create_buffer(const Type *element,
                                      size_t elem_count,

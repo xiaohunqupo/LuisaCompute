@@ -129,6 +129,7 @@ public:
     [[nodiscard]] auto const &impl_shared() const & noexcept { return _impl; }
     [[nodiscard]] auto &&impl_shared() && noexcept { return std::move(_impl); }
     [[nodiscard]] auto compute_warp_size() const noexcept { return _impl->compute_warp_size(); }
+    [[nodiscard]] auto memory_granularity() const noexcept { return _impl->memory_granularity(); }
     // Is device initialized
     [[nodiscard]] explicit operator bool() const noexcept { return static_cast<bool>(_impl); }
     // backend native plugins & extensions interface

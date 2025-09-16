@@ -29,6 +29,7 @@ private:
     uint64_t _flag{0};
     [[nodiscard]] void *native_handle() const noexcept override { return nullptr; }
     [[nodiscard]] uint compute_warp_size() const noexcept override { return 0; }
+    [[nodiscard]] uint64_t memory_granularity() const noexcept override { return 0; }
 
 public:
     explicit ClientInterface(

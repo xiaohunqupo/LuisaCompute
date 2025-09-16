@@ -226,6 +226,10 @@ uint MetalDevice::compute_warp_size() const noexcept {
     return _builtin_update_bindless_slots->threadExecutionWidth();
 }
 
+uint64_t MetalDevice::memory_granularity() const noexcept {
+    return 65536ull; // TODO
+}
+
 [[nodiscard]] inline auto create_device_buffer(MTL::Device *device,
                                                size_t element_stride,
                                                size_t element_count,

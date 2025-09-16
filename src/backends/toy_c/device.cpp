@@ -140,7 +140,10 @@ public:
     }
     void *native_handle() const noexcept override { return nullptr; }
     uint compute_warp_size() const noexcept override {
-        return {};
+        return 1;
+    };
+    uint64_t memory_granularity() const noexcept override {
+        return 1;
     };
     BufferCreationInfo create_buffer(
         const Type *element,

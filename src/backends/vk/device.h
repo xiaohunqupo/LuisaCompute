@@ -118,7 +118,8 @@ public:
     static hlsl::ShaderCompiler *Compiler();
     static VkAllocationCallbacks *alloc_callbacks();
     VkInstance instance() const;
-    uint compute_warp_size() const noexcept override { return 0; }
+    uint compute_warp_size() const noexcept override;
+    uint64_t memory_granularity() const noexcept override;
     auto &allocator() { return *_allocator; }
     auto physical_device() const { return _vk_device->physicalDevice; }
     auto logic_device() const { return _vk_device->logicalDevice; }

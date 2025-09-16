@@ -833,6 +833,11 @@ void LCDevice::deallocate_sparse_texture_heap(uint64_t handle) noexcept {
 uint LCDevice::compute_warp_size() const noexcept {
     return nativeDevice.waveSize();
 }
+uint64_t LCDevice::memory_granularity() const noexcept {
+    // should be 64kb
+    static_assert(D3D12_TILED_RESOURCE_TILE_SIZE_IN_BYTES == D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT);
+    return D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
+}
 VSTL_EXPORT_C DeviceInterface *create(Context &&c, DeviceConfig const *settings) {
     return new LCDevice(std::move(c), settings);
 }

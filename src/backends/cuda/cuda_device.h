@@ -146,6 +146,7 @@ public:
     }
     void *native_handle() const noexcept override { return _handle.context(); }
     [[nodiscard]] uint compute_warp_size() const noexcept override { return 32u; }
+    [[nodiscard]] uint64_t memory_granularity() const noexcept override { return _sparse_granularity; }
     [[nodiscard]] uint64_t sparse_granularity() const noexcept { return _sparse_granularity; }
 
 public:

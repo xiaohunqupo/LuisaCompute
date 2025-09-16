@@ -136,6 +136,7 @@ public:
     // native handle
     [[nodiscard]] virtual void *native_handle() const noexcept = 0;
     [[nodiscard]] virtual uint compute_warp_size() const noexcept = 0;
+    [[nodiscard]] virtual uint64_t memory_granularity() const noexcept = 0;
 
 public:
     [[nodiscard]] virtual BufferCreationInfo create_buffer(const Type *element,

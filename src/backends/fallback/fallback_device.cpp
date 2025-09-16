@@ -136,6 +136,9 @@ void FallbackDevice::present_display_in_stream(uint64_t stream_handle,
 uint FallbackDevice::compute_warp_size() const noexcept {
     return 1;
 }
+uint64_t FallbackDevice::memory_granularity() const noexcept {
+    return 1;
+}
 
 BufferCreationInfo FallbackDevice::create_buffer(const Type *element, size_t elem_count, void *external_memory) noexcept {
     BufferCreationInfo info{};

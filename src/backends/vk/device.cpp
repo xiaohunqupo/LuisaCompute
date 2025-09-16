@@ -256,6 +256,14 @@ ResourceCreationInfo Device::create_procedural_primitive(
     const AccelOption &option) noexcept {
     return create_mesh(option);
 }
+
+uint Device::compute_warp_size() const noexcept {
+    return 32;// TODO
+}
+uint64_t Device::memory_granularity() const noexcept {
+    return sparse_buffer_size;
+}
+
 void Device::destroy_procedural_primitive(uint64_t handle) noexcept {
     destroy_mesh(handle);
 }
