@@ -181,6 +181,11 @@ set_default(false)
 set_showmenu(true)
 option_end()
 
+option("lc_use_system_stl")
+set_default(false)
+set_showmenu(true)
+option_end()
+
 -- pre-defined options end
 -- try options.lua
 if path.absolute(os.projectdir()) == path.absolute(os.scriptdir()) and os.exists("scripts/options.lua") then

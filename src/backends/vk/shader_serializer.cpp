@@ -270,13 +270,13 @@ auto ShaderSerializer::try_deser_raster(
             return result;
         result.type_md5 = header.type_md5;
         luisa::enlarge_by(properties, header.property_size);
-        read_stream->read({reinterpret_cast<std::byte *>(properties.data()), properties.size_bytes()});
+        read_stream->read({reinterpret_cast<std::byte *>(properties.data()), luisa::size_bytes(properties)});
         luisa::enlarge_by(saved_args, header.kernel_arg_count);
-        read_stream->read({reinterpret_cast<std::byte *>(saved_args.data()), saved_args.size_bytes()});
+        read_stream->read({reinterpret_cast<std::byte *>(saved_args.data()), luisa::size_bytes(saved_args)});
         luisa::enlarge_by(vert_spv, header.vert_spv_byte_size / sizeof(uint));
-        read_stream->read({reinterpret_cast<std::byte *>(vert_spv.data()), vert_spv.size_bytes()});
+        read_stream->read({reinterpret_cast<std::byte *>(vert_spv.data()), luisa::size_bytes(vert_spv)});
         luisa::enlarge_by(pixel_spv, header.pixel_spv_byte_size / sizeof(uint));
-        read_stream->read({reinterpret_cast<std::byte *>(pixel_spv.data()), pixel_spv.size_bytes()});
+        read_stream->read({reinterpret_cast<std::byte *>(pixel_spv.data()), luisa::size_bytes(pixel_spv)});
         luisa::vector<char> printer_data;
         printers.reserve(header.printer_count);
         if (header.printer_size_bytes > 0) {
@@ -341,11 +341,11 @@ ShaderSerializer::DeserResult ShaderSerializer::try_deser_compute(
         result.type_md5 = header.type_md5;
         block_size = uint3(header.block_size[0], header.block_size[1], header.block_size[2]);
         luisa::enlarge_by(properties, header.property_size);
-        read_stream->read({reinterpret_cast<std::byte *>(properties.data()), properties.size_bytes()});
+        read_stream->read({reinterpret_cast<std::byte *>(properties.data()), luisa::size_bytes(properties)});
         luisa::enlarge_by(saved_args, header.kernel_arg_count);
-        read_stream->read({reinterpret_cast<std::byte *>(saved_args.data()), saved_args.size_bytes()});
+        read_stream->read({reinterpret_cast<std::byte *>(saved_args.data()), luisa::size_bytes(saved_args)});
         luisa::enlarge_by(spv, header.spv_byte_size / sizeof(uint));
-        read_stream->read({reinterpret_cast<std::byte *>(spv.data()), spv.size_bytes()});
+        read_stream->read({reinterpret_cast<std::byte *>(spv.data()), luisa::size_bytes(spv)});
         luisa::vector<char> printer_data;
         printers.reserve(header.printer_count);
         if (header.printer_size_bytes > 0) {

@@ -21,7 +21,7 @@ int main(int argc, char *argv[]) {
                 std::cout << "Bad input.\n";
                 return -1;
             }
-            vec.push_back_uninitialized(fs.length());
+            luisa::enlarge_by(vec,fs.length());
             fs.read(vec);
         }
         if (entry_process) {
@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
             fclose(f);
         }
     }
-    result.push_back_uninitialized(compressBound(vec.size()));
+    luisa::enlarge_by(result, compressBound(vec.size()));
     uLong size = result.size();
     auto id = compress2((Bytef *)result.data(), &size, (const Bytef *)vec.data(), vec.size(), Z_BEST_COMPRESSION);
     if (id != Z_OK) {

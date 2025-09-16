@@ -454,7 +454,8 @@ void BindlessArray::update(
         _indices_buffer.vk_buffer(),
         0,
         _indices_buffer.byte_size()};
-    static_cast<UploadBuffer const *>(dsc_buffer.buffer)->copy_from(cache.data(), dsc_buffer.offset, cache.size_bytes());
+    static_cast<UploadBuffer const *>(dsc_buffer.buffer)->copy_from(cache.data(), dsc_buffer.offset, 
+    luisa::size_bytes(cache));
 
     write_desc_sets.emplace_back(VkWriteDescriptorSet{
         VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,

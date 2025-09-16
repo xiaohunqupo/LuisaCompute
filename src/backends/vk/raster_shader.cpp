@@ -294,14 +294,14 @@ auto RasterShader::create_pipeline(
     {
         VkShaderModuleCreateInfo module_create_info{
             .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-            .codeSize = _vertex_spv_code.size_bytes(),
+            .codeSize = luisa::size_bytes(_vertex_spv_code),
             .pCode = _vertex_spv_code.data()};
         VK_CHECK_RESULT(vkCreateShaderModule(device()->logic_device(), &module_create_info, Device::alloc_callbacks(), &vertex_shader_module));
     }
     {
         VkShaderModuleCreateInfo module_create_info{
             .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-            .codeSize = _pixel_spv_code.size_bytes(),
+            .codeSize = luisa::size_bytes(_pixel_spv_code),
             .pCode = _pixel_spv_code.data()};
         VK_CHECK_RESULT(vkCreateShaderModule(device()->logic_device(), &module_create_info, Device::alloc_callbacks(), &pixel_shader_module));
     }

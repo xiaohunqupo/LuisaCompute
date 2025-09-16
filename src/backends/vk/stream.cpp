@@ -990,12 +990,12 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
     uniform_data->reserve(uniform_buffer_size);
 #ifndef NDEBUG
     auto check_uniform = vstd::scope_exit([&]() {
-        auto aligned_size = (uniform_data->size_bytes() + 15ull) & (~15ull);
+        auto aligned_size = (luisa::size_bytes(*uniform_data) + 15ull) & (~15ull);
         auto origin = uniform_buffer_size;
         uniform_buffer_size = (uniform_buffer_size + 15ull) & (~(15ull));
 
         if (aligned_size != uniform_buffer_size) [[unlikely]] {
-            LUISA_ERROR("Bad uniform size {} {} {} {}.", aligned_size, uniform_buffer_size, uniform_data->size_bytes(), origin);
+            LUISA_ERROR("Bad uniform size {} {} {} {}.", aligned_size, uniform_buffer_size, luisa::size_bytes(*uniform_data), origin);
         }
     });
 #endif
@@ -1006,7 +1006,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
     auto preprocess_arguments = [this](Shader const *shader, ShaderDispatchCommandBase const *c, bool is_raster) {
         luisa::vector_resize(*uniform_data, (uniform_data->size() + 15) & (~(15ull)));
         std::pair<size_t, size_t> sizes;
-        sizes.first = uniform_data->size_bytes();
+        sizes.first = luisa::size_bytes(*uniform_data);
         ResourceBarrierVisitor visitor{
             resource_barrier,
             shader->saved_arguments().data(),
