@@ -42,6 +42,10 @@ if (CUDAToolkit_FOUND)
             extensions/cuda_dstorage.cpp extensions/cuda_dstorage.h
             extensions/cuda_denoiser.cpp extensions/cuda_denoiser.h)
 
+    if (LUISA_COMPUTE_USE_SYSTEM_REPROC)
+        find_package(reproc REQUIRED)
+        find_package(reproc++ REQUIRED)
+    endif ()
     target_link_libraries(luisa-compute-backend-cuda PRIVATE
             CUDA::cuda_driver
             luisa-compute-vulkan-swapchain
