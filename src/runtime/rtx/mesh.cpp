@@ -40,8 +40,6 @@ void check_mesh_triangle_buffer_offset_and_size(size_t offset_bytes, size_t size
 }
 
 void check_mesh_vertex_buffer_offset_and_size(size_t offset_bytes, size_t size_bytes, size_t v_stride) {
-    LUISA_ASSERT(v_stride % 16u == 0u,
-                 "Vertex stride must be aligned to 16 bytes.");
     LUISA_ASSERT(offset_bytes % v_stride == 0,
                  "Required vertex buffer offset {} can not be aligned to vertex stride {}",
                  offset_bytes, v_stride);

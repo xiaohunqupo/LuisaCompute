@@ -245,6 +245,7 @@ void MetalCommandEncoder::visit(AccelBuildCommand *command) noexcept {
 }
 
 void MetalCommandEncoder::visit(MeshBuildCommand *command) noexcept {
+    LUISA_ASSERT(command->vertex_stride() % 16u == 0u, "Vertex stride must be aligned to 16 bytes.");
     _prepare_command_buffer();
     auto mesh = reinterpret_cast<MetalMesh *>(command->handle());
     mesh->build(*this, command);

@@ -5,6 +5,7 @@
 #include <marl/export.h>
 #include <marl/memory.h>
 
+#include <luisa/core/stl/type_traits.h>
 #include <luisa/core/stl/optional.h>
 #include <luisa/core/concepts.h>
 #include <luisa/core/stl/memory.h>
@@ -17,7 +18,7 @@ class Future {
 public:
     Future(marl::Allocator *allocator = marl::Allocator::Default);
     template<typename... Args>
-        requires(std::is_constructible_v<T, Args && ...>)
+        requires(luisa::is_constructible_v<T, Args && ...>)
     void signal(Args &&...) const;
 
     // clear() clears the signaled state.
@@ -52,8 +53,8 @@ private:
         marl::ConditionVariable cv;
         luisa::optional<T> result;
     };
-
-    const std::shared_ptr<Shared> shared;
+    using SharedPtr = decltype(std::declval<marl::Allocator>().make_shared<Shared>(std::declval<marl::Allocator*>()));
+    const SharedPtr shared;
 };
 template<typename T>
 inline Future<T>::Shared::Shared(marl::Allocator *allocator) : cv(allocator) {}
@@ -71,7 +72,7 @@ inline Future<T>::Future(marl::Allocator *allocator /* = marl::Allocator::Defaul
 
 template<typename T>
 template<typename... Args>
-    requires(std::is_constructible_v<T, Args && ...>)
+    requires(luisa::is_constructible_v<T, Args && ...>)
 inline void Future<T>::signal(Args &&...args) const {
     shared->signal(std::forward<Args>(args)...);
 }
