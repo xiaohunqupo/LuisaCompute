@@ -21,7 +21,18 @@ on_load(function(target)
                 end
             end
         end
-        set("linkdirs", cuda["linkdirs"])
+        local cuda_linkdirs = cuda["linkdirs"]
+        set("linkdirs", cuda_linkdirs)
+        if is_plat("linux") and type(cuda_linkdirs) == "table" then
+            for _, v in ipairs(cuda_linkdirs) do
+                local stubs_dir = path.join(v, "stubs")
+                if os.exists(stubs_dir) then
+                    target:add("linkdirs", stubs_dir, {
+                        public = true
+                    })
+                end
+            end
+        end
         set("includedirs", cuda["includedirs"])
     else
         target:set("enabled", false)
