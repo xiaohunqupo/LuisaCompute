@@ -974,7 +974,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
             } break;
             case Command::Tag::ECustomCommand: {
                 auto cmd = static_cast<CustomCommand const *>(command.get());
-                if (cmd->uuid() == to_underlying(CustomCommandUUID::RASTER_DRAW_SCENE)) {
+                if (cmd->custom_cmd_uuid() == to_underlying(CustomCommandUUID::RASTER_DRAW_SCENE)) {
                     auto c = static_cast<DrawRasterSceneCommand const *>(cmd);
                     auto shader = reinterpret_cast<Shader const *>(c->handle());
                     dispatch_shader(c, shader);
@@ -1142,7 +1142,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                 } break;
                 case Command::Tag::ECustomCommand: {
                     auto c = static_cast<CustomCommand const *>(cmd);
-                    switch (c->uuid()) {
+                    switch (c->custom_cmd_uuid()) {
                         case to_underlying(CustomCommandUUID::RASTER_CLEAR_DEPTH): {
                             auto cmd = static_cast<ClearDepthCommand const *>(c);
                             auto tex = reinterpret_cast<Texture const *>(cmd->handle());
@@ -1786,7 +1786,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                 } break;
                 case Command::Tag::ECustomCommand: {
                     auto c = static_cast<CustomCommand const *>(cmd);
-                    switch (c->uuid()) {
+                    switch (c->custom_cmd_uuid()) {
                         // TODO
                         case to_underlying(CustomCommandUUID::RASTER_CLEAR_DEPTH): {
                             auto cmd = static_cast<ClearDepthCommand const *>(c);

@@ -425,7 +425,7 @@ public:
     };
 
     void visit(const CustomCommand *cmd) noexcept override {
-        switch (cmd->uuid()) {
+        switch (cmd->custom_cmd_uuid()) {
             case to_underlying(CustomCommandUUID::RASTER_CLEAR_DEPTH):
                 visit(static_cast<ClearDepthCommand const *>(cmd));
                 break;
@@ -988,7 +988,7 @@ public:
         after_custom_cmd(device, bd);
     }
     void visit(const CustomCommand *cmd) noexcept override {
-        switch (cmd->uuid()) {
+        switch (cmd->custom_cmd_uuid()) {
             case to_underlying(CustomCommandUUID::RASTER_CLEAR_DEPTH):
                 visit(static_cast<ClearDepthCommand const *>(cmd));
                 break;
@@ -1231,7 +1231,7 @@ void LCCmdBuffer::Execute(
                     }
                 } break;
                 case Command::Tag::ECustomCommand: {
-                    if (static_cast<CustomCommand const *>(command.get())->uuid() ==
+                    if (static_cast<CustomCommand const *>(command.get())->custom_cmd_uuid() ==
                         to_underlying(CustomCommandUUID::RASTER_DRAW_SCENE)) {
                         auto c = static_cast<DrawRasterSceneCommand const *>(command.get());
                         for (auto &&i : c->arguments()) {

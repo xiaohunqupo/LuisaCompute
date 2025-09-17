@@ -17,6 +17,9 @@ if get_config("_lc_vk_sdk_dir") then
                 public = true
             })
         end
+        if is_plat("linux") then
+            target:add("defines", "VK_USE_PLATFORM_XLIB_KHR", {public = true})
+        end
     end)
     target_end()
 end

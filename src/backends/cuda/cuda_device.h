@@ -78,7 +78,7 @@ public:
         Handle &operator=(const Handle &) noexcept = delete;
         [[nodiscard]] std::string_view name() const noexcept;
         [[nodiscard]] auto index() const noexcept { return _device_index; }
-        [[nodiscard]] auto uuid() const noexcept { return _uuid; }
+        [[nodiscard]] auto handle_uuid() const noexcept { return _uuid; }
         [[nodiscard]] auto device() const noexcept { return _device; }
         [[nodiscard]] auto context() const noexcept { return _context; }
         [[nodiscard]] auto driver_version() const noexcept { return _driver_version; }

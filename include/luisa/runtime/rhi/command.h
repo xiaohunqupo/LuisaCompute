@@ -867,7 +867,7 @@ class CustomCommand : public Command {
 public:
     explicit CustomCommand() noexcept
         : Command{Command::Tag::ECustomCommand} {}
-    [[nodiscard]] virtual uint64_t uuid() const noexcept = 0;
+    [[nodiscard]] virtual uint64_t custom_cmd_uuid() const noexcept = 0;
     ~CustomCommand() noexcept override = default;
     LUISA_MAKE_COMMAND_COMMON_ACCEPT()
 };

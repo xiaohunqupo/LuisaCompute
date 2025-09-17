@@ -4,6 +4,23 @@
 #include "device.h"
 #include "stream.h"
 
+#if defined(LUISA_PLATFORM_WINDOWS)
+#include <windows.h>
+#include <vulkan/vulkan_win32.h>
+#elif defined(LUISA_PLATFORM_APPLE)
+#include <vulkan/vulkan_macos.h>
+#elif defined(LUISA_PLATFORM_UNIX)
+#include <X11/Xlib.h>
+#include <vulkan/vulkan_xlib.h>
+#if LUISA_ENABLE_WAYLAND
+#include <dlfcn.h>
+#include <vulkan/vulkan_wayland.h>
+#include <wayland-client.h>
+#endif
+#else
+#error "Unsupported platform"
+#endif
+
 namespace lc::vk {
 static const std::array vulkan_swapchain_screen_shader_vertex_bytecode = {
     0x07230203u, 0x00010300u, 0x000d000bu, 0x00000026u, 0x00000000u, 0x00020011u, 0x00000001u, 0x0006000bu,
@@ -86,13 +103,49 @@ struct SwapChainSupportDetails {
 }
 void _create_surface(
     uint64_t display_handle, uint64_t window_handle, VkSurfaceKHR &surface, VkInstance instance) noexcept {
-    //TODO: linux wip
+#if defined(LUISA_PLATFORM_WINDOWS)
     VkWin32SurfaceCreateInfoKHR create_info{};
     create_info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
     create_info.hwnd = reinterpret_cast<HWND>(window_handle);
     create_info.hinstance = GetModuleHandle(nullptr);
     auto vkCreateWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)vkGetInstanceProcAddr(instance, "vkCreateWin32SurfaceKHR");
     VK_CHECK_RESULT(vkCreateWin32SurfaceKHR(instance, &create_info, Device::alloc_callbacks(), &surface));
+#elif defined(LUISA_PLATFORM_APPLE)
+    VkMacOSSurfaceCreateInfoMVK create_info{};
+    create_info.sType = VK_STRUCTURE_TYPE_MACOS_SURFACE_CREATE_INFO_MVK;
+    create_info.pView = cocoa_window_content_view(window_handle);
+    VK_CHECK_RESULT(vkCreateMacOSSurfaceMVK(instance, &create_info, Device::alloc_callbacks(), &surface));
+#else
+    static std::once_flag set_xlib_error_handler;
+    std::call_once(set_xlib_error_handler, [] {
+        XSetErrorHandler([](Display *display, XErrorEvent *error) noexcept {
+            char buffer[256] = {};
+            XGetErrorText(display, error->error_code, buffer, sizeof(buffer));
+            LUISA_WARNING_WITH_LOCATION("Xlib error: {}", buffer);
+            return 0;
+        });
+    });
+    auto create_surface_xlib = [&] {
+        VkXlibSurfaceCreateInfoKHR create_info{};
+        create_info.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
+        create_info.dpy = display_handle ? reinterpret_cast<Display *>(display_handle) : XOpenDisplay(nullptr);
+        create_info.window = static_cast<Window>(window_handle);
+        VK_CHECK_RESULT(vkCreateXlibSurfaceKHR(instance, &create_info, Device::alloc_callbacks(), &surface));
+    };
+#if LUISA_ENABLE_WAYLAND
+    if (window_handle & 0xffff'ffff'0000'0000ull) {// 64-bit pointer, so likely wayland
+        VkWaylandSurfaceCreateInfoKHR create_info_wl{};
+        create_info_wl.sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR;
+        create_info_wl.display = display_handle ? reinterpret_cast<wl_display *>(display_handle) : wl_display_connect(nullptr);
+        create_info_wl.surface = reinterpret_cast<wl_surface *>(window_handle);
+        VK_CHECK_RESULT(vkCreateWaylandSurfaceKHR(instance, &create_info_wl, Device::alloc_callbacks(), &surface));
+    } else {// X uses 32-bit IDs
+        create_surface_xlib();
+    }
+#else
+    create_surface_xlib();
+#endif
+#endif
 }
 void _create_render_pass(
     VkSurfaceFormatKHR swapchain_format,

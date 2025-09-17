@@ -65,7 +65,7 @@ public:
     [[nodiscard]] const auto &source() const noexcept { return _source; }
     [[nodiscard]] const auto &request() const noexcept { return _request; }
     [[nodiscard]] auto compression() const noexcept { return _compression; }
-    [[nodiscard]] uint64_t uuid() const noexcept override { return to_underlying(CustomCommandUUID::DSTORAGE_READ); }
+    [[nodiscard]] uint64_t custom_cmd_uuid() const noexcept override { return to_underlying(CustomCommandUUID::DSTORAGE_READ); }
     LUISA_MAKE_COMMAND_COMMON(StreamTag::CUSTOM)
 };
 

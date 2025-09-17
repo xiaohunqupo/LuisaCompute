@@ -216,7 +216,7 @@ public:
 };
 
 void Stream::custom(DeviceInterface *dev, Command *cmd) {
-    switch (static_cast<CustomCommand *>(cmd)->uuid()) {
+    switch (static_cast<CustomCommand *>(cmd)->custom_cmd_uuid()) {
         case to_underlying(CustomCommandUUID::RASTER_CLEAR_DEPTH): {
             auto c = static_cast<ClearDepthCommand *>(cmd);
             mark_handle(c->handle(), Usage::WRITE, Range{});
@@ -391,13 +391,13 @@ void Stream::dispatch(DeviceInterface *dev, CommandList &cmd_list) {
             } break;
             case CmdTag::ECustomCommand: {
                 auto custom_cmd = static_cast<CustomCommand *>(cmd);
-                switch (custom_cmd->uuid()) {
+                switch (custom_cmd->custom_cmd_uuid()) {
                     case to_underlying(CustomCommandUUID::RASTER_DRAW_SCENE):
                     case to_underlying(CustomCommandUUID::RASTER_CLEAR_DEPTH):
-                        Device::check_stream(handle(), StreamFunc::Graphics, custom_cmd->uuid());
+                        Device::check_stream(handle(), StreamFunc::Graphics, custom_cmd->custom_cmd_uuid());
                         break;
                     case to_underlying(CustomCommandUUID::DSTORAGE_READ):
-                        Device::check_stream(handle(), StreamFunc::Custom, custom_cmd->uuid());
+                        Device::check_stream(handle(), StreamFunc::Custom, custom_cmd->custom_cmd_uuid());
                         break;
                 }
                 custom(dev, cmd);

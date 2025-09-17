@@ -5,10 +5,10 @@
 #include <cstdint>
 #include <luisa/vstl/common.h>
 #include <luisa/runtime/rhi/command.h>
+#include <luisa/backends/ext/raster_cmd.h>
 #include <luisa/runtime/buffer.h>
 #include <luisa/runtime/rhi/argument.h>
 #include <luisa/core/logging.h>
-#include <luisa/backends/ext/raster_cmd.h>
 #include <luisa/vstl/stack_allocator.h>
 #include <luisa/vstl/arena_hash_map.h>
 
@@ -943,16 +943,17 @@ public:
         });
     }
 
-    void visit(const CustomCommand *command) noexcept override {
-        switch (command->uuid()) {
+    void visit(const CustomCommand *custom_cmd) noexcept override {
+        uint64_t uuid_value = custom_cmd->custom_cmd_uuid();
+        switch (uuid_value) {
             case to_underlying(CustomCommandUUID::RASTER_CLEAR_DEPTH):
-                visit(static_cast<ClearDepthCommand const *>(command));
+                visit(static_cast<ClearDepthCommand const *>(custom_cmd));
                 break;
             case to_underlying(CustomCommandUUID::RASTER_DRAW_SCENE):
-                visit(static_cast<DrawRasterSceneCommand const *>(command));
+                visit(static_cast<DrawRasterSceneCommand const *>(custom_cmd));
                 break;
             case to_underlying(CustomCommandUUID::CUSTOM_DISPATCH):
-                visit(static_cast<CustomDispatchCommand const *>(command));
+                visit(static_cast<CustomDispatchCommand const *>(custom_cmd));
                 break;
             default:
                 LUISA_ERROR("Custom command not supported by reorder.");

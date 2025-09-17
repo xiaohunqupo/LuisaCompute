@@ -1817,7 +1817,7 @@ protected:
     void _decode_long(slong x) noexcept override {
         LUISA_NOT_IMPLEMENTED();
     }
-    void _decode_ulong(ulong x) noexcept override {
+    void _decode_ulong(luisa::ulong x) noexcept override {
         LUISA_NOT_IMPLEMENTED();
     }
     void _decode_half(half x) noexcept override {

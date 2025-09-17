@@ -258,7 +258,7 @@ void CUDACommandEncoder::visit(BindlessArrayUpdateCommand *command) noexcept {
 }
 
 void CUDACommandEncoder::visit(CustomCommand *command) noexcept {
-    switch (command->uuid()) {
+    switch (command->custom_cmd_uuid()) {
         case to_underlying(CustomCommandUUID::DSTORAGE_READ): {
             auto ds_command = static_cast<DStorageReadCommand *>(command);
             visit(ds_command);
@@ -273,7 +273,7 @@ void CUDACommandEncoder::visit(CustomCommand *command) noexcept {
         default:
             LUISA_ERROR_WITH_LOCATION("Custom command (UUID = 0x{:04x}) "
                                       "is not supported on CUDA.",
-                                      command->uuid());
+                                      command->custom_cmd_uuid());
     }
 }
 

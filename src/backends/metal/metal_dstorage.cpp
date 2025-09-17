@@ -490,7 +490,7 @@ void MetalIOStream::dispatch(CommandList &&list) noexcept {
 void MetalIOStream::_encode(MetalCommandEncoder &encoder,
                             Command *command) noexcept {
     LUISA_ASSERT(command->tag() == Command::Tag::ECustomCommand &&
-                     static_cast<CustomCommand *>(command)->uuid() ==
+                     static_cast<CustomCommand *>(command)->custom_cmd_uuid() ==
                          to_underlying(CustomCommandUUID::DSTORAGE_READ),
                  "Invalid command type for MetalIOStream.");
     auto io_encoder = static_cast<MetalIOCommandEncoder *>(&encoder);

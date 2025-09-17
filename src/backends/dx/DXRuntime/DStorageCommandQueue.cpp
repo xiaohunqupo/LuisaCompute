@@ -79,7 +79,7 @@ uint64 DStorageCommandQueue::Execute(
         std::lock_guard lck{exec_mtx};
         for (auto &&i : commands) {
             if (i->tag() != luisa::compute::Command::Tag::ECustomCommand ||
-                static_cast<luisa::compute::CustomCommand const *>(i.get())->uuid() != luisa::to_underlying(CustomCommandUUID::DSTORAGE_READ)) [[unlikely]] {
+                static_cast<luisa::compute::CustomCommand const *>(i.get())->custom_cmd_uuid() != luisa::to_underlying(CustomCommandUUID::DSTORAGE_READ)) [[unlikely]] {
                 LUISA_ERROR("Only DStorage command allowed in this stream.");
             }
             auto cmd = static_cast<luisa::compute::DStorageReadCommand const *>(i.get());

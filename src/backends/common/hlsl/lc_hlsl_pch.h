@@ -2,7 +2,6 @@
 #include <filesystem>
 #include <luisa/core/dynamic_module.h>
 #include <luisa/core/basic_traits.h>
-#include <wrl/client.h>
 #include "dxcapi.h"
 #include <luisa/vstl/common.h>
 #include <luisa/vstl/md5.h>
