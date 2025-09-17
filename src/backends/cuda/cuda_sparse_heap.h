@@ -1,7 +1,9 @@
 #pragma once
 
 #include <cuda.h>
+
 namespace luisa::compute::cuda {
+
 class CUDADevice;
 class CUDASparseHeap {
 
@@ -14,4 +16,5 @@ public:
     [[nodiscard]] auto handle() const { return _alloc_handle; }
     ~CUDASparseHeap();
 };
+
 }// namespace luisa::compute::cuda
