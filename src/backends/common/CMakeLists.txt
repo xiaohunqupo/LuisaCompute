@@ -7,9 +7,9 @@ if (LUISA_COMPUTE_DOWNLOAD_OIDN)
     elseif (UNIX AND NOT APPLE)
         if (CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
             set(oidn_DOWNLOAD_URL "https://github.com/RenderKit/oidn/releases/download/v${oidn_DOWNLOAD_VERSION}/oidn-${oidn_DOWNLOAD_VERSION}.aarch64.linux.tar.gz")
-        else()
+        else ()
             set(oidn_DOWNLOAD_URL "https://github.com/RenderKit/oidn/releases/download/v${oidn_DOWNLOAD_VERSION}/oidn-${oidn_DOWNLOAD_VERSION}.x86_64.linux.tar.gz")
-        endif()
+        endif ()
     elseif (APPLE)
         if (CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64" OR CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
             set(oidn_DOWNLOAD_URL "https://github.com/RenderKit/oidn/releases/download/v${oidn_DOWNLOAD_VERSION}/oidn-${oidn_DOWNLOAD_VERSION}.x86_64.macos.tar.gz")
@@ -90,6 +90,74 @@ if (LUISA_COMPUTE_DOWNLOAD_OIDN)
     install(FILES ${oidn_RUNTIME_LIBS} DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 endif ()
+
+# luisa_compute_backend_link_llvm(backend REQUIRED COMPONENTS llvm_components...)
+function(luisa_compute_link_llvm_into_backend backend)
+
+    set(LUISA_LINK_LLVM_TARGET luisa-compute-backend-${backend})
+    cmake_parse_arguments(LUISA_LINK_LLVM "REQUIRED" "COMPONENTS;DEFINITIONS" ${ARGN})
+
+    message(STATUS "Linking LLVM to target ${LUISA_LINK_LLVM_TARGET} with components: ${LUISA_LINK_LLVM_COMPONENTS}")
+
+    # find LLVM
+    if (NOT LUISA_LINK_LLVM_REQUIRED)
+        find_package(LLVM QUIET CONFIG)
+    else ()
+        find_package(LLVM CONFIG REQUIRED)
+    endif ()
+
+    if (NOT LLVM_FOUND)
+        return()
+    endif ()
+
+    # LLVM
+    target_include_directories(${LUISA_LINK_LLVM_TARGET} AFTER PRIVATE ${LLVM_INCLUDE_DIRS})
+    llvm_map_components_to_libnames(LLVM_LIBS ${LUISA_LINK_LLVM_LLVM_COMPONENTS})
+    if (UNIX AND NOT APPLE)
+        # check if the libraries exist
+        # map library dirs to link directories options
+        set(LLVM_LINK_DIR_OPTIONS "")
+        foreach (dir ${LLVM_LIBRARY_DIRS})
+            list(APPEND LLVM_LINK_DIR_OPTIONS "-L${dir}")
+        endforeach ()
+        try_compile(LLVM_LIBS_EXIST
+                SOURCE_FROM_CONTENT "try_link_llvm.cpp" "int main() {}"
+                LINK_OPTIONS ${LLVM_LINK_DIR_OPTIONS}
+                LINK_LIBRARIES ${LLVM_LIBS})
+        if (LLVM_LIBS_EXIST)
+            # libzstd_shared might cause problem on Ubuntu
+            if (NOT TARGET zstd::libzstd_shared)
+                get_target_property(LLVM_SUPPORT_LINK_LIBS LLVMSupport INTERFACE_LINK_LIBRARIES)
+                list(FILTER LLVM_SUPPORT_LINK_LIBS EXCLUDE REGEX "(zstd::libzstd_shared)")
+                set_target_properties(LLVMSupport PROPERTIES INTERFACE_LINK_LIBRARIES "${LLVM_SUPPORT_LINK_LIBS}")
+            endif ()
+        else ()
+            message(WARNING "LLVM libraries not found. Trying to link with LLVM shared libraries.")
+            try_compile(LLVM_DYLIB_EXISTS
+                    SOURCE_FROM_CONTENT "try_link_llvm_dylib.cpp" "int main() {}"
+                    LINK_LIBRARIES "LLVM")
+            if (LLVM_DYLIB_EXISTS)
+                message(STATUS "Linking with LLVM shared library.")
+                set(LLVM_LIBS "LLVM")
+            else ()
+                find_library(LLVM_DYLIB LLVM REQUIRED)
+                message(STATUS "LLVM libraries found at ${LLVM_DYLIB}")
+                set(LLVM_LIBS ${LLVM_DYLIB})
+            endif ()
+        endif ()
+    endif ()
+
+    message(STATUS "Linking with LLVM libraries: ${LLVM_LIBS}")
+    if (UNIX AND NOT APPLE)
+        # avoid re-exporting symbols from LLVM
+        target_link_libraries(${LUISA_LINK_LLVM_TARGET} PRIVATE "-Wl,--exclude-libs,ALL" ${LLVM_LIBS})
+    else ()
+        target_link_libraries(${LUISA_LINK_LLVM_TARGET} PRIVATE ${LLVM_LIBS})
+    endif ()
+
+    target_compile_definitions(${LUISA_LINK_LLVM_TARGET} PRIVATE ${LUISA_LINK_LLVM_DEFINITIONS})
+
+endfunction()
 
 if (LUISA_COMPUTE_ENABLE_CPU OR
         LUISA_COMPUTE_ENABLE_CUDA OR

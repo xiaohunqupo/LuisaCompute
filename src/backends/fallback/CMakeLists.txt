@@ -77,57 +77,8 @@ if (LLVM_FOUND AND embree_FOUND)
     endif ()
 
     # LLVM
-    target_include_directories(luisa-compute-backend-fallback AFTER PRIVATE ${LLVM_INCLUDE_DIRS})
-    llvm_map_components_to_libnames(LLVM_LIBS core executionengine support orcjit nativecodegen irreader passes analysis coroutines)
-    if (UNIX AND NOT APPLE)
-        # check if the libraries exist
-        # map library dirs to link directories options
-        set(LLVM_LINK_DIR_OPTIONS "")
-        foreach (dir ${LLVM_LIBRARY_DIRS})
-            list(APPEND LLVM_LINK_DIR_OPTIONS "-L${dir}")
-        endforeach ()
-        try_compile(LLVM_LIBS_EXIST
-                SOURCE_FROM_CONTENT "try_link_llvm.cpp" "int main() {}"
-                LINK_OPTIONS ${LLVM_LINK_DIR_OPTIONS}
-                LINK_LIBRARIES ${LLVM_LIBS})
-        if (LLVM_LIBS_EXIST)
-            # libzstd_shared might cause problem on Ubuntu
-            if (NOT TARGET zstd::libzstd_shared)
-                get_target_property(LLVM_SUPPORT_LINK_LIBS LLVMSupport INTERFACE_LINK_LIBRARIES)
-                list(FILTER LLVM_SUPPORT_LINK_LIBS EXCLUDE REGEX "(zstd::libzstd_shared)")
-                set_target_properties(LLVMSupport PROPERTIES INTERFACE_LINK_LIBRARIES "${LLVM_SUPPORT_LINK_LIBS}")
-            endif ()
-        else ()
-            message(WARNING "LLVM libraries not found. Trying to link with LLVM shared libraries.")
-            try_compile(LLVM_DYLIB_EXISTS
-                    SOURCE_FROM_CONTENT "try_link_llvm_dylib.cpp" "int main() {}"
-                    LINK_LIBRARIES "LLVM")
-            if (LLVM_DYLIB_EXISTS)
-                message(STATUS "Linking with LLVM shared library.")
-                set(LLVM_LIBS "LLVM")
-            else ()
-                find_library(LLVM_DYLIB LLVM REQUIRED)
-                message(STATUS "LLVM libraries found at ${LLVM_DYLIB}")
-                set(LLVM_LIBS ${LLVM_DYLIB})
-            endif ()
-        endif ()
-    endif ()
-
-    message(STATUS "Linking with LLVM libraries: ${LLVM_LIBS}")
-    if (UNIX AND NOT APPLE)
-        # avoid re-exporting symbols from LLVM
-        target_link_libraries(luisa-compute-backend-fallback PRIVATE "-Wl,--exclude-libs,ALL" ${LLVM_LIBS})
-    else ()
-        target_link_libraries(luisa-compute-backend-fallback PRIVATE ${LLVM_LIBS})
-    endif ()
-
-    #    if (CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
-    #        target_compile_options(luisa-compute-backend-fallback PRIVATE
-    #                /wd4624 /wd4996 # do not complain about LLVM
-    #                /fp:fast /fp:contract /fp:except- /ARCH:AVX2)
-    #    else ()
-    #        target_compile_options(luisa-compute-backend-fallback PRIVATE -ffast-math)
-    #    endif ()
+    luisa_compute_link_llvm_into_backend(fallback REQUIRED
+            COMPONENTS core executionengine support orcjit nativecodegen irreader passes analysis coroutines)
 
 elseif (NOT LUISA_COMPUTE_CHECK_BACKEND_DEPENDENCIES)
     message(FATAL_ERROR "LLVM or Embree not found for the fallback backend.")

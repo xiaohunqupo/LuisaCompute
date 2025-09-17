@@ -100,13 +100,13 @@ if (CUDAToolkit_FOUND)
                 set(NVCOMP_PLATFORM "linux-sbsa")
             elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
                 set(NVCOMP_PLATFORM "linux-x86_64")
-            else()
+            else ()
                 message(FATAL_ERROR "Unsupported Linux architecture: ${CMAKE_SYSTEM_PROCESSOR}")
-            endif()
+            endif ()
             set(NVCOMP_EXT "tar.xz")
-        else()
+        else ()
             message(FATAL_ERROR "Unsupported operating system")
-        endif()
+        endif ()
         set(NVCOMP_VERSION "4.2.0.11")
         set(NVCOMP_DOWNLOAD_URL "https://developer.download.nvidia.com/compute/nvcomp/redist/nvcomp/${NVCOMP_PLATFORM}/nvcomp-${NVCOMP_PLATFORM}-${NVCOMP_VERSION}_cuda${CUDAToolkit_VERSION_MAJOR}-archive.${NVCOMP_EXT}")
         message(STATUS "Downloading nvcomp from ${NVCOMP_DOWNLOAD_URL}")
@@ -140,7 +140,6 @@ if (CUDAToolkit_FOUND)
     endif ()
 
     # ZLIB
-
     set(ZLIB_USE_STATIC_LIBS ON)
     find_package(ZLIB)
     if (ZLIB_FOUND)
@@ -156,7 +155,7 @@ if (CUDAToolkit_FOUND)
     else ()
         message(FATAL_ERROR "Failed to find ZLIB.")
     endif ()
-    
+
     # NVTT
     if (NOT NVTT_DIR)
         set(_SEARCH_PATHS
@@ -203,8 +202,6 @@ if (CUDAToolkit_FOUND)
             endif ()
         endif ()
     endif ()
-
-    
 
     if (_NVTT_SL)
         message(STATUS "Found NVTT shared library: ${_NVTT_SL}")
@@ -255,8 +252,13 @@ if (CUDAToolkit_FOUND)
                     "${NVTT_RUNTIME_LIB}" "$<TARGET_FILE_DIR:luisa-compute-core>")
             install(FILES "${NVTT_RUNTIME_LIB}" DESTINATION ${CMAKE_INSTALL_BINDIR})
         endif ()
-     
+
     endif ()
+
+    # LLVM
+    luisa_compute_link_llvm_into_backend(cuda
+            COMPONENTS core ir nvptxcodegen support irreader passes analysis
+            DEFINITIONS LUISA_COMPUTE_ENABLE_LLVM=1)
 
 elseif (NOT LUISA_COMPUTE_CHECK_BACKEND_DEPENDENCIES)
     message(FATAL_ERROR "CUDA not found. The CUDA backend will not be built.")
