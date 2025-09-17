@@ -16,7 +16,7 @@ LC_DSL_API void validate_block_size(uint x, uint y, uint z) noexcept {
                  x, y, z);
 }
 
-void validate_local_array_backward_types(const Type *x, const Type *grad) noexcept {
+LC_DSL_API void validate_local_array_backward_types(const Type *x, const Type *grad) noexcept {
     LUISA_ASSERT(*x == *grad,
                  "Invalid backward type: {} vs {}.",
                  x->description(), grad->description());
