@@ -16,7 +16,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # set basic compilation options
 include(scripts/setup_compilation.cmake)
 
-project(LuisaCompute LANGUAGES C CXX VERSION 0.4.0)
+project(LuisaCompute LANGUAGES C CXX VERSION 0.5.0)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
