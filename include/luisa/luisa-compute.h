@@ -1,5 +1,7 @@
 #pragma once
 
+#include <luisa/version.h>
+
 #include <luisa/ast/ast2json.h>
 #include <luisa/ast/atomic_ref_node.h>
 #include <luisa/ast/attribute.h>
@@ -19,6 +21,7 @@
 
 #ifdef LUISA_ENABLE_CLANGCXX
 #include <luisa/clangcxx/ast.h>
+#include <luisa/clangcxx/build_arguments.h>
 #include <luisa/clangcxx/compiler.h>
 #endif
 
@@ -33,6 +36,7 @@
 #include <luisa/core/dll_export.h>
 #include <luisa/core/dynamic_module.h>
 #include <luisa/core/fiber.h>
+#include <luisa/core/fiber_future.h>
 #include <luisa/core/first_fit.h>
 #include <luisa/core/intrin.h>
 #include <luisa/core/logging.h>
@@ -57,6 +61,7 @@
 #include <luisa/dsl/builtin.h>
 #include <luisa/dsl/callable_library.h>
 #include <luisa/dsl/constant.h>
+#include <luisa/dsl/coop_vector.h>
 #include <luisa/dsl/dispatch_indirect.h>
 #include <luisa/dsl/expr.h>
 #include <luisa/dsl/expr_traits.h>
@@ -83,7 +88,6 @@
 #include <luisa/dsl/sugar.h>
 #include <luisa/dsl/syntax.h>
 #include <luisa/dsl/var.h>
-#include <luisa/dsl/coop_vector.h>
 #endif
 
 #ifdef LUISA_ENABLE_GUI

@@ -16,7 +16,23 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # set basic compilation options
 include(scripts/setup_compilation.cmake)
 
-project(LuisaCompute LANGUAGES C CXX VERSION 0.5.0)
+# parse version from include/luisa/version.h
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/include/luisa/version.h" LUISA_VERSION_H_CONTENTS)
+string(REGEX MATCH "#define LUISA_COMPUTE_VERSION_MAJOR ([0-9]+)" _ ${LUISA_VERSION_H_CONTENTS})
+set(LUISA_COMPUTE_VERSION_MAJOR "${CMAKE_MATCH_1}")
+string(REGEX MATCH "#define LUISA_COMPUTE_VERSION_MINOR ([0-9]+)" _ ${LUISA_VERSION_H_CONTENTS})
+set(LUISA_COMPUTE_VERSION_MINOR "${CMAKE_MATCH_1}")
+string(REGEX MATCH "#define LUISA_COMPUTE_VERSION_PATCH ([0-9]+)" _ ${LUISA_VERSION_H_CONTENTS})
+set(LUISA_COMPUTE_VERSION_PATCH "${CMAKE_MATCH_1}")
+
+set(LUISA_COMPUTE_VERSION
+        "${LUISA_COMPUTE_VERSION_MAJOR}.${LUISA_COMPUTE_VERSION_MINOR}.${LUISA_COMPUTE_VERSION_PATCH}"
+        CACHE STRING "Version of LuisaCompute"
+        FORCE)
+message(STATUS "Configuring LuisaCompute ${LUISA_COMPUTE_VERSION}...")
+
+# define the project
+project(LuisaCompute LANGUAGES C CXX VERSION ${LUISA_COMPUTE_VERSION})
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 

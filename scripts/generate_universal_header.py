@@ -31,6 +31,7 @@ if __name__ == "__main__":
     optional_modules = ["dsl", "gui", "xir", "ir", "rust", "tensor", "clangcxx"]
     with open(f"{base}/luisa-compute.h", "w", encoding="utf8") as f:
         f.write("#pragma once\n\n")
+        f.write("#include <luisa/version.h>\n\n")
         group_keys = sorted(header_groups.keys())
         for group in group_keys:
             headers = sorted(header_groups[group])
