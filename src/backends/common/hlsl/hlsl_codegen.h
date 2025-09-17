@@ -256,8 +256,8 @@ struct PrintValue<slong> {
 };
 
 template<>
-struct PrintValue<ulong> {
-    void operator()(ulong const &v, vstd::StringBuilder &str) {
+struct PrintValue<luisa::ulong> {
+    void operator()(luisa::ulong const &v, vstd::StringBuilder &str) {
         str.append(luisa::format("uint64_t({}ull)", v));
     }
 };
@@ -315,7 +315,7 @@ struct PrintValue<Vector<EleType, N>> {
                 varName << "uint16_t";
             } else if constexpr (std::is_same_v<EleType, slong>) {
                 varName << "int64_t";
-            } else if constexpr (std::is_same_v<EleType, ulong>) {
+            } else if constexpr (std::is_same_v<EleType, luisa::ulong> || std::is_same_v<EleType, uint64_t>) {
                 varName << "uint64_t";
             } else {
                 // static_assert(luisa::always_false_v<T>, "Unsupported type.");

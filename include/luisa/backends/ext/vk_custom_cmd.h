@@ -121,9 +121,9 @@ public:
             Arg &&resource,
             ResourceUsageType type) noexcept
             : resource(std::forward<Arg>(resource)),
-              stage(BarrierSyncMap[luisa::to_underlying(stage)]),
-              access(BarrierAccessMap[luisa::to_underlying(access)]),
-              texture_layout(BarrierLayoutMap[luisa::to_underlying(texture_layout)]) {
+              stage(BarrierSyncMap[static_cast<uint32_t>(stage)]),
+              access(BarrierAccessMap[static_cast<uint32_t>(access)]),
+              texture_layout(BarrierLayoutMap[static_cast<uint32_t>(texture_layout)]) {
         }
     };
 private:
@@ -177,10 +177,10 @@ private:
         if (state == 0) return Usage::READ_WRITE;
         Usage usage;
         if ((state & read) != 0) {
-            usage = static_cast<Usage>(luisa::to_underlying(usage) | luisa::to_underlying(Usage::READ));
+            usage = static_cast<Usage>(static_cast<uint32_t>(usage) | static_cast<uint32_t>(Usage::READ));
         }
         if ((state & write) != 0) {
-            usage = static_cast<Usage>(luisa::to_underlying(usage) | luisa::to_underlying(Usage::WRITE));
+            usage = static_cast<Usage>(static_cast<uint32_t>(usage) | static_cast<uint32_t>(Usage::WRITE));
         }
         return usage;
     }
@@ -190,8 +190,8 @@ public:
     }
     VKCustomCmd() noexcept = default;
     virtual ~VKCustomCmd() noexcept override = default;
-    [[nodiscard]] uint64_t uuid() const noexcept override {
-        return luisa::to_underlying(CustomCommandUUID::CUSTOM_DISPATCH);
+    [[nodiscard]] uint64_t custom_cmd_uuid() const noexcept override {
+        return static_cast<uint32_t>(CustomCommandUUID::CUSTOM_DISPATCH);
     }
     void traverse_arguments(ArgumentVisitor &visitor) const noexcept override {
         auto usages = const_cast<VKCustomCmd *>(this)->get_resource_usages();

@@ -1,4 +1,4 @@
-if (get_config("lc_vk_backend") or get_config("lc_dx_backend")) and is_host("windows") then
+if (get_config("lc_vk_backend") or get_config("lc_dx_backend")) then
     includes("hlsl")
 end
 if get_config("_lc_vk_sdk_dir") and (get_config("lc_cuda_backend") or get_config("lc_cpu_backend")) then

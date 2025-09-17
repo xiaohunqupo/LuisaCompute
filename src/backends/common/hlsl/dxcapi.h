@@ -14,6 +14,7 @@
 #define __DXC_API__
 
 #ifdef _WIN32
+#include <wrl/client.h>
 #ifndef DXC_API_IMPORT
 #define DXC_API_IMPORT __declspec(dllimport)
 #endif

@@ -307,7 +307,7 @@ public:
     }
     DXCustomCmd() noexcept = default;
     virtual ~DXCustomCmd() noexcept override = default;
-    [[nodiscard]] uint64_t uuid() const noexcept override {
+    [[nodiscard]] uint64_t custom_cmd_uuid() const noexcept override {
         return luisa::to_underlying(CustomCommandUUID::CUSTOM_DISPATCH);
     }
 };

@@ -278,7 +278,7 @@ void MetalCommandEncoder::visit(CustomCommand *command) noexcept {
     LUISA_ERROR_WITH_LOCATION(
         "Custom command (uuid = 0x{:04x}) is not "
         "supported in Metal backend.",
-        command->uuid());
+        command->custom_cmd_uuid());
 }
 
 }// namespace luisa::compute::metal

@@ -3,6 +3,9 @@
 #include <luisa/vstl/string_utility.h>
 #include <luisa/core/logging.h>
 #include <luisa/vstl/spin_mutex.h>
+#ifndef _WIN32
+#define WINAPI
+#endif
 namespace lc::hlsl {
 #ifndef LC_DXC_THROW_IF_FAILED
 #define LC_DXC_THROW_IF_FAILED(x)                  \

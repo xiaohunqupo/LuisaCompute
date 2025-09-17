@@ -26,7 +26,7 @@ public:
     explicit CudaLCubCommand(luisa::function<void(CUstream)> f) noexcept
         : CustomCommand{}, func{std::move(f)} {}
     [[nodiscard]] StreamTag stream_tag() const noexcept override { return StreamTag::COMPUTE; }
-    [[nodiscard]] uint64_t uuid() const noexcept override {
+    [[nodiscard]] uint64_t custom_cmd_uuid() const noexcept override {
         return static_cast<uint64_t>(CustomCommandUUID::CUDA_LCUB_COMMAND);
     }
 };

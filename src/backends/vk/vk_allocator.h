@@ -2,6 +2,9 @@
 #include <volk.h>
 #include "vk_mem_alloc.h"
 #include <luisa/core/basic_types.h>
+#ifdef None
+#undef None
+#endif
 namespace lc::vk {
 using namespace luisa;
 class Device;

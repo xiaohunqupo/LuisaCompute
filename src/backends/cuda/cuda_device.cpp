@@ -419,7 +419,7 @@ CUDADevice::~CUDADevice() noexcept {
 CUDAEventManager *CUDADevice::event_manager() const noexcept {
     std::scoped_lock lock{_event_manager_mutex};
     if (_event_manager == nullptr) [[unlikely]] {
-        _event_manager = luisa::make_unique<CUDAEventManager>(handle().uuid());
+        _event_manager = luisa::make_unique<CUDAEventManager>(handle().handle_uuid());
     }
     return _event_manager.get();
 }

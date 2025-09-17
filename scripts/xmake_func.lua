@@ -17,14 +17,23 @@ after_check(function(option)
         option:set_value(false)
         return
     end
-    local sdk_dir = os.getenv("VK_SDK_PATH")
-    if not sdk_dir then
-        sdk_dir = os.getenv("VULKAN_SDK")
-    end
-    if not sdk_dir then
-        option:set_value(false)
-    else
-        option:set_value(sdk_dir)
+    if is_host("windows") then
+        local sdk_dir = os.getenv("VK_SDK_PATH")
+        if not sdk_dir then
+            sdk_dir = os.getenv("VULKAN_SDK")
+        end
+        if not sdk_dir then
+            option:set_value(false)
+        else
+            option:set_value(sdk_dir)
+        end
+    elseif is_host("linux") then
+        local vk_path = "/usr/include/vulkan" 
+        if os.exists(vk_path) then
+            option:set_value(vk_path)
+        else
+            option:set_value(false)
+        end
     end
 end)
 option_end()

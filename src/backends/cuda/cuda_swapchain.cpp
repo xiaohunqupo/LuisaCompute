@@ -525,7 +525,7 @@ public:
 };
 
 CUDASwapchain::CUDASwapchain(CUDADevice *device, SwapchainOption o) noexcept
-    : _impl{luisa::make_unique<Impl>(device->handle().uuid(),
+    : _impl{luisa::make_unique<Impl>(device->handle().handle_uuid(),
                                      o.display, o.window, o.size.x, o.size.y,
                                      o.wants_hdr, o.wants_vsync, o.back_buffer_count)} {}
 

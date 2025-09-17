@@ -40,6 +40,7 @@ public:
     DrawRasterSceneCommand(DrawRasterSceneCommand const &) noexcept = delete;
     DrawRasterSceneCommand(DrawRasterSceneCommand &&) noexcept = default;
     ~DrawRasterSceneCommand() noexcept override = default;
+    uint64_t custom_cmd_uuid() const noexcept override { return to_underlying(CustomCommandUUID::RASTER_DRAW_SCENE); }
     void set_dsv_texs(Argument::Texture const &dsv_tex) noexcept {
         _dsv_tex = dsv_tex;
     }
@@ -61,7 +62,6 @@ public:
         return *_mesh_format;
     }
     [[nodiscard]] auto viewport() const noexcept { return _viewport; }
-    [[nodiscard]] uint64_t uuid() const noexcept override { return to_underlying(CustomCommandUUID::RASTER_DRAW_SCENE); }
     LUISA_MAKE_COMMAND_COMMON(StreamTag::GRAPHICS)
 };
 
@@ -74,10 +74,10 @@ public:
     explicit ClearDepthCommand(uint64_t handle, float value) noexcept
         : _handle{handle}, _value(value) {
     }
+    uint64_t custom_cmd_uuid() const noexcept override { return to_underlying(CustomCommandUUID::RASTER_CLEAR_DEPTH); }
     void set_handle(uint64_t handle) noexcept { _handle = handle; }
     [[nodiscard]] auto handle() const noexcept { return _handle; }
     [[nodiscard]] auto value() const noexcept { return _value; }
-    [[nodiscard]] uint64_t uuid() const noexcept override { return to_underlying(CustomCommandUUID::RASTER_CLEAR_DEPTH); }
 
     LUISA_MAKE_COMMAND_COMMON(StreamTag::GRAPHICS)
 };

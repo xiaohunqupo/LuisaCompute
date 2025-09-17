@@ -24,6 +24,11 @@
 #endif
 
 namespace lc::dx {
+CmdQueueBase::CmdQueueBase(Device *device, CmdQueueTag tag)
+    : Resource{device}, tag{tag},
+      logCallback([](luisa::string_view str) {
+          LUISA_INFO("[DEVICE] {}", str);
+      }) {}
 using Argument = luisa::compute::Argument;
 static bool is_device_buffer(Resource const *res) {
     auto tag = res->GetTag();
@@ -425,7 +430,7 @@ public:
     };
 
     void visit(const CustomCommand *cmd) noexcept override {
-        switch (cmd->uuid()) {
+        switch (cmd->custom_cmd_uuid()) {
             case to_underlying(CustomCommandUUID::RASTER_CLEAR_DEPTH):
                 visit(static_cast<ClearDepthCommand const *>(cmd));
                 break;
@@ -699,7 +704,7 @@ public:
                 t,
                 *bindProps);
         }
-        if (data_buffer.buffer != nullptr) [[unlikely]] {
+        if (logger && data_buffer.buffer != nullptr) [[unlikely]] {
             stateTracker->Record(
                 BufferView(count_buffer.buffer, count_buffer.offset, count_buffer.byteSize),
                 EnhancedBarrierTracker::Usage::CopySource);
@@ -736,9 +741,7 @@ public:
                     size_t ele_size = align + type.second->size();
                     ele_size = ((ele_size + 15ull) & (~15ull));
                     offset += ele_size;
-                    if (logger) [[likely]] {
-                        (*logger)(result);
-                    }
+                    (*logger)(result);
                 }
             });
         }
@@ -988,7 +991,7 @@ public:
         after_custom_cmd(device, bd);
     }
     void visit(const CustomCommand *cmd) noexcept override {
-        switch (cmd->uuid()) {
+        switch (cmd->custom_cmd_uuid()) {
             case to_underlying(CustomCommandUUID::RASTER_CLEAR_DEPTH):
                 visit(static_cast<ClearDepthCommand const *>(cmd));
                 break;
@@ -1231,7 +1234,7 @@ void LCCmdBuffer::Execute(
                     }
                 } break;
                 case Command::Tag::ECustomCommand: {
-                    if (static_cast<CustomCommand const *>(command.get())->uuid() ==
+                    if (static_cast<CustomCommand const *>(command.get())->custom_cmd_uuid() ==
                         to_underlying(CustomCommandUUID::RASTER_DRAW_SCENE)) {
                         auto c = static_cast<DrawRasterSceneCommand const *>(command.get());
                         for (auto &&i : c->arguments()) {
