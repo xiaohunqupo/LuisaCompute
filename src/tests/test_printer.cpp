@@ -42,9 +42,9 @@ int main(int argc, char *argv[]) {
     };
     auto shader = device.compile(kernel);
     Stream stream = device.create_stream();
-    stream.set_log_callback([](auto&& str){
-        LUISA_WARNING("device: {}", str);
-    });
+    // stream.set_log_callback([](auto&& str){
+    //     LUISA_WARNING("device: {}", str);
+    // });
     stream << shader().dispatch(128u, 128u)
            << synchronize();
 }

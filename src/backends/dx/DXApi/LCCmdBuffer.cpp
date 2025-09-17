@@ -24,6 +24,11 @@
 #endif
 
 namespace lc::dx {
+CmdQueueBase::CmdQueueBase(Device *device, CmdQueueTag tag)
+    : Resource{device}, tag{tag},
+      logCallback([](luisa::string_view str) {
+          LUISA_INFO("[DEVICE] {}", str);
+      }) {}
 using Argument = luisa::compute::Argument;
 static bool is_device_buffer(Resource const *res) {
     auto tag = res->GetTag();
@@ -699,7 +704,7 @@ public:
                 t,
                 *bindProps);
         }
-        if (data_buffer.buffer != nullptr) [[unlikely]] {
+        if (logger && data_buffer.buffer != nullptr) [[unlikely]] {
             stateTracker->Record(
                 BufferView(count_buffer.buffer, count_buffer.offset, count_buffer.byteSize),
                 EnhancedBarrierTracker::Usage::CopySource);
@@ -736,9 +741,7 @@ public:
                     size_t ele_size = align + type.second->size();
                     ele_size = ((ele_size + 15ull) & (~15ull));
                     offset += ele_size;
-                    if (logger) [[likely]] {
-                        (*logger)(result);
-                    }
+                    (*logger)(result);
                 }
             });
         }

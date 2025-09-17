@@ -8,7 +8,7 @@ enum class CmdQueueTag {
 class CmdQueueBase : public Resource {
 protected:
     CmdQueueTag tag;
-    CmdQueueBase(Device *device, CmdQueueTag tag) : Resource{device}, tag{tag} {}
+    CmdQueueBase(Device *device, CmdQueueTag tag);
     ~CmdQueueBase() = default;
 
 public:

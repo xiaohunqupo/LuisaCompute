@@ -478,6 +478,9 @@ void CommandBuffer::reset() {
 Stream::Stream(Device *device, StreamTag tag)
     : Resource{device},
       _evt(device),
+      logger([](luisa::string_view str) {
+          LUISA_INFO("[DEVICE] {}", str);
+      }),
       reorder({}),
       _thd([this]() {
           auto loop_cmd = [&]() {
@@ -575,7 +578,7 @@ void Stream::present(
         cmdbuffer.resource_barrier = &resource_barrier;
         cmdbuffer.uniform_data = &uniform_data;
         cmdbuffer.desc_sets = &desc_sets;
-        cmdbuffer.logger = &logger;
+        cmdbuffer.logger = logger ? &logger : nullptr;
         cmdbuffer.dispatch_offsets = &dispatch_offsets;
         cmdbuffer.write_desc_sets = &write_desc_sets;
         cmdbuffer.bindless_cache = &bindless_cache;
@@ -674,7 +677,7 @@ void Stream::dispatch(
         cmdbuffer.resource_barrier = &resource_barrier;
         cmdbuffer.uniform_data = &uniform_data;
         cmdbuffer.desc_sets = &desc_sets;
-        cmdbuffer.logger = &logger;
+        cmdbuffer.logger = logger ? &logger : nullptr;
         cmdbuffer.dispatch_offsets = &dispatch_offsets;
         cmdbuffer.write_desc_sets = &write_desc_sets;
         cmdbuffer.bindless_cache = &bindless_cache;
@@ -1493,7 +1496,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                             &value);
                         vkCmdDispatch(_cmdbuffer, calc(disp_size.x, blk.x), calc(disp_size.y, blk.y), calc(disp_size.z, blk.z));
                     }
-                    if (!shader->printers().empty()) {
+                    if (logger && !shader->printers().empty()) {
                         resource_barrier->record(
                             count_buffer,
                             ResourceBarrier::Usage::CopySource);
@@ -1565,9 +1568,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                                     size_t ele_size = align + type.second->size();
                                     ele_size = ((ele_size + 15ull) & (~15ull));
                                     offset += ele_size;
-                                    if (logger) [[likely]] {
-                                        (*logger)(result);
-                                    }
+                                    (*logger)(result);
                                 }
                             });
                     }
