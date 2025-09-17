@@ -53,6 +53,17 @@ if (CUDAToolkit_FOUND)
             luisa-compute-xir
             reproc reproc++)
 
+    # LLVM
+    luisa_compute_link_llvm_into_backend(cuda
+            COMPONENTS core ir nvptxcodegen support irreader passes analysis
+            DEFINITIONS LUISA_COMPUTE_ENABLE_LLVM=1)
+    if (LUISA_COMPUTE_CUDA_LINKED_LLVM)
+        message(STATUS "Linking LLVM into the CUDA backend")
+        target_sources(luisa-compute-backend-cuda PRIVATE
+                llvm_codegen/cuda_codegen_llvm.cpp llvm_codegen/cuda_codegen_llvm.h)
+    endif ()
+
+    # device runtime library
     find_library(CUDA_DEVICE_RUNTIME_LIBRARY cudadevrt ${CUDAToolkit_LIBRARY_DIR})
     add_custom_command(TARGET luisa-compute-backend-cuda POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -254,11 +265,6 @@ if (CUDAToolkit_FOUND)
         endif ()
 
     endif ()
-
-    # LLVM
-    luisa_compute_link_llvm_into_backend(cuda
-            COMPONENTS core ir nvptxcodegen support irreader passes analysis
-            DEFINITIONS LUISA_COMPUTE_ENABLE_LLVM=1)
 
 elseif (NOT LUISA_COMPUTE_CHECK_BACKEND_DEPENDENCIES)
     message(FATAL_ERROR "CUDA not found. The CUDA backend will not be built.")

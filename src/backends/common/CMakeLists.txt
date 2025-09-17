@@ -95,9 +95,7 @@ endif ()
 function(luisa_compute_link_llvm_into_backend backend)
 
     set(LUISA_LINK_LLVM_TARGET luisa-compute-backend-${backend})
-    cmake_parse_arguments(LUISA_LINK_LLVM "REQUIRED" "COMPONENTS;DEFINITIONS" ${ARGN})
-
-    message(STATUS "Linking LLVM to target ${LUISA_LINK_LLVM_TARGET} with components: ${LUISA_LINK_LLVM_COMPONENTS}")
+    cmake_parse_arguments(LUISA_LINK_LLVM "REQUIRED" "" "COMPONENTS;DEFINITIONS" ${ARGN})
 
     # find LLVM
     if (NOT LUISA_LINK_LLVM_REQUIRED)
@@ -110,9 +108,11 @@ function(luisa_compute_link_llvm_into_backend backend)
         return()
     endif ()
 
+    message(STATUS "Linking LLVM to target ${LUISA_LINK_LLVM_TARGET} with components: ${LUISA_LINK_LLVM_COMPONENTS}")
+
     # LLVM
     target_include_directories(${LUISA_LINK_LLVM_TARGET} AFTER PRIVATE ${LLVM_INCLUDE_DIRS})
-    llvm_map_components_to_libnames(LLVM_LIBS ${LUISA_LINK_LLVM_LLVM_COMPONENTS})
+    llvm_map_components_to_libnames(LLVM_LIBS ${LUISA_LINK_LLVM_COMPONENTS})
     if (UNIX AND NOT APPLE)
         # check if the libraries exist
         # map library dirs to link directories options
@@ -156,6 +156,10 @@ function(luisa_compute_link_llvm_into_backend backend)
     endif ()
 
     target_compile_definitions(${LUISA_LINK_LLVM_TARGET} PRIVATE ${LUISA_LINK_LLVM_DEFINITIONS})
+
+    # return LUISA_COMPUTE_${backend.upper}_LINKED_LLVM=ON to the caller
+    string(TOUPPER ${backend} backend_upper)
+    set(LUISA_COMPUTE_${backend_upper}_LINKED_LLVM ON PARENT_SCOPE)
 
 endfunction()
 
