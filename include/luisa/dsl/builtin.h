@@ -275,6 +275,12 @@ template<typename T>
         return CallOp::MAKE_FLOAT3;
     } else if constexpr (std::is_same_v<T, float4>) {
         return CallOp::MAKE_FLOAT4;
+    } else if constexpr (std::is_same_v<T, double2>) {
+        return CallOp::MAKE_DOUBLE2;
+    } else if constexpr (std::is_same_v<T, double3>) {
+        return CallOp::MAKE_DOUBLE3;
+    } else if constexpr (std::is_same_v<T, double4>) {
+        return CallOp::MAKE_DOUBLE4;
     } else if constexpr (std::is_same_v<T, half2>) {
         return CallOp::MAKE_HALF2;
     } else if constexpr (std::is_same_v<T, half3>) {
@@ -657,6 +663,9 @@ using luisa::make_float4x4;
 using luisa::make_half2;
 using luisa::make_half3;
 using luisa::make_half4;
+using luisa::make_double2;
+using luisa::make_double3;
+using luisa::make_double4;
 using luisa::make_int2;
 using luisa::make_int3;
 using luisa::make_int4;
@@ -851,6 +860,7 @@ LUISA_MAKE_VECTOR(bool)
 LUISA_MAKE_VECTOR(int)
 LUISA_MAKE_VECTOR(uint)
 LUISA_MAKE_VECTOR(float)
+LUISA_MAKE_VECTOR(double)
 LUISA_MAKE_VECTOR(short)
 LUISA_MAKE_VECTOR(ushort)
 LUISA_MAKE_VECTOR(slong)
@@ -1113,7 +1123,7 @@ template<typename Tv, typename Tl, typename Tu>
 template<typename Ta, typename Tb, typename Tt>
     requires any_dsl_v<Ta, Tb, Tt> && is_floating_point_or_vector_expr_v<Ta> && is_vector_expr_same_element_v<Ta, Tb, Tt>
 [[nodiscard]] inline auto lerp(Ta &&a, Tb &&b, Tt &&t) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<Ta>>(
         CallOp::LERP,
         std::forward<Ta>(a),
         std::forward<Tb>(b),
@@ -1124,7 +1134,7 @@ template<typename Ta, typename Tb, typename Tt>
 template<typename X, typename Y, typename Z>
     requires any_dsl_v<X, Y, Z> && is_floating_point_or_vector_expr_v<X> && is_floating_point_or_vector_expr_v<Y> && is_floating_point_or_vector_expr_v<Z>
 [[nodiscard]] inline auto fma(X &&x, Y &&y, Z &&z) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<X>>(
         CallOp::FMA,
         std::forward<X>(x),
         std::forward<Y>(y),
@@ -1135,7 +1145,7 @@ template<typename X, typename Y, typename Z>
 template<typename Tv>
     requires is_dsl_v<Tv> && is_floating_point_or_vector_expr_v<Tv>
 [[nodiscard]] inline auto saturate(Tv &&v) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<Tv>>(
         CallOp::SATURATE, std::forward<Tv>(v));
 }
 
@@ -1143,7 +1153,7 @@ template<typename Tv>
 template<typename E, typename X>
     requires any_dsl_v<E, X> && is_floating_point_or_vector_expr_v<E> && is_floating_point_or_vector_expr_v<X>
 [[nodiscard]] inline auto step(E &&edge, X &&x) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<E>>(
         CallOp::STEP,
         std::forward<E>(edge),
         std::forward<X>(x));
@@ -1154,7 +1164,7 @@ template<typename E, typename X>
 template<typename L, typename R, typename T>
     requires any_dsl_v<L, R, T> && is_floating_point_or_vector_expr_v<L> && is_floating_point_or_vector_expr_v<R> && is_floating_point_or_vector_expr_v<T>
 [[nodiscard]] inline auto smoothstep(L &&left, R &&right, T &&x) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<L>>(
         CallOp::SMOOTHSTEP,
         std::forward<L>(left),
         std::forward<R>(right),
@@ -1165,7 +1175,7 @@ template<typename L, typename R, typename T>
 template<typename Tx>
     requires is_dsl_v<Tx> && is_floating_point_or_vector_expr_v<Tx>
 [[nodiscard]] inline auto abs(Tx &&x) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<Tx>>(
         CallOp::ABS, std::forward<Tx>(x));
 }
 
@@ -1303,7 +1313,7 @@ template<typename X>
 template<typename T>
     requires is_dsl_v<T> && is_floating_point_or_vector_expr_v<T>
 [[nodiscard]] inline auto acos(T &&x) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<T>>(
         CallOp::ACOS, std::forward<T>(x));
 }
 
@@ -1311,7 +1321,7 @@ template<typename T>
 template<typename T>
     requires is_dsl_v<T> && is_floating_point_or_vector_expr_v<T>
 [[nodiscard]] inline auto acosh(T &&x) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<T>>(
         CallOp::ACOSH, std::forward<T>(x));
 }
 
@@ -1319,7 +1329,7 @@ template<typename T>
 template<typename T>
     requires is_dsl_v<T> && is_floating_point_or_vector_expr_v<T>
 [[nodiscard]] inline auto asin(T &&x) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<T>>(
         CallOp::ASIN, std::forward<T>(x));
 }
 
@@ -1327,7 +1337,7 @@ template<typename T>
 template<typename T>
     requires is_dsl_v<T> && is_floating_point_or_vector_expr_v<T>
 [[nodiscard]] inline auto asinh(T &&x) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<T>>(
         CallOp::ASINH, std::forward<T>(x));
 }
 
@@ -1335,7 +1345,7 @@ template<typename T>
 template<typename T>
     requires is_dsl_v<T> && is_floating_point_or_vector_expr_v<T>
 [[nodiscard]] inline auto atan(T &&x) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<T>>(
         CallOp::ATAN, std::forward<T>(x));
 }
 
@@ -1343,7 +1353,7 @@ template<typename T>
 template<typename Y, typename X>
     requires any_dsl_v<Y, X> && is_floating_point_or_vector_expr_v<Y> && is_floating_point_or_vector_expr_v<X>
 [[nodiscard]] inline auto atan2(Y &&y, X &&x) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<X>>(
         CallOp::ATAN2,
         std::forward<Y>(y),
         std::forward<X>(x));
@@ -1353,7 +1363,7 @@ template<typename Y, typename X>
 template<typename T>
     requires is_dsl_v<T> && is_floating_point_or_vector_expr_v<T>
 [[nodiscard]] inline auto atanh(T &&x) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<T>>(
         CallOp::ATANH, std::forward<T>(x));
 }
 
@@ -1361,7 +1371,7 @@ template<typename T>
 template<typename T>
     requires is_dsl_v<T> && is_floating_point_or_vector_expr_v<T>
 [[nodiscard]] inline auto cos(T &&x) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<T>>(
         CallOp::COS, std::forward<T>(x));
 }
 
@@ -1369,7 +1379,7 @@ template<typename T>
 template<typename T>
     requires is_dsl_v<T> && is_floating_point_or_vector_expr_v<T>
 [[nodiscard]] inline auto cosh(T &&x) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<T>>(
         CallOp::COSH, std::forward<T>(x));
 }
 
@@ -1377,7 +1387,7 @@ template<typename T>
 template<typename T>
     requires is_dsl_v<T> && is_floating_point_or_vector_expr_v<T>
 [[nodiscard]] inline auto sin(T &&x) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<T>>(
         CallOp::SIN, std::forward<T>(x));
 }
 
@@ -1385,7 +1395,7 @@ template<typename T>
 template<typename T>
     requires is_dsl_v<T> && is_floating_point_or_vector_expr_v<T>
 [[nodiscard]] inline auto sinh(T &&x) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<T>>(
         CallOp::SINH, std::forward<T>(x));
 }
 
@@ -1393,7 +1403,7 @@ template<typename T>
 template<typename T>
     requires is_dsl_v<T> && is_floating_point_or_vector_expr_v<T>
 [[nodiscard]] inline auto tan(T &&x) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<T>>(
         CallOp::TAN, std::forward<T>(x));
 }
 
@@ -1401,7 +1411,7 @@ template<typename T>
 template<typename T>
     requires is_dsl_v<T> && is_floating_point_or_vector_expr_v<T>
 [[nodiscard]] inline auto tanh(T &&x) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<T>>(
         CallOp::TANH, std::forward<T>(x));
 }
 
@@ -1409,7 +1419,7 @@ template<typename T>
 template<typename T>
     requires is_dsl_v<T> && is_floating_point_or_vector_expr_v<T>
 [[nodiscard]] inline auto exp(T &&x) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<T>>(
         CallOp::EXP, std::forward<T>(x));
 }
 
@@ -1417,7 +1427,7 @@ template<typename T>
 template<typename T>
     requires is_dsl_v<T> && is_floating_point_or_vector_expr_v<T>
 [[nodiscard]] inline auto exp2(T &&x) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<T>>(
         CallOp::EXP2, std::forward<T>(x));
 }
 
@@ -1425,7 +1435,7 @@ template<typename T>
 template<typename T>
     requires is_dsl_v<T> && is_floating_point_or_vector_expr_v<T>
 [[nodiscard]] inline auto exp10(T &&x) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<T>>(
         CallOp::EXP10, std::forward<T>(x));
 }
 
@@ -1433,7 +1443,7 @@ template<typename T>
 template<typename T>
     requires is_dsl_v<T> && is_floating_point_or_vector_expr_v<T>
 [[nodiscard]] inline auto log(T &&x) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<T>>(
         CallOp::LOG, std::forward<T>(x));
 }
 
@@ -1441,7 +1451,7 @@ template<typename T>
 template<typename T>
     requires is_dsl_v<T> && is_floating_point_or_vector_expr_v<T>
 [[nodiscard]] inline auto log2(T &&x) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<T>>(
         CallOp::LOG2, std::forward<T>(x));
 }
 
@@ -1449,7 +1459,7 @@ template<typename T>
 template<typename T>
     requires is_dsl_v<T> && is_floating_point_or_vector_expr_v<T>
 [[nodiscard]] inline auto log10(T &&x) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<T>>(
         CallOp::LOG10, std::forward<T>(x));
 }
 
@@ -1457,7 +1467,7 @@ template<typename T>
 template<typename X, typename A>
     requires any_dsl_v<X, A> && is_floating_point_or_vector_expr_v<X> && is_floating_point_or_vector_expr_v<A>
 [[nodiscard]] inline auto pow(X &&x, A &&a) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<X>>(
         CallOp::POW,
         std::forward<X>(x),
         std::forward<A>(a));
@@ -1467,7 +1477,7 @@ template<typename X, typename A>
 template<typename T>
     requires is_dsl_v<T> && is_floating_point_or_vector_expr_v<T>
 [[nodiscard]] inline auto sqrt(T &&x) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<T>>(
         CallOp::SQRT, std::forward<T>(x));
 }
 
@@ -1475,7 +1485,7 @@ template<typename T>
 template<typename T>
     requires is_dsl_v<T> && is_floating_point_or_vector_expr_v<T>
 [[nodiscard]] inline auto rsqrt(T &&x) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<T>>(
         CallOp::RSQRT, std::forward<T>(x));
 }
 
@@ -1483,7 +1493,7 @@ template<typename T>
 template<typename T>
     requires is_dsl_v<T> && is_floating_point_or_vector_expr_v<T>
 [[nodiscard]] inline auto ceil(T &&x) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<T>>(
         CallOp::CEIL, std::forward<T>(x));
 }
 
@@ -1491,7 +1501,7 @@ template<typename T>
 template<typename T>
     requires is_dsl_v<T> && is_floating_point_or_vector_expr_v<T>
 [[nodiscard]] inline auto floor(T &&x) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<T>>(
         CallOp::FLOOR, std::forward<T>(x));
 }
 
@@ -1499,7 +1509,7 @@ template<typename T>
 template<typename T>
     requires is_dsl_v<T> && is_floating_point_or_vector_expr_v<T>
 [[nodiscard]] inline auto fract(T &&x) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<T>>(
         CallOp::FRACT, std::forward<T>(x));
 }
 
@@ -1507,7 +1517,7 @@ template<typename T>
 template<typename T>
     requires is_dsl_v<T> && is_floating_point_or_vector_expr_v<T>
 [[nodiscard]] inline auto trunc(T &&x) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<T>>(
         CallOp::TRUNC, std::forward<T>(x));
 }
 
@@ -1515,7 +1525,7 @@ template<typename T>
 template<typename T>
     requires is_dsl_v<T> && is_floating_point_or_vector_expr_v<T>
 [[nodiscard]] inline auto round(T &&x) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<T>>(
         CallOp::ROUND, std::forward<T>(x));
 }
 
@@ -1539,7 +1549,7 @@ template<typename X, typename Y>
              is_floating_point_or_vector_expr_v<X> &&
              is_floating_point_or_vector_expr_v<Y>
 [[nodiscard]] inline auto copysign(X &&x, Y &&y) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<X>>(
         CallOp::COPYSIGN,
         std::forward<X>(x),
         std::forward<Y>(y));
@@ -1587,9 +1597,9 @@ template<typename X, typename Y>
              is_floating_point_vector_expr_v<Y> &&
              is_vector_expr_same_dimension_v<X, Y>
 [[nodiscard]] inline auto dot(X &&x, Y &&y) noexcept {
-    return def<float>(
+    return def<vector_expr_element_t<X>>(
         detail::FunctionBuilder::current()->call(
-            Type::of<float>(), CallOp::DOT,
+            Type::of<vector_expr_element_t<X>>(), CallOp::DOT,
             {LUISA_EXPR(x), LUISA_EXPR(y)}));
 }
 
@@ -1597,9 +1607,9 @@ template<typename X, typename Y>
 template<typename Tx>
     requires is_dsl_v<Tx> && is_floating_point_vector_expr_v<Tx>
 [[nodiscard]] inline auto length(Tx &&x) noexcept {
-    return def<float>(
+    return def<vector_expr_element_t<Tx>>(
         detail::FunctionBuilder::current()->call(
-            Type::of<float>(), CallOp::LENGTH,
+            Type::of<vector_expr_element_t<Tx>>(), CallOp::LENGTH,
             {LUISA_EXPR(x)}));
 }
 
@@ -1607,9 +1617,9 @@ template<typename Tx>
 template<typename Tx>
     requires is_dsl_v<Tx> && is_floating_point_vector_expr_v<Tx>
 [[nodiscard]] inline auto length_squared(Tx &&x) noexcept {
-    return def<float>(
+    return def<vector_expr_element_t<Tx>>(
         detail::FunctionBuilder::current()->call(
-            Type::of<float>(), CallOp::LENGTH_SQUARED,
+            Type::of<vector_expr_element_t<Tx>>(), CallOp::LENGTH_SQUARED,
             {LUISA_EXPR(x)}));
 }
 
@@ -1637,7 +1647,7 @@ template<typename X, typename Y>
 template<typename T>
     requires is_dsl_v<T> && is_floating_point_vector_expr_v<T>
 [[nodiscard]] inline auto normalize(T &&x) noexcept {
-    return detail::make_vector_call<float>(CallOp::NORMALIZE, std::forward<T>(x));
+    return detail::make_vector_call<vector_expr_element_t<T>>(CallOp::NORMALIZE, std::forward<T>(x));
 }
 
 /// Reflect i about n, returns i - 2 * dot(n, i) * n.
@@ -1646,7 +1656,7 @@ template<typename I, typename N>
              std::same_as<expr_value_t<I>, float3> &&
              std::same_as<expr_value_t<N>, float3>
 [[nodiscard]] inline auto reflect(I &&i, N &&n) noexcept {
-    return detail::make_vector_call<float>(
+    return detail::make_vector_call<vector_expr_element_t<I>>(
         CallOp::REFLECT, std::forward<I>(i), std::forward<N>(n));
 }
 

@@ -18,6 +18,11 @@ public:
         u.h = x;
         bits = u.bits;
     }
+    inline constexpr lc_half(double x) noexcept {
+        U u;
+        u.h = x;
+        bits = u.bits;
+    }
     template<typename T>
     inline constexpr operator T() const noexcept {
         U u;
@@ -78,9 +83,9 @@ if __name__ == "__main__":
     with open(f"{output_file_name}", "w") as file:
         # scalar types
         scalar_types = ["byte", "ubyte", "short", "ushort", "int",
-                        "uint", "half", "float", "bool", "long", "ulong"]
+                        "uint", "half", "float", "double", "bool", "long", "ulong"]
         native_types = ["char", "unsigned char", "short", "unsigned short", "int", "unsigned int",
-                        "half", "float", "bool", "long long", "unsigned long long"]
+                        "half", "float", "double", "bool", "long long", "unsigned long long"]
         scalar_alignments = {
             "byte": 1,
             "ubyte": 1,
@@ -93,6 +98,7 @@ if __name__ == "__main__":
             "bool": 1,
             "long": 8,
             "ulong": 8,
+            "double": 8,
         }
         for t, native_t in zip(scalar_types, native_types):
             if t == 'half' and is_cpu:
@@ -132,6 +138,30 @@ template<typename T>
 }
 [[nodiscard]] __device__ inline lc_float powf_impl(lc_float x, lc_float y) noexcept {
     auto y_int = static_cast<lc_int>(y);
+    return y_int == y ? powi_impl(x, y_int) : powf(x, y);
+}
+[[nodiscard]] __device__ inline bool isinf_impl(lc_double x) noexcept {
+    auto u = reinterpret_cast<lc_ulong&>(x);
+    return u == 9218868437227405312ull;
+}
+[[nodiscard]] __device__ inline bool isnan_impl(lc_double x) noexcept {
+    auto u = reinterpret_cast<lc_ulong&>(x);
+    return u == 9221120237041090560ull || u == 9218868437227405313ull;
+}
+[[nodiscard]] __device__ inline lc_double powi_impl(lc_double x, lc_int y) noexcept {
+    lc_double r = 1.0;
+    auto is_y_neg = y < 0;
+    auto y_abs = is_y_neg ? -y : y;
+
+    while (y_abs) {
+        if (y_abs & 1) r *= x;
+        x *= x;
+        y_abs >>= 1;
+    }
+    return is_y_neg ? 1.0 / r : r;
+}
+[[nodiscard]] __device__ inline lc_double powf_impl(lc_double x, lc_double y) noexcept {
+    auto y_int = static_cast<lc_long>(y);
     return y_int == y ? powi_impl(x, y_int) : powf(x, y);
 }
 ''', file=file)
@@ -213,7 +243,7 @@ template<typename T>
                     print(
                         f"[[nodiscard]] inline __device__ constexpr auto operator-(lc_{type}{i} v) noexcept {{ return lc_make_{type}{i}({', '.join(f'-v.{m}' for m in elements)}); }}",
                         file=file)
-                    if type != "float" and type != "half":
+                    if type != "float" and type != "half" and type != "double":
                         print(
                             f"[[nodiscard]] inline  __device__ constexpr auto operator~(lc_{type}{i} v) noexcept {{ return lc_make_{type}{i}({', '.join(f'~v.{m}' for m in elements)}); }}",
                             file=file)
@@ -245,11 +275,11 @@ template<typename T>
                 gen_binary_op(type, "bool", op)
             print(file=file)
         for op in ["<", ">", "<=", ">="]:
-            for type in ["short", "ushort", "int", "uint", "half", "float", "long", "ulong"]:
+            for type in ["short", "ushort", "int", "uint", "half", "float", "double", "long", "ulong"]:
                 gen_binary_op(type, "bool", op)
             print(file=file)
         for op in ["+", "-", "*", "/"]:
-            for type in ["short", "ushort", "int", "uint", "half", "float", "long", "ulong"]:
+            for type in ["short", "ushort", "int", "uint", "half", "float", "double", "long", "ulong"]:
                 gen_binary_op(type, type, op)
             print(file=file)
         for op in ["%", "<<", ">>"]:
@@ -347,6 +377,7 @@ struct lc_float{i}x{i} {{
                          "u": "uint",
                          "h": "half",
                          "f": "float",
+                         "d": "double",
                          "b": "bool",
                          "l": "long",
                          "z": "ulong"}[t] for t in types]
@@ -371,7 +402,7 @@ struct lc_float{i}x{i} {{
         print(
             "template<typename T>\n[[nodiscard]] __device__ inline auto lc_select(T f, T t, bool p) noexcept { return p ? t : f; }",
             file=file)
-        for t in ["short", "ushort", "int", "uint", "half", "float", "bool", "long", "ulong"]:
+        for t in ["short", "ushort", "int", "uint", "half", "float", "double", "bool", "long", "ulong"]:
             for n in range(2, 5):
                 print(
                     f"[[nodiscard]] __device__ inline auto lc_select(lc_{t}{n} f, lc_{t}{n} t, lc_bool{n} p) noexcept {{ return lc_make_{t}{n}({', '.join(f'lc_select<lc_{t}>(f.{e}, t.{e}, p.{e})' for e in 'xyzw'[:n])}); }}",
@@ -389,57 +420,67 @@ struct lc_float{i}x{i} {{
         # log10/sqrt/rsqrt/ceil/floor/trunc/round/fma/copysignf/
         # isinf/isnan
         generate_vector_call("min", "fminf", "f", ["a", "b"])
+        generate_vector_call("min", "fmin", "d", ["a", "b"])
         generate_vector_call("min", "__hmin", "h", ["a", "b"])
         generate_vector_call("max", "fmaxf", "f", ["a", "b"])
+        generate_vector_call("max", "fmax", "d", ["a", "b"])
         generate_vector_call("max", "__hmax", "h", ["a", "b"])
         generate_vector_call("abs", "fabsf", "f", ["x"])
+        generate_vector_call("abs", "fabs", "d", ["x"])
         generate_vector_call("abs", "abs", "i", ["x"])
         generate_vector_call("abs", "llabs", "l", ["x"])
         generate_vector_call("abs", "__habs", "h", ["x"])
 
-        generate_vector_call("acos", "acosf", "hf", ["x"])
-        generate_vector_call("asin", "asinf", "hf", ["x"])
-        generate_vector_call("atan", "atanf", "hf", ["x"])
-        generate_vector_call("acosh", "acoshf", "hf", ["x"])
-        generate_vector_call("asinh", "asinhf", "hf", ["x"])
-        generate_vector_call("atanh", "atanhf", "hf", ["x"])
-        generate_vector_call("atan2", "atan2f", "hf", ["y", "x"])
+        generate_vector_call("acos", "acosf", "hfd", ["x"])
+        generate_vector_call("asin", "asinf", "hfd", ["x"])
+        generate_vector_call("atan", "atanf", "hfd", ["x"])
+        generate_vector_call("acosh", "acoshf", "hfd", ["x"])
+        generate_vector_call("asinh", "asinhf", "hfd", ["x"])
+        generate_vector_call("atanh", "atanhf", "hfd", ["x"])
+        generate_vector_call("atan2", "atan2f", "hfd", ["y", "x"])
 
-        generate_vector_call("cosh", "coshf", "hf", ["x"])
-        generate_vector_call("sinh", "sinhf", "hf", ["x"])
-        generate_vector_call("tanh", "tanhf", "hf", ["x"])
+        generate_vector_call("cosh", "coshf", "hfd", ["x"])
+        generate_vector_call("sinh", "sinhf", "hfd", ["x"])
+        generate_vector_call("tanh", "tanhf", "hfd", ["x"])
 
-        generate_vector_call("cos", "cosf", "hf", ["x"])
-        generate_vector_call("sin", "sinf", "hf", ["x"])
-        generate_vector_call("tan", "tanf", "hf", ["x"])
-        generate_vector_call("exp", "expf", "hf", ["x"])
+        generate_vector_call("cos", "cosf", "hfd", ["x"])
+        generate_vector_call("sin", "sinf", "hfd", ["x"])
+        generate_vector_call("tan", "tanf", "hfd", ["x"])
+        generate_vector_call("exp", "expf", "hfd", ["x"])
         generate_vector_call("exp2", "exp2f", "f", ["x"])
+        generate_vector_call("exp2", "exp2", "d", ["x"])
         generate_vector_call("exp2", "hexp2", "h", ["x"])
-        generate_vector_call("exp10", "exp10f", "hf", ["x"])
-        generate_vector_call("log", "logf", "hf", ["x"])
-        generate_vector_call("log2", "log2f", "hf", ["x"])
-        generate_vector_call("log10", "log10f", "hf", ["x"])
-        generate_vector_call("pow", "powf_impl", "hf", ["x", "a"])
-        generate_vector_call("powi", "powi_impl", "hf", ["x", "a"])
+        generate_vector_call("exp10", "exp10f", "hfd", ["x"])
+        generate_vector_call("log", "logf", "hfd", ["x"])
+        generate_vector_call("log2", "log2f", "hfd", ["x"])
+        generate_vector_call("log10", "log10f", "hfd", ["x"])
+        generate_vector_call("pow", "powf_impl", "hfd", ["x", "a"])
+        generate_vector_call("powi", "powi_impl", "hfd", ["x", "a"])
 
         generate_vector_call("sqrt", "sqrtf", "f", ["x"])
+        generate_vector_call("sqrt", "sqrt", "d", ["x"])
         generate_vector_call("sqrt", "hsqrt", "h", ["x"])
 
         generate_vector_call("rsqrt", "rsqrtf", "f", ["x"])
+        generate_vector_call("rsqrt", "rsqrt", "d", ["x"])
         generate_vector_call("rsqrt", "hrsqrt", "h", ["x"])
 
         generate_vector_call("ceil", "ceilf", "f", ["x"])
+        generate_vector_call("ceil", "ceil", "d", ["x"])
         generate_vector_call("ceil", "hceil", "h", ["x"])
 
         generate_vector_call("floor", "floorf", "f", ["x"])
+        generate_vector_call("floor", "floor", "d", ["x"])
         generate_vector_call("floor", "hfloor", "h", ["x"])
 
         generate_vector_call("trunc", "truncf", "f", ["x"])
+        generate_vector_call("trunc", "trunc", "d", ["x"])
         generate_vector_call("trunc", "htrunc", "h", ["x"])
 
-        generate_vector_call("round", "rintf", "hf", ["x"])
+        generate_vector_call("round", "rintf", "hfd", ["x"])
 
         generate_vector_call("fma", "fmaf", "f", ["x", "y", "z"])
+        generate_vector_call("fma", "fma", "d", ["x", "y", "z"])
         generate_vector_call("fma", "__hfma", "h", ["x", "y", "z"])
 
         print("""
@@ -450,16 +491,29 @@ struct lc_float{i}x{i} {{
 }""", file=file)
 
         generate_vector_call("copysign", "copysignf", "f", ["x", "y"])
+        generate_vector_call("copysign", "copysignf", "d", ["x", "y"])
         generate_vector_call("copysign", "lc_copysign_impl", "h", ["x", "y"])
 
         generate_vector_call("isinf", "isinf_impl", "f", ["x"])
+        generate_vector_call("isinf", "isinf_impl", "d", ["x"])
         generate_vector_call("isnan", "isnan_impl", "f", ["x"])
+        generate_vector_call("isnan", "isnan_impl", "d", ["x"])
         generate_vector_call("isinf", "__hisinf", "h", ["x"])
         generate_vector_call("isnan", "__hisnan", "h", ["x"])
         # TODO: half
-
+        # min/max for int
+        for t in ["short", "ushort", "int", "uint", "long", "ulong"]:
+            # lc_min_impl/lc_max_impl
+            print(
+                f"[[nodiscard]] __device__ inline auto lc_min_impl(lc_{t} a, lc_{t} b) noexcept {{ return a < b ? a : b; }}",
+                file=file)
+            print(
+                f"[[nodiscard]] __device__ inline auto lc_max_impl(lc_{t} a, lc_{t} b) noexcept {{ return a > b ? a : b; }}",
+                file=file)
+        generate_vector_call("min", "lc_min_impl", "sriulz", ["a", "b"])
+        generate_vector_call("max", "lc_max_impl", "sriulz", ["a", "b"])
         # reduce operations
-        for t in ["short", "ushort", "int", "uint", "half", "float", "long", "ulong"]:
+        for t in ["short", "ushort", "int", "uint", "half", "float", "double", "long", "ulong"]:
             for n in range(2, 5):
                 print(
                     f"[[nodiscard]] __device__ inline auto lc_reduce_sum(lc_{t}{n} v) noexcept {{ return lc_{t}({'+'.join(f'v.{e}' for e in 'xyzw'[:n])}); }}",
@@ -474,27 +528,15 @@ struct lc_float{i}x{i} {{
                     f"[[nodiscard]] __device__ inline auto lc_reduce_max(lc_{t}{n} v) noexcept {{ return lc_{t}({', '.join(f'lc_max(v.{e}' for e in 'xyzw'[:n - 1])}, v.{'xyzw'[n - 1]}{')' * (n)}; }}",
                     file=file)
 
-        # min/max for int
-        for t in ["short", "ushort", "int", "uint", "long", "ulong"]:
-            # lc_min_impl/lc_max_impl
-            print(
-                f"[[nodiscard]] __device__ inline auto lc_min_impl(lc_{t} a, lc_{t} b) noexcept {{ return a < b ? a : b; }}",
-                file=file)
-            print(
-                f"[[nodiscard]] __device__ inline auto lc_max_impl(lc_{t} a, lc_{t} b) noexcept {{ return a > b ? a : b; }}",
-                file=file)
-        generate_vector_call("min", "lc_min_impl", "sriulz", ["a", "b"])
-        generate_vector_call("max", "lc_max_impl", "sriulz", ["a", "b"])
-
         # clamp
-        for t in ["short", "ushort", "int", "uint", "half", "float", "long", "ulong"]:
+        for t in ["short", "ushort", "int", "uint", "half", "float", "double", "long", "ulong"]:
             print(
                 f"[[nodiscard]] __device__ inline auto lc_clamp_impl(lc_{t} v, lc_{t} lo, lc_{t} hi) noexcept {{ return lc_min(lc_max(v, lo), hi); }}",
                 file=file)
         generate_vector_call("clamp", "lc_clamp_impl",
-                             "sriulzhf", ["v", "lo", "hi"])
+                             "sriulzhfd", ["v", "lo", "hi"])
 
-        for t in ["half", "float"]:
+        for t in ["half", "float", "double"]:
             # lerp
             print(
                 f"[[nodiscard]] __device__ inline auto lc_lerp_impl(lc_{t} a, lc_{t} b, lc_{t} t) noexcept {{ return t * (b - a) + a; }}",
@@ -551,14 +593,14 @@ struct lc_float{i}x{i} {{
                 f"[[nodiscard]] __device__ inline auto lc_fract_impl(lc_{t} x) noexcept {{ return x - lc_floor(x); }}",
                 file=file)
 
-        generate_vector_call("lerp", "lc_lerp_impl", "hf", ["a", "b", "t"])
-        generate_vector_call("degrees", "lc_degrees_impl", "hf", ["rad"])
-        generate_vector_call("radians", "lc_radians_impl", "hf", ["deg"])
-        generate_vector_call("step", "lc_step_impl", "hf", ["edge", "x"])
-        generate_vector_call("smoothstep", "lc_smoothstep_impl", "hf", ["e0", "e1", "x"])
-        generate_vector_call("mod", "lc_mod_impl", "hf", ["x", "y"])
-        generate_vector_call("fmod", "lc_fmod_impl", "hf", ["x", "y"])
-        generate_vector_call("fract", "lc_fract_impl", "hf", ["x"])
+        generate_vector_call("lerp", "lc_lerp_impl", "hfd", ["a", "b", "t"])
+        generate_vector_call("degrees", "lc_degrees_impl", "hfd", ["rad"])
+        generate_vector_call("radians", "lc_radians_impl", "hfd", ["deg"])
+        generate_vector_call("step", "lc_step_impl", "hfd", ["edge", "x"])
+        generate_vector_call("smoothstep", "lc_smoothstep_impl", "hfd", ["e0", "e1", "x"])
+        generate_vector_call("mod", "lc_mod_impl", "hfd", ["x", "y"])
+        generate_vector_call("fmod", "lc_fmod_impl", "hfd", ["x", "y"])
+        generate_vector_call("fract", "lc_fract_impl", "hfd", ["x"])
 
         # clz/popcount/reverse
         generate_vector_call("clz", "__clz", "u", ["x"])
@@ -577,7 +619,7 @@ struct lc_float{i}x{i} {{
             file=file)
         generate_vector_call("ctz", "lc_ctz_impl", "uz", ["x"])
 
-        for t in ["float", "half"]:
+        for t in ["float", "half", "double"]:
             # cross
             print(f"""[[nodiscard]] __device__ inline constexpr auto lc_cross(lc_{t}3 u, lc_{t}3 v) noexcept {{
     return lc_make_{t}3(u.y * v.z - v.y * u.z,
@@ -780,6 +822,9 @@ struct lc_float{i}x{i} {{
 [[nodiscard]] __device__ inline auto lc_reflect(const lc_float3 v, const lc_float3 n) noexcept {
     return v - 2.0f * lc_dot(v, n) * n;
 }
+[[nodiscard]] __device__ inline auto lc_reflect(const lc_double3 v, const lc_double3 n) noexcept {
+    return v - 2.0 * lc_dot(v, n) * n;
+}
 
 template<typename D, typename S>
 [[nodiscard]] __device__ inline auto lc_bit_cast(S s) noexcept {
@@ -801,6 +846,10 @@ template<>
 template<>
 [[nodiscard]] __device__ inline constexpr auto lc_one<lc_float>() noexcept {
     return lc_float(1.0f);
+}
+template<>
+[[nodiscard]] __device__ inline constexpr auto lc_one<lc_double>() noexcept {
+    return lc_double(1.0);
 }
 template<>
 [[nodiscard]] __device__ inline auto lc_one<lc_half>() noexcept {
@@ -892,6 +941,18 @@ public:
 [[nodiscard]] __device__ inline constexpr auto lc_remove_nan(lc_float4 v) noexcept {
     return lc_select(v, lc_zero<lc_float4>(), lc_isnan(v) | lc_isinf(v));
 }
+[[nodiscard]] __device__ inline constexpr auto lc_remove_nan(lc_double v) noexcept {
+    return lc_select(v, lc_zero<lc_double>(), lc_isnan(v) | lc_isinf(v));
+}
+[[nodiscard]] __device__ inline constexpr auto lc_remove_nan(lc_double2 v) noexcept {
+    return lc_select(v, lc_zero<lc_double2>(), lc_isnan(v) | lc_isinf(v));
+}
+[[nodiscard]] __device__ inline constexpr auto lc_remove_nan(lc_double3 v) noexcept {
+    return lc_select(v, lc_zero<lc_double3>(), lc_isnan(v) | lc_isinf(v));
+}
+[[nodiscard]] __device__ inline constexpr auto lc_remove_nan(lc_double4 v) noexcept {
+    return lc_select(v, lc_zero<lc_double4>(), lc_isnan(v) | lc_isinf(v));
+}
 [[nodiscard]] __device__ inline constexpr auto lc_remove_nan(lc_half v) noexcept {
     return lc_select(v, lc_zero<lc_half>(), lc_isnan(v) | lc_isinf(v));
 }
@@ -929,6 +990,7 @@ public:
             "lc_float2x2", "lc_float3x3", "lc_float4x4",
             "lc_float2", "lc_float3", "lc_float4",
             "lc_half", "lc_half2", "lc_half3", "lc_half4",
+            "lc_double", "lc_double2", "lc_double3", "lc_double4",
         ]
         for t in float_types:
             print(
@@ -962,6 +1024,8 @@ template<class T> using element_type = typename element_type_<T>::type;
 
         for vt in ['lc_float2', 'lc_float3', 'lc_float4']:
             gen_element_type(vt, "lc_float")
+        for vt in ['lc_double2', 'lc_double3', 'lc_double4']:
+            gen_element_type(vt, "lc_double")
         for vt in ['lc_half2', 'lc_half3', 'lc_half4']:
             gen_element_type(vt, "lc_half")
         for vt in ['lc_short2', 'lc_short3', 'lc_short4']:
