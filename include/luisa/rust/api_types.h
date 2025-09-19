@@ -287,6 +287,7 @@ typedef struct LCTextureArgument {
 typedef struct LCUniformArgument {
     const uint8_t *data;
     size_t size;
+    size_t alignment;
 } LCUniformArgument;
 
 typedef struct LCBindlessArray {

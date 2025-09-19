@@ -14,7 +14,7 @@ namespace detail {
 template<typename T, size_t N>
 struct vector_alignment {
     static constexpr size_t _a = sizeof(T) * (N == 3 ? 4 : N);
-    static constexpr size_t value = _a > 16u ? 16u : _a;
+    static constexpr size_t value = _a > 32u ? 32u : _a;
 };
 template<typename T, size_t N>
 static constexpr size_t vector_alignment_v = vector_alignment<T, N>::value;

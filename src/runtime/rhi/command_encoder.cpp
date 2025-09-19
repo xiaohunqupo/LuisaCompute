@@ -42,7 +42,7 @@ void ShaderDispatchCmdEncoder::encode_texture(uint64_t handle, uint32_t level) n
     arg.texture = ShaderDispatchCommandBase::Argument::Texture{handle, level};
 }
 
-void ShaderDispatchCmdEncoder::encode_uniform(const void *data, size_t size) noexcept {
+void ShaderDispatchCmdEncoder::encode_uniform(const void *data, size_t size, size_t alignment) noexcept {
     auto offset = _argument_buffer.size();
     luisa::enlarge_by(_argument_buffer, size);
     std::memcpy(_argument_buffer.data() + offset, data, size);
@@ -50,6 +50,7 @@ void ShaderDispatchCmdEncoder::encode_uniform(const void *data, size_t size) noe
     arg.tag = Argument::Tag::UNIFORM;
     arg.uniform.offset = offset;
     arg.uniform.size = size;
+    arg.uniform.alignment = alignment;
 }
 
 void ComputeDispatchCmdEncoder::set_dispatch_size(uint3 launch_size) noexcept {

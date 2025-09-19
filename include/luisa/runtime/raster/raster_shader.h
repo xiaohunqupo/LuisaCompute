@@ -94,7 +94,7 @@ public:
 
     template<typename T>
     RasterShaderInvoke &operator<<(T data) noexcept {
-        _command.encode_uniform(&data, sizeof(T));
+        _command.encode_uniform(&data, sizeof(T), alignof(T));
         return *this;
     }
 

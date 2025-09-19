@@ -303,7 +303,7 @@ const TypeImpl *TypeRegistry::_decode(luisa::string_view desc) noexcept {
         }
         info->alignment = std::min(
             elem->size() * (info->dimension == 3 ? 4 : info->dimension),
-            static_cast<size_t>(16u));
+            static_cast<size_t>(32u));
         info->size = luisa::align(elem->size() * info->dimension, info->alignment);
     } else if (type_identifier == "matrix"sv) {
         info->tag = Type::Tag::MATRIX;
@@ -410,7 +410,7 @@ const TypeImpl *TypeRegistry::_decode(luisa::string_view desc) noexcept {
             max_member_alignment = std::max(ma, max_member_alignment);
             info->size = (info->size + ma - 1u) / ma * ma + member->size();
         }
-        if (auto a = info->alignment; a > 16u || std::bit_floor(a) != a) [[unlikely]] {
+        if (auto a = info->alignment; a > 32u || std::bit_floor(a) != a) [[unlikely]] {
             LUISA_ERROR_WITH_LOCATION("Invalid structure alignment {}.", a);
         } else if (a < max_member_alignment && a != 0u) [[unlikely]] {
             LUISA_ERROR_WITH_LOCATION(
@@ -728,8 +728,8 @@ const Type *Type::texture(const Type *elem, size_t dimension, luisa::span<const 
 }
 
 const Type *Type::structure(size_t alignment, luisa::span<Type const *const> members, luisa::span<const Attribute> attributes) noexcept {
-    LUISA_ASSERT(alignment == 1 || alignment == 4u || alignment == 8u || alignment == 16u,
-                 "Invalid structure alignment {} (must be 4, 8, or 16).",
+    LUISA_ASSERT(alignment == 1 || alignment == 4u || alignment == 8u || alignment == 16u || alignment == 32u,
+                 "Invalid structure alignment {} (must be 4, 8, 16 or 32).",
                  alignment);
     LUISA_ASSERT(attributes.empty() || attributes.size() == members.size(),
                  "Invalid attribute size (must be empty or same as members' size");

@@ -2164,7 +2164,7 @@ void CodegenUtility::GenerateCBuffer(
             for (auto &&i : *f) {
                 if (!detail::IsCBuffer(i.tag())) continue;
                 size_cache++;
-                StructGenerator::ProvideAlignVariable(std::clamp<size_t>(next_pow2(i.type()->size()), 4, 16), align, struct_size, result);
+                StructGenerator::ProvideAlignVariable(i.type()->alignment(), align, struct_size, result);
                 if (opt->isSpirv && i.type()->tag() == Type::Tag::BOOL) {
                     result << "int";
                 } else

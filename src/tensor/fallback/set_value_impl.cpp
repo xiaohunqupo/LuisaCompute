@@ -32,7 +32,7 @@ void SetValueImpl::execute(FallbackTensorCallback *callback, CommandList &cmdlis
             2,
             shader.uniform_size};
         encoder.encode_buffer(buffer.handle, buffer.offset, buffer.size);
-        encoder.encode_uniform(&luisa::get<1>(expr->value), sizeof(uint2));
+        encoder.encode_uniform(&luisa::get<1>(expr->value), sizeof(uint2), alignof(uint2));
         encoder.set_dispatch_size(uint3(std::max<uint>(expr->tensor_data->size_bytes() / sizeof(uint2), 1), 1, 1));
         cmdlist << std::move(encoder).build();
     } else {

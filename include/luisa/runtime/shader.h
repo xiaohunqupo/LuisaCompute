@@ -131,7 +131,7 @@ public:
 
     template<typename T>
     ShaderInvokeBase &operator<<(T data) noexcept {
-        _encoder.encode_uniform(&data, sizeof(T));
+        _encoder.encode_uniform(&data, sizeof(T), alignof(T));
         return *this;
     }
     // see definition in rtx/accel.cpp
