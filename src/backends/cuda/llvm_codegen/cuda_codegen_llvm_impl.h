@@ -5,10 +5,10 @@
 #pragma once
 
 #include <llvm/IR/Module.h>
+#include <llvm/IR/Instructions.h>
 #include <llvm/Support/SourceMgr.h>
 #include <llvm/IRReader/IRReader.h>
 
-#include <luisa/core/stl/string.h>
 #include <luisa/core/logging.h>
 #include <luisa/xir/module.h>
 
@@ -20,10 +20,12 @@ struct CUDACodegenLLVMConfig;
 
 class CUDACodegenLLVMImpl {
 
+public:
+    static constexpr auto nvptx_target_triple = "nvptx64-nvidia-cuda";
+
 private:
     CUDACodegenLLVMConfig _config;
     llvm::LLVMContext _llvm_context;
-    std::unique_ptr<llvm::Module> _libdevice_module;
     std::unique_ptr<llvm::Module> _llvm_module;
 
 public:

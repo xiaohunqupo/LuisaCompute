@@ -10,6 +10,7 @@ namespace luisa::compute::cuda {
 
 struct CUDACodegenLLVMConfig {
     luisa::span<const std::byte> libdevice_bitcode;
+    uint cuda_arch{};
     bool enable_fast_math{true};
     bool enable_debug_info{false};
 };

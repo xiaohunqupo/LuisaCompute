@@ -791,6 +791,7 @@ ShaderCreationInfo CUDADevice::create_shader(const ShaderOption &option, Functio
         if (LUISA_USE_EXPERIMENTAL_LLVM_CODEGEN) {
             CUDACodegenLLVMConfig config{
                 .libdevice_bitcode = _libdevice_bitcode,
+                .cuda_arch = _handle.compute_capability(),
                 .enable_fast_math = option.enable_fast_math,
                 .enable_debug_info = option.enable_debug_info,
             };
