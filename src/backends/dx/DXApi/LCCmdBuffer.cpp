@@ -78,19 +78,23 @@ public:
         luisa::vector_resize(*argBuffer, CalcAlign(argBuffer->size(), align));
     }
     template<typename T>
-    void EmplaceData(T const &data) {
+    void EmplaceData(T const &data, size_t alignment) {
         size_t sz = argBuffer->size();
-        luisa::enlarge_by(*argBuffer, sizeof(T));
+        alignment -= 1;
+        auto aligned_size = (sz + alignment) & (~alignment);
+        luisa::enlarge_by(*argBuffer, sizeof(T) + aligned_size - sz);
         using PlaceHolder = luisa::aligned_storage_t<sizeof(T), 1>;
-        *reinterpret_cast<PlaceHolder *>(argBuffer->data() + sz) =
+        *reinterpret_cast<PlaceHolder *>(argBuffer->data() + aligned_size) =
             *reinterpret_cast<PlaceHolder const *>(&data);
     }
     template<typename T>
-    void EmplaceData(T const *data, size_t size) {
+    void EmplaceData(T const *data, size_t size, size_t alignment) {
+        alignment -= 1;
         size_t sz = argBuffer->size();
+        auto aligned_size = (sz + alignment) & (~alignment);
         auto byteSize = size * sizeof(T);
-        luisa::enlarge_by(*argBuffer, byteSize);
-        std::memcpy(argBuffer->data() + sz, data, byteSize);
+        luisa::enlarge_by(*argBuffer, byteSize + aligned_size - sz);
+        std::memcpy(argBuffer->data() + aligned_size, data, byteSize);
     }
     struct Visitor {
         LCPreProcessVisitor *self;
@@ -182,13 +186,7 @@ public:
         }
         void operator()(Argument::Uniform const &a) {
             auto bf = cmd.uniform(a);
-            if (bf.size() < 4) {
-                bool v = (bool)bf[0];
-                uint value = v ? std::numeric_limits<uint>::max() : 0;
-                self->EmplaceData(value);
-            } else {
-                self->EmplaceData(bf.data(), bf.size_bytes());
-            }
+            self->EmplaceData(bf.data(), bf.size_bytes(), a.alignment);
             ++arg;
         }
         void operator()(Argument::Accel const &bf) {
@@ -352,7 +350,7 @@ public:
     }
     void visit(const ShaderDispatchCommand *cmd) noexcept override {
         auto cs = reinterpret_cast<ComputeShader *>(cmd->handle());
-        UniformAlign(16);
+        UniformAlign(32);
         size_t beforeSize = argBuffer->size();
         Visitor visitor{this, cs->Args().data(), *cmd, false};
         DecodeCmd(cs->ArgBindings(), visitor);
@@ -447,7 +445,7 @@ public:
 
     void visit(const DrawRasterSceneCommand *cmd) noexcept {
         auto cs = reinterpret_cast<RasterShader *>(cmd->handle());
-        UniformAlign(16);
+        UniformAlign(32);
         size_t beforeSize = argBuffer->size();
         auto rtvs = cmd->rtv_texs();
         auto dsv = cmd->dsv_tex();
@@ -1212,6 +1210,7 @@ void LCCmdBuffer::Execute(
                 return;
 
             // uniform_buffer_size +=
+            uniformSize = CalcAlign(uniformSize, a.uniform.alignment);
             auto bf = c.uniform(a.uniform);
             uniformSize += std::max<size_t>(4, bf.size_bytes());
         };
@@ -1225,7 +1224,7 @@ void LCCmdBuffer::Execute(
                 case Command::Tag::EShaderDispatchCommand: {
                     auto c = static_cast<ShaderDispatchCommand const *>(command.get());
                     auto cs = reinterpret_cast<ComputeShader *>(c->handle());
-                    uniformSize = (uniformSize + 15ull) & (~(15ull));
+                    uniformSize = CalcAlign(uniformSize, 32);
                     for (auto &&i : cs->ArgBindings()) {
                         addSize(*c, i);
                     }
@@ -1237,6 +1236,7 @@ void LCCmdBuffer::Execute(
                     if (static_cast<CustomCommand const *>(command.get())->custom_cmd_uuid() ==
                         to_underlying(CustomCommandUUID::RASTER_DRAW_SCENE)) {
                         auto c = static_cast<DrawRasterSceneCommand const *>(command.get());
+                        uniformSize = CalcAlign(uniformSize, 32);
                         for (auto &&i : c->arguments()) {
                             addSize(*c, i);
                         }
@@ -1246,7 +1246,7 @@ void LCCmdBuffer::Execute(
         }
         // Upload CBuffers
         if (uniformSize > 0) {
-            visitor.argBuffer = allocator->GetTempUploadBuffer(uniformSize, 16);
+            visitor.argBuffer = allocator->GetTempUploadBuffer(uniformSize, 32);
         } else {
             visitor.argBuffer = {};
         }
@@ -1326,8 +1326,8 @@ void LCCmdBuffer::Execute(
                     {reinterpret_cast<uint8_t const *>(
                          argBuffer.data()),
                      argBuffer.size()});
-            auto aligned_size = (argBuffer.size() + 15ull) & (~15ull);
-            uniformSize = (uniformSize + 15ull) & (~(15ull));
+            auto aligned_size = CalcAlign(argBuffer.size(), 32);
+            uniformSize = CalcAlign(uniformSize, 32);
             LUISA_DEBUG_ASSERT(aligned_size == uniformSize);
         }
 

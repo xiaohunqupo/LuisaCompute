@@ -2157,56 +2157,57 @@ void CodegenUtility::GenerateCBuffer(
     result << "struct _Args{\n"sv;
     size_t align = 0;
     size_t size = 0;
-    if (opt->isSpirv) {
-        size_t struct_size = 0;
-        for (auto &&f : fs) {
-            size_t size_cache = 0;
-            for (auto &&i : *f) {
-                if (!detail::IsCBuffer(i.tag())) continue;
-                size_cache++;
-                StructGenerator::ProvideAlignVariable(i.type()->alignment(), align, struct_size, result);
-                if (opt->isSpirv && i.type()->tag() == Type::Tag::BOOL) {
-                    result << "int";
-                } else
-                    GetTypeName(*i.type(), result, Usage::READ, true);
-                if (opt->isSpirv && i.type()->tag() != Type::Tag::BOOL && i.type()->alignment() < 4) [[unlikely]] {
-                    LUISA_ERROR("Member less than 4-byte can not be argument in SPIRV.");
-                }
-                struct_size += i.type()->size();
-                result << " l" << vstd::to_string(i.uid() + size);
-                if (i.type()->tag() == Type::Tag::BOOL) {
-                    result << ":8"sv;
-                }
-                result << ";\n"sv;
-                if (i.type()->is_vector() && i.type()->dimension() == 3) {
-                    GetTypeName(*i.type()->element(), result, Usage::READ, true);
-                    result << " _a"sv;
-                    vstd::to_string(align, result);
-                    result << ";\n"sv;
-                    ++align;
-                }
-            }
-            size += size_cache;
-        }
-    } else {
-        for (auto &&f : fs) {
-            size_t size_cache = 0;
-            for (auto &&i : *f) {
-                if (!detail::IsCBuffer(i.tag())) continue;
-                size_cache++;
+    // if (opt->isSpirv) {
+
+    // } else {
+    //     for (auto &&f : fs) {
+    //         size_t size_cache = 0;
+    //         for (auto &&i : *f) {
+    //             if (!detail::IsCBuffer(i.tag())) continue;
+    //             size_cache++;
+    //             GetTypeName(*i.type(), result, Usage::READ, true);
+    //             // vec3 need extra alignment
+    //             result << " l" << vstd::to_string(i.uid() + size) << ";\n"sv;
+    //             if (i.type()->is_vector() && i.type()->dimension() == 3) {
+    //                 GetTypeName(*i.type()->element(), result, Usage::READ, true);
+    //                 result << " _a"sv;
+    //                 vstd::to_string(align, result);
+    //                 result << ";\n"sv;
+    //                 ++align;
+    //             }
+    //         }
+    //         size += size_cache;
+    //     }
+    // }
+    size_t struct_size = 0;
+    for (auto &&f : fs) {
+        size_t size_cache = 0;
+        for (auto &&i : *f) {
+            if (!detail::IsCBuffer(i.tag())) continue;
+            size_cache++;
+            StructGenerator::ProvideAlignVariable(i.type()->alignment(), align, struct_size, result);
+            if (opt->isSpirv && i.type()->tag() == Type::Tag::BOOL) {
+                result << "int";
+            } else
                 GetTypeName(*i.type(), result, Usage::READ, true);
-                // vec3 need extra alignment
-                result << " l" << vstd::to_string(i.uid() + size) << ";\n"sv;
-                if (i.type()->is_vector() && i.type()->dimension() == 3) {
-                    GetTypeName(*i.type()->element(), result, Usage::READ, true);
-                    result << " _a"sv;
-                    vstd::to_string(align, result);
-                    result << ";\n"sv;
-                    ++align;
-                }
+            if (opt->isSpirv && i.type()->tag() != Type::Tag::BOOL && i.type()->alignment() < 4) [[unlikely]] {
+                LUISA_ERROR("Member less than 4-byte can not be argument in SPIRV.");
             }
-            size += size_cache;
+            struct_size += i.type()->size();
+            result << " l" << vstd::to_string(i.uid() + size);
+            if (i.type()->tag() == Type::Tag::BOOL) {
+                result << ":8"sv;
+            }
+            result << ";\n"sv;
+            if (i.type()->is_vector() && i.type()->dimension() == 3) {
+                GetTypeName(*i.type()->element(), result, Usage::READ, true);
+                result << " _a"sv;
+                vstd::to_string(align, result);
+                result << ";\n"sv;
+                ++align;
+            }
         }
+        size += size_cache;
     }
     if (opt->noRegister) {
         result << R"(};

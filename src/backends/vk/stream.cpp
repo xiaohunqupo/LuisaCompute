@@ -155,13 +155,7 @@ struct ResourceBarrierVisitor {
     }
     void operator()(Argument::Uniform const &a) {
         auto bf = cmd.uniform(a);
-        if (bf.size() < 4) {
-            bool v = (bool)bf[0];
-            uint value = v ? std::numeric_limits<uint>::max() : 0;
-            emplace_data(value, a.alignment);
-        } else {
-            emplace_data(bf.data(), bf.size_bytes(), a.alignment);
-        }
+        emplace_data(bf.data(), bf.size_bytes(), a.alignment);
         ++arg;
     }
     void operator()(Argument::Accel const &bf) {
@@ -959,7 +953,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
         uniform_buffer_size += std::max<size_t>(4, bf.size_bytes());
     };
     auto dispatch_shader = [&](ShaderDispatchCommandBase const *c, Shader const *shader) {
-        uniform_buffer_size = (uniform_buffer_size + 15) & (~(15ull));
+        uniform_buffer_size = (uniform_buffer_size + 31) & (~(31ull));
         for (auto &i : shader->captured()) {
             add_size(*c, i);
         }
@@ -993,9 +987,9 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
     uniform_data->reserve(uniform_buffer_size);
 #ifndef NDEBUG
     auto check_uniform = vstd::scope_exit([&]() {
-        auto aligned_size = (luisa::size_bytes(*uniform_data) + 15ull) & (~15ull);
+        auto aligned_size = (luisa::size_bytes(*uniform_data) + 31ull) & (~31ull);
         auto origin = uniform_buffer_size;
-        uniform_buffer_size = (uniform_buffer_size + 15ull) & (~(15ull));
+        uniform_buffer_size = (uniform_buffer_size + 31ull) & (~(31ull));
 
         if (aligned_size != uniform_buffer_size) [[unlikely]] {
             LUISA_ERROR("Bad uniform size {} {} {} {}.", aligned_size, uniform_buffer_size, luisa::size_bytes(*uniform_data), origin);
@@ -1007,7 +1001,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
         arg_buffer = _state->upload_alloc.allocate(uniform_buffer_size, 256);
     }
     auto preprocess_arguments = [this](Shader const *shader, ShaderDispatchCommandBase const *c, bool is_raster) {
-        luisa::vector_resize(*uniform_data, (uniform_data->size() + 15) & (~(15ull)));
+        luisa::vector_resize(*uniform_data, (uniform_data->size() + 31) & (~(31ull)));
         std::pair<size_t, size_t> sizes;
         sizes.first = luisa::size_bytes(*uniform_data);
         ResourceBarrierVisitor visitor{
