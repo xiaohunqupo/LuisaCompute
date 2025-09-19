@@ -97,6 +97,7 @@ private:
     luisa::unique_ptr<DefaultBinaryIO> _default_io;
     const BinaryIO *_io{nullptr};
     luisa::string _cudadevrt_library;
+    luisa::vector<std::byte> _libdevice_bitcode;
     uint64_t _sparse_granularity{};
 
     mutable spin_mutex _event_manager_mutex;

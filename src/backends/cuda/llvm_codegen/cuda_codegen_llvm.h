@@ -2,10 +2,18 @@
 // Created by mike on 9/17/25.
 //
 
-#ifndef LUISACOMPUTE_CUDA_CODEGEN_LLVM_H
-#define LUISACOMPUTE_CUDA_CODEGEN_LLVM_H
+#pragma once
 
-class cuda_codegen_llvm {
-};
+#include "cuda_codegen_llvm_config.h"
 
-#endif//LUISACOMPUTE_CUDA_CODEGEN_LLVM_H
+namespace luisa::compute::xir {
+class Module;
+}// namespace luisa::compute::xir
+
+namespace luisa::compute::cuda {
+
+[[nodiscard]] luisa::string luisa_compute_cuda_codegen_llvm(
+    const xir::Module &xir_module,
+    const CUDACodegenLLVMConfig &config) noexcept;
+
+}// namespace luisa::compute::cuda
