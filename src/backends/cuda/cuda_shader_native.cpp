@@ -74,8 +74,7 @@ void CUDAShaderNative::_launch(CUDACommandEncoder &encoder, ShaderDispatchComman
     static thread_local std::array<std::byte, 65536u> argument_buffer;// should be enough
 
     auto argument_buffer_offset = static_cast<size_t>(0u);
-    auto allocate_argument = [&](size_t bytes) noexcept {
-        static constexpr auto alignment = 16u;
+    auto allocate_argument = [&](size_t bytes, size_t alignment) noexcept {
         auto offset = (argument_buffer_offset + alignment - 1u) / alignment * alignment;
         LUISA_ASSERT(offset + bytes <= argument_buffer.size(),
                      "Too many arguments in ShaderDispatchCommand");
@@ -90,12 +89,12 @@ void CUDAShaderNative::_launch(CUDACommandEncoder &encoder, ShaderDispatchComman
                 if (reinterpret_cast<const CUDABufferBase *>(arg.buffer.handle)->is_indirect()) {
                     auto buffer = reinterpret_cast<const CUDAIndirectDispatchBuffer *>(arg.buffer.handle);
                     auto binding = buffer->binding(arg.buffer.offset, arg.buffer.size);
-                    auto ptr = allocate_argument(sizeof(binding));
+                    auto ptr = allocate_argument(sizeof(binding), 16);
                     std::memcpy(ptr, &binding, sizeof(binding));
                 } else {
                     auto buffer = reinterpret_cast<const CUDABuffer *>(arg.buffer.handle);
                     auto binding = buffer->binding(arg.buffer.offset, arg.buffer.size);
-                    auto ptr = allocate_argument(sizeof(binding));
+                    auto ptr = allocate_argument(sizeof(binding), 16);
                     std::memcpy(ptr, &binding, sizeof(binding));
                 }
                 break;
@@ -103,27 +102,27 @@ void CUDAShaderNative::_launch(CUDACommandEncoder &encoder, ShaderDispatchComman
             case Tag::TEXTURE: {
                 auto texture = reinterpret_cast<const CUDATexture *>(arg.texture.handle);
                 auto binding = texture->binding(arg.texture.level);
-                auto ptr = allocate_argument(sizeof(binding));
+                auto ptr = allocate_argument(sizeof(binding), 16);
                 std::memcpy(ptr, &binding, sizeof(binding));
                 break;
             }
             case Tag::UNIFORM: {
                 auto uniform = command->uniform(arg.uniform);
-                auto ptr = allocate_argument(uniform.size_bytes());
+                auto ptr = allocate_argument(uniform.size_bytes(), arg.uniform.alignment);
                 std::memcpy(ptr, uniform.data(), uniform.size_bytes());
                 break;
             }
             case Tag::BINDLESS_ARRAY: {
                 auto array = reinterpret_cast<const CUDABindlessArray *>(arg.bindless_array.handle);
                 auto binding = array->binding();
-                auto ptr = allocate_argument(sizeof(binding));
+                auto ptr = allocate_argument(sizeof(binding), 16);
                 std::memcpy(ptr, &binding, sizeof(binding));
                 break;
             }
             case Tag::ACCEL: {
                 auto accel = reinterpret_cast<const CUDAAccel *>(arg.accel.handle);
                 auto binding = accel->binding();
-                auto ptr = allocate_argument(sizeof(binding));
+                auto ptr = allocate_argument(sizeof(binding), 16);
                 std::memcpy(ptr, &binding, sizeof(binding));
                 break;
             }
@@ -134,7 +133,7 @@ void CUDAShaderNative::_launch(CUDACommandEncoder &encoder, ShaderDispatchComman
     // printer
     if (printer()) {
         auto b = printer()->encode(encoder);
-        auto ptr = allocate_argument(sizeof(b));
+        auto ptr = allocate_argument(sizeof(b), 16);
         std::memcpy(ptr, &b, sizeof(b));
     }
     // launch
@@ -155,7 +154,7 @@ void CUDAShaderNative::_launch(CUDACommandEncoder &encoder, ShaderDispatchComman
             0u, cuda_stream, arguments, nullptr));
     } else {
         // the last argument is the launch size
-        auto ptr = allocate_argument(sizeof(uint4));
+        auto ptr = allocate_argument(sizeof(uint4), 16);
         auto single_dispatch_size = make_uint3(0u);
         luisa::span<const uint3> dispatch_sizes;
         if (command->is_multiple_dispatch()) {

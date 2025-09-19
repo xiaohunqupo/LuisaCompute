@@ -1146,13 +1146,13 @@ void CUDACodegenAST::visit(const CallExpr *expr) {
             _scratch << ",";
             to_coopvec_elemtype(args[4]->type()->coop_vec_ref_type());
             _scratch << ">(";
-            args[5]->accept(*this);                                  // const VecTIn& inputVector
+            args[5]->accept(*this);                                 // const VecTIn& inputVector
             _scratch << ",(CUdeviceptr)lc_bindless_buffer_address(";// CUdeviceptr matrix
             args[0]->accept(*this);
             _scratch << ",";
             args[1]->accept(*this);
             _scratch << "),";
-            args[2]->accept(*this);                                  //unsigned  matrixOffsetInBytes
+            args[2]->accept(*this);                                 //unsigned  matrixOffsetInBytes
             _scratch << ",(CUdeviceptr)lc_bindless_buffer_address(";// CUdeviceptr bias
             args[0]->accept(*this);
             _scratch << ",";
@@ -1502,9 +1502,13 @@ void CUDACodegenAST::_emit_function(Function f) noexcept {
     // ray tracing kernels use __constant__ args
     // note: this must go before any other
     if (f.tag() == Function::Tag::KERNEL) {
-        _scratch << "struct alignas(16) Params {";
+        _scratch << "struct Params {";
         for (auto arg : f.arguments()) {
-            _scratch << "\n  alignas(16) ";
+            if (arg.type()->is_resource()) {
+                _scratch << "\n  alignas(16) ";
+            } else {
+                _scratch << luisa::format("\n  alignas({}) ", arg.type()->alignment());
+            }
             _emit_variable_decl(f, arg, !arg.type()->is_buffer());
             _scratch << "{};";
         }

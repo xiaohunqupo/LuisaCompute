@@ -421,7 +421,7 @@ struct alignas(16) lc_double2 {
     __device__ inline constexpr auto operator[](lc_uint i) const noexcept { return (&x)[i]; }
 };
 
-struct alignas(16) lc_double3 {
+struct alignas(32) lc_double3 {
     lc_double x, y, z;
     __device__ inline constexpr lc_double3() noexcept
         : x{}, y{}, z{} {}
@@ -435,7 +435,7 @@ struct alignas(16) lc_double3 {
     __device__ inline constexpr auto operator[](lc_uint i) const noexcept { return (&x)[i]; }
 };
 
-struct alignas(16) lc_double4 {
+struct alignas(32) lc_double4 {
     lc_double x, y, z, w;
     __device__ inline constexpr lc_double4() noexcept
         : x{}, y{}, z{}, w{} {}
@@ -505,7 +505,7 @@ struct alignas(16) lc_long2 {
     __device__ inline constexpr auto operator[](lc_uint i) const noexcept { return (&x)[i]; }
 };
 
-struct alignas(16) lc_long3 {
+struct alignas(32) lc_long3 {
     lc_long x, y, z;
     __device__ inline constexpr lc_long3() noexcept
         : x{}, y{}, z{} {}
@@ -519,7 +519,7 @@ struct alignas(16) lc_long3 {
     __device__ inline constexpr auto operator[](lc_uint i) const noexcept { return (&x)[i]; }
 };
 
-struct alignas(16) lc_long4 {
+struct alignas(32) lc_long4 {
     lc_long x, y, z, w;
     __device__ inline constexpr lc_long4() noexcept
         : x{}, y{}, z{}, w{} {}
@@ -547,7 +547,7 @@ struct alignas(16) lc_ulong2 {
     __device__ inline constexpr auto operator[](lc_uint i) const noexcept { return (&x)[i]; }
 };
 
-struct alignas(16) lc_ulong3 {
+struct alignas(32) lc_ulong3 {
     lc_ulong x, y, z;
     __device__ inline constexpr lc_ulong3() noexcept
         : x{}, y{}, z{} {}
@@ -561,7 +561,7 @@ struct alignas(16) lc_ulong3 {
     __device__ inline constexpr auto operator[](lc_uint i) const noexcept { return (&x)[i]; }
 };
 
-struct alignas(16) lc_ulong4 {
+struct alignas(32) lc_ulong4 {
     lc_ulong x, y, z, w;
     __device__ inline constexpr lc_ulong4() noexcept
         : x{}, y{}, z{}, w{} {}
