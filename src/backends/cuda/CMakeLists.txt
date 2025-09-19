@@ -150,23 +150,6 @@ if (CUDAToolkit_FOUND)
         add_subdirectory(lcub)
     endif ()
 
-    # ZLIB
-    if (WIN32)
-        set(ZLIB_USE_STATIC_LIBS ON)
-        find_package(ZLIB)
-        if (ZLIB_FOUND)
-            message(STATUS "Found ZLIB: ${ZLIB_LIBRARIES}")
-            target_link_libraries(luisa-compute-backend-cuda PRIVATE ZLIB::ZLIB)
-        else () # use maxwell's favorite xrepo otherwise
-            message(STATUS "ZLIB not found. Using xrepo/zlib")
-            target_include_directories(luisa-compute-backend-cuda PRIVATE "../../../xrepo/packages/z/zlib/port/zlib/include")
-            # convert zlib path to absolute path
-            set(ZLIB_LIB_FILE "../../../xrepo/packages/z/zlib/port/zlib/lib/windows/x64/zlibstatic.lib")
-            cmake_path(ABSOLUTE_PATH ZLIB_LIB_FILE)
-            target_link_libraries(luisa-compute-backend-cuda PRIVATE ${ZLIB_LIB_FILE})
-        endif ()
-    endif ()
-
     # NVTT
     if (NOT NVTT_DIR)
         set(_SEARCH_PATHS

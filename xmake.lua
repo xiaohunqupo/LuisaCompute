@@ -198,18 +198,6 @@ if lc_options then
 end
 includes("scripts/xmake_func.lua")
 
--- use xrepo from skr
-local xrepo_path = get_config("lc_xrepo_dir")
-if not xrepo_path then
-    includes("xrepo/packages/z/zlib/port/xmake.lua")
-elseif type(xrepo_path) == "string" and os.exists(xrepo_path) then
-    add_repositories("skr-xrepo xrepo", {
-        rootdir = xrepo_path
-    })
-    add_requires("zlib >=1.2.8-skr", {
-        system = false
-    })
-end
 if get_config('_lc_check_env') then
     local lc_bin_dir = get_config("_lc_bin_dir")
     if lc_bin_dir then

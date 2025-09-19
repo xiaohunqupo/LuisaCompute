@@ -13,7 +13,6 @@ local lib = import("lib")
 local hlsl_builtin_path = path.join(os.projectdir(), "src/backends/common/hlsl/builtin")
 
 function main()
-    local test_zip_dir = path.join(os.projectdir(), "bin/release/test_zip.exe")
     local sb = lib.StringBuilder()
     local ss = lib.StringBuilder()
     local arr_ss = lib.StringBuilder()
@@ -22,8 +21,7 @@ function main()
     func_ss:add([[
 struct HLSLCompressedHeader {
     void const* ptr{};
-    size_t compressed_size{};
-    size_t uncompressed_size{};
+    size_t size{};
 };
 static HLSLCompressedHeader get_hlsl_builtin(luisa::string_view ss) {
     struct Dict {
@@ -32,16 +30,9 @@ static HLSLCompressedHeader get_hlsl_builtin(luisa::string_view ss) {
 ]])
     for i, file in ipairs(files_list) do
         -- make this file ignored by git
-        local compressed_file = file .. ".msi"
-        os.runv(test_zip_dir, {path.join(hlsl_builtin_path, file), path.join(hlsl_builtin_path, compressed_file)})
         ss:clear()
         sb:clear()
-        local uncompressed_size
-        try {function()
-            local ff = io.open(path.join(hlsl_builtin_path, file), "rb")
-            uncompressed_size = ff:size()
-        end}
-        local f = io.open(path.join(hlsl_builtin_path, compressed_file), "rb")
+        local f = io.open(path.join(hlsl_builtin_path, file), "rb")
         ss:add(f:read("*a"))
         f:close()
         local replaced_file = lib.string_replace(file, ".dxil", "_dxil")
@@ -52,7 +43,7 @@ static HLSLCompressedHeader get_hlsl_builtin(luisa::string_view ss) {
         sb:write_to(path.join(hlsl_builtin_path, file .. ".cpp"))
         arr_ss:add('extern unsigned char '):add(replaced_file):add('[];\n')
         func_ss:add('\t\t\tdict.try_emplace("'):add(file):add('", HLSLCompressedHeader{'):add(replaced_file):add(', ')
-            :add(array_len):add(', '):add(tostring(math.tointeger(uncompressed_size))):add('});\n')
+            :add(array_len):add('});\n')
     end
     func_ss:add([[		}
 	};
