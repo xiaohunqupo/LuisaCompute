@@ -15,5 +15,8 @@ end
 add_defines("USE_SPIRV")
 on_load(function(target)
     target:add("deps", "volk")
+    if get_config("lc_no_hlsl_builtin") then
+        target:add("defines", "LC_NO_HLSL_BUILTIN")
+    end
 end)
 target_end()

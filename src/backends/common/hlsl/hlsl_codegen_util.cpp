@@ -8,8 +8,19 @@
 #include <luisa/core/dynamic_module.h>
 #include <luisa/core/logging.h>
 #include <luisa/ast/external_function.h>
+#ifndef LC_NO_HLSL_BUILTIN
 #include "builtin/hlsl_builtin.hpp"
+#endif
 static bool shown_buffer_warning = false;
+#ifdef LC_NO_HLSL_BUILTIN
+namespace lc_hlsl {
+struct HLSLCompressedHeader {
+    void const *ptr{};
+    size_t size{};
+};
+static HLSLCompressedHeader get_hlsl_builtin(luisa::string_view ss) { return {}; }
+}// namespace lc_hlsl
+#endif
 namespace lc::hlsl {
 static std::atomic_bool rootsig_exceed_warned = false;
 #ifdef LUISA_ENABLE_IR
