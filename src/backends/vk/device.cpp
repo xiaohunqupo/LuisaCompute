@@ -319,12 +319,14 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
         _external_copy_queue = external_device.copy_queue;
     }
     Context ctx{this->_ctx_impl};
+#ifndef LC_NO_HLSL_BUILTIN
     if (load_dxc) {
         std::lock_guard lck(gDxcMutex);
         if (gDxcRefCount == 0)
             gDxcCompiler.create(ctx.runtime_directory());
         gDxcRefCount++;
     }
+#endif
     if (!_binary_io) {
         _default_file_io = vstd::make_unique<DefaultBinaryIO>(context(), headless, use_lmdb);
         _binary_io = _default_file_io.get();
@@ -736,12 +738,14 @@ Device::~Device() {
         }
     }
     _default_file_io = nullptr;
+#ifndef LC_NO_HLSL_BUILTIN
     if (gDxcCompiler) {
         std::lock_guard lck(gDxcMutex);
         if (--gDxcRefCount == 0) {
             gDxcCompiler.destroy();
         }
     }
+#endif
     if (_external_device) {
         _vk_device->logicalDevice = nullptr;
         _vk_device->physicalDevice = nullptr;

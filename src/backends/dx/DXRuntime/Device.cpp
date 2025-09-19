@@ -47,10 +47,12 @@ VSTL_EXPORT_C void backend_device_names(luisa::vector<luisa::string> &r);
 Device::LazyLoadShader::LazyLoadShader(LoadFunc loadFunc) : loadFunc(loadFunc) {}
 Device::~Device() {
     //lcmdSig.destroy();
+#ifndef LC_NO_HLSL_BUILTIN
     std::lock_guard lck(gDxcMutex);
     if (--gDxcRefCount == 0) {
         gDxcCompiler.destroy();
     }
+#endif
 }
 
 void Device::WaitFence(ID3D12Fence *fence, uint64 fenceIndex) {
@@ -112,6 +114,7 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
             useExperimental = deviceSettings->UseExperimental();
         }
     }
+#ifndef LC_NO_HLSL_BUILTIN
     if (!deviceSettings || deviceSettings->LoadDXC()) {
         std::lock_guard lck(gDxcMutex);
         if (gDxcRefCount == 0) {
@@ -119,6 +122,7 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
         }
         gDxcRefCount++;
     }
+#endif
     if (fileIo == nullptr) {
         serVisitor = vstd::make_unique<DefaultBinaryIO>(std::move(ctx), !useRuntime, use_lmdb);
         fileIo = serVisitor.get();
