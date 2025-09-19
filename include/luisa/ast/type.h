@@ -113,9 +113,9 @@ struct struct_member_tuple<Vector<T, N>> {
     using type = typename struct_member_tuple<std::array<T, N>>::type;
 };
 
-template<size_t N>
-struct struct_member_tuple<Matrix<N>> {
-    using type = typename struct_member_tuple<std::array<Vector<float, N>, N>>::type;
+template<typename T, size_t N>
+struct struct_member_tuple<Matrix<T, N>> {
+    using type = typename struct_member_tuple<std::array<Vector<T, N>, N>>::type;
 };
 
 template<typename T>
@@ -257,8 +257,8 @@ struct dimension_impl<Vector<T, N>> {
     static constexpr auto value = N;
 };
 
-template<size_t N>
-struct dimension_impl<Matrix<N>> {
+template<typename T, size_t N>
+struct dimension_impl<Matrix<T, N>> {
     static constexpr auto value = N;
 };
 

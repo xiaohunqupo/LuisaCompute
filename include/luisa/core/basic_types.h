@@ -142,90 +142,92 @@ LUISA_MAKE_VECTOR_TYPES(double)
 #undef LUISA_MAKE_VECTOR_TYPES
 
 /// Matrix only allows size of 2, 3, 4
-template<size_t N>
+template<typename T, size_t N>
 struct Matrix {
     static_assert(always_false_v<std::integral_constant<size_t, N>>, "Invalid matrix type");
 };
 
 /// 2x2 matrix
-template<>
-struct Matrix<2> {
-
-    float2 cols[2];
+template<typename T>
+struct Matrix<T, 2> {
+    using VectorType = Vector<T, 2>;
+    using ElementType = T;
+    VectorType cols[2];
 
     constexpr Matrix() noexcept
-        : cols{float2{1.0f, 0.0f}, float2{0.0f, 1.0f}} {}
+        : cols{VectorType{T{1.0}, T{0.0}}, VectorType{T{0.0}, T{1.0}}} {}
 
-    constexpr Matrix(const float2 c0, const float2 c1) noexcept
+    constexpr Matrix(const VectorType c0, const VectorType c1) noexcept
         : cols{c0, c1} {}
 
-    static constexpr Matrix eye(const float c) noexcept {
+    static constexpr Matrix eye(const T c) noexcept {
         return Matrix{
-            float2{c, 0.0f},
-            float2{0.0f, c}};
+            VectorType{c, T{0.0}},
+            VectorType{T{0.0}, c}};
     }
 
-    static constexpr Matrix fill(const float c) noexcept {
+    static constexpr Matrix fill(const T c) noexcept {
         return Matrix{
-            float2{c, c},
-            float2{c, c}};
+            VectorType{c, c},
+            VectorType{c, c}};
     }
 
-    [[nodiscard]] constexpr float2 &operator[](size_t i) noexcept { return cols[i]; }
-    [[nodiscard]] constexpr const float2 &operator[](size_t i) const noexcept { return cols[i]; }
+    [[nodiscard]] constexpr VectorType &operator[](size_t i) noexcept { return cols[i]; }
+    [[nodiscard]] constexpr const VectorType &operator[](size_t i) const noexcept { return cols[i]; }
 };
 
 /// 3x3 matrix
-template<>
-struct Matrix<3> {
-
-    float3 cols[3];
+template<typename T>
+struct Matrix<T, 3> {
+    using VectorType = Vector<T, 3>;
+    using ElementType = T;
+    VectorType cols[3];
 
     constexpr Matrix() noexcept
-        : cols{float3{1.0f, 0.0f, 0.0f}, float3{0.0f, 1.0f, 0.0f}, float3{0.0f, 0.0f, 1.0f}} {}
+        : cols{VectorType{T{1.0}, T{0.0}, T{0.0}}, VectorType{T{0.0}, T{1.0}, T{0.0}}, VectorType{T{0.0}, T{0.0}, T{1.0}}} {}
 
-    constexpr Matrix(const float3 c0, const float3 c1, const float3 c2) noexcept
+    constexpr Matrix(const VectorType c0, const VectorType c1, const VectorType c2) noexcept
         : cols{c0, c1, c2} {}
 
     static constexpr Matrix eye(const float c) noexcept {
         return Matrix{
-            float3{c, 0.0f, 0.0f},
-            float3{0.0f, c, 0.0f},
-            float3{0.0f, 0.0f, c}};
+            VectorType{c, T{0.0}, T{0.0}},
+            VectorType{T{0.0}, c, T{0.0}},
+            VectorType{T{0.0}, T{0.0}, c}};
     }
 
     static constexpr Matrix fill(const float c) noexcept {
         return Matrix{
-            float3{c, c, c},
-            float3{c, c, c},
-            float3{c, c, c}};
+            VectorType{c, c, c},
+            VectorType{c, c, c},
+            VectorType{c, c, c}};
     }
 
-    [[nodiscard]] constexpr float3 &operator[](size_t i) noexcept { return cols[i]; }
-    [[nodiscard]] constexpr const float3 &operator[](size_t i) const noexcept { return cols[i]; }
+    [[nodiscard]] constexpr VectorType &operator[](size_t i) noexcept { return cols[i]; }
+    [[nodiscard]] constexpr const VectorType &operator[](size_t i) const noexcept { return cols[i]; }
 };
 
 /// 4x4 matrix
-template<>
-struct Matrix<4> {
+template<typename T>
+struct Matrix<T, 4> {
 
     float4 cols[4];
 
     constexpr Matrix() noexcept
-        : cols{float4{1.0f, 0.0f, 0.0f, 0.0f},
-               float4{0.0f, 1.0f, 0.0f, 0.0f},
-               float4{0.0f, 0.0f, 1.0f, 0.0f},
-               float4{0.0f, 0.0f, 0.0f, 1.0f}} {}
+        : cols{float4{T{1.0}, T{0.0}, T{0.0}, T{0.0}},
+               float4{T{0.0}, T{1.0}, T{0.0}, T{0.0}},
+               float4{T{0.0}, T{0.0}, T{1.0}, T{0.0}},
+               float4{T{0.0}, T{0.0}, T{0.0}, T{1.0}}} {}
 
     constexpr Matrix(const float4 c0, const float4 c1, const float4 c2, const float4 c3) noexcept
         : cols{c0, c1, c2, c3} {}
 
     static constexpr Matrix eye(const float c) noexcept {
         return Matrix{
-            float4{c, 0.0f, 0.0f, 0.0f},
-            float4{0.0f, c, 0.0f, 0.0f},
-            float4{0.0f, 0.0f, c, 0.0f},
-            float4{0.0f, 0.0f, 0.0f, c}};
+            float4{c, T{0.0}, T{0.0}, T{0.0}},
+            float4{T{0.0}, c, T{0.0}, T{0.0}},
+            float4{T{0.0}, T{0.0}, c, T{0.0}},
+            float4{T{0.0}, T{0.0}, T{0.0}, c}};
     }
 
     static constexpr Matrix fill(const float c) noexcept {
@@ -240,30 +242,40 @@ struct Matrix<4> {
     [[nodiscard]] constexpr const float4 &operator[](size_t i) const noexcept { return cols[i]; }
 };
 
-template<size_t N>
-struct hash<Matrix<N>> {
+template<typename T, size_t N>
+struct hash<Matrix<T, N>> {
     using is_avalanching = void;
-    [[nodiscard]] uint64_t operator()(Matrix<N> m, uint64_t seed = hash64_default_seed) const noexcept {
-        std::array<float, N * N> data{};
+    [[nodiscard]] uint64_t operator()(Matrix<T, N> m, uint64_t seed = hash64_default_seed) const noexcept {
+        std::array<T, N * N> data{};
         for (size_t i = 0u; i < N; i++) {
             for (size_t j = 0u; j < N; j++) {
                 data[i * N + j] = m[i][j];
             }
         }
-        return hash64(data.data(), data.size() * sizeof(float), seed);
+        return hash64(data.data(), data.size() * sizeof(T), seed);
     }
 };
 
-using float2x2 = Matrix<2>;
-using float3x3 = Matrix<3>;
-using float4x4 = Matrix<4>;
+using float2x2 = Matrix<float, 2>;
+using float3x3 = Matrix<float, 3>;
+using float4x4 = Matrix<float, 4>;
+using double2x2 = Matrix<double, 2>;
+using double3x3 = Matrix<double, 3>;
+using double4x4 = Matrix<double, 4>;
+using half2x2 = Matrix<half, 2>;
+using half3x3 = Matrix<half, 3>;
+using half4x4 = Matrix<half, 4>;
 
 using basic_types = std::tuple<
     bool, float, int, uint, short, ushort, slong, ulong, half, double, byte, ubyte,
     bool2, float2, int2, uint2, short2, ushort2, byte2, ubyte2, slong2, ulong2, half2, double2,
     bool3, float3, int3, uint3, short3, ushort3, byte3, ubyte3, slong3, ulong3, half3, double3,
     bool4, float4, int4, uint4, short4, ushort4, byte4, ubyte4, slong4, ulong4, half4, double4,
-    float2x2, float3x3, float4x4>;
+    float2x2, float3x3, float4x4 
+    // TODO: should half matrix and double matrix become builtin-type? May break all backends
+    // ,half2x2, half3x3, half4x4, 
+    // double2x2, double3x3, double4x4
+    >;
 
 /// any of bool2 is true
 [[nodiscard]] constexpr auto any(const bool2 v) noexcept { return v.x || v.y; }

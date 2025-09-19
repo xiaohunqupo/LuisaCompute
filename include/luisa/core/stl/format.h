@@ -98,17 +98,18 @@ struct formatter<luisa::Vector<T, N>> {
     }
 };
 
-template<size_t N>
-struct formatter<luisa::Matrix<N>> {
+template<typename T, size_t N>
+struct formatter<luisa::Matrix<T, N>> {
     constexpr auto parse(format_parse_context &ctx) const noexcept {
         return ctx.end();
     }
     template<typename FormatContext>
-    auto format(const luisa::Matrix<N> &m, FormatContext &ctx) const noexcept {
+    auto format(const luisa::Matrix<T, N> &m, FormatContext &ctx) const noexcept {
+        luisa::string_view type_name;
         if constexpr (N == 2u) {
             return fmt::format_to(
                 ctx.out(),
-                FMT_STRING("float2x2("
+                FMT_STRING("Matrix2x2("
                            "cols[0] = ({}, {}), "
                            "cols[1] = ({}, {}))"),
                 m[0].x, m[0].y,
@@ -116,7 +117,7 @@ struct formatter<luisa::Matrix<N>> {
         } else if constexpr (N == 3u) {
             return fmt::format_to(
                 ctx.out(),
-                FMT_STRING("float3x3("
+                FMT_STRING("Matrix3x3("
                            "cols[0] = ({}, {}, {}), "
                            "cols[1] = ({}, {}, {}), "
                            "cols[2] = ({}, {}, {}))"),
@@ -126,7 +127,7 @@ struct formatter<luisa::Matrix<N>> {
         } else if constexpr (N == 4u) {
             return fmt::format_to(
                 ctx.out(),
-                FMT_STRING("float4x4("
+                FMT_STRING("Matrix4x4("
                            "cols[0] = ({}, {}, {}, {}), "
                            "cols[1] = ({}, {}, {}, {}), "
                            "cols[2] = ({}, {}, {}, {}), "
@@ -136,7 +137,7 @@ struct formatter<luisa::Matrix<N>> {
                 m[2].x, m[2].y, m[2].z, m[2].w,
                 m[3].x, m[3].y, m[3].z, m[3].w);
         } else {
-            static_assert(luisa::always_false_v<luisa::Matrix<N>>);
+            static_assert(luisa::always_false_v<luisa::Matrix<T, N>>);
         }
     }
 };
@@ -162,8 +163,8 @@ template<typename T, size_t N>
     return luisa::format(FMT_STRING("({})"), v);
 }
 
-template<size_t N>
-[[nodiscard]] auto to_string(Matrix<N> m) noexcept {
+template<typename T, size_t N>
+[[nodiscard]] auto to_string(Matrix<T, N> m) noexcept {
     return luisa::format(FMT_STRING("({})"), m);
 }
 

@@ -1767,7 +1767,7 @@ struct TypeNameStruct<luisa::Vector<T, t>> {
     }
 };
 template<size_t t>
-struct TypeNameStruct<luisa::Matrix<t>> {
+struct TypeNameStruct<luisa::Matrix<float, t>> {
     void operator()(vstd::StringBuilder &str) {
         TypeNameStruct<float>()(str);
         if constexpr (t == 2) {
@@ -1777,7 +1777,7 @@ struct TypeNameStruct<luisa::Matrix<t>> {
         } else if constexpr (t == 4) {
             str << "4x4";
         } else {
-            static_assert(vstd::AlwaysFalse<luisa::Matrix<t>>, "illegal type");
+            static_assert(vstd::AlwaysFalse<luisa::Matrix<float, t>>, "illegal type");
         }
     }
 };
