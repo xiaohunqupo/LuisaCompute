@@ -13,11 +13,7 @@
 #include <luisa/runtime/dispatch_buffer.h>
 #include <luisa/ast/function_builder.h>
 #include "cuda_sparse_heap.h"
-#if __has_include(<zlib.h>)
-#include <zlib.h>
-#else
-#include <zlib/zlib.h>
-#endif
+
 #ifdef LUISA_ENABLE_IR
 #include <luisa/ir/ir2ast.h>
 #include <luisa/ir/ast2ir.h>
