@@ -97,18 +97,7 @@ private:
     luisa::unique_ptr<DefaultBinaryIO> _default_io;
     const BinaryIO *_io{nullptr};
     luisa::string _cudadevrt_library;
-    uint64_t _sparse_granularity;
-    struct BuiltinCode {
-        uint64_t uncompressed_size{};
-        uint64_t compressed_size{};
-        const unsigned char *compressed_ptr{};
-        luisa::string uncompressed_data{};
-        spin_mutex _mutex{};
-        BuiltinCode(uint64_t uncompressed_size, uint64_t compressed_size, const unsigned char *compressed_ptr) noexcept;
-        ~BuiltinCode() noexcept;
-        BuiltinCode(BuiltinCode &&rhs) noexcept;
-    };
-    mutable luisa::unordered_map<luisa::string, BuiltinCode> _builtin_codes;
+    uint64_t _sparse_granularity{};
 
     mutable spin_mutex _event_manager_mutex;
     mutable luisa::unique_ptr<CUDAEventManager> _event_manager;
@@ -138,7 +127,7 @@ private:
 public:
     CUDADevice(Context &&ctx, size_t device_id, const BinaryIO *io, bool use_lmdb) noexcept;
     ~CUDADevice() noexcept override;
-    [[nodiscard]] auto const &handle() const noexcept { return _handle; }
+    [[nodiscard]] const auto &handle() const noexcept { return _handle; }
     template<typename F>
     decltype(auto) with_handle(F &&f) const noexcept {
         ContextGuard guard{_handle.context()};
@@ -150,7 +139,6 @@ public:
     [[nodiscard]] uint64_t sparse_granularity() const noexcept { return _sparse_granularity; }
 
 public:
-    [[nodiscard]] const luisa::string &get_builtin_code(luisa::string const &name) const noexcept;
     [[nodiscard]] auto accel_update_function() const noexcept { return _accel_update_function; }
     [[nodiscard]] auto instance_handle_update_function() const noexcept { return _instance_handle_update_function; }
     [[nodiscard]] auto bindless_array_update_function() const noexcept { return _bindless_array_update_function; }

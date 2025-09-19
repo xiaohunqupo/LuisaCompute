@@ -216,77 +216,11 @@ namespace luisa::compute::cuda {
                               luisa::to_underlying(format));
 }
 
-const luisa::string &CUDADevice::get_builtin_code(luisa::string const &name) const noexcept {
-    auto iter = _builtin_codes.find(name);
-    if (iter == _builtin_codes.end()) [[unlikely]] {
-        LUISA_ERROR("Can-not find builtin code {}", name);
-    }
-    auto &code = iter->second;
-    std::lock_guard lck{code._mutex};
-    if (code.uncompressed_data.empty()) {
-        code.uncompressed_data.resize(code.uncompressed_size);
-        uLong dest_len = code.uncompressed_size;
-        auto r = uncompress((Bytef *)code.uncompressed_data.data(), &dest_len, (Bytef const *)code.compressed_ptr, code.compressed_size);
-        if (r != Z_OK) [[unlikely]] {
-            LUISA_ERROR("Uncompress header failed. {}", r);
-        }
-    }
-    return code.uncompressed_data;
-}
-
-CUDADevice::BuiltinCode::BuiltinCode(uint64_t uncompressed_size, uint64_t compressed_size, const unsigned char *compressed_ptr) noexcept
-    : uncompressed_size(uncompressed_size),
-      compressed_size(compressed_size),
-      compressed_ptr(compressed_ptr) {}
-CUDADevice::BuiltinCode::~BuiltinCode() noexcept = default;
-CUDADevice::BuiltinCode::BuiltinCode(BuiltinCode &&rhs) noexcept
-    : uncompressed_size(rhs.uncompressed_size),
-      compressed_size(rhs.compressed_size),
-      compressed_ptr(rhs.compressed_ptr),
-      uncompressed_data(std::move(rhs.uncompressed_data)) {
-}
-
 CUDADevice::CUDADevice(Context &&ctx,
                        size_t device_id,
                        const BinaryIO *io,
                        bool use_lmdb) noexcept
     : DeviceInterface{std::move(ctx)}, _handle{device_id}, _io{io} {
-    _builtin_codes.try_emplace(
-        "cuda_builtin_kernels",
-        BuiltinCode{
-            luisa_cuda_builtin_cuda_builtin_kernels_size,
-            sizeof(luisa_cuda_builtin_cuda_builtin_kernels),
-            luisa_cuda_builtin_cuda_builtin_kernels});
-    _builtin_codes.try_emplace(
-        "cuda_device_half",
-        BuiltinCode{
-            luisa_cuda_builtin_cuda_device_half_size,
-            sizeof(luisa_cuda_builtin_cuda_device_half),
-            luisa_cuda_builtin_cuda_device_half});
-    _builtin_codes.try_emplace(
-        "cuda_device_math",
-        BuiltinCode{
-            luisa_cuda_builtin_cuda_device_math_size,
-            sizeof(luisa_cuda_builtin_cuda_device_math),
-            luisa_cuda_builtin_cuda_device_math});
-    _builtin_codes.try_emplace(
-        "cuda_device_resource",
-        BuiltinCode{
-            luisa_cuda_builtin_cuda_device_resource_size,
-            sizeof(luisa_cuda_builtin_cuda_device_resource),
-            luisa_cuda_builtin_cuda_device_resource});
-    _builtin_codes.try_emplace(
-        "cuda_device_coop",
-        BuiltinCode{
-            luisa_cuda_builtin_cuda_device_coop_size,
-            sizeof(luisa_cuda_builtin_cuda_device_coop),
-            luisa_cuda_builtin_cuda_device_coop});
-    // _builtin_codes.try_emplace(
-    //     "coop_vec_builtin",
-    //     BuiltinCode{
-    //         luisa_cuda_builtin_coop_vec_builtin_size,
-    //         sizeof(luisa_cuda_builtin_coop_vec_builtin),
-    //         luisa_cuda_builtin_coop_vec_builtin});
     // provide a default binary IO
     if (_io == nullptr) {
         _default_io = luisa::make_unique<DefaultBinaryIO>(context(), false, use_lmdb);
@@ -303,7 +237,7 @@ CUDADevice::CUDADevice(Context &&ctx,
                        "-dw",
                        "-w",
                        "-ewp"};
-    luisa::string builtin_kernel_src = get_builtin_code("cuda_builtin_kernels");
+    luisa::string builtin_kernel_src{luisa_cuda_builtin_cuda_builtin_kernels, sizeof(luisa_cuda_builtin_cuda_builtin_kernels)};
     auto builtin_kernel_ptx = _compiler->compile(builtin_kernel_src, "luisa_builtin.cu", options);
     with_handle([&] {
         CUmemAllocationProp prop = {};
