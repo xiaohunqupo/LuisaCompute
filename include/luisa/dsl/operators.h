@@ -41,7 +41,7 @@ template<BinaryOp op, typename Lhs, typename Rhs>
 constexpr auto// (ret, lhs_cast, rhs_cast)
 dsl_binary_op_return_type_helper() noexcept {
 
-    static_assert(!any_dsl_v<Lhs, Rhs>);
+    static_assert(!luisa::compute::any_dsl_v<Lhs, Rhs>);
 
     constexpr auto lhs_is_scalar = luisa::is_scalar_v<Lhs>;
     constexpr auto rhs_is_scalar = luisa::is_scalar_v<Rhs>;
@@ -53,8 +53,8 @@ dsl_binary_op_return_type_helper() noexcept {
     constexpr auto rhs_is_integral = luisa::is_integral_or_vector_v<Rhs>;
     constexpr auto lhs_is_boolean = luisa::is_boolean_or_vector_v<Lhs>;
     constexpr auto rhs_is_boolean = luisa::is_boolean_or_vector_v<Rhs>;
-    constexpr auto lhs_is_fp = is_floating_point_or_vector_v<Lhs> || is_matrix_v<Lhs>;
-    constexpr auto rhs_is_fp = is_floating_point_or_vector_v<Rhs> || is_matrix_v<Rhs>;
+    constexpr auto lhs_is_fp = luisa::is_floating_point_or_vector_v<Lhs> || luisa::is_matrix_v<Lhs>;
+    constexpr auto rhs_is_fp = luisa::is_floating_point_or_vector_v<Rhs> || luisa::is_matrix_v<Rhs>;
 
     using lhs_elem = std::conditional_t<lhs_is_matrix, float, vector_element_t<Lhs>>;
     using rhs_elem = std::conditional_t<rhs_is_matrix, float, vector_element_t<Rhs>>;
