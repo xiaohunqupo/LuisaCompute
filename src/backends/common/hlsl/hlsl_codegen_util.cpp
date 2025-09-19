@@ -9,11 +9,6 @@
 #include <luisa/core/logging.h>
 #include <luisa/ast/external_function.h>
 #include "builtin/hlsl_builtin.hpp"
-#if __has_include(<zlib.h>)
-#include <zlib.h>
-#else
-#include <zlib/zlib.h>
-#endif
 static bool shown_buffer_warning = false;
 namespace lc::hlsl {
 static std::atomic_bool rootsig_exceed_warned = false;
@@ -64,33 +59,8 @@ struct SpirVRegisterIndexer : public RegisterIndexer {
 };
 
 vstd::string_view CodegenUtility::ReadInternalHLSLFile(vstd::string_view name) {
-    struct CachedHeader {
-        std::mutex mtx;
-        vstd::vector<char> result;
-    };
-    static vstd::HashMap<vstd::string, CachedHeader> headers;
-    static luisa::spin_mutex header_mtx;
-    auto iter = [&]() {
-        std::lock_guard lck{header_mtx};
-        return headers.emplace(name);
-    }();
-    auto &v = iter.value();
-    {
-        std::lock_guard lck{v.mtx};
-        if (v.result.empty()) {
-            auto compressed = lc_hlsl::get_hlsl_builtin(name);
-            if (compressed.uncompressed_size == 0) {
-                return {};
-            }
-            luisa::enlarge_by(v.result, compressed.uncompressed_size);
-            uLong dest_len = compressed.uncompressed_size;
-            auto r = uncompress((Bytef *)v.result.data(), &dest_len, (Bytef const *)compressed.ptr, compressed.compressed_size);
-            if (r != Z_OK) [[unlikely]] {
-                LUISA_ERROR("Uncompress header failed. {}", r);
-            }
-        }
-    }
-    return {v.result.data(), v.result.size()};
+    auto data = lc_hlsl::get_hlsl_builtin(name);
+    return {static_cast<char const *>(data.ptr), data.size};
 }
 namespace detail {
 static size_t AddHeader(CallOpSet const &ops, vstd::StringBuilder &builder, bool isRaster, bool is_spirv, bool fallback, bool linalg) {
