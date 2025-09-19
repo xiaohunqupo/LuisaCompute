@@ -332,3 +332,443 @@ struct luisa_compute_extension {};
     }                                                                                        \
     template<>                                                                               \
     struct luisa_compute_extension<S> final : luisa::compute::detail::Ref<S>
+namespace luisa::compute::detail {
+LC_DSL_API void _check_matrix_size(uint32_t idx, uint32_t max_size);
+#define LUISA_DECL_MUL(TT, dim)                                                                               \
+    LC_DSL_API Var<TT##dim##x##dim> _mul_##TT##dim##x##dim(Expr<TT##dim##x##dim> a, Expr<TT##dim##x##dim> b); \
+    LC_DSL_API Var<TT##dim> _mul_##TT##dim##x##dim(Expr<TT##dim##x##dim> a, Expr<TT##dim> b);
+
+#define LUISA_DECL_MUL_ALL(TT) \
+    LUISA_DECL_MUL(TT, 2)      \
+    LUISA_DECL_MUL(TT, 3)      \
+    LUISA_DECL_MUL(TT, 4)
+
+LUISA_DECL_MUL_ALL(half)
+LUISA_DECL_MUL_ALL(double)
+
+#undef LUISA_DECL_MUL_ALL
+#undef LUISA_DECL_MUL
+}// namespace luisa::compute::detail
+#define LUISA_MATRIX_FUNCTIONS(T, FuncName, max_size)                                                          \
+    [[nodiscard]] auto operator*(luisa::compute::Expr<luisa::compute::Matrix<T, max_size>> b) const noexcept { \
+        return luisa::compute::detail::_mul_##FuncName##max_size##x##max_size(*this, b);                       \
+    }                                                                                                          \
+    [[nodiscard]] auto operator*(luisa::compute::Expr<luisa::compute::Vector<T, max_size>> b) const noexcept { \
+        return luisa::compute::detail::_mul_##FuncName##max_size##x##max_size(*this, b);                       \
+    }
+// clang-format off
+LUISA_STRUCT(
+    luisa::double2x2,
+    cols) {
+    LUISA_MATRIX_FUNCTIONS(double, double, 2)
+};
+LUISA_STRUCT(
+    luisa::double3x3,
+    cols) {
+    LUISA_MATRIX_FUNCTIONS(double, double, 3)
+};
+LUISA_STRUCT(
+    luisa::double4x4,
+    cols) {
+    LUISA_MATRIX_FUNCTIONS(double, double, 4)
+};
+
+LUISA_STRUCT(
+    luisa::half2x2,
+    cols) {
+    LUISA_MATRIX_FUNCTIONS(luisa::half, half, 2)
+};
+LUISA_STRUCT(
+    luisa::half3x3,
+    cols) {
+    LUISA_MATRIX_FUNCTIONS(luisa::half, half, 3)
+};
+LUISA_STRUCT(
+    luisa::half4x4,
+    cols) {
+    LUISA_MATRIX_FUNCTIONS(luisa::half, half, 4)
+};
+// clang-format on
+#define LUISA_EXPR(value) \
+    detail::extract_expression(std::forward<decltype(value)>(value))
+namespace luisa::compute {
+#define LUISA_MAT_ACCESS(v, element_type, index, matrix_size) detail::FunctionBuilder::current()->access(Type::of<element_type>(), detail::FunctionBuilder::current()->member(Type::array(Type::of<element_type>(), matrix_size), LUISA_EXPR(v), 0), detail::FunctionBuilder::current()->literal(Type::of<uint>(), uint(index)))
+/// Make double2x2 from 2 column vector double2
+template<typename C0, typename C1>
+    requires any_dsl_v<C0, C1> &&
+             is_same_expr_v<C0, double2> &&
+             is_same_expr_v<C1, double2>
+[[nodiscard]] inline auto make_double2x2(
+    C0 &&c0, C1 &&c1) noexcept {
+
+    Var<double2x2> mat;
+    detail::FunctionBuilder::current()->assign(
+        LUISA_MAT_ACCESS(mat, double2, 0, 2),
+        LUISA_EXPR(c0));
+    detail::FunctionBuilder::current()->assign(
+        LUISA_MAT_ACCESS(mat, double2, 1, 2),
+        LUISA_EXPR(c1));
+    return mat;
+}
+
+/// Make double2x2 [ [M00, M10], [M01, M11] ]
+template<typename M00, typename M01, typename M10, typename M11>
+    requires any_dsl_v<M00, M01, M10, M11> &&
+             is_floating_point_expr_v<M00> &&
+             is_floating_point_expr_v<M01> &&
+             is_floating_point_expr_v<M10> &&
+             is_floating_point_expr_v<M11>
+[[nodiscard]] inline auto make_double2x2(
+    M00 &&m00, M01 &&m01,
+    M10 &&m10, M11 &&m11) noexcept {
+    return make_double2x2(
+        make_double2(m00, m01),
+        make_double2(m10, m11));
+}
+
+/// Make double2x2 from matrix.
+/// Submatrix will be taken if matrix is larger than 2x2.
+template<typename M>
+    requires is_dsl_v<M> && is_matrix_expr_v<M>
+[[nodiscard]] inline auto make_double2x2(M &&m) noexcept {
+    return make_double2x2(
+        make_double2(m[0]),
+        make_double2(m[1]));
+}
+
+/// Make double3x3 from 3 column vector double3
+template<typename C0, typename C1, typename C2>
+    requires any_dsl_v<C0, C1, C2> &&
+             is_same_expr_v<C0, double3> &&
+             is_same_expr_v<C1, double3> &&
+             is_same_expr_v<C2, double3>
+[[nodiscard]] inline auto make_double3x3(C0 &&c0, C1 &&c1, C2 &&c2) noexcept {
+    Var<double3x3> mat;
+    detail::FunctionBuilder::current()->assign(
+        LUISA_MAT_ACCESS(mat, double3, 0, 3),
+        LUISA_EXPR(c0));
+    detail::FunctionBuilder::current()->assign(
+        LUISA_MAT_ACCESS(mat, double3, 1, 3),
+        LUISA_EXPR(c1));
+    detail::FunctionBuilder::current()->assign(
+        LUISA_MAT_ACCESS(mat, double3, 2, 3),
+        LUISA_EXPR(c2));
+    return mat;
+}
+
+/// Make double3x3 [ [M00, M10, M20], [M01, M11, M21], [M02, M12, M22] ]
+template<typename M00, typename M01, typename M02,
+         typename M10, typename M11, typename M12,
+         typename M20, typename M21, typename M22>
+    requires any_dsl_v<M00, M01, M02, M10, M11, M12, M20, M21, M22> &&
+             is_same_expr_v<M00, double> && is_same_expr_v<M01, double> && is_same_expr_v<M02, double> &&
+             is_same_expr_v<M10, double> && is_same_expr_v<M11, double> && is_same_expr_v<M12, double> &&
+             is_same_expr_v<M20, double> && is_same_expr_v<M21, double> && is_same_expr_v<M22, double>
+[[nodiscard]] inline auto make_double3x3(
+    M00 &&m00, M01 &&m01, M02 &&m02,
+    M10 &&m10, M11 &&m11, M12 &&m12,
+    M20 &&m20, M21 &&m21, M22 &&m22) noexcept {
+    return make_double3x3(
+        make_double3(m00, m01, m02),
+        make_double3(m10, m11, m12),
+        make_double3(m20, m21, m22));
+}
+
+/// Make double3x3 from double2x2 [ [M, 0], [0, 1] ]
+template<typename M>
+    requires is_dsl_v<M> && is_matrix2_expr_v<M>
+[[nodiscard]] inline auto make_double3x3(M &&m) noexcept {
+    return make_double3x3(
+        make_double3(m[0], 0.f),
+        make_double3(m[1], 0.f),
+        luisa::make_double3(0.f, 0.f, 1.f));
+}
+
+/// Make double3x3 from double3x3/double4x4
+/// Submatrix will be taken if matrix is larger than 3x3.
+template<typename M>
+    requires is_dsl_v<M> && std::disjunction_v<is_matrix3_expr<M>, is_matrix4_expr<M>>
+[[nodiscard]] inline auto make_double3x3(M &&m) noexcept {
+    return make_double3x3(
+        make_double3(m[0]),
+        make_double3(m[1]),
+        make_double3(m[2]));
+}
+
+/// Make double4x4 from 4 column vector double4
+template<typename C0, typename C1, typename C2, typename C3>
+    requires any_dsl_v<C0, C1, C2, C3> &&
+             is_same_expr_v<C0, double4> &&
+             is_same_expr_v<C1, double4> &&
+             is_same_expr_v<C2, double4> &&
+             is_same_expr_v<C3, double4>
+[[nodiscard]] inline auto make_double4x4(
+    C0 &&c0, C1 &&c1, C2 &&c2, C3 &&c3) noexcept {
+    Var<double4x4> mat;
+    detail::FunctionBuilder::current()->assign(
+        LUISA_MAT_ACCESS(mat, double4, 0, 4),
+        LUISA_EXPR(c0));
+    detail::FunctionBuilder::current()->assign(
+        LUISA_MAT_ACCESS(mat, double4, 1, 4),
+        LUISA_EXPR(c1));
+    detail::FunctionBuilder::current()->assign(
+        LUISA_MAT_ACCESS(mat, double4, 2, 4),
+        LUISA_EXPR(c2));
+    detail::FunctionBuilder::current()->assign(
+        LUISA_MAT_ACCESS(mat, double4, 3, 4),
+        LUISA_EXPR(c3));
+    return mat;
+}
+
+/// Make double4x4 [ [M00, M10, M20, M30], [M01, M11, M21, M31], [M02, M12, M22, M32], [M03, M13, M23, M33] ]
+template<
+    typename M00, typename M01, typename M02, typename M03,
+    typename M10, typename M11, typename M12, typename M13,
+    typename M20, typename M21, typename M22, typename M23,
+    typename M30, typename M31, typename M32, typename M33>
+    requires any_dsl_v<
+                 M00, M01, M02, M03,
+                 M10, M11, M12, M13,
+                 M20, M21, M22, M23,
+                 M30, M31, M32, M33> &&
+             is_same_expr_v<M00, double> && is_same_expr_v<M01, double> && is_same_expr_v<M02, double> && is_same_expr_v<M03, double> &&
+             is_same_expr_v<M10, double> && is_same_expr_v<M11, double> && is_same_expr_v<M12, double> && is_same_expr_v<M13, double> &&
+             is_same_expr_v<M20, double> && is_same_expr_v<M21, double> && is_same_expr_v<M22, double> && is_same_expr_v<M23, double> &&
+             is_same_expr_v<M30, double> && is_same_expr_v<M31, double> && is_same_expr_v<M32, double> && is_same_expr_v<M33, double>
+[[nodiscard]] inline auto make_double4x4(
+    M00 &&m00, M01 &&m01, M02 &&m02, M03 &&m03,
+    M10 &&m10, M11 &&m11, M12 &&m12, M13 &&m13,
+    M20 &&m20, M21 &&m21, M22 &&m22, M23 &&m23,
+    M30 &&m30, M31 &&m31, M32 &&m32, M33 &&m33) noexcept {
+    return make_double4x4(
+        make_double4(m00, m01, m02, m03),
+        make_double4(m10, m11, m12, m13),
+        make_double4(m20, m21, m22, m23),
+        make_double4(m30, m31, m32, m33));
+}
+
+/// Make double4x4 from double2x2 [ [M, 0], [0, I] ]
+template<typename M>
+    requires is_dsl_v<M> && is_matrix2_expr_v<M>
+[[nodiscard]] inline auto make_double4x4(M &&m) noexcept {
+    return make_double4x4(
+        make_double4(m[0], 0.f, 0.f),
+        make_double4(m[1], 0.f, 0.f),
+        luisa::make_double4(0.f, 0.f, 1.f, 0.f),
+        luisa::make_double4(0.f, 0.f, 0.f, 1.f));
+}
+
+/// Make double4x4 from double3x3 [ [M, 0], [0, 1] ]
+template<typename M>
+    requires is_dsl_v<M> && is_matrix3_expr_v<M>
+[[nodiscard]] inline auto make_double4x4(M &&m) noexcept {
+    return make_double4x4(
+        make_double4(m[0], 0.f),
+        make_double4(m[1], 0.f),
+        make_double4(m[2], 0.f),
+        luisa::make_double4(0.f, 0.f, 0.f, 1.f));
+}
+
+/// Make double4x4 from double4x4
+template<typename M>
+    requires is_dsl_v<M> && is_matrix4_expr_v<M>
+[[nodiscard]] inline auto make_double4x4(M &&m) noexcept {
+    return def(std::forward<M>(m));
+}
+/// Make half2x2 from 2 column vector half2
+template<typename C0, typename C1>
+    requires any_dsl_v<C0, C1> &&
+             is_same_expr_v<C0, half2> &&
+             is_same_expr_v<C1, half2>
+[[nodiscard]] inline auto make_half2x2(
+    C0 &&c0, C1 &&c1) noexcept {
+    Var<half2x2> mat;
+    detail::FunctionBuilder::current()->assign(
+        LUISA_MAT_ACCESS(mat, half2, 0, 2),
+        LUISA_EXPR(c0));
+    detail::FunctionBuilder::current()->assign(
+        LUISA_MAT_ACCESS(mat, half2, 1, 2),
+        LUISA_EXPR(c1));
+    return mat;
+}
+
+/// Make half2x2 [ [M00, M10], [M01, M11] ]
+template<typename M00, typename M01, typename M10, typename M11>
+    requires any_dsl_v<M00, M01, M10, M11> &&
+             is_floating_point_expr_v<M00> &&
+             is_floating_point_expr_v<M01> &&
+             is_floating_point_expr_v<M10> &&
+             is_floating_point_expr_v<M11>
+[[nodiscard]] inline auto make_half2x2(
+    M00 &&m00, M01 &&m01,
+    M10 &&m10, M11 &&m11) noexcept {
+    return make_half2x2(
+        make_half2(m00, m01),
+        make_half2(m10, m11));
+}
+
+/// Make half2x2 from matrix.
+/// Submatrix will be taken if matrix is larger than 2x2.
+template<typename M>
+    requires is_dsl_v<M> && is_matrix_expr_v<M>
+[[nodiscard]] inline auto make_half2x2(M &&m) noexcept {
+    return make_half2x2(
+        make_half2(m[0]),
+        make_half2(m[1]));
+}
+
+/// Make half3x3 from 3 column vector half3
+template<typename C0, typename C1, typename C2>
+    requires any_dsl_v<C0, C1, C2> &&
+             is_same_expr_v<C0, half3> &&
+             is_same_expr_v<C1, half3> &&
+             is_same_expr_v<C2, half3>
+[[nodiscard]] inline auto make_half3x3(C0 &&c0, C1 &&c1, C2 &&c2) noexcept {
+    Var<half3x3> mat;
+    detail::FunctionBuilder::current()->assign(
+        LUISA_MAT_ACCESS(mat, half3, 0, 3),
+        LUISA_EXPR(c0));
+    detail::FunctionBuilder::current()->assign(
+        LUISA_MAT_ACCESS(mat, half3, 1, 3),
+        LUISA_EXPR(c1));
+    detail::FunctionBuilder::current()->assign(
+        LUISA_MAT_ACCESS(mat, half3, 2, 3),
+        LUISA_EXPR(c2));
+    return mat;
+}
+
+/// Make half3x3 [ [M00, M10, M20], [M01, M11, M21], [M02, M12, M22] ]
+template<typename M00, typename M01, typename M02,
+         typename M10, typename M11, typename M12,
+         typename M20, typename M21, typename M22>
+    requires any_dsl_v<M00, M01, M02, M10, M11, M12, M20, M21, M22> &&
+             is_same_expr_v<M00, half> && is_same_expr_v<M01, half> && is_same_expr_v<M02, half> &&
+             is_same_expr_v<M10, half> && is_same_expr_v<M11, half> && is_same_expr_v<M12, half> &&
+             is_same_expr_v<M20, half> && is_same_expr_v<M21, half> && is_same_expr_v<M22, half>
+[[nodiscard]] inline auto make_half3x3(
+    M00 &&m00, M01 &&m01, M02 &&m02,
+    M10 &&m10, M11 &&m11, M12 &&m12,
+    M20 &&m20, M21 &&m21, M22 &&m22) noexcept {
+    return make_half3x3(
+        make_half3(m00, m01, m02),
+        make_half3(m10, m11, m12),
+        make_half3(m20, m21, m22));
+}
+
+/// Make half3x3 from half2x2 [ [M, 0], [0, 1] ]
+template<typename M>
+    requires is_dsl_v<M> && is_matrix2_expr_v<M>
+[[nodiscard]] inline auto make_half3x3(M &&m) noexcept {
+    return make_half3x3(
+        make_half3(m[0], 0.f),
+        make_half3(m[1], 0.f),
+        luisa::make_half3(0.f, 0.f, 1.f));
+}
+
+/// Make half3x3 from half3x3/half4x4
+/// Submatrix will be taken if matrix is larger than 3x3.
+template<typename M>
+    requires is_dsl_v<M> && std::disjunction_v<is_matrix3_expr<M>, is_matrix4_expr<M>>
+[[nodiscard]] inline auto make_half3x3(M &&m) noexcept {
+    return make_half3x3(
+        make_half3(m[0]),
+        make_half3(m[1]),
+        make_half3(m[2]));
+}
+
+/// Make half4x4 from 4 column vector half4
+template<typename C0, typename C1, typename C2, typename C3>
+    requires any_dsl_v<C0, C1, C2, C3> &&
+             is_same_expr_v<C0, half4> &&
+             is_same_expr_v<C1, half4> &&
+             is_same_expr_v<C2, half4> &&
+             is_same_expr_v<C3, half4>
+[[nodiscard]] inline auto make_half4x4(
+    C0 &&c0, C1 &&c1, C2 &&c2, C3 &&c3) noexcept {
+    Var<half4x4> mat;
+    detail::FunctionBuilder::current()->assign(
+        LUISA_MAT_ACCESS(mat, half4, 0, 4),
+        LUISA_EXPR(c0));
+    detail::FunctionBuilder::current()->assign(
+        LUISA_MAT_ACCESS(mat, half4, 1, 4),
+        LUISA_EXPR(c1));
+    detail::FunctionBuilder::current()->assign(
+        LUISA_MAT_ACCESS(mat, half4, 2, 4),
+        LUISA_EXPR(c2));
+    detail::FunctionBuilder::current()->assign(
+        LUISA_MAT_ACCESS(mat, half4, 3, 4),
+        LUISA_EXPR(c3));
+    return mat;
+}
+
+/// Make half4x4 [ [M00, M10, M20, M30], [M01, M11, M21, M31], [M02, M12, M22, M32], [M03, M13, M23, M33] ]
+template<
+    typename M00, typename M01, typename M02, typename M03,
+    typename M10, typename M11, typename M12, typename M13,
+    typename M20, typename M21, typename M22, typename M23,
+    typename M30, typename M31, typename M32, typename M33>
+    requires any_dsl_v<
+                 M00, M01, M02, M03,
+                 M10, M11, M12, M13,
+                 M20, M21, M22, M23,
+                 M30, M31, M32, M33> &&
+             is_same_expr_v<M00, half> && is_same_expr_v<M01, half> && is_same_expr_v<M02, half> && is_same_expr_v<M03, half> &&
+             is_same_expr_v<M10, half> && is_same_expr_v<M11, half> && is_same_expr_v<M12, half> && is_same_expr_v<M13, half> &&
+             is_same_expr_v<M20, half> && is_same_expr_v<M21, half> && is_same_expr_v<M22, half> && is_same_expr_v<M23, half> &&
+             is_same_expr_v<M30, half> && is_same_expr_v<M31, half> && is_same_expr_v<M32, half> && is_same_expr_v<M33, half>
+[[nodiscard]] inline auto make_half4x4(
+    M00 &&m00, M01 &&m01, M02 &&m02, M03 &&m03,
+    M10 &&m10, M11 &&m11, M12 &&m12, M13 &&m13,
+    M20 &&m20, M21 &&m21, M22 &&m22, M23 &&m23,
+    M30 &&m30, M31 &&m31, M32 &&m32, M33 &&m33) noexcept {
+    return make_half4x4(
+        make_half4(m00, m01, m02, m03),
+        make_half4(m10, m11, m12, m13),
+        make_half4(m20, m21, m22, m23),
+        make_half4(m30, m31, m32, m33));
+}
+
+/// Make half4x4 from half2x2 [ [M, 0], [0, I] ]
+template<typename M>
+    requires is_dsl_v<M> && is_matrix2_expr_v<M>
+[[nodiscard]] inline auto make_half4x4(M &&m) noexcept {
+    return make_half4x4(
+        make_half4(m[0], 0.f, 0.f),
+        make_half4(m[1], 0.f, 0.f),
+        luisa::make_half4(0.f, 0.f, 1.f, 0.f),
+        luisa::make_half4(0.f, 0.f, 0.f, 1.f));
+}
+
+/// Make half4x4 from half3x3 [ [M, 0], [0, 1] ]
+template<typename M>
+    requires is_dsl_v<M> && is_matrix3_expr_v<M>
+[[nodiscard]] inline auto make_half4x4(M &&m) noexcept {
+    return make_half4x4(
+        make_half4(m[0], 0.f),
+        make_half4(m[1], 0.f),
+        make_half4(m[2], 0.f),
+        luisa::make_half4(0.f, 0.f, 0.f, 1.f));
+}
+
+/// Make half4x4 from half4x4
+template<typename M>
+    requires is_dsl_v<M> && is_matrix4_expr_v<M>
+[[nodiscard]] inline auto make_half4x4(M &&m) noexcept {
+    return def(std::forward<M>(m));
+}
+#define LUISA_MATRIX_INTRIN(TYPE, DIM)                                        \
+    LC_DSL_API Var<TYPE##DIM##x##DIM> transpose(Expr<TYPE##DIM##x##DIM> mat); \
+    LC_DSL_API Var<TYPE##DIM##x##DIM> inverse(Expr<TYPE##DIM##x##DIM> mat);   \
+    LC_DSL_API Var<TYPE> determinant(Expr<TYPE##DIM##x##DIM> mat);
+
+LUISA_MATRIX_INTRIN(double, 2)
+LUISA_MATRIX_INTRIN(double, 3)
+LUISA_MATRIX_INTRIN(double, 4)
+LUISA_MATRIX_INTRIN(half, 2)
+LUISA_MATRIX_INTRIN(half, 3)
+LUISA_MATRIX_INTRIN(half, 4)
+
+#undef LUISA_MAT_ACCESS
+#undef LUISA_MATRIX_INTRIN
+#undef LUISA_EXPR
+}// namespace luisa::compute

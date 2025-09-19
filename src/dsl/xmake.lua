@@ -1,7 +1,7 @@
 target("lc-dsl")
 _config_project({
 	project_kind = "static",
-	batch_size = 16
+	batch_size = 0
 })
 set_pcxxheader("lc_dsl_pch.h")
 add_deps("lc-ast", "lc-runtime")

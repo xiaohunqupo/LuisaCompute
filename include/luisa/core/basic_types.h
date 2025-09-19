@@ -28,8 +28,8 @@ struct VectorStorage {
 /// Vector storage of size 2
 template<typename T>
 struct alignas(vector_alignment_v<T, 2>) VectorStorage<T, 2> {
-    T x {};
-    T y {};
+    T x{};
+    T y{};
     explicit constexpr VectorStorage(T s = {}) noexcept : x{s}, y{s} {}
     constexpr VectorStorage(T x, T y) noexcept : x{x}, y{y} {}
 #include <luisa/core/swizzle_2.inl.h>
@@ -38,9 +38,9 @@ struct alignas(vector_alignment_v<T, 2>) VectorStorage<T, 2> {
 /// Vector storage of size 3
 template<typename T>
 struct alignas(vector_alignment_v<T, 3>) VectorStorage<T, 3> {
-    T x {};
-    T y {};
-    T z {};
+    T x{};
+    T y{};
+    T z{};
     explicit constexpr VectorStorage(T s = {}) noexcept : x{s}, y{s}, z{s} {}
     constexpr VectorStorage(T x, T y, T z) noexcept : x{x}, y{y}, z{z} {}
 #include <luisa/core/swizzle_3.inl.h>
@@ -49,10 +49,10 @@ struct alignas(vector_alignment_v<T, 3>) VectorStorage<T, 3> {
 /// Vector storage of size 4
 template<typename T>
 struct alignas(vector_alignment_v<T, 4>) VectorStorage<T, 4> {
-    T x {};
-    T y {};
-    T z {};
-    T w {};
+    T x{};
+    T y{};
+    T z{};
+    T w{};
     explicit constexpr VectorStorage(T s = {}) noexcept : x{s}, y{s}, z{s}, w{s} {}
     constexpr VectorStorage(T x, T y, T z, T w) noexcept : x{x}, y{y}, z{z}, w{w} {}
 #include <luisa/core/swizzle_4.inl.h>
@@ -76,12 +76,12 @@ struct Vector : public detail::VectorStorage<T, N> {
     using reference = value_type &;
     using const_reference = const value_type &;
     using Storage = detail::VectorStorage<value_type, N>;
-    using Storage::VectorStorage; // introduce base class constructor function
+    using Storage::VectorStorage;// introduce base class constructor function
 
     static_assert(is_scalar_v<value_type>, "Invalid vector type");
     static_assert(N == 2 || N == 3 || N == 4, "Invalid vector dimension");
 
-    static constexpr size_type dimension { N };
+    static constexpr size_type dimension{N};
 
     static Vector<value_type, N> zero() noexcept {
         return Vector<value_type, N>(static_cast<value_type>(0));
@@ -210,36 +210,37 @@ struct Matrix<T, 3> {
 /// 4x4 matrix
 template<typename T>
 struct Matrix<T, 4> {
-
-    float4 cols[4];
+    using VectorType = Vector<T, 4>;
+    using ElementType = T;
+    VectorType cols[4];
 
     constexpr Matrix() noexcept
-        : cols{float4{T{1.0}, T{0.0}, T{0.0}, T{0.0}},
-               float4{T{0.0}, T{1.0}, T{0.0}, T{0.0}},
-               float4{T{0.0}, T{0.0}, T{1.0}, T{0.0}},
-               float4{T{0.0}, T{0.0}, T{0.0}, T{1.0}}} {}
+        : cols{VectorType{T{1.0}, T{0.0}, T{0.0}, T{0.0}},
+               VectorType{T{0.0}, T{1.0}, T{0.0}, T{0.0}},
+               VectorType{T{0.0}, T{0.0}, T{1.0}, T{0.0}},
+               VectorType{T{0.0}, T{0.0}, T{0.0}, T{1.0}}} {}
 
-    constexpr Matrix(const float4 c0, const float4 c1, const float4 c2, const float4 c3) noexcept
+    constexpr Matrix(const VectorType c0, const VectorType c1, const VectorType c2, const VectorType c3) noexcept
         : cols{c0, c1, c2, c3} {}
 
     static constexpr Matrix eye(const float c) noexcept {
         return Matrix{
-            float4{c, T{0.0}, T{0.0}, T{0.0}},
-            float4{T{0.0}, c, T{0.0}, T{0.0}},
-            float4{T{0.0}, T{0.0}, c, T{0.0}},
-            float4{T{0.0}, T{0.0}, T{0.0}, c}};
+            VectorType{c, T{0.0}, T{0.0}, T{0.0}},
+            VectorType{T{0.0}, c, T{0.0}, T{0.0}},
+            VectorType{T{0.0}, T{0.0}, c, T{0.0}},
+            VectorType{T{0.0}, T{0.0}, T{0.0}, c}};
     }
 
     static constexpr Matrix fill(const float c) noexcept {
         return Matrix{
-            float4{c, c, c, c},
-            float4{c, c, c, c},
-            float4{c, c, c, c},
-            float4{c, c, c, c}};
+            VectorType{c, c, c, c},
+            VectorType{c, c, c, c},
+            VectorType{c, c, c, c},
+            VectorType{c, c, c, c}};
     }
 
-    [[nodiscard]] constexpr float4 &operator[](size_t i) noexcept { return cols[i]; }
-    [[nodiscard]] constexpr const float4 &operator[](size_t i) const noexcept { return cols[i]; }
+    [[nodiscard]] constexpr VectorType &operator[](size_t i) noexcept { return cols[i]; }
+    [[nodiscard]] constexpr const VectorType &operator[](size_t i) const noexcept { return cols[i]; }
 };
 
 template<typename T, size_t N>
@@ -271,9 +272,9 @@ using basic_types = std::tuple<
     bool2, float2, int2, uint2, short2, ushort2, byte2, ubyte2, slong2, ulong2, half2, double2,
     bool3, float3, int3, uint3, short3, ushort3, byte3, ubyte3, slong3, ulong3, half3, double3,
     bool4, float4, int4, uint4, short4, ushort4, byte4, ubyte4, slong4, ulong4, half4, double4,
-    float2x2, float3x3, float4x4 
+    float2x2, float3x3, float4x4
     // TODO: should half matrix and double matrix become builtin-type? May break all backends
-    // ,half2x2, half3x3, half4x4, 
+    // ,half2x2, half3x3, half4x4,
     // double2x2, double3x3, double4x4
     >;
 
@@ -741,7 +742,247 @@ LUISA_MAKE_TYPE_N(double)
 [[nodiscard]] constexpr auto make_float4x4(float4x4 m) noexcept {
     return m;
 }
+[[nodiscard]] constexpr auto make_double2x2(double s = 1.0) noexcept {
+    return double2x2{double2{s, 0.0},
+                     double2{0.0, s}};
+}
 
+/// make double2x2
+[[nodiscard]] constexpr auto make_double2x2(
+    double m00, double m01,
+    double m10, double m11) noexcept {
+    return double2x2{double2{m00, m01},
+                     double2{m10, m11}};
+}
+
+/// make double2x2
+[[nodiscard]] constexpr auto make_double2x2(double2 c0, double2 c1) noexcept {
+    return double2x2{c0, c1};
+}
+
+/// make double2x2
+[[nodiscard]] constexpr auto make_double2x2(double2x2 m) noexcept {
+    return m;
+}
+
+/// make double2x2
+[[nodiscard]] constexpr auto make_double2x2(double3x3 m) noexcept {
+    return double2x2{double2{m[0].x, m[0].y},
+                     double2{m[1].x, m[1].y}};
+}
+
+/// make double2x2
+[[nodiscard]] constexpr auto make_double2x2(double4x4 m) noexcept {
+    return double2x2{double2{m[0].x, m[0].y},
+                     double2{m[1].x, m[1].y}};
+}
+
+/// make double3x3
+[[nodiscard]] constexpr auto make_double3x3(double s = 1.0) noexcept {
+    return double3x3{double3{s, 0.0, 0.0},
+                     double3{0.0, s, 0.0},
+                     double3{0.0, 0.0, s}};
+}
+
+/// make double3x3
+[[nodiscard]] constexpr auto make_double3x3(double3 c0, double3 c1, double3 c2) noexcept {
+    return double3x3{c0, c1, c2};
+}
+
+/// make double3x3
+[[nodiscard]] constexpr auto make_double3x3(
+    double m00, double m01, double m02,
+    double m10, double m11, double m12,
+    double m20, double m21, double m22) noexcept {
+    return double3x3{double3{m00, m01, m02},
+                     double3{m10, m11, m12},
+                     double3{m20, m21, m22}};
+}
+
+/// make double3x3
+[[nodiscard]] constexpr auto make_double3x3(double2x2 m) noexcept {
+    return double3x3{make_double3(m[0], 0.0),
+                     make_double3(m[1], 0.0),
+                     make_double3(0.f, 0.f, 1.0)};
+}
+
+/// make double3x3
+[[nodiscard]] constexpr auto make_double3x3(double3x3 m) noexcept {
+    return m;
+}
+
+/// make double3x3
+[[nodiscard]] constexpr auto make_double3x3(double4x4 m) noexcept {
+    return double3x3{make_double3(m[0].xyz()),
+                     make_double3(m[1].xyz()),
+                     make_double3(m[2].xyz())};
+}
+
+/// make double4x4
+[[nodiscard]] constexpr auto make_double4x4(double s = 1.0) noexcept {
+    return double4x4{double4{s, 0.0, 0.0, 0.0},
+                     double4{0.0, s, 0.0, 0.0},
+                     double4{0.0, 0.0, s, 0.0},
+                     double4{0.0, 0.0, 0.0, s}};
+}
+
+/// make double4x4
+[[nodiscard]] constexpr auto make_double4x4(double4 c0, double4 c1, double4 c2, double4 c3) noexcept {
+    return double4x4{c0, c1, c2, c3};
+}
+
+/// make double4x4
+[[nodiscard]] constexpr auto make_double4x4(
+    double m00, double m01, double m02, double m03,
+    double m10, double m11, double m12, double m13,
+    double m20, double m21, double m22, double m23,
+    double m30, double m31, double m32, double m33) noexcept {
+    return double4x4{double4{m00, m01, m02, m03},
+                     double4{m10, m11, m12, m13},
+                     double4{m20, m21, m22, m23},
+                     double4{m30, m31, m32, m33}};
+}
+
+/// make double4x4
+[[nodiscard]] constexpr auto make_double4x4(double2x2 m) noexcept {
+    return double4x4{make_double4(m[0], 0.0, 0.0),
+                     make_double4(m[1], 0.0, 0.0),
+                     double4{0.0, 0.0, 1.0, 0.0},
+                     double4{0.0, 0.0, 0.0, 1.0}};
+}
+
+/// make double4x4
+[[nodiscard]] constexpr auto make_double4x4(double3x3 m) noexcept {
+    return double4x4{make_double4(m[0], 0.0),
+                     make_double4(m[1], 0.0),
+                     make_double4(m[2], 0.0),
+                     double4{0.0, 0.0, 0.0, 1.0}};
+}
+[[nodiscard]] inline auto make_half2x2(half s = (half)1.0f) noexcept {
+    return half2x2{half2{s, half(0.0)},
+                   half2{half(0.0), s}};
+}
+
+/// make half2x2
+[[nodiscard]] constexpr auto make_half2x2(
+    half m00, half m01,
+    half m10, half m11) noexcept {
+    return half2x2{half2{m00, m01},
+                   half2{m10, m11}};
+}
+
+/// make half2x2
+[[nodiscard]] constexpr auto make_half2x2(half2 c0, half2 c1) noexcept {
+    return half2x2{c0, c1};
+}
+
+/// make half2x2
+[[nodiscard]] constexpr auto make_half2x2(half2x2 m) noexcept {
+    return m;
+}
+
+/// make half2x2
+[[nodiscard]] constexpr auto make_half2x2(half3x3 m) noexcept {
+    return half2x2{half2{m[0].x, m[0].y},
+                   half2{m[1].x, m[1].y}};
+}
+
+/// make half2x2
+[[nodiscard]] constexpr auto make_half2x2(half4x4 m) noexcept {
+    return half2x2{half2{m[0].x, m[0].y},
+                   half2{m[1].x, m[1].y}};
+}
+
+/// make half3x3
+[[nodiscard]] inline auto make_half3x3(half s = (half)1.0f) noexcept {
+    return half3x3{half3{s, half(0.0), half(0.0)},
+                   half3{half(0.0), s, half(0.0)},
+                   half3{half(0.0), half(0.0), s}};
+}
+
+/// make half3x3
+[[nodiscard]] constexpr auto make_half3x3(half3 c0, half3 c1, half3 c2) noexcept {
+    return half3x3{c0, c1, c2};
+}
+
+/// make half3x3
+[[nodiscard]] constexpr auto make_half3x3(
+    half m00, half m01, half m02,
+    half m10, half m11, half m12,
+    half m20, half m21, half m22) noexcept {
+    return half3x3{half3{m00, m01, m02},
+                   half3{m10, m11, m12},
+                   half3{m20, m21, m22}};
+}
+
+/// make half3x3
+[[nodiscard]] inline auto make_half3x3(half2x2 m) noexcept {
+    return half3x3{make_half3(m[0], half(0.0)),
+                   make_half3(m[1], half(0.0)),
+                   make_half3(half(0.0), half(0.0), half(1.0))};
+}
+
+/// make half3x3
+[[nodiscard]] constexpr auto make_half3x3(half3x3 m) noexcept {
+    return m;
+}
+
+/// make half3x3
+[[nodiscard]] constexpr auto make_half3x3(half4x4 m) noexcept {
+    return half3x3{make_half3(m[0]),
+                   make_half3(m[1]),
+                   make_half3(m[2])};
+}
+
+/// make half4x4
+[[nodiscard]] inline auto make_half4x4(half s = (half)1.0f) noexcept {
+    return half4x4{half4{s, half(0.0), half(0.0), half(0.0)},
+                   half4{half(0.0), s, half(0.0), half(0.0)},
+                   half4{half(0.0), half(0.0), s, half(0.0)},
+                   half4{half(0.0), half(0.0), half(0.0), s}};
+}
+
+/// make half4x4
+[[nodiscard]] constexpr auto make_half4x4(half4 c0, half4 c1, half4 c2, half4 c3) noexcept {
+    return half4x4{c0, c1, c2, c3};
+}
+
+/// make half4x4
+[[nodiscard]] constexpr auto make_half4x4(
+    half m00, half m01, half m02, half m03,
+    half m10, half m11, half m12, half m13,
+    half m20, half m21, half m22, half m23,
+    half m30, half m31, half m32, half m33) noexcept {
+    return half4x4{half4{m00, m01, m02, m03},
+                   half4{m10, m11, m12, m13},
+                   half4{m20, m21, m22, m23},
+                   half4{m30, m31, m32, m33}};
+}
+
+/// make half4x4
+[[nodiscard]] inline auto make_half4x4(half2x2 m) noexcept {
+    return half4x4{make_half4(m[0], half(0.0), half(0.0)),
+                   make_half4(m[1], half(0.0), half(0.0)),
+                   half4{half(0.0), half(0.0), half(1.0), half(0.0)},
+                   half4{half(0.0), half(0.0), half(0.0), half(1.0)}};
+}
+
+/// make half4x4
+[[nodiscard]] inline auto make_half4x4(half3x3 m) noexcept {
+    return half4x4{make_half4(m[0], half(0.0)),
+                   make_half4(m[1], half(0.0)),
+                   make_half4(m[2], half(0.0)),
+                   half4{half(0.0), half(0.0), half(0.0), half(1.0)}};
+}
+
+/// make half4x4
+[[nodiscard]] constexpr auto make_half4x4(half4x4 m) noexcept {
+    return m;
+}
+/// make double4x4
+[[nodiscard]] constexpr auto make_double4x4(double4x4 m) noexcept {
+    return m;
+}
 }// namespace luisa
 
 //template<size_t N>
