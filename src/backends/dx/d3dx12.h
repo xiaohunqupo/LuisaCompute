@@ -35,9 +35,9 @@ LUISA_MAKE_VECTOR_TYPES(bool)
 LUISA_MAKE_VECTOR_TYPES(float)
 LUISA_MAKE_VECTOR_TYPES(int)
 LUISA_MAKE_VECTOR_TYPES(uint)
-using float2x2 = luisa::Matrix<2>;
-using float3x3 = luisa::Matrix<3>;
-using float4x4 = luisa::Matrix<4>;
+using float2x2 = luisa::float2x2;
+using float3x3 = luisa::float3x3;
+using float4x4 = luisa::float4x4;
 enum class TextureDimension : uint8_t {
     None,
     Tex1D,

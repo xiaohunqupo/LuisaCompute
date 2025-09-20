@@ -22,7 +22,7 @@ void export_commands(py::module &m) {
         .def("set_dispatch_buffer", [](ComputeDispatchCmdEncoder &self, uint64_t handle, uint32_t offset, uint32_t size) { self.set_dispatch_size(IndirectDispatchArg{handle, offset, size}); })
         .def("encode_buffer", [](ComputeDispatchCmdEncoder &self, uint64_t handle, size_t offset, size_t size) { self.encode_buffer(handle, offset, size); })
         .def("encode_texture", [](ComputeDispatchCmdEncoder &self, uint64_t handle, uint32_t level) { self.encode_texture(handle, level); })
-        .def("encode_uniform", [](ComputeDispatchCmdEncoder &self, char *buf, size_t size) { self.encode_uniform(buf, size); })
+        .def("encode_uniform", [](ComputeDispatchCmdEncoder &self, char *buf, size_t size, size_t alignment) { self.encode_uniform(buf, size, alignment); })
         .def("encode_bindless_array", [](ComputeDispatchCmdEncoder &self, uint64_t handle) { self.encode_bindless_array(handle); })
         .def("encode_accel", [](ComputeDispatchCmdEncoder &self, uint64_t handle) { self.encode_accel(handle); })
         .def("build", [](ComputeDispatchCmdEncoder &c) { return std::move(c).build().release(); }, pyref);

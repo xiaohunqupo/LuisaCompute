@@ -141,7 +141,7 @@ constexpr auto is_scalar_v = is_scalar<T>::value;
 template<typename T, size_t N>
 struct Vector;
 
-template<size_t N>
+template<typename T, size_t N>
 struct Matrix;
 
 namespace detail {
@@ -159,10 +159,10 @@ template<typename T, size_t N = 0u>
 struct is_matrix_impl : std::false_type {};
 
 template<size_t N>
-struct is_matrix_impl<Matrix<N>, N> : std::true_type {};
+struct is_matrix_impl<Matrix<float, N>, N> : std::true_type {};
 
 template<size_t N>
-struct is_matrix_impl<Matrix<N>, 0u> : std::true_type {};
+struct is_matrix_impl<Matrix<float, N>, 0u> : std::true_type {};
 
 template<typename T>
 struct vector_element_impl {
@@ -189,8 +189,8 @@ struct matrix_dimension_impl {
     static constexpr auto value = static_cast<size_t>(1u);
 };
 
-template<size_t N>
-struct matrix_dimension_impl<Matrix<N>> {
+template<typename T, size_t N>
+struct matrix_dimension_impl<Matrix<T, N>> {
     static constexpr auto value = N;
 };
 

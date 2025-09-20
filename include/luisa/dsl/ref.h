@@ -113,14 +113,14 @@ struct Ref<T[N]>
     LUISA_REF_COMMON(T[N])
 };
 
-/// Ref<Matrix<N>>
+/// Ref<Matrix<float,N>>
 template<size_t N>
-struct Ref<Matrix<N>>
-    : detail::ExprEnableBitwiseCast<Ref<Matrix<N>>>,
-      detail::RefEnableSubscriptAccess<Ref<Matrix<N>>>,
-      detail::RefEnableGetMemberByIndex<Ref<Matrix<N>>>,
-      detail::RefEnableGetAddress<Ref<Matrix<N>>> {
-    LUISA_REF_COMMON(Matrix<N>)
+struct Ref<Matrix<float, N>>
+    : detail::ExprEnableBitwiseCast<Ref<Matrix<float, N>>>,
+      detail::RefEnableSubscriptAccess<Ref<Matrix<float, N>>>,
+      detail::RefEnableGetMemberByIndex<Ref<Matrix<float, N>>>,
+      detail::RefEnableGetAddress<Ref<Matrix<float, N>>> {
+    LUISA_REF_COMMON(Matrix<float, N>)
 };
 
 /// Ref<std::tuple<T...>>

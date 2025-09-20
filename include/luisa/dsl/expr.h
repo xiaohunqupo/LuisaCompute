@@ -165,12 +165,12 @@ struct Expr<T[N]>
 
 /// Class of Expr<Matrix><N>>. Can be constructed from Matrix<N>
 template<size_t N>
-struct Expr<Matrix<N>>
-    : detail::ExprEnableBitwiseCast<Expr<Matrix<N>>>,
-      detail::ExprEnableSubscriptAccess<Expr<Matrix<N>>>,
-      detail::ExprEnableGetMemberByIndex<Expr<Matrix<N>>> {
-    LUISA_EXPR_COMMON(Matrix<N>)
-    LUISA_EXPR_FROM_LITERAL(Matrix<N>)
+struct Expr<Matrix<float, N>>
+    : detail::ExprEnableBitwiseCast<Expr<Matrix<float, N>>>,
+      detail::ExprEnableSubscriptAccess<Expr<Matrix<float, N>>>,
+      detail::ExprEnableGetMemberByIndex<Expr<Matrix<float, N>>> {
+    LUISA_EXPR_COMMON(Matrix<float, N>)
+    LUISA_EXPR_FROM_LITERAL(Matrix<float, N>)
 };
 
 /// Class of Expr<std::tuple<T...>>.

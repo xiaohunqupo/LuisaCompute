@@ -132,7 +132,8 @@ private:
                             break;
                         case LC_ARGUMENT_UNIFORM:
                             encoder.encode_uniform(arg.uniform.data,
-                                                   arg.uniform.size);
+                                                   arg.uniform.size,
+                                                   arg.uniform.alignment);
                             break;
                         case LC_ARGUMENT_BINDLESS_ARRAY:
                             encoder.encode_bindless_array(arg.bindless_array._0);

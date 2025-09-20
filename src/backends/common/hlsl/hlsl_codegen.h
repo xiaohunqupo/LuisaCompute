@@ -332,8 +332,8 @@ struct PrintValue<Vector<EleType, N>> {
 };
 
 template<uint64 N>
-struct PrintValue<Matrix<N>> {
-    using T = Matrix<N>;
+struct PrintValue<Matrix<float, N>> {
+    using T = Matrix<float, N>;
     using EleType = float;
     void operator()(T const &v, vstd::StringBuilder &varName) {
         varName << "_float";

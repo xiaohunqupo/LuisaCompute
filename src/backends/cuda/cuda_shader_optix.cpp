@@ -351,8 +351,7 @@ void CUDAShaderOptiX::_launch(CUDACommandEncoder &encoder, ShaderDispatchCommand
     // encode arguments
     encoder.with_upload_buffer(_argument_buffer_size, [&](CUDAHostBufferPool::View *argument_buffer) noexcept {
         auto argument_buffer_offset = static_cast<size_t>(0u);
-        auto allocate_argument = [&](size_t bytes) noexcept {
-            static constexpr auto alignment = 16u;
+        auto allocate_argument = [&](size_t bytes, size_t alignment) noexcept {
             auto offset = (argument_buffer_offset + alignment - 1u) / alignment * alignment;
             LUISA_ASSERT(offset + bytes <= _argument_buffer_size,
                          "Too many arguments in ShaderDispatchCommand");
@@ -366,34 +365,34 @@ void CUDAShaderOptiX::_launch(CUDACommandEncoder &encoder, ShaderDispatchCommand
                 case Tag::BUFFER: {
                     auto buffer = reinterpret_cast<const CUDABuffer *>(arg.buffer.handle);
                     auto binding = buffer->binding(arg.buffer.offset, arg.buffer.size);
-                    auto ptr = allocate_argument(sizeof(binding));
+                    auto ptr = allocate_argument(sizeof(binding), 16);
                     std::memcpy(ptr, &binding, sizeof(binding));
                     break;
                 }
                 case Tag::TEXTURE: {
                     auto texture = reinterpret_cast<const CUDATexture *>(arg.texture.handle);
                     auto binding = texture->binding(arg.texture.level);
-                    auto ptr = allocate_argument(sizeof(binding));
+                    auto ptr = allocate_argument(sizeof(binding), 16);
                     std::memcpy(ptr, &binding, sizeof(binding));
                     break;
                 }
                 case Tag::UNIFORM: {
                     auto uniform = command->uniform(arg.uniform);
-                    auto ptr = allocate_argument(uniform.size_bytes());
+                    auto ptr = allocate_argument(uniform.size_bytes(), 16);
                     std::memcpy(ptr, uniform.data(), uniform.size_bytes());
                     break;
                 }
                 case Tag::BINDLESS_ARRAY: {
                     auto array = reinterpret_cast<const CUDABindlessArray *>(arg.bindless_array.handle);
                     auto binding = array->binding();
-                    auto ptr = allocate_argument(sizeof(binding));
+                    auto ptr = allocate_argument(sizeof(binding), 16);
                     std::memcpy(ptr, &binding, sizeof(binding));
                     break;
                 }
                 case Tag::ACCEL: {
                     auto accel = reinterpret_cast<const CUDAAccel *>(arg.accel.handle);
                     auto binding = accel->binding();
-                    auto ptr = allocate_argument(sizeof(binding));
+                    auto ptr = allocate_argument(sizeof(binding), 16);
                     std::memcpy(ptr, &binding, sizeof(binding));
                     break;
                 }
@@ -405,11 +404,11 @@ void CUDAShaderOptiX::_launch(CUDACommandEncoder &encoder, ShaderDispatchCommand
         // printer
         if (printer()) {
             auto b = printer()->encode(encoder);
-            auto ptr = allocate_argument(sizeof(b));
+            auto ptr = allocate_argument(sizeof(b), 16);
             std::memcpy(ptr, &b, sizeof(b));
         }
         // dispatch size and kernel id
-        auto ptr = allocate_argument(sizeof(uint4));
+        auto ptr = allocate_argument(sizeof(uint4), 16);
         if (!command->is_indirect()) {
             auto ds_and_kid = make_uint4(0u);
             std::memcpy(ptr, &ds_and_kid, sizeof(ds_and_kid));

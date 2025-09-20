@@ -249,7 +249,7 @@ public:
 
 // matrices
 template<size_t N>
-class AtomicRef<Matrix<N>> : private AtomicRefBase {
+class AtomicRef<Matrix<float, N>> : private AtomicRefBase {
 public:
     LUISA_ATOMIC_REF_COMMON()
     template<typename I>

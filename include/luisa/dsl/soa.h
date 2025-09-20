@@ -300,7 +300,7 @@ public:
 };
 
 template<size_t N>
-struct Expr<SOA<Matrix<N>>> : public detail::SOAExprBase {
+struct Expr<SOA<Matrix<float, N>>> : public detail::SOAExprBase {
 
 private:
     using Column = Vector<float, N>;
@@ -318,10 +318,10 @@ private:
                                   soa_size, elem_offset}...} {}
 
 public:
-    Expr(SOAView<Matrix<N>> soa) noexcept
+    Expr(SOAView<Matrix<float, N>> soa) noexcept
         : Expr{soa.buffer(), soa.soa_offset(), soa.soa_size(), soa.element_offset()} {}
 
-    Expr(const SOA<Matrix<N>> &soa) noexcept
+    Expr(const SOA<Matrix<float, N>> &soa) noexcept
         : Expr{soa.view()} {}
 
     Expr(Expr<Buffer<uint>> buffer,
@@ -332,7 +332,7 @@ public:
 
     template<typename I>
     [[nodiscard]] auto read(I &&index) const noexcept {
-        auto m = def<Matrix<N>>();
+        auto m = def<Matrix<float, N>>();
         auto i = def(std::forward<I>(index));
         for (auto c = 0u; c < N; c++) {
             m[c] = this->_cols[c].read(i);
@@ -341,7 +341,7 @@ public:
     }
 
     template<typename I>
-    void write(I &&index, Expr<Matrix<N>> value) const noexcept {
+    void write(I &&index, Expr<Matrix<float, N>> value) const noexcept {
         auto i = def(std::forward<I>(index));
         for (auto c = 0u; c < N; c++) {
             this->_cols[c].write(i, value[c]);
@@ -704,7 +704,7 @@ public:
 };
 
 template<size_t N>
-class SOAView<Matrix<N>> : public detail::SOAViewBase<Matrix<N>> {
+class SOAView<Matrix<float, N>> : public detail::SOAViewBase<Matrix<float, N>> {
 
 private:
     using Column = Vector<float, N>;
@@ -720,7 +720,7 @@ public:
     SOAView(BufferView<uint> buffer,
             size_t soa_offset, size_t soa_size,
             size_t elem_offset, size_t elem_size) noexcept
-        : detail::SOAViewBase<Matrix<N>>{buffer, soa_offset, soa_size, elem_offset, elem_size},
+        : detail::SOAViewBase<Matrix<float, N>>{buffer, soa_offset, soa_size, elem_offset, elem_size},
           _cols{} {
         for (auto i = 0u; i < N; i++) {
             _cols[i] = SOAView<Column>{

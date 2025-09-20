@@ -27,7 +27,7 @@ public:
     [[nodiscard]] static size_t compute_uniform_size(luisa::span<const Type *const> arg_types) noexcept;
     void encode_buffer(uint64_t handle, size_t offset, size_t size) noexcept;
     void encode_texture(uint64_t handle, uint32_t level) noexcept;
-    void encode_uniform(const void *data, size_t size) noexcept;
+    void encode_uniform(const void *data, size_t size, size_t alignment) noexcept;
     void encode_bindless_array(uint64_t handle) noexcept;
     void encode_accel(uint64_t handle) noexcept;
 };

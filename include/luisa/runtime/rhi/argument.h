@@ -28,6 +28,7 @@ struct Argument {
     struct Uniform {
         size_t offset;
         size_t size;
+        size_t alignment;
     };
 
     struct BindlessArray {
