@@ -479,9 +479,9 @@ template<typename M>
     requires is_dsl_v<M> && is_matrix2_expr_v<M>
 [[nodiscard]] inline auto make_double3x3(M &&m) noexcept {
     return make_double3x3(
-        make_double3(m[0], 0.f),
-        make_double3(m[1], 0.f),
-        luisa::make_double3(0.f, 0.f, 1.f));
+        make_double3(m[0], 0.0),
+        make_double3(m[1], 0.0),
+        luisa::make_double3(0.0, 0.0, 1.0));
 }
 
 /// Make double3x3 from double3x3/double4x4
@@ -552,10 +552,10 @@ template<typename M>
     requires is_dsl_v<M> && is_matrix2_expr_v<M>
 [[nodiscard]] inline auto make_double4x4(M &&m) noexcept {
     return make_double4x4(
-        make_double4(m[0], 0.f, 0.f),
-        make_double4(m[1], 0.f, 0.f),
-        luisa::make_double4(0.f, 0.f, 1.f, 0.f),
-        luisa::make_double4(0.f, 0.f, 0.f, 1.f));
+        make_double4(m[0], 0.0, 0.0),
+        make_double4(m[1], 0.0, 0.0),
+        luisa::make_double4(0.0, 0.0, 1.0, 0.0),
+        luisa::make_double4(0.0, 0.0, 0.0, 1.0));
 }
 
 /// Make double4x4 from double3x3 [ [M, 0], [0, 1] ]
@@ -563,10 +563,10 @@ template<typename M>
     requires is_dsl_v<M> && is_matrix3_expr_v<M>
 [[nodiscard]] inline auto make_double4x4(M &&m) noexcept {
     return make_double4x4(
-        make_double4(m[0], 0.f),
-        make_double4(m[1], 0.f),
-        make_double4(m[2], 0.f),
-        luisa::make_double4(0.f, 0.f, 0.f, 1.f));
+        make_double4(m[0], 0.0),
+        make_double4(m[1], 0.0),
+        make_double4(m[2], 0.0),
+        luisa::make_double4(0.0, 0.0, 0.0, 1.0));
 }
 
 /// Make double4x4 from double4x4
@@ -660,9 +660,9 @@ template<typename M>
     requires is_dsl_v<M> && is_matrix2_expr_v<M>
 [[nodiscard]] inline auto make_half3x3(M &&m) noexcept {
     return make_half3x3(
-        make_half3(m[0], 0.f),
-        make_half3(m[1], 0.f),
-        luisa::make_half3(0.f, 0.f, 1.f));
+        make_half3(m[0], half(0.f)),
+        make_half3(m[1], half(0.f)),
+        luisa::make_half3(half(0.f), half(0.f), half(1.f)));
 }
 
 /// Make half3x3 from half3x3/half4x4
@@ -733,10 +733,10 @@ template<typename M>
     requires is_dsl_v<M> && is_matrix2_expr_v<M>
 [[nodiscard]] inline auto make_half4x4(M &&m) noexcept {
     return make_half4x4(
-        make_half4(m[0], 0.f, 0.f),
-        make_half4(m[1], 0.f, 0.f),
-        luisa::make_half4(0.f, 0.f, 1.f, 0.f),
-        luisa::make_half4(0.f, 0.f, 0.f, 1.f));
+        make_half4(m[0], half(0.f), half(0.f)),
+        make_half4(m[1], half(0.f), half(0.f)),
+        luisa::make_half4(half(0.f), half(0.f), half(1.f), half(0.f)),
+        luisa::make_half4(half(0.f), half(0.f), half(0.f), half(1.f)));
 }
 
 /// Make half4x4 from half3x3 [ [M, 0], [0, 1] ]
@@ -744,10 +744,10 @@ template<typename M>
     requires is_dsl_v<M> && is_matrix3_expr_v<M>
 [[nodiscard]] inline auto make_half4x4(M &&m) noexcept {
     return make_half4x4(
-        make_half4(m[0], 0.f),
-        make_half4(m[1], 0.f),
-        make_half4(m[2], 0.f),
-        luisa::make_half4(0.f, 0.f, 0.f, 1.f));
+        make_half4(m[0], half(0.f)),
+        make_half4(m[1], half(0.f)),
+        make_half4(m[2], half(0.f)),
+        luisa::make_half4(half(0.f), half(0.f), half(0.f), half(1.f)));
 }
 
 /// Make half4x4 from half4x4

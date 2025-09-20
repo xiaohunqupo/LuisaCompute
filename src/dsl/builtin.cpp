@@ -88,8 +88,8 @@ auto _transpose(Expr<Matrix<T, 2>> m) noexcept { return make_matrix<T, 2>(m.cols
 template<typename T>
 auto _transpose(Expr<Matrix<T, 3>> m) noexcept { return make_matrix<T, 3>(m.cols[0].x, m.cols[1].x, m.cols[2].x, m.cols[0].y, m.cols[1].y, m.cols[2].y, m.cols[0].z, m.cols[1].z, m.cols[2].z); }
 template<typename T>
-auto _transpose(Expr<Matrix<T, 4>> m) noexcept { 
-    return make_matrix<T, 4>(m.cols[0].x, m.cols[1].x, m.cols[2].x, m.cols[3].x, m.cols[0].y, m.cols[1].y, m.cols[2].y, m.cols[3].y, m.cols[0].z, m.cols[1].z, m.cols[2].z, m.cols[3].z, m.cols[0].w, m.cols[1].w, m.cols[2].w, m.cols[3].w); 
+auto _transpose(Expr<Matrix<T, 4>> m) noexcept {
+    return make_matrix<T, 4>(m.cols[0].x, m.cols[1].x, m.cols[2].x, m.cols[3].x, m.cols[0].y, m.cols[1].y, m.cols[2].y, m.cols[3].y, m.cols[0].z, m.cols[1].z, m.cols[2].z, m.cols[3].z, m.cols[0].w, m.cols[1].w, m.cols[2].w, m.cols[3].w);
 }
 template<typename T>
 auto _determinant(Expr<Matrix<T, 2>> m) noexcept {
@@ -241,22 +241,21 @@ struct MulMatVecCallable {
               Var<VecType> r;
               for (int y = 0; y < dim; ++y) {
                   r[y] = dot(
-                    make_matrix_row<T, dim>(a, y),
-                    // a.cols[y],
-                    b);
+                      make_matrix_row<T, dim>(a, y),
+                      // a.cols[y],
+                      b);
               }
               return r;
           }) {}
 };
 
-
 #define LUISA_IMPL_MUL(TT, dim)                                                                                \
     LC_DSL_API Var<TT##dim##x##dim> _mul_##TT##dim##x##dim(Expr<TT##dim##x##dim> a, Expr<TT##dim##x##dim> b) { \
-        static detail::MulMatMatCallable<TT, dim> _func;                                                               \
+        static detail::MulMatMatCallable<TT, dim> _func;                                                       \
         return _func.func(a, b);                                                                               \
     }                                                                                                          \
     LC_DSL_API Var<TT##dim> _mul_##TT##dim##x##dim(Expr<TT##dim##x##dim> a, Expr<TT##dim> b) {                 \
-        static detail::MulMatVecCallable<TT, dim> _func;                                                               \
+        static detail::MulMatVecCallable<TT, dim> _func;                                                       \
         return _func.func(a, b);                                                                               \
     }
 
@@ -269,15 +268,18 @@ LUISA_IMPL_MUL_ALL(half)
 LUISA_IMPL_MUL_ALL(double)
 }// namespace detail
 
-#define LUISA_MATRIX_INTRIN(TYPE, DIM)                                         \
-    LC_DSL_API Var<TYPE##DIM##x##DIM> transpose(Expr<TYPE##DIM##x##DIM> mat) { \
-        return detail::_transpose<TYPE>(mat);                                  \
-    }                                                                          \
-    LC_DSL_API Var<TYPE##DIM##x##DIM> inverse(Expr<TYPE##DIM##x##DIM> mat) {   \
-        return detail::_inverse<TYPE>(mat);                                    \
-    }                                                                          \
-    LC_DSL_API Var<TYPE> determinant(Expr<TYPE##DIM##x##DIM> mat) {            \
-        return detail::_determinant<TYPE>(mat);                                \
+#define LUISA_MATRIX_INTRIN(TYPE, DIM)                                                                                          \
+    LC_DSL_API Var<TYPE##DIM##x##DIM> transpose(Expr<TYPE##DIM##x##DIM> mat) {                                                  \
+        static Callable<TYPE##DIM##x##DIM(TYPE##DIM##x##DIM)> _callable{[&](auto &&v) { return detail::_transpose<TYPE>(v); }}; \
+        return _callable(mat);                                                                                                  \
+    }                                                                                                                           \
+    LC_DSL_API Var<TYPE##DIM##x##DIM> inverse(Expr<TYPE##DIM##x##DIM> mat) {                                                    \
+        static Callable<TYPE##DIM##x##DIM(TYPE##DIM##x##DIM)> _callable{[&](auto &&v) { return detail::_inverse<TYPE>(v); }};   \
+        return _callable(mat);                                                                                                  \
+    }                                                                                                                           \
+    LC_DSL_API Var<TYPE> determinant(Expr<TYPE##DIM##x##DIM> mat) {                                                             \
+        static Callable<TYPE(TYPE##DIM##x##DIM)> _callable{[&](auto &&v) { return detail::_determinant<TYPE>(v); }};            \
+        return _callable(mat);                                                                                                  \
     }
 
 LUISA_MATRIX_INTRIN(double, 2)
@@ -292,4 +294,4 @@ LUISA_MATRIX_INTRIN(half, 4)
 #undef LUISA_IMPL_MUL
 #undef LUISA_MATRIX_INTRIN
 #undef LUISA_IMPL_MUL_ALL
-}// namespace luisa::compute::detail
+}// namespace luisa::compute
