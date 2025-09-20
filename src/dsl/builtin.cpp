@@ -305,15 +305,24 @@ LUISA_IMPL_MUL_ALL(double)
 
 }// namespace detail
 
-#define LUISA_MATRIX_INTRIN(TYPE, DIM)                                         \
-    LC_DSL_API Var<TYPE##DIM##x##DIM> transpose(Expr<TYPE##DIM##x##DIM> mat) { \
-        return detail::luisa_compute_transpose<TYPE>(mat);                     \
-    }                                                                          \
-    LC_DSL_API Var<TYPE##DIM##x##DIM> inverse(Expr<TYPE##DIM##x##DIM> mat) {   \
-        return detail::luisa_compute_inverse<TYPE>(mat);                       \
-    }                                                                          \
-    LC_DSL_API Var<TYPE> determinant(Expr<TYPE##DIM##x##DIM> mat) {            \
-        return detail::luisa_compute_determinant<TYPE>(mat);                   \
+#define LUISA_MATRIX_INTRIN(TYPE, DIM)                                                  \
+    LC_DSL_API Var<TYPE##DIM##x##DIM> transpose(Expr<TYPE##DIM##x##DIM> mat) {          \
+        static Callable<TYPE##DIM##x##DIM(TYPE##DIM##x##DIM)> _callable{[&](auto &&v) { \
+            return detail::luisa_compute_transpose<TYPE>(v);                            \
+        }};                                                                             \
+        return _callable(mat);                                                          \
+    }                                                                                   \
+    LC_DSL_API Var<TYPE##DIM##x##DIM> inverse(Expr<TYPE##DIM##x##DIM> mat) {            \
+        static Callable<TYPE##DIM##x##DIM(TYPE##DIM##x##DIM)> _callable{[&](auto &&v) { \
+            return detail::luisa_compute_inverse<TYPE>(v);                              \
+        }};                                                                             \
+        return _callable(mat);                                                          \
+    }                                                                                   \
+    LC_DSL_API Var<TYPE> determinant(Expr<TYPE##DIM##x##DIM> mat) {                     \
+        static Callable<TYPE(TYPE##DIM##x##DIM)> _callable{[&](auto &&v) {              \
+            return detail::luisa_compute_determinant<TYPE>(v);                          \
+        }};                                                                             \
+        return _callable(mat);                                                          \
     }
 
 LUISA_MATRIX_INTRIN(double, 2)
