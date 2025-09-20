@@ -46,8 +46,8 @@ static_assert(vector_alignment_v<int, 2> == 8u);
 static_assert(vector_alignment_v<int, 3> == 16u);
 static_assert(vector_alignment_v<int, 4> == 16u);
 static_assert(vector_alignment_v<slong, 2> == 16u);
-static_assert(vector_alignment_v<slong, 3> == 32u);
-static_assert(vector_alignment_v<slong, 4> == 32u);
+static_assert(vector_alignment_v<slong, 3> == 16u);
+static_assert(vector_alignment_v<slong, 4> == 16u);
 
 }// namespace detail
 
