@@ -332,11 +332,15 @@ struct luisa_compute_extension {};
     }                                                                                        \
     template<>                                                                               \
     struct luisa_compute_extension<S> final : luisa::compute::detail::Ref<S>
+
 namespace luisa::compute::detail {
-LC_DSL_API void _check_matrix_size(uint32_t idx, uint32_t max_size);
-#define LUISA_DECL_MUL(TT, dim)                                                                               \
-    LC_DSL_API Var<TT##dim##x##dim> _mul_##TT##dim##x##dim(Expr<TT##dim##x##dim> a, Expr<TT##dim##x##dim> b); \
-    LC_DSL_API Var<TT##dim> _mul_##TT##dim##x##dim(Expr<TT##dim##x##dim> a, Expr<TT##dim> b);
+
+LC_DSL_API void luisa_compute_check_matrix_size(uint32_t idx, uint32_t max_size);
+
+// !!! TO MAXWELL: DEFINING GLOBAL FUNCTIONS WITH NAME STARTING WITH UNDERSCORE IS UNDEFINED BEHAVIOR !!!
+#define LUISA_DECL_MUL(TT, dim)                                                                                            \
+    LC_DSL_API Var<TT##dim##x##dim> luisa_compute_mul_##TT##dim##x##dim(Expr<TT##dim##x##dim> a, Expr<TT##dim##x##dim> b); \
+    LC_DSL_API Var<TT##dim> luisa_compute_mul_##TT##dim##x##dim(Expr<TT##dim##x##dim> a, Expr<TT##dim> b);
 
 #define LUISA_DECL_MUL_ALL(TT) \
     LUISA_DECL_MUL(TT, 2)      \
@@ -348,51 +352,53 @@ LUISA_DECL_MUL_ALL(double)
 
 #undef LUISA_DECL_MUL_ALL
 #undef LUISA_DECL_MUL
+
 }// namespace luisa::compute::detail
+
 #define LUISA_MATRIX_FUNCTIONS(T, FuncName, max_size)                                                          \
     [[nodiscard]] auto operator*(luisa::compute::Expr<luisa::compute::Matrix<T, max_size>> b) const noexcept { \
-        return luisa::compute::detail::_mul_##FuncName##max_size##x##max_size(*this, b);                       \
+        return luisa::compute::detail::luisa_compute_mul_##FuncName##max_size##x##max_size(*this, b);          \
     }                                                                                                          \
     [[nodiscard]] auto operator*(luisa::compute::Expr<luisa::compute::Vector<T, max_size>> b) const noexcept { \
-        return luisa::compute::detail::_mul_##FuncName##max_size##x##max_size(*this, b);                       \
+        return luisa::compute::detail::luisa_compute_mul_##FuncName##max_size##x##max_size(*this, b);          \
     }
-// clang-format off
-LUISA_STRUCT(
-    luisa::double2x2,
-    cols) {
+
+LUISA_STRUCT(luisa::double2x2, cols) {
     LUISA_MATRIX_FUNCTIONS(double, double, 2)
 };
-LUISA_STRUCT(
-    luisa::double3x3,
-    cols) {
+
+LUISA_STRUCT(luisa::double3x3, cols) {
     LUISA_MATRIX_FUNCTIONS(double, double, 3)
 };
-LUISA_STRUCT(
-    luisa::double4x4,
-    cols) {
+
+LUISA_STRUCT(luisa::double4x4, cols) {
     LUISA_MATRIX_FUNCTIONS(double, double, 4)
 };
 
-LUISA_STRUCT(
-    luisa::half2x2,
-    cols) {
+LUISA_STRUCT(luisa::half2x2, cols) {
     LUISA_MATRIX_FUNCTIONS(luisa::half, half, 2)
 };
-LUISA_STRUCT(
-    luisa::half3x3,
-    cols) {
+
+LUISA_STRUCT(luisa::half3x3, cols) {
     LUISA_MATRIX_FUNCTIONS(luisa::half, half, 3)
 };
-LUISA_STRUCT(
-    luisa::half4x4,
-    cols) {
+
+LUISA_STRUCT(luisa::half4x4, cols) {
     LUISA_MATRIX_FUNCTIONS(luisa::half, half, 4)
 };
-// clang-format on
+
 #define LUISA_EXPR(value) \
     detail::extract_expression(std::forward<decltype(value)>(value))
+
 namespace luisa::compute {
-#define LUISA_MAT_ACCESS(v, element_type, index, matrix_size) detail::FunctionBuilder::current()->access(Type::of<element_type>(), detail::FunctionBuilder::current()->member(Type::array(Type::of<element_type>(), matrix_size), LUISA_EXPR(v), 0), detail::FunctionBuilder::current()->literal(Type::of<uint>(), uint(index)))
+
+#define LUISA_MAT_ACCESS(v, element_type, index, matrix_size)                      \
+    detail::FunctionBuilder::current()->access(                                    \
+        Type::of<element_type>(),                                                  \
+        detail::FunctionBuilder::current()->member(                                \
+            Type::array(Type::of<element_type>(), matrix_size), LUISA_EXPR(v), 0), \
+        detail::FunctionBuilder::current()->literal(Type::of<uint>(), uint(index)))
+
 /// Make double2x2 from 2 column vector double2
 template<typename C0, typename C1>
     requires any_dsl_v<C0, C1> &&
@@ -660,9 +666,9 @@ template<typename M>
     requires is_dsl_v<M> && is_matrix2_expr_v<M>
 [[nodiscard]] inline auto make_half3x3(M &&m) noexcept {
     return make_half3x3(
-        make_half3(m[0], 0.f),
-        make_half3(m[1], 0.f),
-        luisa::make_half3(0.f, 0.f, 1.f));
+        make_half3(m[0], 0._h),
+        make_half3(m[1], 0._h),
+        luisa::make_half3(0._h, 0._h, 1._h));
 }
 
 /// Make half3x3 from half3x3/half4x4
@@ -733,10 +739,10 @@ template<typename M>
     requires is_dsl_v<M> && is_matrix2_expr_v<M>
 [[nodiscard]] inline auto make_half4x4(M &&m) noexcept {
     return make_half4x4(
-        make_half4(m[0], 0.f, 0.f),
-        make_half4(m[1], 0.f, 0.f),
-        luisa::make_half4(0.f, 0.f, 1.f, 0.f),
-        luisa::make_half4(0.f, 0.f, 0.f, 1.f));
+        make_half4(m[0], 0._h, 0._h),
+        make_half4(m[1], 0._h, 0._h),
+        luisa::make_half4(0._h, 0._h, 1._h, 0._h),
+        luisa::make_half4(0._h, 0._h, 0._h, 1._h));
 }
 
 /// Make half4x4 from half3x3 [ [M, 0], [0, 1] ]
@@ -744,10 +750,10 @@ template<typename M>
     requires is_dsl_v<M> && is_matrix3_expr_v<M>
 [[nodiscard]] inline auto make_half4x4(M &&m) noexcept {
     return make_half4x4(
-        make_half4(m[0], 0.f),
-        make_half4(m[1], 0.f),
-        make_half4(m[2], 0.f),
-        luisa::make_half4(0.f, 0.f, 0.f, 1.f));
+        make_half4(m[0], 0._h),
+        make_half4(m[1], 0._h),
+        make_half4(m[2], 0._h),
+        luisa::make_half4(0._h, 0._h, 0._h, 1._h));
 }
 
 /// Make half4x4 from half4x4

@@ -5,9 +5,10 @@
 #include <luisa/dsl/func.h>
 
 namespace luisa::compute {
+
 namespace detail {
 
-LC_DSL_API void validate_block_size(uint x, uint y, uint z) noexcept {
+LC_DSL_API void luisa_compute_validate_block_size(uint x, uint y, uint z) noexcept {
     auto size = make_uint3(x, y, z);
     LUISA_ASSERT(all(size >= 1u && size <= 1024u),
                  "Invalid block size ({}, {}, {}). "
@@ -19,12 +20,13 @@ LC_DSL_API void validate_block_size(uint x, uint y, uint z) noexcept {
                  x, y, z);
 }
 
-LC_DSL_API void validate_local_array_backward_types(const Type *x, const Type *grad) noexcept {
+LC_DSL_API void luisa_compute_validate_local_array_backward_types(const Type *x, const Type *grad) noexcept {
     LUISA_ASSERT(*x == *grad,
                  "Invalid backward type: {} vs {}.",
                  x->description(), grad->description());
 }
-LC_DSL_API void _check_matrix_size(uint idx, uint max_size) {
+
+LC_DSL_API void luisa_compute_check_matrix_size(uint idx, uint max_size) {
     if (idx >= max_size) [[unlikely]] {
         LUISA_ERROR("Matrix access index {} out of range [0, {}]", idx, max_size - 1);
     }
@@ -32,7 +34,12 @@ LC_DSL_API void _check_matrix_size(uint idx, uint max_size) {
 
 #define LUISA_EXPR(value) \
     extract_expression(std::forward<decltype(value)>(value))
-#define LUISA_ACCESS(v, element_type, index) FunctionBuilder::current()->access(Type::of<element_type>(), LUISA_EXPR(v), FunctionBuilder::current()->literal(Type::of<uint>(), uint(index)))
+
+#define LUISA_ACCESS(v, element_type, index)     \
+    FunctionBuilder::current()->access(          \
+        Type::of<element_type>(), LUISA_EXPR(v), \
+        FunctionBuilder::current()->literal(Type::of<uint>(), uint(index)))
+
 template<typename T, uint dim>
 auto make_matrix_row(Var<Matrix<T, dim>> &mat, uint value) {
 #define LUISA_MAKE_MAT(TYPE)                                                               \
@@ -49,6 +56,7 @@ auto make_matrix_row(Var<Matrix<T, dim>> &mat, uint value) {
     }
 #undef LUISA_MAKE_MAT
 }
+
 template<typename T, uint dim, typename... Args>
 auto make_vector(Args... args) {
 #define LUISA_MAKE_MAT(TYPE)            \
@@ -66,6 +74,7 @@ auto make_vector(Args... args) {
     }
 #undef LUISA_MAKE_MAT
 }
+
 template<typename T, uint dim, typename... Args>
 auto make_matrix(Args... args) {
 #define LUISA_MAKE_MAT(TYPE)              \
@@ -83,24 +92,47 @@ auto make_matrix(Args... args) {
     }
 #undef LUISA_MAKE_MAT
 }
+
+// !!! TO MAXWELL: DEFINING GLOBAL FUNCTIONS WITH NAME STARTING WITH UNDERSCORE IS UNDEFINED BEHAVIOR !!!
+
 template<typename T>
-auto _transpose(Expr<Matrix<T, 2>> m) noexcept { return make_matrix<T, 2>(m.cols[0].x, m.cols[1].x, m.cols[0].y, m.cols[1].y); }
-template<typename T>
-auto _transpose(Expr<Matrix<T, 3>> m) noexcept { return make_matrix<T, 3>(m.cols[0].x, m.cols[1].x, m.cols[2].x, m.cols[0].y, m.cols[1].y, m.cols[2].y, m.cols[0].z, m.cols[1].z, m.cols[2].z); }
-template<typename T>
-auto _transpose(Expr<Matrix<T, 4>> m) noexcept { 
-    return make_matrix<T, 4>(m.cols[0].x, m.cols[1].x, m.cols[2].x, m.cols[3].x, m.cols[0].y, m.cols[1].y, m.cols[2].y, m.cols[3].y, m.cols[0].z, m.cols[1].z, m.cols[2].z, m.cols[3].z, m.cols[0].w, m.cols[1].w, m.cols[2].w, m.cols[3].w); 
+auto luisa_compute_transpose(Expr<Matrix<T, 2>> m) noexcept {
+    return make_matrix<T, 2>(
+        m.cols[0].x, m.cols[1].x,
+        m.cols[0].y, m.cols[1].y);
 }
+
 template<typename T>
-auto _determinant(Expr<Matrix<T, 2>> m) noexcept {
+auto luisa_compute_transpose(Expr<Matrix<T, 3>> m) noexcept {
+    return make_matrix<T, 3>(
+        m.cols[0].x, m.cols[1].x, m.cols[2].x,
+        m.cols[0].y, m.cols[1].y, m.cols[2].y,
+        m.cols[0].z, m.cols[1].z, m.cols[2].z);
+}
+
+template<typename T>
+auto luisa_compute_transpose(Expr<Matrix<T, 4>> m) noexcept {
+    return make_matrix<T, 4>(
+        m.cols[0].x, m.cols[1].x, m.cols[2].x, m.cols[3].x,
+        m.cols[0].y, m.cols[1].y, m.cols[2].y, m.cols[3].y,
+        m.cols[0].z, m.cols[1].z, m.cols[2].z, m.cols[3].z,
+        m.cols[0].w, m.cols[1].w, m.cols[2].w, m.cols[3].w);
+}
+
+template<typename T>
+auto luisa_compute_determinant(Expr<Matrix<T, 2>> m) noexcept {
     return m.cols[0][0] * m.cols[1][1] - m.cols[1][0] * m.cols[0][1];
 }
+
 template<typename T>
-auto _determinant(Expr<Matrix<T, 3>> m) noexcept {// from GLM
-    return m.cols[0].x * (m.cols[1].y * m.cols[2].z - m.cols[2].y * m.cols[1].z) - m.cols[1].x * (m.cols[0].y * m.cols[2].z - m.cols[2].y * m.cols[0].z) + m.cols[2].x * (m.cols[0].y * m.cols[1].z - m.cols[1].y * m.cols[0].z);
+auto luisa_compute_determinant(Expr<Matrix<T, 3>> m) noexcept {// from GLM
+    return m.cols[0].x * (m.cols[1].y * m.cols[2].z - m.cols[2].y * m.cols[1].z) -
+           m.cols[1].x * (m.cols[0].y * m.cols[2].z - m.cols[2].y * m.cols[0].z) +
+           m.cols[2].x * (m.cols[0].y * m.cols[1].z - m.cols[1].y * m.cols[0].z);
 }
+
 template<typename T>
-auto _determinant(Expr<Matrix<T, 4>> m) noexcept {// from GLM
+auto luisa_compute_determinant(Expr<Matrix<T, 4>> m) noexcept {// from GLM
     const auto coef00 = m.cols[2].z * m.cols[3].w - m.cols[3].z * m.cols[2].w;
     const auto coef02 = m.cols[1].z * m.cols[3].w - m.cols[3].z * m.cols[1].w;
     const auto coef03 = m.cols[1].z * m.cols[2].w - m.cols[2].z * m.cols[1].w;
@@ -142,16 +174,18 @@ auto _determinant(Expr<Matrix<T, 4>> m) noexcept {// from GLM
     const auto dot0 = m.cols[0] * make_vector<T, 4>(inv_0.x, inv_1.x, inv_2.x, inv_3.x);
     return dot0.x + dot0.y + dot0.z + dot0.w;
 }
+
 template<typename T>
-auto _inverse(Expr<Matrix<T, 2>> m) noexcept {
+auto luisa_compute_inverse(Expr<Matrix<T, 2>> m) noexcept {
     const auto one_over_determinant = T{1.0} / (m.cols[0][0] * m.cols[1][1] - m.cols[1][0] * m.cols[0][1]);
     return make_matrix<T, 2>(m.cols[1][1] * one_over_determinant,
                              -m.cols[0][1] * one_over_determinant,
                              -m.cols[1][0] * one_over_determinant,
                              +m.cols[0][0] * one_over_determinant);
 }
+
 template<typename T>
-auto _inverse(Expr<Matrix<T, 3>> m) noexcept {// from GLM
+auto luisa_compute_inverse(Expr<Matrix<T, 3>> m) noexcept {// from GLM
     const auto one_over_determinant = T{1.0} / (m.cols[0].x * (m.cols[1].y * m.cols[2].z - m.cols[2].y * m.cols[1].z) - m.cols[1].x * (m.cols[0].y * m.cols[2].z - m.cols[2].y * m.cols[0].z) + m.cols[2].x * (m.cols[0].y * m.cols[1].z - m.cols[1].y * m.cols[0].z));
     return make_matrix<T, 3>(
         (m.cols[1].y * m.cols[2].z - m.cols[2].y * m.cols[1].z) * one_over_determinant,
@@ -164,8 +198,9 @@ auto _inverse(Expr<Matrix<T, 3>> m) noexcept {// from GLM
         (m.cols[2].x * m.cols[0].y - m.cols[0].x * m.cols[2].y) * one_over_determinant,
         (m.cols[0].x * m.cols[1].y - m.cols[1].x * m.cols[0].y) * one_over_determinant);
 }
+
 template<typename T>
-auto _inverse(Expr<Matrix<T, 4>> m) noexcept {// from GLM
+auto luisa_compute_inverse(Expr<Matrix<T, 4>> m) noexcept {// from GLM
     const auto coef00 = m.cols[2].z * m.cols[3].w - m.cols[3].z * m.cols[2].w;
     const auto coef02 = m.cols[1].z * m.cols[3].w - m.cols[3].z * m.cols[1].w;
     const auto coef03 = m.cols[1].z * m.cols[2].w - m.cols[2].z * m.cols[1].w;
@@ -212,52 +247,52 @@ auto _inverse(Expr<Matrix<T, 4>> m) noexcept {// from GLM
                              inv_2 * one_over_determinant,
                              inv_3 * one_over_determinant);
 }
+
 template<typename T, uint dim>
 struct MulMatMatCallable {
     using MatType = Matrix<T, dim>;
     using VecType = Vector<T, dim>;
     Callable<MatType(MatType, MatType)> func;
     MulMatMatCallable()
-        : func(
-              [this](Var<MatType> a, Var<MatType> b) {
-                  Var<MatType> r;
-                  for (uint x = 0; x < dim; ++x)
-                      for (uint y = 0; y < dim; ++y) {
-                          r.cols[y][x] = dot(
-                              make_matrix_row<T, dim>(a, x),
-                              b.cols[y]);
-                      }
-                  return r;
-              }) {
+        : func([](Var<MatType> a, Var<MatType> b) {
+              Var<MatType> r;
+              for (uint x = 0; x < dim; ++x)
+                  for (uint y = 0; y < dim; ++y) {
+                      r.cols[y][x] = dot(
+                          make_matrix_row<T, dim>(a, x),
+                          b.cols[y]);
+                  }
+              return r;
+          }) {
     }
 };
+
 template<typename T, uint dim>
 struct MulMatVecCallable {
     using MatType = Matrix<T, dim>;
     using VecType = Vector<T, dim>;
     Callable<VecType(MatType, VecType)> func;
     MulMatVecCallable()
-        : func([this](Var<MatType> a, Var<VecType> b) {
+        : func([](Var<MatType> a, Var<VecType> b) {
               Var<VecType> r;
               for (int y = 0; y < dim; ++y) {
                   r[y] = dot(
-                    make_matrix_row<T, dim>(a, y),
-                    // a.cols[y],
-                    b);
+                      make_matrix_row<T, dim>(a, y),
+                      // a.cols[y],
+                      b);
               }
               return r;
           }) {}
 };
 
-
-#define LUISA_IMPL_MUL(TT, dim)                                                                                \
-    LC_DSL_API Var<TT##dim##x##dim> _mul_##TT##dim##x##dim(Expr<TT##dim##x##dim> a, Expr<TT##dim##x##dim> b) { \
-        static detail::MulMatMatCallable<TT, dim> _func;                                                               \
-        return _func.func(a, b);                                                                               \
-    }                                                                                                          \
-    LC_DSL_API Var<TT##dim> _mul_##TT##dim##x##dim(Expr<TT##dim##x##dim> a, Expr<TT##dim> b) {                 \
-        static detail::MulMatVecCallable<TT, dim> _func;                                                               \
-        return _func.func(a, b);                                                                               \
+#define LUISA_IMPL_MUL(TT, dim)                                                                                             \
+    LC_DSL_API Var<TT##dim##x##dim> luisa_compute_mul_##TT##dim##x##dim(Expr<TT##dim##x##dim> a, Expr<TT##dim##x##dim> b) { \
+        static detail::MulMatMatCallable<TT, dim> _func;                                                                    \
+        return _func.func(a, b);                                                                                            \
+    }                                                                                                                       \
+    LC_DSL_API Var<TT##dim> luisa_compute_mul_##TT##dim##x##dim(Expr<TT##dim##x##dim> a, Expr<TT##dim> b) {                 \
+        static detail::MulMatVecCallable<TT, dim> _func;                                                                    \
+        return _func.func(a, b);                                                                                            \
     }
 
 #define LUISA_IMPL_MUL_ALL(TT) \
@@ -267,17 +302,18 @@ struct MulMatVecCallable {
 
 LUISA_IMPL_MUL_ALL(half)
 LUISA_IMPL_MUL_ALL(double)
+
 }// namespace detail
 
 #define LUISA_MATRIX_INTRIN(TYPE, DIM)                                         \
     LC_DSL_API Var<TYPE##DIM##x##DIM> transpose(Expr<TYPE##DIM##x##DIM> mat) { \
-        return detail::_transpose<TYPE>(mat);                                  \
+        return detail::luisa_compute_transpose<TYPE>(mat);                     \
     }                                                                          \
     LC_DSL_API Var<TYPE##DIM##x##DIM> inverse(Expr<TYPE##DIM##x##DIM> mat) {   \
-        return detail::_inverse<TYPE>(mat);                                    \
+        return detail::luisa_compute_inverse<TYPE>(mat);                       \
     }                                                                          \
     LC_DSL_API Var<TYPE> determinant(Expr<TYPE##DIM##x##DIM> mat) {            \
-        return detail::_determinant<TYPE>(mat);                                \
+        return detail::luisa_compute_determinant<TYPE>(mat);                   \
     }
 
 LUISA_MATRIX_INTRIN(double, 2)
@@ -292,4 +328,5 @@ LUISA_MATRIX_INTRIN(half, 4)
 #undef LUISA_IMPL_MUL
 #undef LUISA_MATRIX_INTRIN
 #undef LUISA_IMPL_MUL_ALL
-}// namespace luisa::compute::detail
+
+}// namespace luisa::compute

@@ -51,6 +51,7 @@ endif ()
 if (LUISA_COMPUTE_ENABLE_VULKAN)
     add_subdirectory(vk)
 endif ()
+
 if (LUISA_COMPUTE_ENABLE_RUST)
     if (LUISA_COMPUTE_ENABLE_CPU)
         add_subdirectory(cpu)

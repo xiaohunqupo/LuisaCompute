@@ -9,8 +9,8 @@
 namespace luisa::compute {
 
 namespace detail {
-LC_DSL_API void validate_block_size(uint x, uint y, uint z) noexcept;
-LC_DSL_API void validate_local_array_backward_types(const Type *x, const Type *grad) noexcept;
+LC_DSL_API void luisa_compute_validate_block_size(uint x, uint y, uint z) noexcept;
+LC_DSL_API void luisa_compute_validate_local_array_backward_types(const Type *x, const Type *grad) noexcept;
 }// namespace detail
 
 inline namespace dsl {
@@ -189,7 +189,7 @@ inline void device_assert(Expr<bool> pred, luisa::string_view msg) noexcept {
 
 /// Set current function block size as (x, y, z)
 inline void set_block_size(uint x, uint y = 1u, uint z = 1u) noexcept {
-    detail::validate_block_size(x, y, z);
+    detail::luisa_compute_validate_block_size(x, y, z);
     detail::FunctionBuilder::current()->set_block_size(
         uint3{std::max(x, 1u), std::max(y, 1u), std::max(z, 1u)});
 }
@@ -1771,7 +1771,7 @@ void backward(T &&x) noexcept {
 
 template<typename T>
 void backward(const Local<T> &x, const Local<T> &grad) noexcept {
-    detail::validate_local_array_backward_types(x.type(), grad.type());
+    detail::luisa_compute_validate_local_array_backward_types(x.type(), grad.type());
     auto b = detail::FunctionBuilder::current();
     b->call(CallOp::GRADIENT_MARKER, {x.expression(), grad.expression()});
     b->call(CallOp::BACKWARD, {});
