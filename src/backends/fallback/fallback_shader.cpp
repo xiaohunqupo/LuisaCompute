@@ -322,12 +322,14 @@ FallbackShader::FallbackShader(FallbackDevice *device, const ShaderOption &optio
     ::llvm::ModuleAnalysisManager MAM;
     ::llvm::PipelineTuningOptions PTO;
     PTO.LoopInterleaving = true;
+#if LLVM_VERSION_MAJOR >= 21
+    PTO.LoopInterchange = true;
+#endif
     PTO.LoopVectorization = true;
     PTO.SLPVectorization = true;
     PTO.LoopUnrolling = true;
     PTO.MergeFunctions = true;
     ::llvm::PassBuilder PB{_target_machine.get(), PTO};
-    FAM.registerPass([&] { return PB.buildDefaultAAPipeline(); });
     PB.registerModuleAnalyses(MAM);
     PB.registerCGSCCAnalyses(CGAM);
     PB.registerFunctionAnalyses(FAM);

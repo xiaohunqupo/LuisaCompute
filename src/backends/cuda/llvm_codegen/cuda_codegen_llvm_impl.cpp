@@ -2,19 +2,96 @@
 // Created by mike on 9/19/25.
 //
 
-#include "cuda_codegen_llvm_impl.h"
+#include <llvm/IR/LegacyPassManager.h>
+#include <llvm/Analysis/TargetTransformInfo.h>
+#include <llvm/Analysis/TargetLibraryInfo.h>
+#include <llvm/Support/TargetSelect.h>
+#include <llvm/Target/TargetOptions.h>
+#include <llvm/MC/TargetRegistry.h>
+#include <llvm/Analysis/AliasAnalysis.h>
+#include <llvm/ExecutionEngine/ExecutionEngine.h>
+#include <llvm/Analysis/CGSCCPassManager.h>
+#include <llvm/Analysis/LoopAnalysisManager.h>
+#include <llvm/Passes/PassBuilder.h>
 
-#include <llvm/IR/Constants.h>
+#include <luisa/core/clock.h>
+#include "cuda_codegen_llvm_impl.h"
 
 namespace luisa::compute::cuda {
 
 CUDACodegenLLVMImpl::CUDACodegenLLVMImpl(CUDACodegenLLVMConfig config) noexcept
     : _config{std::move(config)} {
+    Clock clk;
+    _initialize();
+    LUISA_VERBOSE_WITH_LOCATION("CUDA LLVM codegen initialized in {} ms.", clk.toc());
+}
+
+const llvm::Target *CUDACodegenLLVMImpl::_get_nvptx_target() noexcept {
+    // initialize NVPTX target
+    static std::once_flag once_flag;
+    std::call_once(once_flag, [] {
+        LLVMInitializeNVPTXTargetInfo();
+        LLVMInitializeNVPTXTarget();
+        LLVMInitializeNVPTXTargetMC();
+        LLVMInitializeNVPTXAsmPrinter();
+    });
+    // lookup target
+    static auto target = []() noexcept -> const llvm::Target * {
+        std::string error;
+        if (auto target = llvm::TargetRegistry::lookupTarget(nvptx_target_triple, error)) {
+            return target;
+        }
+        LUISA_ERROR_WITH_LOCATION("Failed to lookup target '{}': {}", nvptx_target_triple, error);
+    }();
+    return target;
+}
+
+inline void CUDACodegenLLVMImpl::_initialize() noexcept {
+
+    // create target machine
+    _target_machine = [this]() noexcept -> llvm::TargetMachine * {
+        llvm::TargetOptions options;
+        options.NoTrappingFPMath = true;
+        if (_config.enable_fast_math) {
+            options.AllowFPOpFusion = llvm::FPOpFusion::Fast;
+            options.UnsafeFPMath = true;
+            options.NoInfsFPMath = true;
+            options.NoNaNsFPMath = true;
+            options.NoSignedZerosFPMath = true;
+            options.ApproxFuncFPMath = true;
+        } else {
+            options.AllowFPOpFusion = llvm::FPOpFusion::Strict;
+            options.UnsafeFPMath = false;
+            options.NoInfsFPMath = false;
+            options.NoNaNsFPMath = false;
+            options.NoSignedZerosFPMath = false;
+            options.ApproxFuncFPMath = false;
+        }
+        if (_config.enable_debug_info) {
+            options.TrapUnreachable = true;
+            options.NoTrapAfterNoreturn = false;
+        } else {
+            options.TrapUnreachable = false;
+            options.NoTrapAfterNoreturn = true;
+        }
+        auto opt_level = llvm::CodeGenOptLevel::Default;
+        switch (_config.opt_level) {
+            case CUDACodegenLLVMConfig::OptLevel::LEVEL_NONE: opt_level = llvm::CodeGenOptLevel::None; break;
+            case CUDACodegenLLVMConfig::OptLevel::LEVEL_LESS: opt_level = llvm::CodeGenOptLevel::Less; break;
+            case CUDACodegenLLVMConfig::OptLevel::LEVEL_DEFAULT: opt_level = llvm::CodeGenOptLevel::Default; break;
+            case CUDACodegenLLVMConfig::OptLevel::LEVEL_AGGRESSIVE: opt_level = llvm::CodeGenOptLevel::Aggressive; break;
+        }
+        return _get_nvptx_target()->createTargetMachine(
+            nvptx_target_triple, luisa::format("sm_{}", _config.cuda_arch), {},
+            options, llvm::Reloc::Static, llvm::CodeModel::Small, opt_level);
+    }();
+
+    _data_layout = _target_machine->createDataLayout();
 
     // parse libdevice bitcode
     _llvm_module = [&] {
         llvm::SMDiagnostic error;
-        llvm::StringRef bc{reinterpret_cast<const char *>(config.libdevice_bitcode.data()), config.libdevice_bitcode.size()};
+        llvm::StringRef bc{reinterpret_cast<const char *>(_config.libdevice_bitcode.data()), _config.libdevice_bitcode.size()};
         if (auto m = llvm::parseIR(
                 llvm::MemoryBufferRef{bc, "libdevice.10.bc"},
                 error, _llvm_context)) {
@@ -25,6 +102,7 @@ CUDACodegenLLVMImpl::CUDACodegenLLVMImpl(CUDACodegenLLVMConfig config) noexcept
 
     // set the target triple
     _llvm_module->setTargetTriple(nvptx_target_triple);
+    _llvm_module->setDataLayout(_data_layout);
 
     // internalize all device functions
     for (auto &&f : *_llvm_module) {
@@ -70,18 +148,72 @@ CUDACodegenLLVMImpl::CUDACodegenLLVMImpl(CUDACodegenLLVMConfig config) noexcept
         for (auto i : reflected) { i->eraseFromParent(); }
         if (f->user_empty()) { f->eraseFromParent(); }
     }
+}
 
-    // dump
-    // {
-    //     std::error_code ec;
-    //     llvm::raw_fd_ostream out{"libdevice.ll", ec};
-    //     _llvm_module->print(out, nullptr);
-    // }
+void CUDACodegenLLVMImpl::_dump_module(const std::filesystem::path &path) const noexcept {
+    std::error_code ec;
+    llvm::raw_fd_ostream out{path.string(), ec};
+    if (ec) {
+        LUISA_WARNING_WITH_LOCATION("Failed to open file for dumping LLVM module: {}.", ec.message());
+    } else {
+        _llvm_module->print(out, nullptr);
+    }
+}
+
+void CUDACodegenLLVMImpl::_run_optimization_passes() noexcept {
+
+    llvm::LoopAnalysisManager LAM;
+    llvm::FunctionAnalysisManager FAM;
+    llvm::CGSCCAnalysisManager CGAM;
+    llvm::ModuleAnalysisManager MAM;
+
+    llvm::PipelineTuningOptions PTO;
+    PTO.LoopInterleaving = true;
+#if LLVM_VERSION_MAJOR >= 21
+    PTO.LoopInterchange = true;
+#endif
+    PTO.LoopVectorization = true;
+    PTO.SLPVectorization = true;
+    PTO.LoopUnrolling = true;
+    PTO.MergeFunctions = true;
+    llvm::PassBuilder PB{_target_machine, PTO};
+    PB.registerModuleAnalyses(MAM);
+    PB.registerCGSCCAnalyses(CGAM);
+    PB.registerFunctionAnalyses(FAM);
+    PB.registerLoopAnalyses(LAM);
+    PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+#if LLVM_VERSION_MAJOR >= 19
+    _target_machine->registerPassBuilderCallbacks(PB);
+#else
+    _target_machine->registerPassBuilderCallbacks(PB, true);
+#endif
+
+    auto opt_level = llvm::OptimizationLevel::O2;
+    switch (_config.opt_level) {
+        case CUDACodegenLLVMConfig::OptLevel::LEVEL_NONE: opt_level = llvm::OptimizationLevel::O0; break;
+        case CUDACodegenLLVMConfig::OptLevel::LEVEL_LESS: opt_level = llvm::OptimizationLevel::O1; break;
+        case CUDACodegenLLVMConfig::OptLevel::LEVEL_DEFAULT: opt_level = llvm::OptimizationLevel::O2; break;
+        case CUDACodegenLLVMConfig::OptLevel::LEVEL_AGGRESSIVE: opt_level = llvm::OptimizationLevel::O3; break;
+    }
+    llvm::ModulePassManager MPM = PB.buildPerModuleDefaultPipeline(opt_level);
+    MPM.run(*_llvm_module, MAM);
+}
+
+luisa::string CUDACodegenLLVMImpl::_generate_ptx() const noexcept {
+    llvm::SmallVector<char, 256> ptx;
+    llvm::raw_svector_ostream os{ptx};
+    llvm::legacy::PassManager passManager;
+    if (_target_machine->addPassesToEmitFile(passManager, os, nullptr, llvm::CodeGenFileType::AssemblyFile)) {
+        LUISA_ERROR_WITH_LOCATION("TargetMachine can't emit PTX.");
+    }
+    passManager.run(*_llvm_module);
+    return {ptx.begin(), ptx.end()};
 }
 
 luisa::string CUDACodegenLLVMImpl::generate(const xir::Module &xir_module) noexcept {
-    _llvm_module = std::make_unique<llvm::Module>(xir_module.name().value_or("cuda_kernel"), _llvm_context);
-    return {};
+    _llvm_module->setSourceFileName(xir_module.name().value_or("cuda_kernel.cu"));
+    _run_optimization_passes();
+    return _generate_ptx();
 }
 
 }// namespace luisa::compute::cuda
