@@ -303,7 +303,7 @@ const TypeImpl *TypeRegistry::_decode(luisa::string_view desc) noexcept {
         }
         info->alignment = std::min(
             elem->size() * (info->dimension == 3 ? 4 : info->dimension),
-            static_cast<size_t>(32u));
+            static_cast<size_t>(16u));
         info->size = luisa::align(elem->size() * info->dimension, info->alignment);
     } else if (type_identifier == "matrix"sv) {
         info->tag = Type::Tag::MATRIX;

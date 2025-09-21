@@ -30,7 +30,10 @@ public:
         uint64_t tex3d;
     };
 
-    using Binding = CUdeviceptr;
+    struct Binding {
+        CUdeviceptr slots;
+        size_t capacity;
+    };
 
 private:
     CUdeviceptr _handle{};
@@ -45,7 +48,7 @@ public:
     ~CUDABindlessArray() noexcept;
     [[nodiscard]] auto handle() const noexcept { return _handle; }
     void update(CUDACommandEncoder &encoder, BindlessArrayUpdateCommand *cmd) noexcept;
-    [[nodiscard]] auto binding() const noexcept { return _handle; }
+    [[nodiscard]] auto binding() const noexcept { return Binding{_handle, _tex2d_slots.size()}; }
     void set_name(luisa::string &&name) noexcept;
 };
 

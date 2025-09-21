@@ -15,6 +15,7 @@
 #include <llvm/Target/TargetMachine.h>
 
 #include <luisa/core/logging.h>
+#include <luisa/ast/type.h>
 #include <luisa/xir/module.h>
 
 #include "cuda_codegen_llvm_config.h"
@@ -27,6 +28,15 @@ class CUDACodegenLLVMImpl {
 
 public:
     static constexpr auto nvptx_target_triple = "nvptx64-nvidia-cuda";
+    static constexpr auto nvptx_address_space_global = 1u;
+    static constexpr auto nvptx_address_space_shared = 3u;
+    static constexpr auto nvptx_address_space_constant = 4u;
+    static constexpr auto nvptx_address_space_local = 5u;
+
+    struct LLVMTypeInfo {
+        llvm::Type *llvm_type;
+        luisa::vector<size_t> member_offsets;
+    };
 
 private:
     CUDACodegenLLVMConfig _config;
@@ -34,6 +44,14 @@ private:
     llvm::DataLayout _data_layout;
     llvm::LLVMContext _llvm_context;
     std::unique_ptr<llvm::Module> _llvm_module;
+
+    llvm::Type *_llvm_buffer_type{nullptr};             // { ptr, i32 offset, i32 size } as defined in cuda_buffer.h
+    llvm::Type *_llvm_texture_type{nullptr};            // { i64 handle, i64 storage } as defined in cuda_texture.h
+    llvm::Type *_llvm_bindless_array_type{nullptr};     // { ptr slots, i64 capacity } as defined in cuda_bindless_array.h
+    llvm::Type *_llvm_bindless_array_slot_type{nullptr};// { i64 buffer, i64 size, i64 tex2d, i64 tex3d } as defined in cuda_bindless_array.h
+    llvm::Type *_llvm_accel_type{nullptr};              // { i64 handle, ptr instances } as defined in cuda_accel.h
+    llvm::Type *_llvm_accel_instance_type{nullptr};     // { [ 12 x float ] affine, i32 user_id, i32 sbt_offset, i32 mask, i32 flags, i64 handle, i32 padding } as defined in optix_api.h
+    llvm::DenseMap<const Type *, luisa::unique_ptr<LLVMTypeInfo>> _xir_to_llvm_type;
 
 private:
     [[nodiscard]] static const llvm::Target *_get_nvptx_target() noexcept;
@@ -47,6 +65,15 @@ private:
         auto p = reinterpret_cast<const char *>(data);
         return {llvm::StringRef{p, N}, name};
     }
+
+    // defined in cuda_codegen_llvm_impl_type.cpp
+    [[nodiscard]] const LLVMTypeInfo *_get_llvm_type(const Type *type) noexcept;
+    [[nodiscard]] llvm::Type *_get_llvm_buffer_type() noexcept;
+    [[nodiscard]] llvm::Type *_get_llvm_texture_type() noexcept;
+    [[nodiscard]] llvm::Type *_get_llvm_bindless_array_type() noexcept;
+    [[nodiscard]] llvm::Type *_get_llvm_bindless_array_slot_type() noexcept;
+    [[nodiscard]] llvm::Type *_get_llvm_accel_type() noexcept;
+    [[nodiscard]] llvm::Type *_get_llvm_accel_instance_type() noexcept;
 
 public:
     explicit CUDACodegenLLVMImpl(CUDACodegenLLVMConfig config) noexcept;

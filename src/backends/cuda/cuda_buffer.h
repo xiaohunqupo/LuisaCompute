@@ -2,6 +2,9 @@
 
 #include <cuda.h>
 
+#include <luisa/core/basic_types.h>
+#include <luisa/core/stl/string.h>
+
 namespace luisa::compute::cuda {
 
 class CUDABufferBase {

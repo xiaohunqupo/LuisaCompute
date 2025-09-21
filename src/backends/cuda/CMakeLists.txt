@@ -64,6 +64,7 @@ if (CUDAToolkit_FOUND)
                 llvm_codegen/cuda_codegen_llvm_config.h
                 llvm_codegen/cuda_codegen_llvm.cpp llvm_codegen/cuda_codegen_llvm.h
                 llvm_codegen/cuda_codegen_llvm_impl.cpp llvm_codegen/cuda_codegen_llvm_impl.h
+                llvm_codegen/cuda_codegen_llvm_impl_type.cpp
         )
     endif ()
 

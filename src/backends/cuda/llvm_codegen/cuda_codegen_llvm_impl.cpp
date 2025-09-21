@@ -211,6 +211,16 @@ luisa::string CUDACodegenLLVMImpl::_generate_ptx() const noexcept {
 }
 
 luisa::string CUDACodegenLLVMImpl::generate(const xir::Module &xir_module) noexcept {
+    {
+        Type::traverse([this](auto t) noexcept {
+            if (!t->is_custom()) {
+                auto llvm_type = _get_llvm_type(t);
+                llvm::errs() << "Mapping: " << t->description() << " -> ";
+                llvm_type->llvm_type->print(llvm::errs());
+                llvm::errs() << "\n";
+            }
+        });
+    }
     _llvm_module->setSourceFileName(xir_module.name().value_or("cuda_kernel.cu"));
     _run_optimization_passes();
     return _generate_ptx();

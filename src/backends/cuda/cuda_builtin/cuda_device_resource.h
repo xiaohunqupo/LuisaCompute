@@ -1054,6 +1054,7 @@ struct alignas(16) LCBindlessSlot {
 
 struct alignas(16) LCBindlessArray {
     const LCBindlessSlot *__restrict__ slots;
+    size_t capacity;
 };
 
 template<typename T = unsigned char>

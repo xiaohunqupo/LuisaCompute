@@ -1,0 +1,248 @@
+//
+// Created by mike on 9/21/25.
+//
+
+#include "../cuda_buffer.h"
+#include "../cuda_texture.h"
+#include "../cuda_bindless_array.h"
+#include "../cuda_accel.h"
+#include "../optix_api.h"
+#include "cuda_codegen_llvm_impl.h"
+
+namespace luisa::compute::cuda {
+
+namespace detail {
+static void luisa_check_llvm_type_size_and_alignment(
+    const llvm::DataLayout &data_layout, llvm::Type *type,
+    size_t expected_size, size_t expected_alignment) noexcept {
+    auto llvm_size = data_layout.getTypeAllocSize(type);
+    LUISA_ASSERT(llvm_size.isFixed(), "Type size is not fixed.");
+    auto llvm_align = data_layout.getABITypeAlign(type);
+    auto type_str = [&]() noexcept {
+        std::string str;
+        llvm::raw_string_ostream os{str};
+        type->print(os);
+        return str;
+    };
+    LUISA_ASSERT(llvm_size.getFixedValue() == expected_size &&
+                     llvm_align.value() <= expected_alignment,
+                 "Type '{}' size or alignment mismatch: "
+                 "expected size {}, alignment {}; "
+                 "actual size {}, alignment {}.",
+                 type_str(), expected_size, expected_alignment,
+                 llvm_size.getFixedValue(), llvm_align.value());
+}
+}// namespace detail
+
+const CUDACodegenLLVMImpl::LLVMTypeInfo *
+CUDACodegenLLVMImpl::_get_llvm_type(const Type *type) noexcept {
+    if (auto iter = _xir_to_llvm_type.find(type); iter != _xir_to_llvm_type.end()) {
+        return iter->second.get();
+    }
+    auto llvm_type_info = [this, type]() noexcept {
+        if (type == nullptr) {
+            auto llvm_void_type = llvm::Type::getVoidTy(_llvm_context);
+            return luisa::make_unique<LLVMTypeInfo>(llvm_void_type, luisa::vector<size_t>{});
+        }
+        auto make_llvm_type_info = [this](auto t, size_t s, size_t a, luisa::vector<size_t> member_offsets = {}) noexcept {
+            detail::luisa_check_llvm_type_size_and_alignment(_data_layout, t, s, a);
+            return luisa::make_unique<LLVMTypeInfo>(t, std::move(member_offsets));
+        };
+        switch (type->tag()) {
+            case Type::Tag::BOOL: return make_llvm_type_info(
+                llvm::Type::getInt1Ty(_llvm_context), sizeof(bool), alignof(bool));
+            case Type::Tag::INT8: return make_llvm_type_info(
+                llvm::Type::getInt8Ty(_llvm_context), sizeof(int8_t), alignof(int8_t));
+            case Type::Tag::UINT8: return make_llvm_type_info(
+                llvm::Type::getInt8Ty(_llvm_context), sizeof(uint8_t), alignof(uint8_t));
+            case Type::Tag::INT16: return make_llvm_type_info(
+                llvm::Type::getInt16Ty(_llvm_context), sizeof(int16_t), alignof(int16_t));
+            case Type::Tag::UINT16: return make_llvm_type_info(
+                llvm::Type::getInt16Ty(_llvm_context), sizeof(uint16_t), alignof(uint16_t));
+            case Type::Tag::INT32: return make_llvm_type_info(
+                llvm::Type::getInt32Ty(_llvm_context), sizeof(int32_t), alignof(int32_t));
+            case Type::Tag::UINT32: return make_llvm_type_info(
+                llvm::Type::getInt32Ty(_llvm_context), sizeof(uint32_t), alignof(uint32_t));
+            case Type::Tag::INT64: return make_llvm_type_info(
+                llvm::Type::getInt64Ty(_llvm_context), sizeof(int64_t), alignof(int64_t));
+            case Type::Tag::UINT64: return make_llvm_type_info(
+                llvm::Type::getInt64Ty(_llvm_context), sizeof(uint64_t), alignof(uint64_t));
+            case Type::Tag::FLOAT16: return make_llvm_type_info(
+                llvm::Type::getHalfTy(_llvm_context), sizeof(luisa::half), alignof(luisa::half));
+            case Type::Tag::FLOAT32: return make_llvm_type_info(
+                llvm::Type::getFloatTy(_llvm_context), sizeof(float), alignof(float));
+            case Type::Tag::FLOAT64: return make_llvm_type_info(
+                llvm::Type::getDoubleTy(_llvm_context), sizeof(double), alignof(double));
+            case Type::Tag::VECTOR: {
+                auto llvm_elem_type = _get_llvm_type(type->element())->llvm_type;
+                return make_llvm_type_info(
+                    llvm::VectorType::get(llvm_elem_type, type->dimension(), false),
+                    type->size(), type->alignment());
+            }
+            case Type::Tag::MATRIX: {
+                auto dim = type->dimension();
+                auto llvm_elem_type = _get_llvm_type(type->element())->llvm_type;
+                auto llvm_col_type = llvm::VectorType::get(llvm_elem_type, dim, false);
+                return make_llvm_type_info(
+                    llvm::ArrayType::get(llvm_col_type, dim),
+                    type->size(), type->alignment());
+            }
+            case Type::Tag::ARRAY: {
+                auto llvm_elem_type = _get_llvm_type(type->element())->llvm_type;
+                return make_llvm_type_info(
+                    llvm::ArrayType::get(llvm_elem_type, type->dimension()),
+                    type->size(), type->alignment());
+            }
+            case Type::Tag::STRUCTURE: {
+                luisa::vector<size_t> member_offsets;
+                llvm::SmallVector<llvm::Type *> llvm_member_types;
+                auto llvm_i8_type = llvm::Type::getInt8Ty(_llvm_context);
+                auto current_offset = static_cast<size_t>(0u);
+                for (auto member : type->members()) {
+                    auto next_offset = luisa::align(current_offset, member->alignment());
+                    if (next_offset > current_offset) {
+                        llvm_member_types.emplace_back(
+                            llvm::ArrayType::get(llvm_i8_type, next_offset - current_offset));
+                    }
+                    member_offsets.emplace_back(llvm_member_types.size());
+                    llvm_member_types.emplace_back(_get_llvm_type(member)->llvm_type);
+                    current_offset = next_offset + member->size();
+                }
+                if (current_offset < type->size()) {
+                    llvm_member_types.emplace_back(
+                        llvm::ArrayType::get(llvm_i8_type, type->size() - current_offset));
+                }
+                return make_llvm_type_info(
+                    llvm::StructType::get(_llvm_context, llvm_member_types, false),
+                    type->size(), type->alignment(), std::move(member_offsets));
+            }
+            case Type::Tag::BUFFER: {
+                return make_llvm_type_info(_get_llvm_buffer_type(),
+                                           sizeof(CUDABuffer::Binding),
+                                           alignof(CUDABuffer::Binding));
+            }
+            case Type::Tag::TEXTURE: {
+                return make_llvm_type_info(_get_llvm_texture_type(),
+                                           sizeof(CUDATexture::Binding),
+                                           alignof(CUDATexture::Binding));
+            }
+            case Type::Tag::BINDLESS_ARRAY: {
+                return make_llvm_type_info(_get_llvm_bindless_array_type(),
+                                           sizeof(CUDABindlessArray::Binding),
+                                           alignof(CUDABindlessArray::Binding));
+            }
+            case Type::Tag::ACCEL: {
+                return make_llvm_type_info(_get_llvm_accel_type(),
+                                           sizeof(CUDAAccel::Binding),
+                                           alignof(CUDAAccel::Binding));
+            }
+            case Type::Tag::COOPERATIVE_VECTOR: LUISA_NOT_IMPLEMENTED("Cooperative vector type");
+            case Type::Tag::COOPERATIVE_VECTOR_REF: LUISA_NOT_IMPLEMENTED("Cooperative vector ref type");
+            case Type::Tag::COOPERATIVE_MATRIX_REF: LUISA_NOT_IMPLEMENTED("Cooperative matrix ref type");
+            case Type::Tag::CUSTOM: LUISA_NOT_IMPLEMENTED("Custom type: {}.", type->description());
+        }
+        LUISA_ERROR_WITH_LOCATION("Invalid type: {}.", type->description());
+    }();
+    auto [iter, success] = _xir_to_llvm_type.try_emplace(type, std::move(llvm_type_info));
+    LUISA_ASSERT(success, "Failed to insert LLVM type.");
+    return iter->second.get();
+}
+
+llvm::Type *CUDACodegenLLVMImpl::_get_llvm_buffer_type() noexcept {
+    if (_llvm_buffer_type == nullptr) {
+        auto llvm_ptr_type = llvm::PointerType::get(_llvm_context, nvptx_address_space_global);
+        auto llvm_i32_type = llvm::Type::getInt64Ty(_llvm_context);
+        _llvm_buffer_type = llvm::StructType::get(_llvm_context, {llvm_ptr_type, llvm_i32_type, llvm_i32_type}, false);
+        detail::luisa_check_llvm_type_size_and_alignment(
+            _data_layout, _llvm_buffer_type,
+            sizeof(CUDABuffer::Binding),
+            alignof(CUDABuffer::Binding));
+    }
+    return _llvm_buffer_type;
+}
+
+llvm::Type *CUDACodegenLLVMImpl::_get_llvm_texture_type() noexcept {
+    if (_llvm_texture_type == nullptr) {
+        auto llvm_i64_type = llvm::Type::getInt64Ty(_llvm_context);
+        _llvm_texture_type = llvm::StructType::get(_llvm_context, {llvm_i64_type, llvm_i64_type}, false);
+        detail::luisa_check_llvm_type_size_and_alignment(
+            _data_layout, _llvm_texture_type,
+            sizeof(CUDATexture::Binding),
+            alignof(CUDATexture::Binding));
+    }
+    return _llvm_texture_type;
+}
+
+llvm::Type *CUDACodegenLLVMImpl::_get_llvm_bindless_array_type() noexcept {
+    if (_llvm_bindless_array_type == nullptr) {
+        auto llvm_ptr_type = llvm::PointerType::get(_llvm_context, nvptx_address_space_global);
+        auto llvm_i64_type = llvm::Type::getInt64Ty(_llvm_context);
+        _llvm_bindless_array_type = llvm::StructType::get(_llvm_context, {llvm_ptr_type, llvm_i64_type}, false);
+        detail::luisa_check_llvm_type_size_and_alignment(
+            _data_layout, _llvm_bindless_array_type,
+            sizeof(CUDABindlessArray::Binding),
+            alignof(CUDABindlessArray::Binding));
+    }
+    return _llvm_bindless_array_type;
+}
+
+llvm::Type *CUDACodegenLLVMImpl::_get_llvm_bindless_array_slot_type() noexcept {
+    if (_llvm_bindless_array_slot_type == nullptr) {
+        auto llvm_ptr_type = llvm::PointerType::get(_llvm_context, nvptx_address_space_global);
+        auto llvm_i64_type = llvm::Type::getInt64Ty(_llvm_context);
+        _llvm_bindless_array_slot_type = llvm::StructType::get(
+            _llvm_context,
+            {
+                llvm_ptr_type,// buffer
+                llvm_i64_type,// size
+                llvm_i64_type,// tex2d
+                llvm_i64_type // tex3d
+            },
+            false);
+        detail::luisa_check_llvm_type_size_and_alignment(
+            _data_layout, _llvm_bindless_array_slot_type,
+            sizeof(CUDABindlessArray::Slot),
+            alignof(CUDABindlessArray::Slot));
+    }
+    return _llvm_bindless_array_slot_type;
+}
+
+llvm::Type *CUDACodegenLLVMImpl::_get_llvm_accel_type() noexcept {
+    if (_llvm_accel_type == nullptr) {
+        auto llvm_i64_type = llvm::Type::getInt64Ty(_llvm_context);
+        auto llvm_ptr_type = llvm::PointerType::get(_llvm_context, nvptx_address_space_global);
+        _llvm_accel_type = llvm::StructType::get(_llvm_context, {llvm_i64_type, llvm_ptr_type}, false);
+        detail::luisa_check_llvm_type_size_and_alignment(
+            _data_layout, _llvm_accel_type,
+            sizeof(CUDAAccel::Binding),
+            alignof(CUDAAccel::Binding));
+    }
+    return _llvm_accel_type;
+}
+
+llvm::Type *CUDACodegenLLVMImpl::_get_llvm_accel_instance_type() noexcept {
+    if (_llvm_accel_instance_type == nullptr) {
+        auto llvm_affine_type = llvm::ArrayType::get(llvm::Type::getFloatTy(_llvm_context), 12);
+        auto llvm_i32_type = llvm::Type::getInt32Ty(_llvm_context);
+        auto llvm_i64_type = llvm::Type::getInt64Ty(_llvm_context);
+        auto llvm_padding_type = llvm::ArrayType::get(llvm_i32_type, 2);
+        _llvm_accel_instance_type = llvm::StructType::get(
+            _llvm_context,
+            {
+                llvm_affine_type,// affine
+                llvm_i32_type,   // user_id
+                llvm_i32_type,   // sbt_offset
+                llvm_i32_type,   // mask
+                llvm_i32_type,   // flags
+                llvm_i64_type,   // handle
+                llvm_padding_type// padding
+            },
+            false);
+        detail::luisa_check_llvm_type_size_and_alignment(
+            _data_layout, _llvm_accel_instance_type,
+            sizeof(optix::Instance), alignof(optix::Instance));
+    }
+    return _llvm_accel_instance_type;
+}
+
+}// namespace luisa::compute::cuda
