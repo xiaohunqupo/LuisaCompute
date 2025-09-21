@@ -42,6 +42,12 @@ private:
     void _dump_module(const std::filesystem::path &path) const noexcept;
     [[nodiscard]] luisa::string _generate_ptx() const noexcept;
 
+    template<size_t N>
+    [[nodiscard]] llvm::MemoryBufferRef _wrap_bitcode_array(llvm::StringRef name, const unsigned char (&data)[N]) const noexcept {
+        auto p = reinterpret_cast<const char *>(data);
+        return {llvm::StringRef{p, N}, name};
+    }
+
 public:
     explicit CUDACodegenLLVMImpl(CUDACodegenLLVMConfig config) noexcept;
     [[nodiscard]] luisa::string generate(const xir::Module &xir_module) noexcept;

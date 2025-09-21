@@ -15,6 +15,8 @@
 #include <llvm/Passes/PassBuilder.h>
 
 #include <luisa/core/clock.h>
+
+#include "cuda_codegen_llvm_device_bitcode.h"
 #include "cuda_codegen_llvm_impl.h"
 
 namespace luisa::compute::cuda {
@@ -36,7 +38,7 @@ const llvm::Target *CUDACodegenLLVMImpl::_get_nvptx_target() noexcept {
         LLVMInitializeNVPTXAsmPrinter();
     });
     // lookup target
-    static auto target = []() noexcept -> const llvm::Target * {
+    static auto target = [] {
         std::string error;
         if (auto target = llvm::TargetRegistry::lookupTarget(nvptx_target_triple, error)) {
             return target;
@@ -49,7 +51,7 @@ const llvm::Target *CUDACodegenLLVMImpl::_get_nvptx_target() noexcept {
 inline void CUDACodegenLLVMImpl::_initialize() noexcept {
 
     // create target machine
-    _target_machine = [this]() noexcept -> llvm::TargetMachine * {
+    _target_machine = [this] {
         llvm::TargetOptions options;
         options.NoTrappingFPMath = true;
         if (_config.enable_fast_math) {
@@ -91,10 +93,8 @@ inline void CUDACodegenLLVMImpl::_initialize() noexcept {
     // parse libdevice bitcode
     _llvm_module = [&] {
         llvm::SMDiagnostic error;
-        llvm::StringRef bc{reinterpret_cast<const char *>(_config.libdevice_bitcode.data()), _config.libdevice_bitcode.size()};
-        if (auto m = llvm::parseIR(
-                llvm::MemoryBufferRef{bc, "libdevice.10.bc"},
-                error, _llvm_context)) {
+        auto bc = _wrap_bitcode_array("libdevice.bc", luisa_cuda_codegen_libdevice_bitcode);
+        if (auto m = llvm::parseIR(bc, error, _llvm_context)) {
             return m;
         }
         LUISA_ERROR_WITH_LOCATION("Failed to parse libdevice bitcode: {}", error.getMessage());

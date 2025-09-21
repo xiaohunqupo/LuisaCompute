@@ -351,27 +351,6 @@ CUDADevice::CUDADevice(Context &&ctx,
         LUISA_VERBOSE("Successfully loaded CUDA device runtime library. "
                       "Indirect dispatch feature is available.");
     }
-
-#ifdef LUISA_COMPUTE_ENABLE_LLVM
-    // load libdevice
-    {
-        auto libdevice_path = context().runtime_directory() / "libdevice.10.bc";
-        if (std::ifstream libdevice_file{libdevice_path, std::ios::binary}) {
-            libdevice_file.seekg(0, std::ios::end);
-            auto size = static_cast<size_t>(libdevice_file.tellg());
-            libdevice_file.seekg(0, std::ios::beg);
-            _libdevice_bitcode.resize(size);
-            libdevice_file.read(reinterpret_cast<char *>(_libdevice_bitcode.data()), static_cast<ssize_t>(size));
-            LUISA_VERBOSE("Successfully loaded CUDA libdevice bitcode form '{}'.",
-                          libdevice_path.string());
-        } else {
-            LUISA_WARNING_WITH_LOCATION(
-                "Failed to load CUDA libdevice bitcode '{}'. "
-                "Half-precision and certain math functions will not be available.",
-                libdevice_path.string());
-        }
-    }
-#endif
 }
 
 CUDADevice::~CUDADevice() noexcept {
@@ -790,7 +769,6 @@ ShaderCreationInfo CUDADevice::create_shader(const ShaderOption &option, Functio
         auto xir_module = luisa_cuda_backend_translate_ast_to_xir(kernel, option, false);
         if (LUISA_USE_EXPERIMENTAL_LLVM_CODEGEN) {
             CUDACodegenLLVMConfig config{
-                .libdevice_bitcode = _libdevice_bitcode,
                 .cuda_arch = _handle.compute_capability(),
                 .enable_fast_math = option.enable_fast_math,
                 .enable_debug_info = option.enable_debug_info,

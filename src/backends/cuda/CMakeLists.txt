@@ -60,19 +60,11 @@ if (CUDAToolkit_FOUND)
     if (LUISA_COMPUTE_CUDA_LINKED_LLVM)
         message(STATUS "Linking LLVM into the CUDA backend")
         target_sources(luisa-compute-backend-cuda PRIVATE
+                llvm_codegen/cuda_codegen_llvm_device_bitcode.cpp llvm_codegen/cuda_codegen_llvm_device_bitcode.h
                 llvm_codegen/cuda_codegen_llvm_config.h
                 llvm_codegen/cuda_codegen_llvm.cpp llvm_codegen/cuda_codegen_llvm.h
                 llvm_codegen/cuda_codegen_llvm_impl.cpp llvm_codegen/cuda_codegen_llvm_impl.h
         )
-        find_file(LUISA_COMPUTE_CUDA_LIBDEVICE_PATH REQUIRED NO_DEFAULT_PATH
-                NAMES libdevice.10.bc
-                HINTS ${CUDAToolkit_LIBRARY_DIR}/../nvvm/libdevice)
-        message(STATUS "Found libdevice at ${LUISA_COMPUTE_CUDA_LIBDEVICE_PATH}")
-        add_custom_target(luisa-compute-cuda-copy-libdevice ALL
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${LUISA_COMPUTE_CUDA_LIBDEVICE_PATH}"
-                $<TARGET_FILE_DIR:luisa-compute-core>)
-        add_dependencies(luisa-compute-backend-cuda luisa-compute-cuda-copy-libdevice)
     endif ()
 
     # device runtime library

@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include <luisa/core/stl/memory.h>
+#include <cstdint>
 
 namespace luisa::compute::cuda {
 
@@ -17,8 +17,7 @@ struct CUDACodegenLLVMConfig {
         LEVEL_AGGRESSIVE = 3,
     };
 
-    luisa::span<const std::byte> libdevice_bitcode;
-    uint cuda_arch{};
+    uint32_t cuda_arch{};
     OptLevel opt_level{OptLevel::LEVEL_AGGRESSIVE};
     bool enable_fast_math{true};
     bool enable_debug_info{false};
