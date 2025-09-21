@@ -384,7 +384,7 @@ class func:
             if lctype.is_basic():
                 command.encode_uniform(lcapi.to_bytes(a), lctype.size(), lctype.alignment())
             elif lctype.is_array() or lctype.is_structure():
-                command.encode_uniform(a.to_bytes(), lctype.size() lctype.alignment())
+                command.encode_uniform(a.to_bytes(), lctype.size(), lctype.alignment())
             elif lctype.is_buffer() or lctype.is_custom_buffer():
                 command.encode_buffer(a.handle, 0, a.bytesize)
             elif lctype.is_texture():
