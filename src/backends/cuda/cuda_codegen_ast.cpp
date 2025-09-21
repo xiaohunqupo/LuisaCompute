@@ -1502,13 +1502,9 @@ void CUDACodegenAST::_emit_function(Function f) noexcept {
     // ray tracing kernels use __constant__ args
     // note: this must go before any other
     if (f.tag() == Function::Tag::KERNEL) {
-        _scratch << "struct Params {";
+        _scratch << "struct alignas(16) Params {";
         for (auto arg : f.arguments()) {
-            if (arg.type()->is_resource()) {
-                _scratch << "\n  alignas(16) ";
-            } else {
-                _scratch << luisa::format("\n  alignas({}) ", arg.type()->alignment());
-            }
+            _scratch << "\n  alignas(16) ";
             _emit_variable_decl(f, arg, !arg.type()->is_buffer());
             _scratch << "{};";
         }

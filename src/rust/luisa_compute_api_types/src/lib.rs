@@ -471,6 +471,7 @@ pub struct TextureArgument {
 pub struct UniformArgument {
     pub data: *const u8,
     pub size: usize,
+    pub alignment: usize,
 }
 
 #[repr(C)]

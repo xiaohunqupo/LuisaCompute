@@ -318,6 +318,7 @@ struct TextureArgument {
 struct UniformArgument {
     const uint8_t *data;
     size_t size;
+    size_t alignment;
 };
 
 struct BindlessArray {

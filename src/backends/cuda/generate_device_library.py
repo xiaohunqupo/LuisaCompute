@@ -170,7 +170,7 @@ template<typename T>
         # vector types
         for type in scalar_types:
             for i in range(2, 5):
-                align = min(32, scalar_alignments[type] * (i if i != 3 else 4))
+                align = min(16, scalar_alignments[type] * (i if i != 3 else 4))
                 elements = ["x", "y", "z", "w"][:i]
                 print(
                     f"""struct alignas({align}) lc_{type}{i} {{

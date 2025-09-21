@@ -50,6 +50,7 @@ void ShaderDispatchCmdEncoder::encode_uniform(const void *data, size_t size, siz
     arg.tag = Argument::Tag::UNIFORM;
     arg.uniform.offset = offset;
     arg.uniform.size = size;
+    LUISA_DEBUG_ASSERT(alignment <= 16, "Invalid alignment {}.", alignment);
     arg.uniform.alignment = alignment;
 }
 
