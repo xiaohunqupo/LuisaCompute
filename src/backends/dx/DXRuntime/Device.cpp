@@ -39,7 +39,7 @@ void DXAllocatorImpl::DeAllocateHeap(uint64_t handle) const noexcept {
     device->defaultAllocator->Release(handle);
 }
 static luisa::spin_mutex gDxcMutex;
-static vstd::optional<hlsl::ShaderCompiler> gDxcCompiler;
+static vstd::StackObject<hlsl::ShaderCompiler, false> gDxcCompiler;
 static int32 gDxcRefCount = 0;
 
 Device::LazyLoadShader::~LazyLoadShader() {}
