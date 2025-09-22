@@ -2,6 +2,7 @@
 // Created by mike on 9/22/25.
 //
 
+#include <algorithm>
 #include <filesystem>
 #include <span>
 #include <vector>
@@ -82,7 +83,13 @@ struct Options {
             std::cerr << "Error: invalid option " << opt << "\n";
             print_help_and_exit(std::cerr, argv[0], 1, false);
         } else {
-            o.input_files.emplace_back(opt);
+            std::error_code ec;
+            auto path = std::filesystem::canonical(opt, ec);
+            if (ec) {
+                std::cerr << "Error: input file does not exist: " << opt << "\n";
+                print_help_and_exit(std::cerr, argv[0], 1, false);
+            }
+            o.input_files.emplace_back(std::move(path));
         }
     }
     // validate that output file is set
@@ -90,6 +97,13 @@ struct Options {
         std::cerr << "Error: output file is required.\n";
         print_help_and_exit(std::cerr, argv[0], 1, false);
     }
+    // validate that there is at least one input file
+    if (o.input_files.empty()) {
+        std::cerr << "Error: at least one input file is required.\n";
+        print_help_and_exit(std::cerr, argv[0], 1, false);
+    }
+    // sort and unique input files
+    std::sort(o.input_files.begin(), o.input_files.end());
     return o;
 }
 
