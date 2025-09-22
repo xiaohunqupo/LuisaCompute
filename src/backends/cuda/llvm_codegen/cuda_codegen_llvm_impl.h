@@ -34,14 +34,15 @@ public:
     static constexpr auto nvptx_address_space_local = 5u;
 
     struct LLVMTypeInfo {
-        llvm::Type *llvm_type;
-        luisa::vector<size_t> member_offsets;
+        llvm::Type *reg_type;                // The LLVM type used in registers
+        llvm::Type *mem_type;                // The LLVM type used in memory (with proper alignment)
+        luisa::vector<size_t> member_offsets;// For struct type, the mapping from member index to LLVM struct field index
     };
 
 private:
     CUDACodegenLLVMConfig _config;
     llvm::TargetMachine *_target_machine{nullptr};
-    llvm::DataLayout _data_layout;
+    std::unique_ptr<llvm::DataLayout> _data_layout;
     llvm::LLVMContext _llvm_context;
     std::unique_ptr<llvm::Module> _llvm_module;
 

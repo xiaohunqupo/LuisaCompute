@@ -83,12 +83,13 @@ inline void CUDACodegenLLVMImpl::_initialize() noexcept {
             case CUDACodegenLLVMConfig::OptLevel::LEVEL_DEFAULT: opt_level = llvm::CodeGenOptLevel::Default; break;
             case CUDACodegenLLVMConfig::OptLevel::LEVEL_AGGRESSIVE: opt_level = llvm::CodeGenOptLevel::Aggressive; break;
         }
+        auto cpu_name = luisa::format("sm_{}", _config.cuda_arch);
         return _get_nvptx_target()->createTargetMachine(
-            nvptx_target_triple, luisa::format("sm_{}", _config.cuda_arch), {},
+            nvptx_target_triple, cpu_name, {},
             options, llvm::Reloc::Static, llvm::CodeModel::Small, opt_level);
     }();
 
-    _data_layout = _target_machine->createDataLayout();
+    _data_layout = std::make_unique<llvm::DataLayout>(_target_machine->createDataLayout());
 
     // parse libdevice bitcode
     _llvm_module = [&] {
@@ -102,7 +103,7 @@ inline void CUDACodegenLLVMImpl::_initialize() noexcept {
 
     // set the target triple
     _llvm_module->setTargetTriple(nvptx_target_triple);
-    _llvm_module->setDataLayout(_data_layout);
+    _llvm_module->setDataLayout(*_data_layout);
 
     // internalize all device functions
     for (auto &&f : *_llvm_module) {
@@ -216,7 +217,7 @@ luisa::string CUDACodegenLLVMImpl::generate(const xir::Module &xir_module) noexc
             if (!t->is_custom()) {
                 auto llvm_type = _get_llvm_type(t);
                 llvm::errs() << "Mapping: " << t->description() << " -> ";
-                llvm_type->llvm_type->print(llvm::errs());
+                llvm_type->reg_type->print(llvm::errs());
                 llvm::errs() << "\n";
             }
         });
