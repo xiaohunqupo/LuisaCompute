@@ -18,7 +18,6 @@ static constexpr uint64_t magic_number = 1145141919810ull;
 struct FileMeta {
     std::string file_name;
     alignas(std::filesystem::file_time_type) char src_file_time[sizeof(std::filesystem::file_time_type)];
-    alignas(std::filesystem::file_time_type) char dst_file_time[sizeof(std::filesystem::file_time_type)];
 };
 bool check_file(std::byte const *&ptr, std::byte const *end);
 bool deser_meta(std::byte const *&ptr, std::byte const *end, FileMeta &meta);
@@ -36,7 +35,9 @@ int main(int argc, char *argv[]) {
     std::unordered_map<std::string, FileMeta> file_metas;
     auto meta_dir_str = meta_dir.string();
     bool meta_dirty = false;
-    if (std::filesystem::exists(meta_dir)) {
+    std::filesystem::file_time_type dst_time;
+
+    if (std::filesystem::exists(meta_dir) && std::filesystem::exists(dst_dir)) {
         auto f = fopen(meta_dir_str.c_str(), "rb");
         if (f) {
             std::vector<std::byte> meta_bytes;
@@ -49,14 +50,20 @@ int main(int argc, char *argv[]) {
             const std::byte *ptr = meta_bytes.data();
             const std::byte *end = ptr + meta_length;
             if (check_file(ptr, end)) {
-                while (ptr < end) {
-                    FileMeta meta;
-                    if (!deser_meta(ptr, end, meta)) {
-                        meta_dirty = true;
-                        file_metas.clear();
-                        break;
+                std::memcpy(&dst_time, ptr, sizeof(dst_time));
+                ptr += sizeof(dst_time);
+                if (dst_time != std::filesystem::last_write_time(dst_dir)) {
+                    meta_dirty = true;
+                } else {
+                    while (ptr < end) {
+                        FileMeta meta;
+                        if (!deser_meta(ptr, end, meta)) {
+                            meta_dirty = true;
+                            file_metas.clear();
+                            break;
+                        }
+                        file_metas.try_emplace(meta.file_name, std::move(meta));
                     }
-                    file_metas.try_emplace(meta.file_name, std::move(meta));
                 }
             } else {
                 meta_dirty = true;
@@ -82,7 +89,7 @@ int main(int argc, char *argv[]) {
             std::memcpy(result.data() + last_size, t, size_bytes);
         } else if constexpr (std::is_same_v<T, char>) {
             result.push_back(t);
-        } else if constexpr (std::is_trivial_v<T>) {
+        } else if constexpr (std::is_trivially_destructible_v<T>) {
             auto last_size = result.size();
             result.resize(last_size + sizeof(T));
             std::memcpy(result.data() + last_size, &t, sizeof(T));
@@ -91,38 +98,47 @@ int main(int argc, char *argv[]) {
         }
     };
     std::vector<uint8_t> src_data;
-    for (int i = 4; i < argc; ++i) {
-        result.clear();
-        src_data.clear();
-        std::string file_name = argv[i];
-        auto file_meta_iter = file_metas.find(file_name);
-        auto src_file_path = (src_dir / file_name).string();
-        auto var_name = std::filesystem::path{file_name}.filename().string();
-        for (auto &i : var_name) {
-            if (i == '.') {
-                i = '_';
+    result.clear();
+    if (!meta_dirty) {
+        for (int i = 4; i < argc; ++i) {
+            src_data.clear();
+            std::string file_name = argv[i];
+            auto file_meta_iter = file_metas.find(file_name);
+            auto src_file_path = (src_dir / file_name).string();
+            auto var_name = std::filesystem::path{file_name}.filename().string();
+            for (auto &i : var_name) {
+                if (i == '.') {
+                    i = '_';
+                }
             }
-        }
-        auto dst_file_path = (dst_dir / (var_name + ".cpp")).string();
-        auto src_last_time = std::filesystem::last_write_time(src_file_path);
-        bool write_file = true;
-        if (std::filesystem::exists(dst_file_path) && file_meta_iter != file_metas.end()) {
-            auto dst_last_time = std::filesystem::last_write_time(dst_file_path);
-            auto &&file_meta = file_meta_iter->second;
-            if (std::memcmp(&file_meta.src_file_time, &src_last_time, sizeof(src_last_time)) == 0 &&
-                std::memcmp(&file_meta.dst_file_time, &dst_last_time, sizeof(dst_last_time)) == 0) {
-                write_file = false;
+            auto src_last_time = std::filesystem::last_write_time(src_file_path);
+            if (file_meta_iter != file_metas.end()) {
+                auto &&file_meta = file_meta_iter->second;
+                if (std::memcmp(&file_meta.src_file_time, &src_last_time, sizeof(src_last_time)) != 0) {
+                    meta_dirty = true;
+                    break;
+                }
             } else {
                 meta_dirty = true;
+                break;
             }
-        } else {
-            meta_dirty = true;
         }
-        if (write_file) {
+    }
+    if (meta_dirty) {
+        for (int i = 4; i < argc; ++i) {
+            std::string file_name = argv[i];
+            auto src_file_path = (src_dir / file_name).string();
             auto f = fopen(src_file_path.c_str(), "rb");
             if (!f) {
                 std::cerr << "Source file not exists.\n";
                 return 1;
+            }
+            auto src_last_time = std::filesystem::last_write_time(src_file_path);
+            auto var_name = std::filesystem::path{file_name}.filename().string();
+            for (auto &i : var_name) {
+                if (i == '.') {
+                    i = '_';
+                }
             }
             fseek(f, 0, SEEK_END);
             auto src_length = ftell(f);
@@ -149,31 +165,31 @@ int main(int argc, char *argv[]) {
             push("_size=");
             push(std::to_string(src_length));
             push(";\n");
-            f = fopen(dst_file_path.c_str(), "wb");
-            if (!f) {
-                std::cerr << "Dest file write error.\n";
-                return 1;
-            }
-            fwrite(result.data(), result.size(), 1, f);
-            fclose(f);
+            FileMeta file_meta{.file_name = file_name};
+            std::memcpy(file_meta.src_file_time, &src_last_time, sizeof(src_last_time));
+            file_metas[file_name] = std::move(file_meta);
         }
-        auto dst_last_time = std::filesystem::last_write_time(dst_file_path);
-        FileMeta file_meta{.file_name = file_name};
-        std::memcpy(file_meta.src_file_time, &src_last_time, sizeof(src_last_time));
-        std::memcpy(file_meta.dst_file_time, &dst_last_time, sizeof(dst_last_time));
-        file_metas[file_name] = std::move(file_meta);
-    }
-    if (meta_dirty) {
+        auto dst_dir_str = dst_dir.string();
+        auto f = fopen(dst_dir_str.c_str(), "wb");
+        if (!f) {
+            std::cerr << "Dest file write error.\n";
+            return 1;
+        }
+        fwrite(result.data(), result.size(), 1, f);
+        fclose(f);
+
+        auto dst_last_time = std::filesystem::last_write_time(dst_dir);
         result.clear();
         push(magic_number);
         size_t file_size_index = result.size();
         push(size_t(0));// file_size
+        push(dst_last_time);
         for (auto &kv : file_metas) {
             ser_meta(result, kv.second);
         }
         size_t size = result.size();
         std::memcpy(result.data() + file_size_index, &size, sizeof(size_t));
-        auto f = fopen(meta_dir_str.c_str(), "wb");
+        f = fopen(meta_dir_str.c_str(), "wb");
         if (f) {
             fwrite(result.data(), result.size(), 1, f);
             fclose(f);
@@ -203,7 +219,7 @@ bool deser_meta(std::byte const *&ptr, std::byte const *end, FileMeta &meta) {
         ptr += size;
     };
     copy(sizes.data(), sizes.size() * sizeof(uint32_t));
-    if (sizes[0] != sizes[1] + sizeof(std::filesystem::file_time_type) * 2) {
+    if (sizes[0] != sizes[1] + sizeof(std::filesystem::file_time_type)) {
         return false;
     }
     if ((end - ptr) < sizes[0]) {
@@ -213,7 +229,6 @@ bool deser_meta(std::byte const *&ptr, std::byte const *end, FileMeta &meta) {
     meta.file_name.resize(sizes[1]);
     copy(meta.file_name.data(), sizes[1]);
     copy(&meta.src_file_time, sizeof(std::filesystem::file_time_type));
-    copy(&meta.dst_file_time, sizeof(std::filesystem::file_time_type));
     return true;
 }
 void ser_meta(std::vector<char> &data, FileMeta const &meta) {
@@ -223,10 +238,9 @@ void ser_meta(std::vector<char> &data, FileMeta const &meta) {
         std::memcpy(data.data() + last_size, ptr, size);
     };
     std::array<uint32_t, 2> sizes;
-    sizes[0] = meta.file_name.size() + sizeof(meta.src_file_time) + sizeof(meta.src_file_time);
+    sizes[0] = meta.file_name.size() + sizeof(meta.src_file_time);
     sizes[1] = meta.file_name.size();
     push(sizes.data(), sizeof(uint32_t) * sizes.size());
     push(meta.file_name.data(), meta.file_name.size());
     push(&meta.src_file_time, sizeof(meta.src_file_time));
-    push(&meta.dst_file_time, sizeof(meta.dst_file_time));
 }

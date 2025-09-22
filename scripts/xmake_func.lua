@@ -491,53 +491,55 @@ rule_end()
 
 rule("lc_compile_codegen")
 set_extensions(".lua")
--- on_prepare_files(function (target, jobgraph, sourcebatch, opt)
---     print("prepare")
--- end)
+add_deps("lc_embed_codegen")
 on_build_files(function(target, jobgraph, sourcebatch, opt)
     for _, sourcefile in ipairs(sourcebatch.sourcefiles) do
-        jobgraph:group(sourcefile, function()
-            local filename = path.filename(sourcefile)
-            local rootdir = path.directory(sourcefile)
-            local header_lib = import(path.basename(filename), {
-                rootdir = rootdir
-            })
-            local src_dir = header_lib.src_dir()
-            local batchcxx = {
-                rulename = "c++.build",
-                sourcekind = "cxx",
-                sourcefiles = {},
-                objectfiles = {},
-                dependfiles = {}
-            }
-            local dst_dir = header_lib.dst_dir()
+        local filename = path.filename(sourcefile)
+        local rootdir = path.directory(sourcefile)
+        local header_lib = import(path.basename(filename), {
+            rootdir = rootdir
+        })
+        local src_dir = header_lib.src_dir()
+
+        local process_job = sourcefile .. "/process"
+        jobgraph:add(process_job, function()
             if src_dir then
                 local codegen_dir = path.join(target:targetdir(), "lc_embed_codegen")
-                local files = header_lib.file_lists()
                 local args = {}
-
                 table.insert(args, src_dir)
-                table.insert(args, dst_dir)
+                table.insert(args, header_lib.dst_file())
                 table.insert(args, header_lib.meta_dir())
+                local files = header_lib.file_list()
                 for _, v in ipairs(files) do
                     table.insert(args, v)
                 end
                 os.runv(codegen_dir, args)
             end
-            for _, dst_file in ipairs(os.files(path.join(dst_dir, "*.cpp"))) do
-                local objectfile = target:objectfile(dst_file)
+        end)
+        jobgraph:group(sourcefile, function()
+            if src_dir then
+                local batchcxx = {
+                    rulename = "c++.build",
+                    sourcekind = "cxx",
+                    sourcefiles = {},
+                    objectfiles = {},
+                    dependfiles = {}
+                }
+                local dst_name = header_lib.dst_file()
+                local objectfile = target:objectfile(dst_name)
                 local dependfile = target:dependfile(objectfile)
                 table.insert(target:objectfiles(), objectfile)
                 table.insert(batchcxx.objectfiles, objectfile)
                 table.insert(batchcxx.dependfiles, dependfile)
-                table.insert(batchcxx.sourcefiles, dst_file)
+                table.insert(batchcxx.sourcefiles, dst_name)
+                import("private.action.build.object")(target, jobgraph, batchcxx, opt)
             end
-            import("private.action.build.object")(target, jobgraph, batchcxx, opt)
         end)
+        jobgraph:add_orders(process_job, sourcefile)
+
     end
 end, {
-    jobgraph = true,
-    distcc = true
+    jobgraph = true
 })
 rule_end()
 

@@ -10,15 +10,15 @@ function src_dir()
     return script_dir
 end
 
-function dst_dir()
-    return dst_script_dir
+function dst_file()
+    return path.join(dst_script_dir, "hlsl_embed.cpp")
 end
 
 function meta_dir()
     return path.join(dst_script_dir, "_meta.msi")
 end
 
-function file_lists()
+function file_list()
     return {'hlsl_header', 'dx_linalg', 'hlsl_header_fallback', 'raytracing_header', 'tex2d_bindless', 'tex3d_bindless',
             'compute_quad', 'determinant', 'inverse', 'indirect', 'resource_size', 'accel_header', 'copy_sign',
             'bindless_common', 'auto_diff', "reduce", 'accel_process_vk.dxil', 'load_bdls.dxil', 'load_bdls_vk.dxil',
