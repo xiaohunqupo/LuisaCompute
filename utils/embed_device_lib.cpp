@@ -129,7 +129,7 @@ void append_file_as_c_array(std::ostringstream &oss_source, std::ostringstream &
     // emit C++ code
     oss_source << "\n"
                << "extern \"C\" const unsigned long long " << name << "_size = " << data.size() << ";\n\n"
-               << "extern \"C\" const " << (options.use_unsigned_char ? "unsigned char" : "char") << " " << name << "[] = {\n";
+               << "extern \"C\" const " << (options.use_unsigned_char ? "unsigned char" : "char") << " " << name << "[" << data.size() << "] = {\n";
     auto print_indent = [&oss_source, n = options.indent]() noexcept {
         for (auto i = 0; i < n; i++) { oss_source << ' '; }
     };
