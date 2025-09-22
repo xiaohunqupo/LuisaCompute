@@ -28,7 +28,7 @@ after_check(function(option)
             option:set_value(sdk_dir)
         end
     elseif is_host("linux") then
-        local vk_path = "/usr/include/vulkan" 
+        local vk_path = "/usr/include/vulkan"
         if os.exists(vk_path) then
             option:set_value(vk_path)
         else
@@ -59,10 +59,10 @@ option_end()
 option("_lc_bin_dir")
 set_default(false)
 set_showmenu(false)
-add_deps("lc_dx_backend", "lc_vk_backend", "lc_cuda_backend",
-    "lc_metal_backend", "lc_cpu_backend", "lc_enable_tests", "lc_py_include",
-    "lc_cuda_ext_lcub", "lc_enable_ir", "lc_enable_dsl", "lc_enable_clangcxx",
-    "lc_enable_gui", "lc_bin_dir", "lc_enable_custom_malloc", "lc_external_marl", "lc_dx_cuda_interop", "_lc_enable_py", "_lc_enable_rust")
+add_deps("lc_dx_backend", "lc_vk_backend", "lc_cuda_backend", "lc_metal_backend", "lc_cpu_backend", "lc_enable_tests",
+    "lc_py_include", "lc_cuda_ext_lcub", "lc_enable_ir", "lc_enable_dsl", "lc_enable_clangcxx", "lc_enable_gui",
+    "lc_bin_dir", "lc_enable_custom_malloc", "lc_external_marl", "lc_dx_cuda_interop", "_lc_enable_py",
+    "_lc_enable_rust")
 before_check(function(option)
     if path.absolute(path.join(os.projectdir(), "scripts")) == path.absolute(os.scriptdir()) then
         local v = import("options", {
@@ -331,7 +331,7 @@ on_load(function(target)
         end
     end
     local use_rtti = _get_or("rtti", false)
-    if _get_or("no_rtti",  not (use_rtti or get_config("lc_use_rtti") or get_config("_lc_enable_py"))) then
+    if _get_or("no_rtti", not (use_rtti or get_config("lc_use_rtti") or get_config("_lc_enable_py"))) then
         target:add("cxflags", "/GR-", {
             tools = {"clang_cl", "cl"}
         })
@@ -421,7 +421,7 @@ rule_end()
 rule('lc_install_sdk')
 on_load(function(target)
     local custom_sdk_dir = get_config("lc_sdk_dir")
-    if type(custom_sdk_dir ) == "string" and not os.exists(custom_sdk_dir) then
+    if type(custom_sdk_dir) == "string" and not os.exists(custom_sdk_dir) then
         return
     end
     local packages = import('packages')
@@ -433,8 +433,8 @@ on_load(function(target)
         if not valid then
             utils.error("Library: " .. packages.sdks()[lib]['name'] ..
                             " not installed, run 'xmake lua setup.lua' or download it manually from " ..
-                            packages.sdk_address(packages.sdks()[lib]) .. ' to ' .. packages.sdk_dir(os.arch(), custom_sdk_dir) ..
-                            '.')
+                            packages.sdk_address(packages.sdks()[lib]) .. ' to ' ..
+                            packages.sdk_dir(os.arch(), custom_sdk_dir) .. '.')
             enable = false
         end
     end
@@ -444,7 +444,7 @@ on_load(function(target)
 end)
 on_clean(function(target)
     local custom_sdk_dir = get_config("lc_sdk_dir")
-    if type(custom_sdk_dir ) == "string" and not os.exists(custom_sdk_dir) then
+    if type(custom_sdk_dir) == "string" and not os.exists(custom_sdk_dir) then
         return
     end
     local bin_dir = target:targetdir()
@@ -462,7 +462,7 @@ on_clean(function(target)
 end)
 before_build(function(target)
     local custom_sdk_dir = get_config("lc_sdk_dir")
-    if type(custom_sdk_dir ) == "string" and not os.exists(custom_sdk_dir) then
+    if type(custom_sdk_dir) == "string" and not os.exists(custom_sdk_dir) then
         return
     end
     local bin_dir = target:targetdir()
@@ -487,6 +487,58 @@ before_build(function(target)
         end
     end
 end)
+rule_end()
+
+rule("lc_compile_codegen")
+set_extensions(".lua")
+-- on_prepare_files(function (target, jobgraph, sourcebatch, opt)
+--     print("prepare")
+-- end)
+on_build_files(function(target, jobgraph, sourcebatch, opt)
+    for _, sourcefile in ipairs(sourcebatch.sourcefiles) do
+        jobgraph:group(sourcefile, function()
+            local filename = path.filename(sourcefile)
+            local rootdir = path.directory(sourcefile)
+            local header_lib = import(path.basename(filename), {
+                rootdir = rootdir
+            })
+            local src_dir = header_lib.src_dir()
+            local batchcxx = {
+                rulename = "c++.build",
+                sourcekind = "cxx",
+                sourcefiles = {},
+                objectfiles = {},
+                dependfiles = {}
+            }
+            local dst_dir = header_lib.dst_dir()
+            if src_dir then
+                local codegen_dir = path.join(target:targetdir(), "lc_embed_codegen")
+                local files = header_lib.file_lists()
+                local args = {}
+
+                table.insert(args, src_dir)
+                table.insert(args, dst_dir)
+                table.insert(args, header_lib.meta_dir())
+                for _, v in ipairs(files) do
+                    table.insert(args, v)
+                end
+                os.runv(codegen_dir, args)
+            end
+            for _, dst_file in ipairs(os.files(path.join(dst_dir, "*.cpp"))) do
+                local objectfile = target:objectfile(dst_file)
+                local dependfile = target:dependfile(objectfile)
+                table.insert(target:objectfiles(), objectfile)
+                table.insert(batchcxx.objectfiles, objectfile)
+                table.insert(batchcxx.dependfiles, dependfile)
+                table.insert(batchcxx.sourcefiles, dst_file)
+            end
+            import("private.action.build.object")(target, jobgraph, batchcxx, opt)
+        end)
+    end
+end, {
+    jobgraph = true,
+    distcc = true
+})
 rule_end()
 
 -- In-case of submod, when there is override rules, do not overload
