@@ -164,7 +164,7 @@ CUDACodegenLLVMImpl::_get_llvm_type(const Type *type) noexcept {
 llvm::Type *CUDACodegenLLVMImpl::_get_llvm_buffer_type() noexcept {
     if (_llvm_buffer_type == nullptr) {
         auto llvm_ptr_type = llvm::PointerType::get(_llvm_context, nvptx_address_space_global);
-        auto llvm_i32_type = llvm::Type::getInt64Ty(_llvm_context);
+        auto llvm_i32_type = llvm::Type::getInt32Ty(_llvm_context);
         _llvm_buffer_type = llvm::StructType::get(_llvm_context, {llvm_ptr_type, llvm_i32_type, llvm_i32_type}, false);
         detail::luisa_check_llvm_type_size_and_alignment(
             *_data_layout, _llvm_buffer_type,
