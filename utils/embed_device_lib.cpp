@@ -161,7 +161,8 @@ void append_file_as_c_array(std::ostringstream &oss_source, std::ostringstream &
     std::ostringstream oss_header;
     if (!options.header_file.empty()) {
         print_notice_and_include(oss_header);
-        oss_header << "#pragma once\n";
+        oss_header << "\n"
+                   << "#pragma once\n";
     }
     for (auto const &file : options.input_files) {
         append_file_as_c_array(oss_source, oss_header, file, options);
