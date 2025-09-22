@@ -180,13 +180,13 @@ size_t CUDACompiler::type_size(const Type *type) noexcept {
 CUDACompiler::CUDACompiler(const CUDADevice *device) noexcept
     : _device{device},
       _get_device_library{[device](StringScratch &scratch) {
-          scratch << luisa::string_view{luisa_cuda_builtin_cuda_device_half, sizeof(luisa_cuda_builtin_cuda_device_half)}
-                  << luisa::string_view{luisa_cuda_builtin_cuda_device_math, sizeof(luisa_cuda_builtin_cuda_device_math)}
-                  << luisa::string_view{luisa_cuda_builtin_cuda_device_resource, sizeof(luisa_cuda_builtin_cuda_device_resource)};
+          scratch << luisa::string_view{(char const *)cuda_device_half, sizeof(cuda_device_half)}
+                  << luisa::string_view{(char const *)cuda_device_math, sizeof(cuda_device_math)}
+                  << luisa::string_view{(char const *)cuda_device_resource, sizeof(cuda_device_resource)};
       }},
       _get_device_optional_library([device](StringScratch &scratch, Function func) {
           if (func.use_cooperative_operations() || func.propagated_builtin_callables().uses_cooperative()) {
-              scratch << luisa::string_view{luisa_cuda_builtin_cuda_device_coop, sizeof(luisa_cuda_builtin_cuda_device_coop)};
+              scratch << luisa::string_view{(char *)cuda_device_coop, sizeof(cuda_device_coop)};
           }
       }),
       _cache{Cache::create(max_cache_item_count)},
