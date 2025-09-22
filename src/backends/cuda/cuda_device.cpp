@@ -247,7 +247,7 @@ CUDADevice::CUDADevice(Context &&ctx,
                        "-dw",
                        "-w",
                        "-ewp"};
-    luisa::string builtin_kernel_src{(char const *)cuda_builtin_kernels, sizeof(cuda_builtin_kernels)};
+    luisa::string builtin_kernel_src{reinterpret_cast<const char *>(luisa_compute_cuda_builtin_kernels), luisa_compute_cuda_builtin_kernels_size};
     auto builtin_kernel_ptx = _compiler->compile(builtin_kernel_src, "luisa_builtin.cu", options);
     with_handle([&] {
         CUmemAllocationProp prop = {};
