@@ -2,7 +2,7 @@
 #include <luisa/core/stl/string.h>
 #define LC_HLSL_DECL_VARNAME(VAR_NAME) \
     extern unsigned char VAR_NAME[];   \
-    extern unsigned long long VAR_NAME##_size;
+    extern const unsigned long long VAR_NAME##_size;
 
 #define LC_HLSL_INSERT_VARNAME(VAR_NAME, KEY_NAME) \
     dict.try_emplace(KEY_NAME, HLSLCompressedHeader{VAR_NAME, VAR_NAME##_size});
