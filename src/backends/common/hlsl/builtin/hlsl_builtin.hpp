@@ -1,7 +1,7 @@
 #pragma once
 #include <luisa/core/stl/string.h>
 #define LC_HLSL_DECL_VARNAME(VAR_NAME) \
-    extern unsigned char VAR_NAME[];   \
+    extern const unsigned char VAR_NAME[];   \
     extern const unsigned long long VAR_NAME##_size;
 
 #define LC_HLSL_INSERT_VARNAME(VAR_NAME, KEY_NAME) \
