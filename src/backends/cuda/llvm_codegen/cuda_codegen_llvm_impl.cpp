@@ -85,7 +85,7 @@ inline void CUDACodegenLLVMImpl::_initialize() noexcept {
         }
         auto cpu_name = luisa::format("sm_{}", _config.cuda_arch);
         return _get_nvptx_target()->createTargetMachine(
-            nvptx_target_triple, cpu_name, {},
+            nvptx_target_triple, llvm::StringRef{cpu_name}, {},
             options, llvm::Reloc::Static, llvm::CodeModel::Small, opt_level);
     }();
 
