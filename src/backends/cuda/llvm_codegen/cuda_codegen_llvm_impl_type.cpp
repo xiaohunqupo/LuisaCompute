@@ -50,8 +50,7 @@ CUDACodegenLLVMImpl::_get_llvm_type(const Type *type) noexcept {
         switch (type->tag()) {
             case Type::Tag::BOOL: {
                 auto llvm_i1_type = llvm::Type::getInt1Ty(_llvm_context);
-                auto llvm_i8_type = llvm::Type::getInt8Ty(_llvm_context);
-                return make_llvm_type_info(llvm_i8_type, llvm_i1_type, sizeof(bool), alignof(bool));
+                return make_llvm_type_info(llvm_i1_type, llvm_i1_type, sizeof(bool), alignof(bool));
             }
             case Type::Tag::INT8: [[fallthrough]];
             case Type::Tag::UINT8: {

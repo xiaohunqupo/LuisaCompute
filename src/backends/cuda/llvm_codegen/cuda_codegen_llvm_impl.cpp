@@ -216,8 +216,11 @@ luisa::string CUDACodegenLLVMImpl::generate(const xir::Module &xir_module) noexc
         Type::traverse([this](auto t) noexcept {
             if (!t->is_custom()) {
                 auto llvm_type = _get_llvm_type(t);
-                llvm::errs() << "Mapping: " << t->description() << " -> ";
+                llvm::errs() << "Mapping " << t->description();
+                llvm::errs() << "\n   -> REG: ";
                 llvm_type->reg_type->print(llvm::errs());
+                llvm::errs() << "\n   -> MEM: ";
+                llvm_type->mem_type->print(llvm::errs());
                 llvm::errs() << "\n";
             }
         });

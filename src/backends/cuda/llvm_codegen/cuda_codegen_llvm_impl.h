@@ -34,8 +34,8 @@ public:
     static constexpr auto nvptx_address_space_local = 5u;
 
     struct LLVMTypeInfo {
-        llvm::Type *reg_type;                // The LLVM type used in registers
         llvm::Type *mem_type;                // The LLVM type used in memory (with proper alignment)
+        llvm::Type *reg_type;                // The LLVM type used in registers
         luisa::vector<size_t> member_offsets;// For struct type, the mapping from member index to LLVM struct field index
     };
 
