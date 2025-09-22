@@ -491,8 +491,9 @@ rule_end()
 
 rule("lc_compile_codegen")
 set_extensions(".lua")
-add_deps("lc_embed_codegen")
 on_build_files(function(target, jobgraph, sourcebatch, opt)
+    local remove_ext = target:extraconf("rules", "lc_compile_codegen", "remove_ext")
+    local remove_slash_r = target:extraconf("rules", "lc_compile_codegen", "remove_slash_r")
     for _, sourcefile in ipairs(sourcebatch.sourcefiles) do
         local filename = path.filename(sourcefile)
         local rootdir = path.directory(sourcefile)
@@ -502,6 +503,7 @@ on_build_files(function(target, jobgraph, sourcebatch, opt)
         local src_dir = header_lib.src_dir()
 
         local process_job = sourcefile .. "/process"
+        
         jobgraph:add(process_job, function()
             if src_dir then
                 local codegen_dir = path.join(target:targetdir(), "lc_embed_codegen")
@@ -509,6 +511,16 @@ on_build_files(function(target, jobgraph, sourcebatch, opt)
                 table.insert(args, src_dir)
                 table.insert(args, header_lib.dst_file())
                 table.insert(args, header_lib.meta_dir())
+                if remove_ext then
+                    table.insert(args, "y")
+                else
+                    table.insert(args, "n")
+                end
+                if remove_slash_r then
+                    table.insert(args, "y")
+                else
+                    table.insert(args, "n")
+                end
                 local files = header_lib.file_list()
                 for _, v in ipairs(files) do
                     table.insert(args, v)

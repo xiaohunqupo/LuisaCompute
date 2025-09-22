@@ -24,8 +24,9 @@ bool deser_meta(std::byte const *&ptr, std::byte const *end, FileMeta &meta);
 void ser_meta(std::vector<char> &data, FileMeta const &meta);
 
 int main(int argc, char *argv[]) {
-    if (argc < 5) {
-        std::cerr << "Usage <soruce dir> <dest dir> <meta dir> <file_list> ... \n";
+    const uint32_t arg_start = 6;
+    if (argc < arg_start + 1) {
+        std::cerr << "Usage <soruce dir> <dest dir> <meta dir> <remove_ext(y/n)> <remove_/r(y/n)> <file_list> ... \n";
         return 1;
     }
     auto src_dir = std::filesystem::path{argv[1]};
@@ -35,7 +36,10 @@ int main(int argc, char *argv[]) {
     std::unordered_map<std::string, FileMeta> file_metas;
     auto meta_dir_str = meta_dir.string();
     bool meta_dirty = false;
-    std::filesystem::file_time_type dst_time;
+    auto remove_ext_str = std::string_view(argv[4]);
+    auto remove_slash_r_str = std::string_view(argv[5]);
+    bool remove_ext = remove_ext = remove_ext_str == "y" || remove_ext_str == "Y";
+    auto remove_slash_r = remove_slash_r_str == "y" || remove_slash_r_str == "Y";
 
     if (std::filesystem::exists(meta_dir) && std::filesystem::exists(dst_dir)) {
         auto f = fopen(meta_dir_str.c_str(), "rb");
@@ -49,6 +53,7 @@ int main(int argc, char *argv[]) {
             fclose(f);
             const std::byte *ptr = meta_bytes.data();
             const std::byte *end = ptr + meta_length;
+            std::filesystem::file_time_type dst_time;
             if (check_file(ptr, end)) {
                 std::memcpy(&dst_time, ptr, sizeof(dst_time));
                 ptr += sizeof(dst_time);
@@ -99,18 +104,26 @@ int main(int argc, char *argv[]) {
     };
     std::vector<uint8_t> src_data;
     result.clear();
+    auto get_var_name = [&](auto &&file_name) {
+        auto filename = std::filesystem::path{file_name}.filename();
+        if (remove_ext) {
+            filename = filename.replace_extension();
+        }
+        auto var_name = filename.string();
+        for (auto &i : var_name) {
+            if (i == '.') {
+                i = '_';
+            }
+        }
+
+        return var_name;
+    };
     if (!meta_dirty) {
-        for (int i = 4; i < argc; ++i) {
-            src_data.clear();
+        for (int i = arg_start; i < argc; ++i) {
             std::string file_name = argv[i];
             auto file_meta_iter = file_metas.find(file_name);
             auto src_file_path = (src_dir / file_name).string();
-            auto var_name = std::filesystem::path{file_name}.filename().string();
-            for (auto &i : var_name) {
-                if (i == '.') {
-                    i = '_';
-                }
-            }
+            auto var_name = get_var_name(file_name);
             auto src_last_time = std::filesystem::last_write_time(src_file_path);
             if (file_meta_iter != file_metas.end()) {
                 auto &&file_meta = file_meta_iter->second;
@@ -125,7 +138,7 @@ int main(int argc, char *argv[]) {
         }
     }
     if (meta_dirty) {
-        for (int i = 4; i < argc; ++i) {
+        for (int i = arg_start; i < argc; ++i) {
             std::string file_name = argv[i];
             auto src_file_path = (src_dir / file_name).string();
             auto f = fopen(src_file_path.c_str(), "rb");
@@ -134,25 +147,31 @@ int main(int argc, char *argv[]) {
                 return 1;
             }
             auto src_last_time = std::filesystem::last_write_time(src_file_path);
-            auto var_name = std::filesystem::path{file_name}.filename().string();
-            for (auto &i : var_name) {
-                if (i == '.') {
-                    i = '_';
-                }
-            }
+            auto var_name = get_var_name(file_name);
             fseek(f, 0, SEEK_END);
             auto src_length = ftell(f);
             fseek(f, 0, SEEK_SET);
+            src_data.clear();
             src_data.resize(src_length);
             fread(src_data.data(), src_data.size(), 1, f);
             fclose(f);
+            if (remove_slash_r) {
+                std::vector<uint8_t> new_src_data;
+                new_src_data.reserve(src_data.size());
+                for (auto i : src_data) {
+                    if (i != '\r') {
+                        new_src_data.emplace_back(i);
+                    }
+                }
+                src_data = std::move(new_src_data);
+            }
             push("extern \"C\" const unsigned char ");
             push(var_name);
             push('[');
-            push(std::to_string(src_length));
+            push(std::to_string(src_data.size()));
             push(']');
             push("={");
-            if (src_length > 0) [[likely]] {
+            if (src_data.size() > 0) [[likely]] {
                 push(bytes_str[src_data[0]]);
                 for (size_t i = 1; i < src_data.size(); ++i) {
                     push(',');
@@ -163,7 +182,7 @@ int main(int argc, char *argv[]) {
             push("extern \"C\" const unsigned long long ");
             push(var_name);
             push("_size=");
-            push(std::to_string(src_length));
+            push(std::to_string(src_data.size()));
             push(";\n");
             FileMeta file_meta{.file_name = file_name};
             std::memcpy(file_meta.src_file_time, &src_last_time, sizeof(src_last_time));
