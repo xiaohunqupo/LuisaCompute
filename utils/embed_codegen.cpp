@@ -28,9 +28,9 @@ bool deser_meta(std::byte const *&ptr, std::byte const *end, FileMeta &meta);
 void ser_meta(std::vector<char> &data, FileMeta const &meta);
 
 int main(int argc, char *argv[]) {
-    const uint32_t arg_start = 6;
+    const uint32_t arg_start = 7;
     if (argc < arg_start + 1) {
-        std::cerr << "Usage <soruce dir> <dest dir> <meta dir> <remove_ext(y/n)> <remove_/r(y/n)> <file_list> ... \n";
+        std::cerr << "Usage <soruce dir> <dest dir> <meta dir> <var_name_prefix> <remove_ext(y/n)> <remove_/r(y/n)> <file_list> ... \n";
         return 1;
     }
     auto src_dir = std::filesystem::path{argv[1]};
@@ -40,8 +40,12 @@ int main(int argc, char *argv[]) {
     std::unordered_map<std::string, FileMeta> file_metas;
     auto meta_dir_str = meta_dir.string();
     bool meta_dirty = false;
-    auto remove_ext_str = std::string_view(argv[4]);
-    auto remove_slash_r_str = std::string_view(argv[5]);
+    auto var_name_prefix = std::string(argv[4]);
+    if (var_name_prefix == "_") {
+        var_name_prefix.clear();
+    }
+    auto remove_ext_str = std::string_view(argv[5]);
+    auto remove_slash_r_str = std::string_view(argv[6]);
     bool remove_ext = remove_ext = remove_ext_str == "y" || remove_ext_str == "Y";
     auto remove_slash_r = remove_slash_r_str == "y" || remove_slash_r_str == "Y";
 
@@ -119,8 +123,10 @@ int main(int argc, char *argv[]) {
                 i = '_';
             }
         }
-
-        return var_name;
+        if (!var_name_prefix.empty())
+            return var_name_prefix + var_name;
+        else
+            return var_name;
     };
     if (!meta_dirty) {
         for (int i = arg_start; i < argc; ++i) {

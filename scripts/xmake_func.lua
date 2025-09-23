@@ -492,6 +492,10 @@ rule_end()
 rule("lc_compile_codegen")
 set_extensions(".lua")
 on_build_files(function(target, jobgraph, sourcebatch, opt)
+    local var_name_prefix = target:extraconf("rules", "lc_compile_codegen", "var_name_prefix")
+    if not var_name_prefix then
+        var_name_prefix = "_"
+    end
     local remove_ext = target:extraconf("rules", "lc_compile_codegen", "remove_ext")
     local remove_slash_r = target:extraconf("rules", "lc_compile_codegen", "remove_slash_r")
     for _, sourcefile in ipairs(sourcebatch.sourcefiles) do
@@ -511,6 +515,7 @@ on_build_files(function(target, jobgraph, sourcebatch, opt)
                 table.insert(args, src_dir)
                 table.insert(args, header_lib.dst_file())
                 table.insert(args, header_lib.meta_dir())
+                table.insert(args, var_name_prefix)
                 if remove_ext then
                     table.insert(args, "y")
                 else
