@@ -507,9 +507,9 @@ on_build_files(function(target, jobgraph, sourcebatch, opt)
         local src_dir = header_lib.src_dir()
 
         local process_job = sourcefile .. "/process"
-        
-        jobgraph:add(process_job, function()
-            if src_dir then
+
+        if src_dir then
+            jobgraph:add(process_job, function()
                 local codegen_dir = path.join(target:targetdir(), "lc_embed_codegen")
                 local args = {}
                 table.insert(args, src_dir)
@@ -531,10 +531,8 @@ on_build_files(function(target, jobgraph, sourcebatch, opt)
                     table.insert(args, v)
                 end
                 os.runv(codegen_dir, args)
-            end
-        end)
-        jobgraph:group(sourcefile, function()
-            if src_dir then
+            end)
+            jobgraph:group(sourcefile, function()
                 local batchcxx = {
                     rulename = "c++.build",
                     sourcekind = "cxx",
@@ -550,10 +548,9 @@ on_build_files(function(target, jobgraph, sourcebatch, opt)
                 table.insert(batchcxx.dependfiles, dependfile)
                 table.insert(batchcxx.sourcefiles, dst_name)
                 import("private.action.build.object")(target, jobgraph, batchcxx, opt)
-            end
-        end)
-        jobgraph:add_orders(process_job, sourcefile)
-
+            end)
+            jobgraph:add_orders(process_job, sourcefile)
+        end
     end
 end, {
     jobgraph = true
