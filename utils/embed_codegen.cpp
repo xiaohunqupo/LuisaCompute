@@ -1,9 +1,5 @@
 #include <cstring>
 #include <vector>
-#include <string>
-#include <iostream>
-#include <array>
-#include <span>
 #include <type_traits>
 #include <filesystem>
 #include <unordered_map>
@@ -30,7 +26,7 @@ void ser_meta(std::vector<char> &data, FileMeta const &meta);
 int main(int argc, char *argv[]) {
     const uint32_t arg_start = 7;
     if (argc < arg_start + 1) {
-        std::cerr << "Usage <soruce dir> <dest dir> <meta dir> <var_name_prefix> <remove_ext(y/n)> <remove_/r(y/n)> <file_list> ... \n";
+        printf("Usage <soruce dir> <dest dir> <meta dir> <var_name_prefix> <remove_ext(y/n)> <remove_/r(y/n)> <file_list> ... \n");
         return 1;
     }
     auto src_dir = std::filesystem::path{argv[1]};
@@ -153,7 +149,7 @@ int main(int argc, char *argv[]) {
             auto src_file_path = (src_dir / file_name).string();
             auto f = fopen(src_file_path.c_str(), "rb");
             if (!f) {
-                std::cerr << "Source file not exists.\n";
+                printf("Source file not exists.\n");
                 return 1;
             }
             auto src_last_time = std::filesystem::last_write_time(src_file_path);
@@ -201,7 +197,7 @@ int main(int argc, char *argv[]) {
         auto dst_dir_str = dst_dir.string();
         auto f = fopen(dst_dir_str.c_str(), "wb");
         if (!f) {
-            std::cerr << "Dest file write error.\n";
+            printf("Dest file write error.\n");
             return 1;
         }
         fwrite(result.data(), result.size(), 1, f);
@@ -229,25 +225,25 @@ int main(int argc, char *argv[]) {
 
 bool check_file(std::byte const *&ptr, std::byte const *end) {
     size_t file_size = end - ptr;
-    std::array<size_t, 2> sizes;
-    if (file_size < sizeof(size_t) * sizes.size()) return false;
+    size_t sizes[2];
+    if (file_size < sizeof(size_t) * 2) return false;
     auto copy = [&](void *dst_ptr, size_t size) {
         std::memcpy(dst_ptr, ptr, size);
         ptr += size;
     };
-    copy(sizes.data(), sizeof(size_t) * sizes.size());
+    copy(sizes, sizeof(size_t) * 2);
     return sizes[0] = magic_number && sizes[1] == file_size;
 }
 bool deser_meta(std::byte const *&ptr, std::byte const *end, FileMeta &meta) {
-    std::array<uint32_t, 2> sizes;
-    if ((end - ptr) < sizes.size() * sizeof(uint32_t)) {
+    uint32_t sizes[2];
+    if ((end - ptr) < 2 * sizeof(uint32_t)) {
         return false;
     }
     auto copy = [&](void *dst_ptr, size_t size) {
         std::memcpy(dst_ptr, ptr, size);
         ptr += size;
     };
-    copy(sizes.data(), sizes.size() * sizeof(uint32_t));
+    copy(sizes, 2 * sizeof(uint32_t));
     if (sizes[0] != sizes[1] + sizeof(std::filesystem::file_time_type)) {
         return false;
     }
@@ -266,10 +262,10 @@ void ser_meta(std::vector<char> &data, FileMeta const &meta) {
         data.resize(last_size + size);
         std::memcpy(data.data() + last_size, ptr, size);
     };
-    std::array<uint32_t, 2> sizes;
+    uint32_t sizes[2];
     sizes[0] = meta.file_name.size() + sizeof(meta.src_file_time);
     sizes[1] = meta.file_name.size();
-    push(sizes.data(), sizeof(uint32_t) * sizes.size());
+    push(sizes, sizeof(uint32_t) * 2);
     push(meta.file_name.data(), meta.file_name.size());
     push(&meta.src_file_time, sizeof(meta.src_file_time));
 }
