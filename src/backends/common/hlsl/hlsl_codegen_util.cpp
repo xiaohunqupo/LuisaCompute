@@ -80,6 +80,9 @@ static size_t AddHeader(CallOpSet const &ops, vstd::StringBuilder &builder, bool
     if (ops.uses_raytracing()) {
         builder << CodegenUtility::ReadInternalHLSLFile("raytracing_header");
     }
+    if (is_spirv) {
+        builder << CodegenUtility::ReadInternalHLSLFile("spv_alias");
+    }
     if (ops.test(CallOp::DETERMINANT)) {
         builder << CodegenUtility::ReadInternalHLSLFile("determinant");
     }
@@ -92,8 +95,7 @@ static size_t AddHeader(CallOpSet const &ops, vstd::StringBuilder &builder, bool
     if (ops.test(CallOp::BUFFER_SIZE) || ops.test(CallOp::TEXTURE_SIZE) || ops.test(CallOp::BYTE_BUFFER_SIZE)) {
         builder << CodegenUtility::ReadInternalHLSLFile("resource_size");
     }
-    if (linalg ||
-        ops.uses_cooperative()) {
+    if (linalg || ops.uses_cooperative()) {
         if (!is_spirv) {
             builder << CodegenUtility::ReadInternalHLSLFile("dx_linalg");
         } else {
@@ -383,6 +385,7 @@ void CodegenUtility::GetTypeName(Type const &type, vstd::StringBuilder &str, Usa
                 str << "RW"sv;
             auto ele = type.element();
             // StructuredBuffer
+            bool aliasStruct = opt->isSpirv && TypeIsAliased(ele);
             if (ele != nullptr) {
                 str << "StructuredBuffer<"sv;
                 if (ele->is_matrix()) {
@@ -392,6 +395,8 @@ void CodegenUtility::GetTypeName(Type const &type, vstd::StringBuilder &str, Usa
                     if (ele->is_vector() && ele->dimension() == 3) {
                         GetTypeName(*ele->element(), str, usage);
                         str << '4';
+                    } else if (aliasStruct) {
+                        str << opt->CreateAliasedStruct(ele).first;
                     } else {
                         GetTypeName(*ele, str, usage);
                     }
@@ -833,6 +838,11 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             }
         } break;
         case CallOp::BUFFER_READ: {
+            bool aliasStruct = opt->isSpirv && TypeIsAliased(expr->type());
+            if (aliasStruct) {
+                AliasedToOrigin(expr->type(), str);
+                str << '(';
+            }
             str << "_bfread"sv;
             auto elem = args[0]->type()->element();
             if (IsNumVec3(*elem)) {
@@ -840,10 +850,18 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             } else if (elem->is_matrix()) {
                 str << "Mat";
             }
-        } break;
+            str << '(';
+            PrintArgs();
+            str << ')';
+            if (aliasStruct) {
+                str << ')';
+            }
+            return;
+        }
         case CallOp::BUFFER_WRITE: {
-            str << "_bfwrite"sv;
             auto elem = args[0]->type()->element();
+            bool aliasStruct = opt->isSpirv && TypeIsAliased(elem);
+            str << "_bfwrite"sv;
             if (IsNumVec3(*elem)) {
                 str << "Vec3("sv;
                 PrintArgs();
@@ -854,7 +872,23 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             } else if (elem->is_matrix()) {
                 str << "Mat";
             }
-        } break;
+            str << '(';
+            auto last = args.size() - 1;
+            for (auto i : vstd::range(0, last)) {
+                args[i]->accept(vis);
+                str << ',';
+            }
+            if (aliasStruct) {
+                OriginToAliased(args.back()->type(), str);
+                str << '(';
+                args.back()->accept(vis);
+                str << ')';
+            } else {
+                args.back()->accept(vis);
+            }
+            str << ')';
+            return;
+        }
         case CallOp::BUFFER_SIZE: {
             if (!shown_buffer_warning) {
                 LUISA_WARNING_WITH_LOCATION("CallOp::BUFFER_SIZE is broken on dx!"sv);
@@ -863,6 +897,11 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             str << "_bfsize"sv;
         } break;
         case CallOp::BYTE_BUFFER_READ: {
+            bool aliasStruct = opt->isSpirv && TypeIsAliased(expr->type());
+            if (aliasStruct) {
+                AliasedToOrigin(expr->type(), str);
+                str << '(';
+            }
             str << "_bytebfread"sv;
             auto elem = expr->type();
             if (IsNumVec3(*elem)) {
@@ -896,9 +935,16 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
                 str << '(';
                 args[0]->accept(vis);
                 str << ',';
-                GetTypeName(*elem, str, Usage::NONE);
+                if (aliasStruct) {
+                    str << opt->CreateAliasedStruct(elem).first;
+                } else {
+                    GetTypeName(*elem, str, Usage::NONE);
+                }
                 str << ',';
                 args[1]->accept(vis);
+                str << ')';
+            }
+            if (aliasStruct) {
                 str << ')';
             }
             return;
@@ -906,6 +952,7 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
         case CallOp::BYTE_BUFFER_WRITE: {
             str << "_bytebfwrite"sv;
             auto elem = args[2]->type();
+            bool aliasStruct = opt->isSpirv && TypeIsAliased(elem);
             if (elem == Type::of<float3>()) {
                 str << "Vec3("sv;
                 args[0]->accept(vis);
@@ -935,7 +982,14 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
                 str << ',';
                 args[1]->accept(vis);
                 str << ',';
-                args[2]->accept(vis);
+                if (aliasStruct) {
+                    OriginToAliased(args.back()->type(), str);
+                    str << '(';
+                    args[2]->accept(vis);
+                    str << ')';
+                } else {
+                    args[2]->accept(vis);
+                }
                 str << ')';
                 return;
             }
@@ -972,6 +1026,11 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             return;
         }
         case CallOp::BINDLESS_BUFFER_READ: {
+            bool aliasStruct = opt->isSpirv && TypeIsAliased(expr->type());
+            if (aliasStruct) {
+                AliasedToOrigin(expr->type(), str);
+                str << '(';
+            }
             str << "_READ_BUFFER"sv;
             opt->useBufferBindless = true;
             str << '(';
@@ -981,11 +1040,23 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             }
             vstd::to_string(expr->type()->size(), str);
             str << ',';
-            GetTypeName(*expr->type(), str, Usage::READ, true);
+            if (aliasStruct) {
+                str << opt->CreateAliasedStruct(expr->type()).first;
+            } else {
+                GetTypeName(*expr->type(), str, Usage::READ, true);
+            }
             str << ",bdls)"sv;
+            if (aliasStruct) {
+                str << ')';
+            }
             return;
         }
         case CallOp::BINDLESS_BYTE_BUFFER_READ: {
+            bool aliasStruct = opt->isSpirv && TypeIsAliased(expr->type());
+            if (aliasStruct) {
+                AliasedToOrigin(expr->type(), str);
+                str << '(';
+            }
             str << "_READ_BUFFER_BYTES"sv;
             opt->useBufferBindless = true;
             str << '(';
@@ -993,8 +1064,15 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
                 i->accept(vis);
                 str << ',';
             }
-            GetTypeName(*expr->type(), str, Usage::READ, true);
+            if (aliasStruct) {
+                str << opt->CreateAliasedStruct(expr->type()).first;
+            } else {
+                GetTypeName(*expr->type(), str, Usage::READ, true);
+            }
             str << ",bdls)"sv;
+            if (aliasStruct) {
+                str << ')';
+            }
             return;
         }
         case CallOp::TYPED_BINDLESS_BUFFER_SIZE: {
@@ -1009,6 +1087,11 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             return;
         }
         case CallOp::TYPED_BINDLESS_BUFFER_READ: {
+            bool aliasStruct = opt->isSpirv && TypeIsAliased(expr->type());
+            if (aliasStruct) {
+                AliasedToOrigin(expr->type(), str);
+                str << '(';
+            }
             str << "_typed_READ_BUFFER"sv;
             opt->useBufferBindless = true;
             str << '(';
@@ -1018,11 +1101,23 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             }
             vstd::to_string(expr->type()->size(), str);
             str << ',';
-            GetTypeName(*expr->type(), str, Usage::READ, true);
+            if (aliasStruct) {
+                str << opt->CreateAliasedStruct(expr->type()).first;
+            } else {
+                GetTypeName(*expr->type(), str, Usage::READ, true);
+            }
             str << ",bdls)"sv;
+            if (aliasStruct) {
+                str << ')';
+            }
             return;
         }
         case CallOp::TYPED_BINDLESS_BYTE_BUFFER_READ: {
+            bool aliasStruct = opt->isSpirv && TypeIsAliased(expr->type());
+            if (aliasStruct) {
+                AliasedToOrigin(expr->type(), str);
+                str << '(';
+            }
             str << "_typed_READ_BUFFER_BYTES"sv;
             opt->useBufferBindless = true;
             str << '(';
@@ -1030,8 +1125,15 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
                 i->accept(vis);
                 str << ',';
             }
-            GetTypeName(*expr->type(), str, Usage::READ, true);
+            if (aliasStruct) {
+                str << opt->CreateAliasedStruct(expr->type()).first;
+            } else {
+                GetTypeName(*expr->type(), str, Usage::READ, true);
+            }
             str << ",bdls)"sv;
+            if (aliasStruct) {
+                str << ')';
+            }
             return;
         }
         case CallOp::TYPED_UNIFORM_BINDLESS_BUFFER_SIZE: {
@@ -1046,6 +1148,11 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             return;
         }
         case CallOp::TYPED_UNIFORM_BINDLESS_BUFFER_READ: {
+            bool aliasStruct = opt->isSpirv && TypeIsAliased(expr->type());
+            if (aliasStruct) {
+                AliasedToOrigin(expr->type(), str);
+                str << '(';
+            }
             str << "_typed_uniform_READ_BUFFER"sv;
             opt->useBufferBindless = true;
             str << '(';
@@ -1055,11 +1162,23 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             }
             vstd::to_string(expr->type()->size(), str);
             str << ',';
-            GetTypeName(*expr->type(), str, Usage::READ, true);
+            if (aliasStruct) {
+                str << opt->CreateAliasedStruct(expr->type()).first;
+            } else {
+                GetTypeName(*expr->type(), str, Usage::READ, true);
+            }
             str << ",bdls)"sv;
+            if (aliasStruct) {
+                str << ')';
+            }
             return;
         }
         case CallOp::TYPED_UNIFORM_BINDLESS_BYTE_BUFFER_READ: {
+            bool aliasStruct = opt->isSpirv && TypeIsAliased(expr->type());
+            if (aliasStruct) {
+                AliasedToOrigin(expr->type(), str);
+                str << '(';
+            }
             str << "_typed_uniform_READ_BUFFER_BYTES"sv;
             opt->useBufferBindless = true;
             str << '(';
@@ -1067,8 +1186,15 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
                 i->accept(vis);
                 str << ',';
             }
-            GetTypeName(*expr->type(), str, Usage::READ, true);
+            if (aliasStruct) {
+                str << opt->CreateAliasedStruct(expr->type()).first;
+            } else {
+                GetTypeName(*expr->type(), str, Usage::READ, true);
+            }
             str << ",bdls)"sv;
+            if (aliasStruct) {
+                str << ')';
+            }
             return;
         }
         case CallOp::ASSERT:
@@ -2312,7 +2438,7 @@ namespace detail {
 
 void CodegenUtility::PostprocessCodegenProperties(vstd::StringBuilder &finalResult, bool use_autodiff) {
     if (!opt->customStruct.empty()) {
-        for (auto v : opt->customStructVector) {
+        auto declStruct = [&](auto &&v) {
             finalResult << "struct " << v->GetStructName() << "{\n"
                         << v->GetStructDesc() << "};\n";
             // accum grad while using autodiff
@@ -2341,6 +2467,12 @@ void CodegenUtility::PostprocessCodegenProperties(vstd::StringBuilder &finalResu
                     finalResult << "}\n";
                 }
             }
+        };
+        for (auto v : opt->customStructVector) {
+            declStruct(v);
+        }
+        for (auto v : opt->customStructVectorAliased) {
+            declStruct(v);
         }
     }
     for (auto &&kv : opt->sharedVariable) {
@@ -2838,5 +2970,132 @@ uint obj_id:register(b0);
         opt->useBufferBindless,
         immutableHeaderSize,
         GetTypeMD5(funcs)};
+}
+bool CodegenUtility::TypeIsAliased(Type const *t) {
+    if (t->is_array()) {
+        auto i = t->element();
+        if (VectorShouldBeAliased(i)) [[unlikely]]
+            return true;
+        if (TypeIsAliased(i)) {
+            return true;
+        }
+    } else if (t->is_structure()) {
+        for (auto &i : t->members()) {
+            if (VectorShouldBeAliased(i)) [[unlikely]]
+                return true;
+            if (TypeIsAliased(i)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+bool CodegenUtility::VectorShouldBeAliased(Type const *i) {
+    return (i->is_vector() && i->element()->size() > 4 && i->dimension() >= 3);
+}
+void CodegenUtility::OriginToAliased(Type const *t, vstd::StringBuilder &sb) {
+    auto aliasedType = opt->CreateAliasedStruct(t);
+    if (!aliasedType.second) {
+        return;
+    }
+    auto funcName = luisa::format("_OriToAls{}", t->hash());
+    auto set_name = vstd::scope_exit([&]() {
+        sb << funcName;
+    });
+    if (!opt->originToAliasedTypes.emplace(t).second) {
+        return;
+    }
+    vstd::StringBuilder str;
+    str << aliasedType.first << ' ' << funcName << '(';
+    GetTypeName(*t, str, Usage::NONE, false);
+    str << " a){\n"sv << aliasedType.first << " r;\n"sv;
+    auto TransformVector = [&](Type const *t, uint idx) {
+
+    };
+    if (t->is_array()) {
+        str << "for(uint i=0;i<" << luisa::format("{}", t->dimension()) << ";++i){\n";
+        if (TypeIsAliased(t->element())) {
+            str << "r.v[i]="sv;
+            OriginToAliased(
+                t->element(),
+                str);
+            str << "(a.v[i]);\n"sv;
+        } else {
+            str << "r.v[i]=to_Als"sv;
+            GetTypeName(*t->element(), str, Usage::READ, true);
+            str << luisa::format("(a.v[i]);\n");
+        }
+        str << "}\n"sv;
+    } else {
+        auto members = t->members();
+        for (auto i : vstd::range(members.size())) {
+            auto m = members[i];
+            if (TypeIsAliased(m)) {
+                str << luisa::format("r.v{}=", i);
+                OriginToAliased(m, str);
+                str << luisa::format("(a.v{});\n", i);
+            } else if (VectorShouldBeAliased(m)) [[unlikely]] {
+                str << luisa::format("r.v{}=to_Als", i);
+                GetTypeName(*m, str, Usage::READ, true);
+                str << luisa::format("(a.v{});\n", i);
+            } else {
+                str << luisa::format("r.v{}=a.v{};\n", i, i);
+            }
+        }
+    }
+    str << "return r;\n}\n"sv;
+    *opt->incrementalFunc << str;
+}
+void CodegenUtility::AliasedToOrigin(Type const *t, vstd::StringBuilder &sb) {
+    auto aliasedType = opt->CreateAliasedStruct(t);
+    if (!aliasedType.second) {
+        return;
+    }
+    auto funcName = luisa::format("_AlsToOri{}", t->hash());
+    auto set_name = vstd::scope_exit([&]() {
+        sb << funcName;
+    });
+    if (!opt->aliasedToOriginTypes.emplace(t).second) {
+        return;
+    }
+    vstd::StringBuilder str;
+    GetTypeName(*t, str, Usage::NONE, false);
+    str << ' ' << funcName << '(' << aliasedType.first << " a){\n"sv;
+    GetTypeName(*t, str, Usage::NONE, false);
+    str << " r;\n"sv;
+
+    if (t->is_array()) {
+        str << "for(uint i=0;i<" << luisa::format("{}", t->dimension()) << ";++i){\n";
+        if (TypeIsAliased(t->element())) {
+            str << "r.v[i]="sv;
+            AliasedToOrigin(
+                t->element(),
+                str);
+            str << "(a.v[i]);\n"sv;
+        } else {
+            str << "r.v[i]=to_";
+            GetTypeName(*t->element(), str, Usage::READ, true);
+            str << "(a.v[i]);\n"sv;
+        }
+        str << "}\n"sv;
+    } else {
+        auto members = t->members();
+        for (auto i : vstd::range(members.size())) {
+            auto m = members[i];
+            if (TypeIsAliased(m)) {
+                str << luisa::format("r.v{}=", i);
+                AliasedToOrigin(m, str);
+                str << luisa::format("(a.v{});\n", i);
+            } else if (VectorShouldBeAliased(m)) [[unlikely]] {
+                str << luisa::format("r.v{}=to_", i);
+                GetTypeName(*m, str, Usage::READ, true);
+                str << luisa::format("(a.v{});\n", i);
+            } else {
+                str << luisa::format("r.v{}=a.v{};\n", i, i);
+            }
+        }
+    }
+    str << "return r;\n}\n"sv;
+    *opt->incrementalFunc << str;
 }
 }// namespace lc::hlsl

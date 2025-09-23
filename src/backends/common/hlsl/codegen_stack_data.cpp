@@ -7,6 +7,10 @@ CodegenStackData::CodegenStackData()
     : generateStruct(
           [this](Type const *t) {
               CreateStruct(t);
+          }),
+      generateAliasedStruct(
+          [this](Type const *t) {
+              CreateAliasedStruct(t);
           }) {
     Clear();
 }
@@ -20,6 +24,10 @@ void CodegenStackData::Clear() {
     funcTypes.clear();
     customStruct.clear();
     customStructVector.clear();
+    customStructAliased.clear();
+    customStructVectorAliased.clear();
+    originToAliasedTypes.clear();
+    aliasedToOriginTypes.clear();
     atomicsFuncs.clear();
     sharedVariable.clear();
     printer.clear();
@@ -37,6 +45,31 @@ void CodegenStackData::Clear() {
     internalStruct.emplace(Type::of<CommittedHit>(), "_Hit0");
     internalStruct.emplace(Type::of<TriangleHit>(), "_Hit1");
     internalStruct.emplace(Type::of<ProceduralHit>(), "_Hit2");
+}
+
+std::pair<vstd::string_view, bool> CodegenStackData::CreateAliasedStruct(Type const *t) {
+    if (!isSpirv) {
+        return {CreateStruct(t), false};
+    } else {
+        if (!CodegenUtility::TypeIsAliased(t)) {
+            return {CreateStruct(t), false};
+        }
+        auto ite = customStructAliased.try_emplace(
+            t,
+            vstd::lazy_eval([&] {
+                auto newPtr = new StructGenerator(
+                    t,
+                    structCount++,
+                    util);
+                return vstd::create_unique(newPtr);
+            }));
+        if (ite.second) {
+            auto newPtr = ite.first.value().get();
+            newPtr->InitAliased(generateAliasedStruct, isSpirv);
+            customStructVectorAliased.emplace_back(ite.first.value().get());
+        }
+        return {ite.first.value()->GetStructName(), true};
+    }
 }
 
 vstd::string_view CodegenStackData::CreateStruct(Type const *t) {

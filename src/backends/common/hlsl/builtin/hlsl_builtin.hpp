@@ -34,6 +34,7 @@ LC_HLSL_DECL_VARNAME(bc7_encodeblock_dxil)
 LC_HLSL_DECL_VARNAME(bc7_trymode02_dxil)
 LC_HLSL_DECL_VARNAME(bc7_trymode137_dxil)
 LC_HLSL_DECL_VARNAME(bc7_trymode456_dxil)
+LC_HLSL_DECL_VARNAME(spv_alias)
 }
 
 namespace lc_hlsl {
@@ -46,6 +47,7 @@ static HLSLCompressedHeader get_hlsl_builtin(luisa::string_view ss) {
         luisa::unordered_map<luisa::string_view, HLSLCompressedHeader> dict;
         Dict() {
             LC_HLSL_INSERT_VARNAME(hlsl_header, "hlsl_header")
+            LC_HLSL_INSERT_VARNAME(spv_alias, "spv_alias")
             LC_HLSL_INSERT_VARNAME(dx_linalg, "dx_linalg")
             LC_HLSL_INSERT_VARNAME(hlsl_header_fallback, "hlsl_header_fallback")
             LC_HLSL_INSERT_VARNAME(raytracing_header, "raytracing_header")

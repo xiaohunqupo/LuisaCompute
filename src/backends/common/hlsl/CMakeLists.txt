@@ -2,6 +2,7 @@ if (LUISA_COMPUTE_ENABLE_DX OR LUISA_COMPUTE_ENABLE_VULKAN)
 
     set(LUISA_COMPUTE_HLSL_DEVICE_LIB_SOURCES
             hlsl_header
+            spv_alias
             dx_linalg
             hlsl_header_fallback
             raytracing_header

@@ -14,6 +14,10 @@ struct CodegenStackData : public vstd::IOperatorNewBase {
     vstd::unordered_map<uint64_t /* hash */, uint64> funcTypes;
     vstd::vector<StructGenerator *> customStructVector;
     vstd::HashMap<Type const *, vstd::unique_ptr<StructGenerator>> customStruct;
+    vstd::vector<StructGenerator *> customStructVectorAliased;
+    vstd::HashMap<Type const *, vstd::unique_ptr<StructGenerator>> customStructAliased;
+    vstd::unordered_set<Type const*> originToAliasedTypes;
+    vstd::unordered_set<Type const*> aliasedToOriginTypes;
     vstd::unordered_map<uint, uint> arguments;
     vstd::unordered_map<Type const *, vstd::string> internalStruct;
     vstd::vector<std::pair<vstd::string, Type const *>> printer;
@@ -49,6 +53,7 @@ struct CodegenStackData : public vstd::IOperatorNewBase {
     int64 scopeCount = -1;
 
     vstd::function<void(Type const *)> generateStruct;
+    vstd::function<void(Type const *)> generateAliasedStruct;
     vstd::unordered_map<uint64, Variable> sharedVariable;
     vstd::unordered_set<AccessChain, AccessHash> atomicsFuncs;
     Expression const *tempSwitchExpr;
@@ -61,6 +66,7 @@ struct CodegenStackData : public vstd::IOperatorNewBase {
         luisa::span<Expression const *const> exprs);
     void Clear();
     vstd::string_view CreateStruct(Type const *t);
+    std::pair<vstd::string_view, bool> CreateAliasedStruct(Type const *t);
     std::pair<uint64, bool> GetConstCount(uint64 data);
     uint64 GetFuncCount(Function f);
     uint64 GetTypeCount(Type const *t);
