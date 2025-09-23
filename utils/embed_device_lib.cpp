@@ -26,6 +26,7 @@ void print_help_and_exit(std::ostream &os, const char *program, int code, bool p
        << "  -s, --suffix <suffix> Suffix for variable names (default: empty)\n"
        << "  -w, --wrap <width>    Wrap lines at <width> elements (default: 16)\n"
        << "  -i, --indent <spaces> Number of spaces for indentation (default: 4)\n"
+       << "  -e, --preserve-ext    Preserve file extensions in variable names (default: false)\n"
        << "      --help            Show this help message\n"
        << std::endl;
     exit(code);
@@ -40,6 +41,7 @@ struct Options {
     int wrap_width = 16;
     int indent = 4;
     bool use_unsigned_char = false;
+    bool preserve_extension = false;
 };
 
 [[nodiscard]] auto parse(int argc, char *argv[]) noexcept {
@@ -63,6 +65,8 @@ struct Options {
             o.suffix = require_next();
         } else if (opt == "-p" || opt == "--prefix") {
             o.prefix = require_next();
+        } else if (opt == "-e" || opt == "--preserve-ext") {
+            o.preserve_extension = true;
         } else if (opt == "-w" || opt == "--wrap") {
             auto w = require_next();
             std::istringstream iss{std::string{w}};
@@ -127,7 +131,7 @@ struct Options {
 void append_file_as_c_array(std::ostringstream &oss_source, std::ostringstream &oss_header,
                             const std::filesystem::path &file_path, const Options &options) noexcept {
     auto data = read_file_content(file_path, false);
-    auto name = options.prefix + file_path.stem().string() + options.suffix;
+    auto name = options.prefix + (options.preserve_extension ? file_path.filename() : file_path.stem()).string() + options.suffix;
     // canonicalize name: replace non-alphanumeric characters with '_'
     for (auto &c : name) {
         if (!std::isalnum(c) && c != '_') {

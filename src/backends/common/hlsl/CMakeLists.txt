@@ -17,8 +17,6 @@ if (LUISA_COMPUTE_ENABLE_DX OR LUISA_COMPUTE_ENABLE_VULKAN)
             bindless_common
             auto_diff
             reduce
-    )
-    set(LUISA_COMPUTE_HLSL_DEVICE_DXIL_SOURCES
             accel_process_vk.dxil
             load_bdls.dxil
             load_bdls_vk.dxil
@@ -32,20 +30,17 @@ if (LUISA_COMPUTE_ENABLE_DX OR LUISA_COMPUTE_ENABLE_VULKAN)
             bc7_trymode456.dxil
     )
     list(TRANSFORM LUISA_COMPUTE_HLSL_DEVICE_LIB_SOURCES PREPEND ${CMAKE_CURRENT_LIST_DIR}/builtin/)
-    list(TRANSFORM LUISA_COMPUTE_HLSL_DEVICE_DXIL_SOURCES PREPEND ${CMAKE_CURRENT_LIST_DIR}/builtin/)
     add_custom_target(luisa-compute-backend-hlsl-embed
-            COMMAND $<TARGET_FILE:luisa_embed_device_lib> ${LUISA_COMPUTE_HLSL_DEVICE_LIB_SOURCES} --unsigned -o builtin/hlsl_builtin_libs_embed.cpp
-            COMMAND $<TARGET_FILE:luisa_embed_device_lib> ${LUISA_COMPUTE_HLSL_DEVICE_DXIL_SOURCES} --unsigned -o builtin/hlsl_builtin_dxil_embed.cpp --suffix _dxil
-            BYPRODUCTS ${CMAKE_CURRENT_LIST_DIR}/builtin/hlsl_builtin_libs_embed.cpp ${CMAKE_CURRENT_LIST_DIR}/builtin/hlsl_builtin_dxil_embed.cpp
+            COMMAND $<TARGET_FILE:luisa_embed_device_lib> ${LUISA_COMPUTE_HLSL_DEVICE_LIB_SOURCES} --unsigned -o builtin/hlsl_builtin_embed.cpp --preserve-ext
+            BYPRODUCTS ${CMAKE_CURRENT_LIST_DIR}/builtin/hlsl_builtin_embed.cpp
             DEPENDS luisa_embed_device_lib ${CMAKE_CURRENT_LIST_FILE}
-            SOURCES ${LUISA_COMPUTE_HLSL_DEVICE_LIB_SOURCES} ${LUISA_COMPUTE_HLSL_DEVICE_DXIL_SOURCES}
+            SOURCES ${LUISA_COMPUTE_HLSL_DEVICE_LIB_SOURCES}
             WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
             COMMENT "Embedding HLSL built-in sources..."
             VERBATIM)
 
     set(LUISA_COMPUTE_HLSL_SOURCES
-            builtin/hlsl_builtin_libs_embed.cpp
-            builtin/hlsl_builtin_dxil_embed.cpp
+            builtin/hlsl_builtin_embed.cpp
             access_chain.cpp
             access_chain.h
             binding_to_arg.cpp
