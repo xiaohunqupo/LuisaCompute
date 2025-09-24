@@ -156,6 +156,9 @@ test_proj("test_pinned_mem")
 test_proj("test_imgui", true, function()
     add_deps("imgui")
 end)
+test_proj("test_transient_resource", true, function()
+    add_files("transient_resource_device/*.cpp")
+end)
 if get_config("lc_dx_backend") then
     test_proj("test_raster", true)
     if get_config("lc_cuda_backend") then
