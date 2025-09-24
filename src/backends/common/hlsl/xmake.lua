@@ -11,11 +11,6 @@ add_deps("lc_embed_codegen", {
 add_files("*.cpp")
 set_pcxxheader("lc_hlsl_pch.h")
 add_headerfiles("*.h")
-on_load(function(target)
-    if get_config("lc_no_hlsl_builtin") then
-        target:add("defines", "LC_NO_HLSL_BUILTIN")
-    end
-end)
 add_rules("lc_compile_codegen")
 add_files("builtin.lua")
 target_end()

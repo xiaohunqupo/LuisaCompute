@@ -3,9 +3,6 @@ if not os.exists(script_dir) then
     os.mkdir(script_dir)
 end
 function src_dir()
-    if get_config("lc_no_hlsl_builtin") then
-        return nil
-    end
     return script_dir
 end
 

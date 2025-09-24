@@ -47,9 +47,6 @@ on_load(function(target)
             target:add("syslinks", "Cfgmgr32", "Advapi32")
         end
     end
-    if get_config("lc_no_hlsl_builtin") then
-        target:add("defines", "LC_NO_HLSL_BUILTIN")
-    end
 end)
 set_pcxxheader("lc_dx_pch.h")
 add_rules('lc_install_sdk', {
