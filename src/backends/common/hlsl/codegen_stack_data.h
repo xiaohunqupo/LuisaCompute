@@ -16,8 +16,8 @@ struct CodegenStackData : public vstd::IOperatorNewBase {
     vstd::HashMap<Type const *, vstd::unique_ptr<StructGenerator>> customStruct;
     vstd::vector<StructGenerator *> customStructVectorAliased;
     vstd::HashMap<Type const *, vstd::unique_ptr<StructGenerator>> customStructAliased;
-    vstd::unordered_set<Type const*> originToAliasedTypes;
-    vstd::unordered_set<Type const*> aliasedToOriginTypes;
+    vstd::unordered_set<Type const *> originToAliasedTypes;
+    vstd::unordered_set<Type const *> aliasedToOriginTypes;
     vstd::unordered_map<uint, uint> arguments;
     vstd::unordered_map<Type const *, vstd::string> internalStruct;
     vstd::vector<std::pair<vstd::string, Type const *>> printer;
@@ -27,26 +27,27 @@ struct CodegenStackData : public vstd::IOperatorNewBase {
         Pixel,
         Callable
     };
-    FuncType funcType;
-    bool isRaster = false;
-    bool isSpirv = false;
-    bool noRegister = false;
-    bool isPixelShader = false;
-    bool pixelFirstArgIsStruct = false;
-    uint64 count = 0;
-    uint64 constCount = 0;
-    uint64 funcCount = 0;
-    uint64 tempCount = 0;
-    bool useTex2DBindless = false;
-    bool useTex3DBindless = false;
-    bool useBufferBindless = false;
     enum class CondOptValue : uint32_t {
         None = 0,
         Flatten = 1,
         Branch = 2,
         ForceCase = 4
     };
+    FuncType funcType;
     CondOptValue cond_opt_value = CondOptValue::None;
+    bool isRaster : 1 = false;
+    bool isSpirv : 1 = false;
+    bool noRegister : 1 = false;
+    bool isPixelShader : 1 = false;
+    bool pixelFirstArgIsStruct : 1 = false;
+    bool useTex2DBindless : 1 = false;
+    bool useTex3DBindless : 1 = false;
+    bool useBufferBindless : 1 = false;
+    bool atomicFloatToInt : 1 = false;
+    uint64 count = 0;
+    uint64 constCount = 0;
+    uint64 funcCount = 0;
+    uint64 tempCount = 0;
     uint64 structCount = 0;
     uint64 argOffset = 0;
     int64_t appdataId = -1;

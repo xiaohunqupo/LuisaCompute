@@ -391,6 +391,8 @@ void CodegenUtility::GetTypeName(Type const &type, vstd::StringBuilder &str, Usa
                 if (ele->is_matrix()) {
                     auto n = vstd::to_string(ele->dimension());
                     str << "_WrappedFloat"sv << n << 'x' << n;
+                } else if (opt->atomicFloatToInt && ele->is_float32()) {
+                    str << "int"sv;
                 } else {
                     if (ele->is_vector() && ele->dimension() == 3) {
                         GetTypeName(*ele->element(), str, usage);
@@ -839,9 +841,13 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
         } break;
         case CallOp::BUFFER_READ: {
             bool aliasStruct = opt->isSpirv && TypeIsAliased(expr->type());
+            bool floatToInt = opt->atomicFloatToInt && expr->type()->is_float32();
             if (aliasStruct) {
                 AliasedToOrigin(expr->type(), str);
                 str << '(';
+            }
+            if (floatToInt) {
+                str << "asfloat(";
             }
             str << "_bfread"sv;
             auto elem = args[0]->type()->element();
@@ -853,13 +859,14 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             str << '(';
             PrintArgs();
             str << ')';
-            if (aliasStruct) {
+            if (aliasStruct || floatToInt) {
                 str << ')';
             }
             return;
         }
         case CallOp::BUFFER_WRITE: {
             auto elem = args[0]->type()->element();
+            bool floatToInt = opt->atomicFloatToInt && elem->is_float32();
             bool aliasStruct = opt->isSpirv && TypeIsAliased(elem);
             str << "_bfwrite"sv;
             if (IsNumVec3(*elem)) {
@@ -881,6 +888,10 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             if (aliasStruct) {
                 OriginToAliased(args.back()->type(), str);
                 str << '(';
+                args.back()->accept(vis);
+                str << ')';
+            } else if (floatToInt) {
+                str << "asint("sv;
                 args.back()->accept(vis);
                 str << ')';
             } else {
@@ -2712,6 +2723,7 @@ CodegenResult CodegenUtility::Codegen(
     opt = CodegenStackData::Allocate(this);
     opt->isSpirv = isSpirV;
     opt->noRegister = noRegister;
+    opt->atomicFloatToInt = isSpirV && kernel.propagated_builtin_callables().uses_atomic();
     auto disposeOpt = vstd::scope_exit([&] {
         CodegenStackData::DeAllocate(std::move(opt));
     });
@@ -2800,6 +2812,7 @@ CodegenResult CodegenUtility::RasterCodegen(
     opt->kernel = vertFunc;
     opt->noRegister = noRegister;
     opt->isRaster = true;
+    opt->atomicFloatToInt = isSpirV && (vertFunc.propagated_builtin_callables().uses_atomic() || pixelFunc.propagated_builtin_callables().uses_atomic());
     auto disposeOpt = vstd::scope_exit([&] {
         opt->isRaster = false;
         CodegenStackData::DeAllocate(std::move(opt));
