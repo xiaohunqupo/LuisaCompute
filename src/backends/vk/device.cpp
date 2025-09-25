@@ -753,6 +753,9 @@ Device::~Device() {
 }
 void *Device::native_handle() const noexcept { return _vk_device->logicalDevice; }
 BufferCreationInfo Device::create_buffer(const Type *element, size_t elem_count, void *external_ptr) noexcept {
+    if (element->is_custom()) [[unlikely]] {
+        LUISA_ERROR("Indirect buffer not supported.");
+    }
     BufferCreationInfo info;
     info.element_stride = (element == Type::of<void>()) ? 1 : element->size();
     auto ptr = new DefaultBuffer(this, info.element_stride * elem_count, true);
@@ -1094,6 +1097,9 @@ void Device::update_sparse_resources(
     reinterpret_cast<Stream *>(stream_handle)->update_sparse_resources(std::move(textures_update));
 }
 SparseBufferCreationInfo Device::create_sparse_buffer(const Type *element, size_t elem_count) noexcept {
+    if (element->is_custom()) [[unlikely]] {
+        LUISA_ERROR("Indirect buffer not supported.");
+    }
     SparseBufferCreationInfo info;
     auto ptr = new SparseBuffer(this, element->size() * elem_count, true);
     info.element_stride = (element == Type::of<void>()) ? 1 : element->size();

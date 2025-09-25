@@ -438,7 +438,7 @@ void CommandBufferState::init(Device &device, StreamTag tag) {
                 pool_ci.queueFamilyIndex = device.compute_queue_index();
                 break;
             default:
-                LUISA_ASSERT(false, "Illegal stream tag.");
+                LUISA_ERROR("Illegal stream tag.");
         }
         VK_CHECK_RESULT(vkCreateCommandPool(device.logic_device(), &pool_ci, Device::alloc_callbacks(), &_pool));
     }
@@ -530,7 +530,7 @@ Stream::Stream(Device *device, StreamTag tag)
             resource_barrier.queue_index = device->compute_queue_index();
             break;
         default:
-            LUISA_ASSERT(false, "Illegal stream tag.");
+            LUISA_ERROR("Illegal stream tag.");
     }
 }
 Stream::~Stream() {
@@ -1463,8 +1463,9 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                         return (disp + thd - 1u) / thd;
                     };
                     auto blk = shader->block_size();
-                    if (c->is_multiple_dispatch()) {
-                        LUISA_ASSERT(false, "Dispatch count not implemented.");
+                    if (c->is_indirect()) {
+                        LUISA_ERROR("Indirect not implemented.");
+                    } else if (c->is_multiple_dispatch()) {
                         uint idx = 0;
                         for (auto &disp_size : c->dispatch_sizes()) {
                             uint4 value{make_uint4(disp_size, idx)};
