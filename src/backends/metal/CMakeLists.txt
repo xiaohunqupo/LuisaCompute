@@ -10,7 +10,7 @@ if (APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     file(GLOB LUISA_COMPUTE_METAL_TEX_COMPRESS_SOURCES CONFIGURE_DEPENDS metal-tex-compress/*.patched.metal)
     add_custom_target(luisa-compute-backend-metal-embed
             COMMAND $<TARGET_FILE:luisa_embed_device_lib> ${LUISA_COMPUTE_METAL_DEVICE_LIB_SOURCES} --prefix luisa_compute_ -o metal_builtin_embedded.cpp -h metal_builtin_embedded.h
-            COMMAND $<TARGET_FILE:luisa_embed_device_lib> ${LUISA_COMPUTE_METAL_TEX_COMPRESS_SOURCES} --prefix luisa_compute_metal_texture_compress -o metal_tex_compress_embedded.cpp -h metal_tex_compress_embedded.h
+            COMMAND $<TARGET_FILE:luisa_embed_device_lib> ${LUISA_COMPUTE_METAL_TEX_COMPRESS_SOURCES} --prefix luisa_compute_metal_texture_compress_ -o metal_tex_compress_embedded.cpp -h metal_tex_compress_embedded.h
             BYPRODUCTS ${CMAKE_CURRENT_LIST_DIR}/metal_builtin_embedded.cpp ${CMAKE_CURRENT_LIST_DIR}/metal_builtin_embedded.h ${CMAKE_CURRENT_LIST_DIR}/metal_tex_compress_embedded.cpp ${CMAKE_CURRENT_LIST_DIR}/metal_tex_compress_embedded.h
             DEPENDS luisa_embed_device_lib ${CMAKE_CURRENT_LIST_FILE}
             SOURCES ${LUISA_COMPUTE_METAL_DEVICE_LIB_SOURCES}
