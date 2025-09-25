@@ -1,8 +1,6 @@
 local script_dir = path.join(os.scriptdir(), "cuda_builtin")
 local dst_script_dir = os.scriptdir()
-if not os.exists(dst_script_dir) then
-    os.mkdir(dst_script_dir)
-end
+
 function src_dir()
     return script_dir
 end

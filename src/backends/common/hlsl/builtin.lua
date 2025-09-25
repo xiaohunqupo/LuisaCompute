@@ -1,7 +1,4 @@
 local script_dir = path.join(os.scriptdir(), "builtin")
-if not os.exists(script_dir) then
-    os.mkdir(script_dir)
-end
 function src_dir()
     return script_dir
 end
