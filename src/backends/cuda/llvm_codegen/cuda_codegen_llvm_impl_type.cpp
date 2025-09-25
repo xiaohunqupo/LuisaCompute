@@ -43,9 +43,11 @@ CUDACodegenLLVMImpl::_get_llvm_type(const Type *type) noexcept {
             auto llvm_void_type = llvm::Type::getVoidTy(_llvm_context);
             return luisa::make_unique<LLVMTypeInfo>(llvm_void_type, llvm_void_type, luisa::vector<size_t>{});
         }
-        auto make_llvm_type_info = [this](auto mem_t, auto reg_t, size_t s, size_t a, luisa::vector<size_t> member_offsets = {}) noexcept {
+        auto make_llvm_type_info = [this](auto mem_t, auto reg_t, size_t s, size_t a,
+                                          luisa::vector<size_t> member_indices = {},
+                                          luisa::vector<size_t> member_offsets = {}) noexcept {
             detail::luisa_check_llvm_type_size_and_alignment(*_data_layout, mem_t, s, a);
-            return luisa::make_unique<LLVMTypeInfo>(mem_t, reg_t, std::move(member_offsets));
+            return luisa::make_unique<LLVMTypeInfo>(mem_t, reg_t, std::move(member_indices), std::move(member_offsets));
         };
         switch (type->tag()) {
             case Type::Tag::BOOL: {
@@ -87,15 +89,16 @@ CUDACodegenLLVMImpl::_get_llvm_type(const Type *type) noexcept {
             case Type::Tag::VECTOR: {
                 auto elem = _get_llvm_type(type->element());
                 auto dim = type->dimension();
-                auto reg_type = llvm::VectorType::get(elem->reg_type, dim, false);
-                auto mem_type = llvm::ArrayType::get(elem->mem_type, dim == 3 ? 4 : dim);
-                return make_llvm_type_info(mem_type, reg_type, type->size(), type->alignment());
+                auto llvm_reg_type = llvm::VectorType::get(elem->reg_type, dim, false);
+                auto llvm_mem_type = llvm::ArrayType::get(elem->mem_type, dim == 3 ? 4 : dim);
+                return make_llvm_type_info(llvm_mem_type, llvm_reg_type, type->size(), type->alignment());
             }
             case Type::Tag::MATRIX: {
                 auto dim = type->dimension();
                 auto llvm_col_type = _get_llvm_type(Type::vector(type->element(), dim));
-                auto llvm_type = llvm::ArrayType::get(llvm_col_type->mem_type, dim);
-                return make_llvm_type_info(llvm_type, llvm_type, type->size(), type->alignment());
+                auto llvm_reg_type = llvm::ArrayType::get(llvm_col_type->reg_type, dim);
+                auto llvm_mem_type = llvm::ArrayType::get(llvm_col_type->mem_type, dim);
+                return make_llvm_type_info(llvm_mem_type, llvm_reg_type, type->size(), type->alignment());
             }
             case Type::Tag::ARRAY: {
                 auto llvm_elem_type = _get_llvm_type(type->element())->mem_type;
@@ -103,7 +106,11 @@ CUDACodegenLLVMImpl::_get_llvm_type(const Type *type) noexcept {
                 return make_llvm_type_info(llvm_type, llvm_type, type->size(), type->alignment());
             }
             case Type::Tag::STRUCTURE: {
+                luisa::vector<size_t> member_indices;
                 luisa::vector<size_t> member_offsets;
+                auto member_count = type->members().size();
+                member_indices.reserve(member_count);
+                member_offsets.reserve(member_count);
                 llvm::SmallVector<llvm::Type *> llvm_member_types;
                 auto llvm_i8_type = llvm::Type::getInt8Ty(_llvm_context);
                 auto current_offset = static_cast<size_t>(0u);
@@ -113,7 +120,8 @@ CUDACodegenLLVMImpl::_get_llvm_type(const Type *type) noexcept {
                         llvm_member_types.emplace_back(
                             llvm::ArrayType::get(llvm_i8_type, next_offset - current_offset));
                     }
-                    member_offsets.emplace_back(llvm_member_types.size());
+                    member_indices.emplace_back(llvm_member_types.size());
+                    member_offsets.emplace_back(next_offset);
                     llvm_member_types.emplace_back(_get_llvm_type(member)->mem_type);
                     current_offset = next_offset + member->size();
                 }
@@ -122,7 +130,8 @@ CUDACodegenLLVMImpl::_get_llvm_type(const Type *type) noexcept {
                         llvm::ArrayType::get(llvm_i8_type, type->size() - current_offset));
                 }
                 auto llvm_type = llvm::StructType::get(_llvm_context, llvm_member_types, false);
-                return make_llvm_type_info(llvm_type, llvm_type, type->size(), type->alignment(), std::move(member_offsets));
+                return make_llvm_type_info(llvm_type, llvm_type, type->size(), type->alignment(),
+                                           std::move(member_indices), std::move(member_offsets));
             }
             case Type::Tag::BUFFER: {
                 auto llvm_type = _get_llvm_buffer_type();

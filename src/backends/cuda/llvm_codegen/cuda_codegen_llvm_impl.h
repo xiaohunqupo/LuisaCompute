@@ -36,7 +36,15 @@ public:
     struct LLVMTypeInfo {
         llvm::Type *mem_type;                // The LLVM type used in memory (with proper alignment)
         llvm::Type *reg_type;                // The LLVM type used in registers
-        luisa::vector<size_t> member_offsets;// For struct type, the mapping from member index to LLVM struct field index
+        luisa::vector<size_t> member_indices;// For struct type, the mapping from member index to LLVM struct field index
+        luisa::vector<size_t> member_offsets;// For struct type, the byte offset of each member
+    };
+
+    using IB = llvm::IRBuilder<>;
+
+    struct FunctionContext {
+        llvm::Function *llvm_function;
+        llvm::DenseMap<const xir::Value *, llvm::Value *> local_values;
     };
 
 private:
@@ -54,6 +62,9 @@ private:
     llvm::Type *_llvm_accel_instance_type{nullptr};     // { [ 12 x float ] affine, i32 user_id, i32 sbt_offset, i32 mask, i32 flags, i64 handle, i32 padding } as defined in optix_api.h
     llvm::DenseMap<const Type *, luisa::unique_ptr<LLVMTypeInfo>> _xir_to_llvm_type;
 
+    llvm::DenseMap<const xir::Function *, llvm::Function *> _xir_to_llvm_function;
+    llvm::DenseMap<const xir::Constant *, llvm::Constant *> _xir_to_llvm_global;
+
 private:
     [[nodiscard]] static const llvm::Target *_get_nvptx_target() noexcept;
     void _initialize() noexcept;
@@ -61,8 +72,8 @@ private:
     void _dump_module(const std::filesystem::path &path) const noexcept;
     [[nodiscard]] luisa::string _generate_ptx() const noexcept;
 
-    [[nodiscard]] static llvm::MemoryBufferRef _wrap_bitcode_array(llvm::StringRef name, const unsigned char *data, size_t size) noexcept {
-        auto p = reinterpret_cast<const char *>(data);
+    [[nodiscard]] static llvm::MemoryBufferRef _wrap_bitcode_array(llvm::StringRef name, const void *data, size_t size) noexcept {
+        auto p = static_cast<const char *>(data);
         return {llvm::StringRef{p, size}, name};
     }
 
@@ -74,6 +85,12 @@ private:
     [[nodiscard]] llvm::Type *_get_llvm_bindless_array_slot_type() noexcept;
     [[nodiscard]] llvm::Type *_get_llvm_accel_type() noexcept;
     [[nodiscard]] llvm::Type *_get_llvm_accel_instance_type() noexcept;
+
+    // defined in cuda_codegen_llvm_impl_func.cpp
+
+    // defined in cuda_codegen_llvm_impl_const.cpp
+    [[nodiscard]] llvm::Value *_get_llvm_literal(IB &b, const Type *type, const void *data) noexcept;
+    [[nodiscard]] llvm::Value *_get_llvm_constant(IB &b, const xir::Constant *c) noexcept;
 
 public:
     explicit CUDACodegenLLVMImpl(CUDACodegenLLVMConfig config) noexcept;
