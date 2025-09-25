@@ -63,6 +63,7 @@ public:
 private:
     friend class Device;
     friend class DxCudaInterop;
+    friend class VkCudaInterop;
     explicit TimelineEvent(DeviceInterface *device, const ResourceCreationInfo &info) noexcept;
     explicit TimelineEvent(DeviceInterface *device) noexcept;
 

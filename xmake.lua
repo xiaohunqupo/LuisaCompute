@@ -53,6 +53,12 @@ set_default(false)
 set_showmenu(true)
 option_end()
 
+option("lc_vk_cuda_interop")
+set_values(true, false)
+set_default(false)
+set_showmenu(true)
+option_end()
+
 -- enable Vulkan backend
 option("lc_vk_support")
 set_values(true, false)

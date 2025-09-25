@@ -24,6 +24,9 @@
 #include "vk_raster_ext.h"
 #include "vk_native_res_ext.h"
 #include <luisa/backends/ext/raster_ext_interface.h>
+#ifdef LCVK_ENABLE_CUDA
+#include "vk_cuda_interop_ext.h"
+#endif
 namespace lc::vk {
 static constexpr uint k_shader_model = 65u;
 
@@ -390,6 +393,21 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
         [](DeviceExtension *ext) {
             delete static_cast<VkNativeResourceExt *>(ext);
         });
+
+#ifdef LCVK_ENABLE_CUDA
+    exts.try_emplace(
+#ifdef LUISA_USE_SYSTEM_STL
+        luisa::string{VkCudaInterop::name},
+#else
+        VkCudaInterop::name,
+#endif
+        [](Device *device) -> DeviceExtension * {
+            return new VkCudaInteropImpl(device);
+        },
+        [](DeviceExtension *ext) {
+            delete static_cast<VkCudaInteropImpl *>(ext);
+        });
+#endif
     // auto exts = detail::supported_exts(physical_device());
     // for(auto&& i : exts){
     //     LUISA_INFO("{}", i.extensionName);
