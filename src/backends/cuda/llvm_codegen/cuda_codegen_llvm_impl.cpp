@@ -94,10 +94,8 @@ inline void CUDACodegenLLVMImpl::_initialize() noexcept {
     // parse libdevice bitcode
     _llvm_module = [&] {
         llvm::SMDiagnostic error;
-        auto bc = _wrap_bitcode_array("libdevice.bc", luisa_cuda_codegen_libdevice_bitcode);
-        if (auto m = llvm::parseIR(bc, error, _llvm_context)) {
-            return m;
-        }
+        auto bc = _wrap_bitcode_array("libdevice.bc", luisa_compute_cuda_libdevice_10, luisa_compute_cuda_libdevice_10_size);
+        if (auto m = llvm::parseIR(bc, error, _llvm_context)) { return m; }
         LUISA_ERROR_WITH_LOCATION("Failed to parse libdevice bitcode: {}", error.getMessage());
     }();
 

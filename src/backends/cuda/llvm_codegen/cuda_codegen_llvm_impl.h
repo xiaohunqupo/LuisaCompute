@@ -61,10 +61,9 @@ private:
     void _dump_module(const std::filesystem::path &path) const noexcept;
     [[nodiscard]] luisa::string _generate_ptx() const noexcept;
 
-    template<size_t N>
-    [[nodiscard]] llvm::MemoryBufferRef _wrap_bitcode_array(llvm::StringRef name, const unsigned char (&data)[N]) const noexcept {
+    [[nodiscard]] static llvm::MemoryBufferRef _wrap_bitcode_array(llvm::StringRef name, const unsigned char *data, size_t size) noexcept {
         auto p = reinterpret_cast<const char *>(data);
-        return {llvm::StringRef{p, N}, name};
+        return {llvm::StringRef{p, size}, name};
     }
 
     // defined in cuda_codegen_llvm_impl_type.cpp
