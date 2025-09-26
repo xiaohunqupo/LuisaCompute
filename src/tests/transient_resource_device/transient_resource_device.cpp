@@ -2,6 +2,7 @@
 #include <luisa/core/logging.h>
 #include <luisa/backends/ext/registry.h>
 #include <luisa/backends/ext/raster_cmd.h>
+#include <luisa/core/logging.h>
 
 namespace luisa::utils {
 #define LUISA_NOT_IMPL_RET   \
@@ -489,6 +490,20 @@ void TransientResourceDevice::dispatch(uint64_t stream_handle, CommandList &&lis
     for (auto &i : _tex_desc_to_native) {
         _tex_meta_pool.destroy(i.first);
     }
+    if (dump_func) {
+        luisa::string dump;
+        for (auto &i : _buffer_name_to_desc) {
+            auto iter = _buffer_desc_to_native.find(i.second);
+            LUISA_DEBUG_ASSERT(iter);
+            dump += luisa::format("Buffer {} has sub-range [{}, {}] from command index {} to {}\n", i.first, iter.value().offset, iter.value().offset + *i.second, iter.value().start_command_index, iter.value().end_command_index);
+        }
+        for (auto &i : _tex_name_to_desc) {
+            auto iter = _tex_desc_to_native.find(i.second);
+            LUISA_DEBUG_ASSERT(iter);
+            dump += luisa::format("Texture {}'s physical resource handle 0x{:X} from command index {} to {}\n", i.first, iter.value().handle->res_info.handle, iter.value().start_command_index, iter.value().end_command_index);
+        }
+        dump_func(std::move(dump));
+    }
     _tex_desc_to_native.clear();
     _tex_name_to_desc.clear();
     _buffer_name_to_desc.clear();
@@ -497,18 +512,6 @@ void TransientResourceDevice::dispatch(uint64_t stream_handle, CommandList &&lis
     _buffer_desc_to_native.clear();
     ++_frame_index;
     list.clear();
-}
-vstd::string TransientResourceDevice::log_resource_info() {
-    vstd::string result;
-    for (auto &i : _tex_name_to_desc) {
-        auto &&v = i.second;
-        auto size = v->dimension == 2 ? luisa::format("({}, {})", v->width, v->height) : luisa::format("({}, {}, {})", v->width, v->height, v->depth);
-        result += luisa::format("Texture '{}' format {}, size {}, mipmap_levels {}, simultaneous_access {}, allow_raster_target {}\n", i.first, luisa::to_string(v->format), size, v->mipmap_levels, v->simultaneous_access(), v->allow_raster_target());
-    }
-    for (auto &i : _buffer_name_to_desc) {
-        result += luisa::format("Buffer '{}', size {}\n", i.first, *i.second);
-    }
-    return result;
 }
 
 //////////////// Others
@@ -684,6 +687,18 @@ SparseTextureCreationInfo TransientResourceDevice::create_sparse_texture(
 }
 void TransientResourceDevice::destroy_sparse_texture(uint64_t handle) noexcept {
     LUISA_NOT_IMPLEMENTED();
+}
+TransientResourceDeviceScope::TransientResourceDeviceScope(
+    compute::Stream &stream,
+    compute::Device &transient_res_device,
+    bool log_info) : stream(stream), transient_res_device(transient_res_device) {
+    auto device = static_cast<TransientResourceDevice *>(transient_res_device.impl());
+    device->begin_managing(cmdlist);
+    if (log_info) {
+        device->dump_func = [&](luisa::string &&str) {
+            LUISA_INFO("\n{}", str);
+        };
+    }
 }
 }// namespace luisa::utils
 #undef LUISA_NOT_IMPL_RET
