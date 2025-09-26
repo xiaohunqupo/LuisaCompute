@@ -43,8 +43,11 @@ public:
     using IB = llvm::IRBuilder<>;
 
     struct FunctionContext {
-        llvm::Function *llvm_function;
+        llvm::Function *llvm_func;
+        llvm::BasicBlock *llvm_alloca_block;
+        llvm::BasicBlock *llvm_entry_block;
         llvm::DenseMap<const xir::Value *, llvm::Value *> local_values;
+        explicit FunctionContext(llvm::Function *f) noexcept;
     };
 
 private:
@@ -72,11 +75,6 @@ private:
     void _dump_module(const std::filesystem::path &path) const noexcept;
     [[nodiscard]] luisa::string _generate_ptx() const noexcept;
 
-    [[nodiscard]] static llvm::MemoryBufferRef _wrap_bitcode_array(llvm::StringRef name, const void *data, size_t size) noexcept {
-        auto p = static_cast<const char *>(data);
-        return {llvm::StringRef{p, size}, name};
-    }
-
     // defined in cuda_codegen_llvm_impl_type.cpp
     [[nodiscard]] const LLVMTypeInfo *_get_llvm_type(const Type *type) noexcept;
     [[nodiscard]] llvm::Type *_get_llvm_buffer_type() noexcept;
@@ -87,6 +85,11 @@ private:
     [[nodiscard]] llvm::Type *_get_llvm_accel_instance_type() noexcept;
 
     // defined in cuda_codegen_llvm_impl_func.cpp
+    [[nodiscard]] llvm::Function *_get_llvm_function(const xir::Function *func) noexcept;
+    [[nodiscard]] llvm::Function *_create_llvm_kernel_function(const xir::KernelFunction *func) noexcept;
+    [[nodiscard]] llvm::Function *_create_llvm_callable_function(const xir::CallableFunction *func) noexcept;
+    [[nodiscard]] llvm::Function *_create_llvm_external_function(const xir::ExternalFunction *func) noexcept;
+    [[nodiscard]] llvm::BasicBlock *_translate_basic_block(FunctionContext &func_ctx, const xir::BasicBlock *bb) noexcept;
 
     // defined in cuda_codegen_llvm_impl_const.cpp
     [[nodiscard]] llvm::Value *_get_llvm_literal(IB &b, const Type *type, const void *data) noexcept;

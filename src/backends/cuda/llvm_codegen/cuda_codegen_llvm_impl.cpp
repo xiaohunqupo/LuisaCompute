@@ -28,6 +28,14 @@ CUDACodegenLLVMImpl::CUDACodegenLLVMImpl(CUDACodegenLLVMConfig config) noexcept
     LUISA_VERBOSE_WITH_LOCATION("CUDA LLVM codegen initialized in {} ms.", clk.toc());
 }
 
+CUDACodegenLLVMImpl::FunctionContext::FunctionContext(llvm::Function *f) noexcept
+    : llvm_func{f},
+      llvm_alloca_block{llvm::BasicBlock::Create(llvm_func->getContext(), "alloca", llvm_func)},
+      llvm_entry_block{llvm::BasicBlock::Create(llvm_func->getContext(), "entry", llvm_func)} {
+    IB b{llvm_alloca_block};
+    b.CreateBr(llvm_entry_block);
+}
+
 const llvm::Target *CUDACodegenLLVMImpl::_get_nvptx_target() noexcept {
     // initialize NVPTX target
     static std::once_flag once_flag;
@@ -94,8 +102,9 @@ inline void CUDACodegenLLVMImpl::_initialize() noexcept {
     // parse libdevice bitcode
     _llvm_module = [&] {
         llvm::SMDiagnostic error;
-        auto bc = _wrap_bitcode_array("libdevice.bc", luisa_compute_cuda_libdevice_10, luisa_compute_cuda_libdevice_10_size);
-        if (auto m = llvm::parseIR(bc, error, _llvm_context)) { return m; }
+        llvm::StringRef bc{reinterpret_cast<const char *>(luisa_compute_cuda_libdevice_10),
+                           luisa_compute_cuda_libdevice_10_size};
+        if (auto m = llvm::parseIR({bc, "libdevice.10.bc"}, error, _llvm_context)) { return m; }
         LUISA_ERROR_WITH_LOCATION("Failed to parse libdevice bitcode: {}", error.getMessage());
     }();
 
