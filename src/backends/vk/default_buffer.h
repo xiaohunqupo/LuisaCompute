@@ -16,5 +16,7 @@ public:
     DefaultBuffer(DefaultBuffer &&rhs);
     ~DefaultBuffer();
     VkBuffer vk_buffer() const override { return _buffer; }
+    VkDeviceMemory external_device_memory() const { return _allocated_memory; }
+    bool is_external_allocation() const { return _external_allocation; }
 };
 }// namespace lc::vk

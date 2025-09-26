@@ -19,6 +19,10 @@ int main(int argc, char *argv[]) {
         auto uv = (make_float2(dispatch_id().xy()) + 0.5f) / make_float2(dispatch_size().xy());
         img.write(dispatch_id().xy() + offset, make_float4(uv, z_value, 1.0f));
     });
+    auto write_buffer = device.compile<1>([](BufferVar<float> buffer, BufferVar<float> buffer1) {
+        buffer.write(dispatch_id().x, dispatch_id().x.cast<float>());
+        buffer1.write(dispatch_id().x, dispatch_id().x.cast<float>());
+    });
     static constexpr uint2 resolution = make_uint2(1024u);
     Window window{"path tracing", resolution};
     Swapchain swap_chain = device.create_swapchain(
@@ -37,24 +41,35 @@ int main(int argc, char *argv[]) {
     {
         utils::TransientResourceDeviceScope managed_scope{
             stream,
-            transient_res_device};
-        // pass 1
+            transient_res_device,
+            true};
+        // pass 0
         {
             auto tex = managed_scope.create_transient_image<float>("MyTexture", storage, resolution);
             managed_scope.cmdlist << write_shader(tex, uint2(0), 0.0f).dispatch(resolution.x, resolution.y / 2);
         }
-        // pass 2
+        // pass 1
         {
-            // exactly same texture as pass 1
+            // exactly same texture as pass 0
             auto tex = managed_scope.create_transient_image<float>("MyTexture", storage, resolution);
             managed_scope.cmdlist << write_shader(tex, uint2(0, resolution.y / 2), 1.0f).dispatch(resolution.x, resolution.y / 2);
         }
-        // pass 3
+        // pass 2
         {
-            // exactly same texture as pass 1 and pass 2
+            // exactly same texture as pass 0 and pass 1
             auto tex = managed_scope.create_transient_image<float>("MyTexture", storage, resolution);
             // mix-in usage of transient and REAL resources
             managed_scope.cmdlist << dst_tex.copy_from(tex);
+        }
+        // pass 3
+        {
+            auto buffer = managed_scope.create_transient_buffer<float>("MyBuffer", 512);
+            auto buffer1 = managed_scope.create_transient_buffer<float>("MyBuffer1", 256);
+            auto buffer2 = managed_scope.create_transient_buffer<float>("MyBuffer2", 384); 
+            managed_scope.cmdlist
+                << write_buffer(buffer, buffer1).dispatch(buffer.size())
+                // buffer2 will reuse buffer's memory
+                << write_buffer(buffer1, buffer2).dispatch(buffer.size());
         }
         // dispatch to stream after scope
     }

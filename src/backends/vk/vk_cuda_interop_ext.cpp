@@ -1,8 +1,10 @@
 #ifdef LCVK_ENABLE_CUDA
+#include <cuda.h>
 #include "vk_cuda_interop_ext.h"
 #include "device.h"
 #include "texture.h"
-#include <cuda.h>
+#include "stream.h"
+#include "default_buffer.h"
 #include "../cuda/cuda_stream.h"
 
 #if defined(LUISA_PLATFORM_WINDOWS)
@@ -11,7 +13,6 @@
 #include <dxgi1_2.h>
 #include <AclAPI.h>
 #include <vulkan/vulkan_win32.h>
-#include "default_buffer.h"
 #elif defined(LUISA_PLATFORM_UNIX)
 #include <X11/Xlib.h>
 #include <vulkan/vulkan_xlib.h>
@@ -148,11 +149,40 @@ VkCudaInteropImpl::VkCudaInteropImpl(Device *device) : _device(device) {
     LUISA_CHECK_CUDA(cuDevicePrimaryCtxRetain(&_cu_context, _cu_device));
 }
 VkCudaInteropImpl::~VkCudaInteropImpl() {}
+auto vulkan_device_memory_handle(VkDevice device, VkDeviceMemory memory, auto type) {
+#ifdef LUISA_PLATFORM_WINDOWS
+    auto fp_vkGetMemoryWin32HandleKHR = reinterpret_cast<PFN_vkGetMemoryWin32HandleKHR>(
+        vkGetDeviceProcAddr(device, "vkGetMemoryWin32HandleKHR"));
+    LUISA_ASSERT(fp_vkGetMemoryWin32HandleKHR != nullptr,
+                 "Failed to load vkGetMemoryWin32HandleKHR function.");
+    HANDLE handle{};
+    VkMemoryGetWin32HandleInfoKHR handle_info{};
+    handle_info.sType = VK_STRUCTURE_TYPE_MEMORY_GET_WIN32_HANDLE_INFO_KHR;
+    handle_info.pNext = nullptr;
+    handle_info.memory = memory;
+    handle_info.handleType = static_cast<VkExternalMemoryHandleTypeFlagBits>(type);
+    LUISA_CHECK_VULKAN(fp_vkGetMemoryWin32HandleKHR(device, &handle_info, &handle));
+    return handle;
+#else
+    auto fp_vkGetMemoryFdKHR = reinterpret_cast<PFN_vkGetMemoryFdKHR>(
+        vkGetDeviceProcAddr(device, "vkGetMemoryFdKHR"));
+    LUISA_ASSERT(fp_vkGetMemoryFdKHR != nullptr,
+                 "Failed to load vkGetMemoryFdKHR function.");
+    auto fd = 0;
+    VkMemoryGetFdInfoKHR fd_info{};
+    fd_info.sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR;
+    fd_info.pNext = nullptr;
+    fd_info.memory = memory;
+    fd_info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT_KHR;
+    LUISA_CHECK_VULKAN(fp_vkGetMemoryFdKHR(device, &fd_info, &fd));
+    return fd;
+#endif
+}
 BufferCreationInfo VkCudaInteropImpl::create_interop_buffer(const Type *element, size_t elem_count) noexcept {
     VkBuffer buffer;
     VkDeviceMemory buffer_memory;
-    VkExternalMemoryImageCreateInfo external_memory_info{};
-    external_memory_info.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO;
+    VkExternalMemoryBufferCreateInfo external_memory_info{};
+    external_memory_info.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO;
 #ifdef LUISA_PLATFORM_WINDOWS
     external_memory_info.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
 #else
@@ -196,10 +226,8 @@ BufferCreationInfo VkCudaInteropImpl::create_interop_buffer(const Type *element,
     export_memory_info.dwAccess = DXGI_SHARED_RESOURCE_READ | DXGI_SHARED_RESOURCE_WRITE;
     export_memory_info.name = nullptr;
 #endif
-
     VkExportMemoryAllocateInfo export_allocate_info{};
     export_allocate_info.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO;
-
 #ifdef LUISA_PLATFORM_WINDOWS
     export_allocate_info.pNext = IsWindows8OrGreater() ? &export_memory_info : nullptr;
     export_allocate_info.handleTypes =
@@ -209,19 +237,25 @@ BufferCreationInfo VkCudaInteropImpl::create_interop_buffer(const Type *element,
     export_allocate_info.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT_KHR;
 #endif
 
+    VkMemoryAllocateFlagsInfo alloc_flag_info{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO,
+        .pNext = &export_allocate_info,
+        .flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT};
+
     VkMemoryAllocateInfo alloc_info{};
     alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     alloc_info.allocationSize = mem_requirements.size;
     alloc_info.memoryTypeIndex = _find_memory_type(mem_requirements.memoryTypeBits, _device->physical_device(), VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    alloc_info.pNext = &export_allocate_info;
+    alloc_info.pNext = &alloc_flag_info;
     LUISA_CHECK_VULKAN(vkAllocateMemory(_device->logic_device(), &alloc_info, Device::alloc_callbacks(), &buffer_memory));
+    LUISA_CHECK_VULKAN(vkBindBufferMemory(_device->logic_device(), buffer, buffer_memory, 0));
+
     BufferCreationInfo info;
     auto lc_buffer = new DefaultBuffer(
         _device,
         buffer,
         buffer_memory,
-        size_bytes
-    );
+        size_bytes);
     info.handle = reinterpret_cast<uint64_t>(lc_buffer);
     info.native_handle = lc_buffer->vk_buffer();
     info.element_stride = element_stride;
@@ -285,11 +319,15 @@ ResourceCreationInfo VkCudaInteropImpl::create_interop_texture(
     export_allocate_info.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT_KHR;
 #endif
 
+    VkMemoryAllocateFlagsInfo alloc_flag_info{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO,
+        .pNext = &export_allocate_info,
+        .flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT};
     VkMemoryAllocateInfo alloc_info{};
     alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     alloc_info.allocationSize = mem_requirements.size;
     alloc_info.memoryTypeIndex = _find_memory_type(mem_requirements.memoryTypeBits, _device->physical_device(), VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    alloc_info.pNext = &export_allocate_info;
+    alloc_info.pNext = &alloc_flag_info;
     LUISA_CHECK_VULKAN(vkAllocateMemory(_device->logic_device(), &alloc_info, Device::alloc_callbacks(), &image_memory));
     LUISA_CHECK_VULKAN(vkBindImageMemory(_device->logic_device(), image, image_memory, 0));
     auto tex = new Texture(
@@ -306,18 +344,128 @@ ResourceCreationInfo VkCudaInteropImpl::create_interop_texture(
         .native_handle = tex->vk_image()};
 }
 void VkCudaInteropImpl::_vk_signal(uint64_t cuda_event_handle, uint64_t vk_stream, uint64_t fence_index) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    auto evt = reinterpret_cast<cuda::CUDAEvent *>(cuda_event_handle);
+    auto stream = reinterpret_cast<lc::vk::Stream *>(vk_stream);
+    auto semaphore = evt->vk_semaphore();
+    if (_device->config_ext() && _device->config_ext()->signal_semaphore(stream->queue(), semaphore, fence_index))
+        return;
+    VkTimelineSemaphoreSubmitInfo timelineInfo1{};
+    timelineInfo1.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
+    timelineInfo1.pNext = nullptr;
+    timelineInfo1.waitSemaphoreValueCount = 0;
+    timelineInfo1.pWaitSemaphoreValues = nullptr;
+    timelineInfo1.signalSemaphoreValueCount = 1;
+    timelineInfo1.pSignalSemaphoreValues = &fence_index;
+    VkSubmitInfo info1{};
+    info1.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    info1.pNext = &timelineInfo1;
+    info1.waitSemaphoreCount = 0;
+    info1.pWaitSemaphores = nullptr;
+    info1.signalSemaphoreCount = 1;
+    info1.pSignalSemaphores = &semaphore;
+    // ... Enqueue initial device work here.
+    info1.commandBufferCount = 0;
+    info1.pCommandBuffers = nullptr;
+    stream->queue_mtx().lock();
+    LUISA_CHECK_VULKAN(vkQueueSubmit(stream->queue(), 1, &info1, VK_NULL_HANDLE));
+    stream->queue_mtx().unlock();
 }
 void VkCudaInteropImpl::_vk_wait(uint64_t cuda_event_handle, uint64_t vk_stream, uint64_t fence_index) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    auto evt = reinterpret_cast<cuda::CUDAEvent *>(cuda_event_handle);
+    auto stream = reinterpret_cast<lc::vk::Stream *>(vk_stream);
+    auto semaphore = evt->vk_semaphore();
+    if (_device->config_ext() && _device->config_ext()->wait_semaphore(stream->queue(), semaphore, fence_index))
+        return;
+    VkTimelineSemaphoreSubmitInfo timelineInfo1{};
+    timelineInfo1.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
+    timelineInfo1.pNext = nullptr;
+    timelineInfo1.waitSemaphoreValueCount = 0;
+    timelineInfo1.pWaitSemaphoreValues = nullptr;
+    timelineInfo1.signalSemaphoreValueCount = 1;
+    timelineInfo1.pSignalSemaphoreValues = &fence_index;
+    VkSubmitInfo info1{};
+    info1.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    info1.pNext = &timelineInfo1;
+    info1.waitSemaphoreCount = 1;
+    info1.pWaitSemaphores = &semaphore;
+    info1.signalSemaphoreCount = 0;
+    info1.pSignalSemaphores = nullptr;
+    // ... Enqueue initial device work here.
+    info1.commandBufferCount = 0;
+    info1.pCommandBuffers = nullptr;
+    stream->queue_mtx().lock();
+    LUISA_CHECK_VULKAN(vkQueueSubmit(stream->queue(), 1, &info1, VK_NULL_HANDLE));
+    stream->queue_mtx().unlock();
 }
 
 void VkCudaInteropImpl::cuda_buffer(uint64_t vk_buffer_handle, uint64_t *cuda_ptr, uint64_t *cuda_handle /*CUexternalMemory* */) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    with_cuda(_cu_context, [&] {
+        auto vk_buffer = reinterpret_cast<DefaultBuffer const *>(vk_buffer_handle);
+        LUISA_ASSERT(vk_buffer->is_external_allocation());
+        CUDA_EXTERNAL_MEMORY_HANDLE_DESC cuda_ext_memory_handle{};
+#ifdef LUISA_PLATFORM_WINDOWS
+        cuda_ext_memory_handle.type = IsWindows8OrGreater() ?
+                                          CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32 :
+                                          CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT;
+        cuda_ext_memory_handle.handle.win32.handle = vulkan_device_memory_handle(
+            _device->logic_device(),
+            vk_buffer->external_device_memory(),
+            IsWindows8OrGreater() ?
+                VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT :
+                VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT);
+#else
+        cuda_ext_memory_handle.type = CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD;
+        cuda_ext_memory_handle.handle.fd = vulkan_device_memory_handle(
+            _device->logic_device(),
+            vk_buffer->external_device_memory(),
+            VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT_KHR);
+#endif
+        VkMemoryRequirements mem_requirements;
+        vkGetBufferMemoryRequirements(_device->logic_device(), vk_buffer->vk_buffer(), &mem_requirements);
+        cuda_ext_memory_handle.size = mem_requirements.size;
+        cuda_ext_memory_handle.flags = CUDA_EXTERNAL_MEMORY_DEDICATED;
+        CUexternalMemory external_memory{};
+        LUISA_CHECK_CUDA(cuImportExternalMemory(&external_memory, &cuda_ext_memory_handle));
+        *cuda_handle = reinterpret_cast<uint64_t>(external_memory);
+        // TODO: need cuda buffer here
+        CUDA_EXTERNAL_MEMORY_BUFFER_DESC bufferDesc{};
+        bufferDesc.offset = 0;
+        bufferDesc.size = vk_buffer->byte_size();
+
+        bufferDesc.flags = 0;
+        LUISA_CHECK_CUDA(cuExternalMemoryGetMappedBuffer(cuda_ptr, external_memory, &bufferDesc));
+    });
 }
 uint64_t VkCudaInteropImpl::cuda_texture(uint64_t vk_texture_handle) noexcept {
-    LUISA_NOT_IMPLEMENTED();
-    return invalid_resource_handle;
+    return with_cuda(_cu_context, [&] {
+        auto vk_texture = reinterpret_cast<Texture const *>(vk_texture_handle);
+        LUISA_ASSERT(vk_texture->is_external_allocation());
+        CUDA_EXTERNAL_MEMORY_HANDLE_DESC cuda_ext_memory_handle{};
+#ifdef LUISA_PLATFORM_WINDOWS
+        cuda_ext_memory_handle.type = IsWindows8OrGreater() ?
+                                          CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32 :
+                                          CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT;
+        cuda_ext_memory_handle.handle.win32.handle = vulkan_device_memory_handle(
+            _device->logic_device(),
+            vk_texture->external_device_memory(),
+            IsWindows8OrGreater() ?
+                VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT :
+                VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT);
+#else
+        cuda_ext_memory_handle.type = CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD;
+        cuda_ext_memory_handle.handle.fd = vulkan_device_memory_handle(
+            _device->logic_device(),
+            vk_texture->external_device_memory(),
+            VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT_KHR);
+#endif
+        VkMemoryRequirements mem_requirements;
+        vkGetImageMemoryRequirements(_device->logic_device(), vk_texture->vk_image(), &mem_requirements);
+        cuda_ext_memory_handle.size = mem_requirements.size;
+        cuda_ext_memory_handle.flags = CUDA_EXTERNAL_MEMORY_DEDICATED;
+        CUexternalMemory external_memory{};
+        LUISA_CHECK_CUDA(cuImportExternalMemory(&external_memory, &cuda_ext_memory_handle));
+        return reinterpret_cast<uint64_t>(external_memory);
+    });
 }
 void VkCudaInteropImpl::unmap(void *cuda_ptr, void *cuda_handle) {
     with_cuda(_cu_context, [&] {
@@ -327,6 +475,9 @@ void VkCudaInteropImpl::unmap(void *cuda_ptr, void *cuda_handle) {
 }
 DeviceInterface *VkCudaInteropImpl::device() {
     return _device;
+}
+CudaDeviceConfigExt::ExternalVkDevice VkCudaInteropImpl::get_external_vk_device() const noexcept {
+    return {_device->physical_device(), _device->logic_device()};
 }
 }// namespace lc::vk
 #endif

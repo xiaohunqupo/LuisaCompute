@@ -28,6 +28,7 @@ public:
 private:
     friend class Device;
     friend class DxCudaInterop;
+    friend class VkCudaInterop;
     mutable std::atomic_uint64_t _fence;
     explicit Event(DeviceInterface *device) noexcept;
     explicit Event(DeviceInterface *device, const ResourceCreationInfo &info) noexcept;

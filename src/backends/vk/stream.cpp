@@ -518,16 +518,19 @@ Stream::Stream(Device *device, StreamTag tag)
             _queue = device->graphics_queue();
             resource_barrier.queue_type = ResourceBarrier::QueueType::Graphics;
             resource_barrier.queue_index = device->graphics_queue_index();
+            _queue_mtx = &device->graphics_queue_mtx();
             break;
         case StreamTag::COPY:
             resource_barrier.queue_type = ResourceBarrier::QueueType::Copy;
             _queue = device->copy_queue();
             resource_barrier.queue_index = device->copy_queue_index();
+            _queue_mtx = &device->copy_queue_mtx();
             break;
         case StreamTag::COMPUTE:
             resource_barrier.queue_type = ResourceBarrier::QueueType::Compute;
             _queue = device->compute_queue();
             resource_barrier.queue_index = device->compute_queue_index();
+            _queue_mtx = &device->compute_queue_mtx();
             break;
         default:
             LUISA_ERROR("Illegal stream tag.");
@@ -608,9 +611,9 @@ void Stream::present(
             submit_info.commandBufferCount = 1;
             auto _cmdbuffer = cmdbuffer.cmdbuffer();
             submit_info.pCommandBuffers = &_cmdbuffer;
-            device()->queue_mtx().lock();
+            _queue_mtx->lock();
             VK_CHECK_RESULT(vkQueueSubmit(_queue, 1u, &submit_info, nullptr));
-            device()->queue_mtx().unlock();
+            _queue_mtx->unlock();
         }
         {
             VkPresentInfoKHR present_info{};
@@ -621,9 +624,9 @@ void Stream::present(
             present_info.waitSemaphoreCount = present_cmd.present_wait_semaphores.size();
             present_info.pWaitSemaphores = present_cmd.present_wait_semaphores.data();
             present_info.pImageIndices = present_cmd.image_indices.data();
-            device()->queue_mtx().lock();
+            _queue_mtx->lock();
             VK_CHECK_RESULT(vkQueuePresentKHR(_queue, &present_info));
-            device()->queue_mtx().unlock();
+            _queue_mtx->unlock();
         }
         _evt.signal(*this, fence);
         _mtx.lock();
@@ -715,9 +718,9 @@ void Stream::dispatch(
                 cb_ptr = nullptr;
             }
             submit_info.pCommandBuffers = cb_ptr;
-            device()->queue_mtx().lock();
+            _queue_mtx->lock();
             VK_CHECK_RESULT(vkQueueSubmit(_queue, 1u, &submit_info, nullptr));
-            device()->queue_mtx().unlock();
+            _queue_mtx->unlock();
 
             VkPresentInfoKHR present_info{};
             present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -726,9 +729,9 @@ void Stream::dispatch(
             present_info.waitSemaphoreCount = present_cmd.present_wait_semaphores.size();
             present_info.pWaitSemaphores = present_cmd.present_wait_semaphores.data();
             present_info.pImageIndices = present_cmd.image_indices.data();
-            device()->queue_mtx().lock();
+            _queue_mtx->lock();
             VK_CHECK_RESULT(vkQueuePresentKHR(_queue, &present_info));
-            device()->queue_mtx().unlock();
+            _queue_mtx->unlock();
         }
         if (cb_ptr && device()->config_ext() && device()->config_ext()->execute_command_buffer(cb)) {
             cb_ptr = nullptr;
@@ -873,13 +876,13 @@ void Stream::update_sparse_resources(luisa::vector<SparseUpdateTile> &&textures_
     }
     VkTimelineSemaphoreSubmitInfo timeline;
     _evt.signal_sparse(*this, &fence, &info, &timeline);
-    device()->queue_mtx().lock();
+    _queue_mtx->lock();
     VK_CHECK_RESULT(vkQueueBindSparse(
         _queue,
         1,
         &info,
         VK_NULL_HANDLE));
-    device()->queue_mtx().unlock();
+    _queue_mtx->unlock();
     _mtx.lock();
     _exec.push(NotifyEvt{
         .evt = &_evt,

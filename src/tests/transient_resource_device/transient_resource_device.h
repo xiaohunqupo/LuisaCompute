@@ -103,13 +103,13 @@ class TransientResourceDevice : public luisa::compute::DeviceInterface {
     void _deallocate_handle(TexResourceHandle *handle);
 
 public:
+    luisa::move_only_function<void(luisa::string &&)> dump_func;
     void *get_native_handle(uint64_t handle);
 
     void set_next_res_name(vstd::string &&name) {
         _temp_name = std::move(name);
     }
     void begin_managing(CommandList const &cmdlist);
-    vstd::string log_resource_info();
 
     uint64_t resource_contain_frame{0};
 
@@ -214,9 +214,8 @@ struct TransientResourceDeviceScope {
     compute::Device &transient_res_device;
     TransientResourceDeviceScope(
         compute::Stream &stream,
-        compute::Device &transient_res_device) : stream(stream), transient_res_device(transient_res_device) {
-        static_cast<TransientResourceDevice *>(transient_res_device.impl())->begin_managing(cmdlist);
-    }
+        compute::Device &transient_res_device,
+        bool log_info);
     ~TransientResourceDeviceScope() {
         static_cast<TransientResourceDevice *>(transient_res_device.impl())->dispatch(stream.handle(), std::move(cmdlist));
     }

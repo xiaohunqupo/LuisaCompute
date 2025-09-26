@@ -7,6 +7,7 @@
 #include <luisa/runtime/volume.h>
 #include <luisa/vstl/meta_lib.h>
 #include <luisa/backends/ext/native_resource_ext.hpp>
+#include <luisa/backends/ext/cuda_config_ext.h>
 namespace luisa::compute {
 class VkCudaInterop;
 namespace vk_cuda_interop {
@@ -39,6 +40,7 @@ public:
     virtual void _vk_wait(uint64_t cuda_event_handle, uint64_t vk_stream, uint64_t fence_index) noexcept = 0;
 
 public:
+    [[nodiscard]] virtual CudaDeviceConfigExt::ExternalVkDevice get_external_vk_device() const noexcept = 0;
     virtual void cuda_buffer(uint64_t vk_buffer_handle, uint64_t *cuda_ptr, uint64_t *cuda_handle /*CUexternalMemory* */) noexcept = 0;
     [[nodiscard]] virtual /*CUexternalMemory* */ uint64_t cuda_texture(uint64_t vk_texture_handle) noexcept = 0;
     virtual void unmap(void *cuda_ptr, void *cuda_handle) = 0;
@@ -57,16 +59,18 @@ public:
             fence_index};
     }
     vk_cuda_interop::Signal vk_signal(Event const &cuda_event) noexcept {
+        auto signal = cuda_event.signal();
         return vk_cuda_interop::Signal{
             this,
-            cuda_event.handle(),
-            cuda_event.last_fence()};
+            signal.handle,
+            signal.fence};
     }
-    vk_cuda_interop::Wait vk_wait(Event const &cuda_event) noexcept {
+    vk_cuda_interop::Wait vk_wait(Event const &cuda_event, uint64_t fence = std::numeric_limits<uint64_t>::max()) noexcept {
+        auto wait = cuda_event.wait(fence);
         return vk_cuda_interop::Wait{
             this,
-            cuda_event.handle(),
-            cuda_event.last_fence()};
+            wait.handle,
+            wait.fence};
     }
     template<typename T>
     Buffer<T> create_buffer(size_t elem_count) noexcept {
