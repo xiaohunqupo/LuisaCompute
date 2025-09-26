@@ -29,4 +29,7 @@ int main(int argc, char *argv[]) {
     cuda_stream << interop_event.cuda_wait(1) << cuda_buffer.copy_to(&output) << synchronize();
     LUISA_INFO("Result: {}", output);
     interop_ext->unmap(reinterpret_cast<void *>(cuda_ptr), reinterpret_cast<void *>(cuda_handle));
+
+    // Always remember to synchronize event it-self!
+    interop_event.dx_event.synchronize(1);
 }

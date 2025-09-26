@@ -21,6 +21,8 @@ class Texture : public Resource {
     mutable luisa::spin_mutex _layout_mtx;
     mutable vstd::fixed_vector<VkImageLayout, 1> _layouts;
 public:
+    VkDeviceMemory external_device_memory() const { return _allocated_memory; }
+    bool is_external_allocation() const { return _external_allocation; }
     static VkImageAspectFlags get_aspect_from_format(VkFormat format);
     auto simultaneous_access() const { return _simultaneous_access; }
     auto dimension() const { return _dimension; }
