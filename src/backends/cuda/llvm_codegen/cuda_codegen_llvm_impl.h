@@ -33,6 +33,9 @@ public:
     static constexpr auto nvptx_address_space_constant = 4u;
     static constexpr auto nvptx_address_space_local = 5u;
 
+    // This struct holds information about the LLVM types mapped from XIR types
+    // mem_type is the type that has the same size and smaller or equal alignment as the XIR type for correct memory layout
+    // reg_type is the type used in registers, which may be different from mem_type for i1/i64/f64 vector types and aggregate types that contain vector types
     struct LLVMTypeInfo {
         llvm::Type *mem_type;                // The LLVM type used in memory (with proper alignment)
         llvm::Type *reg_type;                // The LLVM type used in registers
@@ -46,6 +49,8 @@ public:
         llvm::Function *llvm_func;
         llvm::BasicBlock *llvm_alloca_block;
         llvm::BasicBlock *llvm_entry_block;
+        llvm::Value *llvm_dispatch_size{nullptr};
+        llvm::Value *llvm_kernel_id{nullptr};
         llvm::DenseMap<const xir::Value *, llvm::Value *> local_values;
         explicit FunctionContext(llvm::Function *f) noexcept;
     };
@@ -75,7 +80,7 @@ private:
     void _dump_module(const std::filesystem::path &path) const noexcept;
     [[nodiscard]] luisa::string _generate_ptx() const noexcept;
 
-    // defined in cuda_codegen_llvm_impl_type.cpp
+    /* the following methods are defined in cuda_codegen_llvm_impl_type.cpp */
     [[nodiscard]] const LLVMTypeInfo *_get_llvm_type(const Type *type) noexcept;
     [[nodiscard]] llvm::Type *_get_llvm_buffer_type() noexcept;
     [[nodiscard]] llvm::Type *_get_llvm_texture_type() noexcept;
@@ -84,16 +89,25 @@ private:
     [[nodiscard]] llvm::Type *_get_llvm_accel_type() noexcept;
     [[nodiscard]] llvm::Type *_get_llvm_accel_instance_type() noexcept;
 
-    // defined in cuda_codegen_llvm_impl_func.cpp
+    /* the following methods are defined in cuda_codegen_llvm_impl_func.cpp */
     [[nodiscard]] llvm::Function *_get_llvm_function(const xir::Function *func) noexcept;
     [[nodiscard]] llvm::Function *_create_llvm_kernel_function(const xir::KernelFunction *func) noexcept;
     [[nodiscard]] llvm::Function *_create_llvm_callable_function(const xir::CallableFunction *func) noexcept;
     [[nodiscard]] llvm::Function *_create_llvm_external_function(const xir::ExternalFunction *func) noexcept;
     [[nodiscard]] llvm::BasicBlock *_translate_basic_block(FunctionContext &func_ctx, const xir::BasicBlock *bb) noexcept;
+    static void _mark_llvm_function_as_pure(llvm::Function *func) noexcept;
 
-    // defined in cuda_codegen_llvm_impl_const.cpp
+    /* the following methods are defined in cuda_codegen_llvm_impl_const.cpp */
     [[nodiscard]] llvm::Value *_get_llvm_literal(IB &b, const Type *type, const void *data) noexcept;
     [[nodiscard]] llvm::Value *_get_llvm_constant(IB &b, const xir::Constant *c) noexcept;
+
+    /* the following methods are defined in cuda_codegen_llvm_impl_sreg.cpp */
+    [[nodiscard]] llvm::Value *_read_special_register(IB &b, const FunctionContext &func_ctx,
+                                                      xir::DerivedSpecialRegisterTag tag) noexcept;
+
+    /* the following methods are defined in cuda_codegen_llvm_impl_inst.cpp */
+    [[nodiscard]] static llvm::Value *_convert_llvm_reg_value_to_mem(IB &b, llvm::Value *reg_v, llvm::Type *mem_type) noexcept;
+    [[nodiscard]] static llvm::Value *_convert_llvm_mem_value_to_reg(IB &b, llvm::Value *mem_v, llvm::Type *reg_type) noexcept;
 
 public:
     explicit CUDACodegenLLVMImpl(CUDACodegenLLVMConfig config) noexcept;

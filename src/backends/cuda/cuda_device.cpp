@@ -784,10 +784,12 @@ ShaderCreationInfo CUDADevice::create_shader(const ShaderOption &option, Functio
         auto xir_module = luisa_cuda_backend_translate_ast_to_xir(kernel, option, false);
         if (LUISA_USE_EXPERIMENTAL_LLVM_CODEGEN) {
             CUDACodegenLLVMConfig config{
+                .source_file = {},
                 .cuda_arch = _handle.compute_capability(),
                 .enable_fast_math = option.enable_fast_math,
                 .enable_debug_info = option.enable_debug_info,
                 .enable_ray_tracing = kernel.requires_raytracing(),
+                .enable_printing = kernel.requires_printing(),
             };
             auto ptx = luisa_compute_cuda_codegen_llvm(*xir_module, config);
         }

@@ -219,8 +219,13 @@ luisa::string CUDACodegenLLVMImpl::_generate_ptx() const noexcept {
 }
 
 luisa::string CUDACodegenLLVMImpl::generate(const xir::Module &xir_module) noexcept {
-    _llvm_module->setSourceFileName(xir_module.name().value_or("cuda_kernel.cu"));
+    _llvm_module->setSourceFileName(_config.source_file);
+    _llvm_module->setModuleIdentifier(xir_module.name().value_or(""));
+    for (auto func : xir_module.function_list()) {
+        static_cast<void>(_get_llvm_function(func));
+    }
     _run_optimization_passes();
+    _llvm_module->print(llvm::errs(), nullptr); // debug
     return _generate_ptx();
 }
 

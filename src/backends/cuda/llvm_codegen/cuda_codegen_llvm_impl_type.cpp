@@ -89,9 +89,24 @@ CUDACodegenLLVMImpl::_get_llvm_type(const Type *type) noexcept {
             case Type::Tag::VECTOR: {
                 auto elem = _get_llvm_type(type->element());
                 auto dim = type->dimension();
+                LUISA_DEBUG_ASSERT(dim == 2 || dim == 3 || dim == 4);
                 auto llvm_reg_type = llvm::VectorType::get(elem->reg_type, dim, false);
-                auto llvm_mem_type = llvm::ArrayType::get(elem->mem_type, dim == 3 ? 4 : dim);
-                return make_llvm_type_info(llvm_mem_type, llvm_reg_type, type->size(), type->alignment());
+                // i1/i64/f64 vector types are has different size or alignment in memory compared to XIR
+                auto llvm_elem_reg_type = elem->reg_type;
+                // i1 vectors are stored as i8 vectors in memory
+                if (llvm_elem_reg_type->isIntegerTy(1)) {
+                    auto llvm_i8_type = llvm::Type::getInt8Ty(_llvm_context);
+                    auto llvm_mem_type = llvm::VectorType::get(llvm_i8_type, dim, false);
+                    return make_llvm_type_info(llvm_mem_type, llvm_reg_type, type->size(), type->alignment());
+                }
+                // i64/f64 vectors are stored as padded arrays in memory
+                if (llvm_elem_reg_type->isIntegerTy(64) || llvm_elem_reg_type->isDoubleTy()) {
+                    // we use padded array types in memory for these types
+                    auto llvm_mem_type = llvm::ArrayType::get(elem->mem_type, dim == 3 ? 4 : dim);
+                    return make_llvm_type_info(llvm_mem_type, llvm_reg_type, type->size(), type->alignment());
+                }
+                // other vector types are the same in memory and registers
+                return make_llvm_type_info(llvm_reg_type, llvm_reg_type, type->size(), type->alignment());
             }
             case Type::Tag::MATRIX: {
                 auto dim = type->dimension();
