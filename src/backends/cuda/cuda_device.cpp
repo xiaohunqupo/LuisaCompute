@@ -229,12 +229,12 @@ namespace luisa::compute::cuda {
                               luisa::to_underlying(format));
 }
 
-CUDADevice::CUDADevice(Context &&ctx,
-                       size_t device_id,
-                       const BinaryIO *io,
-                       bool use_lmdb,
-                       luisa::unique_ptr<DeviceConfigExt> &&device_ext) noexcept
-    : DeviceInterface{std::move(ctx)}, _handle{device_id}, _io{io}, _device_ext{std::move(device_ext)} {
+CUDADevice::CUDADevice(Context &&ctx, size_t device_id,
+                       const BinaryIO *io, bool use_lmdb,
+                       luisa::unique_ptr<DeviceConfigExt> device_ext) noexcept
+    : DeviceInterface{std::move(ctx)},
+      _handle{device_id}, _io{io},
+      _device_ext{std::move(device_ext)} {
     // provide a default binary IO
     if (_io == nullptr) {
         _default_io = luisa::make_unique<DefaultBinaryIO>(context(), false, use_lmdb);
@@ -787,6 +787,7 @@ ShaderCreationInfo CUDADevice::create_shader(const ShaderOption &option, Functio
                 .cuda_arch = _handle.compute_capability(),
                 .enable_fast_math = option.enable_fast_math,
                 .enable_debug_info = option.enable_debug_info,
+                .enable_ray_tracing = kernel.requires_raytracing(),
             };
             auto ptx = luisa_compute_cuda_codegen_llvm(*xir_module, config);
         }

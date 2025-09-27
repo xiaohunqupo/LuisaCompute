@@ -31,6 +31,14 @@ llvm::Value *CUDACodegenLLVMImpl::_get_llvm_literal(IB &b, const Type *type, con
         case Type::Tag::FLOAT64: return llvm::ConstantFP::get(b.getDoubleTy(), decode_scalar(data, double{}));
         case Type::Tag::VECTOR: {
             auto elem_type = type->element();
+            // for i8/i16/i32/i64/f16/f32/f64, we can use ConstantDataVector for fast creation
+            if (elem_type->is_scalar() && !elem_type->is_bool()) {
+                auto llvm_elem_type = _get_llvm_type(elem_type);
+                LUISA_DEBUG_ASSERT(llvm_elem_type->reg_type == llvm_elem_type->mem_type);
+                llvm::StringRef const_data{static_cast<const char *>(data), elem_type->size() * type->dimension()};
+                return llvm::ConstantDataVector::getRaw(const_data, type->dimension(), llvm_elem_type->reg_type);
+            }
+            // otherwise, create element by element
             auto elem_stride = elem_type->size();
             auto dim = type->dimension();
             llvm::SmallVector<llvm::Constant *, 4> llvm_elems;
@@ -45,7 +53,9 @@ llvm::Value *CUDACodegenLLVMImpl::_get_llvm_literal(IB &b, const Type *type, con
         case Type::Tag::MATRIX: {
             auto dim = type->dimension();
             LUISA_DEBUG_ASSERT(dim > 0u);
-            auto col_type = Type::vector(type->element(), dim);
+            auto elem_type = type->element();
+            LUISA_DEBUG_ASSERT(elem_type->is_float16() || elem_type->is_float32() || elem_type->is_float64());
+            auto col_type = Type::vector(elem_type, dim);
             auto col_stride = col_type->size();
             llvm::SmallVector<llvm::Constant *, 4> llvm_cols;
             for (auto col = 0; col < dim; col++) {
@@ -60,6 +70,14 @@ llvm::Value *CUDACodegenLLVMImpl::_get_llvm_literal(IB &b, const Type *type, con
         }
         case Type::Tag::ARRAY: {
             auto elem_type = type->element();
+            // for i8/i16/i32/i64/f16/f32/f64, we can use ConstantDataArray for fast creation
+            if (elem_type->is_scalar() && !elem_type->is_bool()) {
+                auto llvm_elem_type = _get_llvm_type(elem_type);
+                LUISA_DEBUG_ASSERT(llvm_elem_type->reg_type == llvm_elem_type->mem_type);
+                llvm::StringRef const_data{static_cast<const char *>(data), type->size()};
+                return llvm::ConstantDataArray::getRaw(const_data, type->dimension(), llvm_elem_type->reg_type);
+            }
+            // otherwise, create element by element
             auto elem_stride = elem_type->size();
             auto dim = type->dimension();
             LUISA_DEBUG_ASSERT(dim > 0u);
@@ -87,7 +105,7 @@ llvm::Value *CUDACodegenLLVMImpl::_get_llvm_literal(IB &b, const Type *type, con
                 while (output_index < member_index) {
                     // padding
                     auto llvm_padding_type = llvm_struct_type->getElementType(output_index);
-                    auto llvm_padding = llvm::Constant::getNullValue(llvm_padding_type);
+                    auto llvm_padding = llvm::PoisonValue::get(llvm_padding_type);
                     llvm_elems.emplace_back(llvm_padding);
                     output_index++;
                 }
@@ -103,7 +121,7 @@ llvm::Value *CUDACodegenLLVMImpl::_get_llvm_literal(IB &b, const Type *type, con
                 // tail padding
                 LUISA_DEBUG_ASSERT(output_index + 1 == llvm_struct_type->getNumElements());
                 auto llvm_padding_type = llvm_struct_type->getElementType(output_index);
-                auto llvm_padding = llvm::Constant::getNullValue(llvm_padding_type);
+                auto llvm_padding = llvm::PoisonValue::get(llvm_padding_type);
                 llvm_elems.emplace_back(llvm_padding);
             }
             return llvm::ConstantStruct::get(llvm_struct_type, llvm_elems);
@@ -134,7 +152,7 @@ llvm::Value *CUDACodegenLLVMImpl::_get_llvm_constant(IB &b, const xir::Constant 
     auto llvm_type = _get_llvm_type(type);
     LUISA_DEBUG_ASSERT(llvm_type->reg_type == llvm_type->mem_type,
                        "Global constant must have same reg and mem type.");
-    // TODO: check if LLVM will defer loading from constant address space to after GEPs
+    // don't worry about the huge load, we will delay it in extract(constant)
     return b.CreateAlignedLoad(llvm_type->reg_type, iter->second, alignment, false);
 }
 

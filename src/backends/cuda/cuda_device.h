@@ -125,7 +125,8 @@ private:
         luisa::vector<ShaderDispatchCommand::Argument> bound_arguments) noexcept;
 
 public:
-    CUDADevice(Context &&ctx, size_t device_id, const BinaryIO *io, bool use_lmdb, luisa::unique_ptr<DeviceConfigExt> &&device_ext) noexcept;
+    CUDADevice(Context &&ctx, size_t device_id, const BinaryIO *io, bool use_lmdb,
+               luisa::unique_ptr<DeviceConfigExt> device_ext) noexcept;
     ~CUDADevice() noexcept override;
     [[nodiscard]] const auto &handle() const noexcept { return _handle; }
     template<typename F>
