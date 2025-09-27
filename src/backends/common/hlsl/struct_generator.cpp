@@ -67,7 +67,7 @@ void StructGenerator::InitAsStructAlised(
     for (auto &&i : vars) {
         if (isSpirv) [[unlikely]] {
             if (i->alignment() < 4 && i->tag() != Type::Tag::BOOL)
-                LUISA_ERROR("Spirv do not support member's alignment less than 4-bytes.");
+                LUISA_ERROR("Spirv do not support member's type {} which alignment less than 4-bytes.", i->description());
         }
         Align(i->alignment());
         switch (i->tag()) {
@@ -106,7 +106,7 @@ void StructGenerator::InitAsArrayAliased(
     Callback const &visitor,
     bool isSpirv) {
     if (isSpirv && t->alignment() < 4) [[unlikely]] {
-        LUISA_ERROR("Spirv do not support member's alignment less than 4-bytes.");
+        LUISA_ERROR("Spirv do not support member's type {} which alignment less than 4-bytes.", t->description());
     }
     auto i = t->element();
     if (i->is_structure() || i->is_array()) {
@@ -139,7 +139,7 @@ void StructGenerator::InitAsStruct(
     for (auto &&i : vars) {
         if (isSpirv) [[unlikely]] {
             if (i->alignment() < 4 && i->tag() != Type::Tag::BOOL)
-                LUISA_ERROR("Spirv do not support member's alignment less than 4-bytes.");
+                LUISA_ERROR("Spirv do not support member's type {} which alignment less than 4-bytes.", i->description());
         }
         Align(i->alignment());
         switch (i->tag()) {
@@ -169,7 +169,7 @@ void StructGenerator::InitAsArray(
     bool isSpirv) {
     auto &&ele = t->element();
     if (isSpirv && t->alignment() < 4) [[unlikely]] {
-        LUISA_ERROR("Spirv do not support member's alignment less than 4-bytes.");
+        LUISA_ERROR("Spirv do not support member's type {} which alignment less than 4-bytes.", t->description());
     }
     util->GetTypeName(*ele, structDesc, Usage::READ, false);
     structDesc << " v["sv << vstd::to_string(t->dimension()) << "];\n";

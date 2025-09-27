@@ -391,7 +391,7 @@ void CodegenUtility::GetTypeName(Type const &type, vstd::StringBuilder &str, Usa
                 if (ele->is_matrix()) {
                     auto n = vstd::to_string(ele->dimension());
                     str << "_WrappedFloat"sv << n << 'x' << n;
-                } else if (opt->atomicFloatToInt && ele->is_float32()) {
+                } else if (opt->atomicFloatToInt && (ele->is_float32() || ele->is_float64())) {
                     str << "int"sv;
                 } else {
                     if (ele->is_vector() && ele->dimension() == 3) {
@@ -841,7 +841,7 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
         } break;
         case CallOp::BUFFER_READ: {
             bool aliasStruct = opt->isSpirv && TypeIsAliased(expr->type());
-            bool floatToInt = opt->atomicFloatToInt && expr->type()->is_float32();
+            bool floatToInt = opt->atomicFloatToInt && (expr->type()->is_float32() || expr->type()->is_float64());
             if (aliasStruct) {
                 AliasedToOrigin(expr->type(), str);
                 str << '(';
@@ -866,7 +866,7 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
         }
         case CallOp::BUFFER_WRITE: {
             auto elem = args[0]->type()->element();
-            bool floatToInt = opt->atomicFloatToInt && elem->is_float32();
+            bool floatToInt = opt->atomicFloatToInt && (elem->is_float32() || elem->is_float64());
             bool aliasStruct = opt->isSpirv && TypeIsAliased(elem);
             str << "_bfwrite"sv;
             if (IsNumVec3(*elem)) {
