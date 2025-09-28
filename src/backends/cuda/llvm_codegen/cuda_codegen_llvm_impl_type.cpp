@@ -100,7 +100,7 @@ CUDACodegenLLVMImpl::_get_llvm_type(const Type *type) noexcept {
                     return make_llvm_type_info(llvm_mem_type, llvm_reg_type, type->size(), type->alignment());
                 }
                 // i64/f64 vectors are stored as padded arrays in memory
-                if (llvm_elem_reg_type->isIntegerTy(64) || llvm_elem_reg_type->isDoubleTy()) {
+                if ((llvm_elem_reg_type->isIntegerTy(64) || llvm_elem_reg_type->isDoubleTy()) && dim > 2u) {
                     // we use padded array types in memory for these types
                     auto llvm_mem_type = llvm::ArrayType::get(elem->mem_type, dim == 3 ? 4 : dim);
                     return make_llvm_type_info(llvm_mem_type, llvm_reg_type, type->size(), type->alignment());

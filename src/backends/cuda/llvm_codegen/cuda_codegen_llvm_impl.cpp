@@ -23,6 +23,8 @@ namespace luisa::compute::cuda {
 
 CUDACodegenLLVMImpl::CUDACodegenLLVMImpl(CUDACodegenLLVMConfig config) noexcept
     : _config{std::move(config)} {
+    LUISA_ASSERT(_config.block_size[0] > 0u && _config.block_size[1] > 0u && _config.block_size[2] > 0u,
+                 "Block size must be constant and greater than zero for now.");
     Clock clk;
     _initialize();
     LUISA_VERBOSE_WITH_LOCATION("CUDA LLVM codegen initialized in {} ms.", clk.toc());
@@ -116,6 +118,7 @@ inline void CUDACodegenLLVMImpl::_initialize() noexcept {
     for (auto &&f : *_llvm_module) {
         if (f.getName().starts_with("__nv_")) {
             f.setLinkage(llvm::Function::PrivateLinkage);
+            f.removeFnAttr(llvm::Attribute::StackProtect);
         }
     }
 

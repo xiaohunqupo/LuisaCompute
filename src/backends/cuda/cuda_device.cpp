@@ -784,7 +784,8 @@ ShaderCreationInfo CUDADevice::create_shader(const ShaderOption &option, Functio
         auto xir_module = luisa_cuda_backend_translate_ast_to_xir(kernel, option, false);
         if (LUISA_USE_EXPERIMENTAL_LLVM_CODEGEN) {
             CUDACodegenLLVMConfig config{
-                .source_file = {},
+                .source_file = option.name,
+                .block_size = {kernel.block_size().x, kernel.block_size().y, kernel.block_size().z},
                 .cuda_arch = _handle.compute_capability(),
                 .enable_fast_math = option.enable_fast_math,
                 .enable_debug_info = option.enable_debug_info,

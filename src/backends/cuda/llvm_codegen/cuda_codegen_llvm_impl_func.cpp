@@ -3,6 +3,8 @@
 //
 
 #include "cuda_codegen_llvm_impl.h"
+#include "luisa/xir/passes/dom_tree.h"
+#include "luisa/ast/function.h"
 
 namespace luisa::compute::cuda {
 
@@ -97,11 +99,10 @@ llvm::Function *CUDACodegenLLVMImpl::_create_llvm_kernel_function(const xir::Ker
     func_ctx.llvm_dispatch_size = b.CreateShuffleVector(llvm_dispatch_size_and_kernel_id, {0, 1, 2}, "sreg.dispatch.size");
     func_ctx.llvm_kernel_id = b.CreateExtractElement(llvm_dispatch_size_and_kernel_id, 3, "sreg.kernel.id");
     // translate body
-    auto llvm_body = _translate_basic_block(func_ctx, func->body_block());
+    auto llvm_body = _translate_function_definition(func_ctx, func);
     // create guard for out-of-bounds threads if not ray tracing (OptiX will do this for us)
     if (!_config.enable_ray_tracing) {
-        auto llvm_dispatch_id = _read_special_register(b, func_ctx, xir::DerivedSpecialRegisterTag::DISPATCH_ID);
-        llvm_dispatch_id = b.CreateVectorSplat(3, llvm_dispatch_id);
+        auto llvm_dispatch_id = _read_dispatch_id(b, func_ctx);
         auto llvm_dispatch_id_in_bounds = b.CreateICmpULT(llvm_dispatch_id, func_ctx.llvm_dispatch_size, "dispatch.id.in.bounds");
         auto llvm_dispatch_id_in_bounds_all = b.CreateAndReduce(llvm_dispatch_id_in_bounds);
         auto llvm_exit_block = llvm::BasicBlock::Create(_llvm_context, "exit.early", llvm_kernel);
@@ -144,7 +145,7 @@ llvm::Function *CUDACodegenLLVMImpl::_create_llvm_callable_function(const xir::C
     func_ctx.llvm_dispatch_size->setName("sreg.dispatch.size");
     func_ctx.llvm_kernel_id = llvm_arg_iter++;
     func_ctx.llvm_kernel_id->setName("sreg.kernel.id");
-    auto body = _translate_basic_block(func_ctx, func->body_block());
+    auto body = _translate_function_definition(func_ctx, func);
     // branch from entry to body
     IB b{func_ctx.llvm_entry_block};
     b.CreateBr(body);
@@ -155,22 +156,58 @@ llvm::Function *CUDACodegenLLVMImpl::_create_llvm_external_function(const xir::E
     LUISA_NOT_IMPLEMENTED();
 }
 
-llvm::BasicBlock *CUDACodegenLLVMImpl::_translate_basic_block(FunctionContext &func_ctx, const xir::BasicBlock *bb) noexcept {
-    auto llvm_bb = llvm::BasicBlock::Create(_llvm_context, bb->name().value_or(""), func_ctx.llvm_func);
-    IB b{llvm_bb};
-    for (auto inst : bb->instructions()) {
-        // TODO
+namespace {
+
+template<typename F>
+void luisa_compute_cuda_codegen_llvm_traverse_dom_tree_impl(luisa::unordered_set<const xir::DomTreeNode *> &visited,
+                                                            const xir::DomTreeNode *node, const F &f) noexcept {
+    if (visited.emplace(node).second) [[likely]] {
+        f(node->block());
+        for (auto child : node->children()) {
+            luisa_compute_cuda_codegen_llvm_traverse_dom_tree_impl(visited, child, f);
+        }
     }
-    auto ret_type = func_ctx.llvm_func->getReturnType();
-    if (ret_type->isVoidTy()) {
-        b.CreateRetVoid();
-    } else {
-        b.CreateRet(llvm::Constant::getNullValue(ret_type));
+}
+
+template<typename F>
+void luisa_compute_cuda_codegen_llvm_traverse_dom_tree(const xir::DomTree &tree, const F &f) noexcept {
+    luisa::unordered_set<const xir::DomTreeNode *> visited;
+    luisa_compute_cuda_codegen_llvm_traverse_dom_tree_impl(visited, tree.root(), f);
+}
+
+}// namespace
+
+llvm::BasicBlock *CUDACodegenLLVMImpl::_translate_function_definition(FunctionContext &func_ctx, const xir::FunctionDefinition *f) noexcept {
+    for (auto bb : f->basic_blocks()) {
+        auto llvm_bb = llvm::BasicBlock::Create(_llvm_context, bb->name().value_or(""), func_ctx.llvm_func);
+        func_ctx.local_values.try_emplace(bb, llvm_bb);
     }
-    return llvm_bb;
+    // generate code for each basic block in dominance order, so that
+    // used values are always defined before use except for phi nodes,
+    // which are handled separately after all blocks are generated
+    auto dom_tree = xir::compute_dom_tree(const_cast<xir::FunctionDefinition *>(f));
+    LUISA_ASSERT(dom_tree.root()->block() == f->body_block());
+    luisa_compute_cuda_codegen_llvm_traverse_dom_tree(dom_tree, [this, &func_ctx](const xir::BasicBlock *bb) noexcept {
+        auto llvm_bb = func_ctx.get_local_value<llvm::BasicBlock>(bb);
+        IB b{llvm_bb};
+        for (auto inst : bb->instructions()) {
+            _translate_instruction(b, func_ctx, inst);
+        }
+    });
+    // finalize phi nodes
+    _finalize_pending_phi_nodes(func_ctx);
+    return func_ctx.get_local_value<llvm::BasicBlock>(f->body_block());
 }
 
 void CUDACodegenLLVMImpl::_mark_llvm_function_as_pure(llvm::Function *func) noexcept {
+    func->addFnAttr(llvm::Attribute::NoCallback);
+    func->setMustProgress();
+    func->setDoesNotFreeMemory();
+    func->setNoSync();
+    func->setDoesNotThrow();
+    func->setSpeculatable();
+    func->setWillReturn();
+    func->setDoesNotAccessMemory();
 }
 
 }// namespace luisa::compute::cuda

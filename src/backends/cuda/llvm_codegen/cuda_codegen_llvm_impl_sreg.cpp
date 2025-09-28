@@ -8,55 +8,116 @@ namespace luisa::compute::cuda {
 
 llvm::Value *CUDACodegenLLVMImpl::_read_special_register(IB &b, const FunctionContext &func_ctx,
                                                          xir::DerivedSpecialRegisterTag tag) noexcept {
-    if (tag == xir::DerivedSpecialRegisterTag::DISPATCH_SIZE) { return func_ctx.llvm_dispatch_size; }
-    if (tag == xir::DerivedSpecialRegisterTag::KERNEL_ID) { return func_ctx.llvm_kernel_id; }
-    if (tag == xir::DerivedSpecialRegisterTag::WARP_SIZE) { return b.getInt32(32); }
-    if (tag == xir::DerivedSpecialRegisterTag::DISPATCH_ID) {
-        auto llvm_block_id = _read_special_register(b, func_ctx, xir::DerivedSpecialRegisterTag::BLOCK_ID);
-        auto llvm_thread_id = _read_special_register(b, func_ctx, xir::DerivedSpecialRegisterTag::THREAD_ID);
-        auto llvm_block_size = _read_special_register(b, func_ctx, xir::DerivedSpecialRegisterTag::BLOCK_SIZE);
-        return b.CreateAdd(llvm_thread_id,
-                           b.CreateMul(llvm_block_id, llvm_block_size, "", true, true),
-                           "", true, true);
+    switch (tag) {
+        case xir::DerivedSpecialRegisterTag::THREAD_ID: return _read_thread_id(b, func_ctx);
+        case xir::DerivedSpecialRegisterTag::BLOCK_ID: return _read_block_id(b, func_ctx);
+        case xir::DerivedSpecialRegisterTag::WARP_LANE_ID: return _read_warp_lane_id(b, func_ctx);
+        case xir::DerivedSpecialRegisterTag::DISPATCH_ID: return _read_dispatch_id(b, func_ctx);
+        case xir::DerivedSpecialRegisterTag::KERNEL_ID: return _read_kernel_id(b, func_ctx);
+        case xir::DerivedSpecialRegisterTag::BLOCK_SIZE: return _read_block_size(b, func_ctx);
+        case xir::DerivedSpecialRegisterTag::WARP_SIZE: return _read_warp_size(b, func_ctx);
+        case xir::DerivedSpecialRegisterTag::DISPATCH_SIZE: return _read_dispatch_size(b, func_ctx);
+        default: break;
     }
-    // read from special registers with nvvm intrinsics
-    auto [nvvm_sreg_name, nvvm_sreg_type] = [&b, tag]() noexcept -> std::pair<llvm::StringRef, llvm::Type *> {
-        auto get_llvm_i32x3_type = [&b]() noexcept {
-            return llvm::VectorType::get(b.getInt32Ty(), 3, false);
+    LUISA_NOT_IMPLEMENTED("Special register {} not implemented.", xir::to_string(tag));
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_read_block_id(IB &b, const FunctionContext &func_ctx) noexcept {
+    if (_config.enable_ray_tracing) {// block_id = (dispatch_id + block_size - uint3(1)) / block_size
+        auto llvm_dispatch_id = _read_dispatch_id(b, func_ctx);
+        auto llvm_block_size = _read_block_size(b, func_ctx);
+        auto llvm_v3i32_one = llvm::ConstantDataVector::get(_llvm_context, std::array{1u, 1u, 1u});
+        auto llvm_block_size_minus_one = b.CreateSub(llvm_block_size, llvm_v3i32_one);
+        auto llvm_dispatch_id_padded = b.CreateAdd(llvm_dispatch_id, llvm_block_size_minus_one);
+        auto llvm_block_id = b.CreateUDiv(llvm_dispatch_id_padded, llvm_block_size, "sreg.block.id");
+        return llvm_block_id;
+    }
+    auto llvm_i32_type = b.getInt32Ty();
+    auto llvm_bid_x = b.CreateIntrinsic(llvm_i32_type, llvm::Intrinsic::nvvm_read_ptx_sreg_ctaid_x, {});
+    auto llvm_bid_y = b.CreateIntrinsic(llvm_i32_type, llvm::Intrinsic::nvvm_read_ptx_sreg_ctaid_y, {});
+    auto llvm_bid_z = b.CreateIntrinsic(llvm_i32_type, llvm::Intrinsic::nvvm_read_ptx_sreg_ctaid_z, {});
+    auto llvm_bid = _create_llvm_vector(b, {llvm_bid_x, llvm_bid_y, llvm_bid_z});
+    llvm_bid->setName("sreg.block.id");
+    return llvm_bid;
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_read_block_size(IB &, const FunctionContext &) noexcept {
+    auto [bx, by, bz] = _config.block_size;
+    auto is_power_of_two = [](auto x) noexcept { return x != 0u && (x & (x - 1u)) == 0u; };
+    LUISA_ASSERT(is_power_of_two(bx) && is_power_of_two(by) && is_power_of_two(bz) && bx * by * bz <= 1024u,
+                 "Block size must be power of two and not exceed 1024.");
+    return llvm::ConstantDataVector::get(_llvm_context, std::array{bx, by, bz});
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_read_thread_id(IB &b, const FunctionContext &func_ctx) noexcept {
+    if (_config.enable_ray_tracing) {// thread_id = dispatch_id % block_size
+        auto llvm_dispatch_id = _read_dispatch_id(b, func_ctx);
+        auto llvm_block_size = _read_block_size(b, func_ctx);
+        auto llvm_tid = b.CreateURem(llvm_dispatch_id, llvm_block_size, "sreg.thread.id");
+        return llvm_tid;
+    }
+    auto call = [&, llvm_i32_type = b.getInt32Ty()](auto axis) noexcept {
+        constexpr std::array intrinsics = {
+            llvm::Intrinsic::nvvm_read_ptx_sreg_tid_x,
+            llvm::Intrinsic::nvvm_read_ptx_sreg_tid_y,
+            llvm::Intrinsic::nvvm_read_ptx_sreg_tid_z,
         };
-        switch (tag) {
-            case xir::DerivedSpecialRegisterTag::THREAD_ID: return std::make_pair("llvm.nvvm.read.ptx.sreg.tid.", get_llvm_i32x3_type());
-            case xir::DerivedSpecialRegisterTag::BLOCK_ID: return std::make_pair("llvm.nvvm.read.ptx.sreg.ctaid.", get_llvm_i32x3_type());
-            case xir::DerivedSpecialRegisterTag::WARP_LANE_ID: return std::make_pair("llvm.nvvm.read.ptx.sreg.laneid", b.getInt32Ty());
-            case xir::DerivedSpecialRegisterTag::BLOCK_SIZE: return std::make_pair("llvm.nvvm.read.ptx.sreg.ntid.", get_llvm_i32x3_type());
-            default: break;
-        }
-        LUISA_ERROR_WITH_LOCATION("Unsupported special register.");
-    }();
-    auto call_nvvm_sreg_func = [this, &b](llvm::StringRef name) noexcept {
-        auto nvvm_func = _llvm_module->getFunction(name);
-        if (nvvm_func == nullptr) {
-            auto nvvm_func_type = llvm::FunctionType::get(b.getInt32Ty(), {}, false);
-            nvvm_func = llvm::Function::Create(nvvm_func_type, llvm::Function::ExternalLinkage, 0, name, _llvm_module.get());
-            _mark_llvm_function_as_pure(nvvm_func);
-        }
-        return b.CreateCall(nvvm_func);
+        auto llvm_tid_axis = b.CreateIntrinsic(llvm_i32_type, intrinsics[axis], {});
+        auto llvm_tid_axis_ge_zero = b.CreateICmpSGE(llvm_tid_axis, b.getInt32(0));
+        auto llvm_tid_axis_lt_block_size = b.CreateICmpSLT(llvm_tid_axis, b.getInt32(_config.block_size[axis]));
+        b.CreateAssumption(llvm_tid_axis_ge_zero);
+        b.CreateAssumption(llvm_tid_axis_lt_block_size);
+        return llvm_tid_axis;
     };
-    // for vector special registers, we need to call the intrinsic for each axis
-    if (nvvm_sreg_type->isVectorTy()) {
-        auto llvm_vec = static_cast<llvm::Value *>(llvm::PoisonValue::get(nvvm_sreg_type));
-        for (auto [i, axis] : {
-                 std::make_pair(0, "x"),
-                 std::make_pair(1, "y"),
-                 std::make_pair(2, "z"),
-             }) {
-            auto nvvm_sreg_axis = call_nvvm_sreg_func(nvvm_sreg_name.str().append(axis));
-            llvm_vec = b.CreateInsertElement(llvm_vec, nvvm_sreg_axis, i);
-        }
-        return llvm_vec;
+    auto llvm_tid_x = call(0);
+    auto llvm_tid_y = call(1);
+    auto llvm_tid_z = call(2);
+    auto llvm_tid = _create_llvm_vector(b, {llvm_tid_x, llvm_tid_y, llvm_tid_z});
+    llvm_tid->setName("sreg.thread.id");
+    return llvm_tid;
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_read_dispatch_size(IB &, const FunctionContext &func_ctx) noexcept {
+    return func_ctx.llvm_dispatch_size;
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_read_dispatch_id(IB &b, const FunctionContext &func_ctx) noexcept {
+    if (_config.enable_ray_tracing) {
+        // asm("call (%0), _optix_get_launch_index_$axis, ();" : "=r"(out) : );
+        auto call = [&b](auto axis) noexcept {
+            auto llvm_i32_type = b.getInt32Ty();
+            auto llvm_asm_type = llvm::FunctionType::get(llvm_i32_type, false);
+            auto llvm_asm_str = luisa::format("call ($0), _optix_get_launch_index_{}, ();", axis);
+            auto llvm_asm = llvm::InlineAsm::get(llvm_asm_type, llvm::StringRef{llvm_asm_str}, "=r", false);
+            return b.CreateCall(llvm_asm, {}, std::string{"sreg.dispatch.id."}.append(axis));
+        };
+        auto llvm_did_x = call("x");
+        auto llvm_did_y = call("y");
+        auto llvm_did_z = call("z");
+        auto llvm_dispatch_id = _create_llvm_vector(b, {llvm_did_x, llvm_did_y, llvm_did_z});
+        return llvm_dispatch_id;
     }
-    // scalar special registers are straightforward
-    return call_nvvm_sreg_func(nvvm_sreg_name);
+    auto llvm_tid = _read_thread_id(b, func_ctx);
+    auto llvm_bid = _read_block_id(b, func_ctx);
+    auto llvm_block_size = _read_block_size(b, func_ctx);
+    auto llvm_dispatch_offset = b.CreateMul(llvm_bid, llvm_block_size, "", true, true);
+    auto llvm_dispatch_id = b.CreateAdd(llvm_tid, llvm_dispatch_offset, "sreg.dispatch.id", true, true);
+    return llvm_dispatch_id;
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_read_warp_size(IB &b, const FunctionContext &) noexcept {
+    if (_config.enable_ray_tracing) { LUISA_NOT_IMPLEMENTED(); }
+    return b.getInt32(32);
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_read_warp_lane_id(IB &b, const FunctionContext &) noexcept {
+    if (_config.enable_ray_tracing) { LUISA_NOT_IMPLEMENTED(); }
+    return b.CreateIntrinsic(b.getInt32Ty(), llvm::Intrinsic::nvvm_read_ptx_sreg_laneid,
+                             {}, {}, "sreg.warp.lane.id");
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_read_kernel_id(IB &, const FunctionContext &func_ctx) noexcept {
+    return func_ctx.llvm_kernel_id;
 }
 
 }// namespace luisa::compute::cuda
