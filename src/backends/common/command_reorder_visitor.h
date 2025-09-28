@@ -687,7 +687,7 @@ private:
                 case Tag::BUFFER: {
                     auto &&bf = i.buffer;
                     bool is_write = ((uint)_func_table.get_usage(shader_handle, arg_idx) & (uint)Usage::WRITE) != 0;
-                    Range buffer_range = is_write ? Range() : Range(bf.offset, bf.size);
+                    Range buffer_range(bf.offset, bf.size);
                     add_dispatch_handle(
                         bf.handle,
                         ResourceType::Texture_Buffer,
