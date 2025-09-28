@@ -364,7 +364,7 @@ void CodegenUtility::GetTypeName(Type const &type, vstd::StringBuilder &str, Usa
         }
             return;
         case Type::Tag::VECTOR: {
-            if (type.dimension() != 3 || local_var) {
+            if (type.dimension() != 3 || local_var || type.element()->is_bool()) {
                 GetTypeName(*type.element(), str, usage);
                 vstd::to_string((type.dimension()), str);
             } else {
@@ -385,7 +385,7 @@ void CodegenUtility::GetTypeName(Type const &type, vstd::StringBuilder &str, Usa
                 str << "RW"sv;
             auto ele = type.element();
             // StructuredBuffer
-            bool aliasStruct = opt->isSpirv && TypeIsAliased(ele);
+            bool aliasStruct = TypeIsAliased(ele);
             if (ele != nullptr) {
                 str << "StructuredBuffer<"sv;
                 if (ele->is_matrix()) {
@@ -840,7 +840,7 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             }
         } break;
         case CallOp::BUFFER_READ: {
-            bool aliasStruct = opt->isSpirv && TypeIsAliased(expr->type());
+            bool aliasStruct = TypeIsAliased(expr->type());
             bool floatToInt = opt->atomicFloatToInt && (expr->type()->is_float32() || expr->type()->is_float64());
             if (aliasStruct) {
                 AliasedToOrigin(expr->type(), str);
@@ -867,7 +867,7 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
         case CallOp::BUFFER_WRITE: {
             auto elem = args[0]->type()->element();
             bool floatToInt = opt->atomicFloatToInt && (elem->is_float32() || elem->is_float64());
-            bool aliasStruct = opt->isSpirv && TypeIsAliased(elem);
+            bool aliasStruct = TypeIsAliased(elem);
             str << "_bfwrite"sv;
             if (IsNumVec3(*elem)) {
                 str << "Vec3("sv;
@@ -908,7 +908,7 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             str << "_bfsize"sv;
         } break;
         case CallOp::BYTE_BUFFER_READ: {
-            bool aliasStruct = opt->isSpirv && TypeIsAliased(expr->type());
+            bool aliasStruct = TypeIsAliased(expr->type());
             if (aliasStruct) {
                 AliasedToOrigin(expr->type(), str);
                 str << '(';
@@ -963,7 +963,7 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
         case CallOp::BYTE_BUFFER_WRITE: {
             str << "_bytebfwrite"sv;
             auto elem = args[2]->type();
-            bool aliasStruct = opt->isSpirv && TypeIsAliased(elem);
+            bool aliasStruct = TypeIsAliased(elem);
             if (elem == Type::of<float3>()) {
                 str << "Vec3("sv;
                 args[0]->accept(vis);
@@ -1037,7 +1037,7 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             return;
         }
         case CallOp::BINDLESS_BUFFER_READ: {
-            bool aliasStruct = opt->isSpirv && TypeIsAliased(expr->type());
+            bool aliasStruct = TypeIsAliased(expr->type());
             if (aliasStruct) {
                 AliasedToOrigin(expr->type(), str);
                 str << '(';
@@ -1063,7 +1063,7 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             return;
         }
         case CallOp::BINDLESS_BYTE_BUFFER_READ: {
-            bool aliasStruct = opt->isSpirv && TypeIsAliased(expr->type());
+            bool aliasStruct = TypeIsAliased(expr->type());
             if (aliasStruct) {
                 AliasedToOrigin(expr->type(), str);
                 str << '(';
@@ -1098,7 +1098,7 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             return;
         }
         case CallOp::TYPED_BINDLESS_BUFFER_READ: {
-            bool aliasStruct = opt->isSpirv && TypeIsAliased(expr->type());
+            bool aliasStruct = TypeIsAliased(expr->type());
             if (aliasStruct) {
                 AliasedToOrigin(expr->type(), str);
                 str << '(';
@@ -1124,7 +1124,7 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             return;
         }
         case CallOp::TYPED_BINDLESS_BYTE_BUFFER_READ: {
-            bool aliasStruct = opt->isSpirv && TypeIsAliased(expr->type());
+            bool aliasStruct = TypeIsAliased(expr->type());
             if (aliasStruct) {
                 AliasedToOrigin(expr->type(), str);
                 str << '(';
@@ -1159,7 +1159,7 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             return;
         }
         case CallOp::TYPED_UNIFORM_BINDLESS_BUFFER_READ: {
-            bool aliasStruct = opt->isSpirv && TypeIsAliased(expr->type());
+            bool aliasStruct = TypeIsAliased(expr->type());
             if (aliasStruct) {
                 AliasedToOrigin(expr->type(), str);
                 str << '(';
@@ -1185,7 +1185,7 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             return;
         }
         case CallOp::TYPED_UNIFORM_BINDLESS_BYTE_BUFFER_READ: {
-            bool aliasStruct = opt->isSpirv && TypeIsAliased(expr->type());
+            bool aliasStruct = TypeIsAliased(expr->type());
             if (aliasStruct) {
                 AliasedToOrigin(expr->type(), str);
                 str << '(';
@@ -2984,7 +2984,7 @@ uint obj_id:register(b0);
         immutableHeaderSize,
         GetTypeMD5(funcs)};
 }
-bool CodegenUtility::TypeIsAliased(Type const *t) {
+bool CodegenUtility::TypeIsAliased(Type const *t) const {
     if (t->is_array()) {
         auto i = t->element();
         if (VectorShouldBeAliased(i)) [[unlikely]]
@@ -3003,8 +3003,8 @@ bool CodegenUtility::TypeIsAliased(Type const *t) {
     }
     return false;
 }
-bool CodegenUtility::VectorShouldBeAliased(Type const *i) {
-    return (i->is_vector() && i->element()->size() > 4 && i->dimension() >= 3);
+bool CodegenUtility::VectorShouldBeAliased(Type const *i) const {
+    return i->is_vector() && ((opt->isSpirv && i->element()->size() > 4 && i->dimension() >= 3) || i->element()->is_bool());
 }
 void CodegenUtility::OriginToAliased(Type const *t, vstd::StringBuilder &sb) {
     auto aliasedType = opt->CreateAliasedStruct(t);

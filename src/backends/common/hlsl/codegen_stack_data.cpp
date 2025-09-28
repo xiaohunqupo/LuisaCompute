@@ -49,28 +49,24 @@ void CodegenStackData::Clear() {
 }
 
 std::pair<vstd::string_view, bool> CodegenStackData::CreateAliasedStruct(Type const *t) {
-    if (!isSpirv) {
+    if (!util->TypeIsAliased(t)) {
         return {CreateStruct(t), false};
-    } else {
-        if (!CodegenUtility::TypeIsAliased(t)) {
-            return {CreateStruct(t), false};
-        }
-        auto ite = customStructAliased.try_emplace(
-            t,
-            vstd::lazy_eval([&] {
-                auto newPtr = new StructGenerator(
-                    t,
-                    structCount++,
-                    util);
-                return vstd::create_unique(newPtr);
-            }));
-        if (ite.second) {
-            auto newPtr = ite.first.value().get();
-            newPtr->InitAliased(generateAliasedStruct, isSpirv);
-            customStructVectorAliased.emplace_back(ite.first.value().get());
-        }
-        return {ite.first.value()->GetStructName(), true};
     }
+    auto ite = customStructAliased.try_emplace(
+        t,
+        vstd::lazy_eval([&] {
+            auto newPtr = new StructGenerator(
+                t,
+                structCount++,
+                util);
+            return vstd::create_unique(newPtr);
+        }));
+    if (ite.second) {
+        auto newPtr = ite.first.value().get();
+        newPtr->InitAliased(generateAliasedStruct, isSpirv);
+        customStructVectorAliased.emplace_back(ite.first.value().get());
+    }
+    return {ite.first.value()->GetStructName(), true};
 }
 
 vstd::string_view CodegenStackData::CreateStruct(Type const *t) {
