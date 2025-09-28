@@ -385,8 +385,8 @@ void CodegenUtility::GetTypeName(Type const &type, vstd::StringBuilder &str, Usa
                 str << "RW"sv;
             auto ele = type.element();
             // StructuredBuffer
-            bool aliasStruct = TypeIsAliased(ele);
             if (ele != nullptr) {
+                bool aliasStruct = TypeIsAliased(ele);
                 str << "StructuredBuffer<"sv;
                 if (ele->is_matrix()) {
                     auto n = vstd::to_string(ele->dimension());
