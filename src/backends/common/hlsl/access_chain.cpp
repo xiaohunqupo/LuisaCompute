@@ -81,23 +81,28 @@ vstd::vector<AccessChain::Node> AccessChain::nodes_from_exprs(luisa::span<Expres
     vstd::vector<Node> nodes;
     auto type = args.front()->type();
     nodes.reserve(args.size());
+    bool last_is_covered_vector = false;
     for (auto index : luisa::span{args}.subspan(1)) {
         switch (type->tag()) {
             case Type::Tag::BUFFER:
+                nodes.emplace_back(AccessNode{false, false});
+                last_is_covered_vector = true;
                 type = type->element();
-                nodes.emplace_back(AccessNode{false, false, false});
                 break;
             case Type::Tag::VECTOR:
+                nodes.emplace_back(AccessNode{false, type->dimension() == 3 && (!last_is_covered_vector)});
+                last_is_covered_vector = false;
                 type = type->element();
-                nodes.emplace_back(AccessNode{false, false, type->dimension() == 3});
                 break;
             case Type::Tag::MATRIX:
+                nodes.emplace_back(AccessNode{true, false});
                 type = Type::vector(type->element(), type->dimension());
-                nodes.emplace_back(AccessNode{false, true, false});
+                last_is_covered_vector = true;
                 break;
             case Type::Tag::ARRAY:
+                nodes.emplace_back(AccessNode{false, true, true});
                 type = type->element();
-                nodes.emplace_back(AccessNode{true, false, false});
+                last_is_covered_vector = false;
                 break;
             case Type::Tag::STRUCTURE: {
                 auto literal = static_cast<const LiteralExpr *>(index)->value();
@@ -107,6 +112,7 @@ vstd::vector<AccessChain::Node> AccessChain::nodes_from_exprs(luisa::span<Expres
                         luisa::get<uint>(literal);
                 nodes.emplace_back(MemberNode{.member_index = member_index});
                 type = type->members()[member_index];
+                last_is_covered_vector = false;
             } break;
             default:
                 LUISA_ERROR_WITH_LOCATION("Invalid access chain node type: {}",
@@ -120,21 +126,25 @@ void AccessChain::gen_func_impl(CodegenUtility *util, TemplateFunction const &tm
     vstd::StringBuilder chain_str;
     size_t arg_idx = 1;
     auto build_access = [&]() {
+        bool is_shared = _root_var.is_shared();
         for (auto &&i : _nodes) {
             i.multi_visit(
                 [&](AccessNode const &n) {
                     if (n.is_matrix) {
                         chain_str << ".m"sv;
-                    } else if ((!_root_var.is_shared() && n.is_struct) || n.is_vector3) {
+                    } else if (n.is_covered_class && (!is_shared)) {
                         chain_str << ".v"sv;
                     }
                     chain_str << "[a"sv;
                     vstd::to_string(arg_idx, chain_str);
                     chain_str << ']';
+                    if (arg_idx > 1 && n.is_array)
+                        is_shared = false;
                     ++arg_idx;
                 },
                 [&](MemberNode const &m) {
                     chain_str << ".v"sv;
+                    is_shared = false;
                     vstd::to_string(m.member_index, chain_str);
                 });
         }

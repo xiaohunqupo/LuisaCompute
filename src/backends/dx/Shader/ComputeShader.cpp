@@ -104,7 +104,7 @@ ComputeShader *ComputeShader::CompileCompute(
 
         if (PRINT_CODE) {
             vstd::string dump_file_name{"hlsl_output.hlsl"};
-            if (auto f = fopen(dump_file_name.c_str(), "wb")) {
+            if (auto f = fopen(dump_file_name.c_str(), "ab")) {
                 fwrite(str.result.data(), str.result.size(), 1, f);
                 fclose(f);
             }
