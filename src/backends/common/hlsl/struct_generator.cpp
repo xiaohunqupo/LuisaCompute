@@ -78,7 +78,7 @@ void StructGenerator::InitAsStructAlised(
         if (i->is_structure() || i->is_array()) {
             auto name = util->opt->CreateAliasedStruct(i);
             structDesc << name.first;
-        } else if (i->is_vector() && i->dimension() >= 3 && i->element()->size() > 4) {
+        } else if (isSpirv && i->is_vector() && i->dimension() >= 3 && i->element()->size() > 4) {
             structDesc << "_Als";
             util->GetTypeName(*i->element(), structDesc, Usage::READ);
             structDesc << luisa::format("{}", i->dimension());
@@ -113,7 +113,7 @@ void StructGenerator::InitAsArrayAliased(
     if (i->is_structure() || i->is_array()) {
         auto name = util->opt->CreateAliasedStruct(i);
         structDesc << name.first;
-    } else if (i->is_vector() && i->dimension() >= 3 && i->element()->size() > 4) {
+    } else if (isSpirv && i->is_vector() && i->dimension() >= 3 && i->element()->size() > 4) {
         structDesc << "_Als";
         util->GetTypeName(*i->element(), structDesc, Usage::READ);
         structDesc << luisa::format("{}", i->dimension());
