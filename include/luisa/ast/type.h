@@ -470,6 +470,9 @@ public:
     [[nodiscard]] bool is_uint32() const noexcept;
     [[nodiscard]] bool is_int64() const noexcept;
     [[nodiscard]] bool is_uint64() const noexcept;
+    [[nodiscard]] bool is_float() const noexcept;
+    [[nodiscard]] bool is_int() const noexcept;
+    [[nodiscard]] bool is_uint() const noexcept;
     [[nodiscard]] bool is_float16() const noexcept;
     [[nodiscard]] bool is_float32() const noexcept;
     [[nodiscard]] bool is_float64() const noexcept;

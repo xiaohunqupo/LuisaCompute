@@ -310,7 +310,8 @@ AccessChain const &CodegenStackData::GetAtomicFunc(
     AccessChain chain{
         op,
         rootVar,
-        exprs.subspan(0, exprs.size() - extra_arg_size)};
+        exprs.subspan(0, exprs.size() - extra_arg_size),
+        isSpirv};
     auto iter = atomicsFuncs.emplace(std::move(chain));
     if (iter.second) {
         auto &access_chain = const_cast<AccessChain &>(*iter.first);
