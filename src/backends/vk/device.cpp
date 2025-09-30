@@ -29,7 +29,8 @@
 #endif
 namespace lc::vk {
 static constexpr uint k_shader_model = 65u;
-
+static constexpr uint k_high_shader_model = 66u;
+static constexpr uint k_tensor_shader_model = 69u;
 using namespace std::string_literals;
 static luisa::spin_mutex gDxcMutex;
 static vstd::StackObject<hlsl::ShaderCompiler, false> gDxcCompiler;
@@ -908,7 +909,7 @@ ShaderCreationInfo Device::create_shader(const ShaderOption &option, Function ke
         auto comp_result = Device::Compiler()->compile_compute(
             code.result.view(),
             !option.enable_debug_info,
-            k_shader_model,
+            kernel.use_cooperative_operations() ? k_tensor_shader_model : (kernel.allowed_warp_size().has_value() ? k_high_shader_model : k_shader_model),
             option.enable_fast_math,
             true,
             option.enable_debug_info);
@@ -958,7 +959,7 @@ ShaderCreationInfo Device::create_shader(const ShaderOption &option, Function ke
             kernel.block_size(),
             file_name,
             serde_type,
-            k_shader_model,
+            kernel.use_cooperative_operations() ? k_tensor_shader_model : (kernel.allowed_warp_size().has_value() ? k_high_shader_model : k_shader_model),
             option.enable_fast_math);
         info.handle = reinterpret_cast<uint64_t>(shader);
         info.native_handle = shader->pipeline();

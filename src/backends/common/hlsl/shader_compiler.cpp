@@ -147,8 +147,6 @@ CompileResult ShaderCompiler::compile_compute(
         args.emplace_back(L"/DSPV");
         if (shaderModel > 60) {
             args.emplace_back(L"-fspv-target-env=vulkan1.1");
-        } else if (shaderModel > 65) {
-            args.emplace_back(L"-fspv-target-env=vulkan1.3");
         }
     }
     args.emplace_back(L"-T");
