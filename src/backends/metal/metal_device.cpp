@@ -417,7 +417,9 @@ void MetalDevice::present_display_in_stream(uint64_t stream_handle, uint64_t swa
 }
 
 ShaderCreationInfo MetalDevice::create_shader(const ShaderOption &option, Function kernel) noexcept {
-
+    if (kernel.allowed_warp_size().value_or(32) != 32) [[unlikely]] {
+        LUISA_ERROR("Metal backend only suuport warp size 32.");
+    }
     if (kernel.propagated_builtin_callables().test(CallOp::BACKWARD)) {
 #ifdef LUISA_ENABLE_IR
         auto ir = AST2IR::build_kernel(kernel);
