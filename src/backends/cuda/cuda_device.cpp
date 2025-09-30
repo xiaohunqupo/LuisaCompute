@@ -765,7 +765,7 @@ ShaderCreationInfo CUDADevice::_load_or_compile_shader(luisa::string name,
 
 ShaderCreationInfo CUDADevice::create_shader(const ShaderOption &option, Function kernel) noexcept {
     if (kernel.allowed_warp_size().value_or(32) != 32) [[unlikely]] {
-        LUISA_ERROR("CUDA backend only suuport warp size 32.");
+        LUISA_ERROR("CUDA backend only support warp size 32.");
     }
     if (kernel.propagated_builtin_callables().test(CallOp::BACKWARD)) {
 #ifdef LUISA_ENABLE_IR

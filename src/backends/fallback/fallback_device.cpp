@@ -216,7 +216,7 @@ SwapchainCreationInfo FallbackDevice::create_swapchain(const SwapchainOption &op
 
 ShaderCreationInfo FallbackDevice::create_shader(const ShaderOption &option, Function kernel) noexcept {
     if (kernel.allowed_warp_size().value_or(1) != 1) [[unlikely]] {
-        LUISA_ERROR("Fallback backend only suuport warp size 1.");
+        LUISA_ERROR("Fallback backend only support warp size 1.");
     }
     Clock clk;
     if (kernel.propagated_builtin_callables().test(CallOp::BACKWARD)) {
