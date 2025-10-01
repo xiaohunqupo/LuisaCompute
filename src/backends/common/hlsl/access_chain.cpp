@@ -4,7 +4,9 @@ namespace lc::hlsl {
 AccessChain::AccessChain(
     CallOp op,
     Variable const &root_var,
-    luisa::span<Expression const *const> exprs) : _op{op}, _root_var{root_var}, _nodes{nodes_from_exprs(exprs)} {
+    luisa::span<Expression const *const> exprs,
+    bool isSpirv)
+    : _op{op}, _root_var{root_var}, _nodes{nodes_from_exprs(exprs, isSpirv)} {
     _hash = _get_hash();
 }
 void AccessChain::init_name() {
@@ -77,7 +79,7 @@ bool AccessChain::operator==(AccessChain const &node) const {
     }
     return true;
 }
-vstd::vector<AccessChain::Node> AccessChain::nodes_from_exprs(luisa::span<Expression const *const> args) {
+vstd::vector<AccessChain::Node> AccessChain::nodes_from_exprs(luisa::span<Expression const *const> args, bool isSpirv) {
     vstd::vector<Node> nodes;
     auto type = args.front()->type();
     nodes.reserve(args.size());
@@ -118,6 +120,9 @@ vstd::vector<AccessChain::Node> AccessChain::nodes_from_exprs(luisa::span<Expres
                 LUISA_ERROR_WITH_LOCATION("Invalid access chain node type: {}",
                                           type->description());
         }
+    }
+    if (isSpirv && type->is_float() && nodes.size() > 1) [[unlikely]] {
+        LUISA_ERROR("Spirv currently do not support complex-type atomic-float chain.");
     }
     return nodes;
 }
