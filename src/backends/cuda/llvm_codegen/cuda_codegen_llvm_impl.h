@@ -109,6 +109,8 @@ private:
     [[nodiscard]] llvm::Function *_create_llvm_external_function(const xir::ExternalFunction *func) noexcept;
     [[nodiscard]] llvm::BasicBlock *_translate_function_definition(FunctionContext &func_ctx, const xir::FunctionDefinition *f) noexcept;
     static void _mark_llvm_function_as_pure(llvm::Function *func) noexcept;
+    [[nodiscard]] llvm::Function *_get_assert_function() noexcept;
+    [[nodiscard]] llvm::Function *_get_vprintf_function() noexcept;
 
     /* the following methods are defined in cuda_codegen_llvm_impl_const.cpp */
     [[nodiscard]] llvm::Value *_get_llvm_literal(IB &b, const Type *type, const void *data) noexcept;

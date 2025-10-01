@@ -210,4 +210,47 @@ void CUDACodegenLLVMImpl::_mark_llvm_function_as_pure(llvm::Function *func) noex
     func->setDoesNotAccessMemory();
 }
 
+llvm::Function *CUDACodegenLLVMImpl::_get_assert_function() noexcept {
+    if (auto llvm_f = _llvm_module->getFunction("luisa.assert")) {
+        return llvm_f;
+    }
+    auto llvm_i1_type = llvm::Type::getInt1Ty(_llvm_context);
+    auto llvm_const_ptr_type = llvm::PointerType::get(_llvm_context, nvptx_address_space_constant);
+    auto llvm_func_type = llvm::FunctionType::get(llvm::Type::getVoidTy(_llvm_context),
+                                                  {llvm_i1_type, llvm_const_ptr_type}, false);
+    auto llvm_f = llvm::Function::Create(llvm_func_type,
+                                         llvm::Function::PrivateLinkage,
+                                         "luisa.assert", *_llvm_module);
+    auto llvm_entry = llvm::BasicBlock::Create(_llvm_context, "entry", llvm_f);
+    IB b{llvm_entry};
+    auto llvm_cond = llvm_f->getArg(0);
+    auto llvm_msg = llvm_f->getArg(1);
+    llvm_cond->setName("cond");
+    llvm_msg->setName("message");
+    auto llvm_then_bb = llvm::BasicBlock::Create(_llvm_context, "then", llvm_f);
+    auto llvm_trap_bb = llvm::BasicBlock::Create(_llvm_context, "trap", llvm_f);
+    b.CreateCondBr(llvm_cond, llvm_then_bb, llvm_trap_bb);
+    // then block
+    b.SetInsertPoint(llvm_then_bb);
+    b.CreateRetVoid();
+    // trap block
+    b.SetInsertPoint(llvm_trap_bb);
+    auto llvm_vprintf = _get_vprintf_function();
+    auto llvm_generic_ptr_type = llvm::PointerType::get(_llvm_context, 0);
+    auto llvm_msg_p0 = b.CreateAddrSpaceCast(llvm_msg, llvm_generic_ptr_type);
+    auto llvm_null_p0 = llvm::ConstantPointerNull::get(llvm_generic_ptr_type);
+    b.CreateCall(llvm_vprintf, {llvm_msg_p0, llvm_null_p0});
+    b.CreateIntrinsic(b.getVoidTy(), llvm::Intrinsic::trap, {});
+    b.CreateUnreachable();
+    return llvm_f;
+}
+
+llvm::Function *CUDACodegenLLVMImpl::_get_vprintf_function() noexcept {
+    if (auto llvm_f = _llvm_module->getFunction("vprintf")) { return llvm_f; }
+    auto llvm_i32_type = llvm::Type::getInt32Ty(_llvm_context);
+    auto llvm_ptr_type = llvm::PointerType::get(_llvm_context, 0);
+    auto llvm_func_type = llvm::FunctionType::get(llvm_i32_type, {llvm_ptr_type, llvm_ptr_type}, false);
+    return llvm::Function::Create(llvm_func_type, llvm::Function::ExternalLinkage, "vprintf", *_llvm_module);
+}
+
 }// namespace luisa::compute::cuda

@@ -65,7 +65,10 @@ if (CUDAToolkit_FOUND)
             reproc reproc++)
 
     # LLVM
-    add_subdirectory(llvm_codegen)
+    option(LUISA_COMPUTE_ENABLE_EXPERIMENTAL_CUDA_LLVM_CODEGEN "Enable experimental LLVM-based CUDA codegen" OFF)
+    if (LUISA_COMPUTE_ENABLE_EXPERIMENTAL_CUDA_LLVM_CODEGEN)
+        add_subdirectory(llvm_codegen)
+    endif ()
 
     # device runtime library
     find_library(CUDA_DEVICE_RUNTIME_LIBRARY cudadevrt ${CUDAToolkit_LIBRARY_DIR})

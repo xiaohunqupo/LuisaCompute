@@ -156,13 +156,13 @@ template<typename T, typename Arg>
 auto ast_cast_to(Arg *b) noexcept {
     using ReturnPtrType = decltype([]() {
         if constexpr (std::is_const_v<Arg>) {
-            return (T const *)nullptr;
+            return static_cast<T const *>(nullptr);
         } else {
-            return (T *)nullptr;
+            return static_cast<T *>(nullptr);
         }
     }());
     if (b->tag() != AstNodeTypeDecl<T>::value) {
-        return (ReturnPtrType)nullptr;
+        return static_cast<ReturnPtrType>(nullptr);
     }
     return static_cast<ReturnPtrType>(b);
 }
