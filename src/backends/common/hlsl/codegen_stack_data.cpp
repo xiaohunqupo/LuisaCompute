@@ -49,28 +49,24 @@ void CodegenStackData::Clear() {
 }
 
 std::pair<vstd::string_view, bool> CodegenStackData::CreateAliasedStruct(Type const *t) {
-    if (!isSpirv) {
+    if (!util->TypeIsAliased(t)) {
         return {CreateStruct(t), false};
-    } else {
-        if (!CodegenUtility::TypeIsAliased(t)) {
-            return {CreateStruct(t), false};
-        }
-        auto ite = customStructAliased.try_emplace(
-            t,
-            vstd::lazy_eval([&] {
-                auto newPtr = new StructGenerator(
-                    t,
-                    structCount++,
-                    util);
-                return vstd::create_unique(newPtr);
-            }));
-        if (ite.second) {
-            auto newPtr = ite.first.value().get();
-            newPtr->InitAliased(generateAliasedStruct, isSpirv);
-            customStructVectorAliased.emplace_back(ite.first.value().get());
-        }
-        return {ite.first.value()->GetStructName(), true};
     }
+    auto ite = customStructAliased.try_emplace(
+        t,
+        vstd::lazy_eval([&] {
+            auto newPtr = new StructGenerator(
+                t,
+                structCount++,
+                util);
+            return vstd::create_unique(newPtr);
+        }));
+    if (ite.second) {
+        auto newPtr = ite.first.value().get();
+        newPtr->InitAliased(generateAliasedStruct, isSpirv);
+        customStructVectorAliased.emplace_back(ite.first.value().get());
+    }
+    return {ite.first.value()->GetStructName(), true};
 }
 
 vstd::string_view CodegenStackData::CreateStruct(Type const *t) {
@@ -160,7 +156,7 @@ static vstd::string_view _atomic_compare_exchange =
 static vstd::string_view _atomic_compare_exchange_float =
     R"(# r;InterlockedCompareExchangeFloatBitwise($,@,r);return r;)"sv;
 static vstd::string_view _atomic_compare_exchange_float_spirv =
-    R"(int r;InterlockedCompareExchange($,asint(@),r);return asfloat(r);)"sv;
+    R"(# r;InterlockedCompareExchange($,asint(@),r);return asfloat(r);)"sv;
 static vstd::string_view _atomic_add =
     R"(# r;InterlockedAdd($,@,r);return r;)"sv;
 static vstd::string_view _atomic_add_float =
@@ -172,8 +168,8 @@ if(old==r)return old;
 })"sv;
 static vstd::string_view _atomic_add_float_spirv =
     R"(while(true){
-int old=asint($);
-int r;
+# old=asint($);
+# r;
 InterlockedCompareExchange($,old,asint(asfloat(old)+@),r);
 if(old==r)return asfloat(old);
 })"sv;
@@ -190,8 +186,8 @@ if(old==r)return old;
 })"sv;
 static vstd::string_view _atomic_sub_float_spirv =
     R"(while(true){
-int old=asint($);
-int r;
+# old=asint($);
+# r;
 InterlockedCompareExchange($,old,asint(asfloat(old)-@),r);
 if(old==r)return asfloat(old);
 })"sv;
@@ -213,9 +209,9 @@ if(r==old) return old;
 }})"sv;
 static vstd::string_view _atomic_min_float_spirv =
     R"(while(true){
-int old=asint($);
+# old=asint($);
 if(asfloat(old)<=@){
-int r;
+# r;
 InterlockedCompareExchange($,old,asint(@),r);
 if(r==old) return asfloat(old);
 }})"sv;
@@ -231,9 +227,9 @@ if(r==old) return old;
 }})"sv;
 static vstd::string_view _atomic_max_float_spirv =
     R"(while(true){
-int old=asint($);
+# old=asint($);
 if(asfloat(old)>=@){
-int r;
+# r;
 InterlockedCompareExchange($,old,asint(@),r);
 if(r==old) return asfloat(old);
 }})"sv;
@@ -244,7 +240,15 @@ AccessChain const &CodegenStackData::GetAtomicFunc(
     luisa::span<Expression const *const> exprs) {
     size_t extra_arg_size = (op == CallOp::ATOMIC_COMPARE_EXCHANGE) ? 2 : 1;
     vstd::StringBuilder retTypeName;
-    util->GetTypeName(*retType, retTypeName, Usage::NONE, true);
+    if (atomicFloatToInt && (retType->is_float32() || retType->is_float64())) {
+        if (retType->is_float32()) {
+            util->GetTypeName(*Type::of<int>(), retTypeName, Usage::NONE, true);
+        } else {
+            util->GetTypeName(*Type::of<int64_t>(), retTypeName, Usage::NONE, true);
+        }
+    } else {
+        util->GetTypeName(*retType, retTypeName, Usage::NONE, true);
+    }
     TemplateFunction tmp{
         .ret_type = retTypeName.view(),
         .tmp_type_name = retTypeName.view(),
