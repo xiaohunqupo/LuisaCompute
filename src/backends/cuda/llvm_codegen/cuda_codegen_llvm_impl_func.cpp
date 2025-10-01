@@ -8,94 +8,108 @@
 
 namespace luisa::compute::cuda {
 
-llvm::Function *CUDACodegenLLVMImpl::_get_llvm_function(const xir::Function *func) noexcept {
-    if (auto iter = _xir_to_llvm_function.find(func); iter != _xir_to_llvm_function.end()) {
-        return iter->second;
+llvm::Function *CUDACodegenLLVMImpl::_get_or_declare_llvm_function(const xir::Function *func) noexcept {
+    if (auto iter = _xir_to_llvm_global.find(func); iter != _xir_to_llvm_global.end()) {
+        LUISA_DEBUG_ASSERT(llvm::isa<llvm::Function>(iter->second), "Global is not a function.");
+        return static_cast<llvm::Function *>(iter->second);
     }
     auto llvm_func = [this, func]() noexcept {
         switch (func->derived_function_tag()) {
-            case xir::DerivedFunctionTag::KERNEL: return _create_llvm_kernel_function(static_cast<const xir::KernelFunction *>(func));
-            case xir::DerivedFunctionTag::CALLABLE: return _create_llvm_callable_function(static_cast<const xir::CallableFunction *>(func));
-            case xir::DerivedFunctionTag::EXTERNAL: return _create_llvm_external_function(static_cast<const xir::ExternalFunction *>(func));
+            case xir::DerivedFunctionTag::KERNEL: return _declare_llvm_kernel_function(static_cast<const xir::KernelFunction *>(func));
+            case xir::DerivedFunctionTag::CALLABLE: return _declare_llvm_callable_function(static_cast<const xir::CallableFunction *>(func));
+            case xir::DerivedFunctionTag::EXTERNAL: return _declare_llvm_external_function(static_cast<const xir::ExternalFunction *>(func));
             default: break;
         }
         LUISA_ERROR_WITH_LOCATION("Unsupported function type.");
     }();
-    auto [iter, success] = _xir_to_llvm_function.try_emplace(func, llvm_func);
+    auto [iter, success] = _xir_to_llvm_global.try_emplace(func, llvm_func);
     LUISA_ASSERT(success, "Failed to insert LLVM function.");
-    return iter->second;
+    return llvm_func;
 }
 
-llvm::Function *CUDACodegenLLVMImpl::_create_llvm_kernel_function(const xir::KernelFunction *func) noexcept {
-    llvm::SmallVector<llvm::Type *> llvm_arg_members;
-    llvm::SmallVector<llvm::Type *> llvm_arg_reg_types;
-    llvm::SmallVector<size_t> llvm_arg_member_indices;
-    auto current_offset = static_cast<size_t>(0u);
-    static constexpr auto argument_alignment = 16u;
-    for (auto arg : func->arguments()) {
-        auto next_offset = luisa::align(current_offset, argument_alignment);
-        if (next_offset > current_offset) {
-            auto llvm_i8_type = llvm::Type::getInt8Ty(_llvm_context);
-            llvm_arg_members.emplace_back(llvm::ArrayType::get(llvm_i8_type, next_offset - current_offset));
-        }
-        llvm_arg_member_indices.emplace_back(llvm_arg_members.size());
-        auto llvm_arg_type = _get_llvm_type(arg->type());
-        llvm_arg_members.emplace_back(llvm_arg_type->mem_type);
-        llvm_arg_reg_types.emplace_back(llvm_arg_type->reg_type);
-        current_offset = next_offset + _data_layout->getTypeAllocSize(llvm_arg_members.back()).getFixedValue();
-    }
-    // tail padding and <i32 x 4> for dispatch_size and kernel_id
-    if (current_offset % argument_alignment != 0u) {
-        auto llvm_i8_type = llvm::Type::getInt8Ty(_llvm_context);
-        auto count = luisa::align(current_offset, argument_alignment) - current_offset;
-        llvm_arg_members.emplace_back(llvm::ArrayType::get(llvm_i8_type, count));
-    }
-    auto dispatch_size_and_kernel_id_index = llvm_arg_members.size();
-    auto llvm_i32x4_type = llvm::VectorType::get(llvm::Type::getInt32Ty(_llvm_context), 4, false);
-    llvm_arg_members.emplace_back(llvm_i32x4_type);
-    auto llvm_arg_struct_type = llvm::StructType::create(_llvm_context, llvm_arg_members, "kernel.params.struct");
-    auto [llvm_kernel, llvm_arg_struct] = [&]() noexcept -> std::pair<llvm::Function *, llvm::Value *> {
+llvm::Function *CUDACodegenLLVMImpl::_declare_llvm_kernel_function(const xir::KernelFunction *func) noexcept {
+    auto [llvm_func_type, llvm_func_name] = [&]() noexcept -> std::pair<llvm::FunctionType *, llvm::StringRef> {
         auto llvm_void_type = llvm::Type::getVoidTy(_llvm_context);
         if (_config.enable_ray_tracing) {// ray tracing kernels use constant memory for args
-            auto llvm_global_arg = new ::llvm::GlobalVariable{
-                *_llvm_module, llvm_arg_struct_type, true, llvm::GlobalValue::ExternalLinkage,
-                nullptr, "params", nullptr, llvm::GlobalValue::NotThreadLocal,
-                nvptx_address_space_constant, true};
-            llvm_global_arg->setAlignment(llvm::Align{argument_alignment});
-            auto llvm_func_type = llvm::FunctionType::get(llvm_void_type, {}, false);
-            auto llvm_func = llvm::Function::Create(llvm_func_type, llvm::Function::ExternalLinkage,
-                                                    "__raygen__main", _llvm_module.get());
-            return std::make_pair(llvm_func, llvm_global_arg);
+            return std::make_pair(llvm::FunctionType::get(llvm_void_type, {}, false), "__raygen__main");
         }
         // normal kernels use direct arguments
-        auto llvm_func_type = llvm::FunctionType::get(llvm_void_type, {llvm_arg_struct_type}, false);
-        auto llvm_func = llvm::Function::Create(llvm_func_type, llvm::Function::ExternalLinkage,
-                                                "kernel_main", _llvm_module.get());
-        auto llvm_arg = llvm_func->getArg(0);
-        llvm_arg->setName("params");
-        return std::make_pair(llvm_func, llvm_arg);
+        auto arg_struct_info = _get_kernel_argument_struct(func);
+        return std::make_pair(llvm::FunctionType::get(llvm_void_type, {arg_struct_info->llvm_type}, false), "kernel_main");
     }();
+    auto llvm_kernel = llvm::Function::Create(llvm_func_type, llvm::Function::ExternalLinkage, llvm_func_name, _llvm_module.get());
     llvm_kernel->setCallingConv(llvm::CallingConv::PTX_Kernel);
+    return llvm_kernel;
+}
+
+llvm::Function *CUDACodegenLLVMImpl::_declare_llvm_callable_function(const xir::CallableFunction *func) noexcept {
+    llvm::SmallVector<llvm::Type *> llvm_arg_types;
+    for (auto arg : func->arguments()) {
+        if (arg->is_reference()) {
+            llvm_arg_types.emplace_back(llvm::PointerType::get(_llvm_context, 0));
+        } else {
+            llvm_arg_types.emplace_back(_get_llvm_type(arg->type())->reg_type);
+        }
+    }
+    // the last two arguments are dispatch_size and kernel_id
+    auto llvm_i32_type = llvm::Type::getInt32Ty(_llvm_context);
+    auto llvm_i32x3_type = llvm::VectorType::get(llvm_i32_type, 3, false);
+    llvm_arg_types.emplace_back(llvm_i32x3_type);// dispatch_size
+    llvm_arg_types.emplace_back(llvm_i32_type);  // kernel_id
+    auto llvm_ret_type = func->type() == nullptr ? llvm::Type::getVoidTy(_llvm_context) :
+                                                   _get_llvm_type(func->type())->reg_type;
+    auto llvm_func_type = llvm::FunctionType::get(llvm_ret_type, llvm_arg_types, false);
+    return llvm::Function::Create(llvm_func_type, llvm::Function::PrivateLinkage, 0,
+                                  func->name().value_or("callable"), _llvm_module.get());
+}
+
+llvm::Function *CUDACodegenLLVMImpl::_declare_llvm_external_function(const xir::ExternalFunction *func) noexcept {
+    LUISA_NOT_IMPLEMENTED("External function declaration not implemented.");
+}
+
+llvm::Function *CUDACodegenLLVMImpl::_translate_function(const xir::FunctionDefinition *func) noexcept {
+    switch (func->derived_function_tag()) {
+        case xir::DerivedFunctionTag::KERNEL: return _translate_kernel_function(static_cast<const xir::KernelFunction *>(func));
+        case xir::DerivedFunctionTag::CALLABLE: return _translate_callable_function(static_cast<const xir::CallableFunction *>(func));
+        case xir::DerivedFunctionTag::EXTERNAL: LUISA_ERROR_WITH_LOCATION("Cannot translate external function.");
+        default: break;
+    }
+    LUISA_ERROR_WITH_LOCATION("Unsupported function type.");
+}
+
+llvm::Function *CUDACodegenLLVMImpl::_translate_kernel_function(const xir::KernelFunction *func) noexcept {
+    auto arg_struct_info = _get_kernel_argument_struct(func);
+    auto llvm_kernel = _get_or_declare_llvm_function(func);
+    LUISA_DEBUG_ASSERT(llvm_kernel->isDeclaration(), "Kernel function already defined.");
     FunctionContext func_ctx{llvm_kernel};
     // load arguments
     IB b{func_ctx.llvm_entry_block};
-    if (llvm_arg_struct->getType()->isPointerTy()) {
-        llvm_arg_struct = b.CreateAlignedLoad(llvm_arg_struct_type, llvm_arg_struct,
-                                              llvm::Align{argument_alignment},
-                                              "params.load");
-    }
+    auto llvm_arg_struct = [&]() noexcept -> llvm::Value * {
+        // ray tracing kernels use constant memory for args
+        if (_config.enable_ray_tracing) {
+            auto llvm_global_arg = new ::llvm::GlobalVariable{
+                *_llvm_module, arg_struct_info->llvm_type, true, llvm::GlobalValue::ExternalLinkage,
+                nullptr, "params", nullptr, llvm::GlobalValue::NotThreadLocal,
+                nvptx_address_space_constant, true};
+            llvm::Align llvm_align{KernelArgumentStruct::argument_alignment};
+            llvm_global_arg->setAlignment(llvm_align);
+            return b.CreateAlignedLoad(arg_struct_info->llvm_type, llvm_global_arg, llvm_align, "params.load");
+        }
+        // normal kernels use direct arguments
+        return llvm_kernel->getArg(0);
+    }();
     // map arguments to local values
     auto arg_index = 0u;
     for (auto arg : func->arguments()) {
-        auto member_index = llvm_arg_member_indices[arg_index];
+        auto member_index = arg_struct_info->argument_indices[arg_index];
         auto llvm_member_mem = b.CreateExtractValue(llvm_arg_struct, member_index, arg->name().value_or(""));
-        auto llvm_member_reg_type = llvm_arg_reg_types[arg_index];
+        auto llvm_member_reg_type = arg_struct_info->argument_reg_types[arg_index];
         auto llvm_member_reg = _convert_llvm_mem_value_to_reg(b, llvm_member_mem, llvm_member_reg_type);
         func_ctx.local_values.try_emplace(arg, llvm_member_reg);
         arg_index++;
     }
     // load dispatch_size_and_kernel_id
-    auto llvm_dispatch_size_and_kernel_id = b.CreateExtractValue(llvm_arg_struct, dispatch_size_and_kernel_id_index);
+    auto llvm_dispatch_size_and_kernel_id = b.CreateExtractValue(llvm_arg_struct, arg_struct_info->dispatch_size_and_kernel_id_index);
     func_ctx.llvm_dispatch_size = b.CreateShuffleVector(llvm_dispatch_size_and_kernel_id, {0, 1, 2}, "sreg.dispatch.size");
     func_ctx.llvm_kernel_id = b.CreateExtractElement(llvm_dispatch_size_and_kernel_id, 3, "sreg.kernel.id");
     // translate body
@@ -117,25 +131,9 @@ llvm::Function *CUDACodegenLLVMImpl::_create_llvm_kernel_function(const xir::Ker
     return llvm_kernel;
 }
 
-llvm::Function *CUDACodegenLLVMImpl::_create_llvm_callable_function(const xir::CallableFunction *func) noexcept {
-    llvm::SmallVector<llvm::Type *> llvm_arg_types;
-    for (auto arg : func->arguments()) {
-        if (arg->is_reference()) {
-            llvm_arg_types.emplace_back(llvm::PointerType::get(_llvm_context, 0));
-        } else {
-            llvm_arg_types.emplace_back(_get_llvm_type(arg->type())->reg_type);
-        }
-    }
-    // the last two arguments are dispatch_size and kernel_id
-    auto llvm_i32_type = llvm::Type::getInt32Ty(_llvm_context);
-    auto llvm_i32x3_type = llvm::VectorType::get(llvm_i32_type, 3, false);
-    llvm_arg_types.emplace_back(llvm_i32x3_type);// dispatch_size
-    llvm_arg_types.emplace_back(llvm_i32_type);  // kernel_id
-    auto llvm_ret_type = func->type() == nullptr ? llvm::Type::getVoidTy(_llvm_context) :
-                                                   _get_llvm_type(func->type())->reg_type;
-    auto llvm_func_type = llvm::FunctionType::get(llvm_ret_type, llvm_arg_types, false);
-    auto llvm_func = llvm::Function::Create(llvm_func_type, llvm::Function::PrivateLinkage, 0,
-                                            func->name().value_or("callable"), _llvm_module.get());
+llvm::Function *CUDACodegenLLVMImpl::_translate_callable_function(const xir::CallableFunction *func) noexcept {
+    auto llvm_func = _get_or_declare_llvm_function(func);
+    LUISA_DEBUG_ASSERT(llvm_func->isDeclaration(), "Callable function already defined.");
     FunctionContext func_ctx{llvm_func};
     auto llvm_arg_iter = llvm_func->arg_begin();
     for (auto arg : func->arguments()) {
@@ -150,10 +148,6 @@ llvm::Function *CUDACodegenLLVMImpl::_create_llvm_callable_function(const xir::C
     IB b{func_ctx.llvm_entry_block};
     b.CreateBr(body);
     return llvm_func;
-}
-
-llvm::Function *CUDACodegenLLVMImpl::_create_llvm_external_function(const xir::ExternalFunction *func) noexcept {
-    LUISA_NOT_IMPLEMENTED();
 }
 
 namespace {

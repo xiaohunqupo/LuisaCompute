@@ -134,7 +134,7 @@ void CUDACodegenLLVMImpl::_translate_instruction(IB &b, FunctionContext &func_ct
 }
 
 void CUDACodegenLLVMImpl::_translate_if_inst(IB &b, FunctionContext &func_ctx, const xir::IfInst *inst) noexcept {
-    auto llvm_cond = func_ctx.get_local_value<llvm::Value>(inst->condition());
+    auto llvm_cond = _get_llvm_value<llvm::Value>(b, func_ctx, inst->condition());
     auto llvm_true_block = func_ctx.get_local_value<llvm::BasicBlock>(inst->true_block());
     auto llvm_false_block = func_ctx.get_local_value<llvm::BasicBlock>(inst->false_block());
     b.CreateCondBr(llvm_cond, llvm_true_block, llvm_false_block);
@@ -155,7 +155,7 @@ void CUDACodegenLLVMImpl::_translate_branch_inst(IB &b, FunctionContext &func_ct
 }
 
 void CUDACodegenLLVMImpl::_translate_conditional_branch_inst(IB &b, FunctionContext &func_ctx, const xir::ConditionalBranchInst *inst) noexcept {
-    auto llvm_cond = func_ctx.get_local_value<llvm::Value>(inst->condition());
+    auto llvm_cond = _get_llvm_value<llvm::Value>(b, func_ctx, inst->condition());
     auto llvm_true_target = func_ctx.get_local_value<llvm::BasicBlock>(inst->true_block());
     auto llvm_false_target = func_ctx.get_local_value<llvm::BasicBlock>(inst->false_block());
     b.CreateCondBr(llvm_cond, llvm_true_target, llvm_false_target);
@@ -177,7 +177,7 @@ void CUDACodegenLLVMImpl::_translate_continue_inst(IB &b, FunctionContext &func_
 
 void CUDACodegenLLVMImpl::_translate_return_inst(IB &b, FunctionContext &func_ctx, const xir::ReturnInst *inst) noexcept {
     if (auto v = inst->return_value()) {
-        auto llvm_ret_v = func_ctx.get_local_value<llvm::Value>(v);
+        auto llvm_ret_v = _get_llvm_value<llvm::Value>(b, func_ctx, v);
         b.CreateRet(llvm_ret_v);
     } else {
         b.CreateRetVoid();
@@ -191,11 +191,12 @@ llvm::PHINode *CUDACodegenLLVMImpl::_translate_phi_inst(IB &b, FunctionContext &
 }
 
 void CUDACodegenLLVMImpl::_finalize_pending_phi_nodes(const FunctionContext &func_ctx) noexcept {
+    IB b{_llvm_context};
     for (auto phi : func_ctx.pending_phi_nodes) {
         auto llvm_phi = func_ctx.get_local_value<llvm::PHINode>(phi);
         for (auto i = 0u; i < phi->incoming_count(); i++) {
             auto [value, block] = phi->incoming(i);
-            auto llvm_value = func_ctx.get_local_value<llvm::Value>(value);
+            auto llvm_value = _get_llvm_value<llvm::Value>(b, func_ctx, value);
             auto llvm_block = func_ctx.get_local_value<llvm::BasicBlock>(block);
             llvm_phi->addIncoming(llvm_value, llvm_block);
         }
@@ -204,9 +205,21 @@ void CUDACodegenLLVMImpl::_finalize_pending_phi_nodes(const FunctionContext &fun
 
 llvm::Value *CUDACodegenLLVMImpl::_translate_alloca_inst(IB &b, FunctionContext &func_ctx, const xir::AllocaInst *inst) noexcept {
     auto llvm_type = _get_llvm_type(inst->type())->mem_type;
-    auto llvm_alloca = b.CreateAlloca(llvm_type, nullptr, inst->name().value_or(""));
-    llvm_alloca->setAlignment(llvm::Align{inst->type()->alignment()});
-    return llvm_alloca;
+    if (inst->is_local()) {
+        auto llvm_alloca = b.CreateAlloca(llvm_type, nullptr, inst->name().value_or(""));
+        llvm_alloca->setAlignment(llvm::Align{inst->type()->alignment()});
+        return llvm_alloca;
+    }
+    // shared alloca's are mapped to global variables in address space nvvm_address_space_shared
+    auto llvm_global = new llvm::GlobalVariable{
+        *_llvm_module, llvm_type, false, llvm::GlobalValue::PrivateLinkage,
+        nullptr, inst->name().value_or("shared"), nullptr,
+        llvm::GlobalValue::NotThreadLocal, nvptx_address_space_shared, false};
+    llvm_global->setAlignment(llvm::Align{inst->type()->alignment()});
+    llvm_global->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
+    // cast to generic address space for convenience
+    auto llvm_generic_ptr_type = llvm::PointerType::get(_llvm_context, 0);
+    return b.CreateAddrSpaceCast(llvm_global, llvm_generic_ptr_type, llvm_global->getName().str() + ".as.generic");
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_translate_load_inst(IB &b, FunctionContext &func_ctx, const xir::LoadInst *inst) noexcept {
@@ -228,6 +241,14 @@ void CUDACodegenLLVMImpl::_translate_store_inst(IB &b, FunctionContext &func_ctx
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_translate_gep_inst(IB &b, FunctionContext &func_ctx, const xir::GEPInst *inst) noexcept {
+    // FIXME: we directly calculate the address here, which might hinder LLVM optimizations
+    auto base = inst->base();
+    auto llvm_ptr = func_ctx.get_local_value<llvm::Value>(base);
+    LUISA_DEBUG_ASSERT(llvm_ptr->getType()->isPointerTy());
+    auto offset = 0u;
+    auto type = base->type();
+    for (auto index_use : inst->index_uses()) {
+    }
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_translate_atomic_inst(IB &b, FunctionContext &func_ctx, const xir::AtomicInst *inst) noexcept {
@@ -275,6 +296,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_cast_inst(IB &b, FunctionContext &f
 }
 
 void CUDACodegenLLVMImpl::_translate_print_inst(IB &b, FunctionContext &func_ctx, const xir::PrintInst *inst) noexcept {
+    LUISA_WARNING_WITH_LOCATION("Not implemented.");
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_translate_clock_inst(IB &b, FunctionContext &func_ctx, const xir::ClockInst *inst) noexcept {
@@ -291,7 +313,7 @@ void CUDACodegenLLVMImpl::_translate_debug_break_inst(IB &b, FunctionContext &fu
 }
 
 void CUDACodegenLLVMImpl::_translate_assert_inst(IB &b, FunctionContext &func_ctx, const xir::AssertInst *inst) noexcept {
-    auto llvm_cond = func_ctx.get_local_value<llvm::Value>(inst->condition());
+    auto llvm_cond = _get_llvm_value<llvm::Value>(b, func_ctx, inst->condition());
     auto llvm_msg = llvm::ConstantDataArray::getString(_llvm_context, "Assertion failed: " + inst->message() + "\n");
     // ReSharper disable once CppDFAMemoryLeak
     auto llvm_msg_gv = new llvm::GlobalVariable(
@@ -303,7 +325,7 @@ void CUDACodegenLLVMImpl::_translate_assert_inst(IB &b, FunctionContext &func_ct
 }
 
 void CUDACodegenLLVMImpl::_translate_assume_inst(IB &b, FunctionContext &func_ctx, const xir::AssumeInst *inst) noexcept {
-    auto cond = func_ctx.get_local_value<llvm::Value>(inst->condition());
+    auto cond = _get_llvm_value<llvm::Value>(b, func_ctx, inst->condition());
     b.CreateAssumption(cond);
 }
 

@@ -225,10 +225,12 @@ luisa::string CUDACodegenLLVMImpl::generate(const xir::Module &xir_module) noexc
     _llvm_module->setSourceFileName(_config.source_file);
     _llvm_module->setModuleIdentifier(xir_module.name().value_or(""));
     for (auto func : xir_module.function_list()) {
-        static_cast<void>(_get_llvm_function(func));
+        if (auto def = func->definition()) {
+            static_cast<void>(_translate_function(def));
+        }
     }
     _run_optimization_passes();
-    _llvm_module->print(llvm::errs(), nullptr); // debug
+    _llvm_module->print(llvm::errs(), nullptr);// debug
     return _generate_ptx();
 }
 

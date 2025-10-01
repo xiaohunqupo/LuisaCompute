@@ -46,9 +46,18 @@ public:
         luisa::vector<size_t> member_offsets;// For struct type, the byte offset of each member
     };
 
+    struct KernelArgumentStruct {
+        static constexpr auto argument_alignment = 16u;// all arguments are aligned to 16 bytes
+        llvm::StructType *llvm_type;
+        std::vector<size_t> argument_indices;
+        std::vector<llvm::Type *> argument_reg_types;
+        size_t dispatch_size_and_kernel_id_index;
+    };
+
     using IB = llvm::IRBuilder<>;
 
     struct FunctionContext {
+
         llvm::Function *llvm_func;
         llvm::BasicBlock *llvm_alloca_block;
         llvm::BasicBlock *llvm_entry_block;
@@ -60,6 +69,7 @@ public:
         explicit FunctionContext(llvm::Function *f) noexcept;
 
         template<typename T = llvm::Value>
+            requires std::derived_from<T, llvm::Value>
         [[nodiscard]] T *get_local_value(const xir::Value *v) const noexcept {
             LUISA_DEBUG_ASSERT(v != nullptr, "Value is null.");
             auto iter = local_values.find(v);
@@ -82,9 +92,32 @@ private:
     llvm::Type *_llvm_accel_type{nullptr};              // { i64 handle, ptr instances } as defined in cuda_accel.h
     llvm::Type *_llvm_accel_instance_type{nullptr};     // { [ 12 x float ] affine, i32 user_id, i32 sbt_offset, i32 mask, i32 flags, i64 handle, i32 padding } as defined in optix_api.h
     llvm::DenseMap<const Type *, luisa::unique_ptr<LLVMTypeInfo>> _xir_to_llvm_type;
+    llvm::DenseMap<const xir::Value *, llvm::Constant *> _xir_to_llvm_global;
+    llvm::DenseMap<const xir::KernelFunction *, luisa::unique_ptr<KernelArgumentStruct>> _kernel_arg_struct_types;
 
-    llvm::DenseMap<const xir::Function *, llvm::Function *> _xir_to_llvm_function;
-    llvm::DenseMap<const xir::Constant *, llvm::Constant *> _xir_to_llvm_global;
+    template<typename T>
+        requires std::derived_from<T, llvm::Value>
+    [[nodiscard]] T *_get_llvm_value(IB &b, const FunctionContext &func_ctx, const xir::Value *v) noexcept {
+        LUISA_DEBUG_ASSERT(v != nullptr, "Value is null.");
+        auto checked_llvm_value = [](auto llvm_v) noexcept {
+            LUISA_DEBUG_ASSERT(llvm::isa<T>(llvm_v), "LLVM value type mismatch.");
+            return static_cast<T *>(llvm_v);
+        };
+        switch (v->derived_value_tag()) {
+            case xir::DerivedValueTag::UNDEFINED: return checked_llvm_value(llvm::UndefValue::get(_get_llvm_type(v->type())->reg_type));
+            case xir::DerivedValueTag::FUNCTION: return checked_llvm_value(_get_or_declare_llvm_function(static_cast<const xir::Function *>(v)));
+            case xir::DerivedValueTag::BASIC_BLOCK: return func_ctx.get_local_value<T>(v);
+            case xir::DerivedValueTag::INSTRUCTION: return func_ctx.get_local_value<T>(v);
+            case xir::DerivedValueTag::CONSTANT: return checked_llvm_value(_get_llvm_constant(b, static_cast<const xir::Constant *>(v)));
+            case xir::DerivedValueTag::ARGUMENT: return func_ctx.get_local_value<T>(v);
+            case xir::DerivedValueTag::SPECIAL_REGISTER: {
+                auto sreg_tag = static_cast<const xir::SpecialRegister *>(v)->derived_special_register_tag();
+                return checked_llvm_value(_read_special_register(b, func_ctx, sreg_tag));
+            }
+            default: break;
+        }
+        LUISA_ERROR_WITH_LOCATION("Unsupported value type.");
+    }
 
 private:
     [[nodiscard]] static const llvm::Target *_get_nvptx_target() noexcept;
@@ -95,6 +128,7 @@ private:
 
     /* the following methods are defined in cuda_codegen_llvm_impl_type.cpp */
     [[nodiscard]] const LLVMTypeInfo *_get_llvm_type(const Type *type) noexcept;
+    [[nodiscard]] const KernelArgumentStruct *_get_kernel_argument_struct(const xir::KernelFunction *func) noexcept;
     [[nodiscard]] llvm::Type *_get_llvm_buffer_type() noexcept;
     [[nodiscard]] llvm::Type *_get_llvm_texture_type() noexcept;
     [[nodiscard]] llvm::Type *_get_llvm_bindless_array_type() noexcept;
@@ -103,10 +137,13 @@ private:
     [[nodiscard]] llvm::Type *_get_llvm_accel_instance_type() noexcept;
 
     /* the following methods are defined in cuda_codegen_llvm_impl_func.cpp */
-    [[nodiscard]] llvm::Function *_get_llvm_function(const xir::Function *func) noexcept;
-    [[nodiscard]] llvm::Function *_create_llvm_kernel_function(const xir::KernelFunction *func) noexcept;
-    [[nodiscard]] llvm::Function *_create_llvm_callable_function(const xir::CallableFunction *func) noexcept;
-    [[nodiscard]] llvm::Function *_create_llvm_external_function(const xir::ExternalFunction *func) noexcept;
+    [[nodiscard]] llvm::Function *_get_or_declare_llvm_function(const xir::Function *func) noexcept;
+    [[nodiscard]] llvm::Function *_declare_llvm_kernel_function(const xir::KernelFunction *func) noexcept;
+    [[nodiscard]] llvm::Function *_declare_llvm_callable_function(const xir::CallableFunction *func) noexcept;
+    [[nodiscard]] llvm::Function *_declare_llvm_external_function(const xir::ExternalFunction *func) noexcept;
+    [[nodiscard]] llvm::Function *_translate_function(const xir::FunctionDefinition *func) noexcept;
+    [[nodiscard]] llvm::Function *_translate_kernel_function(const xir::KernelFunction *func) noexcept;
+    [[nodiscard]] llvm::Function *_translate_callable_function(const xir::CallableFunction *func) noexcept;
     [[nodiscard]] llvm::BasicBlock *_translate_function_definition(FunctionContext &func_ctx, const xir::FunctionDefinition *f) noexcept;
     static void _mark_llvm_function_as_pure(llvm::Function *func) noexcept;
     [[nodiscard]] llvm::Function *_get_assert_function() noexcept;

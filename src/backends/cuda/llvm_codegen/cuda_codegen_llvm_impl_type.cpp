@@ -184,6 +184,48 @@ CUDACodegenLLVMImpl::_get_llvm_type(const Type *type) noexcept {
     return iter->second.get();
 }
 
+const CUDACodegenLLVMImpl::KernelArgumentStruct *CUDACodegenLLVMImpl::_get_kernel_argument_struct(const xir::KernelFunction *func) noexcept {
+    if (auto iter = _kernel_arg_struct_types.find(func); iter != _kernel_arg_struct_types.end()) {
+        return iter->second.get();
+    }
+    std::vector<llvm::Type *> llvm_arg_members;
+    std::vector<llvm::Type *> llvm_arg_reg_types;
+    std::vector<size_t> llvm_arg_member_indices;
+    auto current_offset = static_cast<size_t>(0u);
+    static constexpr auto alignment = KernelArgumentStruct::argument_alignment;
+    for (auto arg : func->arguments()) {
+        auto next_offset = luisa::align(current_offset, alignment);
+        if (next_offset > current_offset) {
+            auto llvm_i8_type = llvm::Type::getInt8Ty(_llvm_context);
+            llvm_arg_members.emplace_back(llvm::ArrayType::get(llvm_i8_type, next_offset - current_offset));
+        }
+        llvm_arg_member_indices.emplace_back(llvm_arg_members.size());
+        auto llvm_arg_type = _get_llvm_type(arg->type());
+        llvm_arg_members.emplace_back(llvm_arg_type->mem_type);
+        llvm_arg_reg_types.emplace_back(llvm_arg_type->reg_type);
+        current_offset = next_offset + _data_layout->getTypeAllocSize(llvm_arg_members.back()).getFixedValue();
+    }
+    // tail padding and <i32 x 4> for dispatch_size and kernel_id
+    if (current_offset % alignment != 0u) {
+        auto llvm_i8_type = llvm::Type::getInt8Ty(_llvm_context);
+        auto count = luisa::align(current_offset, alignment) - current_offset;
+        llvm_arg_members.emplace_back(llvm::ArrayType::get(llvm_i8_type, count));
+    }
+    auto dispatch_size_and_kernel_id_index = llvm_arg_members.size();
+    auto llvm_i32x4_type = llvm::VectorType::get(llvm::Type::getInt32Ty(_llvm_context), 4, false);
+    llvm_arg_members.emplace_back(llvm_i32x4_type);
+    auto llvm_arg_struct_type = llvm::StructType::create(_llvm_context, llvm_arg_members, "kernel.params.struct");
+    auto kernel_arg_struct = luisa::make_unique<KernelArgumentStruct>(KernelArgumentStruct{
+        .llvm_type = llvm_arg_struct_type,
+        .argument_indices = std::move(llvm_arg_member_indices),
+        .argument_reg_types = std::move(llvm_arg_reg_types),
+        .dispatch_size_and_kernel_id_index = dispatch_size_and_kernel_id_index,
+    });
+    auto [iter, success] = _kernel_arg_struct_types.try_emplace(func, std::move(kernel_arg_struct));
+    LUISA_ASSERT(success, "Failed to insert kernel argument struct.");
+    return iter->second.get();
+}
+
 llvm::Type *CUDACodegenLLVMImpl::_get_llvm_buffer_type() noexcept {
     if (_llvm_buffer_type == nullptr) {
         auto llvm_ptr_type = llvm::PointerType::get(_llvm_context, nvptx_address_space_global);
