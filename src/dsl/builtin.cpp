@@ -7,7 +7,9 @@
 namespace luisa::compute {
 
 namespace detail {
-
+LC_DSL_API void luisa_compute_validate_warp_size(uint8_t warp_size) noexcept {
+    LUISA_ASSERT(warp_size >= 8 && warp_size <= 128 && luisa::next_pow2<uint>(warp_size) == warp_size, "Invalid warp size.");
+}
 LC_DSL_API void luisa_compute_validate_block_size(uint x, uint y, uint z) noexcept {
     auto size = make_uint3(x, y, z);
     LUISA_ASSERT(all(size >= 1u && size <= 1024u),

@@ -1134,13 +1134,23 @@ pub struct PhiIncoming {
 }
 
 #[repr(C)]
-#[derive(PartialEq, Eq, Hash)]
+#[derive(Eq, Hash)]
 pub struct CpuCustomOp {
     pub data: *mut u8,
     /// func(data, args); func should modify args in place
     pub func: extern "C" fn(*mut u8, *mut u8),
     pub destructor: extern "C" fn(*mut u8),
     pub arg_type: CArc<Type>,
+}
+
+// rustc complains about function pointers not being comparable, so make it happy
+impl PartialEq for CpuCustomOp {
+    fn eq(&self, other: &Self) -> bool {
+        self.data == other.data
+            && self.func as usize == other.func as usize
+            && self.destructor as usize == other.destructor as usize
+            && self.arg_type == other.arg_type
+    }
 }
 
 impl Serialize for CpuCustomOp {

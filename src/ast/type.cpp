@@ -801,6 +801,10 @@ bool Type::is_uint16_vector() const noexcept { return is_vector() && element()->
 bool Type::is_int64_vector() const noexcept { return is_vector() && element()->is_int64(); }
 bool Type::is_uint64_vector() const noexcept { return is_vector() && element()->is_uint64(); }
 
+bool Type::is_float() const noexcept { return is_float16() || is_float32() || is_float64(); }
+bool Type::is_int() const noexcept { return is_int8() || is_int16() || is_int32() || is_int64(); }
+bool Type::is_uint() const noexcept { return is_uint8() || is_uint16() || is_uint32() || is_uint64(); }
+
 bool Type::is_resource() const noexcept {
     return is_buffer() || is_texture() || is_bindless_array() || is_accel();
 }

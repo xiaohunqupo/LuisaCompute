@@ -764,7 +764,9 @@ ShaderCreationInfo CUDADevice::_load_or_compile_shader(luisa::string name,
 }
 
 ShaderCreationInfo CUDADevice::create_shader(const ShaderOption &option, Function kernel) noexcept {
-
+    if (kernel.allowed_warp_size().value_or(32) != 32) [[unlikely]] {
+        LUISA_ERROR("CUDA backend only support warp size 32.");
+    }
     if (kernel.propagated_builtin_callables().test(CallOp::BACKWARD)) {
 #ifdef LUISA_ENABLE_IR
         auto ir = AST2IR::build_kernel(kernel);
@@ -784,10 +786,13 @@ ShaderCreationInfo CUDADevice::create_shader(const ShaderOption &option, Functio
         auto xir_module = luisa_cuda_backend_translate_ast_to_xir(kernel, option, false);
         if (LUISA_USE_EXPERIMENTAL_LLVM_CODEGEN) {
             CUDACodegenLLVMConfig config{
+                .source_file = option.name,
+                .block_size = {kernel.block_size().x, kernel.block_size().y, kernel.block_size().z},
                 .cuda_arch = _handle.compute_capability(),
                 .enable_fast_math = option.enable_fast_math,
                 .enable_debug_info = option.enable_debug_info,
                 .enable_ray_tracing = kernel.requires_raytracing(),
+                .enable_printing = kernel.requires_printing(),
             };
             auto ptx = luisa_compute_cuda_codegen_llvm(*xir_module, config);
         }

@@ -26,6 +26,8 @@ if (LUISA_COMPUTE_CUDA_LINKED_LLVM)
             cuda_codegen_llvm.cpp cuda_codegen_llvm.h
             cuda_codegen_llvm_impl.cpp cuda_codegen_llvm_impl.h
             cuda_codegen_llvm_impl_type.cpp
+            cuda_codegen_llvm_impl_inst.cpp
+            cuda_codegen_llvm_impl_sreg.cpp
             cuda_codegen_llvm_impl_func.cpp
             cuda_codegen_llvm_impl_const.cpp
     )

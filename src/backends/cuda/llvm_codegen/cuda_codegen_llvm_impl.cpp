@@ -23,6 +23,8 @@ namespace luisa::compute::cuda {
 
 CUDACodegenLLVMImpl::CUDACodegenLLVMImpl(CUDACodegenLLVMConfig config) noexcept
     : _config{std::move(config)} {
+    LUISA_ASSERT(_config.block_size[0] > 0u && _config.block_size[1] > 0u && _config.block_size[2] > 0u,
+                 "Block size must be constant and greater than zero for now.");
     Clock clk;
     _initialize();
     LUISA_VERBOSE_WITH_LOCATION("CUDA LLVM codegen initialized in {} ms.", clk.toc());
@@ -116,6 +118,7 @@ inline void CUDACodegenLLVMImpl::_initialize() noexcept {
     for (auto &&f : *_llvm_module) {
         if (f.getName().starts_with("__nv_")) {
             f.setLinkage(llvm::Function::PrivateLinkage);
+            f.removeFnAttr(llvm::Attribute::StackProtect);
         }
     }
 
@@ -219,8 +222,13 @@ luisa::string CUDACodegenLLVMImpl::_generate_ptx() const noexcept {
 }
 
 luisa::string CUDACodegenLLVMImpl::generate(const xir::Module &xir_module) noexcept {
-    _llvm_module->setSourceFileName(xir_module.name().value_or("cuda_kernel.cu"));
+    _llvm_module->setSourceFileName(_config.source_file);
+    _llvm_module->setModuleIdentifier(xir_module.name().value_or(""));
+    for (auto func : xir_module.function_list()) {
+        static_cast<void>(_get_llvm_function(func));
+    }
     _run_optimization_passes();
+    _llvm_module->print(llvm::errs(), nullptr); // debug
     return _generate_ptx();
 }
 

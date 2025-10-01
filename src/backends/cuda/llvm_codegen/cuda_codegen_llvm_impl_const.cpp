@@ -133,7 +133,11 @@ llvm::Value *CUDACodegenLLVMImpl::_get_llvm_literal(IB &b, const Type *type, con
 
 llvm::Value *CUDACodegenLLVMImpl::_get_llvm_constant(IB &b, const xir::Constant *c) noexcept {
     auto type = c->type();
-    if (type->is_basic()) { return _get_llvm_literal(b, type, c->data()); }
+    if (type->is_basic()) {
+        auto llvm_const = _get_llvm_literal(b, type, c->data());
+        LUISA_DEBUG_ASSERT(llvm_const->getType() == _get_llvm_type(type)->reg_type);
+        return llvm_const;
+    }
     // find global constant
     llvm::Align alignment{type->alignment()};
     auto iter = _xir_to_llvm_global.try_emplace(c, nullptr).first;

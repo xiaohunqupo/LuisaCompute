@@ -3,6 +3,8 @@
 //
 
 #include "cuda_codegen_llvm_impl.h"
+#include "luisa/xir/passes/dom_tree.h"
+#include "luisa/ast/function.h"
 
 namespace luisa::compute::cuda {
 
@@ -26,6 +28,7 @@ llvm::Function *CUDACodegenLLVMImpl::_get_llvm_function(const xir::Function *fun
 
 llvm::Function *CUDACodegenLLVMImpl::_create_llvm_kernel_function(const xir::KernelFunction *func) noexcept {
     llvm::SmallVector<llvm::Type *> llvm_arg_members;
+    llvm::SmallVector<llvm::Type *> llvm_arg_reg_types;
     llvm::SmallVector<size_t> llvm_arg_member_indices;
     auto current_offset = static_cast<size_t>(0u);
     static constexpr auto argument_alignment = 16u;
@@ -36,14 +39,20 @@ llvm::Function *CUDACodegenLLVMImpl::_create_llvm_kernel_function(const xir::Ker
             llvm_arg_members.emplace_back(llvm::ArrayType::get(llvm_i8_type, next_offset - current_offset));
         }
         llvm_arg_member_indices.emplace_back(llvm_arg_members.size());
-        llvm_arg_members.emplace_back(_get_llvm_type(arg->type())->mem_type);
+        auto llvm_arg_type = _get_llvm_type(arg->type());
+        llvm_arg_members.emplace_back(llvm_arg_type->mem_type);
+        llvm_arg_reg_types.emplace_back(llvm_arg_type->reg_type);
         current_offset = next_offset + _data_layout->getTypeAllocSize(llvm_arg_members.back()).getFixedValue();
     }
+    // tail padding and <i32 x 4> for dispatch_size and kernel_id
     if (current_offset % argument_alignment != 0u) {
         auto llvm_i8_type = llvm::Type::getInt8Ty(_llvm_context);
         auto count = luisa::align(current_offset, argument_alignment) - current_offset;
         llvm_arg_members.emplace_back(llvm::ArrayType::get(llvm_i8_type, count));
     }
+    auto dispatch_size_and_kernel_id_index = llvm_arg_members.size();
+    auto llvm_i32x4_type = llvm::VectorType::get(llvm::Type::getInt32Ty(_llvm_context), 4, false);
+    llvm_arg_members.emplace_back(llvm_i32x4_type);
     auto llvm_arg_struct_type = llvm::StructType::create(_llvm_context, llvm_arg_members, "kernel.params.struct");
     auto [llvm_kernel, llvm_arg_struct] = [&]() noexcept -> std::pair<llvm::Function *, llvm::Value *> {
         auto llvm_void_type = llvm::Type::getVoidTy(_llvm_context);
@@ -75,11 +84,36 @@ llvm::Function *CUDACodegenLLVMImpl::_create_llvm_kernel_function(const xir::Ker
                                               llvm::Align{argument_alignment},
                                               "params.load");
     }
-    // TODO: load args, note we need to convert from mem_type to reg_type
-    LUISA_NOT_IMPLEMENTED();
-    auto body = _translate_basic_block(func_ctx, func->body_block());
+    // map arguments to local values
+    auto arg_index = 0u;
+    for (auto arg : func->arguments()) {
+        auto member_index = llvm_arg_member_indices[arg_index];
+        auto llvm_member_mem = b.CreateExtractValue(llvm_arg_struct, member_index, arg->name().value_or(""));
+        auto llvm_member_reg_type = llvm_arg_reg_types[arg_index];
+        auto llvm_member_reg = _convert_llvm_mem_value_to_reg(b, llvm_member_mem, llvm_member_reg_type);
+        func_ctx.local_values.try_emplace(arg, llvm_member_reg);
+        arg_index++;
+    }
+    // load dispatch_size_and_kernel_id
+    auto llvm_dispatch_size_and_kernel_id = b.CreateExtractValue(llvm_arg_struct, dispatch_size_and_kernel_id_index);
+    func_ctx.llvm_dispatch_size = b.CreateShuffleVector(llvm_dispatch_size_and_kernel_id, {0, 1, 2}, "sreg.dispatch.size");
+    func_ctx.llvm_kernel_id = b.CreateExtractElement(llvm_dispatch_size_and_kernel_id, 3, "sreg.kernel.id");
+    // translate body
+    auto llvm_body = _translate_function_definition(func_ctx, func);
+    // create guard for out-of-bounds threads if not ray tracing (OptiX will do this for us)
+    if (!_config.enable_ray_tracing) {
+        auto llvm_dispatch_id = _read_dispatch_id(b, func_ctx);
+        auto llvm_dispatch_id_in_bounds = b.CreateICmpULT(llvm_dispatch_id, func_ctx.llvm_dispatch_size, "dispatch.id.in.bounds");
+        auto llvm_dispatch_id_in_bounds_all = b.CreateAndReduce(llvm_dispatch_id_in_bounds);
+        auto llvm_exit_block = llvm::BasicBlock::Create(_llvm_context, "exit.early", llvm_kernel);
+        b.CreateCondBr(llvm_dispatch_id_in_bounds_all, llvm_body, llvm_exit_block);
+        // exit block
+        b.SetInsertPoint(llvm_exit_block);
+        b.CreateRetVoid();
+    } else {
+        b.CreateBr(llvm_body);
+    }
     // branch from entry to body
-    b.CreateBr(body);
     return llvm_kernel;
 }
 
@@ -92,6 +126,11 @@ llvm::Function *CUDACodegenLLVMImpl::_create_llvm_callable_function(const xir::C
             llvm_arg_types.emplace_back(_get_llvm_type(arg->type())->reg_type);
         }
     }
+    // the last two arguments are dispatch_size and kernel_id
+    auto llvm_i32_type = llvm::Type::getInt32Ty(_llvm_context);
+    auto llvm_i32x3_type = llvm::VectorType::get(llvm_i32_type, 3, false);
+    llvm_arg_types.emplace_back(llvm_i32x3_type);// dispatch_size
+    llvm_arg_types.emplace_back(llvm_i32_type);  // kernel_id
     auto llvm_ret_type = func->type() == nullptr ? llvm::Type::getVoidTy(_llvm_context) :
                                                    _get_llvm_type(func->type())->reg_type;
     auto llvm_func_type = llvm::FunctionType::get(llvm_ret_type, llvm_arg_types, false);
@@ -102,7 +141,11 @@ llvm::Function *CUDACodegenLLVMImpl::_create_llvm_callable_function(const xir::C
     for (auto arg : func->arguments()) {
         func_ctx.local_values.try_emplace(arg, llvm_arg_iter++);
     }
-    auto body = _translate_basic_block(func_ctx, func->body_block());
+    func_ctx.llvm_dispatch_size = llvm_arg_iter++;
+    func_ctx.llvm_dispatch_size->setName("sreg.dispatch.size");
+    func_ctx.llvm_kernel_id = llvm_arg_iter++;
+    func_ctx.llvm_kernel_id->setName("sreg.kernel.id");
+    auto body = _translate_function_definition(func_ctx, func);
     // branch from entry to body
     IB b{func_ctx.llvm_entry_block};
     b.CreateBr(body);
@@ -113,8 +156,101 @@ llvm::Function *CUDACodegenLLVMImpl::_create_llvm_external_function(const xir::E
     LUISA_NOT_IMPLEMENTED();
 }
 
-llvm::BasicBlock *CUDACodegenLLVMImpl::_translate_basic_block(FunctionContext &func_ctx, const xir::BasicBlock *bb) noexcept {
-    return nullptr;
+namespace {
+
+template<typename F>
+void luisa_compute_cuda_codegen_llvm_traverse_dom_tree_impl(luisa::unordered_set<const xir::DomTreeNode *> &visited,
+                                                            const xir::DomTreeNode *node, const F &f) noexcept {
+    if (visited.emplace(node).second) [[likely]] {
+        f(node->block());
+        for (auto child : node->children()) {
+            luisa_compute_cuda_codegen_llvm_traverse_dom_tree_impl(visited, child, f);
+        }
+    }
+}
+
+template<typename F>
+void luisa_compute_cuda_codegen_llvm_traverse_dom_tree(const xir::DomTree &tree, const F &f) noexcept {
+    luisa::unordered_set<const xir::DomTreeNode *> visited;
+    luisa_compute_cuda_codegen_llvm_traverse_dom_tree_impl(visited, tree.root(), f);
+}
+
+}// namespace
+
+llvm::BasicBlock *CUDACodegenLLVMImpl::_translate_function_definition(FunctionContext &func_ctx, const xir::FunctionDefinition *f) noexcept {
+    for (auto bb : f->basic_blocks()) {
+        auto llvm_bb = llvm::BasicBlock::Create(_llvm_context, bb->name().value_or(""), func_ctx.llvm_func);
+        func_ctx.local_values.try_emplace(bb, llvm_bb);
+    }
+    // generate code for each basic block in dominance order, so that
+    // used values are always defined before use except for phi nodes,
+    // which are handled separately after all blocks are generated
+    auto dom_tree = xir::compute_dom_tree(const_cast<xir::FunctionDefinition *>(f));
+    LUISA_ASSERT(dom_tree.root()->block() == f->body_block());
+    luisa_compute_cuda_codegen_llvm_traverse_dom_tree(dom_tree, [this, &func_ctx](const xir::BasicBlock *bb) noexcept {
+        auto llvm_bb = func_ctx.get_local_value<llvm::BasicBlock>(bb);
+        IB b{llvm_bb};
+        for (auto inst : bb->instructions()) {
+            _translate_instruction(b, func_ctx, inst);
+        }
+    });
+    // finalize phi nodes
+    _finalize_pending_phi_nodes(func_ctx);
+    return func_ctx.get_local_value<llvm::BasicBlock>(f->body_block());
+}
+
+void CUDACodegenLLVMImpl::_mark_llvm_function_as_pure(llvm::Function *func) noexcept {
+    func->addFnAttr(llvm::Attribute::NoCallback);
+    func->setMustProgress();
+    func->setDoesNotFreeMemory();
+    func->setNoSync();
+    func->setDoesNotThrow();
+    func->setSpeculatable();
+    func->setWillReturn();
+    func->setDoesNotAccessMemory();
+}
+
+llvm::Function *CUDACodegenLLVMImpl::_get_assert_function() noexcept {
+    if (auto llvm_f = _llvm_module->getFunction("luisa.assert")) {
+        return llvm_f;
+    }
+    auto llvm_i1_type = llvm::Type::getInt1Ty(_llvm_context);
+    auto llvm_const_ptr_type = llvm::PointerType::get(_llvm_context, nvptx_address_space_constant);
+    auto llvm_func_type = llvm::FunctionType::get(llvm::Type::getVoidTy(_llvm_context),
+                                                  {llvm_i1_type, llvm_const_ptr_type}, false);
+    auto llvm_f = llvm::Function::Create(llvm_func_type,
+                                         llvm::Function::PrivateLinkage,
+                                         "luisa.assert", *_llvm_module);
+    auto llvm_entry = llvm::BasicBlock::Create(_llvm_context, "entry", llvm_f);
+    IB b{llvm_entry};
+    auto llvm_cond = llvm_f->getArg(0);
+    auto llvm_msg = llvm_f->getArg(1);
+    llvm_cond->setName("cond");
+    llvm_msg->setName("message");
+    auto llvm_then_bb = llvm::BasicBlock::Create(_llvm_context, "then", llvm_f);
+    auto llvm_trap_bb = llvm::BasicBlock::Create(_llvm_context, "trap", llvm_f);
+    b.CreateCondBr(llvm_cond, llvm_then_bb, llvm_trap_bb);
+    // then block
+    b.SetInsertPoint(llvm_then_bb);
+    b.CreateRetVoid();
+    // trap block
+    b.SetInsertPoint(llvm_trap_bb);
+    auto llvm_vprintf = _get_vprintf_function();
+    auto llvm_generic_ptr_type = llvm::PointerType::get(_llvm_context, 0);
+    auto llvm_msg_p0 = b.CreateAddrSpaceCast(llvm_msg, llvm_generic_ptr_type);
+    auto llvm_null_p0 = llvm::ConstantPointerNull::get(llvm_generic_ptr_type);
+    b.CreateCall(llvm_vprintf, {llvm_msg_p0, llvm_null_p0});
+    b.CreateIntrinsic(b.getVoidTy(), llvm::Intrinsic::trap, {});
+    b.CreateUnreachable();
+    return llvm_f;
+}
+
+llvm::Function *CUDACodegenLLVMImpl::_get_vprintf_function() noexcept {
+    if (auto llvm_f = _llvm_module->getFunction("vprintf")) { return llvm_f; }
+    auto llvm_i32_type = llvm::Type::getInt32Ty(_llvm_context);
+    auto llvm_ptr_type = llvm::PointerType::get(_llvm_context, 0);
+    auto llvm_func_type = llvm::FunctionType::get(llvm_i32_type, {llvm_ptr_type, llvm_ptr_type}, false);
+    return llvm::Function::Create(llvm_func_type, llvm::Function::ExternalLinkage, "vprintf", *_llvm_module);
 }
 
 }// namespace luisa::compute::cuda

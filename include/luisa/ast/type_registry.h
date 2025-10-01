@@ -365,6 +365,7 @@ constexpr auto is_valid_reflection_v = is_valid_reflection<S, M, O>::value;
             return s;                                                        \
         }                                                                    \
     };
+
 #define LUISA_STRUCT_REFLECT(S, ...) \
     LUISA_MAKE_STRUCTURE_TYPE_DESC_SPECIALIZATION(S, __VA_ARGS__)
 
