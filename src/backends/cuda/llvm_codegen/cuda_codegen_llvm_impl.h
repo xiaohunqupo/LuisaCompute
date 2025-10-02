@@ -99,7 +99,7 @@ private:
         requires std::derived_from<T, llvm::Value>
     [[nodiscard]] T *_get_llvm_value(IB &b, const FunctionContext &func_ctx, const xir::Value *v) noexcept {
         LUISA_DEBUG_ASSERT(v != nullptr, "Value is null.");
-        auto checked_llvm_value = [](auto llvm_v) noexcept {
+        auto checked_llvm_value = [](llvm::Value *llvm_v) noexcept {
             LUISA_DEBUG_ASSERT(llvm::isa<T>(llvm_v), "LLVM value type mismatch.");
             return static_cast<T *>(llvm_v);
         };

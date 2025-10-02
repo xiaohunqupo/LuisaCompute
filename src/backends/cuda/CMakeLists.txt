@@ -6,7 +6,7 @@ if (CUDAToolkit_FOUND)
     # embed CUDA sources with luisa_embed_device_lib
     file(GLOB LUISA_COMPUTE_CUDA_DEVICE_LIB_SOURCES CONFIGURE_DEPENDS cuda_builtin/*.cu cuda_builtin/*.h)
     add_custom_target(luisa-compute-backend-cuda-embed
-            COMMAND $<TARGET_FILE:luisa_embed_device_lib> ${LUISA_COMPUTE_CUDA_DEVICE_LIB_SOURCES} --unsigned --prefix luisa_compute_ -o cuda_builtin_embedded.cpp -h cuda_builtin_embedded.h
+            COMMAND $<TARGET_FILE:luisa_embed_device_lib> ${LUISA_COMPUTE_CUDA_DEVICE_LIB_SOURCES} --unsigned --prefix luisa_compute_ --remove-carriage -o cuda_builtin_embedded.cpp -h cuda_builtin_embedded.h
             BYPRODUCTS ${CMAKE_CURRENT_LIST_DIR}/cuda_builtin_embedded.cpp ${CMAKE_CURRENT_LIST_DIR}/cuda_builtin_embedded.h
             DEPENDS luisa_embed_device_lib ${CMAKE_CURRENT_LIST_FILE}
             SOURCES ${LUISA_COMPUTE_CUDA_DEVICE_LIB_SOURCES}

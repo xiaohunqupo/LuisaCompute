@@ -141,12 +141,24 @@ void CUDACodegenLLVMImpl::_translate_if_inst(IB &b, FunctionContext &func_ctx, c
 }
 
 void CUDACodegenLLVMImpl::_translate_switch_inst(IB &b, FunctionContext &func_ctx, const xir::SwitchInst *inst) noexcept {
+    auto llvm_value = _get_llvm_value<llvm::Value>(b, func_ctx, inst->value());
+    auto llvm_default_block = func_ctx.get_local_value<llvm::BasicBlock>(inst->default_block());
+    auto llvm_switch = b.CreateSwitch(llvm_value, llvm_default_block, inst->case_count());
+    for (auto i = 0u; i < inst->case_count(); i++) {
+        auto llvm_case_value = b.getInt32(inst->case_value(i));
+        auto llvm_case_block = func_ctx.get_local_value<llvm::BasicBlock>(inst->case_block(i));
+        llvm_switch->addCase(llvm_case_value, llvm_case_block);
+    }
 }
 
 void CUDACodegenLLVMImpl::_translate_loop_inst(IB &b, FunctionContext &func_ctx, const xir::LoopInst *inst) noexcept {
+    auto llvm_prepare_block = func_ctx.get_local_value<llvm::BasicBlock>(inst->prepare_block());
+    b.CreateBr(llvm_prepare_block);
 }
 
 void CUDACodegenLLVMImpl::_translate_simple_loop_inst(IB &b, FunctionContext &func_ctx, const xir::SimpleLoopInst *inst) noexcept {
+    auto llvm_body_block = func_ctx.get_local_value<llvm::BasicBlock>(inst->body_block());
+    b.CreateBr(llvm_body_block);
 }
 
 void CUDACodegenLLVMImpl::_translate_branch_inst(IB &b, FunctionContext &func_ctx, const xir::BranchInst *inst) noexcept {
@@ -217,9 +229,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_alloca_inst(IB &b, FunctionContext 
         llvm::GlobalValue::NotThreadLocal, nvptx_address_space_shared, false};
     llvm_global->setAlignment(llvm::Align{inst->type()->alignment()});
     llvm_global->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
-    // cast to generic address space for convenience
-    auto llvm_generic_ptr_type = llvm::PointerType::get(_llvm_context, 0);
-    return b.CreateAddrSpaceCast(llvm_global, llvm_generic_ptr_type, llvm_global->getName().str() + ".as.generic");
+    return llvm_global;
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_translate_load_inst(IB &b, FunctionContext &func_ctx, const xir::LoadInst *inst) noexcept {
@@ -245,19 +255,54 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_gep_inst(IB &b, FunctionContext &fu
     auto base = inst->base();
     auto llvm_ptr = func_ctx.get_local_value<llvm::Value>(base);
     LUISA_DEBUG_ASSERT(llvm_ptr->getType()->isPointerTy());
-    auto offset = 0u;
     auto type = base->type();
     for (auto index_use : inst->index_uses()) {
+        auto llvm_index = _get_llvm_value<llvm::Value>(b, func_ctx, index_use->value());
+        switch (type->tag()) {
+            case Type::Tag::VECTOR: {
+                type = type->element();
+                auto llvm_elem_type = _get_llvm_type(type)->mem_type;
+                llvm_ptr = b.CreateInBoundsGEP(llvm_elem_type, llvm_ptr, {llvm_index});
+                break;
+            }
+            case Type::Tag::MATRIX: {
+                type = Type::vector(type->element(), type->dimension());
+                auto llvm_col_type = _get_llvm_type(type)->mem_type;
+                llvm_ptr = b.CreateInBoundsGEP(llvm_col_type, llvm_ptr, {llvm_index});
+                break;
+            }
+            case Type::Tag::ARRAY: {
+                type = type->element();
+                auto llvm_elem_type = _get_llvm_type(type)->mem_type;
+                llvm_ptr = b.CreateInBoundsGEP(llvm_elem_type, llvm_ptr, {llvm_index});
+                break;
+            }
+            case Type::Tag::STRUCTURE: {
+                LUISA_DEBUG_ASSERT(llvm::isa<llvm::ConstantInt>(llvm_index));
+                auto member_index = llvm::cast<llvm::ConstantInt>(llvm_index)->getZExtValue();
+                LUISA_DEBUG_ASSERT(member_index < type->members().size());
+                auto llvm_struct_info = _get_llvm_type(type);
+                auto llvm_member_offset = llvm_struct_info->member_offsets[member_index];
+                type = type->members()[member_index];
+                auto llvm_i8_type = b.getInt8Ty();
+                llvm_ptr = b.CreateConstInBoundsGEP1_64(llvm_i8_type, llvm_ptr, llvm_member_offset);
+                break;
+            }
+            default: LUISA_ERROR("Invalid GEP base type: {}.", type->description());
+        }
     }
+    return llvm_ptr;
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_translate_atomic_inst(IB &b, FunctionContext &func_ctx, const xir::AtomicInst *inst) noexcept {
+    LUISA_NOT_IMPLEMENTED();
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionContext &func_ctx, const xir::ArithmeticInst *inst) noexcept {
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_translate_thread_group_inst(IB &b, FunctionContext &func_ctx, const xir::ThreadGroupInst *inst) noexcept {
+    LUISA_NOT_IMPLEMENTED();
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_translate_resource_query_inst(IB &b, FunctionContext &func_ctx, const xir::ResourceQueryInst *inst) noexcept {
@@ -290,6 +335,24 @@ void CUDACodegenLLVMImpl::_translate_ray_query_pipeline_inst(IB &b, FunctionCont
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_translate_call_inst(IB &b, FunctionContext &func_ctx, const xir::CallInst *inst) noexcept {
+    auto llvm_callee = _get_or_declare_llvm_function(inst->callee());
+    llvm::SmallVector<llvm::Value *> llvm_args;
+    llvm_args.reserve(inst->argument_count() + 2u);
+    for (auto i = 0u; i < inst->argument_count(); i++) {
+        auto llvm_arg = _get_llvm_value<llvm::Value>(b, func_ctx, inst->argument(i));
+        // cast pointer arguments to address space 0 if not already
+        if (auto llvm_arg_type = llvm_arg->getType();
+            llvm_arg_type->isPointerTy() && llvm_arg_type->getPointerAddressSpace() != 0) {
+            llvm_arg = b.CreateAddrSpaceCast(llvm_arg, b.getPtrTy());
+        }
+        llvm_args.emplace_back(llvm_arg);
+    }
+    // append dispatch_size and kernel_id arguments
+    llvm_args.emplace_back(_read_dispatch_size(b, func_ctx));
+    llvm_args.emplace_back(_read_kernel_id(b, func_ctx));
+    // create call instruction
+    auto call_inst = b.CreateCall(llvm_callee, llvm_args, inst->name().value_or(""));
+    return inst->type() == nullptr ? nullptr : call_inst;
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_translate_cast_inst(IB &b, FunctionContext &func_ctx, const xir::CastInst *inst) noexcept {

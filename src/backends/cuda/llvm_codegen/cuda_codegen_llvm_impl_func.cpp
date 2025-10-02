@@ -59,8 +59,10 @@ llvm::Function *CUDACodegenLLVMImpl::_declare_llvm_callable_function(const xir::
     auto llvm_ret_type = func->type() == nullptr ? llvm::Type::getVoidTy(_llvm_context) :
                                                    _get_llvm_type(func->type())->reg_type;
     auto llvm_func_type = llvm::FunctionType::get(llvm_ret_type, llvm_arg_types, false);
-    return llvm::Function::Create(llvm_func_type, llvm::Function::PrivateLinkage, 0,
-                                  func->name().value_or("callable"), _llvm_module.get());
+    auto llvm_func = llvm::Function::Create(llvm_func_type, llvm::Function::PrivateLinkage, 0,
+                                            func->name().value_or("callable"), _llvm_module.get());
+    llvm_func->setCallingConv(llvm::CallingConv::PTX_Device);
+    return llvm_func;
 }
 
 llvm::Function *CUDACodegenLLVMImpl::_declare_llvm_external_function(const xir::ExternalFunction *func) noexcept {
