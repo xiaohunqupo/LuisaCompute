@@ -68,8 +68,7 @@ option_end()
 
 option("lc_vk_backend")
 set_values(true, false)
--- TODO: vulkan backend not ready
-set_default(false)
+set_default(true)
 set_showmenu(true)
 option_end()
 
