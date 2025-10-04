@@ -20,7 +20,8 @@ int main(int argc, char *argv[]) {
     auto ext_device = luisa::make_unique<CudaDeviceConfigExtImpl>();
     ext_device->external_device = interop_ext->get_external_vk_device();
     DeviceConfig cuda_settings{
-        .extension = std::move(ext_device)};
+        .extension = std::move(ext_device),
+        .device_index = static_cast<size_t>(interop_ext->cuda_device_index())};
     Device cuda_device = context.create_device("cuda", &cuda_settings);
     Stream cuda_stream = cuda_device.create_stream();
     Stream vk_stream = vk_device.create_stream();
@@ -38,7 +39,7 @@ int main(int argc, char *argv[]) {
     cuda_stream << interop_event.wait() << cuda_buffer.copy_to(&output) << synchronize();
     LUISA_INFO("Result: {}", output);
     interop_ext->unmap(reinterpret_cast<void *>(cuda_ptr), reinterpret_cast<void *>(cuda_handle));
-    
+
     // Always remember to synchronize event it-self!
     interop_event.synchronize();
 }

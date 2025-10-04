@@ -9,6 +9,7 @@ using namespace luisa::compute;
 class VkCudaInteropImpl : public VkCudaInterop {
     CUcontext _cu_context{};
     CUdevice _cu_device{};
+    int _cuda_device;
     Device *_device;
 public:
     VkCudaInteropImpl(Device *device);
@@ -27,5 +28,8 @@ public:
     /*CUexternalMemory* */ uint64_t cuda_texture(uint64_t vk_texture_handle) noexcept override;
     void unmap(void *cuda_ptr, void *cuda_handle) override;
     DeviceInterface *device() override;
+    int cuda_device_index() const noexcept override {
+        return _cuda_device;
+    }
 };
 }// namespace lc::vk

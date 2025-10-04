@@ -170,6 +170,7 @@ class DxCudaInteropImpl : public luisa::compute::DxCudaInterop {
     CUcontext cuContext{};
     CUdevice cuDevice{};
     LCDevice &_device;
+    int _cuda_device;
 
 public:
     DxCudaInteropImpl(LCDevice &device) noexcept;
@@ -186,8 +187,11 @@ public:
     void cuda_signal(DeviceInterface *device, uint64_t stream_handle, uint64_t event_handle, uint64_t fence) noexcept override;
     void cuda_wait(DeviceInterface *device, uint64_t stream_handle, uint64_t event_handle, uint64_t fence) noexcept override;
     ResourceCreationInfo create_interop_event() noexcept override;
-    DeviceInterface *device() override;
+    DeviceInterface *device() noexcept override;
     void unmap(void *cuda_ptr, void *cuda_handle) noexcept override;
+    int cuda_device_index() const noexcept override {
+        return _cuda_device;
+    }
 };
 #endif
 class DStorageExtImpl final : public DStorageExt, public vstd::IOperatorNewBase {

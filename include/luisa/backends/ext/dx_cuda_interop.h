@@ -95,8 +95,9 @@ public:
     [[nodiscard]] virtual /*CUexternalMemory* */ uint64_t cuda_texture(uint64_t dx_texture_handle) noexcept = 0;
     [[nodiscard]] virtual /*CUexternalSemaphore* */ uint64_t cuda_event(uint64_t dx_event_handle) noexcept = 0;
     virtual void destroy_cuda_event(uint64_t cuda_event_handle /*CUexternalSemaphore* */) noexcept = 0;
-    virtual void unmap(void *cuda_ptr, void *cuda_handle) = 0;
-    virtual DeviceInterface *device() = 0;
+    virtual void unmap(void *cuda_ptr, void *cuda_handle) noexcept = 0;
+    virtual DeviceInterface *device() noexcept = 0;
+    [[nodiscard]] virtual int cuda_device_index() const noexcept = 0;
     template<typename T>
     Buffer<T> create_buffer(size_t elem_count) noexcept {
         return Buffer<T>{device(), create_interop_buffer(Type::of<T>(), elem_count)};
