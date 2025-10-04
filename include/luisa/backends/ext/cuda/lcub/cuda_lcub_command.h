@@ -20,10 +20,10 @@ class CudaLCubCommand final : public luisa::compute::CustomCommand {
 
 public:
     friend lc::validation::Stream;
-    luisa::function<void(CUstream)> func;
+    luisa::move_only_function<void(CUstream)> func;
 
 public:
-    explicit CudaLCubCommand(luisa::function<void(CUstream)> f) noexcept
+    explicit CudaLCubCommand(luisa::move_only_function<void(CUstream)> &&f) noexcept
         : CustomCommand{}, func{std::move(f)} {}
     [[nodiscard]] StreamTag stream_tag() const noexcept override { return StreamTag::COMPUTE; }
     [[nodiscard]] uint64_t custom_cmd_uuid() const noexcept override {
