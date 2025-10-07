@@ -15,7 +15,6 @@
 #ifdef LUISA_BACKEND_ENABLE_VULKAN_SWAPCHAIN
 #include <luisa/backends/ext/cuda_config_ext.h>
 #endif
-#include "cuda_sparse_heap.h"
 
 #ifdef LUISA_ENABLE_IR
 #include <luisa/ir/ir2ast.h>
@@ -155,7 +154,12 @@ const bool LUISA_USE_EXPERIMENTAL_XIR_CODEGEN = [] {
 #include "cuda_shader_metadata.h"
 #include "optix_api.h"
 #include "cuda_swapchain.h"
+#include "cuda_sparse_heap.h"
+
 #include "cuda_builtin_embedded.h"
+#ifdef LUISA_COMPUTE_ENABLE_CUDADEVRT
+#include "cuda_devrt_embedded.h"
+#endif
 
 #include "extensions/cuda_dstorage.h"
 #include "extensions/cuda_denoiser.h"
@@ -303,24 +307,10 @@ CUDADevice::CUDADevice(Context &&ctx, size_t device_id,
             "update_accel_instance_handles"));
     });
 
-    // load cudadevrt
-#ifdef LUISA_PLATFORM_WINDOWS
-    auto device_runtime_lib_path = context().runtime_directory() / "cudadevrt.lib";
-#else
-    auto device_runtime_lib_path = context().runtime_directory() / "libcudadevrt.a";
-#endif
-    std::ifstream devrt_file{device_runtime_lib_path, std::ios::binary};
-    if (!devrt_file.is_open()) {
-        LUISA_WARNING_WITH_LOCATION(
-            "Failed to load CUDA device runtime library '{}'. "
-            "Indirect kernel dispatch will not be available.",
-            device_runtime_lib_path.string());
-    } else {
-        _cudadevrt_library = luisa::string{std::istreambuf_iterator<char>{devrt_file},
-                                           std::istreambuf_iterator<char>{}};
-    }
-    // test if the device runtime library is recognized by the driver
-    if (!_cudadevrt_library.empty()) {
+    // check cudadevrt
+#ifdef LUISA_COMPUTE_ENABLE_CUDADEVRT
+    _cudadevrt_library = luisa::string_view{reinterpret_cast<const char *>(luisa_compute_cudadevrt), luisa_compute_cudadevrt_size};
+    {
         // TODO: this check can consume hundreds of milliseconds! Is there a better way?
         // generate some non-sense kernel source with dynamic parallelism
         auto dummy_kernel_src = R"(__global__ void a() {} __global__ void b() { a<<<1024,32>>>(); })";
@@ -332,17 +322,17 @@ CUDADevice::CUDADevice(Context &&ctx, size_t device_id,
             LUISA_CHECK_CUDA(cuLinkCreate(0u, nullptr, nullptr, &link_state));
             auto report_failure_and_clear_library = [&](auto phase) {
                 LUISA_WARNING_WITH_LOCATION(
-                    "Found CUDA device runtime library '{}', but the driver does not "
+                    "Found CUDA device runtime library but the driver does not "
                     "recognize it when {}. Indirect kernel dispatch will not be available.",
-                    device_runtime_lib_path.string(), phase);
-                _cudadevrt_library.clear();
+                    phase);
+                _cudadevrt_library = {};
             };
             if (cuLinkAddData(link_state, CU_JIT_INPUT_PTX,
                               dummy_ptx.data(), dummy_ptx.size(),
                               "dummy_kernel", 0u, nullptr, nullptr) != CUDA_SUCCESS) {
                 report_failure_and_clear_library("adding the kernel PTX");
             } else if (cuLinkAddData(link_state, CU_JIT_INPUT_LIBRARY,
-                                     _cudadevrt_library.data(), _cudadevrt_library.size(),
+                                     const_cast<char *>(_cudadevrt_library.data()), _cudadevrt_library.size(),
                                      "cudadevrt", 0u, nullptr, nullptr) != CUDA_SUCCESS) {
                 report_failure_and_clear_library("adding the device runtime library");
             } else if (cuLinkComplete(link_state, &output_cubin, &output_cubin_size) != CUDA_SUCCESS) {
@@ -351,10 +341,7 @@ CUDADevice::CUDADevice(Context &&ctx, size_t device_id,
             LUISA_CHECK_CUDA(cuLinkDestroy(link_state));
         });
     }
-    if (!_cudadevrt_library.empty()) {
-        LUISA_VERBOSE("Successfully loaded CUDA device runtime library. "
-                      "Indirect dispatch feature is available.");
-    }
+#endif
 }
 
 CUDADevice::~CUDADevice() noexcept {

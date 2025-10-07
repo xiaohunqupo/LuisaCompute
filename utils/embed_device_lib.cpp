@@ -19,16 +19,17 @@ void print_help_and_exit(std::ostream &os, const char *program, int code, bool p
     }
     os << "Usage: " << program << " [OPTIONS] input-file-1 input-file-2 ...\n"
        << "Options:\n"
-       << "  -o, --output <file>   [REQUIRED] Output C++ source file\n"
-       << "  -h, --header <file>   Print header file as well (default: false)\n"
-       << "  -u, --unsigned        Use unsigned char for byte (default: false)\n"
-       << "  -p, --prefix <prefix> Prefix for variable names (default: empty)\n"
-       << "  -s, --suffix <suffix> Suffix for variable names (default: empty)\n"
-       << "  -w, --wrap <width>    Wrap lines at <width> elements (default: 16)\n"
-       << "  -i, --indent <spaces> Number of spaces for indentation (default: 4)\n"
-       << "  -e, --preserve-ext    Preserve file extensions in variable names (default: false)\n"
-       << "  -r, --remove-carriage Remove carriage returns (CRs) in file (default: false)\n"
-       << "      --help            Show this help message\n"
+       << "  -o, --output <file>           [REQUIRED] Output C++ source file\n"
+       << "  -h, --header <file>           Print header file as well (default: false)\n"
+       << "  -u, --unsigned                Use unsigned char for byte (default: false)\n"
+       << "  -p, --prefix <prefix>         Prefix for variable names (default: empty)\n"
+       << "      --remove-prefix <prefix>  Remove prefix from variable names if exactly matches (default: none)\n"
+       << "  -s, --suffix <suffix>         Suffix for variable names (default: empty)\n"
+       << "  -w, --wrap <width>            Wrap lines at <width> elements (default: 16)\n"
+       << "  -i, --indent <spaces>         Number of spaces for indentation (default: 4)\n"
+       << "  -e, --preserve-ext            Preserve file extensions in variable names (default: false)\n"
+       << "  -r, --remove-carriage         Remove carriage returns (CRs) in file (default: false)\n"
+       << "      --help                    Show this help message\n"
        << std::endl;
     exit(code);
 }
@@ -39,6 +40,7 @@ struct Options {
     std::filesystem::path header_file;
     std::string prefix;
     std::string suffix;
+    std::string prefix_to_remove;
     int wrap_width = 16;
     int indent = 4;
     bool use_unsigned_char = false;
@@ -67,6 +69,8 @@ struct Options {
             o.suffix = require_next();
         } else if (opt == "-p" || opt == "--prefix") {
             o.prefix = require_next();
+        } else if (opt == "--remove-prefix") {
+            o.prefix_to_remove = require_next();
         } else if (opt == "-e" || opt == "--preserve-ext") {
             o.preserve_extension = true;
         } else if (opt == "-w" || opt == "--wrap") {
@@ -136,7 +140,13 @@ void append_file_as_c_array(std::ostringstream &oss_source, std::ostringstream &
                             const std::filesystem::path &file_path, const Options &options) noexcept {
     auto data = read_file_content(file_path, false);
     if (options.remove_carriage) { std::erase(data, '\r'); }
-    auto name = options.prefix + (options.preserve_extension ? file_path.filename() : file_path.stem()).string() + options.suffix;
+    auto name = [&] {
+        auto file_name = (options.preserve_extension ? file_path.filename() : file_path.stem()).string();
+        if (!options.prefix_to_remove.empty() && file_name.starts_with(options.prefix_to_remove)) {
+            file_name = file_name.substr(options.prefix_to_remove.size());
+        }
+        return options.prefix + file_name + options.suffix;
+    }();
     // canonicalize name: replace non-alphanumeric characters with '_'
     for (auto &c : name) {
         if (!std::isalnum(c) && c != '_') {

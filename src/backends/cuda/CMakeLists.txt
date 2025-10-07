@@ -71,12 +71,21 @@ if (CUDAToolkit_FOUND)
     endif ()
 
     # device runtime library
-    find_library(CUDA_DEVICE_RUNTIME_LIBRARY cudadevrt ${CUDAToolkit_LIBRARY_DIR})
-    add_custom_command(TARGET luisa-compute-backend-cuda POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${CUDA_DEVICE_RUNTIME_LIBRARY}"
-            $<TARGET_FILE_DIR:luisa-compute-core>)
-    install(FILES "${CUDA_DEVICE_RUNTIME_LIBRARY}" DESTINATION ${CMAKE_INSTALL_BINDIR})
+    find_library(CUDA_DEVICE_RUNTIME_LIBRARY cudadevrt ${CUDAToolkit_LIBRARY_DIR} NO_DEFAULT_PATH)
+    if (CUDA_DEVICE_RUNTIME_LIBRARY)
+        add_custom_target(luisa-compute-backend-cudadevrt-embed
+                COMMAND $<TARGET_FILE:luisa_embed_device_lib> ${CUDA_DEVICE_RUNTIME_LIBRARY} --unsigned --prefix luisa_compute_ --remove-prefix lib -o cuda_devrt_embedded.cpp -h cuda_devrt_embedded.h
+                BYPRODUCTS ${CMAKE_CURRENT_LIST_DIR}/cuda_devrt_embedded.cpp ${CMAKE_CURRENT_LIST_DIR}/cuda_devrt_embedded.h
+                DEPENDS luisa_embed_device_lib ${CMAKE_CURRENT_LIST_FILE}
+                SOURCES ${CUDAToolkit_LIBRARY_DIR}
+                WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
+                COMMENT "Embedding CUDA built-in sources..."
+                VERBATIM)
+        target_sources(luisa-compute-backend-cuda PRIVATE cuda_devrt_embedded.cpp cuda_devrt_embedded.h)
+        target_compile_definitions(luisa-compute-backend-cuda PRIVATE LUISA_COMPUTE_ENABLE_CUDADEVRT=1)
+    else ()
+        message(WARNING "Could not find CUDA device runtime library (cudadevrt) in ${CUDAToolkit_LIBRARY_DIR}. CUDA indirect launches may not work.")
+    endif ()
 
     # nvrtc standalone compiler
     add_executable(luisa-cuda-nvrtc-standalone-compiler cuda_nvrtc_compiler.cpp)

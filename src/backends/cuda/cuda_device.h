@@ -96,9 +96,8 @@ private:
     luisa::unique_ptr<CUDACompiler> _compiler;
     luisa::unique_ptr<DefaultBinaryIO> _default_io;
     const BinaryIO *_io{nullptr};
-    luisa::string _cudadevrt_library;
+    luisa::string_view _cudadevrt_library;
     uint64_t _sparse_granularity{};
-
     mutable spin_mutex _event_manager_mutex;
     mutable luisa::unique_ptr<CUDAEventManager> _event_manager;
 
