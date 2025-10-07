@@ -94,25 +94,10 @@ protected:
 };
 
 enum struct BindlessSlotType {
-
     MULTIPLE = 0,
     BUFFER_ONLY = 1,
     TEXTURE2D_ONLY = 2,
     TEXTURE3D_ONLY = 3,
-
-    // Legacy names for Maxwell
-    Buffer [[deprecated("Please use BindlessSlotType::BUFFER_ONLY for consistent nameing.")]] = BUFFER_ONLY,
-    Texture2D [[deprecated("Please use BindlessSlotType::TEXTURE2D_ONLY for consistent nameing.")]] = TEXTURE2D_ONLY,
-    Texture3D [[deprecated("Please use BindlessSlotType::TEXTURE3D_ONLY for consistent nameing.")]] = TEXTURE3D_ONLY,
-#ifdef None
-#define LUISA_MACRO_None_BACKUP None
-#undef None
-#endif
-    None [[deprecated("Please use BindlessSlotType::MULTIPLE for consistent nameing.")]] = MULTIPLE,
-#ifdef LUISA_MACRO_None_BACKUP
-#define None LUISA_MACRO_None_BACKUP
-#undef LUISA_MACRO_None_BACKUP
-#endif
 };
 
 using BindlessType [[deprecated("Please use BindlessSlotType instead.")]] = BindlessSlotType;
@@ -177,11 +162,7 @@ public:
     // kernel
     [[nodiscard]] virtual ShaderCreationInfo create_shader(const ShaderOption &option, Function kernel) noexcept = 0;
     [[nodiscard]] virtual ShaderCreationInfo create_shader(const ShaderOption &option, const ir::KernelModule *kernel) noexcept = 0;
-    [[nodiscard]] virtual ShaderCreationInfo create_shader(const ShaderOption &option, const ir_v2::KernelModule &kernel) noexcept {
-        fprintf(stderr,
-                "DeviceInterface::create_shader(const ShaderOption &option, const ir_v2::KernelModule &kernel) is not implemented.");
-        abort();
-    }
+    [[nodiscard]] virtual ShaderCreationInfo create_shader(const ShaderOption &option, const ir_v2::KernelModule &kernel) noexcept;
     [[nodiscard]] virtual ShaderCreationInfo load_shader(luisa::string_view name, luisa::span<const Type *const> arg_types) noexcept = 0;
     virtual Usage shader_argument_usage(uint64_t handle, size_t index) noexcept = 0;
     virtual void destroy_shader(uint64_t handle) noexcept = 0;
