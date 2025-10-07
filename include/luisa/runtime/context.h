@@ -42,12 +42,13 @@ public:
     [[nodiscard]] const luisa::filesystem::path &runtime_directory() const noexcept;
     // create subdirectories under the runtime directory
     [[nodiscard]] const luisa::filesystem::path &create_runtime_subdir(luisa::string_view folder_name) const noexcept;
-    // Create a virtual device
-    // backend "metal", "dx", "cuda" is supported currently
-    [[nodiscard]] Device create_device(
-        luisa::string_view backend_name,
-        const DeviceConfig *settings = nullptr,
-        bool enable_validation = false) noexcept;
+    // Create a backend device
+    [[nodiscard]] Device create_device(luisa::string_view backend_name,
+                                       const DeviceConfig *settings,
+                                       bool enable_validation) noexcept;
+    // Create a beackend device with validation mode determined by environment variable `LUISA_ENABLE_VALIDATION`
+    [[nodiscard]] Device create_device(luisa::string_view backend_name,
+                                       const DeviceConfig *settings = nullptr) noexcept;
     // installed backends automatically detacted
     // The compiled backends' name is returned
     [[nodiscard]] luisa::span<const luisa::string> installed_backends() const noexcept;

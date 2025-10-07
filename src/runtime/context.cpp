@@ -203,9 +203,19 @@ Device Context::create_device(
                 impl->validation_layer.deleter(layer);
             }};
         return Device{std::move(layer_handle)};
-    } else {
-        return Device{std::move(handle)};
     }
+    return Device{std::move(handle)};
+}
+
+Device Context::create_device(luisa::string_view backend_name, const DeviceConfig *settings) noexcept {
+    auto enable_validation = [] {
+        using namespace std::string_view_literals;
+        if (auto env = getenv("LUISA_ENABLE_VALIDATION")) {
+            return env == "1"sv;
+        }
+        return false;
+    }();
+    return create_device(backend_name, settings, enable_validation);
 }
 
 Context::Context(luisa::shared_ptr<detail::ContextImpl> impl) noexcept
