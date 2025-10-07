@@ -1,15 +1,21 @@
 #pragma once
+
 #include "resource.h"
 #include <luisa/core/logging.h>
 #include <luisa/ast/usage.h>
 #include "range.h"
+
 namespace lc::validation {
+
 class Stream;
+
 using namespace luisa::compute;
+
 struct RWInfo {
     Usage usage{Usage::NONE};
     uint64_t last_frame{0};
 };
+
 class RWResource : public Resource {
     friend struct ResMap;
     vstd::unordered_map<uint64_t, RWInfo> _info;
@@ -57,4 +63,5 @@ public:
     }
     static constexpr luisa::string_view validation_res_name{"Resource"};
 };
+
 }// namespace lc::validation

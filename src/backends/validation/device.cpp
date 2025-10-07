@@ -150,7 +150,7 @@ void Device::add_custom_stream(uint64_t handle, StreamOption &&opt) {
 // stream
 ResourceCreationInfo Device::create_stream(StreamTag stream_tag) noexcept {
     auto str = _native->create_stream(stream_tag);
-    new Stream(str.handle, stream_tag);
+    new Stream(this, str.handle, stream_tag);
     {
         std::lock_guard lck{stream_mtx};
         auto &opt = stream_options.try_emplace(str.handle).first->second;

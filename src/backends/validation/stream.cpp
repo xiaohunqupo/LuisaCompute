@@ -19,17 +19,24 @@
 #include <luisa/backends/ext/dstorage_cmd.h>
 
 namespace lc::validation {
-Stream::Stream(uint64_t handle, StreamTag stream_tag) : RWResource{handle, Tag::STREAM, false}, _stream_tag{stream_tag} {}
-void check_align(uint64_t offset, uint64_t align = 16) {
-    if ((offset & (align - 1)) != 0) [[unlikely]] {
-        LUISA_ERROR("Buffer offset {} must be aligned to {}", offset, align);
+
+Stream::Stream(Device *device, uint64_t handle, StreamTag stream_tag)
+    : RWResource{handle, Tag::STREAM, false},
+      _device{device}, _stream_tag{stream_tag} {}
+
+void Stream::check_align(uint64_t offset, uint64_t align) const noexcept {
+    if (_device->underlying_device()->backend_name() == "dx" && offset % align != 0) [[unlikely]] {
+        LUISA_WARNING("Buffer offset {} is not aligned to {}.", offset, align);
     }
 }
-std::recursive_mutex stream_global_lock;
+
+static std::recursive_mutex stream_global_lock;
+
 void Stream::signal(Event *evt, uint64_t fence) {
     std::lock_guard lck{stream_global_lock};
     evt->signaled[this] = Event::Signaled{fence, _executed_layer};
 }
+
 uint64_t Stream::stream_synced_frame(Stream *stream) const {
     auto iter = waited_stream.find(stream);
     if (iter == waited_stream.end()) {
@@ -38,6 +45,7 @@ uint64_t Stream::stream_synced_frame(Stream *stream) const {
         return iter->second;
     }
 }
+
 void Stream::wait(Event *evt, uint64_t fence) {
     std::lock_guard lck{stream_global_lock};
     for (auto &&i : evt->signaled) {
@@ -46,7 +54,9 @@ void Stream::wait(Event *evt, uint64_t fence) {
         }
     }
 }
+
 namespace detail {
+
 static vstd::string usage_name(Usage usage) {
     switch (usage) {
         case Usage::READ:
@@ -59,7 +69,9 @@ static vstd::string usage_name(Usage usage) {
             return "none";
     }
 }
+
 }// namespace detail
+
 void Stream::check_compete() {
     std::lock_guard lck{stream_global_lock};
     for (auto &&iter : res_usages) {
@@ -111,11 +123,13 @@ void Stream::check_compete() {
         }
     }
 }
+
 void Stream::dispatch() {
     std::lock_guard lck{stream_global_lock};
     _executed_layer++;
     res_usages.clear();
 }
+
 void Stream::mark_shader_dispatch(DeviceInterface *dev, ShaderDispatchCommandBase *cmd, bool contain_bindings) {
     size_t arg_idx = 0;
     auto shader = RWResource::get<RWResource>(cmd->handle(), "shader");
@@ -195,6 +209,7 @@ void Stream::mark_shader_dispatch(DeviceInterface *dev, ShaderDispatchCommandBas
     }
     Stream::mark_handle(cmd->handle(), Usage::READ, Range{});
 }
+
 void Stream::mark_handle(uint64_t v, Usage usage, Range range) {
     if (v != invalid_resource_handle) {
         RWResource::get<RWResource>(v)->set(this, usage, range);
@@ -300,6 +315,7 @@ void Stream::custom(DeviceInterface *dev, Command *cmd) {
         default: break;
     }
 }
+
 void Stream::dispatch(DeviceInterface *dev, CommandList &cmd_list) {
     std::lock_guard lck{stream_global_lock};
     _executed_layer++;
@@ -438,6 +454,7 @@ void Stream::dispatch(DeviceInterface *dev, CommandList &cmd_list) {
         // TODO: resources record
     }
 }
+
 void Stream::sync_layer(uint64_t layer) {
     std::lock_guard lck{stream_global_lock};
     if (_synced_layer >= layer) return;
@@ -447,9 +464,11 @@ void Stream::sync_layer(uint64_t layer) {
     }
     waited_stream.clear();
 }
+
 void Stream::sync() {
     sync_layer(_executed_layer);
 }
+
 void Event::sync(uint64_t fence) {
     std::lock_guard lck{stream_global_lock};
     vstd::vector<Stream *> removed_stream;
@@ -467,6 +486,7 @@ void Event::sync(uint64_t fence) {
         }
     }
 }
+
 vstd::string Stream::stream_tag() const {
     switch (_stream_tag) {
         case StreamTag::COMPUTE:
@@ -481,4 +501,5 @@ vstd::string Stream::stream_tag() const {
             return "unknown";
     }
 }
+
 }// namespace lc::validation
