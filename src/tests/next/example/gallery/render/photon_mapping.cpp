@@ -215,7 +215,7 @@ int photon_mapping(Device &device) {
 
         $for (depth, max_depth) {
             // trace
-            Var<TriangleHit> hit = accel.trace_closest(light_ray);
+            Var<TriangleHit> hit = accel.intersect(light_ray, {});
             $if (hit->miss()) { $break; };
             // $if(hit.inst == 0 & hit.prim == 0) { $break; };
             // TODO
@@ -306,7 +306,7 @@ int photon_mapping(Device &device) {
         Float3 radiance = def(make_float3(0.0f));
         Float radius = def(photon_radius);
 
-        Var<TriangleHit> hit = accel.trace_closest(ray);
+        Var<TriangleHit> hit = accel.intersect(ray, {});
         // $if(!hit->miss() & (hit.inst != 0 | hit.prim != 0)) {
         $if (!hit->miss()) {
             $if (hit.inst == static_cast<uint>(meshes.size() - 1u)) {
@@ -348,7 +348,7 @@ int photon_mapping(Device &device) {
         Float2 pixel = (make_float2(coord) + make_float2(rx, ry)) / frame_size * 2.0f - 1.0f;
         Var<Ray> ray = generate_ray(pixel * make_float2(1.0f, -1.0f));
         Float radius = def(photon_radius);
-        Var<TriangleHit> hit = accel.trace_closest(ray);
+        Var<TriangleHit> hit = accel.intersect(ray, {});
         Float3 radiance = def(make_float3(0.0f));
 
         $if (!hit->miss()) {
@@ -374,7 +374,7 @@ int photon_mapping(Device &device) {
                     Float d_light = distance(pp, pp_light);
                     Float3 wi_light = normalize(pp_light - pp);
                     Var<Ray> shadow_ray = make_ray(offset_ray_origin(pp, n), wi_light, 0.f, d_light);
-                    Bool occluded = accel.trace_any(shadow_ray);
+                    Bool occluded = accel.intersect_any(shadow_ray, {});
                     Float cos_wi_light = dot(wi_light, n);
                     Float cos_light = -dot(light_normal, wi_light);
                     Float3 albedo = material.albedo;
