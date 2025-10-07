@@ -27,7 +27,7 @@ public:
     void cuda_buffer(uint64_t vk_buffer_handle, uint64_t *cuda_ptr, uint64_t *cuda_handle /*CUexternalMemory* */) noexcept override;
     /*CUexternalMemory* */ uint64_t cuda_texture(uint64_t vk_texture_handle) noexcept override;
     void unmap(void *cuda_ptr, void *cuda_handle) noexcept override;
-    DeviceInterface *device() override;
+    DeviceInterface *device() noexcept override;
     int cuda_device_index() const noexcept override {
         return _cuda_device;
     }

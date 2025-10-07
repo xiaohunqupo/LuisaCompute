@@ -143,7 +143,7 @@ static void initialize_cuda() noexcept {
     LUISA_ERROR_WITH_LOCATION("Failed to find suitable memory type.");
     vstd::unreachable();
 }
-VkCudaInteropImpl::VkCudaInteropImpl(Device *device) : _device(device) {
+VkCudaInteropImpl::VkCudaInteropImpl(Device *device) noexcept : _device(device) {
     _cuda_device = getCudaDeviceForVulkanDevice(device->physical_device());
     LUISA_CHECK_CUDA(cuDeviceGet(&_cu_device, _cuda_device));
     LUISA_CHECK_CUDA(cuDevicePrimaryCtxRetain(&_cu_context, _cu_device));
