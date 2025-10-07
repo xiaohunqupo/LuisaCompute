@@ -41,7 +41,7 @@ class FunctionDuplicator;
  * 
  * Build kernel or callable function
  */
-class LC_AST_API FunctionBuilder : public luisa::enable_shared_from_this<FunctionBuilder> {
+class LUISA_AST_API FunctionBuilder : public luisa::enable_shared_from_this<FunctionBuilder> {
 
     friend ::luisa::MemorySanitizer;
     friend class luisa::compute::CallableLibrary;

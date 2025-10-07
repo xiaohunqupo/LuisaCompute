@@ -4,7 +4,7 @@
 
 namespace luisa::compute::xir {
 
-class LC_XIR_API RayQueryObjectReadInst final : public InstructionOpMixin<RayQueryObjectReadOp, DerivedInstruction<RayQueryObjectReadInst, DerivedInstructionTag::RAY_QUERY_OBJECT_READ>> {
+class LUISA_XIR_API RayQueryObjectReadInst final : public InstructionOpMixin<RayQueryObjectReadOp, DerivedInstruction<RayQueryObjectReadInst, DerivedInstructionTag::RAY_QUERY_OBJECT_READ>> {
 
 public:
     RayQueryObjectReadInst(BasicBlock *parent_block, const Type *type, RayQueryObjectReadOp op,
@@ -12,7 +12,7 @@ public:
     [[nodiscard]] RayQueryObjectReadInst *clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
-class LC_XIR_API RayQueryObjectWriteInst final : public InstructionOpMixin<RayQueryObjectWriteOp, DerivedInstruction<RayQueryObjectWriteInst, DerivedInstructionTag::RAY_QUERY_OBJECT_WRITE>> {
+class LUISA_XIR_API RayQueryObjectWriteInst final : public InstructionOpMixin<RayQueryObjectWriteOp, DerivedInstruction<RayQueryObjectWriteInst, DerivedInstructionTag::RAY_QUERY_OBJECT_WRITE>> {
 public:
     RayQueryObjectWriteInst(BasicBlock *parent_block, RayQueryObjectWriteOp op,
                             luisa::span<Value *const> operands = {}) noexcept;
@@ -35,7 +35,7 @@ public:
 // }
 // /* merge_block */
 // { ... }
-class LC_XIR_API RayQueryLoopInst final : public ControlFlowMergeMixin<DerivedTerminatorInstruction<RayQueryLoopInst, DerivedInstructionTag::RAY_QUERY_LOOP>> {
+class LUISA_XIR_API RayQueryLoopInst final : public ControlFlowMergeMixin<DerivedTerminatorInstruction<RayQueryLoopInst, DerivedInstructionTag::RAY_QUERY_LOOP>> {
 
 public:
     static constexpr size_t operand_index_dispatch_block = 0u;
@@ -49,7 +49,7 @@ public:
     [[nodiscard]] RayQueryLoopInst *clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
-class LC_XIR_API RayQueryDispatchInst final : public DerivedTerminatorInstruction<RayQueryDispatchInst, DerivedInstructionTag::RAY_QUERY_DISPATCH> {
+class LUISA_XIR_API RayQueryDispatchInst final : public DerivedTerminatorInstruction<RayQueryDispatchInst, DerivedInstructionTag::RAY_QUERY_DISPATCH> {
 
 public:
     static constexpr size_t operand_index_query_object = 0u;
@@ -87,7 +87,7 @@ public:
 // Ray query pipeline instruction:
 // RayQueryPipeline(query_object, on_surface_func, on_procedural_func, captured_args...)
 // The signature of on_*_func: (query_object, captured_args...) -> void
-class LC_XIR_API RayQueryPipelineInst final : public DerivedInstruction<RayQueryPipelineInst, DerivedInstructionTag::RAY_QUERY_PIPELINE> {
+class LUISA_XIR_API RayQueryPipelineInst final : public DerivedInstruction<RayQueryPipelineInst, DerivedInstructionTag::RAY_QUERY_PIPELINE> {
 
 public:
     static constexpr size_t operand_index_query_object = 0u;

@@ -12,7 +12,7 @@ class FunctionBuilder;
 }// namespace detail
 
 /// Variable class
-class LC_AST_API Variable {
+class LUISA_AST_API Variable {
 
 public:
     /// Variable tags

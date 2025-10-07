@@ -8,7 +8,7 @@
 
 namespace luisa::compute {
 
-class LC_RUNTIME_API DrawRasterSceneCommand final : public CustomCommand, public ShaderDispatchCommandBase {
+class LUISA_RUNTIME_API DrawRasterSceneCommand final : public CustomCommand, public ShaderDispatchCommandBase {
     friend lc::validation::Stream;
 
 private:

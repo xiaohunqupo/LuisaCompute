@@ -12,7 +12,7 @@ class Symbol;
 class Instruction;
 class Hint;
 
-class LC_OSL_API Shader {
+class LUISA_OSL_API Shader {
 
 public:
     enum struct Tag {

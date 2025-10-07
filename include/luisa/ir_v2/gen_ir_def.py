@@ -428,7 +428,7 @@ def gen_adt(adt: str, cpp_src: str, variants: List[Item]):
 
 
 
-    print(f'struct LC_IR_API {adt}Data {{ ', file=fwd_file)
+    print(f'struct LUISA_IR_API {adt}Data {{ ', file=fwd_file)
     print('#ifndef BINDGEN', file=fwd_file)
     print(f'    virtual {adt}Tag tag() const noexcept = 0;', file=fwd_file)
     print('    virtual ~{}Data() = default;'.format(adt), file=fwd_file)
@@ -447,7 +447,7 @@ def gen_adt(adt: str, cpp_src: str, variants: List[Item]):
 * <div rustbindgen nocopy></div>
 */''', file=fwd_file)
             print(f'typedef {variant.name}* {variant.name}RefMut;', file=fwd_file)
-    print('struct LC_IR_API {} {{'.format(adt), file=cpp_def)
+    print('struct LUISA_IR_API {} {{'.format(adt), file=cpp_def)
     print('    luisa::unique_ptr<{}Data> _data;'.format(adt), file=cpp_def)
     print('     {}Tag _tag;'.format(adt), file=cpp_def)
     print('public:', file=cpp_def)
@@ -491,7 +491,7 @@ def gen_adt(adt: str, cpp_src: str, variants: List[Item]):
     for variant in variants:
         if len(variant.fields) == 0:
             continue
-        print('struct LC_IR_API {} : public {}Data {{'.format(
+        print('struct LUISA_IR_API {} : public {}Data {{'.format(
             variant.name, adt), file=cpp_def)
         print('public:', file=cpp_def)
         print('    typedef {}Tag Tag;'.format(adt), file=cpp_def)
@@ -509,9 +509,9 @@ def gen_adt(adt: str, cpp_src: str, variants: List[Item]):
     print(f'/**\n* <div rustbindgen nocopy></div>\n*/\nstruct C{adt} {{ void *data; {adt}Tag tag; }};', file=c_def)
     print(f'static_assert(sizeof(C{adt}) == 16);', file=c_def)
     for variant in variants:
-        # print('extern "C" LC_IR_API {1} * lc_ir_v2_{0}_as_{1}({0} *self);'.format(
+        # print('extern "C" LUISA_IR_API {1} * lc_ir_v2_{0}_as_{1}({0} *self);'.format(
         #     adt, variant.name), file=c_def)
-        # print('extern "C" LC_IR_API {1} * lc_ir_v2_{0}_as_{1}({0} *self) {{'.format(
+        # print('extern "C" LUISA_IR_API {1} * lc_ir_v2_{0}_as_{1}({0} *self) {{'.format(
         #     adt, variant.name), file=c_api_impl)
         # print('    return self->as<{0}>();'.format(variant.name),
         #       file=c_api_impl)
@@ -1080,11 +1080,11 @@ for f in func_table:
     fname, fsig = f
     print('    {};'.format(fsig), file=c_def)
 print('};', file=c_def)
-print('extern "C" LC_IR_API IrV2BindingTable lc_ir_v2_binding_table();', file=c_def)
+print('extern "C" LUISA_IR_API IrV2BindingTable lc_ir_v2_binding_table();', file=c_def)
 
 # generate binding table impl
 print(
-    'extern "C" LC_IR_API IrV2BindingTable lc_ir_v2_binding_table() {', file=c_api_impl)
+    'extern "C" LUISA_IR_API IrV2BindingTable lc_ir_v2_binding_table() {', file=c_api_impl)
 print('    return {', file=c_api_impl)
 for f in func_table:
     fname, fsig = f
@@ -1118,7 +1118,7 @@ os.system('bindgen ir_v2_api.h -o ../../../src/rust/luisa_compute_ir_v2/src/bind
           '--blocklist-type TypeTag --blocklist-type InstructionTag --blocklist-type FuncTag --blocklist-type BindingTag '
           '--new-type-alias .*Ref --new-type-alias .*RefMut '
           '--with-derive-partialeq --with-derive-eq --with-derive-hash '
-          '-- -I../../ -x c++ -std=c++17 -DLC_IR_EXPORT_DLL=1 -DBINDGEN -Wno-pragma-once-outside-header -Wno-return-type-c-linkage')
+          '-- -I../../ -x c++ -std=c++17 -DLUISA_IR_EXPORT_DLL=1 -DBINDGEN -Wno-pragma-once-outside-header -Wno-return-type-c-linkage')
 
 
 

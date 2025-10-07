@@ -80,15 +80,15 @@ static luisa::logger LOGGER = [] {
     return l;
 }();
 
-[[nodiscard]] LC_CORE_API spdlog::logger &default_logger() noexcept {
+[[nodiscard]] LUISA_CORE_API spdlog::logger &default_logger() noexcept {
     return LOGGER;
 }
 
-LC_CORE_API void set_sink(spdlog::sink_ptr sink) noexcept {
+LUISA_CORE_API void set_sink(spdlog::sink_ptr sink) noexcept {
     default_logger_set_sink(std::move(sink));
 }
 
-LC_CORE_API void default_logger_set_sink(spdlog::sink_ptr sink) noexcept {
+LUISA_CORE_API void default_logger_set_sink(spdlog::sink_ptr sink) noexcept {
     std::lock_guard _lock{LOGGER_MUTEX};
     LOGGER.sinks().clear();
     if (sink) {
@@ -96,14 +96,14 @@ LC_CORE_API void default_logger_set_sink(spdlog::sink_ptr sink) noexcept {
     }
 }
 
-LC_CORE_API void default_logger_add_sink(spdlog::sink_ptr sink) noexcept {
+LUISA_CORE_API void default_logger_add_sink(spdlog::sink_ptr sink) noexcept {
     std::lock_guard _lock{LOGGER_MUTEX};
     if (sink) {
         LOGGER.sinks().emplace_back(std::move(sink));
     }
 }
 
-LC_CORE_API spdlog::sink_ptr create_sink_with_callback(void (*callback)(LCLoggerMessage)) noexcept {
+LUISA_CORE_API spdlog::sink_ptr create_sink_with_callback(void (*callback)(LCLoggerMessage)) noexcept {
     return std::make_shared<luisa::detail::SinkWithCallback<std::mutex>>([=](const char *level, const char *msg) {
         LCLoggerMessage m{};
         m.level = level;
@@ -112,7 +112,7 @@ LC_CORE_API spdlog::sink_ptr create_sink_with_callback(void (*callback)(LCLogger
     });
 }
 
-LC_CORE_API spdlog::sink_ptr create_sink_with_callback(luisa::function<void(const char *level, const char *message)> callback) noexcept {
+LUISA_CORE_API spdlog::sink_ptr create_sink_with_callback(luisa::function<void(const char *level, const char *message)> callback) noexcept {
     return std::make_shared<luisa::detail::SinkWithCallback<std::mutex>>(std::move(callback));
 }
 

@@ -32,7 +32,7 @@ public:
     }
 };
 
-class LC_OSL_API SimpleType final : public Type {
+class LUISA_OSL_API SimpleType final : public Type {
 
 public:
     enum struct Primitive {
@@ -62,7 +62,7 @@ public:
     [[nodiscard]] luisa::string_view identifier() const noexcept override;
 };
 
-class LC_OSL_API StructType final : public Type {
+class LUISA_OSL_API StructType final : public Type {
 
 public:
     struct Field {
@@ -86,7 +86,7 @@ public:
     [[nodiscard]] luisa::string dump() const noexcept override;
 };
 
-class LC_OSL_API ClosureType final : public Type {
+class LUISA_OSL_API ClosureType final : public Type {
 
 private:
     const Type *_gentype;

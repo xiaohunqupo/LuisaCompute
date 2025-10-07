@@ -11,15 +11,15 @@ namespace luisa::compute {
 
 class Device;
 
-class LC_RUNTIME_API Event final : public Resource {
+class LUISA_RUNTIME_API Event final : public Resource {
 
 public:
-    struct LC_RUNTIME_API Signal {
+    struct LUISA_RUNTIME_API Signal {
         uint64_t handle;
         uint64_t fence;
         void operator()(DeviceInterface *device, uint64_t stream_handle) const && noexcept;
     };
-    struct LC_RUNTIME_API Wait {
+    struct LUISA_RUNTIME_API Wait {
         uint64_t handle;
         uint64_t fence;
         void operator()(DeviceInterface *device, uint64_t stream_handle) const && noexcept;
@@ -55,7 +55,7 @@ public:
 LUISA_MARK_STREAM_EVENT_TYPE(Event::Signal)
 LUISA_MARK_STREAM_EVENT_TYPE(Event::Wait)
 
-class LC_RUNTIME_API TimelineEvent final : public Resource {
+class LUISA_RUNTIME_API TimelineEvent final : public Resource {
 
 public:
     using Signal = Event::Signal;

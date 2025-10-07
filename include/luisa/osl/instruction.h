@@ -7,7 +7,7 @@ namespace luisa::compute::osl {
 class Type;
 class Symbol;
 
-class LC_OSL_API Instruction {
+class LUISA_OSL_API Instruction {
 
 private:
     luisa::string _opcode;

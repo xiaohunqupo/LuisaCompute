@@ -16,7 +16,7 @@ if (NOT LUISA_COMPUTE_USE_SYSTEM_LMDB)
     target_link_libraries(luisa-compute-vstl PRIVATE luisa-compute-ext-lmdb)
 endif ()
 
-target_compile_definitions(luisa-compute-vstl PRIVATE LC_VSTL_EXPORT_DLL=1)
+target_compile_definitions(luisa-compute-vstl PRIVATE LUISA_VSTL_EXPORT_DLL=1)
 set_target_properties(luisa-compute-vstl PROPERTIES
         UNITY_BUILD ${LUISA_COMPUTE_ENABLE_UNITY_BUILD}
         POSITION_INDEPENDENT_CODE ON)

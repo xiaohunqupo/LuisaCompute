@@ -8,7 +8,7 @@ class Function;
 class Instruction;
 class User;
 
-class LC_XIR_API BasicBlock final : public DerivedFunctionScopeValue<BasicBlock, DerivedValueTag::BASIC_BLOCK> {
+class LUISA_XIR_API BasicBlock final : public DerivedFunctionScopeValue<BasicBlock, DerivedValueTag::BASIC_BLOCK> {
 
 private:
     InstructionList _instructions;

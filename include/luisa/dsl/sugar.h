@@ -4,7 +4,7 @@
 #include <luisa/core/stl/string.h>
 
 namespace luisa::compute::dsl_detail {
-[[nodiscard]] LC_DSL_API luisa::string format_source_location(const char *file, int line) noexcept;
+[[nodiscard]] LUISA_DSL_API luisa::string format_source_location(const char *file, int line) noexcept;
 }// namespace luisa::compute::dsl_detail
 
 #ifndef LUISA_COMPUTE_DESUGAR

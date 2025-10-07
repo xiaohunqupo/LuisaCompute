@@ -324,7 +324,7 @@ public:
     [[nodiscard]] auto operator->() const noexcept { return this; }
 };
 
-class LC_DSL_API BindlessByteBuffer {
+class LUISA_DSL_API BindlessByteBuffer {
 
 private:
     const RefExpr *_array{nullptr};
@@ -350,7 +350,7 @@ public:
 };
 
 /// Class of bindless 2D texture
-class LC_DSL_API BindlessTexture2D {
+class LUISA_DSL_API BindlessTexture2D {
 
 private:
     const RefExpr *_array{nullptr};
@@ -403,7 +403,7 @@ public:
 };
 
 /// Class of bindless 3D texture
-class LC_DSL_API BindlessTexture3D {
+class LUISA_DSL_API BindlessTexture3D {
 
 private:
     const RefExpr *_array{nullptr};

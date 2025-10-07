@@ -13,7 +13,7 @@ struct Reg2MemInfo {
     size_t lowered_phi_count{0u};
 };
 
-[[nodiscard]] LC_XIR_API Reg2MemInfo reg2mem_pass_run_on_function(Function *function) noexcept;
-[[nodiscard]] LC_XIR_API Reg2MemInfo reg2mem_pass_run_on_module(Module *module) noexcept;
+[[nodiscard]] LUISA_XIR_API Reg2MemInfo reg2mem_pass_run_on_function(Function *function) noexcept;
+[[nodiscard]] LUISA_XIR_API Reg2MemInfo reg2mem_pass_run_on_module(Module *module) noexcept;
 
 }// namespace luisa::compute::xir

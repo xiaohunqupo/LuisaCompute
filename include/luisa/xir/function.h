@@ -24,7 +24,7 @@ enum struct DerivedFunctionTag {
 class Module;
 class FunctionDefinition;
 
-class LC_XIR_API Function : public DerivedGlobalValue<Function, DerivedValueTag::FUNCTION> {
+class LUISA_XIR_API Function : public DerivedGlobalValue<Function, DerivedValueTag::FUNCTION> {
 
 private:
     ArgumentList _arguments;
@@ -59,7 +59,7 @@ public:
     LUISA_XIR_DEFINED_ISA_METHOD(Function, function)
 };
 
-class LC_XIR_API SentinelFunction final : public Function {
+class LUISA_XIR_API SentinelFunction final : public Function {
 public:
     explicit SentinelFunction(Module *parent_module) noexcept;
     [[nodiscard]] DerivedFunctionTag derived_function_tag() const noexcept override;
@@ -88,7 +88,7 @@ enum struct BasicBlockTraversalOrder {
     DEFAULT_ORDER = PRE_ORDER,
 };
 
-class LC_XIR_API FunctionDefinition : public Function {
+class LUISA_XIR_API FunctionDefinition : public Function {
 
 private:
     BasicBlock *_body_block{nullptr};
@@ -175,12 +175,12 @@ public:
     }
 };
 
-class LC_XIR_API CallableFunction final : public DerivedFunction<CallableFunction, DerivedFunctionTag::CALLABLE, FunctionDefinition> {
+class LUISA_XIR_API CallableFunction final : public DerivedFunction<CallableFunction, DerivedFunctionTag::CALLABLE, FunctionDefinition> {
 public:
     using Super::Super;
 };
 
-class LC_XIR_API KernelFunction final : public DerivedFunction<KernelFunction, DerivedFunctionTag::KERNEL, FunctionDefinition> {
+class LUISA_XIR_API KernelFunction final : public DerivedFunction<KernelFunction, DerivedFunctionTag::KERNEL, FunctionDefinition> {
 
 public:
     static constexpr auto default_block_size = luisa::make_uint3(64u, 1u, 1u);
@@ -194,7 +194,7 @@ public:
     [[nodiscard]] luisa::uint3 block_size() const noexcept;
 };
 
-class LC_XIR_API ExternalFunction final : public DerivedFunction<ExternalFunction, DerivedFunctionTag::EXTERNAL> {
+class LUISA_XIR_API ExternalFunction final : public DerivedFunction<ExternalFunction, DerivedFunctionTag::EXTERNAL> {
 public:
     using Super::Super;
 };

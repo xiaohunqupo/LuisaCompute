@@ -5,7 +5,7 @@
 namespace luisa::compute::xir {
 
 // Get element pointer instruction.
-class LC_XIR_API GEPInst final : public DerivedInstruction<GEPInst, DerivedInstructionTag::GEP> {
+class LUISA_XIR_API GEPInst final : public DerivedInstruction<GEPInst, DerivedInstructionTag::GEP> {
 
 public:
     static constexpr size_t operand_index_base = 0u;

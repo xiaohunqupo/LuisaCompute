@@ -22,7 +22,7 @@ struct TransposeGEPInfo {
     size_t transposed_store_count{0u};
 };
 
-[[nodiscard]] LC_XIR_API TransposeGEPInfo transpose_gep_pass_run_on_function(Function *function) noexcept;
-[[nodiscard]] LC_XIR_API TransposeGEPInfo transpose_gep_pass_run_on_module(Module *module) noexcept;
+[[nodiscard]] LUISA_XIR_API TransposeGEPInfo transpose_gep_pass_run_on_function(Function *function) noexcept;
+[[nodiscard]] LUISA_XIR_API TransposeGEPInfo transpose_gep_pass_run_on_module(Module *module) noexcept;
 
 }// namespace luisa::compute::xir

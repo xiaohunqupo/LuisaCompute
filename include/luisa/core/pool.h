@@ -8,7 +8,7 @@
 namespace luisa {
 
 namespace detail {
-void LC_CORE_API memory_pool_check_memory_leak(size_t expected, size_t actual) noexcept;
+void LUISA_CORE_API memory_pool_check_memory_leak(size_t expected, size_t actual) noexcept;
 }// namespace detail
 
 /**

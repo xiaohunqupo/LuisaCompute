@@ -4,7 +4,7 @@
 
 namespace luisa::compute::xir {
 
-class LC_XIR_API DebugBreakInst : public DerivedInstruction<DebugBreakInst, DerivedInstructionTag::DEBUG_BREAK> {
+class LUISA_XIR_API DebugBreakInst : public DerivedInstruction<DebugBreakInst, DerivedInstructionTag::DEBUG_BREAK> {
 
 public:
     using Evaluate = const void * /* pointer to evaluated data */

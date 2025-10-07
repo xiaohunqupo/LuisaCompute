@@ -12,7 +12,7 @@ struct StmtVisitor;
  * @brief Base statement class
  * 
  */
-class LC_AST_API Statement : public concepts::Noncopyable {
+class LUISA_AST_API Statement : public concepts::Noncopyable {
 
     friend class CallableLibrary;
 
@@ -78,7 +78,7 @@ class AutoDiffStmt;
 class PrintStmt;
 class DebugBreakStmt;
 
-struct LC_AST_API StmtVisitor {
+struct LUISA_AST_API StmtVisitor {
     virtual void visit(const BreakStmt *) = 0;
     virtual void visit(const ContinueStmt *) = 0;
     virtual void visit(const ReturnStmt *) = 0;
@@ -103,7 +103,7 @@ struct LC_AST_API StmtVisitor {
     void accept(StmtVisitor &visitor) const override { visitor.visit(this); }
 
 /// Break statement
-class LC_AST_API BreakStmt final : public Statement {
+class LUISA_AST_API BreakStmt final : public Statement {
 
 private:
     [[nodiscard]] uint64_t _compute_hash() const noexcept override;
@@ -114,7 +114,7 @@ public:
 };
 
 /// Continue statement
-class LC_AST_API ContinueStmt : public Statement {
+class LUISA_AST_API ContinueStmt : public Statement {
 
 private:
     [[nodiscard]] uint64_t _compute_hash() const noexcept override;
@@ -125,7 +125,7 @@ public:
 };
 
 /// Return statement
-class LC_AST_API ReturnStmt : public Statement {
+class LUISA_AST_API ReturnStmt : public Statement {
     friend class CallableLibrary;
 
 private:
@@ -150,7 +150,7 @@ public:
 };
 
 /// Scope statement
-class LC_AST_API ScopeStmt : public Statement {
+class LUISA_AST_API ScopeStmt : public Statement {
     friend class CallableLibrary;
 
 private:
@@ -168,7 +168,7 @@ public:
 };
 
 /// Assign statement
-class LC_AST_API AssignStmt : public Statement {
+class LUISA_AST_API AssignStmt : public Statement {
     friend class CallableLibrary;
 
 private:
@@ -198,7 +198,7 @@ public:
 };
 
 /// If statement
-class LC_AST_API IfStmt : public Statement {
+class LUISA_AST_API IfStmt : public Statement {
     friend class CallableLibrary;
 
 private:
@@ -230,7 +230,7 @@ public:
 };
 
 /// Loop statement
-class LC_AST_API LoopStmt : public Statement {
+class LUISA_AST_API LoopStmt : public Statement {
     friend class CallableLibrary;
 
 private:
@@ -247,7 +247,7 @@ public:
 };
 
 /// Expression statement
-class LC_AST_API ExprStmt : public Statement {
+class LUISA_AST_API ExprStmt : public Statement {
     friend class CallableLibrary;
 
 private:
@@ -272,7 +272,7 @@ public:
 };
 
 /// Switch statement
-class LC_AST_API SwitchStmt : public Statement {
+class LUISA_AST_API SwitchStmt : public Statement {
     friend class CallableLibrary;
 
 private:
@@ -300,7 +300,7 @@ public:
 };
 
 /// Case statement of switch
-class LC_AST_API SwitchCaseStmt : public Statement {
+class LUISA_AST_API SwitchCaseStmt : public Statement {
     friend class CallableLibrary;
 
 private:
@@ -328,7 +328,7 @@ public:
 };
 
 /// Default statement of switch
-class LC_AST_API SwitchDefaultStmt : public Statement {
+class LUISA_AST_API SwitchDefaultStmt : public Statement {
     friend class CallableLibrary;
 
 private:
@@ -345,7 +345,7 @@ public:
 };
 
 /// For statement
-class LC_AST_API ForStmt : public Statement {
+class LUISA_AST_API ForStmt : public Statement {
     friend class CallableLibrary;
 
 private:
@@ -384,7 +384,7 @@ public:
 };
 
 /// Comment statement
-class LC_AST_API CommentStmt : public Statement {
+class LUISA_AST_API CommentStmt : public Statement {
     friend class CallableLibrary;
 
 private:
@@ -455,7 +455,7 @@ public:
 //   ...
 // }
 
-class LC_AST_API RayQueryStmt : public Statement {
+class LUISA_AST_API RayQueryStmt : public Statement {
     friend class CallableLibrary;
 
 private:
@@ -480,7 +480,7 @@ public:
     LUISA_STATEMENT_COMMON()
 };
 
-class LC_AST_API AutoDiffStmt : public Statement {
+class LUISA_AST_API AutoDiffStmt : public Statement {
     friend class CallableLibrary;
 
 private:
@@ -496,7 +496,7 @@ public:
     LUISA_STATEMENT_COMMON()
 };
 
-class LC_AST_API PrintStmt : public Statement {
+class LUISA_AST_API PrintStmt : public Statement {
     friend class CallableLibrary;
 
 private:
@@ -516,7 +516,7 @@ public:
     LUISA_STATEMENT_COMMON()
 };
 
-class LC_AST_API DebugBreakStmt : public Statement {
+class LUISA_AST_API DebugBreakStmt : public Statement {
     friend class CallableLibrary;
 
 public:

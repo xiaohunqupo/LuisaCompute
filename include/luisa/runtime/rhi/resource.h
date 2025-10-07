@@ -169,7 +169,7 @@ struct ShaderOption {
     luisa::string native_include;
 };
 
-class LC_RUNTIME_API Resource {
+class LUISA_RUNTIME_API Resource {
 
     friend class Device;
     friend class detail::ShaderInvokeBase;

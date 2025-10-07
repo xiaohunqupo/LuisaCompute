@@ -4,7 +4,7 @@
 
 namespace luisa::compute::xir {
 
-class LC_XIR_API AutodiffScopeInst final : public ControlFlowMergeMixin<DerivedTerminatorInstruction<AutodiffScopeInst, DerivedInstructionTag::AUTODIFF_SCOPE>> {
+class LUISA_XIR_API AutodiffScopeInst final : public ControlFlowMergeMixin<DerivedTerminatorInstruction<AutodiffScopeInst, DerivedInstructionTag::AUTODIFF_SCOPE>> {
 
 public:
     static constexpr size_t operand_index_entry_block = 0u;
@@ -18,7 +18,7 @@ public:
     [[nodiscard]] AutodiffScopeInst *clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept override;
 };
 
-class LC_XIR_API AutodiffIntrinsicInst final : public InstructionOpMixin<AutodiffIntrinsicOp, DerivedInstruction<AutodiffIntrinsicInst, DerivedInstructionTag::AUTODIFF_INTRINSIC>> {
+class LUISA_XIR_API AutodiffIntrinsicInst final : public InstructionOpMixin<AutodiffIntrinsicOp, DerivedInstruction<AutodiffIntrinsicInst, DerivedInstructionTag::AUTODIFF_INTRINSIC>> {
 public:
     AutodiffIntrinsicInst(BasicBlock *parent_block, const Type *type, AutodiffIntrinsicOp op,
                           luisa::span<Value *const> operands = {}) noexcept;

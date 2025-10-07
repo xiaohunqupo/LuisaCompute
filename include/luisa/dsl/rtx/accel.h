@@ -24,7 +24,7 @@ struct AccelTraceOptions {
         "\n")]]
 
 template<>
-struct LC_DSL_API Expr<Accel> {
+struct LUISA_DSL_API Expr<Accel> {
 
 private:
     const RefExpr *_expression{nullptr};
@@ -127,7 +127,7 @@ using AccelVar = Var<Accel>;
 
 namespace detail {
 
-class LC_DSL_API AccelExprProxy {
+class LUISA_DSL_API AccelExprProxy {
 
 private:
     Accel _accel;

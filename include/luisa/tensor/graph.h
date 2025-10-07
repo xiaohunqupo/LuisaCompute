@@ -6,7 +6,7 @@
 namespace luisa::compute {
 class TensorBuilder;
 class TensorExt;
-class LC_TENSOR_API Graph : public Resource {
+class LUISA_TENSOR_API Graph : public Resource {
     TensorExt *_ext;
 public:
     explicit Graph(TensorExt *ext, TensorBuilder &&builder) noexcept;

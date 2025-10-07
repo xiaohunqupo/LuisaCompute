@@ -87,7 +87,7 @@ if (NOT LUISA_COMPUTE_USE_SYSTEM_YYJSON)
 endif ()
 
 target_compile_definitions(luisa-compute-xir PUBLIC LUISA_ENABLE_XIR=1)
-target_compile_definitions(luisa-compute-xir PRIVATE LC_XIR_EXPORT_DLL=1)
+target_compile_definitions(luisa-compute-xir PRIVATE LUISA_XIR_EXPORT_DLL=1)
 
 set_target_properties(luisa-compute-xir PROPERTIES
         UNITY_BUILD ${LUISA_COMPUTE_ENABLE_UNITY_BUILD}

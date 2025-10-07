@@ -9,9 +9,9 @@
 namespace luisa::compute {
 
 namespace detail {
-LC_DSL_API void luisa_compute_validate_block_size(uint x, uint y, uint z) noexcept;
-LC_DSL_API void luisa_compute_validate_warp_size(uint8_t warp_size) noexcept;
-LC_DSL_API void luisa_compute_validate_local_array_backward_types(const Type *x, const Type *grad) noexcept;
+LUISA_DSL_API void luisa_compute_validate_block_size(uint x, uint y, uint z) noexcept;
+LUISA_DSL_API void luisa_compute_validate_warp_size(uint8_t warp_size) noexcept;
+LUISA_DSL_API void luisa_compute_validate_local_array_backward_types(const Type *x, const Type *grad) noexcept;
 }// namespace detail
 
 inline namespace dsl {

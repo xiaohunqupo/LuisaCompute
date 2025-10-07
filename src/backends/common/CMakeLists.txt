@@ -70,7 +70,7 @@ if (LUISA_COMPUTE_DOWNLOAD_OIDN)
     endif ()
     target_compile_definitions(luisa-compute-oidn-ext
             PUBLIC LUISA_BACKEND_ENABLE_OIDN=1
-            PRIVATE LC_BACKEND_EXPORT_DLL)
+            PRIVATE LUISA_BACKEND_EXPORT_DLL)
     target_link_libraries(luisa-compute-oidn-ext PUBLIC
             luisa-compute-runtime
             OpenImageDenoise)

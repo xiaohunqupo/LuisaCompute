@@ -52,7 +52,7 @@ constexpr uint64_t tensor_element_align(TensorElementType type) {
             return 0;
     }
 }
-class LC_TENSOR_API TensorData {
+class LUISA_TENSOR_API TensorData {
     luisa::span<uint64_t const> _sizes;
     TensorElementType _type;
     uint64_t _idx;
@@ -86,7 +86,7 @@ public:
 
 class TensorBuilder;
 
-class LC_TENSOR_API Tensor {
+class LUISA_TENSOR_API Tensor {
     friend class TensorBuilder;
 
     TensorData *_data;

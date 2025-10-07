@@ -2,7 +2,7 @@
 #include <luisa/vstl/common.h>
 namespace vstd {
 
-struct LC_VSTL_API CharSplitIterator {
+struct LUISA_VSTL_API CharSplitIterator {
     char const *curPtr;
     char const *endPtr;
     char sign;
@@ -11,7 +11,7 @@ struct LC_VSTL_API CharSplitIterator {
     void operator++();
     bool operator==(IteEndTag) const;
 };
-struct LC_VSTL_API StrVSplitIterator {
+struct LUISA_VSTL_API StrVSplitIterator {
     char const *curPtr;
     char const *endPtr;
     std::string_view sign;
@@ -34,7 +34,7 @@ struct StrvIEnumerator {
         return {};
     }
 };
-class LC_VSTL_API StringUtil {
+class LUISA_VSTL_API StringUtil {
 private:
     StringUtil() = delete;
     KILL_COPY_CONSTRUCT(StringUtil)

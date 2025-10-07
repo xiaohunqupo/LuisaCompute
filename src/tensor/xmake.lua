@@ -10,4 +10,4 @@ add_files("**.cpp")
 --     public = true
 -- })
 
-add_defines("LC_TENSOR_EXPORT_DLL")
+add_defines("LUISA_TENSOR_EXPORT_DLL")

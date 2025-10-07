@@ -9,16 +9,16 @@
 namespace luisa::compute {
 
 namespace detail {
-LC_RUNTIME_API void check_mesh_vert_align(size_t v_stride, size_t dst);
-LC_RUNTIME_API void check_mesh_vert_buffer_motion_keyframe_count(size_t total_vertex_count, uint motion_keyframe_count);
-LC_RUNTIME_API void check_mesh_triangle_buffer_offset_and_size(size_t offset_bytes, size_t size_bytes);
-LC_RUNTIME_API void check_mesh_vertex_buffer_offset_and_size(size_t offset_bytes, size_t size_bytes, size_t v_stride);
+LUISA_RUNTIME_API void check_mesh_vert_align(size_t v_stride, size_t dst);
+LUISA_RUNTIME_API void check_mesh_vert_buffer_motion_keyframe_count(size_t total_vertex_count, uint motion_keyframe_count);
+LUISA_RUNTIME_API void check_mesh_triangle_buffer_offset_and_size(size_t offset_bytes, size_t size_bytes);
+LUISA_RUNTIME_API void check_mesh_vertex_buffer_offset_and_size(size_t offset_bytes, size_t size_bytes, size_t v_stride);
 }// namespace detail
 class Accel;
 
 // A Mesh is a bottom-level acceleration structure (BLAS) for ray-tracing with a set of triangles.
 // For custom intersection, see ProceduralPrimitive.
-class LC_RUNTIME_API Mesh final : public Resource {
+class LUISA_RUNTIME_API Mesh final : public Resource {
 
 public:
     using BuildRequest = AccelBuildRequest;

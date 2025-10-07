@@ -292,7 +292,7 @@ private:
     size_t _arg_count{0u};
 
 private:
-    static LC_DSL_API void _error_too_many_arguments() noexcept;
+    static LUISA_DSL_API void _error_too_many_arguments() noexcept;
 
 public:
     CallableInvoke() noexcept = default;

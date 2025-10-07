@@ -5,7 +5,7 @@
 #include <luisa/vstl/md5.h>
 #include <luisa/vstl/hash_map.h>
 namespace luisa::compute {
-class LC_TENSOR_API ShaderManager {
+class LUISA_TENSOR_API ShaderManager {
 public:
     struct Key {
         TensorExpr::Tag tag;

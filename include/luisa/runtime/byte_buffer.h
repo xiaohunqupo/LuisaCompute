@@ -10,7 +10,7 @@ class ByteBufferExprProxy;
 
 class ByteBufferView;
 
-class LC_RUNTIME_API ByteBuffer final : public Resource {
+class LUISA_RUNTIME_API ByteBuffer final : public Resource {
 
 private:
     size_t _size_bytes{};
@@ -66,7 +66,7 @@ public:
     }
 };
 
-class LC_RUNTIME_API ByteBufferView {
+class LUISA_RUNTIME_API ByteBufferView {
     friend class lc::validation::Stream;
 
 private:

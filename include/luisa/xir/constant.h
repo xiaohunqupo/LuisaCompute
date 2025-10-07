@@ -4,7 +4,7 @@
 
 namespace luisa::compute::xir {
 
-class LC_XIR_API Constant : public DerivedGlobalValue<Constant, DerivedValueTag::CONSTANT> {
+class LUISA_XIR_API Constant : public DerivedGlobalValue<Constant, DerivedValueTag::CONSTANT> {
 
 private:
     union {

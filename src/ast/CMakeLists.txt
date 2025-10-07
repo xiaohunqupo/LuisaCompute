@@ -14,7 +14,7 @@ set(LUISA_COMPUTE_AST_SOURCES
         variable.cpp)
 
 add_library(luisa-compute-ast SHARED ${LUISA_COMPUTE_AST_SOURCES})
-target_compile_definitions(luisa-compute-ast PRIVATE LC_AST_EXPORT_DLL=1)
+target_compile_definitions(luisa-compute-ast PRIVATE LUISA_AST_EXPORT_DLL=1)
 
 if (LUISA_COMPUTE_ENABLE_RUST)
     target_compile_definitions(luisa-compute-ast PRIVATE LC_AST_ENABLE_IR=1)

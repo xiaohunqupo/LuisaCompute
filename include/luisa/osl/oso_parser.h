@@ -14,7 +14,7 @@ class Instruction;
 class Literal;
 class Hint;
 
-class LC_OSL_API OSOParser {
+class LUISA_OSL_API OSOParser {
 
 private:
     struct ShaderDecl;

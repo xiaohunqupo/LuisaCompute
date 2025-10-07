@@ -5,7 +5,7 @@
 
 namespace luisa::compute::xir {
 
-class LC_XIR_API CommentMD final : public DerivedMetadata<CommentMD, DerivedMetadataTag::COMMENT> {
+class LUISA_XIR_API CommentMD final : public DerivedMetadata<CommentMD, DerivedMetadataTag::COMMENT> {
 
 private:
     luisa::string _comment;

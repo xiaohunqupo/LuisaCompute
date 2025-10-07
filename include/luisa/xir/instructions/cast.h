@@ -4,7 +4,7 @@
 
 namespace luisa::compute::xir {
 
-class LC_XIR_API CastInst final : public InstructionOpMixin<CastOp, DerivedInstruction<CastInst, DerivedInstructionTag::CAST>> {
+class LUISA_XIR_API CastInst final : public InstructionOpMixin<CastOp, DerivedInstruction<CastInst, DerivedInstructionTag::CAST>> {
 public:
     CastInst(BasicBlock *parent_block, const Type *target_type, CastOp op, Value *value) noexcept;
     [[nodiscard]] Value *value() noexcept;

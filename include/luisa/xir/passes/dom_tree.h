@@ -8,7 +8,7 @@ namespace luisa::compute::xir {
 
 class DomTree;
 
-class LC_XIR_API DomTreeNode : public concepts::Noncopyable {
+class LUISA_XIR_API DomTreeNode : public concepts::Noncopyable {
 
 private:
     BasicBlock *_block;
@@ -28,7 +28,7 @@ public:
     [[nodiscard]] auto frontiers() const noexcept { return luisa::span{_frontiers}; }
 };
 
-class LC_XIR_API DomTree : public concepts::Noncopyable {
+class LUISA_XIR_API DomTree : public concepts::Noncopyable {
 
 private:
     luisa::unordered_map<BasicBlock *, luisa::unique_ptr<DomTreeNode>> _nodes;
@@ -51,6 +51,6 @@ public:
     [[nodiscard]] auto immediate_dominator(BasicBlock *block) const noexcept -> BasicBlock *;
 };
 
-[[nodiscard]] LC_XIR_API DomTree compute_dom_tree(Function *function) noexcept;
+[[nodiscard]] LUISA_XIR_API DomTree compute_dom_tree(Function *function) noexcept;
 
 }// namespace luisa::compute::xir

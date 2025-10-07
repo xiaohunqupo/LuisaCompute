@@ -5,7 +5,7 @@
 
 namespace luisa::compute::osl {
 
-class LC_OSL_API Literal {
+class LUISA_OSL_API Literal {
 
 public:
     enum struct Tag : uint32_t {

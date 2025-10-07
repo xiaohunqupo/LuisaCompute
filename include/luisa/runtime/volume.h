@@ -14,8 +14,8 @@ namespace detail {
 template<typename VolumeOrView>
 class VolumeExprProxy;
 
-LC_RUNTIME_API void error_volume_invalid_mip_levels(size_t level, size_t mip) noexcept;
-LC_RUNTIME_API void volume_size_zero_error() noexcept;
+LUISA_RUNTIME_API void error_volume_invalid_mip_levels(size_t level, size_t mip) noexcept;
+LUISA_RUNTIME_API void volume_size_zero_error() noexcept;
 }// namespace detail
 
 template<typename T>

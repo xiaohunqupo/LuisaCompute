@@ -6,7 +6,7 @@
 #include <luisa/ast/type.h>
 #include <luisa/ast/type_registry.h>
 namespace luisa::compute::ir_v2 {
-struct LC_IR_API Func {
+struct LUISA_IR_API Func {
     luisa::unique_ptr<FuncData> _data;
     FuncTag _tag;
 public:
@@ -60,7 +60,7 @@ public:
 };
 static_assert(sizeof(Func) == 16);
 static_assert(sizeof(luisa::unique_ptr<FuncData>) == 8);
-struct LC_IR_API AssumeFn : public FuncData {
+struct LUISA_IR_API AssumeFn : public FuncData {
 public:
     typedef FuncTag Tag;
     [[nodiscard]] Tag tag() const noexcept override {
@@ -74,7 +74,7 @@ public:
     AssumeFn() = default;
     AssumeFn(luisa::string msg) : msg(std::move(msg)) {}
 };
-struct LC_IR_API UnreachableFn : public FuncData {
+struct LUISA_IR_API UnreachableFn : public FuncData {
 public:
     typedef FuncTag Tag;
     [[nodiscard]] Tag tag() const noexcept override {
@@ -88,7 +88,7 @@ public:
     UnreachableFn() = default;
     UnreachableFn(luisa::string msg) : msg(std::move(msg)) {}
 };
-struct LC_IR_API AssertFn : public FuncData {
+struct LUISA_IR_API AssertFn : public FuncData {
 public:
     typedef FuncTag Tag;
     [[nodiscard]] Tag tag() const noexcept override {
@@ -102,7 +102,7 @@ public:
     AssertFn() = default;
     AssertFn(luisa::string msg) : msg(std::move(msg)) {}
 };
-struct LC_IR_API BindlessAtomicExchangeFn : public FuncData {
+struct LUISA_IR_API BindlessAtomicExchangeFn : public FuncData {
 public:
     typedef FuncTag Tag;
     [[nodiscard]] Tag tag() const noexcept override {
@@ -116,7 +116,7 @@ public:
     BindlessAtomicExchangeFn() = default;
     BindlessAtomicExchangeFn(const Type *ty) : ty(std::move(ty)) {}
 };
-struct LC_IR_API BindlessAtomicCompareExchangeFn : public FuncData {
+struct LUISA_IR_API BindlessAtomicCompareExchangeFn : public FuncData {
 public:
     typedef FuncTag Tag;
     [[nodiscard]] Tag tag() const noexcept override {
@@ -130,7 +130,7 @@ public:
     BindlessAtomicCompareExchangeFn() = default;
     BindlessAtomicCompareExchangeFn(const Type *ty) : ty(std::move(ty)) {}
 };
-struct LC_IR_API BindlessAtomicFetchAddFn : public FuncData {
+struct LUISA_IR_API BindlessAtomicFetchAddFn : public FuncData {
 public:
     typedef FuncTag Tag;
     [[nodiscard]] Tag tag() const noexcept override {
@@ -144,7 +144,7 @@ public:
     BindlessAtomicFetchAddFn() = default;
     BindlessAtomicFetchAddFn(const Type *ty) : ty(std::move(ty)) {}
 };
-struct LC_IR_API BindlessAtomicFetchSubFn : public FuncData {
+struct LUISA_IR_API BindlessAtomicFetchSubFn : public FuncData {
 public:
     typedef FuncTag Tag;
     [[nodiscard]] Tag tag() const noexcept override {
@@ -158,7 +158,7 @@ public:
     BindlessAtomicFetchSubFn() = default;
     BindlessAtomicFetchSubFn(const Type *ty) : ty(std::move(ty)) {}
 };
-struct LC_IR_API BindlessAtomicFetchAndFn : public FuncData {
+struct LUISA_IR_API BindlessAtomicFetchAndFn : public FuncData {
 public:
     typedef FuncTag Tag;
     [[nodiscard]] Tag tag() const noexcept override {
@@ -172,7 +172,7 @@ public:
     BindlessAtomicFetchAndFn() = default;
     BindlessAtomicFetchAndFn(const Type *ty) : ty(std::move(ty)) {}
 };
-struct LC_IR_API BindlessAtomicFetchOrFn : public FuncData {
+struct LUISA_IR_API BindlessAtomicFetchOrFn : public FuncData {
 public:
     typedef FuncTag Tag;
     [[nodiscard]] Tag tag() const noexcept override {
@@ -186,7 +186,7 @@ public:
     BindlessAtomicFetchOrFn() = default;
     BindlessAtomicFetchOrFn(const Type *ty) : ty(std::move(ty)) {}
 };
-struct LC_IR_API BindlessAtomicFetchXorFn : public FuncData {
+struct LUISA_IR_API BindlessAtomicFetchXorFn : public FuncData {
 public:
     typedef FuncTag Tag;
     [[nodiscard]] Tag tag() const noexcept override {
@@ -200,7 +200,7 @@ public:
     BindlessAtomicFetchXorFn() = default;
     BindlessAtomicFetchXorFn(const Type *ty) : ty(std::move(ty)) {}
 };
-struct LC_IR_API BindlessAtomicFetchMinFn : public FuncData {
+struct LUISA_IR_API BindlessAtomicFetchMinFn : public FuncData {
 public:
     typedef FuncTag Tag;
     [[nodiscard]] Tag tag() const noexcept override {
@@ -214,7 +214,7 @@ public:
     BindlessAtomicFetchMinFn() = default;
     BindlessAtomicFetchMinFn(const Type *ty) : ty(std::move(ty)) {}
 };
-struct LC_IR_API BindlessAtomicFetchMaxFn : public FuncData {
+struct LUISA_IR_API BindlessAtomicFetchMaxFn : public FuncData {
 public:
     typedef FuncTag Tag;
     [[nodiscard]] Tag tag() const noexcept override {
@@ -228,7 +228,7 @@ public:
     BindlessAtomicFetchMaxFn() = default;
     BindlessAtomicFetchMaxFn(const Type *ty) : ty(std::move(ty)) {}
 };
-struct LC_IR_API CallableFn : public FuncData {
+struct LUISA_IR_API CallableFn : public FuncData {
 public:
     typedef FuncTag Tag;
     [[nodiscard]] Tag tag() const noexcept override {
@@ -242,7 +242,7 @@ public:
     CallableFn() = default;
     CallableFn(luisa::shared_ptr<CallableModule> module) : module(std::move(module)) {}
 };
-struct LC_IR_API CpuExtFn : public FuncData {
+struct LUISA_IR_API CpuExtFn : public FuncData {
 public:
     typedef FuncTag Tag;
     [[nodiscard]] Tag tag() const noexcept override {
@@ -256,7 +256,7 @@ public:
     CpuExtFn() = default;
     CpuExtFn(luisa::shared_ptr<CpuExternFn> f) : f(std::move(f)) {}
 };
-struct LC_IR_API Instruction {
+struct LUISA_IR_API Instruction {
     luisa::unique_ptr<InstructionData> _data;
     InstructionTag _tag;
 public:
@@ -308,7 +308,7 @@ public:
 };
 static_assert(sizeof(Instruction) == 16);
 static_assert(sizeof(luisa::unique_ptr<InstructionData>) == 8);
-struct LC_IR_API ArgumentInst : public InstructionData {
+struct LUISA_IR_API ArgumentInst : public InstructionData {
 public:
     typedef InstructionTag Tag;
     [[nodiscard]] Tag tag() const noexcept override {
@@ -322,7 +322,7 @@ public:
     ArgumentInst() = default;
     ArgumentInst(bool by_value) : by_value(std::move(by_value)) {}
 };
-struct LC_IR_API ConstantInst : public InstructionData {
+struct LUISA_IR_API ConstantInst : public InstructionData {
 public:
     typedef InstructionTag Tag;
     [[nodiscard]] Tag tag() const noexcept override {
@@ -374,7 +374,7 @@ public:
         return *reinterpret_cast<const bool *>(value.data());
     }
 };
-struct LC_IR_API CallInst : public InstructionData {
+struct LUISA_IR_API CallInst : public InstructionData {
 public:
     typedef InstructionTag Tag;
     [[nodiscard]] Tag tag() const noexcept override {
@@ -389,7 +389,7 @@ public:
     CallInst() = default;
     CallInst(Func func, luisa::vector<Node *> args) : func(std::move(func)), args(std::move(args)) {}
 };
-struct LC_IR_API PhiInst : public InstructionData {
+struct LUISA_IR_API PhiInst : public InstructionData {
 public:
     typedef InstructionTag Tag;
     [[nodiscard]] Tag tag() const noexcept override {
@@ -403,7 +403,7 @@ public:
     PhiInst() = default;
     PhiInst(luisa::vector<PhiIncoming> incomings) : incomings(std::move(incomings)) {}
 };
-struct LC_IR_API IfInst : public InstructionData {
+struct LUISA_IR_API IfInst : public InstructionData {
 public:
     typedef InstructionTag Tag;
     [[nodiscard]] Tag tag() const noexcept override {
@@ -419,7 +419,7 @@ public:
     IfInst() = default;
     IfInst(Node *cond, const BasicBlock *true_branch, const BasicBlock *false_branch) : cond(std::move(cond)), true_branch(std::move(true_branch)), false_branch(std::move(false_branch)) {}
 };
-struct LC_IR_API GenericLoopInst : public InstructionData {
+struct LUISA_IR_API GenericLoopInst : public InstructionData {
 public:
     typedef InstructionTag Tag;
     [[nodiscard]] Tag tag() const noexcept override {
@@ -436,7 +436,7 @@ public:
     GenericLoopInst() = default;
     GenericLoopInst(const BasicBlock *prepare, Node *cond, const BasicBlock *body, const BasicBlock *update) : prepare(std::move(prepare)), cond(std::move(cond)), body(std::move(body)), update(std::move(update)) {}
 };
-struct LC_IR_API SwitchInst : public InstructionData {
+struct LUISA_IR_API SwitchInst : public InstructionData {
 public:
     typedef InstructionTag Tag;
     [[nodiscard]] Tag tag() const noexcept override {
@@ -452,7 +452,7 @@ public:
     SwitchInst() = default;
     SwitchInst(Node *value, luisa::vector<SwitchCase> cases, const BasicBlock *default_) : value(std::move(value)), cases(std::move(cases)), default_(std::move(default_)) {}
 };
-struct LC_IR_API LocalInst : public InstructionData {
+struct LUISA_IR_API LocalInst : public InstructionData {
 public:
     typedef InstructionTag Tag;
     [[nodiscard]] Tag tag() const noexcept override {
@@ -466,7 +466,7 @@ public:
     LocalInst() = default;
     LocalInst(Node *init) : init(std::move(init)) {}
 };
-struct LC_IR_API ReturnInst : public InstructionData {
+struct LUISA_IR_API ReturnInst : public InstructionData {
 public:
     typedef InstructionTag Tag;
     [[nodiscard]] Tag tag() const noexcept override {
@@ -480,7 +480,7 @@ public:
     ReturnInst() = default;
     ReturnInst(Node *value) : value(std::move(value)) {}
 };
-struct LC_IR_API PrintInst : public InstructionData {
+struct LUISA_IR_API PrintInst : public InstructionData {
 public:
     typedef InstructionTag Tag;
     [[nodiscard]] Tag tag() const noexcept override {
@@ -495,7 +495,7 @@ public:
     PrintInst() = default;
     PrintInst(luisa::string fmt, luisa::vector<Node *> args) : fmt(std::move(fmt)), args(std::move(args)) {}
 };
-struct LC_IR_API CommentInst : public InstructionData {
+struct LUISA_IR_API CommentInst : public InstructionData {
 public:
     typedef InstructionTag Tag;
     [[nodiscard]] Tag tag() const noexcept override {
@@ -509,7 +509,7 @@ public:
     CommentInst() = default;
     CommentInst(luisa::string comment) : comment(std::move(comment)) {}
 };
-struct LC_IR_API UpdateInst : public InstructionData {
+struct LUISA_IR_API UpdateInst : public InstructionData {
 public:
     typedef InstructionTag Tag;
     [[nodiscard]] Tag tag() const noexcept override {
@@ -524,7 +524,7 @@ public:
     UpdateInst() = default;
     UpdateInst(Node *var, Node *value) : var(std::move(var)), value(std::move(value)) {}
 };
-struct LC_IR_API RayQueryInst : public InstructionData {
+struct LUISA_IR_API RayQueryInst : public InstructionData {
 public:
     typedef InstructionTag Tag;
     [[nodiscard]] Tag tag() const noexcept override {
@@ -540,7 +540,7 @@ public:
     RayQueryInst() = default;
     RayQueryInst(Node *query, const BasicBlock *on_triangle_hit, const BasicBlock *on_procedural_hit) : query(std::move(query)), on_triangle_hit(std::move(on_triangle_hit)), on_procedural_hit(std::move(on_procedural_hit)) {}
 };
-struct LC_IR_API RevAutodiffInst : public InstructionData {
+struct LUISA_IR_API RevAutodiffInst : public InstructionData {
 public:
     typedef InstructionTag Tag;
     [[nodiscard]] Tag tag() const noexcept override {
@@ -554,7 +554,7 @@ public:
     RevAutodiffInst() = default;
     RevAutodiffInst(const BasicBlock *body) : body(std::move(body)) {}
 };
-struct LC_IR_API FwdAutodiffInst : public InstructionData {
+struct LUISA_IR_API FwdAutodiffInst : public InstructionData {
 public:
     typedef InstructionTag Tag;
     [[nodiscard]] Tag tag() const noexcept override {
@@ -568,7 +568,7 @@ public:
     FwdAutodiffInst() = default;
     FwdAutodiffInst(const BasicBlock *body) : body(std::move(body)) {}
 };
-struct LC_IR_API Binding {
+struct LUISA_IR_API Binding {
     luisa::unique_ptr<BindingData> _data;
     BindingTag _tag;
 public:
@@ -609,7 +609,7 @@ public:
 };
 static_assert(sizeof(Binding) == 16);
 static_assert(sizeof(luisa::unique_ptr<BindingData>) == 8);
-struct LC_IR_API BufferBinding : public BindingData {
+struct LUISA_IR_API BufferBinding : public BindingData {
 public:
     typedef BindingTag Tag;
     [[nodiscard]] Tag tag() const noexcept override {
@@ -625,7 +625,7 @@ public:
     BufferBinding() = default;
     BufferBinding(uint64_t handle, uint64_t offset, uint64_t size) : handle(std::move(handle)), offset(std::move(offset)), size(std::move(size)) {}
 };
-struct LC_IR_API TextureBinding : public BindingData {
+struct LUISA_IR_API TextureBinding : public BindingData {
 public:
     typedef BindingTag Tag;
     [[nodiscard]] Tag tag() const noexcept override {
@@ -640,7 +640,7 @@ public:
     TextureBinding() = default;
     TextureBinding(uint64_t handle, uint64_t level) : handle(std::move(handle)), level(std::move(level)) {}
 };
-struct LC_IR_API BindlessArrayBinding : public BindingData {
+struct LUISA_IR_API BindlessArrayBinding : public BindingData {
 public:
     typedef BindingTag Tag;
     [[nodiscard]] Tag tag() const noexcept override {
@@ -654,7 +654,7 @@ public:
     BindlessArrayBinding() = default;
     BindlessArrayBinding(uint64_t handle) : handle(std::move(handle)) {}
 };
-struct LC_IR_API AccelBinding : public BindingData {
+struct LUISA_IR_API AccelBinding : public BindingData {
 public:
     typedef BindingTag Tag;
     [[nodiscard]] Tag tag() const noexcept override {

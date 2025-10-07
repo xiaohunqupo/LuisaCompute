@@ -27,7 +27,7 @@ class FunctionBuilder;
  * @brief Base expression class
  * 
  */
-class LC_AST_API Expression : public concepts::Noncopyable {
+class LUISA_AST_API Expression : public concepts::Noncopyable {
     friend class CallableLibrary;
 
 public:
@@ -95,7 +95,7 @@ class FuncRefExpr;
 class CpuCustomOpExpr;
 class GpuCustomOpExpr;
 
-struct LC_AST_API ExprVisitor {
+struct LUISA_AST_API ExprVisitor {
     virtual void visit(const UnaryExpr *) = 0;
     virtual void visit(const BinaryExpr *) = 0;
     virtual void visit(const MemberExpr *) = 0;
@@ -117,7 +117,7 @@ struct LC_AST_API ExprVisitor {
     void accept(ExprVisitor &visitor) const override { visitor.visit(this); }
 
 /// Unary expression
-class LC_AST_API UnaryExpr final : public Expression {
+class LUISA_AST_API UnaryExpr final : public Expression {
     friend class CallableLibrary;
 
 private:
@@ -147,7 +147,7 @@ public:
 };
 
 /// Binary expression
-class LC_AST_API BinaryExpr final : public Expression {
+class LUISA_AST_API BinaryExpr final : public Expression {
     friend class CallableLibrary;
 
 private:
@@ -183,7 +183,7 @@ public:
 };
 
 /// Access expression
-class LC_AST_API AccessExpr final : public Expression {
+class LUISA_AST_API AccessExpr final : public Expression {
     friend class CallableLibrary;
 
 private:
@@ -214,7 +214,7 @@ public:
 };
 
 /// Member expression
-class LC_AST_API MemberExpr final : public Expression {
+class LUISA_AST_API MemberExpr final : public Expression {
     friend class CallableLibrary;
 
 public:
@@ -318,7 +318,7 @@ struct LiteralValue : LiteralValueVariant {
 
 }// namespace detail
 
-class LC_AST_API LiteralExpr final : public Expression {
+class LUISA_AST_API LiteralExpr final : public Expression {
     friend class CallableLibrary;
 
 public:
@@ -346,7 +346,7 @@ public:
 };
 
 /// Reference expression
-class LC_AST_API RefExpr final : public Expression {
+class LUISA_AST_API RefExpr final : public Expression {
     friend class CallableLibrary;
 
 private:
@@ -370,7 +370,7 @@ public:
 };
 
 /// Constant expression
-class LC_AST_API ConstantExpr final : public Expression {
+class LUISA_AST_API ConstantExpr final : public Expression {
     friend class CallableLibrary;
 
 private:
@@ -395,7 +395,7 @@ public:
 };
 
 /// Call expression
-class LC_AST_API CallExpr final : public Expression {
+class LUISA_AST_API CallExpr final : public Expression {
     friend class CallableLibrary;
 
 public:
@@ -469,7 +469,7 @@ enum struct CastOp {
 };
 
 /// Cast expression
-class LC_AST_API CastExpr final : public Expression {
+class LUISA_AST_API CastExpr final : public Expression {
     friend class CallableLibrary;
 
 private:
@@ -496,7 +496,7 @@ public:
     LUISA_EXPRESSION_COMMON()
 };
 
-class LC_AST_API TypeIDExpr final : public Expression {
+class LUISA_AST_API TypeIDExpr final : public Expression {
     friend class CallableLibrary;
 
 private:
@@ -516,7 +516,7 @@ public:
     LUISA_EXPRESSION_COMMON()
 };
 
-class LC_AST_API StringIDExpr final : public Expression {
+class LUISA_AST_API StringIDExpr final : public Expression {
     friend class CallableLibrary;
 
 private:
@@ -534,7 +534,7 @@ public:
     LUISA_EXPRESSION_COMMON()
 };
 
-class LC_AST_API FuncRefExpr final : public Expression {
+class LUISA_AST_API FuncRefExpr final : public Expression {
     detail::FunctionBuilder const *_func;
     FuncRefExpr() = default;
 

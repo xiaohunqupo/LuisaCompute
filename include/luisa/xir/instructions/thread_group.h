@@ -4,7 +4,7 @@
 
 namespace luisa::compute::xir {
 
-class LC_XIR_API ThreadGroupInst final : public InstructionOpMixin<ThreadGroupOp, DerivedInstruction<ThreadGroupInst, DerivedInstructionTag::THREAD_GROUP>> {
+class LUISA_XIR_API ThreadGroupInst final : public InstructionOpMixin<ThreadGroupOp, DerivedInstruction<ThreadGroupInst, DerivedInstructionTag::THREAD_GROUP>> {
 public:
     ThreadGroupInst(BasicBlock *parent_block,
                     const Type *type, ThreadGroupOp op,

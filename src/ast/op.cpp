@@ -40,7 +40,7 @@ bool CallOpSet::Iterator::operator==(luisa::default_sentinel_t) const noexcept {
     return _index == call_op_count;
 }
 
-LC_AST_API TypePromotion promote_types(BinaryOp op, const Type *lhs, const Type *rhs) noexcept {
+LUISA_AST_API TypePromotion promote_types(BinaryOp op, const Type *lhs, const Type *rhs) noexcept {
     auto dimensions_compatible = [](auto a, auto b) noexcept {
         return a->dimension() == b->dimension() ||
                a->dimension() == 1u || b->dimension() == 1u;
@@ -132,7 +132,7 @@ LC_AST_API TypePromotion promote_types(BinaryOp op, const Type *lhs, const Type 
             .result = v};
 }
 
-LC_AST_API void check_builtin_call_valid(CallOp op, const Type *return_type, luisa::span<const Expression *const> args) noexcept {
+LUISA_AST_API void check_builtin_call_valid(CallOp op, const Type *return_type, luisa::span<const Expression *const> args) noexcept {
     switch (op) {
         case CallOp::RAY_TRACING_TRACE_CLOSEST:
         case CallOp::RAY_TRACING_TRACE_ANY:

@@ -3,7 +3,7 @@
 
 namespace luisa::clangcxx {
 
-struct LC_CLANGCXX_API AST
+struct LUISA_CLANGCXX_API AST
 {
 
 };

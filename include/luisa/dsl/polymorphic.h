@@ -8,11 +8,11 @@
 namespace luisa::compute {
 
 namespace detail {
-LC_DSL_API void polymorphic_warning_no_implementation_registered() noexcept;
-LC_DSL_API void polymorphic_warning_empty_tag_range(uint lo, uint hi) noexcept;
-LC_DSL_API void polymorphic_warning_empty_tag_group() noexcept;
-LC_DSL_API void polymorphic_error_unordered_tag_range(uint lo, uint hi) noexcept;
-LC_DSL_API void polymorphic_error_overflowed_tag_range(uint lo, uint hi, uint tag_count) noexcept;
+LUISA_DSL_API void polymorphic_warning_no_implementation_registered() noexcept;
+LUISA_DSL_API void polymorphic_warning_empty_tag_range(uint lo, uint hi) noexcept;
+LUISA_DSL_API void polymorphic_warning_empty_tag_group() noexcept;
+LUISA_DSL_API void polymorphic_error_unordered_tag_range(uint lo, uint hi) noexcept;
+LUISA_DSL_API void polymorphic_error_overflowed_tag_range(uint lo, uint hi, uint tag_count) noexcept;
 }// namespace detail
 
 template<typename T>

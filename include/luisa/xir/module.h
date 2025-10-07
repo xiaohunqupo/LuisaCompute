@@ -15,7 +15,7 @@ namespace luisa::compute::xir {
 
 class Constant;
 
-class LC_XIR_API Module final : public MetadataListMixin {
+class LUISA_XIR_API Module final : public MetadataListMixin {
 
 private:
     FunctionList _function_list;

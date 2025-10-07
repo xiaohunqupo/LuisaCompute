@@ -99,7 +99,7 @@ template<typename T>
 concept device_extension = std::is_base_of_v<DeviceExtension, T> &&
                            std::is_same_v<const luisa::string_view, decltype(T::name)>;
 
-class LC_RUNTIME_API Device {
+class LUISA_RUNTIME_API Device {
 
 public:
     using Deleter = void(DeviceInterface *);

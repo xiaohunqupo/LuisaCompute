@@ -9,7 +9,7 @@ LUISA_STRUCT(luisa::compute::AppData, position, normal, tangent, color, uv, vert
 namespace luisa::compute {
 template<typename VertCallable, typename PixelCallable>
 class RasterKernel;
-LC_DSL_API void check_vert_ret_type(Type const *type);
+LUISA_DSL_API void check_vert_ret_type(Type const *type);
 template<typename VertRet, typename... VertArgs, typename PixelRet, typename... PixelArgs>
 class RasterKernel<RasterStageKernel<VertRet(AppData, VertArgs...)>, RasterStageKernel<PixelRet(VertRet, PixelArgs...)>> {
 

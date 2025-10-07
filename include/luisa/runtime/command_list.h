@@ -15,7 +15,7 @@ class Device;
 
 namespace luisa::compute {
 struct SwapchainPresent;
-class LC_RUNTIME_API CommandList : concepts::Noncopyable {
+class LUISA_RUNTIME_API CommandList : concepts::Noncopyable {
     friend class lc::validation::Device;
 
 public:

@@ -11,13 +11,13 @@
 
 namespace luisa::compute {
 
-class LC_RUNTIME_API Stream final : public Resource {
+class LUISA_RUNTIME_API Stream final : public Resource {
 
 public:
     struct Commit {};
     struct Synchronize {};
 
-    class LC_RUNTIME_API Delegate {
+    class LUISA_RUNTIME_API Delegate {
 
     private:
         Stream *_stream;

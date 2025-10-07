@@ -16,7 +16,7 @@ inline void validate(const Type *ty) noexcept;
 struct CpuExternFn : CpuExternFnData, luisa::enable_shared_from_this<CpuExternFn> {
     CpuExternFn(CpuExternFnData data) noexcept : CpuExternFnData{std::move(data)} {}
 };
-struct LC_IR_API Node {
+struct LUISA_IR_API Node {
     mutable Node *prev = nullptr;
     mutable Node *next = nullptr;
     BasicBlock *scope = nullptr;
@@ -130,7 +130,7 @@ public:
         return *_begin;
     }
 };
-class LC_IR_API BasicBlock {
+class LUISA_IR_API BasicBlock {
     // NEVER set _first and _last to nullptr!!!
     Node *_first;
     Node *_last;
@@ -171,7 +171,7 @@ public:
     }
 };
 
-class LC_IR_API Pool : public luisa::enable_shared_from_this<Pool> {
+class LUISA_IR_API Pool : public luisa::enable_shared_from_this<Pool> {
     using Deleter = void (*)(void *) noexcept;
 public:
     template<typename T, typename... Args>
@@ -190,7 +190,7 @@ private:
     luisa::vector<Deleter> _deleters;
 };
 
-class LC_IR_API IrBuilder {
+class LUISA_IR_API IrBuilder {
     luisa::shared_ptr<Pool> _pool;
     Node *_insert_point = nullptr;
     BasicBlock *_current_bb = nullptr;
@@ -376,8 +376,8 @@ class Transform {
     virtual void run(Module &module) noexcept = 0;
 };
 
-LC_IR_API void validate(Module &module) noexcept;
-LC_IR_API void normalize(Module &module) noexcept;
+LUISA_IR_API void validate(Module &module) noexcept;
+LUISA_IR_API void normalize(Module &module) noexcept;
 inline void validate(const Type *ty) noexcept {
     bool bad = false;
     if (!ty) {
@@ -406,5 +406,5 @@ inline void validate(const Type *ty) noexcept {
         LUISA_ERROR_WITH_LOCATION("type: `{}` is not a valid type for IR!!!", ty->description());
     }
 }
-LC_IR_API luisa::string dump_human_readable(Module &module) noexcept;
+LUISA_IR_API luisa::string dump_human_readable(Module &module) noexcept;
 }// namespace luisa::compute::ir_v2

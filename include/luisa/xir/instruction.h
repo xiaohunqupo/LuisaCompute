@@ -124,7 +124,7 @@ struct InstructionCloneValueResolver {
 
 class XIRBuilder;
 
-class LC_XIR_API Instruction : public DerivedBlockScopeValue<Instruction, DerivedValueTag::INSTRUCTION, User> {
+class LUISA_XIR_API Instruction : public DerivedBlockScopeValue<Instruction, DerivedValueTag::INSTRUCTION, User> {
 
 protected:
     void _remove_self_from_operand_use_lists() noexcept;
@@ -153,7 +153,7 @@ public:
     LUISA_XIR_DEFINED_ISA_METHOD(Instruction, instruction)
 };
 
-class LC_XIR_API SentinelInst final : public Instruction {
+class LUISA_XIR_API SentinelInst final : public Instruction {
 public:
     explicit SentinelInst(BasicBlock *parent_block) noexcept;
     [[nodiscard]] DerivedInstructionTag derived_instruction_tag() const noexcept override;
@@ -162,14 +162,14 @@ public:
 
 using InstructionList = ManagedIntrusiveList<Instruction, SentinelInst>;
 
-class LC_XIR_API TerminatorInstruction : public Instruction {
+class LUISA_XIR_API TerminatorInstruction : public Instruction {
 public:
     explicit TerminatorInstruction(BasicBlock *block) noexcept;
     [[nodiscard]] bool is_terminator() const noexcept final { return true; }
 };
 
 // unconditional branch
-class LC_XIR_API BranchTerminatorInstruction : public TerminatorInstruction {
+class LUISA_XIR_API BranchTerminatorInstruction : public TerminatorInstruction {
 
 public:
     static constexpr size_t operand_index_target = 0u;
@@ -186,7 +186,7 @@ public:
 };
 
 // conditional branch
-class LC_XIR_API ConditionalBranchTerminatorInstruction : public TerminatorInstruction {
+class LUISA_XIR_API ConditionalBranchTerminatorInstruction : public TerminatorInstruction {
 
 public:
     static constexpr size_t operand_index_condition = 0u;
@@ -253,7 +253,7 @@ public:
     using DerivedInstruction<Derived, tag, ConditionalBranchTerminatorInstruction>::DerivedInstruction;
 };
 
-class LC_XIR_API ControlFlowMerge : luisa::concepts::Noncopyable {
+class LUISA_XIR_API ControlFlowMerge : luisa::concepts::Noncopyable {
 
 private:
     BasicBlock *_merge_block{nullptr};
@@ -313,7 +313,7 @@ public:
 };
 
 namespace detail {
-[[nodiscard]] LC_XIR_API luisa::string
+[[nodiscard]] LUISA_XIR_API luisa::string
 intrinsic_identifier_with_print_message(
     luisa::string base_ident,
     luisa::string_view message) noexcept;

@@ -514,9 +514,9 @@ ShaderInvokeBase &ShaderInvokeBase::operator<<(const SOA<T> &soa) noexcept {
     return *this << soa.view();
 }
 
-LC_DSL_API void error_soa_subview_out_of_range() noexcept;
-LC_DSL_API void error_soa_view_exceeds_uint_max() noexcept;
-LC_DSL_API void error_soa_index_out_of_range() noexcept;
+LUISA_DSL_API void error_soa_subview_out_of_range() noexcept;
+LUISA_DSL_API void error_soa_view_exceeds_uint_max() noexcept;
+LUISA_DSL_API void error_soa_index_out_of_range() noexcept;
 
 template<typename T>
 class SOAViewBase {

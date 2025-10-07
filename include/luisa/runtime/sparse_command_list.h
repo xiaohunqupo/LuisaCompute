@@ -5,7 +5,7 @@
 
 namespace luisa::compute {
 struct SparseCommandListCommit;
-class LC_RUNTIME_API SparseCommandList : concepts::Noncopyable {
+class LUISA_RUNTIME_API SparseCommandList : concepts::Noncopyable {
     friend struct SparseCommandListCommit;
 
 private:
@@ -25,7 +25,7 @@ public:
     [[nodiscard]] auto empty() const noexcept { return _update_cmd.empty(); }
     void clear() noexcept;
 };
-struct LC_RUNTIME_API SparseCommandListCommit {
+struct LUISA_RUNTIME_API SparseCommandListCommit {
     SparseCommandList cmd_list;
     void operator()(DeviceInterface *device, uint64_t stream_handle) noexcept;
 };

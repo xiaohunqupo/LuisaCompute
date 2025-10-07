@@ -9,10 +9,10 @@
 namespace luisa::compute {
 
 namespace detail {
-LC_RUNTIME_API void check_curve_cp_buffer_motion_keyframe_count(size_t total_cp_count, uint motion_keyframe_count);
+LUISA_RUNTIME_API void check_curve_cp_buffer_motion_keyframe_count(size_t total_cp_count, uint motion_keyframe_count);
 }// namespace detail
 
-class LC_RUNTIME_API Curve final : public Resource {
+class LUISA_RUNTIME_API Curve final : public Resource {
 
 public:
     using BuildRequest = AccelBuildRequest;

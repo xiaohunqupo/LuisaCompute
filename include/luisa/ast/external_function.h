@@ -11,7 +11,7 @@ namespace luisa::compute {
 
 class CallableLibrary;
 
-class LC_AST_API ExternalFunction {
+class LUISA_AST_API ExternalFunction {
 
     friend class CallableLibrary;
 

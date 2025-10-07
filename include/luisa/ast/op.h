@@ -57,7 +57,7 @@ struct TypePromotion {
     const Type *result{nullptr};
 };
 
-[[nodiscard]] LC_AST_API TypePromotion promote_types(BinaryOp op, const Type *lhs, const Type *rhs) noexcept;
+[[nodiscard]] LUISA_AST_API TypePromotion promote_types(BinaryOp op, const Type *lhs, const Type *rhs) noexcept;
 
 [[nodiscard]] constexpr auto is_relational(BinaryOp op) noexcept {
     return op == BinaryOp::LESS ||
@@ -486,7 +486,7 @@ static constexpr size_t call_op_count = to_underlying(CallOp::CLOCK) + 1u;
            op == CallOp::MAKE_FLOAT4X4;
 }
 class Expression;
-LC_AST_API void check_builtin_call_valid(CallOp op, const Type *return_type, luisa::span<const Expression *const> args) noexcept;
+LUISA_AST_API void check_builtin_call_valid(CallOp op, const Type *return_type, luisa::span<const Expression *const> args) noexcept;
 
 /**
  * @brief Set of call operations.
@@ -494,7 +494,7 @@ LC_AST_API void check_builtin_call_valid(CallOp op, const Type *return_type, lui
  */
 class CallableLibrary;
 
-class LC_AST_API CallOpSet {
+class LUISA_AST_API CallOpSet {
 
     friend class CallableLibrary;
 

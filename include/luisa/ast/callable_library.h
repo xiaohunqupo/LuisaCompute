@@ -15,7 +15,7 @@ class Callable;
 template<size_t dim, typename... T>
 class Kernel;
 
-class LC_AST_API CallableLibrary {
+class LUISA_AST_API CallableLibrary {
 public:
     using CallableMap = luisa::unordered_map<luisa::string, luisa::shared_ptr<const detail::FunctionBuilder>>;
 

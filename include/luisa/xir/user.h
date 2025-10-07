@@ -8,7 +8,7 @@ namespace luisa::compute::xir {
 
 class BasicBlock;
 
-class LC_XIR_API User : public Value {
+class LUISA_XIR_API User : public Value {
 
 private:
     luisa::vector<ManagedPtr<Use>> _operands;

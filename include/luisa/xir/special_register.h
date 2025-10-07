@@ -32,14 +32,14 @@ enum struct DerivedSpecialRegisterTag {
     return "unknown"sv;
 }
 
-class LC_XIR_API SpecialRegister : public DerivedGlobalValue<SpecialRegister, DerivedValueTag::SPECIAL_REGISTER> {
+class LUISA_XIR_API SpecialRegister : public DerivedGlobalValue<SpecialRegister, DerivedValueTag::SPECIAL_REGISTER> {
 public:
     SpecialRegister(Module *module, const Type *type) noexcept : Super{module, type} {}
     [[nodiscard]] virtual DerivedSpecialRegisterTag derived_special_register_tag() const noexcept = 0;
     LUISA_XIR_DEFINED_ISA_METHOD(SpecialRegister, special_register)
 };
 
-class LC_XIR_API SentinelSpecialRegister final : public SpecialRegister {
+class LUISA_XIR_API SentinelSpecialRegister final : public SpecialRegister {
 public:
     explicit SentinelSpecialRegister(Module *module) noexcept;
     [[nodiscard]] DerivedSpecialRegisterTag derived_special_register_tag() const noexcept override;
@@ -49,8 +49,8 @@ using SpecialRegisterList = ManagedIntrusiveList<SpecialRegister, SentinelSpecia
 
 namespace detail {
 
-[[nodiscard]] LC_XIR_API const Type *special_register_type_uint() noexcept;
-[[nodiscard]] LC_XIR_API const Type *special_register_type_uint3() noexcept;
+[[nodiscard]] LUISA_XIR_API const Type *special_register_type_uint() noexcept;
+[[nodiscard]] LUISA_XIR_API const Type *special_register_type_uint3() noexcept;
 
 template<typename T>
 [[nodiscard]] auto get_special_register_type() noexcept {

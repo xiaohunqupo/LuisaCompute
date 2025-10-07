@@ -4,7 +4,7 @@
 
 namespace luisa::compute::xir {
 
-class LC_XIR_API LoadInst final : public DerivedInstruction<LoadInst, DerivedInstructionTag::LOAD> {
+class LUISA_XIR_API LoadInst final : public DerivedInstruction<LoadInst, DerivedInstructionTag::LOAD> {
 public:
     LoadInst(BasicBlock *parent_block, const Type *type, Value *variable) noexcept;
     [[nodiscard]] Value *variable() noexcept;

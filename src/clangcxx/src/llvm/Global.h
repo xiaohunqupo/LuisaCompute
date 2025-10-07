@@ -7,7 +7,7 @@
 
 namespace luisa::clangcxx {
 
-struct LC_CLANGCXX_API Global
+struct LUISA_CLANGCXX_API Global
 {
     static llvm::cl::OptionCategory ToolCategoryOption;
     static llvm::cl::cat ToolCategory;

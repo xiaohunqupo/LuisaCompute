@@ -12,7 +12,7 @@ namespace luisa {
  *
  */
 class MemorySanitizer;
-class LC_CORE_API DynamicModule : concepts::Noncopyable {
+class LUISA_CORE_API DynamicModule : concepts::Noncopyable {
 
 private:
     friend ::luisa::MemorySanitizer;

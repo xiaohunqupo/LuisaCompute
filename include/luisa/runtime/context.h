@@ -20,7 +20,7 @@ namespace detail {
 class ContextImpl;
 }// namespace detail
 
-class LC_RUNTIME_API Context {
+class LUISA_RUNTIME_API Context {
 
 private:
     luisa::shared_ptr<detail::ContextImpl> _impl;

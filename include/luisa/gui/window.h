@@ -8,7 +8,7 @@
 struct GLFWwindow;
 namespace luisa::compute {
 
-class LC_GUI_API Window {
+class LUISA_GUI_API Window {
 
 public:
     using MouseButtonCallback = luisa::move_only_function<void(MouseButton button, Action action, float2 xy)>;

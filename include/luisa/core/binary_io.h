@@ -75,7 +75,7 @@ public:
     virtual ~BinaryStream() noexcept = default;
 };
 
-class LC_CORE_API BinaryIO {
+class LUISA_CORE_API BinaryIO {
 
 public:
     virtual ~BinaryIO() noexcept = default;

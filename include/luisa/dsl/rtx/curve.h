@@ -5,7 +5,7 @@
 
 namespace luisa::compute {
 
-struct LC_DSL_API CurveEvaluation {
+struct LUISA_DSL_API CurveEvaluation {
 
     Float3 position;
     Float3 normal;
@@ -15,7 +15,7 @@ struct LC_DSL_API CurveEvaluation {
     [[nodiscard]] Float v(Expr<float3> w) const noexcept { return h(w) * .5f + .5f; }
 };
 
-class LC_DSL_API CurveEvaluator {
+class LUISA_DSL_API CurveEvaluator {
 
 public:
     using Evaluation = CurveEvaluation;
@@ -34,7 +34,7 @@ public:
     [[nodiscard]] static luisa::unique_ptr<CurveEvaluator> create(CurveBasis basis, P &&...p) noexcept;
 };
 
-class LC_DSL_API PiecewiseLinearCurve final : public CurveEvaluator {
+class LUISA_DSL_API PiecewiseLinearCurve final : public CurveEvaluator {
 
 private:
     Float4 _p0;
@@ -48,7 +48,7 @@ public:
     [[nodiscard]] CurveEvaluation evaluate(Expr<float> u, Expr<float3> ps) const noexcept override;
 };
 
-class LC_DSL_API CubicCurve : public CurveEvaluator {
+class LUISA_DSL_API CubicCurve : public CurveEvaluator {
 
 private:
     Float4 _p0;
@@ -65,7 +65,7 @@ public:
     [[nodiscard]] Float4 second_derivative(Expr<float> u) const noexcept override;
 };
 
-class LC_DSL_API CubicBSplineCurve final : public CubicCurve {
+class LUISA_DSL_API CubicBSplineCurve final : public CubicCurve {
 public:
     CubicBSplineCurve(Expr<float4> q0,
                       Expr<float4> q1,
@@ -73,7 +73,7 @@ public:
                       Expr<float4> q3) noexcept;
 };
 
-class LC_DSL_API CatmullRomCurve final : public CubicCurve {
+class LUISA_DSL_API CatmullRomCurve final : public CubicCurve {
 public:
     CatmullRomCurve(Expr<float4> q0,
                     Expr<float4> q1,
@@ -81,7 +81,7 @@ public:
                     Expr<float4> q3) noexcept;
 };
 
-class LC_DSL_API BezierCurve final : public CubicCurve {
+class LUISA_DSL_API BezierCurve final : public CubicCurve {
 
 public:
     BezierCurve(Expr<float4> q0,

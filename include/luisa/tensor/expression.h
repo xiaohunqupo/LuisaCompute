@@ -32,9 +32,9 @@ class TensorExpr {
     //     TensorExpr *_last = nullptr;
     //     TensorExpr *_next = nullptr;
     // public:
-    //     LC_TENSOR_API std::pair<TensorExpr *, TensorExpr *> remove_self() noexcept;
-    //     LC_TENSOR_API void add_after(TensorExpr *expr) noexcept;
-    //     LC_TENSOR_API void add_before(TensorExpr *expr) noexcept;
+    //     LUISA_TENSOR_API std::pair<TensorExpr *, TensorExpr *> remove_self() noexcept;
+    //     LUISA_TENSOR_API void add_after(TensorExpr *expr) noexcept;
+    //     LUISA_TENSOR_API void add_before(TensorExpr *expr) noexcept;
     //     [[nodiscard]] auto last() const noexcept { return _last; }
     //     [[nodiscard]] auto next() const noexcept { return _next; }
 public:
@@ -66,7 +66,7 @@ public:
 };
 
 #define LUISA_TENSOR_EXPR_CLASS_INHERIT(ClassName) ClassName final : public TensorExprCRTPDerive<ClassName, TensorExpr::Tag::E##ClassName>
-class LC_TENSOR_API LUISA_TENSOR_EXPR_CLASS_INHERIT(ScopeExpr) {
+class LUISA_TENSOR_API LUISA_TENSOR_EXPR_CLASS_INHERIT(ScopeExpr) {
 public:
     struct Arg {
         TensorData *tensor;
@@ -126,7 +126,7 @@ public:
         callback(tensor_data, Usage::WRITE);
     }
 };
-class LC_TENSOR_API LUISA_TENSOR_EXPR_CLASS_INHERIT(GEMMExpr) {
+class LUISA_TENSOR_API LUISA_TENSOR_EXPR_CLASS_INHERIT(GEMMExpr) {
 public:
     TensorData *lhs_tensor;
     TensorData *rhs_tensor;
@@ -144,7 +144,7 @@ public:
     }
 };
 
-class LC_TENSOR_API LUISA_TENSOR_EXPR_CLASS_INHERIT(ConvExpr) {
+class LUISA_TENSOR_API LUISA_TENSOR_EXPR_CLASS_INHERIT(ConvExpr) {
 public:
     TensorData *input_tensor;
     TensorData *weight_tensor;
@@ -173,7 +173,7 @@ public:
     static luisa::variant<TensorData *, luisa::string> get_output_tensor(TensorData *input_tensor, TensorData *filter_tensor) noexcept;
 };
 
-class LC_TENSOR_API LUISA_TENSOR_EXPR_CLASS_INHERIT(SoftmaxExpr) {
+class LUISA_TENSOR_API LUISA_TENSOR_EXPR_CLASS_INHERIT(SoftmaxExpr) {
 public:
     TensorData *input;
     SoftmaxExpr(

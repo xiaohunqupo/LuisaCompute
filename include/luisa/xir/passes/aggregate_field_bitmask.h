@@ -13,7 +13,7 @@ namespace detail {
 class AggregateFieldTree;
 }// namespace detail
 
-class LC_XIR_API alignas(16) AggregateFieldBitmask {
+class LUISA_XIR_API alignas(16) AggregateFieldBitmask {
 
 private:
     const detail::AggregateFieldTree *_field_tree;
@@ -44,7 +44,7 @@ public:
     [[nodiscard]] const Type *type() const noexcept;
 
 public:
-    class LC_XIR_API ConstBitSpan {
+    class LUISA_XIR_API ConstBitSpan {
     protected:
         uint64_t *_bits;
         uint32_t _offset;
@@ -59,7 +59,7 @@ public:
         [[nodiscard]] bool any() const noexcept;
         [[nodiscard]] bool none() const noexcept;
     };
-    class LC_XIR_API BitSpan : public ConstBitSpan {
+    class LUISA_XIR_API BitSpan : public ConstBitSpan {
     public:
         using ConstBitSpan::ConstBitSpan;
         [[nodiscard]] uint64_t *raw_bits() noexcept { return _bits; }

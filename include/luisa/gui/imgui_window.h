@@ -19,7 +19,7 @@ class Image;
 
 class Sampler;
 
-class LC_GUI_API ImGuiWindow {
+class LUISA_GUI_API ImGuiWindow {
 
 public:
     using MouseButtonCallback = luisa::move_only_function<void(MouseButton button, Action action, float2 xy)>;

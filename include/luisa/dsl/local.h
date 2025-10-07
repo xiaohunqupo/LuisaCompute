@@ -7,7 +7,7 @@ namespace luisa::compute {
 
 namespace detail {
 
-LC_DSL_API void local_array_error_sizes_missmatch(size_t lhs, size_t rhs) noexcept;
+LUISA_DSL_API void local_array_error_sizes_missmatch(size_t lhs, size_t rhs) noexcept;
 
 template<typename T>
 [[nodiscard]] inline auto local_array_choose_type(size_t n) noexcept {

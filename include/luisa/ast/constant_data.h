@@ -11,7 +11,7 @@ namespace luisa::compute {
 
 class CallableLibrary;
 
-class LC_AST_API ConstantDecoder {
+class LUISA_AST_API ConstantDecoder {
 
 protected:
     virtual void _decode_bool(bool x) noexcept = 0;
@@ -41,7 +41,7 @@ public:
     virtual void decode(const Type *type, const std::byte *data) noexcept;
 };
 
-class LC_AST_API ConstantData {
+class LUISA_AST_API ConstantData {
     friend class CallableLibrary;
 
 private:

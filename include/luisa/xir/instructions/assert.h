@@ -4,7 +4,7 @@
 
 namespace luisa::compute::xir {
 
-class LC_XIR_API AssertInst final : public PrintMessageMixin<DerivedInstruction<AssertInst, DerivedInstructionTag::ASSERT>> {
+class LUISA_XIR_API AssertInst final : public PrintMessageMixin<DerivedInstruction<AssertInst, DerivedInstructionTag::ASSERT>> {
 
 public:
     static constexpr size_t operand_index_condition = 0u;

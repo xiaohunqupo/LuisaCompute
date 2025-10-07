@@ -70,7 +70,7 @@ struct prototype_to_shader_invocation<SOA<T>> {
 template<typename T>
 using prototype_to_shader_invocation_t = typename prototype_to_shader_invocation<T>::type;
 
-class LC_RUNTIME_API ShaderInvokeBase {
+class LUISA_RUNTIME_API ShaderInvokeBase {
 
 private:
     ComputeDispatchCmdEncoder _encoder;

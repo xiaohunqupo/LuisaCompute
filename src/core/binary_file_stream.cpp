@@ -13,7 +13,7 @@ namespace luisa {
 
 namespace detail {
 
-[[nodiscard]] LC_CORE_API size_t get_c_file_length(::FILE *file) noexcept {
+[[nodiscard]] LUISA_CORE_API size_t get_c_file_length(::FILE *file) noexcept {
     LUISA_FSEEK(file, 0, SEEK_END);
     auto length = LUISA_FTELL(file);
     LUISA_FSEEK(file, 0, SEEK_SET);

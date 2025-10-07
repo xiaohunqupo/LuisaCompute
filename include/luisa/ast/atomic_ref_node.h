@@ -5,7 +5,7 @@
 
 namespace luisa::compute::detail {
 
-class LC_AST_API AtomicRefNode {
+class LUISA_AST_API AtomicRefNode {
 
 private:
     const AtomicRefNode *_parent;

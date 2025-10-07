@@ -10,7 +10,7 @@ if (LUISA_COMPUTE_ENABLE_CLANG_CXX)
             UNITY_BUILD ${LUISA_COMPUTE_ENABLE_UNITY_BUILD}
             OUTPUT_NAME "lc-clangcxx")
     target_compile_definitions(luisa-compute-clangcxx PRIVATE
-            LC_CLANGCXX_EXPORT_DLL
+            LUISA_CLANGCXX_EXPORT_DLL
             $<$<CONFIG:Debug>:LC_CLANGCXX_ENABLE_COMMENT=1>
             PUBLIC LUISA_ENABLE_CLANGCXX=1)
     target_include_directories(luisa-compute-clangcxx PRIVATE ${CLANG_INCLUDE_DIRS})

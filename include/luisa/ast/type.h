@@ -309,7 +309,7 @@ constexpr size_t coop_ref_vec_type_size(CoopRefVecType type) {
     }
 }
 /// Type class
-class LC_AST_API Type {
+class LUISA_AST_API Type {
     friend class ::luisa::MemorySanitizer;
     static void reset_type_registry() noexcept;
 

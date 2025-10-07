@@ -14,7 +14,7 @@ class RayQueryBase;
 
 // RayQuery DSL module, see test_procedural.cpp as example
 
-class LC_DSL_API SurfaceCandidate {
+class LUISA_DSL_API SurfaceCandidate {
 
 private:
     const Expression *_query;
@@ -41,7 +41,7 @@ public:
 // legacy names, provided for compatibility
 using TriangleCandidate = SurfaceCandidate;
 
-class LC_DSL_API ProceduralCandidate {
+class LUISA_DSL_API ProceduralCandidate {
 
 private:
     const Expression *_query;
@@ -74,7 +74,7 @@ template<bool terminate_on_first>
 class RayQueryProceduralProxy;
 
 template<bool terminate_on_first>
-class LC_DSL_API RayQueryBase {
+class LUISA_DSL_API RayQueryBase {
 protected:
     RayQueryStmt *_stmt;
     bool _inside_surface_handler{false};

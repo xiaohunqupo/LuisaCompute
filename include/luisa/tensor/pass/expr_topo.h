@@ -3,7 +3,7 @@
 #include <luisa/tensor/expression.h>
 
 namespace luisa::compute {
-class LC_TENSOR_API ExprTopo {
+class LUISA_TENSOR_API ExprTopo {
     struct ExprDependency {
         TensorExpr *self;
         // this expr depends on

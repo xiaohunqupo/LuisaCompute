@@ -14,7 +14,7 @@ namespace detail {
 class FunctionBuilder;
 }// namespace detail
 
-class LC_IR_API AST2IR {
+class LUISA_IR_API AST2IR {
     
 public:
     [[nodiscard]] static luisa::shared_ptr<ir::CArc<ir::KernelModule>> build_kernel(Function function) noexcept;

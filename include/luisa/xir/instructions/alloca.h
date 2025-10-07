@@ -4,7 +4,7 @@
 
 namespace luisa::compute::xir {
 
-class LC_XIR_API AllocaInst final : public InstructionOpMixin<AllocaOp, DerivedInstruction<AllocaInst, DerivedInstructionTag::ALLOCA>> {
+class LUISA_XIR_API AllocaInst final : public InstructionOpMixin<AllocaOp, DerivedInstruction<AllocaInst, DerivedInstructionTag::ALLOCA>> {
 public:
     AllocaInst(BasicBlock *parent_block, const Type *type, AllocaOp op) noexcept;
     [[nodiscard]] auto is_local() const noexcept { return op() == AllocaOp::LOCAL; }

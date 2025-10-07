@@ -5,10 +5,10 @@
 namespace luisa {
 
 namespace detail {
-[[nodiscard]] LC_CORE_API size_t get_c_file_length(::FILE *file) noexcept;
+[[nodiscard]] LUISA_CORE_API size_t get_c_file_length(::FILE *file) noexcept;
 }// namespace detail
 
-class LC_CORE_API BinaryFileStream : public BinaryStream {
+class LUISA_CORE_API BinaryFileStream : public BinaryStream {
 
 private:
     ::FILE *_file{nullptr};

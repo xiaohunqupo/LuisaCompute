@@ -16,7 +16,7 @@ struct AutodiffOptions {
     bool run_backward{true};
 };
 
-LC_XIR_API void autodiff_pass_run_on_function(Function *function, const AutodiffOptions &options = {}) noexcept;
-LC_XIR_API void autodiff_pass_run_on_module(Module *module, const AutodiffOptions &options = {}) noexcept;
+LUISA_XIR_API void autodiff_pass_run_on_function(Function *function, const AutodiffOptions &options = {}) noexcept;
+LUISA_XIR_API void autodiff_pass_run_on_module(Module *module, const AutodiffOptions &options = {}) noexcept;
 
 }// namespace luisa::compute::xir

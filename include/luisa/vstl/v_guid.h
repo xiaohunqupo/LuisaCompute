@@ -2,7 +2,7 @@
 #include <luisa/vstl/common.h>
 #include <luisa/vstl/md5.h>
 namespace vstd {
-class LC_VSTL_API Guid {
+class LUISA_VSTL_API Guid {
 	friend class StackObject<Guid, false>;
 
 public:

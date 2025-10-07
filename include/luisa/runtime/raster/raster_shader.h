@@ -41,7 +41,7 @@ static constexpr bool LegalDst() noexcept {
     }
 }
 
-class LC_RUNTIME_API RasterShaderInvoke {
+class LUISA_RUNTIME_API RasterShaderInvoke {
 
 private:
     RasterDispatchCmdEncoder _command;

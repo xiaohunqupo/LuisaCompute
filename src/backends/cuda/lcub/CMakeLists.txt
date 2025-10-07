@@ -20,7 +20,7 @@ install(TARGETS luisa-compute-cuda-ext-dcub EXPORT LuisaComputeTargets
 file(GLOB LCUB_SOURCES CONFIGURE_DEPENDS "*.cpp")
 add_library(luisa-compute-cuda-ext-lcub SHARED ${LCUB_SOURCES})
 target_link_libraries(luisa-compute-cuda-ext-lcub PUBLIC luisa-compute-runtime luisa-compute-cuda-ext-dcub)
-target_compile_definitions(luisa-compute-cuda-ext-lcub PRIVATE LC_BACKEND_EXPORT_DLL=1)
+target_compile_definitions(luisa-compute-cuda-ext-lcub PRIVATE LUISA_BACKEND_EXPORT_DLL=1)
 set_target_properties(luisa-compute-cuda-ext-lcub PROPERTIES OUTPUT_NAME "lc-cuda-lcub")
 install(TARGETS luisa-compute-cuda-ext-lcub EXPORT LuisaComputeTargets
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}

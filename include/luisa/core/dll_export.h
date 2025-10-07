@@ -22,116 +22,116 @@
 
 #ifdef _MSC_VER
 
-#ifdef LC_CORE_EXPORT_DLL
-#define LC_CORE_API __declspec(dllexport)
+#ifdef LUISA_CORE_EXPORT_DLL
+#define LUISA_CORE_API __declspec(dllexport)
 #else
-#define LC_CORE_API __declspec(dllimport)
+#define LUISA_CORE_API __declspec(dllimport)
 #endif
 
 #ifdef LUISA_VSTL_STATIC_LIB
-#define LC_VSTL_API
+#define LUISA_VSTL_API
 #else
-#ifdef LC_VSTL_EXPORT_DLL
-#define LC_VSTL_API __declspec(dllexport)
+#ifdef LUISA_VSTL_EXPORT_DLL
+#define LUISA_VSTL_API __declspec(dllexport)
 #else
-#define LC_VSTL_API __declspec(dllimport)
+#define LUISA_VSTL_API __declspec(dllimport)
 #endif
 #endif
 
-#ifdef LC_GUI_EXPORT_DLL
-#define LC_GUI_API __declspec(dllexport)
+#ifdef LUISA_GUI_EXPORT_DLL
+#define LUISA_GUI_API __declspec(dllexport)
 #else
-#define LC_GUI_API __declspec(dllimport)
+#define LUISA_GUI_API __declspec(dllimport)
 #endif
 
-#ifdef LC_AST_EXPORT_DLL
-#define LC_AST_API __declspec(dllexport)
+#ifdef LUISA_AST_EXPORT_DLL
+#define LUISA_AST_API __declspec(dllexport)
 #else
-#define LC_AST_API __declspec(dllimport)
+#define LUISA_AST_API __declspec(dllimport)
 #endif
 
-#ifdef LC_RUNTIME_EXPORT_DLL
-#define LC_RUNTIME_API __declspec(dllexport)
+#ifdef LUISA_RUNTIME_EXPORT_DLL
+#define LUISA_RUNTIME_API __declspec(dllexport)
 #else
-#define LC_RUNTIME_API __declspec(dllimport)
+#define LUISA_RUNTIME_API __declspec(dllimport)
 #endif
 
 #ifdef LUISA_DSL_STATIC_LIB
-#define LC_DSL_API
+#define LUISA_DSL_API
 #else
-#ifdef LC_DSL_EXPORT_DLL
-#define LC_DSL_API __declspec(dllexport)
+#ifdef LUISA_DSL_EXPORT_DLL
+#define LUISA_DSL_API __declspec(dllexport)
 #else
-#define LC_DSL_API __declspec(dllimport)
+#define LUISA_DSL_API __declspec(dllimport)
 #endif
 #endif
 
 #ifdef LUISA_TENSOR_STATIC_LIB
-#define LC_TENSOR_API
+#define LUISA_TENSOR_API
 #else
-#ifdef LC_TENSOR_EXPORT_DLL
-#define LC_TENSOR_API __declspec(dllexport)
+#ifdef LUISA_TENSOR_EXPORT_DLL
+#define LUISA_TENSOR_API __declspec(dllexport)
 #else
-#define LC_TENSOR_API __declspec(dllimport)
+#define LUISA_TENSOR_API __declspec(dllimport)
 #endif
 #endif
 
-#ifdef LC_OSL_EXPORT_DLL
-#define LC_OSL_API __declspec(dllexport)
+#ifdef LUISA_OSL_EXPORT_DLL
+#define LUISA_OSL_API __declspec(dllexport)
 #else
-#define LC_OSL_API __declspec(dllimport)
+#define LUISA_OSL_API __declspec(dllimport)
 #endif
 
-#ifdef LC_IR_EXPORT_DLL
-#define LC_IR_API __declspec(dllexport)
+#ifdef LUISA_IR_EXPORT_DLL
+#define LUISA_IR_API __declspec(dllexport)
 #else
-#define LC_IR_API __declspec(dllimport)
+#define LUISA_IR_API __declspec(dllimport)
 #endif
 
-#ifdef LC_SERDE_LIB_EXPORT_DLL
-#define LC_SERDE_LIB_API __declspec(dllexport)
+#ifdef LUISA_SERDE_LIB_EXPORT_DLL
+#define LUISA_SERDE_LIB_API __declspec(dllexport)
 #else
-#define LC_SERDE_LIB_API __declspec(dllimport)
+#define LUISA_SERDE_LIB_API __declspec(dllimport)
 #endif
 
-#ifdef LC_REMOTE_EXPORT_DLL
-#define LC_REMOTE_API __declspec(dllexport)
+#ifdef LUISA_REMOTE_EXPORT_DLL
+#define LUISA_REMOTE_API __declspec(dllexport)
 #else
-#define LC_REMOTE_API __declspec(dllimport)
+#define LUISA_REMOTE_API __declspec(dllimport)
 #endif
 
-#ifdef LC_BACKEND_EXPORT_DLL
-#define LC_BACKEND_API __declspec(dllexport)
+#ifdef LUISA_BACKEND_EXPORT_DLL
+#define LUISA_BACKEND_API __declspec(dllexport)
 #else
-#define LC_BACKEND_API __declspec(dllimport)
+#define LUISA_BACKEND_API __declspec(dllimport)
 #endif
 
-#ifdef LC_CLANGCXX_EXPORT_DLL
-#define LC_CLANGCXX_API __declspec(dllexport)
+#ifdef LUISA_CLANGCXX_EXPORT_DLL
+#define LUISA_CLANGCXX_API __declspec(dllexport)
 #else
-#define LC_CLANGCXX_API __declspec(dllimport)
+#define LUISA_CLANGCXX_API __declspec(dllimport)
 #endif
 
-#ifdef LC_XIR_EXPORT_DLL
-#define LC_XIR_API __declspec(dllexport)
+#ifdef LUISA_XIR_EXPORT_DLL
+#define LUISA_XIR_API __declspec(dllexport)
 #else
-#define LC_XIR_API __declspec(dllimport)
+#define LUISA_XIR_API __declspec(dllimport)
 #endif
 
 #else
-#define LC_CORE_API
-#define LC_VSTL_API
-#define LC_AST_API
-#define LC_RUNTIME_API
-#define LC_DSL_API
-#define LC_TENSOR_API
-#define LC_OSL_API
-#define LC_IR_API
-#define LC_SERDE_LIB_API
-#define LC_REMOTE_API
-#define LC_GUI_API
-#define LC_BACKEND_API
-#define LC_CLANGCXX_API
-#define LC_XIR_API
+#define LUISA_CORE_API
+#define LUISA_VSTL_API
+#define LUISA_AST_API
+#define LUISA_RUNTIME_API
+#define LUISA_DSL_API
+#define LUISA_TENSOR_API
+#define LUISA_OSL_API
+#define LUISA_IR_API
+#define LUISA_SERDE_LIB_API
+#define LUISA_REMOTE_API
+#define LUISA_GUI_API
+#define LUISA_BACKEND_API
+#define LUISA_CLANGCXX_API
+#define LUISA_XIR_API
 #endif
 

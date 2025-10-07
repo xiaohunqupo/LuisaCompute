@@ -12,7 +12,7 @@ enum struct DerivedArgumentTag {
     RESOURCE,
 };
 
-class LC_XIR_API Argument : public DerivedFunctionScopeValue<Argument, DerivedValueTag::ARGUMENT> {
+class LUISA_XIR_API Argument : public DerivedFunctionScopeValue<Argument, DerivedValueTag::ARGUMENT> {
 public:
     Argument(Function *parent_function, const Type *type) noexcept : Super{parent_function, type} {}
     [[nodiscard]] virtual DerivedArgumentTag derived_argument_tag() const noexcept = 0;
@@ -23,7 +23,7 @@ public:
     LUISA_XIR_DEFINED_ISA_METHOD(Argument, argument)
 };
 
-class LC_XIR_API SentinelArgument final : public Argument {
+class LUISA_XIR_API SentinelArgument final : public Argument {
 public:
     explicit SentinelArgument(Function *parent_function) noexcept;
     [[nodiscard]] DerivedArgumentTag derived_argument_tag() const noexcept override;

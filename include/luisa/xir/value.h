@@ -33,7 +33,7 @@ enum struct DerivedValueTag {
     return "unknown"sv;
 }
 
-class LC_XIR_API Value : public Managed<Value>,
+class LUISA_XIR_API Value : public Managed<Value>,
                          public MetadataListMixin {
 
 private:
@@ -77,7 +77,7 @@ class Function;
 class FunctionDefinition;
 class BasicBlock;
 
-class LC_XIR_API GlobalValueModuleMixin {
+class LUISA_XIR_API GlobalValueModuleMixin {
 
 private:
     Module *_parent_module;
@@ -104,7 +104,7 @@ public:
     [[nodiscard]] bool is_global() const noexcept final { return true; }
 };
 
-class LC_XIR_API LocalValueFunctionMixin {
+class LUISA_XIR_API LocalValueFunctionMixin {
 
 private:
     friend class Function;
@@ -135,7 +135,7 @@ public:
           LocalValueFunctionMixin{function} {}
 };
 
-class LC_XIR_API LocalValueBlockMixin {
+class LUISA_XIR_API LocalValueBlockMixin {
 
 private:
     friend class BasicBlock;

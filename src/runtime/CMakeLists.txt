@@ -55,7 +55,7 @@ endif ()
 
 target_precompile_headers(luisa-compute-runtime PRIVATE lc_runtime_pch.h)
 
-target_compile_definitions(luisa-compute-runtime PRIVATE LC_RUNTIME_EXPORT_DLL=1)
+target_compile_definitions(luisa-compute-runtime PRIVATE LUISA_RUNTIME_EXPORT_DLL=1)
 set_target_properties(luisa-compute-runtime PROPERTIES
         UNITY_BUILD ${LUISA_COMPUTE_ENABLE_UNITY_BUILD}
         OUTPUT_NAME lc-runtime)

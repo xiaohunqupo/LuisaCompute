@@ -6,7 +6,7 @@ on_load(function(target)
     local function rela(p)
         return path.relative(path.absolute(p, os.scriptdir()), os.projectdir())
     end
-    target:add("defines", "LC_IR_EXPORT_DLL")
+    target:add("defines", "LUISA_IR_EXPORT_DLL")
     target:add("deps", "lc-runtime", "lc-ir", "lc-ast", "lc-rust")
     if get_config("_lc_vk_sdk_dir") then
 		target:add("deps", "lc-vulkan-swapchain")

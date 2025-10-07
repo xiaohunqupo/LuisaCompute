@@ -22,7 +22,7 @@ struct LocalStoreForwardInfo {
     size_t removed_load_count{0u};
 };
 
-[[nodiscard]] LC_XIR_API LocalStoreForwardInfo local_store_forward_pass_run_on_function(Function *function) noexcept;
-[[nodiscard]] LC_XIR_API LocalStoreForwardInfo local_store_forward_pass_run_on_module(Module *module) noexcept;
+[[nodiscard]] LUISA_XIR_API LocalStoreForwardInfo local_store_forward_pass_run_on_function(Function *function) noexcept;
+[[nodiscard]] LUISA_XIR_API LocalStoreForwardInfo local_store_forward_pass_run_on_module(Module *module) noexcept;
 
 }// namespace luisa::compute::xir

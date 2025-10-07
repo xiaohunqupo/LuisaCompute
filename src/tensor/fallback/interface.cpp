@@ -168,7 +168,7 @@ void FallbackTensorInterface::execute(
     }
 }
 
-LC_TENSOR_API luisa::unique_ptr<TensorInterface> TensorInterface::create_fallback_backend(Device &device) {
+LUISA_TENSOR_API luisa::unique_ptr<TensorInterface> TensorInterface::create_fallback_backend(Device &device) {
     return luisa::make_unique<FallbackTensorInterface>(device);
 }
 }// namespace luisa::compute

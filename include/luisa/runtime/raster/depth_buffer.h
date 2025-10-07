@@ -5,7 +5,7 @@
 
 namespace luisa::compute {
 class RasterExt;
-class LC_RUNTIME_API DepthBuffer : public Resource {
+class LUISA_RUNTIME_API DepthBuffer : public Resource {
     friend class ResourceGenerator;
 
 private:

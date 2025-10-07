@@ -4,7 +4,7 @@
 
 namespace luisa::compute::xir {
 
-class LC_XIR_API AtomicInst final : public InstructionOpMixin<AtomicOp, DerivedInstruction<AtomicInst, DerivedInstructionTag::ATOMIC>> {
+class LUISA_XIR_API AtomicInst final : public InstructionOpMixin<AtomicOp, DerivedInstruction<AtomicInst, DerivedInstructionTag::ATOMIC>> {
 public:
     AtomicInst(BasicBlock *parent_block, const Type *type, AtomicOp op, Value *base,
                luisa::span<Value *const> indices = {}, luisa::span<Value *const> values = {}) noexcept;

@@ -7,10 +7,10 @@
 namespace luisa::compute {
 
 namespace detail {
-LC_DSL_API void luisa_compute_validate_warp_size(uint8_t warp_size) noexcept {
+LUISA_DSL_API void luisa_compute_validate_warp_size(uint8_t warp_size) noexcept {
     LUISA_ASSERT(warp_size >= 8 && warp_size <= 128 && luisa::next_pow2<uint>(warp_size) == warp_size, "Invalid warp size.");
 }
-LC_DSL_API void luisa_compute_validate_block_size(uint x, uint y, uint z) noexcept {
+LUISA_DSL_API void luisa_compute_validate_block_size(uint x, uint y, uint z) noexcept {
     auto size = make_uint3(x, y, z);
     LUISA_ASSERT(all(size >= 1u && size <= 1024u),
                  "Invalid block size ({}, {}, {}). "
@@ -22,13 +22,13 @@ LC_DSL_API void luisa_compute_validate_block_size(uint x, uint y, uint z) noexce
                  x, y, z);
 }
 
-LC_DSL_API void luisa_compute_validate_local_array_backward_types(const Type *x, const Type *grad) noexcept {
+LUISA_DSL_API void luisa_compute_validate_local_array_backward_types(const Type *x, const Type *grad) noexcept {
     LUISA_ASSERT(*x == *grad,
                  "Invalid backward type: {} vs {}.",
                  x->description(), grad->description());
 }
 
-LC_DSL_API void luisa_compute_check_matrix_size(uint idx, uint max_size) {
+LUISA_DSL_API void luisa_compute_check_matrix_size(uint idx, uint max_size) {
     if (idx >= max_size) [[unlikely]] {
         LUISA_ERROR("Matrix access index {} out of range [0, {}]", idx, max_size - 1);
     }
@@ -288,11 +288,11 @@ struct MulMatVecCallable {
 };
 
 #define LUISA_IMPL_MUL(TT, dim)                                                                                             \
-    LC_DSL_API Var<TT##dim##x##dim> luisa_compute_mul_##TT##dim##x##dim(Expr<TT##dim##x##dim> a, Expr<TT##dim##x##dim> b) { \
+    LUISA_DSL_API Var<TT##dim##x##dim> luisa_compute_mul_##TT##dim##x##dim(Expr<TT##dim##x##dim> a, Expr<TT##dim##x##dim> b) { \
         static detail::MulMatMatCallable<TT, dim> _func;                                                                    \
         return _func.func(a, b);                                                                                            \
     }                                                                                                                       \
-    LC_DSL_API Var<TT##dim> luisa_compute_mul_##TT##dim##x##dim(Expr<TT##dim##x##dim> a, Expr<TT##dim> b) {                 \
+    LUISA_DSL_API Var<TT##dim> luisa_compute_mul_##TT##dim##x##dim(Expr<TT##dim##x##dim> a, Expr<TT##dim> b) {                 \
         static detail::MulMatVecCallable<TT, dim> _func;                                                                    \
         return _func.func(a, b);                                                                                            \
     }
@@ -308,19 +308,19 @@ LUISA_IMPL_MUL_ALL(double)
 }// namespace detail
 
 #define LUISA_MATRIX_INTRIN(TYPE, DIM)                                                  \
-    LC_DSL_API Var<TYPE##DIM##x##DIM> transpose(Expr<TYPE##DIM##x##DIM> mat) {          \
+    LUISA_DSL_API Var<TYPE##DIM##x##DIM> transpose(Expr<TYPE##DIM##x##DIM> mat) {          \
         static Callable<TYPE##DIM##x##DIM(TYPE##DIM##x##DIM)> _callable{[&](auto &&v) { \
             return detail::luisa_compute_transpose<TYPE>(v);                            \
         }};                                                                             \
         return _callable(mat);                                                          \
     }                                                                                   \
-    LC_DSL_API Var<TYPE##DIM##x##DIM> inverse(Expr<TYPE##DIM##x##DIM> mat) {            \
+    LUISA_DSL_API Var<TYPE##DIM##x##DIM> inverse(Expr<TYPE##DIM##x##DIM> mat) {            \
         static Callable<TYPE##DIM##x##DIM(TYPE##DIM##x##DIM)> _callable{[&](auto &&v) { \
             return detail::luisa_compute_inverse<TYPE>(v);                              \
         }};                                                                             \
         return _callable(mat);                                                          \
     }                                                                                   \
-    LC_DSL_API Var<TYPE> determinant(Expr<TYPE##DIM##x##DIM> mat) {                     \
+    LUISA_DSL_API Var<TYPE> determinant(Expr<TYPE##DIM##x##DIM> mat) {                     \
         static Callable<TYPE(TYPE##DIM##x##DIM)> _callable{[&](auto &&v) {              \
             return detail::luisa_compute_determinant<TYPE>(v);                          \
         }};                                                                             \

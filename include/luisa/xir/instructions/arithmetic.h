@@ -4,7 +4,7 @@
 
 namespace luisa::compute::xir {
 
-class LC_XIR_API ArithmeticInst final : public InstructionOpMixin<ArithmeticOp, DerivedInstruction<ArithmeticInst, DerivedInstructionTag::ARITHMETIC>> {
+class LUISA_XIR_API ArithmeticInst final : public InstructionOpMixin<ArithmeticOp, DerivedInstruction<ArithmeticInst, DerivedInstructionTag::ARITHMETIC>> {
 public:
     ArithmeticInst(BasicBlock *parent_block,
                    const Type *type, ArithmeticOp op,

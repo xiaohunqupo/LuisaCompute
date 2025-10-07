@@ -40,29 +40,29 @@ enum level_enum : int {
 };
 using CustomLoggerCallback = luisa::move_only_function<void(luisa::string &&str, level_enum level)>;
 using CustomLoggerFlushCallback = luisa::move_only_function<void()>;
-LC_CORE_API void set_custom_logger(CustomLoggerCallback &&callback) noexcept;
-LC_CORE_API void set_custom_logger_flush(CustomLoggerFlushCallback &&callback) noexcept;
+LUISA_CORE_API void set_custom_logger(CustomLoggerCallback &&callback) noexcept;
+LUISA_CORE_API void set_custom_logger_flush(CustomLoggerFlushCallback &&callback) noexcept;
 #endif
 
 namespace detail {
 
 #ifndef LUISA_CUSTOM_LOGGER
-[[nodiscard]] LC_CORE_API luisa::logger &default_logger() noexcept;
+[[nodiscard]] LUISA_CORE_API luisa::logger &default_logger() noexcept;
 
 [[deprecated("Please use `luisa::default_logger_set_sink`")]]
-LC_CORE_API void set_sink(spdlog::sink_ptr sink) noexcept;
+LUISA_CORE_API void set_sink(spdlog::sink_ptr sink) noexcept;
 
-LC_CORE_API void default_logger_set_sink(spdlog::sink_ptr sink) noexcept;
-LC_CORE_API void default_logger_add_sink(spdlog::sink_ptr sink) noexcept;
+LUISA_CORE_API void default_logger_set_sink(spdlog::sink_ptr sink) noexcept;
+LUISA_CORE_API void default_logger_add_sink(spdlog::sink_ptr sink) noexcept;
 
-LC_CORE_API spdlog::sink_ptr create_sink_with_callback(void (*callback)(LCLoggerMessage)) noexcept;
+LUISA_CORE_API spdlog::sink_ptr create_sink_with_callback(void (*callback)(LCLoggerMessage)) noexcept;
 
-LC_CORE_API spdlog::sink_ptr create_sink_with_callback(
+LUISA_CORE_API spdlog::sink_ptr create_sink_with_callback(
     luisa::function<void(const char *level,
                          const char *message)>
         callback) noexcept;
 #else
-LC_CORE_API void custom_log(luisa::string &&str, level_enum level) noexcept;
+LUISA_CORE_API void custom_log(luisa::string &&str, level_enum level) noexcept;
 #endif
 template<typename T>
 luisa::string to_string(T &&t) {
@@ -112,7 +112,7 @@ void log_warning(Args &&...args) noexcept {
     }
 #endif
 }
-LC_CORE_API void log_flush() noexcept;
+LUISA_CORE_API void log_flush() noexcept;
 
 template<typename... Args>
 [[noreturn]] LUISA_FORCE_INLINE void log_error(Args &&...args) noexcept {
@@ -141,13 +141,13 @@ template<typename... Args>
     std::abort();
 }
 /// Set log level as verbose
-LC_CORE_API void log_level_verbose() noexcept;
+LUISA_CORE_API void log_level_verbose() noexcept;
 /// Set log level as info
-LC_CORE_API void log_level_info() noexcept;
+LUISA_CORE_API void log_level_info() noexcept;
 /// Set log level as warning
-LC_CORE_API void log_level_warning() noexcept;
+LUISA_CORE_API void log_level_warning() noexcept;
 /// Set log level as error
-LC_CORE_API void log_level_error() noexcept;
+LUISA_CORE_API void log_level_error() noexcept;
 
 /// flush the logs
 

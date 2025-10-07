@@ -782,7 +782,7 @@ inline const char *tag_name(FuncTag tag) {
     }
     return "unknown";
 }
-struct LC_IR_API FuncData {
+struct LUISA_IR_API FuncData {
 #ifndef BINDGEN
     virtual FuncTag tag() const noexcept = 0;
     virtual ~FuncData() = default;
@@ -918,7 +918,7 @@ inline const char *tag_name(InstructionTag tag) {
     }
     return "unknown";
 }
-struct LC_IR_API InstructionData {
+struct LUISA_IR_API InstructionData {
 #ifndef BINDGEN
     virtual InstructionTag tag() const noexcept = 0;
     virtual ~InstructionData() = default;
@@ -994,7 +994,7 @@ inline const char *tag_name(BindingTag tag) {
     }
     return "unknown";
 }
-struct LC_IR_API BindingData {
+struct LUISA_IR_API BindingData {
 #ifndef BINDGEN
     virtual BindingTag tag() const noexcept = 0;
     virtual ~BindingData() = default;

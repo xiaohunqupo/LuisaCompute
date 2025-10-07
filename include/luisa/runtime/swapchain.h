@@ -9,12 +9,12 @@
 
 namespace luisa::compute {
 class Swapchain;
-struct LC_RUNTIME_API SwapchainPresent {
+struct LUISA_RUNTIME_API SwapchainPresent {
     const Swapchain *chain{nullptr};
     ImageView<float> frame;
     void operator()(DeviceInterface *device, uint64_t stream_handle) && noexcept;
 };
-class LC_RUNTIME_API Swapchain final : public Resource {
+class LUISA_RUNTIME_API Swapchain final : public Resource {
 
 public:
     using Present = SwapchainPresent;

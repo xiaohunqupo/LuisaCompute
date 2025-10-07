@@ -24,7 +24,7 @@ class BufferView;
 
 namespace detail {
 
-class LC_RUNTIME_API MipmapView {
+class LUISA_RUNTIME_API MipmapView {
 
 private:
     uint64_t _handle;
@@ -110,7 +110,7 @@ public:
     }
 };
 
-[[noreturn]] LC_RUNTIME_API void error_image_size_contains_zero(uint3 size) noexcept;
+[[noreturn]] LUISA_RUNTIME_API void error_image_size_contains_zero(uint3 size) noexcept;
 
 [[nodiscard]] constexpr auto max_mip_levels(uint3 size, uint requested_levels) noexcept {
     if (luisa::any(size == 0u)) { error_image_size_contains_zero(size); }

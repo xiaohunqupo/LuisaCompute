@@ -14,7 +14,7 @@ enum struct DerivedMetadataTag {
     CURVE_BASIS,
 };
 
-class LC_XIR_API Metadata : public ManagedIntrusiveForwardNode<Metadata> {
+class LUISA_XIR_API Metadata : public ManagedIntrusiveForwardNode<Metadata> {
 
 public:
     [[nodiscard]] virtual DerivedMetadataTag derived_metadata_tag() const noexcept = 0;
@@ -24,7 +24,7 @@ public:
 
 template<typename Derived, DerivedMetadataTag tag, typename Base = Metadata>
     requires std::derived_from<Base, Metadata>
-class LC_XIR_API DerivedMetadata : public Base {
+class LUISA_XIR_API DerivedMetadata : public Base {
 public:
     using derived_metadata_type = Derived;
     using Super = DerivedMetadata;
@@ -44,13 +44,13 @@ public:
 using MetadataList = ManagedIntrusiveForwardList<Metadata>;
 
 namespace detail {
-[[nodiscard]] LC_XIR_API Metadata *luisa_xir_metadata_list_mixin_find_metadata(MetadataList &list, DerivedMetadataTag tag) noexcept;
-[[nodiscard]] LC_XIR_API Metadata *luisa_xir_metadata_list_mixin_create_metadata(MetadataList &list, DerivedMetadataTag tag) noexcept;
-[[nodiscard]] LC_XIR_API Metadata *luisa_xir_metadata_list_mixin_find_or_create_metadata(MetadataList &list, DerivedMetadataTag tag) noexcept;
-[[nodiscard]] LC_XIR_API luisa::optional<luisa::string_view> luisa_xir_metadata_list_mixin_get_name(const MetadataList &list) noexcept;
-LC_XIR_API void luisa_xir_metadata_list_mixin_set_name(MetadataList &list, std::string_view name) noexcept;
-LC_XIR_API void luisa_xir_metadata_list_mixin_set_location(MetadataList &list, const std::filesystem::path &file, int line) noexcept;
-LC_XIR_API void luisa_xir_metadata_list_mixin_add_comment(MetadataList &list, std::string_view comment) noexcept;
+[[nodiscard]] LUISA_XIR_API Metadata *luisa_xir_metadata_list_mixin_find_metadata(MetadataList &list, DerivedMetadataTag tag) noexcept;
+[[nodiscard]] LUISA_XIR_API Metadata *luisa_xir_metadata_list_mixin_create_metadata(MetadataList &list, DerivedMetadataTag tag) noexcept;
+[[nodiscard]] LUISA_XIR_API Metadata *luisa_xir_metadata_list_mixin_find_or_create_metadata(MetadataList &list, DerivedMetadataTag tag) noexcept;
+[[nodiscard]] LUISA_XIR_API luisa::optional<luisa::string_view> luisa_xir_metadata_list_mixin_get_name(const MetadataList &list) noexcept;
+LUISA_XIR_API void luisa_xir_metadata_list_mixin_set_name(MetadataList &list, std::string_view name) noexcept;
+LUISA_XIR_API void luisa_xir_metadata_list_mixin_set_location(MetadataList &list, const std::filesystem::path &file, int line) noexcept;
+LUISA_XIR_API void luisa_xir_metadata_list_mixin_add_comment(MetadataList &list, std::string_view comment) noexcept;
 }// namespace detail
 
 class MetadataListMixin {

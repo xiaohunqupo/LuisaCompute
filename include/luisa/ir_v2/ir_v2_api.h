@@ -306,5 +306,5 @@ struct IrV2BindingTable {
     const CpuExternFn *(*cpu_ext_fn_clone)(const CpuExternFn *f);
     void (*cpu_ext_fn_drop)(const CpuExternFn *f);
 };
-extern "C" LC_IR_API IrV2BindingTable lc_ir_v2_binding_table();
+extern "C" LUISA_IR_API IrV2BindingTable lc_ir_v2_binding_table();
 }// namespace luisa::compute::ir_v2

@@ -24,6 +24,6 @@ public:
         luisa::vector<BufferCreationInfo>& outputs) noexcept = 0;
 
     [[nodiscard]] DeviceInterface *device() const noexcept { return _device; }
-    LC_TENSOR_API static luisa::unique_ptr<TensorInterface> create_fallback_backend(Device& device);
+    LUISA_TENSOR_API static luisa::unique_ptr<TensorInterface> create_fallback_backend(Device& device);
 };
 }// namespace luisa::compute

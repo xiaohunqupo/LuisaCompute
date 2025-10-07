@@ -13,8 +13,8 @@ namespace detail {
 template<typename ImageOrView>
 class ImageExprProxy;
 
-LC_RUNTIME_API void error_image_invalid_mip_levels(size_t level, size_t mip) noexcept;
-LC_RUNTIME_API void image_size_zero_error() noexcept;
+LUISA_RUNTIME_API void error_image_invalid_mip_levels(size_t level, size_t mip) noexcept;
+LUISA_RUNTIME_API void image_size_zero_error() noexcept;
 
 }// namespace detail
 

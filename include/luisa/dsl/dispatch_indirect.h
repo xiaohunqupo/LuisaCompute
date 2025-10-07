@@ -8,7 +8,7 @@
 namespace luisa::compute {
 
 template<>
-struct LC_DSL_API Expr<IndirectDispatchBuffer> {
+struct LUISA_DSL_API Expr<IndirectDispatchBuffer> {
 
 private:
     const RefExpr *_expression{nullptr};
@@ -43,7 +43,7 @@ using IndirectDispatchBufferVar = Var<IndirectDispatchBuffer>;
 
 namespace detail {
 
-class LC_DSL_API IndirectDispatchBufferExprProxy {
+class LUISA_DSL_API IndirectDispatchBufferExprProxy {
 
 private:
     IndirectDispatchBuffer _buffer;

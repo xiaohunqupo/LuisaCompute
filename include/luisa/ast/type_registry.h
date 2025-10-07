@@ -32,9 +32,9 @@ class ByteBuffer;
 namespace detail {
 
 // TODO: is it possible to make the following functions constexpr?
-[[nodiscard]] LC_AST_API luisa::string make_array_description(luisa::string_view elem, size_t dim) noexcept;
-[[nodiscard]] LC_AST_API luisa::string make_struct_description(size_t alignment, std::initializer_list<luisa::string_view> members) noexcept;
-[[nodiscard]] LC_AST_API luisa::string make_buffer_description(luisa::string_view elem) noexcept;
+[[nodiscard]] LUISA_AST_API luisa::string make_array_description(luisa::string_view elem, size_t dim) noexcept;
+[[nodiscard]] LUISA_AST_API luisa::string make_struct_description(size_t alignment, std::initializer_list<luisa::string_view> members) noexcept;
+[[nodiscard]] LUISA_AST_API luisa::string make_buffer_description(luisa::string_view elem) noexcept;
 
 template<typename T>
 struct TypeDesc;

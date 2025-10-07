@@ -12,7 +12,7 @@ class Curve;
 class Mesh;
 class ProceduralPrimitive;
 
-class LC_RUNTIME_API MotionInstance : public Resource {
+class LUISA_RUNTIME_API MotionInstance : public Resource {
 
     friend class Device;
 

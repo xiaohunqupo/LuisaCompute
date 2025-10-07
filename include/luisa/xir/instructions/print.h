@@ -5,7 +5,7 @@
 
 namespace luisa::compute::xir {
 
-class LC_XIR_API PrintInst final : public PrintMessageMixin<DerivedInstruction<PrintInst, DerivedInstructionTag::PRINT>> {
+class LUISA_XIR_API PrintInst final : public PrintMessageMixin<DerivedInstruction<PrintInst, DerivedInstructionTag::PRINT>> {
 public:
     explicit PrintInst(BasicBlock *parent_block, luisa::string format = {},
                        luisa::span<Value *const> operands = {}) noexcept;

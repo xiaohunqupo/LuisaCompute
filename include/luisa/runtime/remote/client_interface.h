@@ -13,7 +13,7 @@ public:
     virtual void async_send(luisa::vector<std::byte> data) noexcept = 0;
     virtual void sync_send(luisa::span<const std::byte> send, luisa::vector<std::byte> &received) noexcept = 0;
 };
-class LC_RUNTIME_API ClientInterface : public DeviceInterface {
+class LUISA_RUNTIME_API ClientInterface : public DeviceInterface {
 private:
     struct DispatchFeedback {
         luisa::vector<void *> readback_data;

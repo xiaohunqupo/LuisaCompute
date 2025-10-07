@@ -5,7 +5,7 @@
 #include <luisa/core/spin_mutex.h>
 #include <luisa/core/logging.h>
 namespace luisa::compute {
-class LC_RUNTIME_API ServerInterface {
+class LUISA_RUNTIME_API ServerInterface {
 public:
     using Handle = luisa::shared_ptr<DeviceInterface>;
     using SendMsgFunc = luisa::move_only_function<void(luisa::vector<std::byte>)>;

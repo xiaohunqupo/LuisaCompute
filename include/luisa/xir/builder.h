@@ -33,7 +33,7 @@
 
 namespace luisa::compute::xir {
 
-class LC_XIR_API XIRBuilder : luisa::concepts::Noncopyable {
+class LUISA_XIR_API XIRBuilder : luisa::concepts::Noncopyable {
 
 private:
     Instruction *_insertion_point = nullptr;

@@ -5,7 +5,7 @@
 namespace luisa::compute::xir {
 
 // Note: this instruction must be the terminator of a basic block.
-class LC_XIR_API ReturnInst final : public DerivedTerminatorInstruction<ReturnInst, DerivedInstructionTag::RETURN> {
+class LUISA_XIR_API ReturnInst final : public DerivedTerminatorInstruction<ReturnInst, DerivedInstructionTag::RETURN> {
 
 public:
     static constexpr size_t operand_index_return_value = 0u;

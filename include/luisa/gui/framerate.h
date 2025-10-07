@@ -7,7 +7,7 @@
 
 namespace luisa::compute {
 
-class LC_GUI_API Framerate {
+class LUISA_GUI_API Framerate {
 
 public:
     using Clock = std::chrono::steady_clock;

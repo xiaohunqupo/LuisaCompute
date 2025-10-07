@@ -5,7 +5,7 @@
 
 namespace luisa::compute::xir {
 
-class LC_XIR_API CurveBasisMD final : public DerivedMetadata<CurveBasisMD, DerivedMetadataTag::CURVE_BASIS> {
+class LUISA_XIR_API CurveBasisMD final : public DerivedMetadata<CurveBasisMD, DerivedMetadataTag::CURVE_BASIS> {
 
 private:
     CurveBasisSet _curve_basis_set;

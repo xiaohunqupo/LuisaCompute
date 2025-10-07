@@ -35,7 +35,7 @@ on_load(function(target)
     if get_config("lc_use_system_stl") then
         target:add("defines", "LUISA_USE_SYSTEM_STL", "_ENABLE_EXTENDED_ALIGNED_STORAGE", {public = true})
     end
-    target:add("defines", "LC_CORE_EXPORT_DLL")
+    target:add("defines", "LUISA_CORE_EXPORT_DLL")
     if is_plat("windows") then
         target:add("defines", "_CRT_SECURE_NO_WARNINGS")
     end

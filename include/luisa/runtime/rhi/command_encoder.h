@@ -6,7 +6,7 @@
 #include <luisa/runtime/raster/raster_state.h>
 
 namespace luisa::compute {
-class LC_RUNTIME_API ShaderDispatchCmdEncoder {
+class LUISA_RUNTIME_API ShaderDispatchCmdEncoder {
 
 public:
     using Argument = ShaderDispatchCommandBase::Argument;
@@ -32,7 +32,7 @@ public:
     void encode_accel(uint64_t handle) noexcept;
 };
 
-class LC_RUNTIME_API ComputeDispatchCmdEncoder final : public ShaderDispatchCmdEncoder {
+class LUISA_RUNTIME_API ComputeDispatchCmdEncoder final : public ShaderDispatchCmdEncoder {
 
 private:
     luisa::variant<uint3, IndirectDispatchArg, luisa::vector<uint3>> _dispatch_size;
@@ -50,7 +50,7 @@ public:
 
 class RasterMesh;
 
-class LC_RUNTIME_API RasterDispatchCmdEncoder final : public ShaderDispatchCmdEncoder {
+class LUISA_RUNTIME_API RasterDispatchCmdEncoder final : public ShaderDispatchCmdEncoder {
 
 private:
     std::array<ShaderDispatchCommandBase::Argument::Texture, 8u> _rtv_texs;

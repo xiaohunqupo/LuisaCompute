@@ -6,7 +6,7 @@
 
 namespace vstd {
 namespace detail {
-LC_VSTL_API void one_shot_range_log_error() noexcept;
+LUISA_VSTL_API void one_shot_range_log_error() noexcept;
 }// namespace detail
 #ifndef NDEBUG
 #define VSTL_ONESHOT_ITER_DECLVAR bool already_begined{false};

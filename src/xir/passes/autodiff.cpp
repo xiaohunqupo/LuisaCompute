@@ -46,12 +46,12 @@ struct AutodiffPass {
     }
 };
 
-LC_XIR_API void autodiff_pass_run_on_function(Function *function, const AutodiffOptions &options) noexcept {
+LUISA_XIR_API void autodiff_pass_run_on_function(Function *function, const AutodiffOptions &options) noexcept {
     AutodiffPass pass{function, options};
     pass.run();
 }
 
-LC_XIR_API void autodiff_pass_run_on_module(Module *module, const AutodiffOptions &options) noexcept {
+LUISA_XIR_API void autodiff_pass_run_on_module(Module *module, const AutodiffOptions &options) noexcept {
     for (auto func : module->function_list()) {
         autodiff_pass_run_on_function(func, options);
     }

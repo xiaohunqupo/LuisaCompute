@@ -3,7 +3,7 @@
 #include <luisa/tensor/expression.h>
 
 namespace luisa::compute {
-class LC_TENSOR_API TensorBuilder {
+class LUISA_TENSOR_API TensorBuilder {
     friend class Tensor;
 
     luisa::Pool<TensorData, false, false> _tensor_pool;

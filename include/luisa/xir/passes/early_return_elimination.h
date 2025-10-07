@@ -13,7 +13,7 @@ struct EarlyReturnEliminationInfo {
     size_t removed_return_count{0u};
 };
 
-[[nodiscard]] LC_XIR_API EarlyReturnEliminationInfo early_return_elimination_pass_run_on_function(Function *function) noexcept;
-[[nodiscard]] LC_XIR_API EarlyReturnEliminationInfo early_return_elimination_pass_run_on_module(Module *module) noexcept;
+[[nodiscard]] LUISA_XIR_API EarlyReturnEliminationInfo early_return_elimination_pass_run_on_function(Function *function) noexcept;
+[[nodiscard]] LUISA_XIR_API EarlyReturnEliminationInfo early_return_elimination_pass_run_on_module(Module *module) noexcept;
 
 }// namespace luisa::compute::xir

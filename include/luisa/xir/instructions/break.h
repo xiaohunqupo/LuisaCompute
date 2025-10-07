@@ -5,7 +5,7 @@
 namespace luisa::compute::xir {
 
 // Note: this instruction must be the terminator of a basic block.
-class LC_XIR_API BreakInst final : public DerivedBranchInstruction<BreakInst, DerivedInstructionTag::BREAK> {
+class LUISA_XIR_API BreakInst final : public DerivedBranchInstruction<BreakInst, DerivedInstructionTag::BREAK> {
 public:
     using Super::Super;
     [[nodiscard]] BreakInst *clone(XIRBuilder &b, InstructionCloneValueResolver &resolver) const noexcept override;

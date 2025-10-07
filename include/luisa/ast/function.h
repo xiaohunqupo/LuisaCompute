@@ -24,7 +24,7 @@ class ExternalFunction;
  * @brief Function class
  * 
  */
-class LC_AST_API Function {
+class LUISA_AST_API Function {
 
 public:
     /// Function types

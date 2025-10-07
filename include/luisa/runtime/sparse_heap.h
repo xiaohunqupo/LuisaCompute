@@ -3,7 +3,7 @@
 
 namespace luisa::compute {
 
-class LC_RUNTIME_API SparseBufferHeap : public Resource {
+class LUISA_RUNTIME_API SparseBufferHeap : public Resource {
 
 private:
     friend class Device;
@@ -23,7 +23,7 @@ public:
     SparseBufferHeap &operator=(SparseBufferHeap const &) noexcept = delete;
 };
 
-class LC_RUNTIME_API SparseTextureHeap : public Resource {
+class LUISA_RUNTIME_API SparseTextureHeap : public Resource {
 
 private:
     friend class Device;

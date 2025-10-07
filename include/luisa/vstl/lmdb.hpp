@@ -20,7 +20,7 @@ struct LMDBWriteCommand {
 
 struct LMDBIteratorEndTag {};
 
-struct LC_VSTL_API LMDBIterator {
+struct LUISA_VSTL_API LMDBIterator {
     friend class LMDB;
     struct Value {
         luisa::span<const std::byte> key;
@@ -54,7 +54,7 @@ private:
     LMDBIterator(MDB_env *env, uint32_t dbi) noexcept;
 };
 
-class LC_VSTL_API LMDB {
+class LUISA_VSTL_API LMDB {
     luisa::string _path;
     size_t _map_size{};
     MDB_env *_env{nullptr};

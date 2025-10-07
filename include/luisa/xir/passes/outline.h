@@ -13,7 +13,7 @@ struct OutlineInfo {
     size_t outlined_func_count{0u};
 };
 
-LC_XIR_API OutlineInfo outline_pass_run_on_function(Module *module, Function *function) noexcept;
-LC_XIR_API OutlineInfo outline_pass_run_on_module(Module *module) noexcept;
+LUISA_XIR_API OutlineInfo outline_pass_run_on_function(Module *module, Function *function) noexcept;
+LUISA_XIR_API OutlineInfo outline_pass_run_on_module(Module *module) noexcept;
 
 }// namespace luisa::compute::xir

@@ -10,7 +10,7 @@ class Function;
 class FunctionDefinition;
 class CallInst;
 
-class LC_XIR_API CallGraph {
+class LUISA_XIR_API CallGraph {
 
 private:
     luisa::vector<Function *> _root_functions;
@@ -25,6 +25,6 @@ public:
     [[nodiscard]] luisa::span<CallInst *const> call_edges(FunctionDefinition *f) const noexcept;
 };
 
-[[nodiscard]] LC_XIR_API CallGraph compute_call_graph(Module *module) noexcept;
+[[nodiscard]] LUISA_XIR_API CallGraph compute_call_graph(Module *module) noexcept;
 
 }// namespace luisa::compute::xir

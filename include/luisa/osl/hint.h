@@ -6,7 +6,7 @@
 
 namespace luisa::compute::osl {
 
-class LC_OSL_API Hint {
+class LUISA_OSL_API Hint {
 
 private:
     luisa::string _identifier;

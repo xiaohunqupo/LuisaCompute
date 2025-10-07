@@ -29,7 +29,7 @@ VENGINE_UNITY_EXTERN void vengine_memmove(void *dest, void *src, uint64 sz) {
 #endif
 
 namespace vstd::detail{
-LC_VSTL_API void one_shot_range_log_error() noexcept {
+LUISA_VSTL_API void one_shot_range_log_error() noexcept {
     LUISA_ERROR("This one-shot iterator has already been used, please don't do this.");
 }
 }

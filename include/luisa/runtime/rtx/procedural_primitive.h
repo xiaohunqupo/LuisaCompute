@@ -8,7 +8,7 @@ namespace luisa::compute {
 
 // ProceduralPrimitive is bottom-level acceleration structure(BLAS) for ray-tracing, it present AABB for custom intersection.
 // Remember, the AABB intersection is conservative and may-be inaccurate, so never use it as "box intersection"
-class LC_RUNTIME_API ProceduralPrimitive final : public Resource {
+class LUISA_RUNTIME_API ProceduralPrimitive final : public Resource {
 
     friend class Device;
 

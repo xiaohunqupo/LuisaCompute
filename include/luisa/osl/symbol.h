@@ -8,7 +8,7 @@ namespace luisa::compute::osl {
 
 class Type;
 
-class LC_OSL_API Symbol final {
+class LUISA_OSL_API Symbol final {
 
 public:
     // windows.h kindly defines "CONST" as a macro,

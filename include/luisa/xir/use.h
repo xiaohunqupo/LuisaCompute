@@ -8,7 +8,7 @@ namespace luisa::compute::xir {
 class Value;
 class User;
 
-class LC_XIR_API Use final : public ManagedIntrusiveForwardNode<Use> {
+class LUISA_XIR_API Use final : public ManagedIntrusiveForwardNode<Use> {
 
 private:
     User *_user;

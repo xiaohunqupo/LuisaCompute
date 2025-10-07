@@ -17,7 +17,7 @@ class Function;
 class Module;
 class Constant;
 
-class LC_XIR_API XIRDebugPrinter {
+class LUISA_XIR_API XIRDebugPrinter {
 
 private:
     struct Impl;

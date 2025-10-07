@@ -6,7 +6,7 @@
 
 namespace luisa {
 
-class LC_CORE_API StringScratch {
+class LUISA_CORE_API StringScratch {
 
 private:
     luisa::string _buffer;
