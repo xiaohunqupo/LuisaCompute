@@ -10,12 +10,14 @@ using namespace luisa::compute;
 
 int main(int argc, char *argv[]) {
     Context context{argv[0]};
-    Device cuda_device = context.create_device("cuda");
     Device dx_device = context.create_device("dx");
+    auto interop_ext = dx_device.extension<DxCudaInterop>();
+    DeviceConfig cuda_device_config{
+        .device_index = static_cast<size_t>(interop_ext->cuda_device_index())};
+    Device cuda_device = context.create_device("cuda");
     Stream cuda_stream = cuda_device.create_stream();
     Stream dx_stream = dx_device.create_stream();
 
-    auto interop_ext = dx_device.extension<DxCudaInterop>();
     auto interop_event = interop_ext->create_timeline_event();
 
     auto interop_buffer = interop_ext->create_buffer<uint>(1);

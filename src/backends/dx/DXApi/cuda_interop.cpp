@@ -275,7 +275,7 @@ ResourceCreationInfo DxCudaInteropImpl::create_interop_texture(
     info.native_handle = res->GetResource();
     return info;
 }
-DeviceInterface *DxCudaInteropImpl::device() {
+DeviceInterface *DxCudaInteropImpl::device() noexcept {
     return &_device;
 }
 
@@ -306,8 +306,8 @@ static void initialize_cuda() noexcept {
 
 DxCudaInteropImpl::DxCudaInteropImpl(LCDevice &device) noexcept : _device{device} {
     auto d3d12_device = device.nativeDevice.device.Get();
-    auto cuda_device = getCudaDeviceForD3D12Device(d3d12_device);
-    LUISA_CHECK_CUDA(cuDeviceGet(&cuDevice, cuda_device));
+    _cuda_device = getCudaDeviceForD3D12Device(d3d12_device);
+    LUISA_CHECK_CUDA(cuDeviceGet(&cuDevice, _cuda_device));
     LUISA_CHECK_CUDA(cuDevicePrimaryCtxRetain(&cuContext, cuDevice));
 }
 

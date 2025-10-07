@@ -144,8 +144,8 @@ static void initialize_cuda() noexcept {
     vstd::unreachable();
 }
 VkCudaInteropImpl::VkCudaInteropImpl(Device *device) : _device(device) {
-    auto cuda_device = getCudaDeviceForVulkanDevice(device->physical_device());
-    LUISA_CHECK_CUDA(cuDeviceGet(&_cu_device, cuda_device));
+    _cuda_device = getCudaDeviceForVulkanDevice(device->physical_device());
+    LUISA_CHECK_CUDA(cuDeviceGet(&_cu_device, _cuda_device));
     LUISA_CHECK_CUDA(cuDevicePrimaryCtxRetain(&_cu_context, _cu_device));
 }
 VkCudaInteropImpl::~VkCudaInteropImpl() {}
@@ -473,7 +473,7 @@ void VkCudaInteropImpl::unmap(void *cuda_ptr, void *cuda_handle) noexcept {
         LUISA_CHECK_CUDA(cuDestroyExternalMemory(reinterpret_cast<CUexternalMemory>(cuda_handle)));
     });
 }
-DeviceInterface *VkCudaInteropImpl::device() {
+DeviceInterface *VkCudaInteropImpl::device() noexcept {
     return _device;
 }
 CudaDeviceConfigExt::ExternalVkDevice VkCudaInteropImpl::get_external_vk_device() const noexcept {

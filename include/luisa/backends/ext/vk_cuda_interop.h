@@ -44,7 +44,8 @@ public:
     virtual void cuda_buffer(uint64_t vk_buffer_handle, uint64_t *cuda_ptr, uint64_t *cuda_handle /*CUexternalMemory* */) noexcept = 0;
     [[nodiscard]] virtual /*CUexternalMemory* */ uint64_t cuda_texture(uint64_t vk_texture_handle) noexcept = 0;
     virtual void unmap(void *cuda_ptr, void *cuda_handle) noexcept = 0;
-    virtual DeviceInterface *device() = 0;
+    [[nodiscard]] virtual int cuda_device_index() const noexcept = 0;
+    [[nodiscard]] virtual DeviceInterface *device() noexcept = 0;
 
     vk_cuda_interop::Signal vk_signal(TimelineEvent const &cuda_event, uint64_t fence_index) noexcept {
         return vk_cuda_interop::Signal{
