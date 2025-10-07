@@ -24,7 +24,7 @@
 #include "vk_raster_ext.h"
 #include "vk_native_res_ext.h"
 #include <luisa/backends/ext/raster_ext_interface.h>
-#ifdef LCVK_ENABLE_CUDA
+#ifdef LUISA_VULKAN_ENABLE_CUDA_INTEROP
 #include "vk_cuda_interop_ext.h"
 #endif
 namespace lc::vk {
@@ -395,7 +395,7 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
             delete static_cast<VkNativeResourceExt *>(ext);
         });
 
-#ifdef LCVK_ENABLE_CUDA
+#ifdef LUISA_VULKAN_ENABLE_CUDA_INTEROP
     exts.try_emplace(
 #ifdef LUISA_USE_SYSTEM_STL
         luisa::string{VkCudaInterop::name},
@@ -483,7 +483,7 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
         _enable_device_exts.emplace_back(VK_KHR_RAY_QUERY_EXTENSION_NAME);
         _enable_device_exts.emplace_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
         _enable_device_exts.emplace_back(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
-#ifdef LCVK_ENABLE_CUDA
+#ifdef LUISA_VULKAN_ENABLE_CUDA_INTEROP
         _enable_device_exts.emplace_back(VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME);
         _enable_device_exts.emplace_back(VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME);
 #ifdef LUISA_PLATFORM_WINDOWS

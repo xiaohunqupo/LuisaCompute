@@ -25,7 +25,7 @@ public:
     void _vk_wait(uint64_t cuda_event_handle, uint64_t vk_stream, uint64_t fence_index) noexcept override;
     void cuda_buffer(uint64_t vk_buffer_handle, uint64_t *cuda_ptr, uint64_t *cuda_handle /*CUexternalMemory* */) noexcept override;
     /*CUexternalMemory* */ uint64_t cuda_texture(uint64_t vk_texture_handle) noexcept override;
-    void unmap(void *cuda_ptr, void *cuda_handle) override;
+    void unmap(void *cuda_ptr, void *cuda_handle) noexcept override;
     DeviceInterface *device() override;
 };
 }// namespace lc::vk

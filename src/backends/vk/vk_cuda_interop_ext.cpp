@@ -1,4 +1,4 @@
-#ifdef LCVK_ENABLE_CUDA
+#ifdef LUISA_VULKAN_ENABLE_CUDA_INTEROP
 #include <cuda.h>
 #include "vk_cuda_interop_ext.h"
 #include "device.h"
@@ -467,7 +467,7 @@ uint64_t VkCudaInteropImpl::cuda_texture(uint64_t vk_texture_handle) noexcept {
         return reinterpret_cast<uint64_t>(external_memory);
     });
 }
-void VkCudaInteropImpl::unmap(void *cuda_ptr, void *cuda_handle) {
+void VkCudaInteropImpl::unmap(void *cuda_ptr, void *cuda_handle) noexcept {
     with_cuda(_cu_context, [&] {
         LUISA_CHECK_CUDA(cuMemFree(reinterpret_cast<CUdeviceptr>(cuda_ptr)));
         LUISA_CHECK_CUDA(cuDestroyExternalMemory(reinterpret_cast<CUexternalMemory>(cuda_handle)));

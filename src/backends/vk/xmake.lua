@@ -54,7 +54,7 @@ on_load(function(target)
             end
 
             target:add("links", "nvrtc_static", "cudart_static", "cuda")
-            target:add("defines", "LCVK_ENABLE_CUDA")
+            target:add("defines", "LUISA_VULKAN_ENABLE_CUDA_INTEROP")
         end
     end
 end)
