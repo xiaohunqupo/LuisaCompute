@@ -49,9 +49,6 @@ namespace detail {
 #ifndef LUISA_CUSTOM_LOGGER
 [[nodiscard]] LUISA_CORE_API luisa::logger &default_logger() noexcept;
 
-[[deprecated("Please use `luisa::default_logger_set_sink`")]]
-LUISA_CORE_API void set_sink(spdlog::sink_ptr sink) noexcept;
-
 LUISA_CORE_API void default_logger_set_sink(spdlog::sink_ptr sink) noexcept;
 LUISA_CORE_API void default_logger_add_sink(spdlog::sink_ptr sink) noexcept;
 

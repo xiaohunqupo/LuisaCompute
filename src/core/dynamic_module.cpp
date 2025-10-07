@@ -34,13 +34,6 @@ void DynamicModule::reset() noexcept {
     }
 }
 
-void DynamicModule::dispose() noexcept {
-    if (_handle) {
-        dynamic_module_destroy(_handle);
-        _handle = nullptr;
-    }
-}
-
 [[nodiscard]] static std::mutex &dynamic_module_search_path_mutex() noexcept {
     static std::mutex mutex;
     return mutex;

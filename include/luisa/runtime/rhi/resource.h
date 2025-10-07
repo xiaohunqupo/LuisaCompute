@@ -260,10 +260,6 @@ public:
     [[nodiscard]] ResourceCreationInfo release() noexcept;
     // destroy the resource and reset the handle to invalid
     void reset() noexcept;
-
-    // deprecated methods
-    [[deprecated("Please use `reset()` instead.")]]
-    void dispose() noexcept;
 };
 
 }// namespace luisa::compute

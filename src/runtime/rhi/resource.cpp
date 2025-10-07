@@ -47,15 +47,6 @@ Resource::~Resource() noexcept {
     _device.reset();
 }
 
-void Resource::dispose() noexcept {
-    // trick here: we can not call derive class' destructor
-    // Resource destructor might be called multiple times
-    if (*this) {
-        this->~Resource();
-        _info.invalidate();
-    }
-}
-
 ResourceCreationInfo Resource::release() noexcept {
     auto info = _info;
     _info.invalidate();

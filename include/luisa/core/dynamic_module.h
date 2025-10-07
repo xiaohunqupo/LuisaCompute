@@ -35,9 +35,6 @@ public:
     // destroy the module and reset the handle to nullptr
     void reset() noexcept;
 
-    [[deprecated("Pleade use `reset()` instead.")]]
-    void dispose() noexcept;
-
     /**
      * @brief Return address of given name
      *

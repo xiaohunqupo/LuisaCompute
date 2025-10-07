@@ -84,10 +84,6 @@ static luisa::logger LOGGER = [] {
     return LOGGER;
 }
 
-LUISA_CORE_API void set_sink(spdlog::sink_ptr sink) noexcept {
-    default_logger_set_sink(std::move(sink));
-}
-
 LUISA_CORE_API void default_logger_set_sink(spdlog::sink_ptr sink) noexcept {
     std::lock_guard _lock{LOGGER_MUTEX};
     LOGGER.sinks().clear();

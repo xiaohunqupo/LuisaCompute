@@ -164,9 +164,6 @@ public:
     RayQuerySurfaceProxy &operator=(RayQuerySurfaceProxy &&) noexcept = delete;
     RayQuerySurfaceProxy &operator=(RayQuerySurfaceProxy const &) noexcept = delete;
     [[nodiscard]] RayQueryBase<terminate_on_first> on_surface_candidate(const SurfaceCandidateHandler &handler) && noexcept;
-    [[nodiscard, deprecated("Please use on_surface_candidate(), which unifies the code paths for triangles and curves.")]]// deprecated
-    RayQueryBase<terminate_on_first>
-    on_triangle_candidate(const TriangleCandidateHandler &handler) && noexcept;
 };
 
 template<bool terminate_on_first>
@@ -211,29 +208,30 @@ public:
 };
 
 template<bool terminate_on_first>
-inline RayQueryProceduralProxy<terminate_on_first> RayQueryProxy<terminate_on_first>::on_surface_candidate(const SurfaceCandidateHandler &handler) && noexcept {
+RayQueryProceduralProxy<terminate_on_first> RayQueryProxy<terminate_on_first>::on_surface_candidate(const SurfaceCandidateHandler &handler) && noexcept {
     return this->_on_surface_candidate(handler);
 }
+
 template<bool terminate_on_first>
-inline RayQueryProceduralProxy<terminate_on_first> RayQueryProxy<terminate_on_first>::on_triangle_candidate(const TriangleCandidateHandler &handler) && noexcept {
+RayQueryProceduralProxy<terminate_on_first> RayQueryProxy<terminate_on_first>::on_triangle_candidate(const TriangleCandidateHandler &handler) && noexcept {
     return this->_on_surface_candidate(handler);
 }
+
 template<bool terminate_on_first>
-inline RayQuerySurfaceProxy<terminate_on_first> RayQueryProxy<terminate_on_first>::on_procedural_candidate(const ProceduralCandidateHandler &handler) && noexcept {
+RayQuerySurfaceProxy<terminate_on_first> RayQueryProxy<terminate_on_first>::on_procedural_candidate(const ProceduralCandidateHandler &handler) && noexcept {
     return this->_on_procedural_candidate(handler);
 }
+
 template<bool terminate_on_first>
-inline RayQueryBase<terminate_on_first> RayQueryProceduralProxy<terminate_on_first>::on_procedural_candidate(const ProceduralCandidateHandler &handler) && noexcept {
+RayQueryBase<terminate_on_first> RayQueryProceduralProxy<terminate_on_first>::on_procedural_candidate(const ProceduralCandidateHandler &handler) && noexcept {
     return this->_on_procedural_candidate(handler);
 }
+
 template<bool terminate_on_first>
-inline RayQueryBase<terminate_on_first> RayQuerySurfaceProxy<terminate_on_first>::on_surface_candidate(const SurfaceCandidateHandler &handler) && noexcept {
+RayQueryBase<terminate_on_first> RayQuerySurfaceProxy<terminate_on_first>::on_surface_candidate(const SurfaceCandidateHandler &handler) && noexcept {
     return this->_on_surface_candidate(handler);
 }
-template<bool terminate_on_first>
-inline RayQueryBase<terminate_on_first> RayQuerySurfaceProxy<terminate_on_first>::on_triangle_candidate(const TriangleCandidateHandler &handler) && noexcept {
-    return this->_on_surface_candidate(handler);
-}
+
 }// namespace detail
 
 using RayQueryAny = detail::RayQueryProxy<true>;

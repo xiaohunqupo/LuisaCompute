@@ -100,8 +100,6 @@ enum struct BindlessSlotType {
     TEXTURE3D_ONLY = 3,
 };
 
-using BindlessType [[deprecated("Please use BindlessSlotType instead.")]] = BindlessSlotType;
-
 class LUISA_RUNTIME_API DeviceInterface : public luisa::enable_shared_from_this<DeviceInterface> {
 
 protected:

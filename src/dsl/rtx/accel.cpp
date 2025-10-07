@@ -5,22 +5,6 @@ namespace luisa::compute {
 
 namespace detail {
 
-Var<TriangleHit> AccelExprProxy::trace_closest(Expr<Ray> ray, Expr<uint> vis_mask) const noexcept {
-    return intersect(ray, {.visibility_mask = vis_mask});
-}
-
-Var<bool> AccelExprProxy::trace_any(Expr<Ray> ray, Expr<uint> vis_mask) const noexcept {
-    return intersect_any(ray, {.visibility_mask = vis_mask});
-}
-
-RayQueryAll AccelExprProxy::query_all(Expr<Ray> ray, Expr<uint> vis_mask) const noexcept {
-    return traverse(ray, {.visibility_mask = vis_mask});
-}
-
-RayQueryAny AccelExprProxy::query_any(Expr<Ray> ray, Expr<uint> vis_mask) const noexcept {
-    return traverse_any(ray, {.visibility_mask = vis_mask});
-}
-
 Var<TriangleHit> AccelExprProxy::intersect(Expr<Ray> ray, const AccelTraceOptions &options) const noexcept {
     return Expr<Accel>{_accel}.intersect(ray, options);
 }
@@ -116,22 +100,6 @@ Expr<Accel>::Expr(const RefExpr *expr) noexcept
 Expr<Accel>::Expr(const Accel &accel) noexcept
     : _expression{detail::FunctionBuilder::current()->accel_binding(
           accel.handle())} {}
-
-Var<TriangleHit> Expr<Accel>::trace_closest(Expr<Ray> ray, Expr<uint> mask) const noexcept {
-    return intersect(ray, {.visibility_mask = mask});
-}
-
-Var<bool> Expr<Accel>::trace_any(Expr<Ray> ray, Expr<uint> mask) const noexcept {
-    return intersect_any(ray, {.visibility_mask = mask});
-}
-
-RayQueryAll Expr<Accel>::query_all(Expr<Ray> ray, Expr<uint> mask) const noexcept {
-    return traverse(ray, {.visibility_mask = mask});
-}
-
-RayQueryAny Expr<Accel>::query_any(Expr<Ray> ray, Expr<uint> mask) const noexcept {
-    return traverse_any(ray, {.visibility_mask = mask});
-}
 
 Var<TriangleHit> Expr<Accel>::intersect(Expr<Ray> ray, const AccelTraceOptions &options) const noexcept {
     require_curve_basis_set(options.curve_bases);
