@@ -25,7 +25,7 @@ Stream::Stream(Device *device, uint64_t handle, StreamTag stream_tag)
       _device{device}, _stream_tag{stream_tag} {}
 
 void Stream::check_align(uint64_t offset, uint64_t align) const noexcept {
-    if (_device->underlying_device()->backend_name() == "dx" && offset % align != 0) [[unlikely]] {
+    if (_device->underlying_device()->backend_name() == "vk" && offset % align != 0) [[unlikely]] {
         LUISA_WARNING("Buffer offset {} is not aligned to {}.", offset, align);
     }
 }
