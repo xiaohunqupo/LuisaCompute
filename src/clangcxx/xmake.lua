@@ -1,5 +1,5 @@
 if not is_mode("debug") then
-    target("luisa-clangcxx")
+    target("lc-clangcxx")
     _config_project({
         project_kind = "shared"
     })
@@ -21,7 +21,7 @@ if not is_mode("debug") then
         end
         target:add("links", libs)
         target:add("defines", "LUISA_CLANGCXX_EXPORT_DLL")
-        target:add("deps", "luisa-core", "luisa-runtime", "luisa-vstl")
+        target:add("deps", "lc-core", "lc-runtime", "lc-vstl")
         if is_plat("windows") then
             target:add("syslinks", "Version", "advapi32", "Shcore", "user32", "shell32", "Ole32", 'Ws2_32', 'ntdll', {
                 public = true

@@ -1,8 +1,8 @@
-target("luisa-backend-vk")
+target("lc-backend-vk")
 _config_project({
     project_kind = "shared"
 })
-add_deps("luisa-runtime", "luisa-vstl", "luisa-hlsl-codegen")
+add_deps("lc-runtime", "lc-vstl", "lc-hlsl-codegen")
 add_headerfiles("*.h", "../common/default_binary_io.h")
 add_files("*.cpp")
 set_pcxxheader("lc_vk_pch.h")

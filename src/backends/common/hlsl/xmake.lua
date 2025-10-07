@@ -1,9 +1,9 @@
-target("luisa-hlsl-codegen")
+target("lc-hlsl-codegen")
 _config_project({
     project_kind = "static",
     batch_size = 2
 })
-add_deps("luisa-vstl")
+add_deps("lc-vstl")
 add_deps("lc_embed_codegen", {
     inherit = false,
     public = false

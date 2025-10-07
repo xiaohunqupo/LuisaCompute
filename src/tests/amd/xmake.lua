@@ -4,8 +4,8 @@ local function test_proj(name, callable)
         project_kind = "binary"
     })
     add_files(name .. ".cpp")
-    add_deps("luisa-runtime", "luisa-dsl", "luisa-vstl", "luisa-backends-dummy", "stb-image")
-    add_deps("luisa-gui")
+    add_deps("lc-runtime", "lc-dsl", "lc-vstl", "lc-backends-dummy", "stb-image")
+    add_deps("lc-gui")
     if callable then
         callable()
     end

@@ -352,13 +352,13 @@ on_load(function(target)
 end)
 rule_end()
 
-rule("luisa-rename-ext")
+rule("lc-rename-ext")
 on_load(function(target)
-    target:set("basename", "luisa-ext-" .. target:name())
+    target:set("basename", "lc-ext-" .. target:name())
 end)
 rule_end()
 
-target("luisa-check-winsdk")
+target("lc-check-winsdk")
 set_kind("phony")
 on_config(function(target)
     if not is_plat("windows") then

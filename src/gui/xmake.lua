@@ -1,5 +1,5 @@
 target("glfw")
-set_basename("luisa-ext-glfw")
+set_basename("lc-ext-glfw")
 _config_project({
     project_kind = "static"
 })
@@ -24,7 +24,7 @@ target_end()
 
 
 target("imgui")
-set_basename("luisa-ext-imgui")
+set_basename("lc-ext-imgui")
 _config_project({
     project_kind = "shared"
 })
@@ -40,15 +40,15 @@ add_includedirs("../ext/imgui", "../ext/imgui/backends", {
     public = true
 })
 add_defines("ImDrawIdx=unsigned int", {public = true})
-add_deps("glfw", "luisa-dsl")
+add_deps("glfw", "lc-dsl")
 target_end()
 
-target("luisa-gui")
+target("lc-gui")
 _config_project({
     project_kind = "shared"
 })
 add_headerfiles("../../include/luisa/gui/**.h")
 add_files("*.cpp")
 add_defines("LUISA_GUI_EXPORT_DLL", "GLFW_DLL")
-add_deps("glfw", "luisa-runtime", "imgui")
+add_deps("glfw", "lc-runtime", "imgui")
 target_end()

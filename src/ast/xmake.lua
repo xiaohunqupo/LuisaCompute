@@ -1,9 +1,9 @@
-target("luisa-ast")
+target("lc-ast")
 _config_project({
 	project_kind = "shared",
 	batch_size = 4
 })
-add_deps("luisa-core", "luisa-vstl")
+add_deps("lc-core", "lc-vstl")
 add_headerfiles("../../include/luisa/ast/**.h")
 set_pcxxheader("lc_ast_pch.h")
 add_files("**.cpp")

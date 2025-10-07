@@ -1,7 +1,7 @@
 if get_config("lc_cuda_ext_lcub") then
     includes("lcub")
 end
-target("luisa-cuda-base")
+target("lc-cuda-base")
 set_kind("phony")
 on_load(function(target)
     import("detect.sdks.find_cuda")
@@ -56,18 +56,18 @@ on_load(function(target)
 end)
 target_end()
 
-target("luisa-backend-cuda")
+target("lc-backend-cuda")
 _config_project({
     project_kind = "shared",
     batch_size = 4
 })
-add_deps("luisa-runtime", "luisa-cuda-base", "reproc")
+add_deps("lc-runtime", "lc-cuda-base", "reproc")
 if get_config("lc_enable_ir") then
-    add_deps("luisa-ir")
+    add_deps("lc-ir")
 end
 
 if get_config("lc_cuda_ext_lcub") then
-    add_deps("luisa-compute-cuda-ext-lcub")
+    add_deps("lc-compute-cuda-ext-lcub")
 end
 add_deps("lc_embed_codegen", {
     inherit = false,
@@ -94,7 +94,7 @@ on_load(function(target)
     end
     if get_config("_lc_vk_sdk_dir") then
         target:add("defines", "LUISA_BACKEND_ENABLE_VULKAN_SWAPCHAIN")
-        target:add("deps", "luisa-vulkan-swapchain", "volk")
+        target:add("deps", "lc-vulkan-swapchain", "volk")
     end
 end)
 add_files("extensions/cuda_denoiser.cpp", "extensions/cuda_dstorage.cpp", "extensions/cuda_pinned_memory.cpp")
@@ -118,7 +118,7 @@ add_links("cuda")
 -- end)
 target_end()
 
-target("luisa-nvrtc")
+target("lc-nvrtc")
 _config_project({
     project_kind = "binary",
     runtime = "MT"
@@ -127,7 +127,7 @@ if is_plat("windows") then
     add_syslinks("Ws2_32", "User32")
 end
 set_basename("luisa_nvrtc")
-add_deps("luisa-cuda-base")
+add_deps("lc-cuda-base")
 add_links("nvrtc_static", "nvrtc-builtins_static", "nvptxcompiler_static")
 add_files("cuda_nvrtc_compiler.cpp")
 target_end()

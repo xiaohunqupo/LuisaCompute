@@ -21,37 +21,37 @@ includes("validation")
 if get_config("lc_toy_c_backend") then
     includes("toy_c")    
 end
-target("luisa-backends-dummy")
+target("lc-backends-dummy")
 set_kind("phony")
 on_load(function(target)
-    target:add("deps", "luisa-validation-layer", {
+    target:add("deps", "lc-validation-layer", {
         inherit = false
     })
-    -- target:add("deps", "luisa-backend-toy-c", {
+    -- target:add("deps", "lc-backend-toy-c", {
     --     inherit = false
     -- })
     if get_config("lc_dx_backend") then
-        target:add("deps", "luisa-backend-dx", {
+        target:add("deps", "lc-backend-dx", {
             inherit = false
         })
     end
     if get_config("lc_cuda_backend") then
-        target:add("deps", "luisa-backend-cuda", {
+        target:add("deps", "lc-backend-cuda", {
             inherit = false
         })
     end
     if get_config("lc_metal_backend") then
-        target:add("deps", "luisa-backend-metal", {
+        target:add("deps", "lc-backend-metal", {
             inherit = false
         })
     end
     if get_config("lc_vk_backend") then
-        target:add("deps", "luisa-backend-vk", {
+        target:add("deps", "lc-backend-vk", {
             inherit = false
         })
     end
     if get_config("lc_cpu_backend") then
-        target:add("deps", "luisa-backend-cpu", {
+        target:add("deps", "lc-backend-cpu", {
             inherit = false
         })
     end

@@ -1,4 +1,4 @@
-target("luisa-core")
+target("lc-core")
 _config_project({
     project_kind = "shared",
     batch_size = 4
@@ -39,7 +39,7 @@ on_load(function(target)
     if is_plat("windows") then
         target:add("defines", "_CRT_SECURE_NO_WARNINGS")
     end
-    target:add("deps", "eastl", "spdlog", "luisa-check-winsdk")
+    target:add("deps", "eastl", "spdlog", "lc-check-winsdk")
     if get_config("spdlog_only_fmt") then -- Use no spdlog
         target:add("defines", "LUISA_CUSTOM_LOGGER", {
             public = true
