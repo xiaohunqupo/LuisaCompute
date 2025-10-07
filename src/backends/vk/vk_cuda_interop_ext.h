@@ -12,10 +12,10 @@ class VkCudaInteropImpl : public VkCudaInterop {
     int _cuda_device;
     Device *_device;
 public:
-    VkCudaInteropImpl(Device *device);
+    VkCudaInteropImpl(Device *device) noexcept;
     VkCudaInteropImpl(VkCudaInteropImpl const &) = delete;
     VkCudaInteropImpl(VkCudaInteropImpl &&) = delete;
-    ~VkCudaInteropImpl();
+    ~VkCudaInteropImpl() override;
     BufferCreationInfo create_interop_buffer(const Type *element, size_t elem_count) noexcept override;
     [[nodiscard]] CudaDeviceConfigExt::ExternalVkDevice get_external_vk_device() const noexcept override;
     ResourceCreationInfo create_interop_texture(
