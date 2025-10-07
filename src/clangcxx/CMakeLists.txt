@@ -8,7 +8,7 @@ if (LUISA_COMPUTE_ENABLE_CLANG_CXX)
     target_precompile_headers(luisa-compute-clangcxx PRIVATE src/lc_clangcxx_pch.h)
     set_target_properties(luisa-compute-clangcxx PROPERTIES
             UNITY_BUILD ${LUISA_COMPUTE_ENABLE_UNITY_BUILD}
-            OUTPUT_NAME "lc-clangcxx")
+            OUTPUT_NAME "luisa-clangcxx")
     target_compile_definitions(luisa-compute-clangcxx PRIVATE
             LUISA_CLANGCXX_EXPORT_DLL
             $<$<CONFIG:Debug>:LC_CLANGCXX_ENABLE_COMMENT=1>

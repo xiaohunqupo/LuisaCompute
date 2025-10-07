@@ -14,6 +14,6 @@ target_compile_definitions(luisa-compute-osl PRIVATE LUISA_OSL_EXPORT_DLL=1)
 
 set_target_properties(luisa-compute-osl PROPERTIES
         UNITY_BUILD ${LUISA_COMPUTE_ENABLE_UNITY_BUILD}
-        OUTPUT_NAME lc-osl)
+        OUTPUT_NAME luisa-osl)
 
 luisa_compute_install(osl)

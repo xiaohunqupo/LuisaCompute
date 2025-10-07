@@ -11,7 +11,7 @@ if (LUISA_COMPUTE_ENABLE_RUST)
 
     set_target_properties(luisa-compute-ir PROPERTIES
             UNITY_BUILD ${LUISA_COMPUTE_ENABLE_UNITY_BUILD}
-            OUTPUT_NAME lc-ir)
+            OUTPUT_NAME luisa-ir)
 else ()
     add_library(luisa-compute-ir INTERFACE)
     luisa_compute_install(ir)

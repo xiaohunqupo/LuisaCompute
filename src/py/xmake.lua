@@ -37,6 +37,6 @@ add_cxflags("/bigobj", {
 })
 add_headerfiles("*.h")
 add_files("*.cpp")
-add_deps("lc-runtime", "lc-gui")
+add_deps("luisa-runtime", "luisa-gui")
 set_extension(".pyd")
 target_end()

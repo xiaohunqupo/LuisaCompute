@@ -77,7 +77,7 @@ else ()
     target_compile_definitions(xxhash INTERFACE XXH_INLINE_ALL)
     set_target_properties(xxhash PROPERTIES
             UNITY_BUILD ${LUISA_COMPUTE_ENABLE_UNITY_BUILD}
-            OUTPUT_NAME lc-ext-xxhash)
+            OUTPUT_NAME luisa-ext-xxhash)
     target_link_libraries(luisa-compute-ext INTERFACE xxhash)
     luisa_compute_install_extension(xxhash HEADER_FILES
             xxHash/xxh3.h
@@ -113,7 +113,7 @@ if (LUISA_COMPUTE_ENABLE_GUI)
         set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
         set(GLFW_LIBRARY_TYPE SHARED CACHE STRING "" FORCE)
         add_subdirectory(glfw)
-        set_target_properties(glfw PROPERTIES OUTPUT_NAME lc-ext-glfw)
+        set_target_properties(glfw PROPERTIES OUTPUT_NAME luisa-ext-glfw)
         target_link_libraries(luisa-compute-ext INTERFACE glfw)
         luisa_compute_install_extension(glfw)
     endif ()
@@ -265,7 +265,7 @@ else ()
     endif ()
     set_target_properties(luisa-compute-ext-lmdb PROPERTIES
             UNITY_BUILD ${LUISA_COMPUTE_ENABLE_UNITY_BUILD}
-            OUTPUT_NAME lc-ext-lmdb)
+            OUTPUT_NAME luisa-ext-lmdb)
     install(TARGETS luisa-compute-ext-lmdb EXPORT LuisaComputeTargets)
 endif ()
 

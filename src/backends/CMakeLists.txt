@@ -16,7 +16,7 @@ function(luisa_compute_add_backend name)
     set_target_properties(luisa-compute-backend-${name} PROPERTIES
             UNITY_BUILD ${LUISA_COMPUTE_ENABLE_UNITY_BUILD}
             DEBUG_POSTFIX ""
-            OUTPUT_NAME lc-backend-${name})
+            OUTPUT_NAME luisa-backend-${name})
     install(TARGETS luisa-compute-backend-${name}
             LIBRARY DESTINATION ${CMAKE_INSTALL_BINDIR}
             ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}

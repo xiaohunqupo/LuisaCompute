@@ -91,7 +91,7 @@ target_compile_definitions(luisa-compute-xir PRIVATE LUISA_XIR_EXPORT_DLL=1)
 
 set_target_properties(luisa-compute-xir PROPERTIES
         UNITY_BUILD ${LUISA_COMPUTE_ENABLE_UNITY_BUILD}
-        OUTPUT_NAME lc-xir)
+        OUTPUT_NAME luisa-xir)
 
 luisa_compute_install(xir)
 

@@ -1,10 +1,10 @@
-target("lc-dsl")
+target("luisa-dsl")
 _config_project({
 	project_kind = "static",
 	batch_size = 0
 })
 set_pcxxheader("lc_dsl_pch.h")
-add_deps("lc-ast", "lc-runtime")
+add_deps("luisa-ast", "luisa-runtime")
 add_headerfiles("../../include/luisa/dsl/**.h")
 add_files("**.cpp")
 add_defines("LUISA_DSL_STATIC_LIB", {

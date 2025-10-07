@@ -87,7 +87,7 @@ public:
         BackendModule m{
             .module = DynamicModule::load(
                 runtime_directory,
-                luisa::format("lc-backend-{}", backend_name))};
+                luisa::format("luisa-backend-{}", backend_name))};
         LUISA_ASSERT(m.module, "Failed to load backend '{}'.", backend_name);
         m.creator = m.module.function<Device::Creator>("create");
         m.deleter = m.module.function<Device::Deleter>("destroy");
@@ -103,7 +103,7 @@ public:
     [[nodiscard]] const ValidationLayer &load_validation_layer() noexcept {
         std::scoped_lock lock{module_mutex};
         if (!validation_layer.module) {
-            validation_layer.module = DynamicModule::load(runtime_directory, "lc-validation-layer");
+            validation_layer.module = DynamicModule::load(runtime_directory, "luisa-validation-layer");
             validation_layer.creator = validation_layer.module.function<ValidationLayer::Creator>("create");
             validation_layer.deleter = validation_layer.module.function<Device::Deleter>("destroy");
         }
@@ -136,8 +136,8 @@ public:
         const auto extension_dll = luisa::filesystem::path(".dll");
         const auto extension_dylib = luisa::filesystem::path(".dylib");
         constexpr std::array possible_prefixes{
-            "lc-backend-"sv,
-            "liblc-backend-"sv// Make Mingw happy
+            "luisa-backend-"sv,
+            "libluisa-backend-"sv// Make Mingw happy
         };
         for (auto &&p : luisa::filesystem::directory_iterator{runtime_directory}) {
             auto &&path = p.path();

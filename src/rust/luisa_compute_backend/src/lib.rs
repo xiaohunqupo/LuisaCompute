@@ -69,7 +69,7 @@ impl BackendProvider {
                 .to_str()
                 .unwrap();
             let target = if info.target.is_null() {
-                "lc-cpp".to_string()
+                "luisa-cpp".to_string()
             } else {
                 CStr::from_ptr(info.target as *mut c_char)
                     .to_str()
@@ -103,11 +103,11 @@ impl Context {
         unsafe {
             let lib_path = path.as_ref().to_path_buf();
             let provider_dll = if cfg!(target_os = "windows") {
-                lib_path.join("lc-api.dll")
+                lib_path.join("luisa-api.dll")
             } else if cfg!(target_os = "linux") {
-                lib_path.join("liblc-api.so")
+                lib_path.join("libluisa-api.so")
             } else if cfg!(target_os = "macos") {
-                lib_path.join("liblc-api.dylib")
+                lib_path.join("libluisa-api.dylib")
             } else {
                 todo!()
             };
@@ -121,11 +121,11 @@ impl Context {
             Ok(provider) => ProxyBackend::new(provider, device, config),
             Err(err) => {
                 let libname = if cfg!(target_os = "windows") {
-                    "lc-api.dll"
+                    "luisa-api.dll"
                 } else if cfg!(target_os = "linux") {
-                    "liblc-api.so"
+                    "libluisa-api.so"
                 } else if cfg!(target_os = "macos") {
-                    "liblc-api.dylib"
+                    "libluisa-api.dylib"
                 } else {
                     todo!()
                 };

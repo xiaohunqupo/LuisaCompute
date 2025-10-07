@@ -185,9 +185,9 @@ unsafe extern "C" fn create_device(
             {
                 let lib_path = &ctx.path;
                 let swapchain_dll = if cfg!(target_os = "windows") {
-                    "lc-backend-cpu.dll"
+                    "luisa-backend-cpu.dll"
                 } else if cfg!(target_os = "linux") || cfg!(target_os = "macos") {
-                    "liblc-backend-cpu.so"
+                    "libluisa-backend-cpu.so"
                 } else {
                     todo!()
                 };

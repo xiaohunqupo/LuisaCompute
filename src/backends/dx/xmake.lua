@@ -1,9 +1,9 @@
-target("lc-backend-dx")
+target("luisa-backend-dx")
 _config_project({
     project_kind = "shared",
     batch_size = 8
 })
-add_deps("lc-runtime", "lc-vstl", "lc-hlsl-codegen")
+add_deps("luisa-runtime", "luisa-vstl", "luisa-hlsl-codegen")
 add_files("**.cpp")
 add_headerfiles("**.h", "../common/default_binary_io.h")
 add_includedirs("./")

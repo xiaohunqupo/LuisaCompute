@@ -1,4 +1,4 @@
-target("lc-ir")
+target("luisa-ir")
 _config_project({
 	project_kind = "shared"
 })
@@ -7,7 +7,7 @@ on_load(function(target)
 		return path.relative(path.absolute(p, os.scriptdir()), os.projectdir())
 	end
 	target:add("defines", "LUISA_IR_EXPORT_DLL")
-	target:add("deps", "lc-ast", "lc-rust")
+	target:add("deps", "luisa-ast", "luisa-rust")
 	if is_plat("windows") then
 		target:add("syslinks", "Ws2_32", "Advapi32", "Bcrypt", "Userenv")
 	end

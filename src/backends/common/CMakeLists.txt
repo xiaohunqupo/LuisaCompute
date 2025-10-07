@@ -218,7 +218,7 @@ if (LUISA_COMPUTE_ENABLE_CPU OR
         endif ()
 
         set_target_properties(luisa-compute-vulkan-swapchain PROPERTIES
-                OUTPUT_NAME lc-vulkan-swapchain)
+                OUTPUT_NAME luisa-vulkan-swapchain)
         install(TARGETS luisa-compute-vulkan-swapchain EXPORT LuisaComputeTargets
                 LIBRARY DESTINATION ${CMAKE_INSTALL_BINDIR}
                 RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

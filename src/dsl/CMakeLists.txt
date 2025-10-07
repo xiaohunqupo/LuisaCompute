@@ -29,7 +29,7 @@ if (LUISA_COMPUTE_ENABLE_DSL)
             PUBLIC LUISA_ENABLE_DSL=1)
     set_target_properties(luisa-compute-dsl PROPERTIES
             UNITY_BUILD ${LUISA_COMPUTE_ENABLE_UNITY_BUILD}
-            OUTPUT_NAME lc-dsl)
+            OUTPUT_NAME luisa-dsl)
     luisa_compute_install(dsl SOURCES ${LUISA_COMPUTE_DSL_SOURCES})
     target_precompile_headers(luisa-compute-dsl PRIVATE lc_dsl_pch.h)
 else ()

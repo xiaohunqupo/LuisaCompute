@@ -1,6 +1,6 @@
 enable_mimalloc = get_config("lc_enable_mimalloc")
 enable_custom_malloc = get_config("lc_enable_custom_malloc")
-table.insert(_config_rules, "lc-rename-ext")
+table.insert(_config_rules, "luisa-rename-ext")
 local rename_rule_idx = table.getn(_config_rules)
 includes("ext/EASTL", "ext/spdlog", "ext/reproc", "ext/liblmdb", "ext/volk", "ext/stb")
 table.remove(_config_rules, rename_rule_idx)

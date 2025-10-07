@@ -32,7 +32,7 @@ add_dependencies(luisa-compute-backends luisa-compute-validation-layer)
 set_target_properties(luisa-compute-validation-layer PROPERTIES
         UNITY_BUILD ${LUISA_COMPUTE_ENABLE_UNITY_BUILD}
         DEBUG_POSTFIX ""
-        OUTPUT_NAME lc-validation-layer)
+        OUTPUT_NAME luisa-validation-layer)
 install(TARGETS luisa-compute-validation-layer
         LIBRARY DESTINATION ${CMAKE_INSTALL_BINDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}

@@ -8,7 +8,7 @@ if (LUISA_COMPUTE_ENABLE_TENSOR)
             PUBLIC LUISA_ENABLE_TENSOR=1)
     set_target_properties(luisa-compute-tensor PROPERTIES
             UNITY_BUILD ${LUISA_COMPUTE_ENABLE_UNITY_BUILD}
-            OUTPUT_NAME lc-tensor)
+            OUTPUT_NAME luisa-tensor)
     luisa_compute_install(tensor SOURCES ${LUISA_COMPUTE_TENSOR_SOURCES})
 else ()
     add_library(luisa-compute-tensor INTERFACE)
