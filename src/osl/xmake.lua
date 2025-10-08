@@ -1,4 +1,5 @@
 target("lc-osl")
+set_basename("luisa-osl")
 _config_project({
 	project_kind = "shared",
 	batch_size = 16

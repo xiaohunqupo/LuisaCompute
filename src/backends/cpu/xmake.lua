@@ -1,4 +1,5 @@
-target("luisa-backend-cpu")
+target("lc-backend-cpu")
+set_basename("luisa-backend-cpu")
 _config_project({
     project_kind = "shared"
 })

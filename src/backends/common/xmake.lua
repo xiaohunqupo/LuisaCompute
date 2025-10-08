@@ -23,6 +23,7 @@ end
 
 if get_config("lc_toy_c_backend") then
     target("lc-clanguage-codegen")
+    set_basename("luisa-clanguage-codegen")
     _config_project({
         project_kind = "static"
     })

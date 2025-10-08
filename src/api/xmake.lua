@@ -1,4 +1,5 @@
 target("lc-api")
+set_basename("luisa-api")
 _config_project({
 	project_kind = "shared"
 })

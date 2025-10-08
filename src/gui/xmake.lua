@@ -1,5 +1,5 @@
 target("glfw")
-set_basename("lc-ext-glfw")
+set_basename("luisa-ext-glfw")
 _config_project({
     project_kind = "static"
 })
@@ -24,7 +24,7 @@ target_end()
 
 
 target("imgui")
-set_basename("lc-ext-imgui")
+set_basename("luisa-ext-imgui")
 _config_project({
     project_kind = "shared"
 })
@@ -44,6 +44,7 @@ add_deps("glfw", "lc-dsl")
 target_end()
 
 target("lc-gui")
+set_basename("luisa-gui")
 _config_project({
     project_kind = "shared"
 })

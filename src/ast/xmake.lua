@@ -1,4 +1,5 @@
 target("lc-ast")
+set_basename("luisa-ast")
 _config_project({
 	project_kind = "shared",
 	batch_size = 4

@@ -1,4 +1,5 @@
-target("luisa-backend-metal")
+target("lc-backend-metal")
+set_basename("luisa-backend-metal")
 _config_project({
     project_kind = "shared",
     batch_size = 0

@@ -56,7 +56,8 @@ on_load(function(target)
 end)
 target_end()
 
-target("luisa-backend-cuda")
+target("lc-backend-cuda")
+set_basename("luisa-backend-cuda")
 _config_project({
     project_kind = "shared",
     batch_size = 4

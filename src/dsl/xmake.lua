@@ -1,4 +1,5 @@
 target("lc-dsl")
+set_basename("luisa-dsl")
 _config_project({
 	project_kind = "static",
 	batch_size = 0

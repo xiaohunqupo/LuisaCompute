@@ -1,4 +1,5 @@
 target("lc-runtime")
+set_basename("luisa-runtime")
 _config_project({
 	project_kind = "shared",
 	batch_size = 8

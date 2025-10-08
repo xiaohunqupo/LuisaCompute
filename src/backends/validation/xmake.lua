@@ -1,4 +1,5 @@
-target("luisa-validation-layer")
+target("lc-validation-layer")
+set_basename("luisa-validation-layer")
 _config_project({
 	project_kind = "shared"
 })

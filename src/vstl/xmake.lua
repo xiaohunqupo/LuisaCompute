@@ -1,4 +1,5 @@
 target("lc-vstl")
+set_basename("luisa-vstl")
 if is_plat("macosx") then
     _config_project({
         project_kind = "shared",

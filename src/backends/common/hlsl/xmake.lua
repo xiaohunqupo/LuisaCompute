@@ -1,4 +1,5 @@
 target("lc-hlsl-codegen")
+set_basename("luisa-hlsl-codegen")
 _config_project({
     project_kind = "static",
     batch_size = 2

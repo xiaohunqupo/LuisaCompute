@@ -1,5 +1,6 @@
 if not is_mode("debug") then
     target("lc-clangcxx")
+    set_basename("luisa-clangcxx")
     _config_project({
         project_kind = "shared"
     })

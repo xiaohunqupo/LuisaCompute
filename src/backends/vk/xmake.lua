@@ -1,4 +1,5 @@
-target("luisa-backend-vk")
+target("lc-backend-vk")
+set_basename("luisa-backend-vk")
 _config_project({
     project_kind = "shared"
 })

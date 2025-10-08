@@ -1,4 +1,5 @@
 target("lc-ir")
+set_basename("luisa-ir")
 _config_project({
 	project_kind = "shared"
 })

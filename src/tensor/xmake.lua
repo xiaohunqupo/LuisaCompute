@@ -1,4 +1,5 @@
 target("lc-tensor")
+set_basename("luisa-tensor")
 _config_project({
 	project_kind = "shared"
 })

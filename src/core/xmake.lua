@@ -1,4 +1,5 @@
 target("lc-core")
+set_basename("luisa-core")
 _config_project({
     project_kind = "shared",
     batch_size = 4

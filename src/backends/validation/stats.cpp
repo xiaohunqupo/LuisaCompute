@@ -1,4 +1,4 @@
-#include "stream_stats.h"
+#include "stats.h"
 #include <luisa/core/logging.h>
 
 namespace luisa::compute {
@@ -13,10 +13,11 @@ void DeviceStats::destroy_event(uint64_t handle) {
     std::lock_guard lck{mtx};
     _events_stats.erase(handle);
 }
-void DeviceStats::create_stream(uint64_t handle) {
+void DeviceStats::create_stream(uint64_t handle, StreamTag stream_tag) {
     std::lock_guard lck{mtx};
     auto &v = _stream_stats.try_emplace(handle).first->second;
     v.stream_handle = handle;
+    v.stream_tag = stream_tag;
 }
 void DeviceStats::destroy_stream(uint64_t handle) {
     std::lock_guard lck{mtx};
@@ -35,9 +36,9 @@ EventStats &DeviceStats::_get_event_stats(uint64_t event_handle) {
 void DeviceStats::_process_wait(EventStats &event_stats, StreamStats &stream_stats, uint64_t wait_idx) {
     for (auto &kv : event_stats.signaled_stream) {
         auto &stream_scope = kv.second;
-        auto &fence_filter = stream_stats.waited_stream_fence.try_emplace(0).first->second;
+        auto &fence_filter = stream_stats.waited_stream_fence.try_emplace(stream_scope->stream_handle, 0).first->second;
         if (kv.first > fence_filter && kv.first <= wait_idx) {
-            stream_stats.next_scope_depending_scopes.emplace_back(stream_scope);
+            stream_stats._next_scope_depending_scopes.emplace_back(stream_scope);
             fence_filter = kv.first;
         }
     }
@@ -75,17 +76,17 @@ void DeviceStats::wait_event(uint64_t event_handle, uint64_t stream_handle, uint
             .fence_idx = fence_index});
     }
 }
-void DeviceStats::dispatch_stream(uint64_t stream_handle, luisa::string &&dispatch_name, CommandList &cmdlist) {
+luisa::move_only_function<void()> DeviceStats::dispatch_stream(uint64_t stream_handle, luisa::string &&dispatch_name) {
     std::lock_guard lck{mtx};
     auto &stream = _get_stream_stats(stream_handle);
     auto new_scope = luisa::make_shared<StreamStatsScope>();
     new_scope->stream_handle = stream_handle;
     new_scope->name = std::move(dispatch_name);
-    if (!stream.next_scope_depending_scopes.empty()) {
-        new_scope->depending_scopes = std::move(stream.next_scope_depending_scopes);
+    if (!stream._next_scope_depending_scopes.empty()) {
+        new_scope->depending_scopes = std::move(stream._next_scope_depending_scopes);
     }
     _unfinished_stage++;
-    cmdlist.add_callback([this, new_scope]() {
+    luisa::move_only_function<void()> func([this, new_scope]() {
         std::lock_guard lck{mtx};
         new_scope->finished_time = clk.toc();
         --_unfinished_stage;
@@ -94,24 +95,37 @@ void DeviceStats::dispatch_stream(uint64_t stream_handle, luisa::string &&dispat
     auto &v = stream.stream_scopes.emplace_back(std::move(new_scope));
     if (!clk_ticked) {
         clk_ticked = true;
+        clk.tic();
         v->start_time = 0;
     } else {
         v->start_time = clk.toc();
     }
+    return func;
 }
-void DeviceStats::wait_frame() {
+void DeviceStats::finalize() {
+    _wait_frame();
+    std::lock_guard lck{mtx};
+    for (auto &i : _stream_stats) {
+        for (auto &scope : i.second.stream_scopes) {
+            for (auto &dep : scope->depending_scopes) {
+                scope->start_time = std::max(scope->start_time, dep->finished_time);
+            }
+        }
+    }
+}
+void DeviceStats::_wait_frame() {
     while (_unfinished_stage != 0) {
         std::this_thread::yield();
     }
 }
 
 void DeviceStats::reset_frame() {
-    wait_frame();
+    _wait_frame();
     std::lock_guard lck{mtx};
     for (auto &i : _stream_stats) {
         i.second.waited_stream_fence.clear();
         i.second.stream_scopes.clear();
-        i.second.next_scope_depending_scopes.clear();
+        i.second._next_scope_depending_scopes.clear();
     }
     for (auto &i : _events_stats) {
         i.second.signaled_stream.clear();
