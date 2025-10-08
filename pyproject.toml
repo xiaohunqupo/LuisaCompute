@@ -22,7 +22,9 @@ classifiers = [
 ]
 dependencies = [
     "sourceinspect",
-    "numpy"
+    "numpy",
+    "torch>=2.8.0",
+    "cupy>=13.6.0",
 ]
 license = { file = "LICENSE" }
 keywords = ["luisa", "rendering", "framework", "gpu", "stream", "architecture"]
@@ -34,10 +36,10 @@ Issues = "https://github.com/LuisaGroup/LuisaCompute/issues"
 
 [tool.scikit-build]
 cmake.version = ">=3.28"
-ninja.version = ">=1.11"
-ninja.make-fallback = false
 cmake.build-type = "Release"
 cmake.args = ["-G Ninja"]
+ninja.version = ">=1.11"
+ninja.make-fallback = false
 sdist.reproducible = false
 wheel.expand-macos-universal-tags = true
 wheel.packages = []

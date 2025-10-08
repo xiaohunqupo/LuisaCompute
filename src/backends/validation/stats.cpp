@@ -129,7 +129,13 @@ void DeviceStats::reset_frame() {
     }
     for (auto &i : _events_stats) {
         i.second.signaled_stream.clear();
+#ifdef LUISA_USE_SYSTEM_STL
+        while (!i.second.wait_stream.empty()) {
+            i.second.wait_stream.pop();
+        }
+#else
         i.second.wait_stream.get_container().clear();
+#endif
     }
     clk_ticked = false;
 }
