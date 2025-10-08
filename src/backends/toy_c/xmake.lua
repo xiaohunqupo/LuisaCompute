@@ -1,4 +1,4 @@
-target("lc-backend-toy-c")
+target("luisa-backend-toy-c")
 _config_project({
 	project_kind = "shared"
 })

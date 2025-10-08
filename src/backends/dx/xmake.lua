@@ -1,4 +1,4 @@
-target("lc-backend-dx")
+target("luisa-backend-dx")
 _config_project({
     project_kind = "shared",
     batch_size = 8

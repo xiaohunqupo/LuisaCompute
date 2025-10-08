@@ -54,11 +54,9 @@ ResourceCreationInfo Resource::release() noexcept {
 }
 
 void Resource::reset() noexcept {
-    if (*this) {
+    if (*this) [[likely]] {
         this->~Resource();
         _info.invalidate();
-    } else {
-        LUISA_WARNING_WITH_LOCATION("Resetting an already invalid resource.");
     }
 }
 

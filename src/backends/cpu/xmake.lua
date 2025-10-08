@@ -1,4 +1,4 @@
-target("lc-backend-cpu")
+target("luisa-backend-cpu")
 _config_project({
     project_kind = "shared"
 })

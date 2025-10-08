@@ -1,4 +1,4 @@
-target("lc-validation-layer")
+target("luisa-validation-layer")
 _config_project({
 	project_kind = "shared"
 })
