@@ -1,4 +1,5 @@
-target("luisa-backend-cpu")
+target("lc-backend-cpu")
+set_basename("luisa-backend-cpu")
 _config_project({
     project_kind = "shared"
 })
@@ -7,9 +8,9 @@ on_load(function(target)
         return path.relative(path.absolute(p, os.scriptdir()), os.projectdir())
     end
     target:add("defines", "LUISA_IR_EXPORT_DLL")
-    target:add("deps", "luisa-runtime", "luisa-ir", "luisa-ast", "luisa-rust")
+    target:add("deps", "lc-runtime", "lc-ir", "lc-ast", "lc-rust")
     if get_config("_lc_vk_sdk_dir") then
-		target:add("deps", "luisa-vulkan-swapchain")
+		target:add("deps", "lc-vulkan-swapchain")
     end
     target:set("features", "cpu")
     if is_plat("windows") then

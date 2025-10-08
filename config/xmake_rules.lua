@@ -22,7 +22,7 @@ on_load(function(target)
 		path.join(lc_dir,"src/ext/EASTL/packages/mimalloc/include"),
 		--[[eastl]]
 		path.join(lc_dir,"src/ext/EASTL/include"), path.join(lc_dir,"src/ext/EASTL/packages/EABase/include/Common"),
-		--[[luisa-core]]
+		--[[lc-core]]
 		path.join(lc_dir,"include"), path.join(lc_dir,"src/ext/xxHash"), path.join(lc_dir,"src/ext/magic_enum/include"),
 		--[[imgui]]
 		path.join(lc_dir, "src/ext/imgui"), path.join(lc_dir, "src/ext/imgui/backends"),

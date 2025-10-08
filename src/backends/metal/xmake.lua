@@ -1,9 +1,10 @@
-target("luisa-backend-metal")
+target("lc-backend-metal")
+set_basename("luisa-backend-metal")
 _config_project({
     project_kind = "shared",
     batch_size = 0
 })
-add_deps("luisa-runtime")
+add_deps("lc-runtime")
 add_headerfiles("*.h")
 add_files("*.cpp", "*.mm", "../common/default_binary_io.cpp")
 

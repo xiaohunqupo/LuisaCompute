@@ -1,4 +1,5 @@
-target("luisa-vstl")
+target("lc-vstl")
+set_basename("luisa-vstl")
 if is_plat("macosx") then
     _config_project({
         project_kind = "shared",
@@ -14,7 +15,7 @@ else
         public = true
     })
 end
-add_deps("luisa-core", "lmdb")
+add_deps("lc-core", "lmdb")
 set_pcxxheader("lc_vstl_pch.h")
 add_headerfiles("../../include/luisa/vstl/**.h")
 add_files("**.cpp")

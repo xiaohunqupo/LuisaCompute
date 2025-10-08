@@ -1,4 +1,5 @@
-target("luisa-rust")
+target("lc-rust")
+set_basename("luisa-rust")
 _config_project({
 	project_kind = "object"
 })

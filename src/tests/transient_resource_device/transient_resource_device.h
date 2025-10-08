@@ -39,7 +39,8 @@ struct TransientTexDesc {
         return (mask & 1u) != 0;
     }
 };
-class TransientResourceDevice : public luisa::compute::DeviceInterface {
+struct TransientResourceDevice : public luisa::compute::DeviceInterface {
+private:
     struct TexResourceHandle {
         ResourceCreationInfo res_info;
         uint64_t index;// index in _native_resources

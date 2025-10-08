@@ -22,7 +22,7 @@ local function lc_add_app(appname, folder, name, deps)
     add_files(path.join("next", folder, match_str))
 
     -- basic defs
-    add_deps("luisa-runtime", "luisa-dsl", "luisa-vstl", "stb-image", "luisa-backends-dummy")
+    add_deps("lc-runtime", "lc-dsl", "lc-vstl", "stb-image", "lc-backends-dummy")
     -- extra deps 
     add_deps(deps)
 
@@ -33,7 +33,7 @@ local function lc_add_app(appname, folder, name, deps)
     if get_config("lc_cuda_backend") then
         add_defines("LUISA_TEST_CUDA_BACKEND")
         if get_config("lc_cuda_ext_lcub") then
-            add_deps("luisa-compute-cuda-ext-lcub")
+            add_deps("lc-compute-cuda-ext-lcub")
         end
     end
     if get_config("lc_metal_backend") then
@@ -60,8 +60,8 @@ end
 if get_config("lc_enable_gui") then
     add_defines("ENABLE_DISPLAY")
     -- example app 
-    lc_add_app("gallery", "example", "gallery", {"luisa-gui"}) -- demo
-    lc_add_app("tutorial", "example", "use", {"luisa-gui"}) -- basic use tutorial
+    lc_add_app("gallery", "example", "gallery", {"lc-gui"}) -- demo
+    lc_add_app("tutorial", "example", "use", {"lc-gui"}) -- basic use tutorial
 end
 -- all test requires more stable dependencies
 -- lc_add_app("test_all", "test", "all") -- all test
@@ -80,13 +80,13 @@ local function test_proj(name, gui_dep, callable)
         project_kind = "binary"
     })
     add_files(name .. ".cpp")
-    add_deps("luisa-runtime", "luisa-dsl", "luisa-vstl", "stb-image", "luisa-backends-dummy")
+    add_deps("lc-runtime", "lc-dsl", "lc-vstl", "stb-image", "lc-backends-dummy")
     if get_config("lc_enable_ir") then
-        add_deps("luisa-ir")
-        add_deps("luisa-rust")
+        add_deps("lc-ir")
+        add_deps("lc-rust")
     end
     if get_config("lc_enable_gui") then
-        add_deps("luisa-gui")
+        add_deps("lc-gui")
     end
     if gui_dep then
         add_defines("LUISA_ENABLE_GUI")
@@ -181,11 +181,11 @@ test_proj("test_manual_ast")
 if not is_mode("debug") then
     if get_config("lc_enable_clangcxx") then
         test_proj("test_clang_cxx", true, function()
-            add_deps("luisa-clangcxx")
+            add_deps("lc-clangcxx")
             set_pcxxheader("lc_test_pch.h")
         end)
         test_proj("test_path_tracing_clangcxx", true, function()
-            add_deps("luisa-clangcxx")
+            add_deps("lc-clangcxx")
             set_pcxxheader("lc_test_pch.h")
         end)
         target("clangcxx_compiler")
@@ -193,7 +193,7 @@ if not is_mode("debug") then
             project_kind = "binary"
         })
         add_files("clangcxx_compiler.cpp")
-        add_deps("luisa-runtime", "luisa-vstl", "luisa-backends-dummy", "luisa-clangcxx")
+        add_deps("lc-runtime", "lc-vstl", "lc-backends-dummy", "lc-clangcxx")
         set_pcxxheader("lc_test_pch.h")
         target_end()
     end
@@ -201,7 +201,7 @@ end
 
 if get_config("lc_cuda_ext_lcub") then
     test_proj("test_cuda_lcub", false, function()
-        add_deps("luisa-compute-cuda-ext-lcub")
+        add_deps("lc-compute-cuda-ext-lcub")
     end)
 end
 

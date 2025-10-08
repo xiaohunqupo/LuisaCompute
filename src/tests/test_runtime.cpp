@@ -13,6 +13,7 @@
 #include <luisa/dsl/syntax.h>
 #include <luisa/dsl/sugar.h>
 #include <luisa/gui/window.h>
+#include <luisa/backends/ext/stats_ext.h>
 
 using namespace luisa;
 using namespace luisa::compute;
@@ -32,6 +33,7 @@ int main(int argc, char *argv[]) {
         // To avoid memory overflows, the backend automatically waits 2 - 3 frames before committing, set .inqueue_buffer_limit to false when multi-stream interactions are involved
         .inqueue_buffer_limit = false};
     Device device = context.create_device(argv[1], &device_config, true /*use validation layer for debug*/);
+    auto stats = device.extension<StatsExt>();
     // graphics stream for present
     Stream graphics_stream = device.create_stream(StreamTag::GRAPHICS);
     // compute stream for kernel
@@ -57,10 +59,10 @@ int main(int argc, char *argv[]) {
     ldr_image.set_name("present");
     compute_stream.set_name("my compute");
     graphics_stream.set_name("my present");
-    Kernel2D kernel = [&](Float time) {
+    Kernel2D kernel = [&](Float time, UInt2 offset, Float z_axis) {
         UInt2 coord = dispatch_id().xy();
         Float2 uv = (make_float2(coord) + 0.5f) / make_float2(dispatch_size().xy());
-        ldr_image->write(coord, make_float4(uv, sin(time) * 0.5f + 0.5f, 1.f));
+        ldr_image->write(coord + offset, make_float4(uv, sin(time + z_axis) * 0.5f + 0.5f, 1.0f));
     };
     auto shader = device.compile(kernel);
 
@@ -77,8 +79,6 @@ int main(int argc, char *argv[]) {
         if (this_frame >= framebuffer_count) {
             graphics_event.synchronize(this_frame - (framebuffer_count - 1));
         }
-        CommandList cmd_list;
-        cmd_list << shader(clk.toc() / 200.0f).dispatch(resolution);
 
         // Try this: without synchronize, texture will be used by multiple streams simultaneously, this is illegal.
         // If you REALLY want to access one resource with multiple streams simultaneously, you should mark simultaneously_access = true in create_image<T> and create_volume<T>, this may cause performance loss in some backends.
@@ -91,18 +91,32 @@ int main(int argc, char *argv[]) {
             compute_stream << graphics_event.wait(this_frame);
         }
 #endif
+        if (frame_index == 5) {
+            stats->begin_stats();
+        }
+        stats->set_next_dispatch_name("Compute Task");
         compute_stream
-            << cmd_list.commit()
+            << shader(clk.toc() / 200.0f, uint2(0), pi).dispatch(resolution.x, resolution.y / 2)
             // make a signal after compute_stream's tasks
             << compute_event.signal();
         // update frame
+        stats->set_next_dispatch_name("Graphics Task");
         graphics_stream
             // wait compute_stream's tasks
             << compute_event.wait()
+            << shader(clk.toc() / 200.0f, uint2(0, resolution.y / 2), 0.0f).dispatch(resolution.x, resolution.y / 2)
             << swap_chain.present(ldr_image)
             // let host wait here
             << graphics_event.signal(frame_index);
         window.poll_events();
+        if (frame_index == 5) {
+            auto &streams = stats->end_stats();
+            for (auto &i : streams) {
+                for (auto &j : i.second.stream_scopes) {
+                    LUISA_INFO("Stream {} task {} from time {} to time {}", luisa::to_string(i.second.stream_tag), j->name, j->start_time, j->finished_time);
+                }
+            }
+        }
     }
     compute_stream << synchronize();
     graphics_stream << synchronize();
