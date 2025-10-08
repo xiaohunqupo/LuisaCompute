@@ -146,11 +146,10 @@ public:
             auto &&path = p.path();
             auto p_is_regular_file = p.is_regular_file();
             const auto path_extension = path.extension();
-
-            if (
-                p_is_regular_file && (path_extension == extension_so ||
-                                      path_extension == extension_dll ||
-                                      path_extension == extension_dylib)) {
+            if (p_is_regular_file &&
+                (path_extension == extension_so ||
+                 path_extension == extension_dll ||
+                 path_extension == extension_dylib)) {
                 auto filename = luisa::to_string(path.stem());
                 for (auto prefix : possible_prefixes) {
                     if (filename.starts_with(prefix)) {
