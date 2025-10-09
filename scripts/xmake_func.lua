@@ -104,7 +104,12 @@ before_check(function(option)
     local lc_llvm_path = option:dep("lc_llvm_path")
     local lc_embree_path = option:dep("lc_embree_path")
     local lc_enable_xir = option:dep("lc_enable_xir")
-    if (not lc_llvm_path:enabled()) or (not lc_embree_path:enabled()) or (not lc_enable_xir:enabled()) then
+    if lc_fallback_backend:enabled() then
+        lc_enable_xir:enable(true, {
+            force = true
+        })
+    end
+    if (not lc_llvm_path:enabled()) or (not lc_embree_path:enabled()) then
         lc_fallback_backend:enable(false, {
             force = true
         })

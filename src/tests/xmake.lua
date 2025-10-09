@@ -3,7 +3,10 @@ local lc_enable_gui = get_config("lc_enable_gui")
 ------------------------------------
 
 local function lc_add_app(appname, folder, name, deps)
+    lc_make_dummy_backend(appname, appname)
+
     target(appname)
+    set_group(appname)
     _config_project({
         project_kind = "binary"
     })
@@ -22,7 +25,7 @@ local function lc_add_app(appname, folder, name, deps)
     add_files(path.join("next", folder, match_str))
 
     -- basic defs
-    add_deps("lc-runtime", "lc-dsl", "lc-vstl", "stb-image", "lc-backends-dummy")
+    add_deps("lc-runtime", "lc-dsl", "lc-vstl", "stb-image")
     -- extra deps 
     add_deps(deps)
 
@@ -75,12 +78,15 @@ local function test_proj(name, gui_dep, callable)
     if gui_dep and not lc_enable_gui then
         return
     end
+    lc_make_dummy_backend(name, name)
+
     target(name)
+    set_group(name)
     _config_project({
         project_kind = "binary"
     })
     add_files(name .. ".cpp")
-    add_deps("lc-runtime", "lc-dsl", "lc-vstl", "stb-image", "lc-backends-dummy")
+    add_deps("lc-runtime", "lc-dsl", "lc-vstl", "stb-image")
     if get_config("lc_enable_gui") then
         add_deps("lc-gui")
     end
@@ -189,7 +195,7 @@ if not is_mode("debug") then
             project_kind = "binary"
         })
         add_files("clangcxx_compiler.cpp")
-        add_deps("lc-runtime", "lc-vstl", "lc-backends-dummy", "lc-clangcxx")
+        add_deps("lc-runtime", "lc-vstl", "lc-clangcxx")
         set_pcxxheader("lc_test_pch.h")
         target_end()
     end
