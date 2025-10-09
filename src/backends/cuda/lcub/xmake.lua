@@ -15,7 +15,7 @@ on_load(function(target)
         target:set("enabled", false)
         return
     end
-    if is_plat("windows") then
+    if target:is_plat("windows") then
         target:add("defines", "NOMINMAX", "UNICODE")
         target:add("syslinks", "Cfgmgr32", "Advapi32")
     end
@@ -25,7 +25,7 @@ rule_end()
 target("lcub_env")
 set_kind("phony")
 on_load(function(target)
-    if is_plat("windows") then
+    if target:is_plat("windows") then
         import("detect.sdks.find_vstudio")
         local tool = find_vstudio()
         local max_version = 0

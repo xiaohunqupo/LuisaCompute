@@ -12,48 +12,48 @@ on_load(function(target)
         rela("../ext/half/include"), {
             public = true
         })
-    if is_plat("windows") then
+    if target:is_plat("windows") then
         if is_mode("debug") then
             target:add("syslinks", "Dbghelp")
         end
         target:add("defines", "NOMINMAX", "LUISA_PLATFORM_WINDOWS", "_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR", {
             public = true
         })
-    elseif is_plat("linux") then
+    elseif target:is_plat("linux") then
         target:add("defines", "LUISA_PLATFORM_UNIX", {
             public = true
         })
-    elseif is_plat("macosx") then
+    elseif target:is_plat("macosx") then
         target:add("defines", "LUISA_PLATFORM_UNIX", "LUISA_PLATFORM_APPLE", {
             public = true
         })
     end
-    if get_config("lc_enable_dsl") then
+    if has_config("lc_enable_dsl") then
         target:add("defines", "LUISA_ENABLE_DSL", {
             public = true
         })
     end
-    if get_config("lc_use_system_stl") then
+    if has_config("lc_use_system_stl") then
         target:add("defines", "LUISA_USE_SYSTEM_STL", "_ENABLE_EXTENDED_ALIGNED_STORAGE", {public = true})
     end
     target:add("defines", "LUISA_CORE_EXPORT_DLL")
-    if is_plat("windows") then
+    if target:is_plat("windows") then
         target:add("defines", "_CRT_SECURE_NO_WARNINGS")
     end
     target:add("deps", "eastl", "spdlog", "lc-check-winsdk")
-    if get_config("spdlog_only_fmt") then -- Use no spdlog
+    if has_config("spdlog_only_fmt") then -- Use no spdlog
         target:add("defines", "LUISA_CUSTOM_LOGGER", {
             public = true
         })
     end
     local marl_path = path.join(os.scriptdir(), "../ext/marl")
-    if (not get_config("lc_external_marl")) and (os.exists(marl_path)) then
+    if (not has_config("lc_external_marl")) and (os.exists(marl_path)) then
         target:add("defines", "MARL_DLL", {
             public = true
         })
         target:add("defines", "MARL_BUILDING_DLL")
         target:add("files", path.join(marl_path, "src/*.c"), path.join(marl_path, "src/build.marl.cpp"))
-        if not is_plat("windows") then
+        if not target:is_plat("windows") then
             target:add("files", path.join(marl_path, "src/*.S"))
         end
         target:add("includedirs", path.join(marl_path, "include"), {

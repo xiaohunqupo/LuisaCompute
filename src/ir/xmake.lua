@@ -9,7 +9,7 @@ on_load(function(target)
 	end
 	target:add("defines", "LUISA_IR_EXPORT_DLL")
 	target:add("deps", "lc-runtime", "lc-rust")
-	if is_plat("windows") then
+	if target:is_plat("windows") then
 		target:add("syslinks", "Ws2_32", "Advapi32", "Bcrypt", "Userenv")
 	end
 	local function add_rs_link(str)
@@ -17,7 +17,7 @@ on_load(function(target)
 		target:add("linkdirs", lib_path, {
 			public = true
 		})
-		if is_plat("windows") then
+		if target:is_plat("windows") then
 			target:add("links", "luisa_compute_ir_static", {
 				public = true
 			})
@@ -25,7 +25,7 @@ on_load(function(target)
 			target:add("links", "ntdll", {
 				public = true
 			})
-		elseif is_plat("linux") then
+		elseif target:is_plat("linux") then
 			target:add("links", path.join(lib_path, "libluisa_compute_ir_static.a"), {
 				public = true
 			})

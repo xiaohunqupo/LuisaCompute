@@ -1,4 +1,4 @@
-local lc_enable_gui = get_config("lc_enable_gui")
+local lc_enable_gui = has_config("lc_enable_gui")
 -- TEST MAIN with doctest
 ------------------------------------
 
@@ -23,20 +23,20 @@ local function lc_add_app(appname, folder, name, deps)
 
     -- basic defs
     add_deps("lc-runtime", "lc-dsl", "lc-vstl", "stb-image", "lc-backends-dummy")
-    -- extra deps 
+    -- extra deps
     add_deps(deps)
 
-    -- extra defs 
-    if get_config("lc_dx_backend") then
+    -- extra defs
+    if has_config("lc_dx_backend") then
         add_defines("LUISA_TEST_DX_BACKEND")
     end
-    if get_config("lc_cuda_backend") then
+    if has_config("lc_cuda_backend") then
         add_defines("LUISA_TEST_CUDA_BACKEND")
-        if get_config("lc_cuda_ext_lcub") then
+        if has_config("lc_cuda_ext_lcub") then
             add_deps("lc-compute-cuda-ext-lcub")
         end
     end
-    if get_config("lc_metal_backend") then
+    if has_config("lc_metal_backend") then
         add_defines("LUISA_TEST_METAL_BACKEND")
     end
 
@@ -48,18 +48,18 @@ lc_add_app("test_next_tensor", "test", "tensor") -- tensor test
 lc_add_app("test_feat", "test", "feat") -- core feature test
 lc_add_app("test_ext_core", "test", "ext/core") -- core extensions
 -- extensions for different backends
-if get_config("lc_dx_backend") then
+if has_config("lc_dx_backend") then
     lc_add_app("test_ext_dx", "test", "ext/dx")
 end
-if get_config("lc_cuda_backend") then
-    if get_config("lc_cuda_ext_lcub") then
+if has_config("lc_cuda_backend") then
+    if has_config("lc_cuda_ext_lcub") then
         lc_add_app("test_ext_cuda", "test", "ext/cuda")
     end
 end
 -- examples & gallery
-if get_config("lc_enable_gui") then
+if has_config("lc_enable_gui") then
     add_defines("ENABLE_DISPLAY")
-    -- example app 
+    -- example app
     lc_add_app("gallery", "example", "gallery", {"lc-gui"}) -- demo
     lc_add_app("tutorial", "example", "use", {"lc-gui"}) -- basic use tutorial
 end
@@ -81,7 +81,7 @@ local function test_proj(name, gui_dep, callable)
     })
     add_files(name .. ".cpp")
     add_deps("lc-runtime", "lc-dsl", "lc-vstl", "stb-image", "lc-backends-dummy")
-    if get_config("lc_enable_gui") then
+    if has_config("lc_enable_gui") then
         add_deps("lc-gui")
     end
     if gui_dep then
@@ -94,7 +94,7 @@ local function test_proj(name, gui_dep, callable)
 end
 
 -- FIXME: @Maxwell please use the doctest framework
-if get_config("lc_enable_ir") then
+if has_config("lc_enable_ir") then
     test_proj('test_autodiff')
     test_proj('test_autodiff_full')
 end
@@ -163,19 +163,19 @@ test_proj("test_transient_resource", true, function()
     add_files("transient_resource_device/*.cpp")
 end)
 
-if get_config("lc_dx_cuda_interop") then
+if has_config("lc_dx_cuda_interop") then
     test_proj("test_cuda_dx_interop")
 end
-if get_config("lc_vk_cuda_interop") then
+if has_config("lc_vk_cuda_interop") then
     test_proj("test_cuda_vk_interop")
 end
-if get_config("lc_dx_backend") then
+if has_config("lc_dx_backend") then
     test_proj("test_raster", true)
     test_proj("test_dml")
 end
 test_proj("test_manual_ast")
 if not is_mode("debug") then
-    if get_config("lc_enable_clangcxx") then
+    if has_config("lc_enable_clangcxx") then
         test_proj("test_clang_cxx", true, function()
             add_deps("lc-clangcxx")
             set_pcxxheader("lc_test_pch.h")
@@ -195,7 +195,7 @@ if not is_mode("debug") then
     end
 end
 
-if get_config("lc_cuda_ext_lcub") then
+if has_config("lc_cuda_ext_lcub") then
     test_proj("test_cuda_lcub", false, function()
         add_deps("lc-compute-cuda-ext-lcub")
     end)
@@ -210,7 +210,7 @@ local enable_xess
 -- For XeSS, you need to clone https://github.com/intel/xess release package into this directory
 -- enable_fsr2 = true
 -- enable_xess = true
-if get_config("lc_dx_backend") and (enable_fsr2 or enable_xess) then
+if has_config("lc_dx_backend") and (enable_fsr2 or enable_xess) then
     test_proj("test_dx_supersampling", true, function()
         if enable_fsr2 then
             set_values("option", 1)
@@ -257,7 +257,7 @@ if get_config("lc_dx_backend") and (enable_fsr2 or enable_xess) then
     end)
 end
 -- includes("amd")
-if get_config("lc_dx_backend") and enable_fsr3 then
+if has_config("lc_dx_backend") and enable_fsr3 then
     test_proj("test_fsr3", true, function()
         set_pcxxheader("lc_test_pch.h")
         on_load(function(target)

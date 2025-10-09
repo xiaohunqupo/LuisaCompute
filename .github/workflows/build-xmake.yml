@@ -85,6 +85,9 @@ jobs:
         compiler: [ msvc, clang-cl ]
     name: Windows / ${{ matrix.config }} / ${{ matrix.compiler }}
     runs-on: windows-2025
+    concurrency:
+        group: ${{ github.ref }}-${{ github.base_ref }}-${{ github.head_ref }}-xmake-windows-${{ matrix.config }}-${{ matrix.compiler }}
+        cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
         with:

@@ -1,7 +1,4 @@
-option("_lc_enable_py")
-set_showmenu(false)
-set_default(false)
-option_end()
+option("_lc_enable_py", {default = false, showmenu = false})
 
 option("_lc_vk_sdk_dir")
 set_default(false)
@@ -171,11 +168,10 @@ end)
 option_end()
 rule("lc_basic_settings")
 on_config(function(target)
-    local _, cc = target:tool("cxx")
-    if is_plat("linux") then
+    if target:is_plat("linux") then
         -- Linux should use -stdlib=libc++
         -- https://github.com/LuisaGroup/LuisaCompute/issues/58
-        if (cc == "clang" or cc == "clangxx") then
+        if target:has_tool("cxx", "clang", "clangxx") then
             target:add("cxflags", "-stdlib=libc++", {
                 force = true
             })
@@ -218,19 +214,19 @@ on_load(function(target)
     if project_kind then
         target:set("kind", project_kind)
     end
-    if is_plat("linux") then
+    if target:is_plat("linux") then
         if project_kind == "static" or project_kind == "object" then
             target:add("cxflags", "-fPIC")
         end
     end
-    if is_plat("macosx") then
+    if target:is_plat("macosx") then
         target:add("cxflags", "-no-pie")
         target:add("cxflags", "-Wno-invalid-specialization", {
             tools = {"clang"}
         })
     end
     -- fma support
-    if is_arch("x64", "x86_64") then
+    if target:is_arch("x64", "x86_64") then
         target:add("cxflags", "-mfma", {
             tools = {"clang", "gcc"}
         })
@@ -340,7 +336,7 @@ rule_end()
 target("lc-check-winsdk")
 set_kind("phony")
 on_config(function(target)
-    if not is_plat("windows") then
+    if not target:is_plat("windows") then
         return
     end
     local toolchain_settings = target:toolchain("msvc")
@@ -356,21 +352,19 @@ on_config(function(target)
     local sdk_version = toolchain_settings:runenvs().WindowsSDKVersion
     local legal_sdk = false
     if sdk_version then
-        local lib = import("lib")
-        local vers = lib.string_split(sdk_version, '.')
-        if #vers > 0 then
-            if tonumber(vers[1]) > 10 then
+        import("core.base.semver")
+        local ver = semver.match(sdk_version)
+        if ver then
+            if ver:major() > 10 then
                 legal_sdk = true
-            elseif tonumber(vers[1]) == 10 then
-                if #vers > 2 then
-                    if tonumber(vers[3]) >= 22000 then
-                        legal_sdk = true
-                    end
+            elseif ver:major() == 10 then
+                if ver:patch() >= 22000 then
+                    legal_sdk = true
                 end
             end
         end
         if not legal_sdk then
-            os.raise("Illegal windows SDK version, requires 10.0.22000.0 or later")
+            raise("Illegal windows SDK version, requires 10.0.22000.0 or later")
         end
     end
 end)
@@ -395,7 +389,7 @@ on_buildcmd_file(function(target, batchcmds, sourcefile, opt)
     end
     local cargo_cmd = sb:to_string()
     batchcmds:show(cargo_cmd)
-    batchcmds:vrunv(cargo_cmd)
+    batchcmds:vrun(cargo_cmd)
     sb:dispose()
 end)
 rule_end()
@@ -437,9 +431,7 @@ on_clean(function(target)
     for _, lib in ipairs(libnames) do
         local sdk_map = sdks[lib]
         local cache_file_name = path.join(bin_dir, lib .. '.txt')
-        if os.exists(cache_file_name) then
-            os.rm(cache_file_name)
-        end
+        os.tryrm(cache_file_name)
     end
 end)
 before_build(function(target)

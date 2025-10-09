@@ -2,193 +2,58 @@ set_xmakever("3.0.2")
 add_rules("mode.release", "mode.debug", "mode.releasedbg")
 set_policy("build.ccache", not is_plat("windows"))
 set_policy("check.auto_ignore_flags", false)
+
 -- pre-defined options
 -- enable mimalloc as default allocator: https://github.com/LuisaGroup/mimalloc
-option("lc_enable_mimalloc")
-set_values(true, false)
-set_default(true)
-set_showmenu(true)
-option_end()
-
-option("lc_enable_custom_malloc")
-set_values(true, false)
-set_default(false)
-set_showmenu(true)
-option_end()
-
+option("lc_enable_mimalloc", {default = true})
+option("lc_enable_custom_malloc", {default = false})
 -- enable unity(jumbo) build, enable this option will optimize compile speed
-option("lc_enable_unity_build")
-set_values(true, false)
-set_default(true)
-set_showmenu(true)
-option_end()
+option("lc_enable_unity_build", {default = true})
 -- enable sse and sse2 SIMD
-option("lc_enable_simd")
-set_values(true, false)
-set_default(true)
-set_showmenu(true)
-option_end()
+option("lc_enable_simd", {default = true})
 -- enable DirectX-12 backend
-option("lc_dx_backend")
-set_values(true, false)
-set_default(true)
-set_showmenu(true)
-option_end()
-
-option("lc_fallback_backend")
-set_values(true, false)
-set_default(false)
-set_showmenu(true)
-option_end()
-
-option("lc_enable_xir")
-set_values(true, false)
-set_default(false)
-set_showmenu(true)
-option_end()
-
-option("lc_dx_sdk_dir")
-set_values(true, false)
-set_default(false)
-set_showmenu(true)
-option_end()
-
-option("lc_external_marl")
-set_values(true, false)
-set_default(false)
-set_showmenu(true)
-option_end()
-
-option("lc_dx_cuda_interop")
-set_values(true, false)
-set_default(false)
-set_showmenu(true)
-option_end()
-
-option("lc_vk_cuda_interop")
-set_values(true, false)
-set_default(false)
-set_showmenu(true)
-option_end()
-
+option("lc_dx_backend", {default = true})
+option("lc_fallback_backend", {default = false})
+option("lc_enable_xir", {default = false})
+option("lc_dx_sdk_dir", {default = false})
+option("lc_external_marl", {default = false})
+option("lc_dx_cuda_interop", {default = false})
+option("lc_vk_cuda_interop", {default = false})
 -- enable Vulkan backend
-option("lc_vk_support")
-set_values(true, false)
-set_default(true)
-set_showmenu(true)
-option_end()
-
-option("lc_vk_backend")
-set_values(true, false)
-set_default(true)
-set_showmenu(true)
-option_end()
-
-option("lc_toy_c_backend")
-set_values(true, false)
-set_default(false)
-set_showmenu(true)
-option_end()
+option("lc_vk_support", {default = true})
+option("lc_vk_backend", {default = true})
+option("lc_toy_c_backend", {default = false})
 -- enable NVIDIA-CUDA backend
-option("lc_cuda_backend")
-set_values(true, false)
-set_default(true)
-set_showmenu(true)
-option_end()
--- enable NVIDIA-CUDA Extension CUB
-option("lc_cuda_ext_lcub")
-set_values(true, false)
-set_default(false) -- default false, because of long compile time
-set_showmenu(true)
-option_end()
+option("lc_cuda_backend", {default = true})
+-- enable NVIDIA-CUDA Extension CUB, default false, because of long compile time
+option("lc_cuda_ext_lcub", {default = false})
 -- enable Metal backend
-option("lc_metal_backend")
-set_values(true, false)
-set_default(true)
-set_showmenu(true)
-option_end()
+option("lc_metal_backend", {default = true})
 -- enable tests module
-option("lc_enable_tests")
-set_values(true, false)
-set_default(true)
-set_showmenu(true)
-option_end()
+option("lc_enable_tests", {default = true})
 -- python include path
-option("lc_py_include")
-set_default(false)
-set_showmenu(true)
-option_end()
+option("lc_py_include", {default = false})
 -- python include path
-option("lc_py_linkdir")
-set_default(false)
-set_showmenu(true)
-option_end()
+option("lc_py_linkdir", {default = false})
 -- python include path
-option("lc_py_libs")
-set_default(false)
-set_showmenu(true)
-option_end()
+option("lc_py_libs", {default = false})
 -- enable osl
-option("lc_enable_osl")
-set_values(true, false)
-set_default(true)
-set_showmenu(true)
-option_end()
+option("lc_enable_osl", {default = true})
 -- enable C++ DSL module
-option("lc_enable_dsl")
-set_values(true, false)
-set_default(true)
-set_showmenu(true)
-option_end()
+option("lc_enable_dsl", {default = true})
 -- enable clang C++ module
-option("lc_enable_clangcxx")
-set_values(true, false)
-set_default(false)
-set_showmenu(true)
-option_end()
+option("lc_enable_clangcxx", {default = false})
 -- enable GUI module
-option("lc_enable_gui")
-set_values(true, false)
-set_default(true)
-set_showmenu(true)
-option_end()
+option("lc_enable_gui", {default = true})
 -- custom bin dir
-option("lc_bin_dir")
-set_default("bin")
-set_showmenu(true)
-option_end()
+option("lc_bin_dir", {default = "bin"})
 -- custom sdk dir
-option("lc_sdk_dir")
-set_default(false)
-set_showmenu(true)
-option_end()
-
-option("lc_toolchain")
-set_values(true, false)
-set_default(false)
-set_showmenu(true)
-option_end()
-
-option("lc_win_runtime")
-set_values(true, false)
-set_default(false)
-set_showmenu(true)
-option_end()
-
-option("lc_llvm_path")
-set_default(false)
-set_showmenu(true)
-option_end()
-
-option("lc_embree_path")
-set_default(false)
-set_showmenu(true)
-option_end()
-
-option("lc_use_system_stl")
-set_default(false)
-set_showmenu(true)
-option_end()
+option("lc_sdk_dir", {default = false})
+option("lc_toolchain", {default = false})
+option("lc_win_runtime", {default = false})
+option("lc_llvm_path", {default = false})
+option("lc_embree_path", {default = false})
+option("lc_use_system_stl", {default = false})
 
 -- pre-defined options end
 -- try options.lua
@@ -202,7 +67,7 @@ if lc_options then
 end
 includes("scripts/xmake_func.lua")
 
-if get_config('_lc_check_env') then
+if has_config('_lc_check_env') then
     local lc_bin_dir = get_config("_lc_bin_dir")
     if lc_bin_dir then
         set_targetdir(lc_bin_dir)
@@ -211,9 +76,9 @@ if get_config('_lc_check_env') then
 end
 
 target("lc_embed_codegen")
-add_rules("lc_basic_settings", {
-    project_kind = "binary"
-})
-add_files("utils/embed_codegen.cpp")
-set_policy("build.fence", true)
+    add_rules("lc_basic_settings", {
+        project_kind = "binary"
+    })
+    add_files("utils/embed_codegen.cpp")
+    set_policy("build.fence", true)
 target_end()
