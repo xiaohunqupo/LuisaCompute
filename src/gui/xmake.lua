@@ -51,5 +51,5 @@ _config_project({
 add_headerfiles("../../include/luisa/gui/**.h")
 add_files("*.cpp")
 add_defines("LUISA_GUI_EXPORT_DLL", "GLFW_DLL")
-add_deps("glfw", "lc-runtime", "imgui")
+add_deps("lc-runtime", "imgui")
 target_end()
