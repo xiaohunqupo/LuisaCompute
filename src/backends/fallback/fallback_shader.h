@@ -23,7 +23,6 @@ class LLJIT;
 namespace luisa::compute {
 class ShaderPrintFormatter;
 }// namespace luisa::compute
-
 namespace luisa::compute::fallback {
 
 class FallbackDevice;
@@ -52,7 +51,7 @@ private:
     void _build_bound_arguments(luisa::span<const Function::Binding> bindings) noexcept;
 
 public:
-    void dispatch(ThreadPool &pool, const ShaderDispatchCommand *command) const noexcept;
+    // void dispatch(ThreadPool &pool, const ShaderDispatchCommand *command) const noexcept;
     void dispatch(FallbackCommandQueue *queue, luisa::unique_ptr<ShaderDispatchCommand> command) noexcept;
     FallbackShader(FallbackDevice *device, const ShaderOption &option, Function kernel) noexcept;
     ~FallbackShader() noexcept;

@@ -1,10 +1,13 @@
 local function test_proj(name, callable)
-    target("amd_" .. name)
+    local amd_name = "amd_" .. name
+    lc_make_dummy_backend(amd_name, amd_name)
+    target(amd_name)
+    set_group(amd_name)
     _config_project({
         project_kind = "binary"
     })
     add_files(name .. ".cpp")
-    add_deps("lc-runtime", "lc-dsl", "lc-vstl", "lc-backends-dummy", "stb-image")
+    add_deps("lc-runtime", "lc-dsl", "lc-vstl", "stb-image")
     add_deps("lc-gui")
     if callable then
         callable()
