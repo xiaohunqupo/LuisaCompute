@@ -19,8 +19,7 @@ if get_config("lc_toy_c_backend") then
     includes("toy_c")
 end
 
-target("lc-backends-dummy")
-set_kind("phony")
+rule("lc-backend-deps")
 on_load(function(target)
     target:add("deps", "lc-validation-layer", {
         inherit = false
@@ -54,4 +53,17 @@ on_load(function(target)
         })
     end
 end)
+rule_end()
+
+target("lc-backends-dummy")
+set_kind("phony")
+add_rules("lc-backend-deps")
 target_end()
+
+function lc_make_dummy_backend(name, group_name)
+    target("lc-backends-dummy-" .. name)
+    set_kind("phony")
+    set_group(group_name)
+    add_rules("lc-backend-deps")
+    target_end()
+end
