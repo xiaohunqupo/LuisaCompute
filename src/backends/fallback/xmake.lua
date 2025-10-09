@@ -13,8 +13,7 @@ on_load(function(target, opt)
     target:add("links", "embree4", "tbb12")
     for __, filepath in ipairs(os.files(path.join(lc_llvm_path, "lib/*.lib"))) do
         local basename = path.basename(filepath)
-        if basename:match("LLVM") ~= nil and
-            basename:match("Disassembler") == nil and basename:match("Desc") == nil then
+        if basename:match("LLVM") ~= nil and basename ~= "LLVM-C" then
             table.insert(libs, basename)
         end
     end
@@ -27,6 +26,10 @@ on_load(function(target, opt)
         target:add("syslinks", "uuid")
     elseif is_plat("macosx") then
         target:add("frameworks", "CoreFoundation")
+    end
+    if get_config("_lc_vk_sdk_dir") then
+        target:add("defines", "LUISA_BACKEND_ENABLE_VULKAN_SWAPCHAIN")
+        target:add("deps", "lc-vulkan-swapchain", "volk")
     end
 end)
 after_build(function(target)
