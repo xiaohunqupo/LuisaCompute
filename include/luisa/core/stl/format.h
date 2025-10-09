@@ -105,7 +105,6 @@ struct formatter<luisa::Matrix<T, N>> {
     }
     template<typename FormatContext>
     auto format(const luisa::Matrix<T, N> &m, FormatContext &ctx) const noexcept {
-        luisa::string_view type_name;
         if constexpr (N == 2u) {
             return fmt::format_to(
                 ctx.out(),
