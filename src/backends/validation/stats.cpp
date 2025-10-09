@@ -160,6 +160,7 @@ DeviceStats *DeviceStats::add_ref() {
     if (!stats_ptr) {
         stats_ptr = new_with_allocator<DeviceStats>();
     }
+    return stats_ptr;
 }
 void DeviceStats::deref() {
     std::lock_guard lck{stats_mtx};
