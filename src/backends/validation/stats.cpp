@@ -6,7 +6,11 @@ DeviceStats::DeviceStats() {}
 DeviceStats::~DeviceStats() {}
 void DeviceStats::create_event(uint64_t handle) {
     std::lock_guard lck{mtx};
-    auto &v = _events_stats.try_emplace(handle).first->second;
+    auto iter = _events_stats.try_emplace(handle);
+    if (!iter.second) [[unlikely]] {
+        LUISA_ERROR("Event already registed.");
+    }
+    auto &v = iter.first->second;
     v.event_handle = handle;
 }
 void DeviceStats::destroy_event(uint64_t handle) {
@@ -15,7 +19,11 @@ void DeviceStats::destroy_event(uint64_t handle) {
 }
 void DeviceStats::create_stream(uint64_t handle, StreamTag stream_tag) {
     std::lock_guard lck{mtx};
-    auto &v = _stream_stats.try_emplace(handle).first->second;
+    auto iter = _stream_stats.try_emplace(handle);
+    if (!iter.second) [[unlikely]] {
+        LUISA_ERROR("Stream already registed.");
+    }
+    auto &v = iter.first->second;
     v.stream_handle = handle;
     v.stream_tag = stream_tag;
 }
@@ -25,12 +33,16 @@ void DeviceStats::destroy_stream(uint64_t handle) {
 }
 StreamStats &DeviceStats::_get_stream_stats(uint64_t stream_handle) {
     auto iter = _stream_stats.find(stream_handle);
-    LUISA_ASSERT(iter != _stream_stats.end());
+    if (iter == _stream_stats.end()) [[unlikely]] {
+        LUISA_ERROR("Stream unfound, call registe_external_stream() first?");
+    }
     return iter->second;
 }
 EventStats &DeviceStats::_get_event_stats(uint64_t event_handle) {
     auto iter = _events_stats.find(event_handle);
-    LUISA_ASSERT(iter != _events_stats.end());
+    if (iter == _events_stats.end()) [[unlikely]] {
+        LUISA_ERROR("Event unfound, call registe_external_event() first?");
+    }
     return iter->second;
 }
 void DeviceStats::_process_wait(EventStats &event_stats, StreamStats &stream_stats, uint64_t wait_idx) {
@@ -76,8 +88,10 @@ void DeviceStats::wait_event(uint64_t event_handle, uint64_t stream_handle, uint
             .fence_idx = fence_index});
     }
 }
-luisa::move_only_function<void()> DeviceStats::dispatch_stream(uint64_t stream_handle, luisa::string &&dispatch_name) {
-    std::lock_guard lck{mtx};
+
+luisa::move_only_function<void()> DeviceStats::dispatch_stream(uint64_t stream_handle, luisa::string &&dispatch_name, bool &require_tic, double *&start_time_ptr) {
+    // call outside
+    // std::lock_guard lck{mtx};
     auto &stream = _get_stream_stats(stream_handle);
     auto new_scope = luisa::make_shared<StreamStatsScope>();
     new_scope->stream_handle = stream_handle;
@@ -93,12 +107,10 @@ luisa::move_only_function<void()> DeviceStats::dispatch_stream(uint64_t stream_h
     });
     new_scope->finished_time = 0.;
     auto &v = stream.stream_scopes.emplace_back(std::move(new_scope));
+    require_tic = !clk_ticked;
+    start_time_ptr = &v->start_time;
     if (!clk_ticked) {
         clk_ticked = true;
-        clk.tic();
-        v->start_time = 0;
-    } else {
-        v->start_time = clk.toc();
     }
     return func;
 }
@@ -138,5 +150,25 @@ void DeviceStats::reset_frame() {
 #endif
     }
     clk_ticked = false;
+}
+static DeviceStats *stats_ptr{};
+static std::mutex stats_mtx;
+static uint64_t stats_ref_count = 0;
+DeviceStats *DeviceStats::add_ref() {
+    std::lock_guard lck{stats_mtx};
+    stats_ref_count++;
+    if (!stats_ptr) {
+        stats_ptr = new_with_allocator<DeviceStats>();
+    }
+}
+void DeviceStats::deref() {
+    std::lock_guard lck{stats_mtx};
+    if (stats_ptr) {
+        stats_ref_count--;
+        if (stats_ref_count == 0) {
+            delete_with_allocator(stats_ptr);
+            stats_ptr = nullptr;
+        }
+    }
 }
 }// namespace luisa::compute

@@ -3,11 +3,6 @@ set_showmenu(false)
 set_default(false)
 option_end()
 
-option("_lc_enable_rust")
-set_showmenu(false)
-set_default(false)
-option_end()
-
 option("_lc_vk_sdk_dir")
 set_default(false)
 set_showmenu(false)
@@ -59,10 +54,9 @@ option_end()
 option("_lc_bin_dir")
 set_default(false)
 set_showmenu(false)
-add_deps("lc_dx_backend", "lc_vk_backend", "lc_cuda_backend", "lc_metal_backend", "lc_cpu_backend", "lc_enable_tests",
-    "lc_py_include", "lc_cuda_ext_lcub", "lc_enable_ir", "lc_enable_dsl", "lc_enable_clangcxx", "lc_enable_gui",
-    "lc_bin_dir", "lc_enable_custom_malloc", "lc_external_marl", "lc_dx_cuda_interop", "lc_vk_cuda_interop", "_lc_enable_py",
-    "_lc_enable_rust")
+add_deps("lc_dx_backend", "lc_vk_backend", "lc_cuda_backend", "lc_metal_backend", "lc_enable_tests", "lc_py_include",
+    "lc_cuda_ext_lcub", "lc_enable_dsl", "lc_enable_gui", "lc_bin_dir", "lc_dx_cuda_interop", "lc_vk_cuda_interop",
+    "_lc_enable_py", "lc_enable_xir", "lc_fallback_backend", "lc_llvm_path", "lc_embree_path")
 before_check(function(option)
     if path.absolute(path.join(os.projectdir(), "scripts")) == path.absolute(os.scriptdir()) then
         local v = import("options", {
@@ -105,6 +99,20 @@ before_check(function(option)
         enable_py:enable(true)
     end
     local is_win = is_plat("windows")
+    -- checking fallback
+    local lc_fallback_backend = option:dep("lc_fallback_backend")
+    local lc_llvm_path = option:dep("lc_llvm_path")
+    local lc_embree_path = option:dep("lc_embree_path")
+    local lc_enable_xir = option:dep("lc_enable_xir")
+    if (not lc_llvm_path:enabled()) or (not lc_embree_path:enabled()) or (not lc_enable_xir:enabled()) then
+        lc_fallback_backend:enable(false, {
+            force = true
+        })
+        if lc_fallback_backend:enabled() then
+            utils.error("XIR not enabled. Fallback-backend force disabled.")
+        end
+    end
+
     -- checking dx
     local lc_dx_backend = option:dep("lc_dx_backend")
     if lc_dx_backend:enabled() and not is_win then
@@ -158,35 +166,6 @@ before_check(function(option)
     local lc_vk_cuda_interop = option:dep("lc_vk_cuda_interop")
     if lc_cuda_backend:enabled() and option:dep("lc_vk_backend"):enabled() then
         lc_vk_cuda_interop:enable(true)
-    end
-    -- checking rust
-    local lc_enable_ir = option:dep("lc_enable_ir")
-    local lc_cpu_backend = option:dep("lc_cpu_backend")
-    if not lc_enable_ir:enabled() then
-        option:dep("_lc_enable_rust"):set_value(false)
-        lc_cpu_backend:enable(false, {
-            force = true
-        })
-    else
-        import("lib.detect.find_tool")
-        local rust_cargo = find_tool("cargo") ~= nil
-        option:dep("_lc_enable_rust"):set_value(rust_cargo)
-        if not rust_cargo then
-            lc_enable_ir:enable(false)
-            lc_cpu_backend:enable(false)
-            if lc_enable_ir:enabled() then
-                utils.error("Cargo not installed, IR module force disabled.")
-                lc_enable_ir:enable(false, {
-                    force = true
-                })
-            end
-            if lc_cpu_backend:enabled() then
-                utils.error("Cargo not installed, CPU backend force disabled.")
-                lc_cpu_backend:enable(false, {
-                    force = true
-                })
-            end
-        end
     end
 end)
 option_end()

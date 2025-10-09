@@ -1,7 +1,8 @@
 target("lc-backend-vk")
 set_basename("luisa-backend-vk")
 _config_project({
-    project_kind = "shared"
+    project_kind = "shared",
+    batch_size = 8
 })
 add_deps("lc-runtime", "lc-vstl", "lc-hlsl-codegen")
 add_headerfiles("*.h", "../common/default_binary_io.h")
@@ -19,7 +20,7 @@ on_load(function(target)
     if get_config("lc_vk_cuda_interop") then
         import("detect.sdks.find_cuda")
         import("cuda_sdkdir", {
-            rootdir = path.translate(path.join(os.scriptdir(), "../cuda"))
+            rootdir = path.join(path.directory(os.scriptdir()), "cuda")
         })
         local cuda = find_cuda(cuda_sdkdir())
 

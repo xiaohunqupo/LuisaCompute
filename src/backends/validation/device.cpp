@@ -41,14 +41,46 @@ namespace {
 struct StatsExtImpl : public StatsExt, public vstd::IOperatorNewBase {
     Device *device;
     StatsExtImpl(Device *device) : device(device) {}
-    void begin_stats() noexcept override;
-    luisa::unordered_map<uint64_t, StreamStats> const &end_stats() noexcept override;
-    void set_next_dispatch_name(luisa::string &&name) noexcept override;
+    void begin_stats() noexcept override {
+        device->device_stats->stats_enabled = true;
+        device->device_stats->reset_frame();
+    }
+    luisa::unordered_map<uint64_t, StreamStats> const &end_stats() noexcept override {
+        if (!device->device_stats->stats_enabled) [[unlikely]] {
+            LUISA_ERROR("Stats not enabled. call begin_stats() first.");
+        }
+        device->device_stats->finalize();
+        device->device_stats->stats_enabled = false;
+        return device->device_stats->stream_stats();
+    }
+    void set_next_dispatch_name(luisa::string &&name) noexcept override {
+        device->device_stats->next_stats_stream_name = std::move(name);
+    }
+
+    void registe_external_event(uint64_t handle) noexcept override {
+        device->device_stats->create_event(handle);
+    }
+    void unregiste_external_event(uint64_t handle) noexcept override {
+        device->device_stats->destroy_event(handle);
+    }
+    void registe_external_stream(uint64_t handle, StreamTag stream_tag) noexcept override {
+        device->device_stats->create_stream(handle, stream_tag);
+    }
+    void unregiste_external_stream(uint64_t handle) noexcept override {
+        device->device_stats->destroy_stream(handle);
+    }
+    void signal_external_event(uint64_t event_handle, uint64_t stream_handle, uint64_t fence_index) noexcept override {
+        device->device_stats->signal_event(event_handle, stream_handle, fence_index);
+    }
+    void wait_external_event(uint64_t event_handle, uint64_t stream_handle, uint64_t fence_index) noexcept override {
+        device->device_stats->wait_event(event_handle, stream_handle, fence_index);
+    }
 };
 
 Device::Device(Context &&ctx, luisa::shared_ptr<DeviceInterface> &&native) noexcept
     : DeviceInterface{std::move(ctx)},
       _native{std::move(native)} {
+    device_stats = DeviceStats::add_ref();
     auto raster_ext = static_cast<RasterExt *>(_native->extension(RasterExt::name));
     auto dstorage_ext = static_cast<DStorageExt *>(_native->extension(DStorageExt::name));
     auto pinned_ext = static_cast<PinnedMemoryExt *>(_native->extension(PinnedMemoryExt::name));
@@ -198,7 +230,7 @@ ResourceCreationInfo Device::create_stream(StreamTag stream_tag) noexcept {
                 break;
         }
     }
-    device_stats.create_stream(str.handle, stream_tag);
+    device_stats->create_stream(str.handle, stream_tag);
     return str;
 }
 void Device::destroy_stream(uint64_t handle) noexcept {
@@ -209,7 +241,7 @@ void Device::destroy_stream(uint64_t handle) noexcept {
         stream_options.erase(handle);
     }
     _native->destroy_stream(handle);
-    device_stats.destroy_stream(handle);
+    device_stats->destroy_stream(handle);
 }
 void Device::synchronize_stream(uint64_t stream_handle) noexcept {
     check_stream(stream_handle, StreamFunc::Sync);
@@ -222,11 +254,14 @@ void Device::dispatch(
     str->dispatch(_native.get(), list);
     str->check_compete();
     luisa::move_only_function<void()> func;
-    if (stats_enabled) {
-        if (next_stats_stream_name.empty()) {
-            next_stats_stream_name = "Unknown";
+    bool requires_tic;
+    double *start_time;
+    std::lock_guard lck{device_stats->mtx};
+    if (device_stats->stats_enabled) {
+        if (device_stats->next_stats_stream_name.empty()) {
+            device_stats->next_stats_stream_name = "Unknown";
         }
-        func = device_stats.dispatch_stream(stream_handle, std::move(next_stats_stream_name));
+        func = device_stats->dispatch_stream(stream_handle, std::move(device_stats->next_stats_stream_name), requires_tic, start_time);
     }
     list._callbacks.emplace(
         list._callbacks.begin(),
@@ -237,6 +272,14 @@ void Device::dispatch(
         });
 
     _native->dispatch(stream_handle, std::move(list));
+    if (device_stats->stats_enabled) {
+        if (requires_tic) {
+            *start_time = 0;
+            device_stats->clk.tic();
+        } else {
+            *start_time = device_stats->clk.toc();
+        }
+    }
 }
 
 void Device::set_stream_log_callback(
@@ -292,13 +335,13 @@ void Device::destroy_shader(uint64_t handle) noexcept {
 ResourceCreationInfo Device::create_event() noexcept {
     auto evt = _native->create_event();
     new Event(evt.handle);
-    device_stats.create_event(evt.handle);
+    device_stats->create_event(evt.handle);
     return evt;
 }
 void Device::destroy_event(uint64_t handle) noexcept {
     RWResource::dispose(handle);
     _native->destroy_event(handle);
-    device_stats.destroy_event(handle);
+    device_stats->destroy_event(handle);
 }
 void Device::signal_event(uint64_t handle, uint64_t stream_handle, uint64_t fence) noexcept {
     check_stream(stream_handle, StreamFunc::Signal);
@@ -306,8 +349,8 @@ void Device::signal_event(uint64_t handle, uint64_t stream_handle, uint64_t fenc
     auto stream = RWResource::get<Stream>(stream_handle);
     stream->signal(evt, fence);
     _native->signal_event(handle, stream_handle, fence);
-    if (stats_enabled) {
-        device_stats.signal_event(handle, stream_handle, fence);
+    if (device_stats->stats_enabled) {
+        device_stats->signal_event(handle, stream_handle, fence);
     }
 }
 void Device::wait_event(uint64_t handle, uint64_t stream_handle, uint64_t fence) noexcept {
@@ -316,8 +359,8 @@ void Device::wait_event(uint64_t handle, uint64_t stream_handle, uint64_t fence)
     auto stream = RWResource::get<Stream>(stream_handle);
     stream->wait(evt, fence);
     _native->wait_event(handle, stream_handle, fence);
-    if (stats_enabled) {
-        device_stats.wait_event(handle, stream_handle, fence);
+    if (device_stats->stats_enabled) {
+        device_stats->wait_event(handle, stream_handle, fence);
     }
 }
 bool Device::is_event_completed(uint64_t handle, uint64_t fence) const noexcept {
@@ -400,6 +443,7 @@ DeviceExtension *Device::extension(luisa::string_view name) noexcept {
 }
 Device::~Device() {
     exts.clear();
+    DeviceStats::deref();
 }
 void Device::set_name(luisa::compute::Resource::Tag resource_tag, uint64_t resource_handle, luisa::string_view name) noexcept {
     RWResource::get<RWResource>(resource_handle)->name = name;
@@ -494,19 +538,5 @@ void Device::deallocate_sparse_texture_heap(uint64_t handle) noexcept {
     RWResource::dispose(handle);
     _native->deallocate_sparse_texture_heap(handle);
 }
-void StatsExtImpl::begin_stats() noexcept {
-    device->stats_enabled = true;
-    device->device_stats.reset_frame();
-}
-luisa::unordered_map<uint64_t, StreamStats> const &StatsExtImpl::end_stats() noexcept {
-    if (!device->stats_enabled) [[unlikely]] {
-        LUISA_ERROR("Stats not enabled. call begin_stats() first.");
-    }
-    device->device_stats.finalize();
-    device->stats_enabled = false;
-    return device->device_stats.stream_stats();
-}
-void StatsExtImpl::set_next_dispatch_name(luisa::string &&name) noexcept {
-    device->next_stats_stream_name = std::move(name);
-}
+
 }// namespace lc::validation

@@ -34,9 +34,7 @@ private:
     vstd::unordered_map<vstd::string, ExtPtr> exts;
 
 public:
-    luisa::string next_stats_stream_name;
-    DeviceStats device_stats;
-    std::atomic_bool stats_enabled{false};
+    DeviceStats* device_stats;
     [[nodiscard]] auto underlying_device() const noexcept { return _native.get(); }
     uint compute_warp_size() const noexcept override { return _native->compute_warp_size(); }
     uint64_t memory_granularity() const noexcept override { return _native->memory_granularity(); }

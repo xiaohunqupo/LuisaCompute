@@ -3,8 +3,23 @@ enable_custom_malloc = get_config("lc_enable_custom_malloc")
 table.insert(_config_rules, "lc-rename-ext")
 local rename_rule_idx = table.getn(_config_rules)
 includes("ext/EASTL", "ext/spdlog", "ext/reproc", "ext/liblmdb", "ext/volk", "ext/stb")
+-- yyjson
+do
+    target("lc-yyjson")
+    _config_project({
+        project_kind = "static"
+    })
+    on_load(function(target)
+        local src_path = path.join(os.scriptdir(), "ext/yyjson/src")
+        target:add("files", path.join(src_path, "yyjson.c"))
+        target:add("includedirs", src_path, {
+            public = true
+        })
+    end)
+    target_end()
+end
 table.remove(_config_rules, rename_rule_idx)
-includes("core", "vstl", "ast", "runtime")
+includes("core", "vstl", "runtime")
 if get_config("lc_enable_osl") then
     includes("osl")
 end
@@ -21,16 +36,8 @@ includes("backends")
 if get_config("lc_enable_tests") then
     includes("tests")
 end
-if get_config("_lc_enable_rust") then
-    includes("rust")
-end
-if get_config("lc_enable_ir") then
-    includes("ir")
-end
-if get_config("lc_enable_api") then
-    includes("api")
-end
 if get_config("lc_enable_clangcxx") then
     includes("clangcxx")
 end
+
 -- includes("tensor")

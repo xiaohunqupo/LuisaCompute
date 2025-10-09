@@ -3,6 +3,12 @@
 //
 
 #include "fallback_texture_bc.h"
+#if defined(_WIN32) && defined(_DEBUG)
+#define NOMINMAX
+#include <Windows.h>
+#undef Yield
+#undef AddPointer
+#endif
 
 namespace luisa::compute::fallback::bc {
 

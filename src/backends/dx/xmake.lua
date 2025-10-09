@@ -39,7 +39,7 @@ on_load(function(target)
     if get_config("lc_dx_cuda_interop") then
         import("detect.sdks.find_cuda")
         import("cuda_sdkdir", {
-            rootdir = path.translate(path.join(os.scriptdir(), "../cuda"))
+            rootdir = path.absolute(path.join(path.directory(os.scriptdir()), "cuda"))
         })
         local cuda = find_cuda(cuda_sdkdir())
 

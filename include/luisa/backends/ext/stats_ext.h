@@ -39,6 +39,13 @@ struct StatsExt : public DeviceExtension {
     virtual void begin_stats() noexcept = 0;
     virtual void set_next_dispatch_name(luisa::string &&name) noexcept = 0;
     [[nodiscard]] virtual luisa::unordered_map<uint64_t, StreamStats> const &end_stats() noexcept = 0;
+    // External
+    virtual void registe_external_event(uint64_t handle) noexcept = 0;
+    virtual void unregiste_external_event(uint64_t handle) noexcept = 0;
+    virtual void registe_external_stream(uint64_t handle, StreamTag stream_tag) noexcept = 0;
+    virtual void unregiste_external_stream(uint64_t handle) noexcept = 0;
+    virtual void signal_external_event(uint64_t event_handle, uint64_t stream_handle, uint64_t fence_index) noexcept = 0;
+    virtual void wait_external_event(uint64_t event_handle, uint64_t stream_handle, uint64_t fence_index) noexcept = 0;
 protected:
     ~StatsExt() = default;
 };

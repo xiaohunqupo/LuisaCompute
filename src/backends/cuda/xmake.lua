@@ -63,10 +63,6 @@ _config_project({
     batch_size = 4
 })
 add_deps("lc-runtime", "lc-cuda-base", "reproc")
-if get_config("lc_enable_ir") then
-    add_deps("lc-ir")
-end
-
 if get_config("lc_cuda_ext_lcub") then
     add_deps("lc-compute-cuda-ext-lcub")
 end

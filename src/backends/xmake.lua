@@ -8,16 +8,17 @@ end
 if get_config("lc_metal_backend") then
     includes("metal")
 end
-if get_config("lc_cpu_backend") then
-    includes("cpu")
+if get_config("lc_fallback_backend") then
+    includes("fallback")
 end
 if get_config("lc_vk_backend") then
     includes("vk")
 end
 includes("validation")
 if get_config("lc_toy_c_backend") then
-    includes("toy_c")    
+    includes("toy_c")
 end
+
 target("lc-backends-dummy")
 set_kind("phony")
 on_load(function(target)
@@ -47,8 +48,8 @@ on_load(function(target)
             inherit = false
         })
     end
-    if get_config("lc_cpu_backend") then
-        target:add("deps", "lc-backend-cpu", {
+    if get_config("lc_fallback_backend") then
+        target:add("deps", "lc-backend-fallback", {
             inherit = false
         })
     end
