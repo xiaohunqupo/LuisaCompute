@@ -59,7 +59,7 @@ function file_from_github(sdk_map, dir)
             is_valid = valid_sha256 == sha256
             if not is_valid then
                 utils.error(zip .. ' version not matched.')
-            end    
+            end
         end
     end
 end

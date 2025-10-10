@@ -8,7 +8,7 @@ add_deps("lc-core", "lc-vstl")
 set_pcxxheader("lc_runtime_pch.h")
 add_defines("LUISA_RUNTIME_EXPORT_DLL", "LUISA_AST_EXPORT_DLL", "LUISA_XIR_EXPORT_DLL")
 add_headerfiles("../../include/luisa/runtime/**.h", "../../include/luisa/ast/**.h")
-if get_config("lc_enable_xir") then
+if has_config("lc_enable_xir") then
     add_deps("lc-yyjson")
 end
 on_load(function(target)

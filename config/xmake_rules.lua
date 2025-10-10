@@ -11,7 +11,7 @@ on_load(function(target)
 		utils.error("'lc_dir' must be set before call add_lc_includedirs")
 		return
 	end
-	target:add("includedirs", 
+	target:add("includedirs",
 		--[[pybind11]]
 		path.join(lc_dir,"src/ext/pybind11/include"),
 		--[[spdlog]]
@@ -38,11 +38,11 @@ on_load(function(target)
 			public = is_public
 		})
 	end
-	if is_plat("windows") then
+	if target:is_plat("windows") then
 		target:add("syslinks", "Ole32", "Advapi32", {
 			public = is_public
 		})
-	elseif is_plat("linux") then
+	elseif target:is_plat("linux") then
 		target:add("syslinks", "uuid", {
 			public = is_public
 		})
@@ -61,11 +61,11 @@ on_load(function(target)
 		utils.error("'lc_is_public' must be set before call add_lc_defines")
 		return
 	end
-	target:add("defines", 
+	target:add("defines",
 	--[[spdlog]]
 		"SPDLOG_NO_EXCEPTIONS", "SPDLOG_NO_THREAD_ID", "SPDLOG_DISABLE_DEFAULT_LOGGER", "SPDLOG_COMPILED_LIB",
 		"FMT_USE_CONSTEVAL=0", "FMT_USE_CONSTEXPR=1", "FMT_UNICODE=0", "FMT_EXCEPTIONS=0",
-	--[[eastl]] 
+	--[[eastl]]
 		"EA_PRAGMA_ONCE_SUPPORTED",
 		"EASTL_ASSERT_ENABLED=0", "EA_HAVE_CPP11_CONTAINERS", "EA_HAVE_CPP11_ATOMIC", "EA_HAVE_CPP11_CONDITION_VARIABLE",
 		"EA_HAVE_CPP11_MUTEX", "EA_HAVE_CPP11_THREAD", "EA_HAVE_CPP11_FUTURE", "EA_HAVE_CPP11_TYPE_TRAITS",
@@ -83,7 +83,7 @@ on_load(function(target)
 	{
 		public = is_public
 	})
-	if is_plat("windows") then
+	if target:is_plat("windows") then
 		target:add("defines", "IMGUI_API=__declspec(dllimport)", {public = is_public})
 	end
 end)

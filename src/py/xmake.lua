@@ -1,25 +1,16 @@
 target("lcapi")
 on_load(function(target)
-	local function split_str(str, chr, func)
-		for part in string.gmatch(str, "([^" .. chr .. "]+)") do
-			func(part)
-		end
-	end
 	local lc_py_include = get_config("lc_py_include")
-	split_str(lc_py_include, ';', function(v)
-		target:add("includedirs", v)
-	end)
+    if lc_py_include then
+		target:add("includedirs", lc_py_include:split(";"))
+	end
 	local lc_py_linkdir = get_config("lc_py_linkdir")
 	local lc_py_libs = get_config("lc_py_libs")
 	if type(lc_py_linkdir) == "string" then
-		split_str(lc_py_linkdir, ';', function(v)
-			target:add("linkdirs", v)
-		end)
+        target:add("linkdirs", lc_py_linkdir:split(";"))
 	end
 	if type(lc_py_libs) == "string" then
-		split_str(lc_py_libs, ';', function(v)
-			target:add("links", v)
-		end)
+        target:add("links", lc_py_libs:split(";"))
 	end
 	local function rela(p)
 		return path.relative(path.absolute(p, os.scriptdir()), os.projectdir())

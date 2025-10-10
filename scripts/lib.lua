@@ -1,18 +1,9 @@
-local function _mkdirs(p)
-    if os.exists(p) then
+function mkdirs(p)
+    if os.isdir(p) then
         return
     end
-    try {function()
-        local dir = path.directory(p)
-        if dir then
-            _mkdirs(dir)
-        end
-        os.mkdir(p)
-    end, catch {function()
-    end}}
-end
-function mkdirs(p)
-    _mkdirs(path.translate(p))
+    -- By default, os.mkdir will try to recursively create all subdirectories.
+    os.mkdir(p)
 end
 
 function string_split(str, chr)

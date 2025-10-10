@@ -1,7 +1,7 @@
-if (get_config("lc_vk_backend") or get_config("lc_dx_backend")) then
+if (has_config("lc_vk_backend") or has_config("lc_dx_backend")) then
     includes("hlsl")
 end
-if get_config("_lc_vk_sdk_dir") and get_config("lc_cuda_backend") then
+if get_config("_lc_vk_sdk_dir") and has_config("lc_cuda_backend") then
     target("lc-vulkan-swapchain")
     _config_project({
         project_kind = "object"
@@ -21,7 +21,7 @@ if get_config("_lc_vk_sdk_dir") and get_config("lc_cuda_backend") then
     target_end()
 end
 
-if get_config("lc_toy_c_backend") then
+if has_config("lc_toy_c_backend") then
     target("lc-clanguage-codegen")
     set_basename("luisa-clanguage-codegen")
     _config_project({

@@ -1,4 +1,4 @@
-if get_config("lc_cuda_ext_lcub") then
+if has_config("lc_cuda_ext_lcub") then
     includes("lcub")
 end
 target("lc-cuda-base")
@@ -8,22 +8,9 @@ on_load(function(target)
     import("cuda_sdkdir")
     local cuda = find_cuda(cuda_sdkdir())
     if cuda then
-        local function set(key, value)
-            if type(value) == "string" then
-                target:add(key, value, {
-                    public = true
-                })
-            elseif type(value) == "table" then
-                for i, v in ipairs(value) do
-                    target:add(key, v, {
-                        public = true
-                    })
-                end
-            end
-        end
         local cuda_linkdirs = cuda["linkdirs"]
-        set("linkdirs", cuda_linkdirs)
-        if is_plat("linux") and type(cuda_linkdirs) == "table" then
+        target:add("linkdirs", cuda_linkdirs, {public = true})
+        if target:is_plat("linux") and type(cuda_linkdirs) == "table" then
             for _, v in ipairs(cuda_linkdirs) do
                 local stubs_dir = path.join(v, "stubs")
                 if os.exists(stubs_dir) then
@@ -33,12 +20,12 @@ on_load(function(target)
                 end
             end
         end
-        set("includedirs", cuda["includedirs"])
+        target:add("includedirs", cuda["includedirs"], {public = true})
     else
         target:set("enabled", false)
         return
     end
-    if is_plat("windows") then
+    if target:is_plat("windows") then
         target:add("defines", "UNICODE", "_CRT_SECURE_NO_WARNINGS", {
             public = true
         })
@@ -46,9 +33,9 @@ on_load(function(target)
             public = true
         })
     end
-    if get_config("lc_backend_lto") then
+    if has_config("lc_backend_lto") then
         target:set("policy", "build.optimization.lto", true)
-        if get_config("lc_toolchain") == "llvm" then
+        if is_config("lc_toolchain", "llvm") then
             target:add("ldflags", "-fuse-ld=lld-link")
             target:add("shflags", "-fuse-ld=lld-link")
         end
@@ -63,7 +50,7 @@ _config_project({
     batch_size = 4
 })
 add_deps("lc-runtime", "lc-cuda-base", "reproc")
-if get_config("lc_cuda_ext_lcub") then
+if has_config("lc_cuda_ext_lcub") then
     add_deps("lc-compute-cuda-ext-lcub")
 end
 add_deps("lc_embed_codegen", {

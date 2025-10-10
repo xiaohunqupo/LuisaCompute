@@ -122,7 +122,7 @@ We are also making a C API for creating other language bindings and frontends (e
     ```
   Since we use Git submodules to manage third-party dependencies, a `--recursive` clone is required.
 
-- Detailed requirements for each platform are listed in [BUILD.md](BUILD.md).
+- Detailed requirements for each platform are listed in [BUILD.md](https://github.com/LuisaGroup/LuisaCompute/blob/stable/BUILD.md).
 
 ### Build via the Bootstrap Script
 The easiest way to build LuisaCompute is to use the bootstrap script. It can even download and install the required dependencies and build the project.
@@ -146,7 +146,7 @@ python bootstrap.py cmake -f cuda -c -o cmake-build-release # generate CMake con
 Please use `python bootstrap.py --help` for more details.
 
 ### Build from Source with XMake/CMake
-LuisaCompute follows the standard [XMake](https://xmake.io/) and [CMake](https://cmake.org/) build process. Please see also [BUILD.md](BUILD.md) for details on platform requirements, configuration options, and other precautions.
+LuisaCompute follows the standard [XMake](https://xmake.io/) and [CMake](https://cmake.org/) build process. Please see also [BUILD.md](https://github.com/LuisaGroup/LuisaCompute/blob/stable/BUILD.md) for details on platform requirements, configuration options, and other precautions.
 
 ## Usage
 

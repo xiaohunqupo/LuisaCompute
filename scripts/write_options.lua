@@ -1,15 +1,8 @@
 local lib = import("lib")
 local function find_process_path(process)
-	local cut
-	local is_win = os.is_host("windows")
-	if is_win then
-		cut = ";"
-	else
-		cut = ":"
-	end
 	local path_str = os.getenv("PATH")
 	if path_str then
-		local paths = lib.string_split(path_str, cut)
+		local paths = path.splitenv(path_str)
 		for i, pth in ipairs(paths) do
 			if os.isfile(path.join(pth, process)) then
 				return pth
@@ -17,17 +10,6 @@ local function find_process_path(process)
 		end
 	end
 	return nil
-end
-
-local function sort_key(map, func)
-	local keys = {}
-	for k, v in pairs(map) do
-		table.insert(keys, k)
-	end
-	table.sort(keys)
-	for i, v in ipairs(keys) do
-		func(v, map[v])
-	end
 end
 
 local function find_clangcl()
@@ -109,12 +91,12 @@ function main(...)
 	if os.is_host("linux") and not args["lc_enable_mimalloc"] then
 		args["lc_enable_mimalloc"] = "false"
 	end
-	sort_key(args, function(k, v)
+    for k, v in table.orderpairs(args) do
 		if not (v == "true" or v == "false") then
 			v = '"' .. v .. '"'
 		end
 		sb:add("\t"):add(k .. " = " .. v):add(',\n')
-	end)
+	end
 	-- python
 
 	if py and args["lc_py_include"] == nil and os.is_host("windows") then

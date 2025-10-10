@@ -17,34 +17,19 @@ end
 add_defines("USE_SPIRV")
 on_load(function(target)
     target:add("deps", "volk")
-    if get_config("lc_vk_cuda_interop") then
+    if has_config("lc_vk_cuda_interop") then
         import("detect.sdks.find_cuda")
         import("cuda_sdkdir", {
             rootdir = path.join(path.directory(os.scriptdir()), "cuda")
         })
         local cuda = find_cuda(cuda_sdkdir())
-
-        local cuda_path = os.getenv("CUDA_PATH")
-        local function set(key, value)
-            if type(value) == "string" then
-                target:add(key, value, {
-                    public = true
-                })
-            elseif type(value) == "table" then
-                for i, v in ipairs(value) do
-                    target:add(key, v, {
-                        public = true
-                    })
-                end
-            end
-        end
         if not cuda then
             utils.error("cuda not found.")
         else
             local cuda_linkdirs = cuda["linkdirs"]
-            set("linkdirs", cuda_linkdirs)
-            set("includedirs", cuda["includedirs"])
-            if is_plat("linux") and type(cuda_linkdirs) == "table" then
+            target:add("linkdirs", cuda_linkdirs, {public = true})
+            target:add("includedirs", cuda["includedirs"], {public = true})
+            if target:is_plat("linux") and type(cuda_linkdirs) == "table" then
                 for _, v in ipairs(cuda_linkdirs) do
                     local stubs_dir = path.join(v, "stubs")
                     if os.exists(stubs_dir) then
