@@ -123,7 +123,16 @@ public:
             luisa::to_string(program.filename()));
 
         {
-            auto cp = luisa::filesystem::canonical(program);
+            auto cp = luisa::filesystem::path(program);
+            if (!cp.empty() && !luisa::filesystem::exists(cp)) {
+                cp = cp.parent_path();
+            }
+            if (cp.empty()) {
+                cp = luisa::filesystem::current_path();
+            } else if (cp.is_relative()) {
+                cp = luisa::filesystem::absolute(cp);
+            }
+            cp = luisa::filesystem::canonical(cp);
             if (luisa::filesystem::is_directory(cp)) {
                 runtime_directory = std::move(cp);
             } else {

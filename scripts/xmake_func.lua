@@ -545,16 +545,11 @@ end, {
 rule_end()
 
 rule("lc_run_target")
-on_load(function(target)
-end)
 on_run(function(target)
     import("core.base.option")
     local name = target:extraconf("rules", "lc_run_target", "name")
     if not name then
         name = target:name()
-    end
-    if is_host("windows") then
-        name = name .. ".exe"
     end
     local arguments = option.get("arguments")
     local tar_dir = path.absolute(target:targetdir())
