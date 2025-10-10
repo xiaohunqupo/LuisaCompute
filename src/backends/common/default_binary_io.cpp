@@ -145,7 +145,7 @@ luisa::unique_ptr<BinaryStream> DefaultBinaryIO::read_shader_bytecode(luisa::str
     if (local_path.is_absolute()) {
         return _read(luisa::to_string(name));
     }
-    auto file_path = luisa::to_string(_ctx.runtime_directory() / name);
+    auto file_path = luisa::to_string(_ctx.data_directory() / name);
     return _read(file_path);
 }
 
@@ -191,7 +191,7 @@ luisa::filesystem::path DefaultBinaryIO::write_shader_bytecode(luisa::string_vie
         _write(luisa::to_string(name), data);
         return local_path;
     }
-    auto file_path = _ctx.runtime_directory() / name;
+    auto file_path = _ctx.data_directory() / name;
     _write(luisa::to_string(file_path), data);
     return file_path;
 }

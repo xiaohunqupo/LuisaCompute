@@ -65,6 +65,7 @@ class ContextImpl {
 
 public:
     luisa::filesystem::path runtime_directory;
+    luisa::filesystem::path data_directory;
     luisa::unordered_map<luisa::string, luisa::unique_ptr<BackendModule>> loaded_backends;
     luisa::vector<luisa::string> installed_backends;
     ValidationLayer validation_layer;
@@ -113,27 +114,8 @@ public:
 
         return validation_layer;
     }
-
-    explicit ContextImpl(luisa::string_view program_path) noexcept {
+    void init_backends() noexcept {
         using namespace std::string_view_literals;
-
-        luisa::filesystem::path program{program_path};
-        LUISA_INFO(
-            "Created context for program '{}'.",
-            luisa::to_string(program.filename()));
-
-        {
-            auto cp = luisa::filesystem::canonical(program);
-            if (luisa::filesystem::is_directory(cp)) {
-                runtime_directory = std::move(cp);
-            } else {
-                runtime_directory = luisa::filesystem::canonical(cp.parent_path());
-            }
-            LUISA_INFO(
-                "Runtime directory: {}.",
-                luisa::to_string(runtime_directory));
-            DynamicModule::add_search_path(runtime_directory);
-        }
 
         const auto extension_so = luisa::filesystem::path(".so");
         const auto extension_dll = luisa::filesystem::path(".dll");
@@ -174,12 +156,84 @@ public:
             installed_backends.end());
     }
 
+    explicit ContextImpl(luisa::string_view program_path, luisa::string_view data_dir) noexcept {
+        using namespace std::string_view_literals;
+
+        luisa::filesystem::path program{program_path};
+        LUISA_INFO(
+            "Created context for program '{}'.",
+            luisa::to_string(program.filename()));
+
+        {
+            if (!program.empty() && !luisa::filesystem::exists(program) && program.has_parent_path()) {
+                program = program.parent_path();
+            }
+            if (program.empty()) {
+                program = luisa::current_executable_path();
+            } else if (program.is_relative()) {
+                program = luisa::filesystem::absolute(program);
+            }
+            program = luisa::filesystem::canonical(program);
+            if (luisa::filesystem::is_directory(program)) {
+                runtime_directory = std::move(program);
+            } else {
+                runtime_directory = luisa::filesystem::canonical(program.parent_path());
+            }
+            if (data_dir.empty()) {
+                data_directory = luisa::filesystem::current_path();
+            } else {
+                data_directory = luisa::filesystem::canonical(data_dir);
+            }
+
+            LUISA_INFO(
+                "Runtime directory: {}.",
+                luisa::to_string(runtime_directory));
+            DynamicModule::add_search_path(runtime_directory);
+        }
+        init_backends();
+    }
+
+    explicit ContextImpl(luisa::string_view program_path) noexcept {
+        using namespace std::string_view_literals;
+
+        luisa::filesystem::path program{program_path};
+        LUISA_INFO(
+            "Created context for program '{}'.",
+            luisa::to_string(program.filename()));
+
+        {
+            if (!program.empty() && !luisa::filesystem::exists(program) && program.has_parent_path()) {
+                program = program.parent_path();
+            }
+            if (program.empty()) {
+                program = luisa::current_executable_path();
+            } else if (program.is_relative()) {
+                program = luisa::filesystem::absolute(program);
+            }
+            program = luisa::filesystem::canonical(program);
+            if (luisa::filesystem::is_directory(program)) {
+                runtime_directory = std::move(program);
+            } else {
+                runtime_directory = luisa::filesystem::canonical(program.parent_path());
+            }
+            data_directory = runtime_directory;
+            LUISA_INFO(
+                "Runtime directory: {}.",
+                luisa::to_string(runtime_directory));
+            DynamicModule::add_search_path(runtime_directory);
+        }
+        init_backends();
+    }
+
     ~ContextImpl() noexcept {
         DynamicModule::remove_search_path(runtime_directory);
     }
 };
 
 }// namespace detail
+
+Context::Context(string_view program_path, string_view data_dir) noexcept
+    : _impl{luisa::make_shared<detail::ContextImpl>(program_path, data_dir)} {}
 
 Context::Context(string_view program_path) noexcept
     : _impl{luisa::make_shared<detail::ContextImpl>(program_path)} {}
@@ -245,6 +299,10 @@ luisa::vector<luisa::string> Context::backend_device_names(luisa::string_view ba
 
 const luisa::filesystem::path &Context::runtime_directory() const noexcept {
     return _impl->runtime_directory;
+}
+
+const luisa::filesystem::path &Context::data_directory() const noexcept {
+    return _impl->data_directory;
 }
 
 const luisa::filesystem::path &Context::create_runtime_subdir(luisa::string_view folder_name) const noexcept {

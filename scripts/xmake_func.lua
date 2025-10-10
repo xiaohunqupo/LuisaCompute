@@ -536,6 +536,21 @@ end, {
 })
 rule_end()
 
+rule("lc_run_target")
+on_run(function(target)
+    import("core.base.option")
+    local name = target:extraconf("rules", "lc_run_target", "name")
+    if not name then
+        name = target:name()
+    end
+    local arguments = option.get("arguments")
+    local tar_dir = path.absolute(target:targetdir())
+    os.execv(path.join(tar_dir, name), arguments, {
+        curdir = tar_dir
+    })
+end)
+rule_end()
+
 -- In-case of submod, when there is override rules, do not overload
 if _config_rules == nil then
     _config_rules = {"lc_basic_settings"}

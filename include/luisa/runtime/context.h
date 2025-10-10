@@ -29,6 +29,7 @@ public:
     explicit Context(luisa::shared_ptr<detail::ContextImpl> impl) noexcept;
     // program_path can be first arg from main entry
     explicit Context(luisa::string_view program_path) noexcept;
+    explicit Context(luisa::string_view program_path, luisa::string_view data_dir) noexcept;
     explicit Context(const char *program_path) noexcept
         : Context{luisa::string_view{program_path}} {}
     ~Context() noexcept;
@@ -40,6 +41,8 @@ public:
     [[nodiscard]] auto impl() && noexcept { return std::move(_impl); }
     // runtime directory
     [[nodiscard]] const luisa::filesystem::path &runtime_directory() const noexcept;
+    // data(cache, builtin-data, etc.) directory
+    [[nodiscard]] const luisa::filesystem::path &data_directory() const noexcept;
     // create subdirectories under the runtime directory
     [[nodiscard]] const luisa::filesystem::path &create_runtime_subdir(luisa::string_view folder_name) const noexcept;
     // Create a backend device

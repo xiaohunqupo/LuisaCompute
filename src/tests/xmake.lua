@@ -3,10 +3,10 @@ local lc_enable_gui = has_config("lc_enable_gui")
 ------------------------------------
 
 local function lc_add_app(appname, folder, name, deps)
-    lc_make_dummy_backend(appname, appname)
 
-    target(appname)
-    set_group(appname)
+    local bin_name = appname .. "_b"
+    target(bin_name)
+    set_basename(appname)
     _config_project({
         project_kind = "binary"
     })
@@ -44,6 +44,14 @@ local function lc_add_app(appname, folder, name, deps)
     end
 
     target_end()
+
+    target(appname)
+    set_kind("phony")
+    add_deps(bin_name, "lc-backends-dummy", {
+        inherit = false
+    })
+    add_rules("lc_run_target")
+    target_end()
 end
 
 -- temp test suites
@@ -78,10 +86,10 @@ local function test_proj(name, gui_dep, callable)
     if gui_dep and not lc_enable_gui then
         return
     end
-    lc_make_dummy_backend(name, name)
+    local bin_name = name .. "_b"
 
-    target(name)
-    set_group(name)
+    target(bin_name)
+    set_basename(name)
     _config_project({
         project_kind = "binary"
     })
@@ -97,6 +105,14 @@ local function test_proj(name, gui_dep, callable)
     if callable then
         callable()
     end
+    target_end()
+
+    target(name)
+    set_kind("phony")
+    add_deps(bin_name, "lc-backends-dummy", {
+        inherit = false
+    })
+    add_rules("lc_run_target")
     target_end()
 end
 
@@ -263,7 +279,6 @@ if has_config("lc_dx_backend") and (enable_fsr2 or enable_xess) then
         end)
     end)
 end
--- includes("amd")
 if has_config("lc_dx_backend") and enable_fsr3 then
     test_proj("test_fsr3", true, function()
         set_pcxxheader("lc_test_pch.h")
