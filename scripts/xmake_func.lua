@@ -1,4 +1,7 @@
-option("_lc_enable_py", {default = false, showmenu = false})
+option("_lc_enable_py", {
+    default = false,
+    showmenu = false
+})
 
 option("_lc_check_env")
 set_showmenu(false)
@@ -23,7 +26,7 @@ set_default(false)
 set_showmenu(false)
 add_deps("lc_dx_backend", "lc_vk_backend", "lc_cuda_backend", "lc_metal_backend", "lc_enable_tests", "lc_py_include",
     "lc_cuda_ext_lcub", "lc_enable_dsl", "lc_enable_gui", "lc_bin_dir", "lc_dx_cuda_interop", "lc_vk_cuda_interop",
-    "_lc_enable_py", "lc_enable_xir", "lc_fallback_backend", "lc_llvm_path", "lc_embree_path")
+    "_lc_enable_py", "lc_enable_py", "lc_enable_xir", "lc_fallback_backend", "lc_llvm_path", "lc_embree_path")
 before_check(function(option)
     if path.absolute(path.join(os.projectdir(), "scripts")) == path.absolute(os.scriptdir()) then
         local v = import("options", {
@@ -62,7 +65,9 @@ before_check(function(option)
     local function non_empty_str(s)
         return type(s) == "string" and s:len() > 0
     end
-    if non_empty_str(option:dep("lc_py_include"):enabled()) then
+    if not option:dep("lc_enable_py"):enabled() then
+        enable_py:enable(false)
+    elseif non_empty_str(option:dep("lc_py_include"):enabled()) then
         enable_py:enable(true)
     end
     local is_win = is_plat("windows")
@@ -272,7 +277,7 @@ on_load(function(target)
         tools = "cl",
         public = true
     });
-    if _get_or("use_simd", get_config("lc_enable_simd")) then
+    if _get_or("use_simd", has_config("lc_enable_simd")) then
         if is_arch("arm64") then
             target:add("vectorexts", "neon", {
                 public = true
@@ -284,7 +289,7 @@ on_load(function(target)
         end
     end
     local use_rtti = _get_or("rtti", false)
-    if _get_or("no_rtti", not (use_rtti or get_config("lc_use_rtti") or get_config("_lc_enable_py"))) then
+    if _get_or("no_rtti", not (use_rtti or has_config("lc_use_rtti") or has_config("_lc_enable_py"))) then
         target:add("cxflags", "/GR-", {
             tools = {"clang_cl", "cl"}
         })

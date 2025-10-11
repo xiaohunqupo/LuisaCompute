@@ -47,6 +47,7 @@ option("lc_enable_gui", {default = true})
 -- custom bin dir
 option("lc_bin_dir", {default = "bin"})
 -- custom sdk dir
+option("lc_enable_py", {default = true})
 option("lc_sdk_dir", {default = false})
 option("lc_toolchain", {default = false})
 option("lc_win_runtime", {default = false})
