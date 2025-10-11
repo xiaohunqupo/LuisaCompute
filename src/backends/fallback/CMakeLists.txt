@@ -41,13 +41,10 @@ if (LLVM_FOUND AND embree_FOUND)
 
     # exclude codegen from unity build since it's too big
     set_source_files_properties(fallback_codegen.cpp PROPERTIES UNITY_BUILD OFF)
-    target_link_directories(luisa-compute-backend-fallback PRIVATE ${LLVM_LIBRARY_DIRS})
     target_link_libraries(luisa-compute-backend-fallback PRIVATE
             luisa-compute-xir
             luisa-compute-vulkan-swapchain
             embree)
-    separate_arguments(LLVM_DEFINITIONS_LIST NATIVE_COMMAND ${LLVM_DEFINITIONS})
-    target_compile_definitions(luisa-compute-backend-fallback PRIVATE ${LLVM_DEFINITIONS_LIST})
 
     target_compile_definitions(luisa-compute-backend-fallback PRIVATE
             LUISA_COMPUTE_FALLBACK_EMBREE_VERSION=${embree_VERSION_MAJOR})
@@ -65,7 +62,7 @@ if (LLVM_FOUND AND embree_FOUND)
                 target_link_libraries(luisa-compute-backend-fallback PRIVATE ${DISPATCH_LIB})
                 target_include_directories(luisa-compute-backend-fallback PRIVATE ${DISPATCH_INCLUDE_DIR})
             else ()
-                # find_package(TBB CONFIG)
+                 find_package(TBB CONFIG)
                 if (TBB_FOUND)
                     target_compile_definitions(luisa-compute-backend-fallback PRIVATE LUISA_COMPUTE_ENABLE_TBB=1)
                     target_link_libraries(luisa-compute-backend-fallback PRIVATE TBB::tbb)
