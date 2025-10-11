@@ -695,6 +695,10 @@ void FilterAccess(
     if ((access & (D3D12_BARRIER_ACCESS_RENDER_TARGET | D3D12_BARRIER_ACCESS_DEPTH_STENCIL_WRITE)) != 0) {
         sync &= ~tex_read_sync;
     }
+    // copy stage mutex with other
+    if ((access != D3D12_BARRIER_ACCESS_COPY_SOURCE && access != D3D12_BARRIER_ACCESS_COPY_DEST) && (sync & D3D12_BARRIER_SYNC_COPY) != 0) {
+        sync = D3D12_BARRIER_SYNC_ALL;
+    }
 }
 }// namespace detail
 void EnhancedBarrierTrackerImpl::BarrierFilter(D3D12_BUFFER_BARRIER &barrier) {
