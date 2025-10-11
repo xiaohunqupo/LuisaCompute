@@ -27,10 +27,8 @@ on_load(function(target, opt)
     elseif is_plat("macosx") then
         target:add("frameworks", "CoreFoundation")
     end
-    if get_config("_lc_vk_sdk_dir") then
-        target:add("defines", "LUISA_BACKEND_ENABLE_VULKAN_SWAPCHAIN")
-        target:add("deps", "lc-vulkan-swapchain", "volk")
-    end
+    target:add("defines", "LUISA_BACKEND_ENABLE_VULKAN_SWAPCHAIN")
+    target:add("deps", "lc-vulkan-swapchain", "volk")
 end)
 after_build(function(target)
     if not is_plat("windows") then

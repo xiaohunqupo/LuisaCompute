@@ -20,7 +20,6 @@ option("lc_external_marl", {default = false})
 option("lc_dx_cuda_interop", {default = false})
 option("lc_vk_cuda_interop", {default = false})
 -- enable Vulkan backend
-option("lc_vk_support", {default = true})
 option("lc_vk_backend", {default = true})
 option("lc_toy_c_backend", {default = false})
 -- enable NVIDIA-CUDA backend

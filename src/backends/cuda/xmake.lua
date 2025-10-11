@@ -9,7 +9,9 @@ on_load(function(target)
     local cuda = find_cuda(cuda_sdkdir())
     if cuda then
         local cuda_linkdirs = cuda["linkdirs"]
-        target:add("linkdirs", cuda_linkdirs, {public = true})
+        target:add("linkdirs", cuda_linkdirs, {
+            public = true
+        })
         if target:is_plat("linux") and type(cuda_linkdirs) == "table" then
             for _, v in ipairs(cuda_linkdirs) do
                 local stubs_dir = path.join(v, "stubs")
@@ -20,7 +22,9 @@ on_load(function(target)
                 end
             end
         end
-        target:add("includedirs", cuda["includedirs"], {public = true})
+        target:add("includedirs", cuda["includedirs"], {
+            public = true
+        })
     else
         target:set("enabled", false)
         return
@@ -76,10 +80,8 @@ on_load(function(target)
             target:add("files", filepath)
         end
     end
-    if get_config("_lc_vk_sdk_dir") then
-        target:add("defines", "LUISA_BACKEND_ENABLE_VULKAN_SWAPCHAIN")
-        target:add("deps", "lc-vulkan-swapchain", "volk")
-    end
+    target:add("defines", "LUISA_BACKEND_ENABLE_VULKAN_SWAPCHAIN")
+    target:add("deps", "lc-vulkan-swapchain", "volk")
 end)
 add_files("extensions/cuda_denoiser.cpp", "extensions/cuda_dstorage.cpp", "extensions/cuda_pinned_memory.cpp")
 add_links("cuda")

@@ -13,7 +13,7 @@ if has_config("lc_enable_xir") then
 end
 on_load(function(target)
     target:add("files", path.absolute("../ast/*.cpp", os.scriptdir()), path.join(os.scriptdir(), "**.cpp"))
-    if get_config("lc_enable_xir") then
+    if has_config("lc_enable_xir") then
         local ir_path = path.absolute("../xir", os.scriptdir())
         target:add("files", path.join(ir_path, "*.cpp"), path.join(ir_path, "instructions/*.cpp"),
             path.join(ir_path, "metadata/*.cpp"), path.join(ir_path, "translators/*.cpp"),

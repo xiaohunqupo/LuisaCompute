@@ -1,35 +1,5 @@
 option("_lc_enable_py", {default = false, showmenu = false})
 
-option("_lc_vk_sdk_dir")
-set_default(false)
-set_showmenu(false)
-add_deps("lc_vk_support")
-after_check(function(option)
-    if not option:dep("lc_vk_support"):enabled() then
-        option:set_value(false)
-        return
-    end
-    if is_host("windows") then
-        local sdk_dir = os.getenv("VK_SDK_PATH")
-        if not sdk_dir then
-            sdk_dir = os.getenv("VULKAN_SDK")
-        end
-        if not sdk_dir then
-            option:set_value(false)
-        else
-            option:set_value(sdk_dir)
-        end
-    elseif is_host("linux") then
-        local vk_path = "/usr/include/vulkan"
-        if os.exists(vk_path) then
-            option:set_value(vk_path)
-        else
-            option:set_value(false)
-        end
-    end
-end)
-option_end()
-
 option("_lc_check_env")
 set_showmenu(false)
 set_default(false)
