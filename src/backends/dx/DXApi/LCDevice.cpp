@@ -830,20 +830,25 @@ ResourceCreationInfo LCDevice::allocate_sparse_texture_heap(size_t byte_size) no
 void LCDevice::deallocate_sparse_texture_heap(uint64_t handle) noexcept {
     deallocate_sparse_buffer_heap(handle);
 }
+
 uint LCDevice::compute_warp_size() const noexcept {
     return nativeDevice.waveSize();
 }
+
 uint64_t LCDevice::memory_granularity() const noexcept {
     // should be 64kb
     static_assert(D3D12_TILED_RESOURCE_TILE_SIZE_IN_BYTES == D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT);
     return D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
 }
-VSTL_EXPORT_C DeviceInterface *create(Context &&c, DeviceConfig const *settings) {
+
+LUISA_EXPORT_API DeviceInterface *create(Context &&c, DeviceConfig const *settings) {
     return new LCDevice(std::move(c), settings);
 }
-VSTL_EXPORT_C void destroy(DeviceInterface *device) {
+
+LUISA_EXPORT_API void destroy(DeviceInterface *device) {
     delete static_cast<LCDevice *>(device);
 }
+
 luisa::string LCDevice::query(luisa::string_view property) noexcept {
     if (property == "device_name") {
         return "dx";
@@ -851,4 +856,5 @@ luisa::string LCDevice::query(luisa::string_view property) noexcept {
     LUISA_WARNING_WITH_LOCATION("Unknown device property '{}'.", property);
     return {};
 }
+
 }// namespace lc::dx

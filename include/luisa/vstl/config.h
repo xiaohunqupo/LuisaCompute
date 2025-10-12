@@ -1,16 +1,14 @@
 #pragma once
 
+#include <luisa/core/dll_export.h>
+
 #define VSTL_ABORT() std::abort()
 
 #if defined(UNICODE) && !defined(VSTL_UNICODE)
 #define VSTL_UNICODE
 #endif
 
-#ifdef _MSC_VER
-#define VSTL_EXPORT_C extern "C" _declspec(dllexport)
-#else
-#define VSTL_EXPORT_C extern "C"
-#endif
+#define VSTL_EXPORT_C LUISA_EXPORT_API
 
 #if (defined(DEBUG) || defined(_DEBUG) || !defined(NDEBUG)) && !defined(VSTL_DEBUG)
 #define VSTL_DEBUG

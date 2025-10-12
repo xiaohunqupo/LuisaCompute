@@ -43,7 +43,7 @@ static vstd::StackObject<hlsl::ShaderCompiler, false> gDxcCompiler;
 static int32 gDxcRefCount = 0;
 
 Device::LazyLoadShader::~LazyLoadShader() {}
-VSTL_EXPORT_C void backend_device_names(luisa::vector<luisa::string> &r);
+LUISA_EXPORT_API void backend_device_names(luisa::vector<luisa::string> &r);
 Device::LazyLoadShader::LazyLoadShader(LoadFunc loadFunc) : loadFunc(loadFunc) {}
 Device::~Device() {
     //lcmdSig.destroy();
@@ -407,7 +407,8 @@ bool Device::SupportMeshShader() const {
     device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS7, &featureData, sizeof(featureData));
     return (featureData.MeshShaderTier >= D3D12_MESH_SHADER_TIER_1);
 }
-VSTL_EXPORT_C void backend_device_names(luisa::vector<luisa::string> &r) {
+
+LUISA_EXPORT_API void backend_device_names(luisa::vector<luisa::string> &r) {
     r.clear();
     ComPtr<IDXGIFactory2> dxgiFactory;
     ComPtr<IDXGIAdapter1> adapter;

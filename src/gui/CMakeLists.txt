@@ -41,6 +41,8 @@ if (LUISA_COMPUTE_ENABLE_GUI)
         if (X11_FOUND)
             target_link_libraries(luisa-compute-gui PRIVATE X11::X11)
         endif ()
+        target_compile_definitions(luisa-compute-gui PRIVATE
+                "IMGUI_API=__attribute__((visibility(\"default\")))")
     endif ()
     set_target_properties(luisa-compute-gui PROPERTIES
             UNITY_BUILD ${LUISA_COMPUTE_ENABLE_UNITY_BUILD}

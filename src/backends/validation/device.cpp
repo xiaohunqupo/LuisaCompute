@@ -465,10 +465,12 @@ void Device::check_stream(uint64_t stream, StreamFunc func, uint64_t custom_cmd_
         LUISA_ERROR("{} do not support function \"{}\"", stream_ptr->get_name(), luisa::to_string(func));
     }
 }
-VSTL_EXPORT_C void destroy(DeviceInterface *d) {
+
+LUISA_EXPORT_API void destroy(DeviceInterface *d) {
     delete d;
 }
-VSTL_EXPORT_C DeviceInterface *create(Context &&ctx, luisa::shared_ptr<DeviceInterface> &&native) {
+
+LUISA_EXPORT_API DeviceInterface *create(Context &&ctx, luisa::shared_ptr<DeviceInterface> &&native) {
     return new Device{std::move(ctx), std::move(native)};
 }
 SparseTextureCreationInfo Device::create_sparse_texture(

@@ -1018,7 +1018,8 @@ void Device::set_name(luisa::compute::Resource::Tag resource_tag, uint64_t resou
 bool Device::is_event_completed(uint64_t handle, uint64_t fence_value) const noexcept {
     return reinterpret_cast<Event *>(handle)->is_complete(fence_value);
 }
-VSTL_EXPORT_C void backend_device_names(luisa::vector<luisa::string> &r) {
+
+LUISA_EXPORT_API void backend_device_names(luisa::vector<luisa::string> &r) {
     {
         std::lock_guard lck{detail::instance_mtx};
         if (!detail::vk_instance) {
@@ -1051,19 +1052,23 @@ VSTL_EXPORT_C void backend_device_names(luisa::vector<luisa::string> &r) {
         r.emplace_back(_device_properties.deviceName);
     }
 }
+
 hlsl::ShaderCompiler *Device::Compiler() {
     return gDxcCompiler ? gDxcCompiler.ptr() : nullptr;
 }
+
 VkInstance Device::instance() const {
     return detail::vk_instance;
 }
 
-VSTL_EXPORT_C DeviceInterface *create(Context &&c, DeviceConfig const *settings) {
+LUISA_EXPORT_API DeviceInterface *create(Context &&c, DeviceConfig const *settings) {
     return new Device(std::move(c), settings);
 }
-VSTL_EXPORT_C void destroy(DeviceInterface *device) {
+
+LUISA_EXPORT_API void destroy(DeviceInterface *device) {
     delete static_cast<Device *>(device);
 }
+
 uint Device::HeapAlloc::alloc() {
     std::lock_guard lck{mtx};
     if (release_pool.empty()) {
