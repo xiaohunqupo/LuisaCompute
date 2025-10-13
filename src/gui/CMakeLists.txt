@@ -33,15 +33,15 @@ if (LUISA_COMPUTE_ENABLE_GUI)
             PRIVATE LUISA_GUI_EXPORT_DLL
             PUBLIC LUISA_ENABLE_GUI=1 GLFW_INCLUDE_NONE IMGUI_DEFINE_MATH_OPERATORS)
     if (WIN32)
-        target_compile_definitions(luisa-compute-gui PRIVATE
-                "IMGUI_API=__declspec(dllexport)"
-                "IMGUI_IMPL_API=__declspec(dllexport)")
+        target_compile_definitions(luisa-compute-gui
+                PRIVATE "IMGUI_API=__declspec(dllexport)" "IMGUI_IMPL_API=__declspec(dllexport)"
+                PUBLIC "IMGUI_API=__declspec(dllimport)")
     elseif (UNIX AND NOT APPLE)
         find_package(X11 QUIET)
         if (X11_FOUND)
             target_link_libraries(luisa-compute-gui PRIVATE X11::X11)
         endif ()
-        target_compile_definitions(luisa-compute-gui PRIVATE
+        target_compile_definitions(luisa-compute-gui PUBLIC
                 "IMGUI_API=__attribute__((visibility(\"default\")))")
     endif ()
     set_target_properties(luisa-compute-gui PROPERTIES
