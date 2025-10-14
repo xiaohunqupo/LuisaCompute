@@ -168,8 +168,6 @@ if (LUISA_COMPUTE_ENABLE_CPU OR
         LUISA_COMPUTE_ENABLE_REMOTE OR
         LUISA_COMPUTE_ENABLE_FALLBACK)
 
-    find_package(Vulkan)
-
     if (UNIX AND NOT APPLE)
         find_package(X11)
         set(X11_DEPENDENCY_SATISFIED ${X11_FOUND} INTERNAL)
@@ -177,7 +175,7 @@ if (LUISA_COMPUTE_ENABLE_CPU OR
         set(X11_DEPENDENCY_SATISFIED TRUE INTERNAL)
     endif ()
 
-    if (Vulkan_FOUND AND X11_DEPENDENCY_SATISFIED)
+    if (X11_DEPENDENCY_SATISFIED)
         set(LUISA_COMPUTE_VULKAN_SWAPCHAIN_SOURCES
                 vulkan_instance.cpp vulkan_instance.h
                 vulkan_swapchain.cpp)
@@ -194,7 +192,6 @@ if (LUISA_COMPUTE_ENABLE_CPU OR
         target_link_libraries(luisa-compute-vulkan-swapchain
                 PUBLIC
                 luisa-compute-runtime
-                Vulkan::Vulkan
                 ${X11_LIBRARIES})
         target_compile_definitions(luisa-compute-vulkan-swapchain
                 PUBLIC
@@ -219,10 +216,16 @@ if (LUISA_COMPUTE_ENABLE_CPU OR
 
         set_target_properties(luisa-compute-vulkan-swapchain PROPERTIES
                 OUTPUT_NAME luisa-vulkan-swapchain)
+        
         install(TARGETS luisa-compute-vulkan-swapchain EXPORT LuisaComputeTargets
                 LIBRARY DESTINATION ${CMAKE_INSTALL_BINDIR}
                 RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-
+        if (LUISA_COMPUTE_USE_SYSTEM_VOLK)
+            find_package(volk REQUIRED)
+            target_link_libraries(luisa-compute-vulkan-swapchain PUBLIC volk::volk)
+        else ()
+            target_link_libraries(luisa-compute-vulkan-swapchain PUBLIC volk)
+        endif ()
     else ()
         message(WARNING "Vulkan not found, vulkan swapchain will not be enabled.")
         add_library(luisa-compute-vulkan-swapchain INTERFACE)

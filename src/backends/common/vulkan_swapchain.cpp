@@ -163,11 +163,13 @@ private:
         create_info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
         create_info.hwnd = reinterpret_cast<HWND>(window_handle);
         create_info.hinstance = GetModuleHandle(nullptr);
+        auto vkCreateWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)vkGetInstanceProcAddr(_instance->handle(), "vkCreateWin32SurfaceKHR");
         LUISA_CHECK_VULKAN(vkCreateWin32SurfaceKHR(_instance->handle(), &create_info, nullptr, &_surface));
 #elif defined(LUISA_PLATFORM_APPLE)
         VkMacOSSurfaceCreateInfoMVK create_info{};
         create_info.sType = VK_STRUCTURE_TYPE_MACOS_SURFACE_CREATE_INFO_MVK;
         create_info.pView = cocoa_window_content_view(window_handle);
+        auto vkCreateMacOSSurfaceMVK = (PFN_vkCreateMacOSSurfaceMVK)vkGetInstanceProcAddr(_instance->handle(), "vkCreateMacOSSurfaceMVK");
         LUISA_CHECK_VULKAN(vkCreateMacOSSurfaceMVK(_instance->handle(), &create_info, nullptr, &_surface));
 #else
         static std::once_flag set_xlib_error_handler;
@@ -184,6 +186,7 @@ private:
             create_info.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
             create_info.dpy = display_handle ? reinterpret_cast<Display *>(display_handle) : XOpenDisplay(nullptr);
             create_info.window = static_cast<Window>(window_handle);
+            auto vkCreateXlibSurfaceKHR = (PFN_vkCreateXlibSurfaceKHR)vkGetInstanceProcAddr(_instance->handle(), "vkCreateXlibSurfaceKHR");
             LUISA_CHECK_VULKAN(vkCreateXlibSurfaceKHR(_instance->handle(), &create_info, nullptr, &_surface));
         };
 #if LUISA_ENABLE_WAYLAND
@@ -192,6 +195,7 @@ private:
             create_info_wl.sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR;
             create_info_wl.display = display_handle ? reinterpret_cast<wl_display *>(display_handle) : wl_display_connect(nullptr);
             create_info_wl.surface = reinterpret_cast<wl_surface *>(window_handle);
+        auto vkCreateWaylandSurfaceKHR = (PFN_vkCreateWaylandSurfaceKHR)vkGetInstanceProcAddr(_instance->handle(), "vkCreateWaylandSurfaceKHR");
             LUISA_CHECK_VULKAN(vkCreateWaylandSurfaceKHR(_instance->handle(), &create_info_wl, nullptr, &_surface));
         } else {// X uses 32-bit IDs
             create_surface_xlib();

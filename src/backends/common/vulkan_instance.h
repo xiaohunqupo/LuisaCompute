@@ -3,12 +3,6 @@
 #include <cstdlib>
 #include <cstring>
 
-#if LUISA_USE_VOLK
-#ifndef VK_NO_PROTOTYPES
-#define VK_NO_PROTOTYPES 1
-#endif
-#endif
-
 #include <vulkan/vulkan.h>
 
 #if defined(LUISA_PLATFORM_WINDOWS)
@@ -32,9 +26,7 @@
 #include <luisa/core/stl/string.h>
 #include <luisa/core/stl/vector.h>
 #include <luisa/core/magic_enum.h>
-#ifdef LUISA_USE_VOLK
 #include <luisa/backends/common/volk_init.h>
-#endif
 
 #define LUISA_CHECK_VULKAN(x)                                            \
     do {                                                                 \
@@ -68,9 +60,7 @@ static_assert(sizeof(VulkanDeviceUUID) == 16u);
 class VulkanInstance {
 
 private:
-#ifdef LUISA_USE_VOLK
     LCVolkInitializer _volk_initializer;
-#endif
     VkInstance _instance{nullptr};
     VkDebugUtilsMessengerEXT _debug_messenger{nullptr};
 

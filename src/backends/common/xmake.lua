@@ -8,9 +8,6 @@ if has_config("lc_cuda_backend") then
     })
     set_values("vk_public", true)
     add_headerfiles("vulkan_instance.h")
-    add_defines("LUISA_USE_VOLK", {
-        public = true
-    })
     add_files("vulkan_swapchain.cpp", "vulkan_instance.cpp", "volk_build.c")
     add_deps("lc-core", "volk")
     if is_plat("linux") then

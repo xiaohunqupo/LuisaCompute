@@ -114,6 +114,7 @@ void _create_surface(
     VkMacOSSurfaceCreateInfoMVK create_info{};
     create_info.sType = VK_STRUCTURE_TYPE_MACOS_SURFACE_CREATE_INFO_MVK;
     create_info.pView = cocoa_window_content_view(window_handle);
+    auto vkCreateMacOSSurfaceMVK = (PFN_vkCreateMacOSSurfaceMVK)vkGetInstanceProcAddr(instance, "vkCreateMacOSSurfaceMVK");
     VK_CHECK_RESULT(vkCreateMacOSSurfaceMVK(instance, &create_info, Device::alloc_callbacks(), &surface));
 #else
     static std::once_flag set_xlib_error_handler;
@@ -130,6 +131,7 @@ void _create_surface(
         create_info.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
         create_info.dpy = display_handle ? reinterpret_cast<Display *>(display_handle) : XOpenDisplay(nullptr);
         create_info.window = static_cast<Window>(window_handle);
+        auto vkCreateXlibSurfaceKHR = (PFN_vkCreateXlibSurfaceKHR)vkGetInstanceProcAddr(instance, "vkCreateXlibSurfaceKHR");
         VK_CHECK_RESULT(vkCreateXlibSurfaceKHR(instance, &create_info, Device::alloc_callbacks(), &surface));
     };
 #if LUISA_ENABLE_WAYLAND
@@ -138,6 +140,7 @@ void _create_surface(
         create_info_wl.sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR;
         create_info_wl.display = display_handle ? reinterpret_cast<wl_display *>(display_handle) : wl_display_connect(nullptr);
         create_info_wl.surface = reinterpret_cast<wl_surface *>(window_handle);
+        auto vkCreateWaylandSurfaceKHR = (PFN_vkCreateWaylandSurfaceKHR)vkGetInstanceProcAddr(instance, "vkCreateWaylandSurfaceKHR");
         VK_CHECK_RESULT(vkCreateWaylandSurfaceKHR(instance, &create_info_wl, Device::alloc_callbacks(), &surface));
     } else {// X uses 32-bit IDs
         create_surface_xlib();
