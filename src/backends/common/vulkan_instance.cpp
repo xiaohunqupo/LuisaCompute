@@ -39,7 +39,7 @@ static VkBool32 vulkan_validation_callback(VkDebugUtilsMessageSeverityFlagBitsEX
 
 VulkanInstance::VulkanInstance() noexcept {
 #ifdef LUISA_USE_VOLK
-    LUISA_CHECK_VULKAN(volkInitialize());
+    _volk_initializer.init();
 #endif
     luisa::vector<const char *> extensions;
     extensions.reserve(4u);

@@ -27,6 +27,7 @@
 #ifdef LUISA_VULKAN_ENABLE_CUDA_INTEROP
 #include "vk_cuda_interop_ext.h"
 #endif
+
 namespace lc::vk {
 static constexpr uint k_shader_model = 65u;
 static constexpr uint k_high_shader_model = 66u;
@@ -133,8 +134,8 @@ vstd::vector<VkExtensionProperties> supported_exts(VkPhysicalDevice physical_dev
     vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &extensions_count, props.data());
     return props;
 }
-void create_instance(bool enableValidation, VkInstance &instance) {
-    volkInitialize();
+void create_instance(bool enableValidation, VkInstance &instance, luisa::filesystem::path const &custom_path, luisa::string_view lib_name) {
+    vks::VulkanDevice::initVolk(custom_path, lib_name);
     if (!instance) {
         vstd::vector<const char *> instance_exts;
         instance_exts.reserve(8);
@@ -301,6 +302,8 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
     }
     VkPhysicalDevice ext_phy_device{};
     VkDevice ext_device{};
+    luisa::filesystem::path custom_path;
+    luisa::string_view lib_name;
     if (_config_ext) {
         auto external_device = _config_ext->create_external_device();
         ext_phy_device = external_device.physical_device;
@@ -314,6 +317,9 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
         }
         load_dxc = _config_ext->load_dxc();
         _graphics_queue = external_device.graphics_queue;
+        auto ext_path = _config_ext->external_vulkan_lib_path();
+        custom_path = std::move(ext_path.lib_path);
+        lib_name = std::move(ext_path.lib_name);
         _compute_queue = external_device.compute_queue;
         _copy_queue = external_device.copy_queue;
         _external_instance = external_device.instance;
@@ -345,7 +351,7 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
 #else
                 constexpr bool enableValidation = true;
 #endif
-                detail::create_instance(enableValidation, detail::vk_instance);
+                detail::create_instance(enableValidation, detail::vk_instance, custom_path, lib_name);
             }
         }
         bool fallback = false;
@@ -1028,7 +1034,7 @@ LUISA_EXPORT_API void backend_device_names(luisa::vector<luisa::string> &r) {
 #else
             constexpr bool enableValidation = true;
 #endif
-            detail::create_instance(enableValidation, detail::vk_instance);
+            detail::create_instance(enableValidation, detail::vk_instance, {}, {});
         }
     }
     vstd::vector<VkPhysicalDevice> physical_devices;

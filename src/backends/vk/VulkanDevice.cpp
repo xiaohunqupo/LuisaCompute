@@ -16,6 +16,8 @@
 #include <luisa/core/logging.h>
 #include "log.h"
 #include "device.h"
+#include <luisa/core/dynamic_module.h>
+#include <luisa/backends/common/volk_init.h>
 namespace vks {
 /**
 	* Default constructor
@@ -24,13 +26,18 @@ namespace vks {
 	*/
 static luisa::spin_mutex gVolkMtx;
 static int32 gVolkRefCount = 0;
+static luisa::compute::LCVolkInitializer volk_initer;
 
+void VulkanDevice::initVolk(luisa::filesystem::path const &custom_path, luisa::string_view lib_name) {
+    std::lock_guard lck(gVolkMtx);
+    if (!volk_initer.vk_module) {
+        volk_initer.init(custom_path, lib_name);
+    }
+}
 VulkanDevice::VulkanDevice(VkPhysicalDevice physicalDevice) {
     {
         std::lock_guard lck(gVolkMtx);
-        if (gVolkRefCount++ == 0) {
-            volkInitialize();
-        }
+        ++gVolkRefCount;
     }
     assert(physicalDevice);
     this->physicalDevice = physicalDevice;
@@ -78,6 +85,7 @@ VulkanDevice::~VulkanDevice() {
         std::lock_guard lck(gVolkMtx);
         if (--gVolkRefCount == 0) {
             volkFinalize();
+            volk_initer.vk_module.reset();
         }
     }
 }

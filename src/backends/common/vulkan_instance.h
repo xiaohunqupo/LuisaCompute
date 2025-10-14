@@ -36,6 +36,7 @@
 #include <luisa/core/stl/string.h>
 #include <luisa/core/stl/vector.h>
 #include <luisa/core/magic_enum.h>
+#include <luisa/backends/common/volk_init.h>
 
 #define LUISA_CHECK_VULKAN(x)                                            \
     do {                                                                 \
@@ -69,6 +70,7 @@ static_assert(sizeof(VulkanDeviceUUID) == 16u);
 class VulkanInstance {
 
 private:
+    LCVolkInitializer _volk_initializer;
     VkInstance _instance{nullptr};
     VkDebugUtilsMessengerEXT _debug_messenger{nullptr};
 

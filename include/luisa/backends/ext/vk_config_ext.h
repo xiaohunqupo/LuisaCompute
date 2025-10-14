@@ -1,5 +1,7 @@
 #pragma once
 #include <vulkan/vulkan_core.h>
+#include <luisa/core/stl/filesystem.h>
+#include <luisa/core/stl/string.h>
 #include <luisa/runtime/rhi/device_interface.h>
 struct IDxcCompiler3;
 struct IDxcLibrary;
@@ -16,6 +18,10 @@ public:
         VkQueue compute_queue{};
         VkQueue copy_queue{};
     };
+    struct VulkanLibPath {
+        luisa::filesystem::path lib_path;
+        luisa::string lib_name;
+    };
     VulkanDeviceConfigExt() = default;
     ~VulkanDeviceConfigExt() = default;
     [[nodiscard]] virtual ExternalDevice create_external_device() {
@@ -24,9 +30,9 @@ public:
     [[nodiscard]] virtual bool enable_fallback() const {
         return false;
     }
-
     virtual VkCommandBuffer borrow_command_buffer(
         StreamTag stream_tag) noexcept { return nullptr; }
+    virtual VulkanLibPath external_vulkan_lib_path() noexcept { return {}; }
     virtual bool execute_command_buffer(VkCommandBuffer cmd_buffer) noexcept { return false; }
     virtual bool signal_semaphore(VkQueue queue, VkSemaphore _semaphore, uint64_t index) { return false; }
     virtual bool wait_semaphore(VkQueue queue, VkSemaphore _semaphore, uint64_t index) { return false; }
