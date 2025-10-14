@@ -28,15 +28,13 @@
 #error "Unsupported platform"
 #endif
 
-#ifdef LUISA_USE_VOLK
-#include <volk.h>
-#endif
-
 #include <luisa/core/stl/memory.h>
 #include <luisa/core/stl/string.h>
 #include <luisa/core/stl/vector.h>
 #include <luisa/core/magic_enum.h>
+#ifdef LUISA_USE_VOLK
 #include <luisa/backends/common/volk_init.h>
+#endif
 
 #define LUISA_CHECK_VULKAN(x)                                            \
     do {                                                                 \
@@ -70,7 +68,9 @@ static_assert(sizeof(VulkanDeviceUUID) == 16u);
 class VulkanInstance {
 
 private:
+#ifdef LUISA_USE_VOLK
     LCVolkInitializer _volk_initializer;
+#endif
     VkInstance _instance{nullptr};
     VkDebugUtilsMessengerEXT _debug_messenger{nullptr};
 
