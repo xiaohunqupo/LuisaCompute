@@ -2,9 +2,6 @@ target("volk")
 _config_project({
     project_kind = "static"
 })
-add_includedirs(".", {
-    public = true
-})
 add_defines("VK_NO_PROTOTYPES", {
     public = true
 })
