@@ -10,6 +10,7 @@
 #include <luisa/runtime/rhi/command.h>
 #include <luisa/vstl/lockfree_array_queue.h>
 #include <luisa/vstl/stack_allocator.h>
+#include <luisa/vstl/functional.h>
 #include "../common/command_reorder_visitor.h"
 #include "shader.h"
 #include "resource_barrier.h"

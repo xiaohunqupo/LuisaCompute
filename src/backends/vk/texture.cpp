@@ -56,7 +56,10 @@ Texture::Texture(
                     return VK_IMAGE_TYPE_2D;
                 case 3:
                     return VK_IMAGE_TYPE_3D;
-            };
+                default:
+                    break;
+            }
+            LUISA_ERROR_WITH_LOCATION("Invalid texture dimension.");
         }(),
         to_vk_format(format),
         size,
@@ -135,7 +138,10 @@ void Texture::init_as_sparse(
                 return VK_IMAGE_TYPE_2D;
             case 3:
                 return VK_IMAGE_TYPE_3D;
-        };
+            default:
+                break;
+        }
+        LUISA_ERROR_WITH_LOCATION("Invalid texture dimension.");
     }();
     VkImageCreateInfo img_create_info{
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,

@@ -2,6 +2,9 @@
 #include "resource.h"
 #include <volk.h>
 #include "../common/hlsl/shader_property.h"
+#include <luisa/ast/usage.h>
+#include <luisa/ast/type_registry.h>
+#include <luisa/ast/function.h>
 #include <luisa/runtime/rhi/argument.h>
 #include "buffer.h"
 #include "texture.h"
@@ -11,14 +14,14 @@ struct SavedArgument {
     Type::Tag tag;
     Usage varUsage;
     uint structSize;
-    SavedArgument() {}
+    SavedArgument() = default;
     SavedArgument(Function kernel, Variable const &var) : SavedArgument(var.type()) {
         varUsage = kernel.variable_usage(var.uid());
     }
     SavedArgument(Usage usage, Variable const &var) : SavedArgument(var.type()) {
         varUsage = usage;
     }
-    SavedArgument(Type const *type);
+    explicit SavedArgument(Type const *type);
 };
 class Shader : public Resource {
 public:

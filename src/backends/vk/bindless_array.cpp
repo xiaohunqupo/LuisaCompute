@@ -336,7 +336,10 @@ void BindlessArray::emplace_tex(
                     return VK_IMAGE_VIEW_TYPE_2D;
                 case 3:
                     return VK_IMAGE_VIEW_TYPE_3D;
+                default:
+                    break;
             }
+            LUISA_ERROR_WITH_LOCATION("Invalid texture dimension.");
         }(),
         .format = Texture::to_vk_format(tex->format()),
         .subresourceRange = VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .baseMipLevel = 0, .levelCount = tex->mip(), .baseArrayLayer = 0, .layerCount = 1}};

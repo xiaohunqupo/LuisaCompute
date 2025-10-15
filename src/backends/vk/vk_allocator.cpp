@@ -1,10 +1,14 @@
+#include <volk.h>
+
 #define VMA_STATIC_VULKAN_FUNCTIONS 1
 #define VMA_IMPLEMENTATION 1
 #include "vk_mem_alloc.h"
 #include "vk_allocator.h"
 #include "device.h"
 #include "log.h"
+
 namespace lc::vk {
+
 AllocatedBuffer VkAllocator::allocate_buffer(size_t byte_size, VkBufferUsageFlagBits usage, AccessType access) {
     VkBufferCreateInfo bufferInfo = {
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -113,4 +117,5 @@ void VkAllocator::dealloc_sparse(vstd::vector<VmaAllocation> &alloc) {
 void VkAllocator::dealloc_sparse(VmaAllocation const &alloc) {
     vmaFreeMemory(_allocator, alloc);
 }
+
 }// namespace lc::vk

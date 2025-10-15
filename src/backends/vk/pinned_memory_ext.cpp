@@ -1,8 +1,12 @@
+#include <luisa/core/logging.h>
+
 #include "pinned_memory_ext.h"
 #include "device.h"
 #include "upload_buffer.h"
 #include "readback_buffer.h"
+
 namespace lc::vk {
+
 BufferCreationInfo VkPinnedMemoryExt::_pin_host_memory(
     const Type *elem_type, size_t elem_count,
     void *host_ptr, const PinnedMemoryOption &option) noexcept {

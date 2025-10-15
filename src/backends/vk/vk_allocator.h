@@ -1,10 +1,14 @@
 #pragma once
+
 #include <volk.h>
 #include "vk_mem_alloc.h"
 #include <luisa/core/basic_types.h>
+#include <luisa/vstl/vector.h>
+
 #ifdef None
 #undef None
 #endif
+
 namespace lc::vk {
 using namespace luisa;
 class Device;
@@ -53,4 +57,5 @@ public:
     void dealloc_sparse(vstd::vector<VmaAllocation> &alloc);
     void dealloc_sparse(VmaAllocation const &alloc);
 };
+
 }// namespace lc::vk

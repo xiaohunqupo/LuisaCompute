@@ -2,6 +2,7 @@
 #include "resource.h"
 #include <volk.h>
 #include "vk_allocator.h"
+#include <luisa/core/spin_mutex.h>
 #include <luisa/runtime/rhi/pixel.h>
 #include <luisa/runtime/depth_format.h>
 namespace lc::vk {

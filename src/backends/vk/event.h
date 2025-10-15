@@ -1,8 +1,15 @@
 #pragma once
+
+#include <volk.h>
+#include <luisa/core/spin_mutex.h>
 #include "resource.h"
+
 namespace lc::vk {
+
 class Stream;
+
 class Event : public Resource {
+
     friend class Stream;
     VkSemaphore _semaphore;
     mutable std::atomic_uint64_t finishedEvent = 0;
@@ -14,6 +21,7 @@ class Event : public Resource {
     void wait(Stream &stream, uint64_t value);
     void host_wait(uint64_t value);
     void notify(uint64_t value);
+
 public:
     static VkTimelineSemaphoreSubmitInfo get_timeline_submit(uint64_t const *value_ptr);
     [[nodiscard]] auto semaphore() const { return _semaphore; }
@@ -26,4 +34,5 @@ public:
     Event(Device *device);
     ~Event();
 };
+
 }// namespace lc::vk

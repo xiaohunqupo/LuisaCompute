@@ -1,7 +1,11 @@
+#include <luisa/core/logging.h>
+
 #include "resource_barrier.h"
 #include "bindless_array.h"
+
 namespace lc::vk {
 namespace detail {
+
 static constexpr auto raster_stage = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_2_TESSELLATION_CONTROL_SHADER_BIT | VK_PIPELINE_STAGE_2_TESSELLATION_EVALUATION_SHADER_BIT | VK_PIPELINE_STAGE_2_GEOMETRY_SHADER_BIT | VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
 static constexpr VkPipelineStageFlagBits2 BarrierSyncMap[] = {
     VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,                                                    // ComputeRead,
@@ -483,4 +487,5 @@ void ResourceBarrier::barrier_filter(VkImageMemoryBarrier2 &barrier) const {
     barrier.dstQueueFamilyIndex = queue_index;
     barrier.pNext = nullptr;
 }
+
 }// namespace lc::vk

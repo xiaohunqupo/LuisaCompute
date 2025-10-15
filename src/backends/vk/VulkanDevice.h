@@ -15,6 +15,7 @@
 #include <volk.h>
 #include <algorithm>
 #include <assert.h>
+#include <luisa/core/stl/filesystem.h>
 #include <luisa/vstl/common.h>
 
 namespace vks {
