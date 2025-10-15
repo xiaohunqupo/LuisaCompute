@@ -1,6 +1,6 @@
 #ifdef LUISA_BACKEND_ENABLE_VULKAN_SWAPCHAIN
 
-#include <vulkan/vulkan.h>
+#include <volk.h>
 
 #include <luisa/core/clock.h>
 #include <luisa/core/platform.h>

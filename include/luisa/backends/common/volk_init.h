@@ -1,6 +1,12 @@
 #pragma once
+
 #include <volk.h>
+
+#include <luisa/core/basic_types.h>
+#include <luisa/core/logging.h>
+#include <luisa/core/magic_enum.h>
 #include <luisa/core/dynamic_module.h>
+
 #ifndef LUISA_CHECK_VULKAN
 #define LUISA_CHECK_VULKAN(x)                                            \
     do {                                                                 \
@@ -18,11 +24,14 @@
         }                                                                \
     } while (false)
 #endif
+
 namespace luisa::compute {
-class LCVolkInitializer {
+
+class VolkInitializer {
+
 public:
     DynamicModule vk_module;
-    void init(luisa::filesystem::path const &custom_path = {}, luisa::string_view lib_name = {}) {
+    void init(const luisa::filesystem::path &custom_path = {}, luisa::string_view lib_name = {}) {
         auto init_custom = [&] {
             auto ptr = vk_module.address("vkGetInstanceProcAddr");
             if (!ptr) [[unlikely]] {
@@ -91,4 +100,5 @@ public:
         }
     }
 };
+
 }// namespace luisa::compute

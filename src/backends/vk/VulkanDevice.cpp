@@ -26,7 +26,7 @@ namespace vks {
 	*/
 static luisa::spin_mutex gVolkMtx;
 static int32 gVolkRefCount = 0;
-static luisa::compute::LCVolkInitializer volk_initer;
+static luisa::compute::VolkInitializer volk_initer;
 
 void VulkanDevice::initVolk(luisa::filesystem::path const &custom_path, luisa::string_view lib_name) {
     std::lock_guard lck(gVolkMtx);

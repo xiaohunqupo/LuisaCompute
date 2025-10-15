@@ -3,7 +3,7 @@
 #include <cstdlib>
 #include <cstring>
 
-#include <vulkan/vulkan.h>
+#include <volk.h>
 
 #if defined(LUISA_PLATFORM_WINDOWS)
 #include <windows.h>
@@ -60,7 +60,7 @@ static_assert(sizeof(VulkanDeviceUUID) == 16u);
 class VulkanInstance {
 
 private:
-    LCVolkInitializer _volk_initializer;
+    VolkInitializer _volk_initializer;
     VkInstance _instance{nullptr};
     VkDebugUtilsMessengerEXT _debug_messenger{nullptr};
 
