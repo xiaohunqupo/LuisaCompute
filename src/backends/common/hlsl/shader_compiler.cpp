@@ -33,13 +33,12 @@ IDxcUtils *ShaderCompiler::utils() {
 IDxcLibrary *ShaderCompiler::library() {
     return compiler_module.library;
 }
-ShaderCompiler::~ShaderCompiler() {
-}
+ShaderCompiler::~ShaderCompiler() = default;
 ShaderCompilerModule::ShaderCompilerModule(std::filesystem::path const &path)
     : dxil(luisa::DynamicModule::load(path, "dxil")),
       dxcCompiler(luisa::DynamicModule::load(path, "dxcompiler")) {
     if (!dxil) {
-        LUISA_ERROR("dxil.dll not found.");
+        LUISA_ERROR_WITH_LOCATION("dxil.dll not found.");
     }
     if (!dxcCompiler) {
         LUISA_ERROR("dxcompiler.dll not found.");
