@@ -299,10 +299,10 @@ endif ()
 
 install(TARGETS luisa-compute-ext EXPORT LuisaComputeTargets)
 
-if (LUISA_COMPUTE_USE_SYSTEM_VOLK)
+if (NOT LUISA_COMPUTE_USE_SYSTEM_VOLK)
     find_package(volk REQUIRED)
-    target_link_libraries(luisa-compute-ext INTERFACE volk::volk)
-    target_compile_definitions(luisa-compute-ext INTERFACE LUISA_USE_SYSTEM_VULKAN=1)
+    add_library(luisa-compute-ext-volk ALIAS volk::volk)
+    target_compile_definitions(luisa-compute-ext INTERFACE LUISA_USE_SYSTEM_VOLK=1)
 else ()
     add_subdirectory(volk)
 endif ()

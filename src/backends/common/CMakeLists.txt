@@ -187,6 +187,7 @@ if (LUISA_COMPUTE_ENABLE_CPU OR
     target_link_libraries(luisa-compute-vulkan-swapchain
             PUBLIC
             luisa-compute-runtime
+            luisa-compute-ext-volk
             ${X11_LIBRARIES})
     target_compile_definitions(luisa-compute-vulkan-swapchain
             PUBLIC
@@ -215,12 +216,7 @@ if (LUISA_COMPUTE_ENABLE_CPU OR
     install(TARGETS luisa-compute-vulkan-swapchain EXPORT LuisaComputeTargets
             LIBRARY DESTINATION ${CMAKE_INSTALL_BINDIR}
             RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-    if (LUISA_COMPUTE_USE_SYSTEM_VOLK)
-        find_package(volk REQUIRED)
-        target_link_libraries(luisa-compute-vulkan-swapchain PUBLIC volk::volk)
-    else ()
-        target_link_libraries(luisa-compute-vulkan-swapchain PUBLIC volk)
-    endif ()
+
 endif ()
 
 add_subdirectory(hlsl)
