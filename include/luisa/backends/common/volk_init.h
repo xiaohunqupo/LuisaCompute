@@ -65,8 +65,8 @@ public:
             }
             init_custom();
         } else {
-#if defined(_WIN32)
             auto current_path = current_executable_path();
+#if defined(_WIN32)
             vk_module = DynamicModule::load(current_path, "vulkan-1");
 #elif defined(__APPLE__)
             do {
