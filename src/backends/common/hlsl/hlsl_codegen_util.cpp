@@ -3021,7 +3021,7 @@ void CodegenUtility::OriginToAliased(Type const *t, vstd::StringBuilder &sb) {
     vstd::StringBuilder str;
     str << aliasedType.first << ' ' << funcName << '(';
     GetTypeName(*t, str, Usage::NONE, false);
-    str << " a){\n"sv << aliasedType.first << " r;\n"sv;
+    str << " a){\n"sv << aliasedType.first << luisa::format(" r=({})0;\n", aliasedType.first);
     auto TransformVector = [&](Type const *t, uint idx) {
 
     };
@@ -3074,8 +3074,9 @@ void CodegenUtility::AliasedToOrigin(Type const *t, vstd::StringBuilder &sb) {
     vstd::StringBuilder str;
     GetTypeName(*t, str, Usage::NONE, false);
     str << ' ' << funcName << '(' << aliasedType.first << " a){\n"sv;
-    GetTypeName(*t, str, Usage::NONE, false);
-    str << " r;\n"sv;
+    vstd::StringBuilder retTypeName;
+    GetTypeName(*t, retTypeName, Usage::NONE, false);
+    str << retTypeName << luisa::format(" r=({})0;", retTypeName.view());
 
     if (t->is_array()) {
         str << "for(uint i=0;i<" << luisa::format("{}", t->dimension()) << ";++i){\n";
