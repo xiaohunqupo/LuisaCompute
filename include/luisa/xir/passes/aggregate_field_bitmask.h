@@ -13,10 +13,10 @@ namespace detail {
 class AggregateFieldTree;
 }// namespace detail
 
-class LUISA_XIR_API alignas(16) AggregateFieldBitmask {
+class LUISA_XIR_API AggregateFieldBitmask {
 
 private:
-    const detail::AggregateFieldTree *_field_tree;
+    alignas(16) const detail::AggregateFieldTree *_field_tree;
     union {
         uint64_t _bits_small;
         uint64_t *_bits_large;

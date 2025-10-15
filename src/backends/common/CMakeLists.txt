@@ -170,65 +170,56 @@ if (LUISA_COMPUTE_ENABLE_CPU OR
 
     if (UNIX AND NOT APPLE)
         find_package(X11)
-        set(X11_DEPENDENCY_SATISFIED ${X11_FOUND} INTERNAL)
-    else ()
-        set(X11_DEPENDENCY_SATISFIED TRUE INTERNAL)
+    endif ()
+    set(LUISA_COMPUTE_VULKAN_SWAPCHAIN_SOURCES
+            vulkan_instance.cpp vulkan_instance.h
+            vulkan_swapchain.cpp)
+
+    if (APPLE AND CMAKE_C_COMPILER_ID MATCHES "Clang")
+        enable_language(OBJC)
+        enable_language(OBJCXX)
+        list(APPEND LUISA_COMPUTE_VULKAN_SWAPCHAIN_SOURCES
+                moltenvk_surface.mm)
     endif ()
 
-    if (X11_DEPENDENCY_SATISFIED)
-        set(LUISA_COMPUTE_VULKAN_SWAPCHAIN_SOURCES
-                vulkan_instance.cpp vulkan_instance.h
-                vulkan_swapchain.cpp)
+    add_library(luisa-compute-vulkan-swapchain OBJECT
+            ${LUISA_COMPUTE_VULKAN_SWAPCHAIN_SOURCES})
+    target_link_libraries(luisa-compute-vulkan-swapchain
+            PUBLIC
+            luisa-compute-runtime
+            ${X11_LIBRARIES})
+    target_compile_definitions(luisa-compute-vulkan-swapchain
+            PUBLIC
+            LUISA_BACKEND_ENABLE_VULKAN_SWAPCHAIN=1)
 
-        if (APPLE AND CMAKE_C_COMPILER_ID MATCHES "Clang")
-            enable_language(OBJC)
-            enable_language(OBJCXX)
-            list(APPEND LUISA_COMPUTE_VULKAN_SWAPCHAIN_SOURCES
-                    moltenvk_surface.mm)
-        endif ()
+    if (UNIX AND NOT APPLE)
+        set_target_properties(luisa-compute-vulkan-swapchain PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    endif ()
 
-        add_library(luisa-compute-vulkan-swapchain OBJECT
-                ${LUISA_COMPUTE_VULKAN_SWAPCHAIN_SOURCES})
+    if (APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         target_link_libraries(luisa-compute-vulkan-swapchain
-                PUBLIC
-                luisa-compute-runtime
-                ${X11_LIBRARIES})
-        target_compile_definitions(luisa-compute-vulkan-swapchain
-                PUBLIC
-                LUISA_BACKEND_ENABLE_VULKAN_SWAPCHAIN=1)
+                PUBLIC "-framework QuartzCore" "-framework AppKit")
+    endif ()
 
-        if (UNIX AND NOT APPLE)
-            set_target_properties(luisa-compute-vulkan-swapchain PROPERTIES POSITION_INDEPENDENT_CODE ON)
-        endif ()
+    # wayland support
+    if (UNIX AND NOT APPLE AND LUISA_COMPUTE_ENABLE_WAYLAND)
+        find_package(PkgConfig REQUIRED)
+        pkg_check_modules(Wayland REQUIRED wayland-client)
+        target_include_directories(luisa-compute-vulkan-swapchain PRIVATE ${Wayland_INCLUDE_DIRS})
+        target_link_libraries(luisa-compute-vulkan-swapchain PRIVATE ${Wayland_LIBRARIES})
+    endif ()
 
-        if (APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-            target_link_libraries(luisa-compute-vulkan-swapchain
-                    PUBLIC "-framework QuartzCore" "-framework AppKit")
-        endif ()
-
-        # wayland support
-        if (UNIX AND NOT APPLE AND LUISA_COMPUTE_ENABLE_WAYLAND)
-            find_package(PkgConfig REQUIRED)
-            pkg_check_modules(Wayland REQUIRED wayland-client)
-            target_include_directories(luisa-compute-vulkan-swapchain PRIVATE ${Wayland_INCLUDE_DIRS})
-            target_link_libraries(luisa-compute-vulkan-swapchain PRIVATE ${Wayland_LIBRARIES})
-        endif ()
-
-        set_target_properties(luisa-compute-vulkan-swapchain PROPERTIES
-                OUTPUT_NAME luisa-vulkan-swapchain)
-        
-        install(TARGETS luisa-compute-vulkan-swapchain EXPORT LuisaComputeTargets
-                LIBRARY DESTINATION ${CMAKE_INSTALL_BINDIR}
-                RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-        if (LUISA_COMPUTE_USE_SYSTEM_VOLK)
-            find_package(volk REQUIRED)
-            target_link_libraries(luisa-compute-vulkan-swapchain PUBLIC volk::volk)
-        else ()
-            target_link_libraries(luisa-compute-vulkan-swapchain PUBLIC volk)
-        endif ()
+    set_target_properties(luisa-compute-vulkan-swapchain PROPERTIES
+            OUTPUT_NAME luisa-vulkan-swapchain)
+    
+    install(TARGETS luisa-compute-vulkan-swapchain EXPORT LuisaComputeTargets
+            LIBRARY DESTINATION ${CMAKE_INSTALL_BINDIR}
+            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    if (LUISA_COMPUTE_USE_SYSTEM_VOLK)
+        find_package(volk REQUIRED)
+        target_link_libraries(luisa-compute-vulkan-swapchain PUBLIC volk::volk)
     else ()
-        message(WARNING "Vulkan not found, vulkan swapchain will not be enabled.")
-        add_library(luisa-compute-vulkan-swapchain INTERFACE)
+        target_link_libraries(luisa-compute-vulkan-swapchain PUBLIC volk)
     endif ()
 endif ()
 
