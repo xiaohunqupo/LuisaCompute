@@ -39,4 +39,5 @@ struct SparseUpdateTile {
     uint64_t handle;
     SparseOperation operations;
 };
+
 }// namespace luisa::compute

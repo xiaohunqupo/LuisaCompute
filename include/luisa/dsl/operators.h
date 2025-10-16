@@ -26,6 +26,7 @@ LUISA_MAKE_GLOBAL_DSL_UNARY_OP(~, BIT_NOT)
 namespace luisa::compute::detail {
 
 template<typename, typename>// for better warning messages
+#ifndef NDEBUG
 [[deprecated(
     "\n\n"
     "Implicit conversion between floating-point and integral values detected.\n"
@@ -33,9 +34,11 @@ template<typename, typename>// for better warning messages
     "code compile, but this is not recommended and could be error prone.\n"
     "Please consider explicitly casting the operands of the binary operator.\n"
     "\n")]]
-// empty function to generate a warning
-inline void
-dsl_binary_op_fp_integral_implicit_conversion_detected() noexcept {}
+#endif
+// empty function to generate a warning in debug mode
+inline void dsl_binary_op_fp_integral_implicit_conversion_detected() noexcept {
+    /* empty */
+}
 
 template<BinaryOp op, typename Lhs, typename Rhs>
 constexpr auto// (ret, lhs_cast, rhs_cast)
