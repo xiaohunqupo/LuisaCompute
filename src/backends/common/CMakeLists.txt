@@ -178,8 +178,7 @@ if (LUISA_COMPUTE_ENABLE_CPU OR
     if (APPLE AND CMAKE_C_COMPILER_ID MATCHES "Clang")
         enable_language(OBJC)
         enable_language(OBJCXX)
-        list(APPEND LUISA_COMPUTE_VULKAN_SWAPCHAIN_SOURCES
-                moltenvk_surface.mm)
+        list(APPEND LUISA_COMPUTE_VULKAN_SWAPCHAIN_SOURCES moltenvk_surface.mm)
     endif ()
 
     add_library(luisa-compute-vulkan-swapchain OBJECT
@@ -212,7 +211,7 @@ if (LUISA_COMPUTE_ENABLE_CPU OR
 
     set_target_properties(luisa-compute-vulkan-swapchain PROPERTIES
             OUTPUT_NAME luisa-vulkan-swapchain)
-    
+
     install(TARGETS luisa-compute-vulkan-swapchain EXPORT LuisaComputeTargets
             LIBRARY DESTINATION ${CMAKE_INSTALL_BINDIR}
             RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
