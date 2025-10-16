@@ -153,7 +153,7 @@ private:
         pool.elements = newElements;
         mCapacity = newCapacity;
         auto nodeVec = GetNodeVec();
-        std::memset(nodeVec, 0, sizeof(Map) * newCapacity);
+        std::memset((void *)nodeVec, 0, sizeof(Map) * newCapacity);
         for (auto &node : ptr_range(newElements, pool.mSize)) {
             size_t hashValue = node.hashValue;
             hashValue = GetHash(hashValue, newCapacity);
@@ -188,7 +188,7 @@ public:
     //////////////////Construct & Destruct
     void clear() {
         auto nodeVec = GetNodeVec();
-        std::memset(nodeVec, 0, mCapacity * sizeof(Map));
+        std::memset((void *)nodeVec, 0, mCapacity * sizeof(Map));
         pool.mSize = 0;
     }
     ArenaHashMap(size_t capacity, Arena &&arena) : pool(std::move(arena)) {

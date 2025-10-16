@@ -121,9 +121,9 @@ public:
             Arg &&resource,
             ResourceUsageType type) noexcept
             : resource(std::forward<Arg>(resource)),
-              stage(BarrierSyncMap[static_cast<uint32_t>(stage)]),
-              access(BarrierAccessMap[static_cast<uint32_t>(access)]),
-              texture_layout(BarrierLayoutMap[static_cast<uint32_t>(texture_layout)]) {
+              stage(BarrierSyncMap[luisa::to_underlying(type)]),
+              access(BarrierAccessMap[luisa::to_underlying(type)]),
+              texture_layout(BarrierLayoutMap[luisa::to_underlying(type)]) {
         }
     };
 private:

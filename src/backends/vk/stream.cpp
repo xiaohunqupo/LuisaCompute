@@ -980,6 +980,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                     dispatch_shader(c, shader);
                 }
             } break;
+            default: break;
         }
     }
     auto cmd_lists = stream.reorder.command_lists();
@@ -2058,6 +2059,7 @@ void Shader::update_desc_set(
             case lc::hlsl::ShaderVariableType::ConstantValue:
                 v.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
                 break;
+            default: break;
         }
         if constexpr (std::is_same_v<T, Argument::Buffer>) {
             buffer_info.buffer = reinterpret_cast<Buffer *>(t.handle)->vk_buffer();
@@ -2079,7 +2081,7 @@ void Shader::update_desc_set(
                             return VK_IMAGE_VIEW_TYPE_1D;
                         case 2:
                             return VK_IMAGE_VIEW_TYPE_2D;
-                        case 3:
+                        default:
                             return VK_IMAGE_VIEW_TYPE_3D;
                     }
                 }(),

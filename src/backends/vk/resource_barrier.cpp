@@ -113,6 +113,7 @@ static VkImageLayout filter_layout(VkImageLayout last_layout, VkAccessFlagBits2 
                 return VK_IMAGE_LAYOUT_GENERAL;
             }
             break;
+        default: break;
     }
     return last_layout;
 }
@@ -310,6 +311,7 @@ void FilterAccess(
                 case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:
                     layout = VK_IMAGE_LAYOUT_GENERAL;
                     break;
+                default: break;
             }
         } break;
         case ResourceBarrier::QueueType::Copy: {
@@ -335,8 +337,10 @@ void FilterAccess(
                 case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:
                     layout = VK_IMAGE_LAYOUT_GENERAL;
                     break;
+                default: break;
             }
         } break;
+        default: break;
     }
     const auto tex_read_sync = VK_PIPELINE_STAGE_2_COPY_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT | raster_stage;
     if ((access & (VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT)) != 0) {

@@ -28,7 +28,7 @@ public:
     Device *device;
     uint64 allocate(uint64 size) override;
     void deallocate(uint64 handle) override;
-    Pack *Create(size_t size);
+    Pack *Create(uint64_t size);
 };
 class DefaultBufferDeferredVisitor : public vstd::StackAllocatorVisitor {
 public:

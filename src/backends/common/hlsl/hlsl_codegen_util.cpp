@@ -2584,6 +2584,7 @@ void CodegenUtility::CodegenProperties(
                 case ShaderVariableType::CBVBufferHeap:
                     bind_count += 1;
                     break;
+                default: break;
             }
         };
         switch (i.type()->tag()) {

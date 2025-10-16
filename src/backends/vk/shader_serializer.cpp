@@ -135,13 +135,13 @@ void ShaderSerializer::serialize_raster(
 
     switch (serde_type) {
         case SerdeType::Cache:
-            bin_io->write_shader_cache(file_name, results);
+            static_cast<void>(bin_io->write_shader_cache(file_name, results));
             break;
         case SerdeType::Builtin:
-            bin_io->write_internal_shader(file_name, results);
+            static_cast<void>(bin_io->write_internal_shader(file_name, results));
             break;
         case SerdeType::ByteCode:
-            bin_io->write_shader_bytecode(file_name, results);
+            static_cast<void>(bin_io->write_shader_bytecode(file_name, results));
             break;
     }
 }

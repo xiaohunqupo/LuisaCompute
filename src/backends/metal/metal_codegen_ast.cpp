@@ -343,6 +343,11 @@ void MetalCodegenAST::_emit_type_name(const Type *type, Usage usage) noexcept {
             }
             break;
         }
+        default:
+            LUISA_ERROR_WITH_LOCATION(
+                "Unsupported type: {}.",
+                type->description());
+            break;
     }
 }
 

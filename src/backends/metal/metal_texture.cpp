@@ -64,6 +64,7 @@ MetalTexture::MetalTexture(MTL::Device *device, PixelFormat format, uint dimensi
         case PixelFormat::BC5UNorm: desc->setPixelFormat(MTL::PixelFormatBC5_RGUnorm); break;
         case PixelFormat::BC6HUF16: desc->setPixelFormat(MTL::PixelFormatBC6H_RGBUfloat); break;
         case PixelFormat::BC7UNorm: desc->setPixelFormat(MTL::PixelFormatBC7_RGBAUnorm); break;
+        default: break;
     }
     desc->setWidth(std::max(width, 1u));
     desc->setHeight(std::max(height, 1u));

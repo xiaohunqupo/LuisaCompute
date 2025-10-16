@@ -110,10 +110,10 @@ LUISA_STRUCT(luisa::compute::detail::GUIVertex, px, py, pz, clip_idx, uv, packed
     }
 
     [[nodiscard]] auto color() const noexcept {
-        auto r = (packed_color & 0xffu) / 255.f;
-        auto g = ((packed_color >> 8u) & 0xffu) / 255.f;
-        auto b = ((packed_color >> 16u) & 0xffu) / 255.f;
-        auto a = ((packed_color >> 24u) & 0xffu) / 255.f;
+        auto r = (packed_color & 0xffu).cast<float>() / 255.f;
+        auto g = ((packed_color >> 8u) & 0xffu).cast<float>() / 255.f;
+        auto b = ((packed_color >> 16u) & 0xffu).cast<float>() / 255.f;
+        auto a = ((packed_color >> 24u) & 0xffu).cast<float>() / 255.f;
         return make_float4(r, g, b, a);
     }
 };
