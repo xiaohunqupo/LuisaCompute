@@ -9,6 +9,14 @@ add_deps("lc_embed_codegen", {
     inherit = false,
     public = false
 })
+on_load(function(target)
+    if not target:is_plat("windows") then
+        target:add("cxflags", "-fms-extensions", {
+            tools = {"clang"},
+            public = true
+        })
+    end
+end)
 add_files("*.cpp")
 set_pcxxheader("lc_hlsl_pch.h")
 add_headerfiles("*.h")

@@ -69,4 +69,8 @@ if (LUISA_COMPUTE_ENABLE_DX OR LUISA_COMPUTE_ENABLE_VULKAN)
     target_link_libraries(luisa-compute-hlsl-codegen PUBLIC luisa-compute-runtime luisa-compute-core luisa-compute-vstl)
     set_target_properties(luisa-compute-hlsl-codegen PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+    if (UNIX AND NOT APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        target_compile_options(luisa-compute-hlsl-codegen PUBLIC -fms-extensions)
+    endif ()
+
 endif ()
