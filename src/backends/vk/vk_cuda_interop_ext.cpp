@@ -433,7 +433,7 @@ void VkCudaInteropImpl::cuda_buffer(uint64_t vk_buffer_handle, uint64_t *cuda_pt
         bufferDesc.size = vk_buffer->byte_size();
 
         bufferDesc.flags = 0;
-        LUISA_CHECK_CUDA(cuExternalMemoryGetMappedBuffer(cuda_ptr, external_memory, &bufferDesc));
+        LUISA_CHECK_CUDA(cuExternalMemoryGetMappedBuffer((CUdeviceptr*)cuda_ptr, external_memory, &bufferDesc));
     });
 }
 uint64_t VkCudaInteropImpl::cuda_texture(uint64_t vk_texture_handle) noexcept {
