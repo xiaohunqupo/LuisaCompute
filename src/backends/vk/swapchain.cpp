@@ -4,6 +4,8 @@
 #include "device.h"
 #include "stream.h"
 
+#include "../common/moltenvk_surface.h"
+
 #if defined(LUISA_PLATFORM_WINDOWS)
 #include <windows.h>
 #include <vulkan/vulkan_win32.h>

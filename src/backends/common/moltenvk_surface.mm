@@ -1,6 +1,8 @@
 #import <Cocoa/Cocoa.h>
 #import <QuartzCore/QuartzCore.h>
 
+#import "moltenvk_surface.h"
+
 namespace luisa::compute {
 
 void *cocoa_window_content_view(uint64_t window_handle) noexcept {

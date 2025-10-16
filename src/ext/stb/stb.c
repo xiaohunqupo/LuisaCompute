@@ -4,9 +4,9 @@
 #endif
 
 #if _WIN32 || _WIN64
-#define STBIDEF  _declspec(dllexport)
-#define STBIWDEF  _declspec(dllexport)
-#define STBIRDEF  _declspec(dllexport)
+#define STBIDEF __declspec(dllexport)
+#define STBIWDEF __declspec(dllexport)
+#define STBIRDEF __declspec(dllexport)
 #endif
 
 #define STB_IMAGE_IMPLEMENTATION

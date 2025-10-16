@@ -9,6 +9,7 @@
 #include <luisa/runtime/rhi/pixel.h>
 
 #include "vulkan_instance.h"
+#include "moltenvk_surface.h"
 #include <luisa/backends/common/vulkan_swapchain.h>
 
 namespace luisa::compute {
@@ -78,10 +79,6 @@ static const std::array vulkan_swapchain_screen_shader_fragment_bytecode = {
     0x00000012u, 0x00000013u, 0x0000000du, 0x00000011u, 0x0004003du, 0x00000014u, 0x00000017u, 0x00000016u,
     0x00050057u, 0x00000007u, 0x00000018u, 0x00000013u, 0x00000017u, 0x0003003eu, 0x00000009u, 0x00000018u,
     0x000100fdu, 0x00010038u};
-
-#ifdef LUISA_PLATFORM_APPLE
-void *cocoa_window_content_view(uint64_t window_handle) noexcept;
-#endif
 
 class VulkanSwapchain::Impl {
 
