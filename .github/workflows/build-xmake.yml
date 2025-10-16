@@ -21,7 +21,7 @@ jobs:
           wget https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
           sudo ./llvm.sh 18 all
-          sudo apt-get -y install build-essential wget cmake ninja-build uuid-dev libxinerama-dev libxcursor-dev libxi-dev libvulkan-dev
+          sudo apt-get -y install build-essential wget uuid-dev libxinerama-dev libxcursor-dev libxi-dev libvulkan-dev
           sudo add-apt-repository ppa:xmake-io/xmake
           sudo apt update
           sudo apt install xmake

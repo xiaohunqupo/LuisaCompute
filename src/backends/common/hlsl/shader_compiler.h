@@ -22,7 +22,7 @@ public:
     IDxcLibrary *library;
     IDxcUtils *utils;
 
-    ShaderCompilerModule(std::filesystem::path const &path);
+    ShaderCompilerModule(std::filesystem::path const &path, bool is_spirv);
     ~ShaderCompilerModule();
 };
 template <typename T>
@@ -44,7 +44,7 @@ public:
     IDxcUtils *utils();
     IDxcLibrary *library();
 
-    ShaderCompiler(std::filesystem::path const &path);
+    ShaderCompiler(std::filesystem::path const &path, bool is_spirv);
     ~ShaderCompiler();
     CompileResult compile_compute(
         vstd::string_view code,

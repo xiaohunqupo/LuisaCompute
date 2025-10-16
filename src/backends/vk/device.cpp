@@ -333,7 +333,7 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
     if (load_dxc) {
         std::lock_guard lck(gDxcMutex);
         if (gDxcRefCount == 0)
-            gDxcCompiler.create(ctx.runtime_directory());
+            gDxcCompiler.create(ctx.runtime_directory(), true);
         gDxcRefCount++;
     }
 #endif

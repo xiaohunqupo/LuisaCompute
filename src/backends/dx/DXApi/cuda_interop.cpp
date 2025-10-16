@@ -136,7 +136,8 @@ void DxCudaInteropImpl::cuda_buffer(uint64_t dx_buffer_handle, uint64_t *cuda_pt
         bufferDesc.offset = 0;
         bufferDesc.size = dxBuffer->GetByteSize();
         bufferDesc.flags = 0;
-        LUISA_CHECK_CUDA(cuExternalMemoryGetMappedBuffer((CUdeviceptr*)cuda_ptr, externalMemory, &bufferDesc));
+        static_assert(sizeof(cuda_ptr) == sizeof(CUdeviceptr *));
+        LUISA_CHECK_CUDA(cuExternalMemoryGetMappedBuffer((CUdeviceptr *)cuda_ptr, externalMemory, &bufferDesc));
     });
 }
 uint64_t DxCudaInteropImpl::cuda_texture(uint64_t dx_texture_handle) noexcept {

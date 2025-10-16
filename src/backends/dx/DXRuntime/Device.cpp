@@ -118,7 +118,7 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
     if (!deviceSettings || deviceSettings->LoadDXC()) {
         std::lock_guard lck(gDxcMutex);
         if (gDxcRefCount == 0) {
-            gDxcCompiler.create(ctx.runtime_directory());
+            gDxcCompiler.create(ctx.runtime_directory(), false);
         }
         gDxcRefCount++;
     }

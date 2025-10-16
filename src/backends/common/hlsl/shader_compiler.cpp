@@ -34,10 +34,13 @@ IDxcLibrary *ShaderCompiler::library() {
     return compiler_module.library;
 }
 ShaderCompiler::~ShaderCompiler() = default;
-ShaderCompilerModule::ShaderCompilerModule(std::filesystem::path const &path)
-    : dxil(luisa::DynamicModule::load(path, "dxil")),
+ShaderCompilerModule::ShaderCompilerModule(std::filesystem::path const &path, bool is_spirv)
+    : dxil([&]() {
+          if (!is_spirv) return luisa::DynamicModule::load(path, "dxil");
+          return luisa::DynamicModule{};
+      }()),
       dxcCompiler(luisa::DynamicModule::load(path, "dxcompiler")) {
-    if (!dxil) {
+    if (!is_spirv && !dxil) {
         LUISA_ERROR_WITH_LOCATION("dxil.dll not found.");
     }
     if (!dxcCompiler) {
@@ -57,8 +60,8 @@ ShaderCompilerModule::~ShaderCompilerModule() {
     library->Release();
     comp->Release();
 }
-ShaderCompiler::ShaderCompiler(std::filesystem::path const &path)
-    : compiler_module(path) {
+ShaderCompiler::ShaderCompiler(std::filesystem::path const &path, bool is_spirv)
+    : compiler_module(path, is_spirv) {
 }
 CompileResult ShaderCompiler::compile(
     vstd::string_view code,
