@@ -91,6 +91,15 @@ if (LUISA_COMPUTE_DOWNLOAD_OIDN)
 
 endif ()
 
+function(luisa_compute_link_wayland_if_enabled backend)
+    if (UNIX AND NOT APPLE AND LUISA_COMPUTE_ENABLE_WAYLAND)
+        find_package(PkgConfig REQUIRED)
+        pkg_check_modules(Wayland REQUIRED wayland-client)
+        target_include_directories(${backend} PRIVATE ${Wayland_INCLUDE_DIRS})
+        target_link_libraries(${backend} PRIVATE ${Wayland_LIBRARIES})
+    endif ()
+endfunction()
+
 # luisa_compute_backend_link_llvm(backend REQUIRED COMPONENTS llvm_components...)
 function(luisa_compute_link_llvm_into_backend backend)
 
@@ -202,16 +211,9 @@ if (LUISA_COMPUTE_ENABLE_CPU OR
     endif ()
 
     # wayland support
-    if (UNIX AND NOT APPLE AND LUISA_COMPUTE_ENABLE_WAYLAND)
-        find_package(PkgConfig REQUIRED)
-        pkg_check_modules(Wayland REQUIRED wayland-client)
-        target_include_directories(luisa-compute-vulkan-swapchain PRIVATE ${Wayland_INCLUDE_DIRS})
-        target_link_libraries(luisa-compute-vulkan-swapchain PRIVATE ${Wayland_LIBRARIES})
-    endif ()
-
+    luisa_compute_link_wayland_if_enabled(luisa-compute-vulkan-swapchain)
     set_target_properties(luisa-compute-vulkan-swapchain PROPERTIES
             OUTPUT_NAME luisa-vulkan-swapchain)
-
     install(TARGETS luisa-compute-vulkan-swapchain EXPORT LuisaComputeTargets
             LIBRARY DESTINATION ${CMAKE_INSTALL_BINDIR}
             RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
