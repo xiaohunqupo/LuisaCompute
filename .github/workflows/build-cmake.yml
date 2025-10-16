@@ -95,7 +95,7 @@ jobs:
             export CXX=/usr/bin/clang++
           fi
           export SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
-          cmake -S . -B build -G Ninja -D LUISA_COMPUTE_ENABLE_RUST=OFF -D LUISA_COMPUTE_ENABLE_REMOTE=OFF -D LUISA_COMPUTE_ENABLE_CPU=OFF LUISA_COMPUTE_ENABLE_VULKAN=OFF -D CMAKE_BUILD_TYPE=${{ matrix.config }} -D LUISA_COMPUTE_ENABLE_UNITY_BUILD=OFF
+          cmake -S . -B build -G Ninja -D LUISA_COMPUTE_ENABLE_RUST=OFF -D LUISA_COMPUTE_ENABLE_REMOTE=OFF -D LUISA_COMPUTE_ENABLE_CPU=OFF -D LUISA_COMPUTE_ENABLE_VULKAN=OFF -D CMAKE_BUILD_TYPE=${{ matrix.config }} -D LUISA_COMPUTE_ENABLE_UNITY_BUILD=OFF
           cmake --build build
       - name: "Install"
         run: |
