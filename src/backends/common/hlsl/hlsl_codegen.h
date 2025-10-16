@@ -1,5 +1,5 @@
 #pragma once
-//#define USE_SPIRV
+//#define LUISA_ENABLE_SPIRV_CODEGEN
 #include <luisa/vstl/common.h>
 #include <luisa/vstl/functional.h>
 #include <luisa/ast/function.h>
@@ -47,7 +47,7 @@ class CodegenUtility {
 public:
     vstd::unique_ptr<CodegenStackData> opt{};
     vstd::unordered_map<vstd::string, std::pair<vstd::string, Type const *>> attributes;
-#ifdef USE_SPIRV
+#ifdef LUISA_ENABLE_SPIRV_CODEGEN
     CodegenStackData *StackData() const;
 #endif
     CodegenUtility();

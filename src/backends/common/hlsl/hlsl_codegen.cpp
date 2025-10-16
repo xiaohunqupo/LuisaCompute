@@ -288,7 +288,7 @@ void StringStateVisitor::visit(const ConstantExpr *expr) {
 }
 
 void StringStateVisitor::visit(const BreakStmt *state) {
-#ifdef USE_SPIRV
+#ifdef LUISA_ENABLE_SPIRV_CODEGEN
     auto stackData = util->StackData();
     if (!stackData->tempSwitchExpr)
 #endif
@@ -420,7 +420,7 @@ void StringStateVisitor::visit(const SwitchStmt *state) {
         switchCount.pop_back();
     });
     util->opt->cond_opt_value = CodegenStackData::CondOptValue::None;
-#ifdef USE_SPIRV
+#ifdef LUISA_ENABLE_SPIRV_CODEGEN
     auto stackData = util->StackData();
     stackData->tempSwitchExpr = state->expression();
     stackData->tempSwitchCounter = 0;
@@ -444,7 +444,7 @@ void StringStateVisitor::visit(const SwitchCaseStmt *state) {
         return;
     }
     switchCount.back()++;
-#ifdef USE_SPIRV
+#ifdef LUISA_ENABLE_SPIRV_CODEGEN
     auto stackData = util->StackData();
     if (stackData->tempSwitchCounter == 0) {
         str << "if("sv;
@@ -484,7 +484,7 @@ void StringStateVisitor::visit(const SwitchDefaultStmt *state) {
         return;
     }
     switchCount.back()++;
-#ifdef USE_SPIRV
+#ifdef LUISA_ENABLE_SPIRV_CODEGEN
     auto stackData = util->StackData();
     if (stackData->tempSwitchCounter == 0) {
         {
