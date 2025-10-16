@@ -145,7 +145,7 @@ test_proj("test_path_tracing", true)
 test_proj("test_path_tracing_spectrum", true, function()
     after_build(function(target)
         os.cp(path.join(os.scriptdir(), "SRGBToFourierEvenPacked.dat"),
-            path.join(target:targetdir(), "SRGBToFourierEvenPacked.dat"))
+            path.join(target:targetdir(), "SRGBToFourierEvenPacked.dat"), {copy_if_different = true})
     end)
 end)
 test_proj("test_path_tracing_hdr", true)
@@ -266,15 +266,15 @@ if has_config("lc_dx_backend") and (enable_fsr2 or enable_xess) then
             if option == 1 then
                 local src_dir = path.join(os.scriptdir(), "FidelityFX-FSR2/bin")
                 if is_mode("debug") then
-                    os.cp(path.join(src_dir, "ffx_fsr2_api_dx12_x64d.dll"), lc_bin_dir)
-                    os.cp(path.join(src_dir, "ffx_fsr2_api_x64d.dll"), lc_bin_dir)
+                    os.cp(path.join(src_dir, "ffx_fsr2_api_dx12_x64d.dll"), lc_bin_dir, {copy_if_different = true})
+                    os.cp(path.join(src_dir, "ffx_fsr2_api_x64d.dll"), lc_bin_dir, {copy_if_different = true})
                 else
-                    os.cp(path.join(src_dir, "ffx_fsr2_api_dx12_x64.dll"), lc_bin_dir)
-                    os.cp(path.join(src_dir, "ffx_fsr2_api_x64.dll"), lc_bin_dir)
+                    os.cp(path.join(src_dir, "ffx_fsr2_api_dx12_x64.dll"), lc_bin_dir, {copy_if_different = true})
+                    os.cp(path.join(src_dir, "ffx_fsr2_api_x64.dll"), lc_bin_dir, {copy_if_different = true})
                 end
             else
                 local src_dir = path.join(os.scriptdir(), "xess/bin")
-                os.cp(path.join(src_dir, "*.dll"), lc_bin_dir)
+                os.cp(path.join(src_dir, "*.dll"), lc_bin_dir, {copy_if_different = true})
             end
         end)
     end)
@@ -296,13 +296,13 @@ if has_config("lc_dx_backend") and enable_fsr3 then
             if is_mode("debug") then
                 table.insert(tab, "ffx_backend_dx12_x64d")
                 for _, v in ipairs(tab) do
-                    os.cp(path.join(src_dir, v .. ".pdb"), lc_bin_dir)
+                    os.cp(path.join(src_dir, v .. ".pdb"), lc_bin_dir, {copy_if_different = true})
                 end
             else
                 table.insert(tab, "ffx_backend_dx12_x64")
             end
             for _, v in ipairs(tab) do
-                os.cp(path.join(src_dir, v .. ".dll"), lc_bin_dir)
+                os.cp(path.join(src_dir, v .. ".dll"), lc_bin_dir, {copy_if_different = true})
             end
         end)
     end)

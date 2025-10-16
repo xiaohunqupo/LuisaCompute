@@ -73,14 +73,14 @@ after_build(function(target)
         local lc_bin_dir = target:targetdir()
         for i, v in ipairs(dlls) do
             if is_plat("windows") then
-                os.cp(path.join(lib_path, v .. ".dll"), lc_bin_dir)
+                os.cp(path.join(lib_path, v .. ".dll"), lc_bin_dir, {copy_if_different = true})
             elseif is_plat("linux") then
-                os.cp(path.join(lib_path, 'lib' .. v .. ".so"), lc_bin_dir)
+                os.cp(path.join(lib_path, 'lib' .. v .. ".so"), lc_bin_dir, {copy_if_different = true})
             else
                 -- macOS compiles from source, so ignore the copy error if any
                 local dylib = path.join(lib_path, 'lib' .. v .. ".dylib")
                 if os.isfile(dylib) then
-                    os.cp(dylib, lc_bin_dir)
+                    os.cp(dylib, lc_bin_dir, {copy_if_different = true})
                 end
             end
         end

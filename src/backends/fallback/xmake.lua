@@ -35,9 +35,7 @@ after_build(function(target)
         goto END
     end
     local function copy(src_path, dst_path)
-        if not os.exists(dst_path) then
-            os.cp(src_path, dst_path)
-        end
+        os.cp(src_path, dst_path, {copy_if_different = true})
     end
     local lc_llvm_path = get_config("lc_llvm_path")
     local lc_embree_path = get_config("lc_embree_path")

@@ -1,8 +1,5 @@
 local _sdks = {
     dx_sdk = {
-        -- from:
-        --> xmake l hash.sha256 SDKs/x64/dx_sdk_20240920.zip
-        sha256 = "5b2b59a687ceeab14b9a49bbd1635cb43ed8c4101df99abcca102376076f7787",
         name = 'dx_sdk_20250816.zip',
     }
 }
@@ -16,13 +13,14 @@ end
 function sdks()
     return _sdks
 end
+local lc_project_dir = path.directory(os.scriptdir())
 function sdk_dir(arch, custom_dir)
     if custom_dir then
         if not path.is_absolute(custom_dir) then
             custom_dir = path.absolute(custom_dir, os.projectdir())
         end
     else
-        custom_dir = path.join(os.scriptdir(), 'SDKs/')
+        custom_dir = path.join(lc_project_dir, 'SDKs/')
     end
     return path.join(custom_dir, arch)
 end

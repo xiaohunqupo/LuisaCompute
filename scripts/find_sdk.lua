@@ -31,10 +31,9 @@ local function try_download(zip, url, mirror_urls, dst_dir, settings)
 end
 
 function file_from_github(sdk_map, dir)
-    local zip, address, valid_sha256, mirror_address
+    local zip, address, mirror_address
     zip = sdk_map['name']
     address = packages.sdk_address(sdk_map)
-    valid_sha256 = sdk_map['sha256']
     mirror_address = packages.sdk_mirror_addresses(sdk_map)
 
     local zip_dir = find_file(zip, {dir})
@@ -45,22 +44,6 @@ function file_from_github(sdk_map, dir)
         try_download(zip, url, mirror_address, dst_dir, {
             continue = false
         })
-    else
-        local sha256 = hash.sha256(zip_dir)
-        local is_valid = valid_sha256 == sha256
-        if not is_valid then
-            local url = vformat(address)
-            print(zip .. " is invalid, download: " .. url .. zip)
-            os.rm(zip_dir)
-            try_download(zip, url, mirror_address, dst_dir, {
-                continue = false
-            })
-            sha256 = hash.sha256(zip_dir)
-            is_valid = valid_sha256 == sha256
-            if not is_valid then
-                utils.error(zip .. ' version not matched.')
-            end
-        end
     end
 end
 
@@ -101,11 +84,5 @@ function check_file(sdk_name, custom_dir)
     local sdk_map = _sdks[sdk_name]
     local zip = sdk_map['name']
     local zip_dir = find_file(zip, {dir})
-    if (zip_dir == nil) then
-        return false
-    end
-    local sha256 = hash.sha256(zip_dir)
-    local valid_sha256 = sdk_map['sha256']
-    local is_valid = sha256 == valid_sha256
-    return is_valid
+    return zip_dir ~= nil
 end
