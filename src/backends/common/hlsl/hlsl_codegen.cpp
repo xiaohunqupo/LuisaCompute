@@ -288,11 +288,7 @@ void StringStateVisitor::visit(const ConstantExpr *expr) {
 }
 
 void StringStateVisitor::visit(const BreakStmt *state) {
-#ifdef LUISA_ENABLE_SPIRV_CODEGEN
-    auto stackData = util->StackData();
-    if (!stackData->tempSwitchExpr)
-#endif
-        str << "break;\n";
+    str << "break;\n";
 }
 void StringStateVisitor::visit(const ContinueStmt *state) {
 
@@ -420,13 +416,6 @@ void StringStateVisitor::visit(const SwitchStmt *state) {
         switchCount.pop_back();
     });
     util->opt->cond_opt_value = CodegenStackData::CondOptValue::None;
-#ifdef LUISA_ENABLE_SPIRV_CODEGEN
-    auto stackData = util->StackData();
-    stackData->tempSwitchExpr = state->expression();
-    stackData->tempSwitchCounter = 0;
-    state->body()->accept(*this);
-    stackData->tempSwitchExpr = nullptr;
-#else
     str << "switch(";
     state->expression()->accept(*this);
     str << ")";
@@ -434,7 +423,6 @@ void StringStateVisitor::visit(const SwitchStmt *state) {
         Scope scope{this};
         state->body()->accept(*this);
     }
-#endif
     if (switchCount.back() == 0) {
         str << "{ default: break; }\n";
     }
@@ -444,24 +432,6 @@ void StringStateVisitor::visit(const SwitchCaseStmt *state) {
         return;
     }
     switchCount.back()++;
-#ifdef LUISA_ENABLE_SPIRV_CODEGEN
-    auto stackData = util->StackData();
-    if (stackData->tempSwitchCounter == 0) {
-        str << "if("sv;
-    } else {
-        str << "else if("sv;
-    }
-    ++stackData->tempSwitchCounter;
-    util->StackData()->tempSwitchExpr->accept(*this);
-    str << "=="sv;
-    state->expression()->accept(*this);
-    str << ')';
-    {
-        Scope scope{this};
-        state->body()->accept(*this);
-    }
-#else
-
     str << "case ";
     state->expression()->accept(*this);
     str << ":";
@@ -476,30 +446,12 @@ void StringStateVisitor::visit(const SwitchCaseStmt *state) {
                      })) {
         str << "break;\n";
     }
-
-#endif
 }
 void StringStateVisitor::visit(const SwitchDefaultStmt *state) {
     if (state->body()->statements().empty()) {
         return;
     }
     switchCount.back()++;
-#ifdef LUISA_ENABLE_SPIRV_CODEGEN
-    auto stackData = util->StackData();
-    if (stackData->tempSwitchCounter == 0) {
-        {
-            Scope scope{this};
-            state->body()->accept(*this);
-        }
-    } else {
-        str << "else";
-        {
-            Scope scope{this};
-            state->body()->accept(*this);
-        }
-    }
-    ++stackData->tempSwitchCounter;
-#else
     str << "default:";
     {
         Scope scope{this};
@@ -512,7 +464,6 @@ void StringStateVisitor::visit(const SwitchDefaultStmt *state) {
                      })) {
         str << "break;\n";
     }
-#endif
 }
 
 void StringStateVisitor::visit(const AssignStmt *state) {
