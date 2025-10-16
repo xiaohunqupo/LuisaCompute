@@ -22,7 +22,7 @@ SparseCommandList &SparseCommandList::add_range(SparseCommandList &&cmdlist) noe
         return *this;
     auto size = _update_cmd.size();
     luisa::enlarge_by(_update_cmd, cmdlist._update_cmd.size());
-    std::memcpy(_update_cmd.data() + size, cmdlist._update_cmd.data(), luisa::size_bytes(cmdlist._update_cmd));
+    std::memcpy((void*)(_update_cmd.data() + size), (void const*)cmdlist._update_cmd.data(), luisa::size_bytes(cmdlist._update_cmd));
     cmdlist._update_cmd.clear();
     return *this;
 }

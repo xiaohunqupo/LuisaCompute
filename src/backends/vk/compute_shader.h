@@ -17,7 +17,7 @@ using namespace luisa;
 using namespace luisa::compute;
 class ComputeShader : public Shader {
     VkPipelineCache _pipe_cache{};
-    VkPipeline _pipeline;
+    VkPipeline _pipeline{};
     uint3 _block_size;
 public:
     static bool verify_type_md5(luisa::span<const Type *const> arg_types, vstd::MD5 md5);
@@ -28,14 +28,14 @@ public:
         Device *device,
         uint3 block_size,
         vstd::span<hlsl::Property const> binds,
-        vstd::vector<SavedArgument> &&saved_arguments,
+        vstd::vector<SavedArgument> &&saved_args,
         vstd::span<uint const> spv_code,
         vstd::vector<Argument> &&captured,
         vstd::span<std::byte const> cache_code,
         bool use_tex2d_bindless,
         bool use_tex3d_bindless,
         bool use_buffer_bindless,
-        vstd::vector<std::pair<luisa::string, Type const*>>&& printers);
+        vstd::vector<std::pair<luisa::string, Type const *>> &&printers);
     ~ComputeShader();
     static ComputeShader *compile(
         BinaryIO const *bin_io,

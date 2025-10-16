@@ -892,7 +892,7 @@ void Stream::update_sparse_resources(luisa::vector<SparseUpdateTile> &&textures_
 void Stream::sync() {
     _evt.sync(_evt.last_fence());
 }
-CommandBuffer::CommandBuffer(Stream &stream)
+CommandBuffer::CommandBuffer(Stream &stream) noexcept
     : Resource(stream.device()),
       stream(stream),
       _state(vstd::make_unique<CommandBufferState>()) {
@@ -924,7 +924,7 @@ void CommandBuffer::begin() {
 void CommandBuffer::end() {
     VK_CHECK_RESULT(vkEndCommandBuffer(_cmdbuffer));
 }
-CommandBuffer::CommandBuffer(CommandBuffer &&rhs)
+CommandBuffer::CommandBuffer(CommandBuffer &&rhs) noexcept
     : Resource(std::move(rhs)),
       stream(rhs.stream),
       _cmdbuffer(rhs._cmdbuffer),
@@ -1372,7 +1372,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                 case Command::Tag::EShaderDispatchCommand: {
                     auto c = static_cast<ShaderDispatchCommand const *>(cmd);
                     auto shader = reinterpret_cast<ComputeShader *>(c->handle());
-                    BindPropVisitor visitor;
+                    BindPropVisitor visitor{};
                     set_dispatch_args(visitor, c, shader);
                     constexpr size_t max_printer_count = 1024ull * 1024ull;
                     BufferView count_buffer;
@@ -1816,7 +1816,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                             auto cmd = static_cast<DrawRasterSceneCommand const *>(c);
                             auto shader = reinterpret_cast<RasterShader *>(cmd->handle());
                             auto pipe = shader->create_pipeline(cmd->rtv_texs(), cmd->dsv_tex(), cmd->mesh_format(), cmd->raster_state());
-                            BindPropVisitor visitor;
+                            BindPropVisitor visitor{};
                             // bind arguments
                             set_dispatch_args(visitor, cmd, shader);
                             bind_shader_desc(visitor, shader, VK_PIPELINE_BIND_POINT_GRAPHICS);
@@ -2029,35 +2029,25 @@ void Shader::update_desc_set(
         auto &&b = _binds[arg_idx];
 
         switch (b.type) {
-            case lc::hlsl::ShaderVariableType::ConstantBuffer:
-                v.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-                break;
             case lc::hlsl::ShaderVariableType::SRVTextureHeap:
                 v.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
                 break;
             case lc::hlsl::ShaderVariableType::UAVTextureHeap:
                 v.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
                 break;
-            case lc::hlsl::ShaderVariableType::SRVBufferHeap:
-                v.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-                break;
-            case lc::hlsl::ShaderVariableType::UAVBufferHeap:
-                v.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-                break;
+            case lc::hlsl::ShaderVariableType::ConstantBuffer:
+            case lc::hlsl::ShaderVariableType::ConstantValue:
             case lc::hlsl::ShaderVariableType::CBVBufferHeap:
                 v.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
                 break;
             case lc::hlsl::ShaderVariableType::SamplerHeap:
                 v.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
                 break;
+            case lc::hlsl::ShaderVariableType::SRVBufferHeap:
+            case lc::hlsl::ShaderVariableType::UAVBufferHeap:
             case lc::hlsl::ShaderVariableType::StructuredBuffer:
-                v.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-                break;
             case lc::hlsl::ShaderVariableType::RWStructuredBuffer:
                 v.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-                break;
-            case lc::hlsl::ShaderVariableType::ConstantValue:
-                v.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
                 break;
             default: break;
         }
@@ -2094,7 +2084,7 @@ void Shader::update_desc_set(
         }
         arg_idx++;
     };
-    for (auto i : vstd::range(texs.size())) {
+    for (auto i : vstd::range((int64_t)texs.size())) {
 
         // v.descriptorType = view.index() ==
     }

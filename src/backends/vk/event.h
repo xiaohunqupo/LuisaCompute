@@ -11,7 +11,7 @@ class Stream;
 class Event : public Resource {
 
     friend class Stream;
-    VkSemaphore _semaphore;
+    VkSemaphore _semaphore{};
     mutable std::atomic_uint64_t finishedEvent = 0;
     mutable luisa::spin_mutex eventMtx;
     mutable uint64_t lastFence = 0;

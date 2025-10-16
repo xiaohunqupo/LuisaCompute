@@ -65,7 +65,7 @@ struct CommandBufferState {
     Device *device{};
     temp_buffer::BufferAllocator<UploadBuffer> upload_alloc;
     temp_buffer::BufferAllocator<ReadbackBuffer> readback_alloc;
-    VkDescriptorPool _desc_pool;
+    VkDescriptorPool _desc_pool{};
     vstd::vector<VkImageView> img_views;
     vstd::vector<std::pair<void *, vstd::func_ptr_t<void(Stream *, CommandBufferState *, void *)>>> _dispose_pool;
     vstd::vector<vstd::function<void()>> _callbacks;
@@ -93,19 +93,19 @@ class CommandBuffer : public Resource {
     vstd::unique_ptr<CommandBufferState> _state;
 
 public:
-    luisa::function<void(luisa::string_view)> *logger;
-    vstd::vector<VkDescriptorSet> *desc_sets;
-    vstd::vector<std::byte> *uniform_data;
-    vstd::vector<std::pair<size_t, size_t>> *dispatch_offsets;
-    vstd::vector<VkWriteDescriptorSet> *write_desc_sets;
-    vstd::StackAllocator *scratch_buffer_alloc;
-    vstd::vector<uint4> *bindless_cache;
-    vstd::StackAllocator *temp_desc;
+    luisa::function<void(luisa::string_view)> *logger{};
+    vstd::vector<VkDescriptorSet> *desc_sets{};
+    vstd::vector<std::byte> *uniform_data{};
+    vstd::vector<std::pair<size_t, size_t>> *dispatch_offsets{};
+    vstd::vector<VkWriteDescriptorSet> *write_desc_sets{};
+    vstd::StackAllocator *scratch_buffer_alloc{};
+    vstd::vector<uint4> *bindless_cache{};
+    vstd::StackAllocator *temp_desc{};
 
-    ResourceBarrier *resource_barrier;
+    ResourceBarrier *resource_barrier{};
     using Resource::operator bool;
-    CommandBuffer(Stream &stream);
-    CommandBuffer(CommandBuffer &&);
+    explicit CommandBuffer(Stream &stream) noexcept;
+    CommandBuffer(CommandBuffer &&) noexcept;
     ~CommandBuffer();
     [[nodiscard]] auto cmdbuffer() const { return _cmdbuffer; }
     void reset();

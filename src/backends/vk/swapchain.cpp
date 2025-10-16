@@ -613,7 +613,7 @@ void Swapchain::create_swapchain(
         display_handle,
         window_handle,
         _surface,
-        device()->instance());
+        Device::instance());
     auto support = _query_swapchain_support(
         device()->physical_device(), _surface);
     if (support.capabilities.maxImageCount == 0u) { support.capabilities.maxImageCount = back_buffers; }
@@ -767,7 +767,7 @@ void Swapchain::create_swapchain(
     VkFenceCreateInfo fence_info{};
     fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fence_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-    for (auto i : vstd::range(_swapchain_images.size())) {
+    for (auto i : vstd::range((int64_t)_swapchain_images.size())) {
         // VK_CHECK_RESULT(vkCreateFence(device()->logic_device(), &fence_info, Device::alloc_callbacks(), &_in_flight_fences[i]))
         VK_CHECK_RESULT(vkCreateSemaphore(device()->logic_device(), &semaphore_info, Device::alloc_callbacks(), &_image_available_semaphores[i]));
         VK_CHECK_RESULT(vkCreateSemaphore(device()->logic_device(), &semaphore_info, Device::alloc_callbacks(), &_render_finished_semaphores[i]));
@@ -817,7 +817,7 @@ Swapchain::~Swapchain() {
     auto device = this->device()->logic_device();
     _destroy_swapchain();
     vkDestroySurfaceKHR(
-        this->device()->instance(),
+        Device::instance(),
         _surface,
         Device::alloc_callbacks());
     for (auto &i : _image_available_semaphores) {

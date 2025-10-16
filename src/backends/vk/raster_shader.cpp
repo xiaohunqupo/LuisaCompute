@@ -55,7 +55,7 @@ auto RasterShader::_make_pipeline_key(
         offsets.reserve(mesh_format.vertex_stream_count());
         vertex_input_create_info.pVertexAttributeDescriptions = (const VkVertexInputAttributeDescription *)ptr;
         uint32_t location = 0;
-        for (auto stream_idx : vstd::range(mesh_format.vertex_stream_count())) {
+        for (auto stream_idx : vstd::range((int64_t)mesh_format.vertex_stream_count())) {
             uint32_t offset = 0;
             for (auto &&attrs : mesh_format.attributes(stream_idx)) {
                 VkVertexInputAttributeDescription desc{
@@ -71,7 +71,7 @@ auto RasterShader::_make_pipeline_key(
             offsets.emplace_back(offset);
         }
         vertex_input_create_info.pVertexBindingDescriptions = (const VkVertexInputBindingDescription *)ptr;
-        for (auto stream_idx : vstd::range(mesh_format.vertex_stream_count())) {
+        for (auto stream_idx : vstd::range((int64_t)mesh_format.vertex_stream_count())) {
             VkVertexInputBindingDescription desc{
                 .binding = (uint32_t)stream_idx,
                 .stride = offsets[stream_idx],

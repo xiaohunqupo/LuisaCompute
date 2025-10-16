@@ -21,8 +21,10 @@ endfunction()
 
 add_subdirectory(ext)
 
-set(CMAKE_C_VISIBILITY_PRESET hidden)
-set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+if (NOT APPLE)
+    set(CMAKE_C_VISIBILITY_PRESET hidden)
+    set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+endif ()
 
 if (CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
     target_compile_options(luisa-compute-include INTERFACE

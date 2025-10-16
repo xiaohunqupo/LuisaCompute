@@ -45,7 +45,7 @@ class StringViewBinaryStream : public BinaryStream {
 public:
     luisa::string_view strv;
     size_t _pos{};
-    StringViewBinaryStream(luisa::string_view strv) : strv(strv) {}
+    explicit StringViewBinaryStream(luisa::string_view strv) : strv(strv) {}
     [[nodiscard]] size_t length() const noexcept override { return strv.size(); }
     [[nodiscard]] size_t pos() const noexcept override { return _pos; }
     void read(luisa::span<std::byte> dst) noexcept override {
@@ -369,7 +369,7 @@ ShaderSerializer::DeserResult ShaderSerializer::try_deser_compute(
     {
         PSODataPackage package{
             .header = device->pso_header()};
-        memcpy(package.md5, &shader_md5, sizeof(vstd::MD5));
+        std::memcpy(package.md5, (void const*)&shader_md5, sizeof(vstd::MD5));
         vstd::MD5 pso_md5{
             {reinterpret_cast<uint8_t const *>(&package), sizeof(PSODataPackage)}};
         pso_name = pso_md5.to_string(false);

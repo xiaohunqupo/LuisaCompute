@@ -39,7 +39,7 @@ static int32 gDxcRefCount = 0;
 
 namespace detail {
 struct Settings {
-    bool validation;
+    bool validation{false};
     bool fullscreen{false};
     bool vsync{false};
     bool overlay{true};
@@ -52,7 +52,7 @@ static PFN_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessengerEXT;
 static PFN_vkDestroyDebugUtilsMessengerEXT vkDestroyDebugUtilsMessengerEXT;
 static VkDebugUtilsMessengerEXT debugUtilsMessenger;
 struct AllocCallbacks {
-    VkAllocationCallbacks callbacks;
+    VkAllocationCallbacks callbacks{};
     AllocCallbacks() {
         callbacks.pfnAllocation = [](
                                       void *pUserData,
@@ -792,7 +792,7 @@ BufferCreationInfo Device::create_buffer(const Type *element, size_t elem_count,
     if (element->is_custom()) [[unlikely]] {
         LUISA_ERROR("Indirect buffer not supported.");
     }
-    BufferCreationInfo info;
+    BufferCreationInfo info{};
     info.element_stride = (element == Type::of<void>()) ? 1 : element->size();
     auto ptr = new DefaultBuffer(this, info.element_stride * elem_count, true);
     info.handle = reinterpret_cast<uint64_t>(ptr);
@@ -882,7 +882,7 @@ SwapchainCreationInfo Device::create_swapchain(const SwapchainOption &option, ui
         false,
         option.wants_hdr,
         option.wants_vsync);
-    SwapchainCreationInfo r;
+    SwapchainCreationInfo r{};
     r.handle = reinterpret_cast<uint64_t>(ptr);
     r.storage = option.wants_hdr ? PixelStorage::HALF4 : PixelStorage::BYTE4;
     r.native_handle = ptr->swapchain();
@@ -1063,7 +1063,7 @@ hlsl::ShaderCompiler *Device::Compiler() {
     return gDxcCompiler ? gDxcCompiler.ptr() : nullptr;
 }
 
-VkInstance Device::instance() const {
+VkInstance Device::instance() {
     return detail::vk_instance;
 }
 
@@ -1141,7 +1141,7 @@ SparseBufferCreationInfo Device::create_sparse_buffer(const Type *element, size_
     if (element->is_custom()) [[unlikely]] {
         LUISA_ERROR("Indirect buffer not supported.");
     }
-    SparseBufferCreationInfo info;
+    SparseBufferCreationInfo info{};
     auto ptr = new SparseBuffer(this, element->size() * elem_count, true);
     info.element_stride = (element == Type::of<void>()) ? 1 : element->size();
     info.handle = reinterpret_cast<uint64_t>(ptr);

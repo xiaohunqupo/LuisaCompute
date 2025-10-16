@@ -13,7 +13,7 @@ class DefaultBuffer : public Buffer {
 public:
     DefaultBuffer(Device *device, size_t size_bytes, bool used_as_accel = false, VkBufferUsageFlagBits extra_bit = (VkBufferUsageFlagBits)0);
     DefaultBuffer(Device *device, VkBuffer vk_buffer, VkDeviceMemory memory, size_t size_bytes);
-    DefaultBuffer(DefaultBuffer &&rhs);
+    DefaultBuffer(DefaultBuffer &&rhs) noexcept;
     ~DefaultBuffer();
     VkBuffer vk_buffer() const override { return _buffer; }
     VkDeviceMemory external_device_memory() const { return _allocated_memory; }

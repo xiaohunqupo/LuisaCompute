@@ -248,7 +248,7 @@ void ResourceBarrier::_update_state(Resource const *res_ptr, ResourceStates &sta
     } else {// Texture
         auto &vec = state.layer_states.get<1>();
         auto tex = static_cast<Texture const *>(res_ptr);
-        for (auto idx : vstd::range(vec.size())) {
+        for (auto idx : vstd::range((int64_t)vec.size())) {
             auto &i = vec[idx];
             if (!i.level_require_update) continue;
             i.level_require_update = false;
@@ -427,7 +427,7 @@ void ResourceBarrier::restore_states(VkCommandBuffer cmd_buffer) {
             auto &vec = state.layer_states.get<1>();
             auto init_layout = VK_IMAGE_LAYOUT_GENERAL;
             auto tex = static_cast<Texture const *>(resPtr);
-            for (auto idx : vstd::range(vec.size())) {
+            for (auto idx : vstd::range((int64_t)vec.size())) {
                 auto &i = vec[idx];
                 if (!i.level_inited) continue;
                 auto &barrier = tex_barriers.emplace_back();

@@ -15,7 +15,7 @@ public:
             min = std::numeric_limits<int64_t>::min();
             max = std::numeric_limits<int64_t>::max();
         }
-        Range(int64_t value) {
+        explicit Range(int64_t value) {
             min = value;
             max = value + 1;
         }

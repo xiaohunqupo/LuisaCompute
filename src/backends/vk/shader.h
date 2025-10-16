@@ -11,9 +11,9 @@
 namespace lc::vk {
 using namespace luisa::compute;
 struct SavedArgument {
-    Type::Tag tag;
-    Usage varUsage;
-    uint structSize;
+    Type::Tag tag{};
+    Usage varUsage{};
+    uint structSize{};
     SavedArgument() = default;
     SavedArgument(Function kernel, Variable const &var) : SavedArgument(var.type()) {
         varUsage = kernel.variable_usage(var.uid());
@@ -32,7 +32,7 @@ public:
 
 protected:
     vstd::vector<VkDescriptorSetLayout> _desc_set_layout;
-    VkPipelineLayout _pipeline_layout;
+    VkPipelineLayout _pipeline_layout{};
     vstd::vector<hlsl::Property> _binds;
     vstd::vector<Argument> _captured;
     vstd::vector<SavedArgument> _saved_arguments;

@@ -47,18 +47,18 @@ class Device : public DeviceInterface, public vstd::IOperatorNewBase {
     VkQueue _graphics_queue{};
     VkQueue _compute_queue{};
     VkQueue _copy_queue{};
-    VkDescriptorPool _sampler_pool;
-    VkDescriptorSet _sampler_set;
-    VkDescriptorSetLayout _sampler_set_layout;
-    VkDescriptorPool _bdls_buffer_desc_pool;
-    VkDescriptorSet _bdls_buffer_set;
-    VkDescriptorSetLayout _bdls_buffer_set_layout;
-    VkDescriptorPool _bdls_tex2d_desc_pool;
-    VkDescriptorSet _bdls_tex2d_set;
-    VkDescriptorSetLayout _bdls_tex2d_set_layout;
-    VkDescriptorPool _bdls_tex3d_desc_pool;
-    VkDescriptorSet _bdls_tex3d_set;
-    VkDescriptorSetLayout _bdls_tex3d_set_layout;
+    VkDescriptorPool _sampler_pool{};
+    VkDescriptorSet _sampler_set{};
+    VkDescriptorSetLayout _sampler_set_layout{};
+    VkDescriptorPool _bdls_buffer_desc_pool{};
+    VkDescriptorSet _bdls_buffer_set{};
+    VkDescriptorSetLayout _bdls_buffer_set_layout{};
+    VkDescriptorPool _bdls_tex2d_desc_pool{};
+    VkDescriptorSet _bdls_tex2d_set{};
+    VkDescriptorSetLayout _bdls_tex2d_set_layout{};
+    VkDescriptorPool _bdls_tex3d_desc_pool{};
+    VkDescriptorSet _bdls_tex3d_set{};
+    VkDescriptorSetLayout _bdls_tex3d_set_layout{};
     VkPipelineCacheHeaderVersionOne _pso_header{};
     vstd::vector<VkSampler> _samplers;
     vstd::optional<VkAllocator> _allocator;
@@ -72,7 +72,7 @@ public:
         vstd::vector<uint> release_pool;
         luisa::spin_mutex mtx;
         luisa::FirstFit sub_allocator;
-        uint full_size;
+        uint full_size{};
         uint alloc();
         void dealloc(uint idx);
         luisa::FirstFit::Node *sub_alloc(uint32_t size);
@@ -92,7 +92,7 @@ public:
         LoadFunc loadFunc;
 
     public:
-        LazyLoadShader(LoadFunc loadFunc);
+        explicit LazyLoadShader(LoadFunc loadFunc);
         ComputeShader *Get(Device *self);
         bool Check(Device *self);
         ~LazyLoadShader();
@@ -121,7 +121,7 @@ public:
     auto samplers() const { return luisa::span{_samplers}; }
     static hlsl::ShaderCompiler *Compiler();
     static VkAllocationCallbacks *alloc_callbacks();
-    VkInstance instance() const;
+    static VkInstance instance();
     uint compute_warp_size() const noexcept override;
     uint64_t memory_granularity() const noexcept override;
     auto &allocator() { return *_allocator; }

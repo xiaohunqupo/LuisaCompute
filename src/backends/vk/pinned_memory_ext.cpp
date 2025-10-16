@@ -17,7 +17,7 @@ BufferCreationInfo VkPinnedMemoryExt::_pin_host_memory(
 BufferCreationInfo VkPinnedMemoryExt::_allocate_pinned_memory(
     const Type *elem_type, size_t elem_count,
     const PinnedMemoryOption &option) noexcept {
-    BufferCreationInfo info;
+    BufferCreationInfo info{};
     info.element_stride = (elem_type == Type::of<void>()) ? 1 : elem_type->size();
     auto size_bytes = info.element_stride * elem_count;
     if (option.write_combined) {

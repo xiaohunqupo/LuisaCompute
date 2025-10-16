@@ -25,8 +25,8 @@ class Swapchain : public Resource {
 
     VkBuffer _vertex_buffer{nullptr};
     VkDeviceMemory _vertex_buffer_memory{nullptr};
-    uint64_t _display_handle;
-    uint64_t _window_handle;
+    uint64_t _display_handle{};
+    uint64_t _window_handle{};
     uint2 _requested_size;
     bool _requested_hdr{false};
     bool _requested_vsync{false};
@@ -34,7 +34,7 @@ class Swapchain : public Resource {
     void _destroy_swapchain();
 
 public:
-    Swapchain(Device *device);
+    explicit Swapchain(Device *device);
     [[nodiscard]] auto swapchain() const { return _swapchain; }
     ~Swapchain();
     void create_swapchain(
