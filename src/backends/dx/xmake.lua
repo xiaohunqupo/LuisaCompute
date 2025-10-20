@@ -13,14 +13,8 @@ if is_plat("windows") then
     add_defines("UNICODE", "_CRT_SECURE_NO_WARNINGS")
 end
 on_load(function(target)
-    local dx_sdk = get_config("lc_dx_sdk_dir")
-    if dx_sdk then
-        target:add("linkdirs", dx_sdk)
-        target:add("links", "D3D12")
-        target:add("defines", "LUISA_DX_SDK")
-    else
-        target:add("syslinks", "D3D12")
-    end
+    target:add("syslinks", "D3D12")
+    target:add("defines", "LUISA_DX_SDK")
     if has_config("lc_enable_win_pix") then
         target:add("linkdirs", target:targetdir())
         target:add("links", "WinPixEventRuntime")
@@ -67,6 +61,6 @@ on_load(function(target)
 end)
 set_pcxxheader("lc_dx_pch.h")
 add_rules('lc_install_sdk', {
-    libnames = {'dx_sdk'}
+    libnames = 'dx_sdk'
 })
 target_end()
