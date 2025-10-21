@@ -35,6 +35,7 @@ struct TraceItem {
 [[nodiscard]] LUISA_CORE_API luisa::string cpu_name() noexcept;
 
 [[nodiscard]] LUISA_CORE_API luisa::string current_executable_path() noexcept;
+[[nodiscard]] LUISA_CORE_API char env_separator() noexcept;
 
 }// namespace luisa
 

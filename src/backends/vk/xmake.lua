@@ -14,7 +14,6 @@ if is_plat("windows") then
 elseif is_plat("linux") then
     add_defines("VK_USE_PLATFORM_XCB_KHR")
 end
-add_defines("LUISA_ENABLE_SPIRV_CODEGEN")
 on_load(function(target)
     target:add("deps", "volk")
     if has_config("lc_vk_cuda_interop") then

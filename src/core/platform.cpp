@@ -189,7 +189,9 @@ luisa::string current_executable_path() noexcept {
     }
     return luisa::to_string(std::filesystem::canonical(path));
 }
-
+char env_separator() noexcept {
+    return ';';
+}
 }// namespace luisa
 
 #elif defined(LUISA_PLATFORM_UNIX)
@@ -383,7 +385,9 @@ luisa::string current_executable_path() noexcept {
         "Failed to get current executable path.");
 }
 #endif
-
+char env_separator() noexcept {
+    return ':';
+}
 }// namespace luisa
 
 #endif
