@@ -261,9 +261,10 @@ enum class ResourceQueryOp {
 };
 
 enum class ResourceReadOp {
-    BUFFER_READ,     /// [(buffer, index) -> value]: reads the index-th element in buffer
-    BYTE_BUFFER_READ,/// [(buffer, byte_index) -> value]: reads the index-th element in buffer
+
+    BUFFER_READ,              /// [(buffer, index) -> value]: reads the index-th element in buffer
     BUFFER_VOLATILE_READ,     /// [(buffer, index) -> value]: reads the index-th element in buffer
+    BYTE_BUFFER_READ,         /// [(buffer, byte_index) -> value]: reads the index-th element in buffer
     BYTE_BUFFER_VOLATILE_READ,/// [(buffer, byte_index) -> value]: reads the index-th element in buffer
 
     TEXTURE2D_READ,/// [(texture, coord) -> value]
@@ -283,9 +284,9 @@ enum class ResourceReadOp {
 enum class ResourceWriteOp {
 
     // buffer write operations
-    BUFFER_WRITE,     /// [(buffer, index, value) -> void]: writes value into the index-th element of buffer
-    BUFFER_VOLATILE_WRITE,
-    BYTE_BUFFER_WRITE,/// [(buffer, byte_index, value) -> void]: writes value into the index-th element of buffer
+    BUFFER_WRITE,              /// [(buffer, index, value) -> void]: writes value into the index-th element of buffer
+    BUFFER_VOLATILE_WRITE,     /// [(buffer, index, value) -> void]: writes value into the index-th element of buffer
+    BYTE_BUFFER_WRITE,         /// [(buffer, byte_index, value) -> void]: writes value into the index-th element of buffer
     BYTE_BUFFER_VOLATILE_WRITE,/// [(buffer, byte_index, value) -> void]: writes value into the index-th element of buffer
 
     // texture write operations
