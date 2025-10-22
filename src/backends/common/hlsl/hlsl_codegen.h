@@ -110,7 +110,9 @@ public:
     void AliasedToOrigin(Type const *t, vstd::StringBuilder &sb);
 };
 class StringStateVisitor final : public StmtVisitor, public ExprVisitor {
+public:
     Function f;
+private:
     CodegenUtility *util;
     luisa::fixed_vector<uint, 4> switchCount;
     struct Scope {

@@ -89,12 +89,35 @@ public:
         return def<T>(expr);
     }
 
+    /// Volatile read buffer at index
+    template<typename I>
+        requires is_integral_expr_v<I>
+    [[nodiscard]] auto volatile_read(I &&index) const noexcept {
+        auto f = detail::FunctionBuilder::current();
+        auto expr = f->call(
+            Type::of<T>(), CallOp::VOLATILE_READ,
+            {_expression,
+             detail::extract_expression(std::forward<I>(index))});
+        return def<T>(expr);
+    }
+
     /// Write buffer at index
     template<typename I>
         requires is_integral_expr_v<I>
     void write(I &&index, Expr<T> value) const noexcept {
         detail::FunctionBuilder::current()->call(
             CallOp::BUFFER_WRITE,
+            {_expression,
+             detail::extract_expression(std::forward<I>(index)),
+             value.expression()});
+    }
+
+    /// Volatile write buffer at index
+    template<typename I>
+        requires is_integral_expr_v<I>
+    void volatile_write(I &&index, Expr<T> value) const noexcept {
+        detail::FunctionBuilder::current()->call(
+            CallOp::VOLATILE_WRITE,
             {_expression,
              detail::extract_expression(std::forward<I>(index)),
              value.expression()});
@@ -141,6 +164,26 @@ public:
     void write(I &&byte_offset, V &&value) const noexcept {
         detail::FunctionBuilder::current()->call(
             CallOp::BYTE_BUFFER_WRITE,
+            {_expression,
+             detail::extract_expression(std::forward<I>(byte_offset)),
+             detail::extract_expression(std::forward<V>(value))});
+    }
+
+    template<typename T, typename I>
+        requires is_integral_expr_v<I>
+    [[nodiscard]] auto volatile_read(I &&byte_offset) const noexcept {
+        auto f = detail::FunctionBuilder::current();
+        auto expr = f->call(
+            Type::of<T>(), CallOp::BYTE_BUFFER_VOLATILE_READ,
+            {_expression,
+             detail::extract_expression(std::forward<I>(byte_offset))});
+        return def<T>(expr);
+    }
+    template<typename I, typename V>
+        requires is_integral_expr_v<I>
+    void volatile_write(I &&byte_offset, V &&value) const noexcept {
+        detail::FunctionBuilder::current()->call(
+            CallOp::BYTE_BUFFER_VOLATILE_WRITE,
             {_expression,
              detail::extract_expression(std::forward<I>(byte_offset)),
              detail::extract_expression(std::forward<V>(value))});
@@ -556,6 +599,17 @@ public:
     }
     template<typename I>
         requires is_integral_expr_v<I>
+    [[nodiscard]] auto volatile_read(I &&byte_offset) const noexcept {
+        return Expr<T>{_buffer}.volatile_read(std::forward<I>(byte_offset));
+    }
+    template<typename I, typename V>
+        requires is_integral_expr_v<I>
+    void volatile_write(I &&byte_offset, V &&value) const noexcept {
+        Expr<T>{_buffer}.volatile_write(std::forward<I>(byte_offset),
+                               std::forward<V>(value));
+    }
+    template<typename I>
+        requires is_integral_expr_v<I>
     [[nodiscard]] auto atomic(I &&index) const noexcept {
         return Expr<T>{_buffer}.atomic(std::forward<I>(index));
     }
@@ -583,6 +637,17 @@ public:
         requires is_integral_expr_v<I>
     void write(I &&index, V &&value) const noexcept {
         Expr<ByteBuffer>{_buffer}.write(std::forward<I>(index),
+                                        std::forward<V>(value));
+    }
+    template<typename T, typename I>
+        requires is_integral_expr_v<I>
+    [[nodiscard]] auto volatile_read(I &&index) const noexcept {
+        return Expr<ByteBuffer>{_buffer}.template volatile_read<T, I>(std::forward<I>(index));
+    }
+    template<typename I, typename V>
+        requires is_integral_expr_v<I>
+    void volatile_write(I &&index, V &&value) const noexcept {
+        Expr<ByteBuffer>{_buffer}.volatile_write(std::forward<I>(index),
                                         std::forward<V>(value));
     }
     [[nodiscard]] Expr<uint64_t> device_address() const noexcept {

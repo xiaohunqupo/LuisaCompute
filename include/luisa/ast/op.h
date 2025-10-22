@@ -170,6 +170,9 @@ enum struct CallOp : uint32_t {
     ATOMIC_FETCH_MIN,       /// [(atomic_ref, val) -> old]: stores min(old, val), returns old.
     ATOMIC_FETCH_MAX,       /// [(atomic_ref, val) -> old]: stores max(old, val), returns old.
 
+    VOLATILE_READ,  /// same as BUFFER_READ
+    VOLATILE_WRITE, /// same as BUFFER_WRITE
+
     ADDRESS_OF,// (expr) -> uint64
 
     BUFFER_READ,   /// [(buffer, index) -> value]: reads the index-th element in buffer
@@ -178,7 +181,9 @@ enum struct CallOp : uint32_t {
     BUFFER_ADDRESS,/// [(buffer) -> address]
 
     BYTE_BUFFER_READ, /// [(buffer, byte_index) -> value]: reads the index-th element in buffer
+    BYTE_BUFFER_VOLATILE_READ, /// [(buffer, byte_index) -> value]: reads the index-th element in buffer
     BYTE_BUFFER_WRITE,/// [(buffer, byte_index, value) -> void]: writes value into the index-th element of buffer
+    BYTE_BUFFER_VOLATILE_WRITE,/// [(buffer, byte_index, value) -> void]: writes value into the index-th element of buffer
     BYTE_BUFFER_SIZE, /// [(buffer) -> size_bytes]
 
     TEXTURE_READ, /// [(texture, coord) -> value]
@@ -445,13 +450,13 @@ enum struct CallOp : uint32_t {
     SHADER_EXECUTION_REORDER,// (uint hint, uint hint_bits): void
 
     // cooperative
-    COOPERATIVE_MUL_ADD,               // (coop_vec<OutType, M> (matrix_buffer: byte_buffer, matrix_offset: coop_mat_ref<N, M, CoopRefType>, bias_buffer: byte_buffer, bias_offset: coop_vec_ref<M, CoopRefType>, input_vector: coop_vec<N>)
-    BINDLESS_COOPERATIVE_MUL_ADD,      // (coop_vec<OutType, M> (bindless_array, matrix_buffer: uint, matrix_offset: coop_mat_ref<N, M, CoopRefType>, bias_buffer: uint, bias_offset: coop_vec_ref<M, CoopRefType>, input_vector: coop_vec<N>)
-    TYPED_BINDLESS_COOPERATIVE_MUL_ADD,// (coop_vec<OutType, M> (bindless_array, matrix_buffer: uint, matrix_offset: coop_mat_ref<N, M, CoopRefType>, bias_buffer: uint, bias_offset: coop_vec_ref<M, CoopRefType>, input_vector: coop_vec<N>)
-    COOPERATIVE_MUL,                   // (coop_vec<OutType, M> (matrix_buffer: byte_buffer, matrix_offset: coop_mat_ref<N, M, CoopRefType>input_vector: coop_vec<N>)
-    BINDLESS_COOPERATIVE_MUL,          // (coop_vec<OutType, M> (bindless_array, matrix_buffer: uint, matrix_offset: coop_mat_ref<N, M, CoopRefType>input_vector: coop_vec<N>)
-    TYPED_BINDLESS_COOPERATIVE_MUL,    // (coop_vec<OutType, M> (bindless_array, matrix_buffer: uint, matrix_offset: coop_mat_ref<N, M, CoopRefType>input_vector: coop_vec<N>)
-    COOPERATIVE_OUTER_PRODUCT_ACCUMULATE,    // ResultMatrix += InputVector1 * Transpose(InputVector2);
+    COOPERATIVE_MUL_ADD,                 // (coop_vec<OutType, M> (matrix_buffer: byte_buffer, matrix_offset: coop_mat_ref<N, M, CoopRefType>, bias_buffer: byte_buffer, bias_offset: coop_vec_ref<M, CoopRefType>, input_vector: coop_vec<N>)
+    BINDLESS_COOPERATIVE_MUL_ADD,        // (coop_vec<OutType, M> (bindless_array, matrix_buffer: uint, matrix_offset: coop_mat_ref<N, M, CoopRefType>, bias_buffer: uint, bias_offset: coop_vec_ref<M, CoopRefType>, input_vector: coop_vec<N>)
+    TYPED_BINDLESS_COOPERATIVE_MUL_ADD,  // (coop_vec<OutType, M> (bindless_array, matrix_buffer: uint, matrix_offset: coop_mat_ref<N, M, CoopRefType>, bias_buffer: uint, bias_offset: coop_vec_ref<M, CoopRefType>, input_vector: coop_vec<N>)
+    COOPERATIVE_MUL,                     // (coop_vec<OutType, M> (matrix_buffer: byte_buffer, matrix_offset: coop_mat_ref<N, M, CoopRefType>input_vector: coop_vec<N>)
+    BINDLESS_COOPERATIVE_MUL,            // (coop_vec<OutType, M> (bindless_array, matrix_buffer: uint, matrix_offset: coop_mat_ref<N, M, CoopRefType>input_vector: coop_vec<N>)
+    TYPED_BINDLESS_COOPERATIVE_MUL,      // (coop_vec<OutType, M> (bindless_array, matrix_buffer: uint, matrix_offset: coop_mat_ref<N, M, CoopRefType>input_vector: coop_vec<N>)
+    COOPERATIVE_OUTER_PRODUCT_ACCUMULATE,// ResultMatrix += InputVector1 * Transpose(InputVector2);
     // void(matrix_buffer: byte_buffer, matrix_offset: coop_mat_ref, input_vec1 : coop_vector, input_vec2 : coop_vector, )
     COOPERATIVE_VECTOR_ACCUMULATE,// void(vector_buffer: byte_buffer, vector_offset: coop_vec_ref, input_vec: coop_vector)
 

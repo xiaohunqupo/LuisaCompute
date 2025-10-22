@@ -42,8 +42,10 @@ uint64_t RefExpr::_compute_hash() const noexcept {
 void CallExpr::_mark() const noexcept {
     if (is_builtin()) {
         switch (_op) {
+            case CallOp::VOLATILE_WRITE:
             case CallOp::BUFFER_WRITE:
             case CallOp::BINDLESS_BUFFER_WRITE:
+            case CallOp::BYTE_BUFFER_VOLATILE_WRITE:
             case CallOp::BYTE_BUFFER_WRITE:
             case CallOp::TEXTURE_WRITE:
             case CallOp::RAY_TRACING_SET_INSTANCE_TRANSFORM:

@@ -1,5 +1,6 @@
 #pragma once
 #include <luisa/vstl/common.h>
+#include <luisa/ast/function_builder.h>
 #include "hlsl_codegen.h"
 #include "struct_generator.h"
 #include "access_chain.h"
@@ -16,6 +17,7 @@ struct CodegenStackData : public vstd::IOperatorNewBase {
     vstd::HashMap<Type const *, vstd::unique_ptr<StructGenerator>> customStruct;
     vstd::vector<StructGenerator *> customStructVectorAliased;
     vstd::HashMap<Type const *, vstd::unique_ptr<StructGenerator>> customStructAliased;
+    vstd::HashMap<luisa::compute::detail::FunctionBuilder const *, vstd::unordered_set<uint>> globallyCoherentBuffers;
     vstd::unordered_set<Type const *> originToAliasedTypes;
     vstd::unordered_set<Type const *> aliasedToOriginTypes;
     vstd::unordered_map<uint, uint> arguments;

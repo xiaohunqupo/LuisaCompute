@@ -2682,7 +2682,9 @@ private:
     [[nodiscard]] llvm::Value *_translate_resource_read_inst(CurrentFunction &current, IRBuilder &b,
                                                              const xir::ResourceReadInst *inst) noexcept {
         switch (inst->op()) {
+            case xir::ResourceReadOp::VOLATILE_READ: 
             case xir::ResourceReadOp::BUFFER_READ: return _translate_buffer_read(current, b, inst);
+            case xir::ResourceReadOp::BYTE_BUFFER_VOLATILE_READ:
             case xir::ResourceReadOp::BYTE_BUFFER_READ: return _translate_buffer_read(current, b, inst, true);
             case xir::ResourceReadOp::TEXTURE2D_READ: return _translate_texture_read(current, b, inst);
             case xir::ResourceReadOp::TEXTURE3D_READ: return _translate_texture_read(current, b, inst);
@@ -2700,7 +2702,9 @@ private:
     [[nodiscard]] llvm::Value *_translate_resource_write_inst(CurrentFunction &current, IRBuilder &b,
                                                               const xir::ResourceWriteInst *inst) noexcept {
         switch (inst->op()) {
+            case xir::ResourceWriteOp::VOLATILE_WRITE:
             case xir::ResourceWriteOp::BUFFER_WRITE: return _translate_buffer_write(current, b, inst);
+            case xir::ResourceWriteOp::BYTE_BUFFER_VOLATILE_WRITE:
             case xir::ResourceWriteOp::BYTE_BUFFER_WRITE: return _translate_buffer_write(current, b, inst, true);
             case xir::ResourceWriteOp::TEXTURE2D_WRITE: return _translate_texture_write(current, b, inst);
             case xir::ResourceWriteOp::TEXTURE3D_WRITE: return _translate_texture_write(current, b, inst);

@@ -205,6 +205,9 @@ int main(int argc, char *argv[]) {
         Var another_vec4 = buffer->read(v_int);// indexing into captured buffer (with Var)
         another_vec4 += heap.buffer<float4>(0).read(0);
         buffer->write(v_int + 1, float4(123.0f));
+        auto test_volatile = buffer_float.volatile_read(v_int + 1);
+        buffer_float.volatile_write(v_int + 1, test_volatile);
+        buffer->volatile_write(v_int + 1, float4(123.0f));
     };
     auto t1 = clock.toc();
 

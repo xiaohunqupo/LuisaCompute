@@ -556,6 +556,7 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             str << '(';
             {
                 uint64 sz = 0;
+                auto iter = opt->globallyCoherentBuffers.find(expr->custom().builder());
                 for (auto &&i : args) {
                     if (i->type()->is_accel()) {
                         if ((static_cast<uint>(expr->custom().variable_usage(expr->custom().arguments()[sz].uid())) & static_cast<uint>(Usage::WRITE)) == 0) {
@@ -565,6 +566,12 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
                         i->accept(vis);
                         str << "Inst"sv;
                     } else {
+                        // globallycoherent propagated
+                        if (i->type()->is_buffer() && i->tag() == Expression::Tag::REF && iter) {
+                            if (iter.value().contains(expr->custom().arguments()[sz].uid())) {
+                                opt->globallyCoherentBuffers.emplace(vis.f.builder()).value().emplace(static_cast<RefExpr const *>(i)->variable().uid());
+                            }
+                        }
                         i->accept(vis);
                     }
                     ++sz;
@@ -836,7 +843,13 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
                 str << "_float"sv << n << 'x' << n;
             }
         } break;
-        case CallOp::BUFFER_READ: {
+        case CallOp::BUFFER_READ:
+        case CallOp::VOLATILE_READ: {
+            if (expr->op() == CallOp::VOLATILE_READ) {
+                LUISA_DEBUG_ASSERT(args[0]->tag() == Expression::Tag::REF);
+                auto buffer_expr = static_cast<RefExpr const *>(args[0]);
+                opt->globallyCoherentBuffers.emplace(vis.f.builder()).value().emplace(buffer_expr->variable().uid());
+            }
             bool aliasStruct = TypeIsAliased(expr->type());
             bool floatToInt = opt->atomicFloatToInt && (expr->type()->is_float32() || expr->type()->is_float64());
             if (aliasStruct) {
@@ -861,7 +874,13 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             }
             return;
         }
-        case CallOp::BUFFER_WRITE: {
+        case CallOp::BUFFER_WRITE:
+        case CallOp::VOLATILE_WRITE: {
+            if (expr->op() == CallOp::VOLATILE_WRITE) {
+                LUISA_DEBUG_ASSERT(args[0]->tag() == Expression::Tag::REF);
+                auto buffer_expr = static_cast<RefExpr const *>(args[0]);
+                opt->globallyCoherentBuffers.emplace(vis.f.builder()).value().emplace(buffer_expr->variable().uid());
+            }
             auto elem = args[0]->type()->element();
             bool floatToInt = opt->atomicFloatToInt && (elem->is_float32() || elem->is_float64());
             bool aliasStruct = TypeIsAliased(elem);
@@ -904,7 +923,13 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             }
             str << "_bfsize"sv;
         } break;
-        case CallOp::BYTE_BUFFER_READ: {
+        case CallOp::BYTE_BUFFER_READ:
+        case CallOp::BYTE_BUFFER_VOLATILE_READ: {
+            if (expr->op() == CallOp::BYTE_BUFFER_VOLATILE_READ) {
+                LUISA_DEBUG_ASSERT(args[0]->tag() == Expression::Tag::REF);
+                auto buffer_expr = static_cast<RefExpr const *>(args[0]);
+                opt->globallyCoherentBuffers.emplace(vis.f.builder()).value().emplace(buffer_expr->variable().uid());
+            }
             bool aliasStruct = TypeIsAliased(expr->type());
             if (aliasStruct) {
                 AliasedToOrigin(expr->type(), str);
@@ -957,7 +982,13 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             }
             return;
         }
-        case CallOp::BYTE_BUFFER_WRITE: {
+        case CallOp::BYTE_BUFFER_WRITE:
+        case CallOp::BYTE_BUFFER_VOLATILE_WRITE: {
+            if (expr->op() == CallOp::BYTE_BUFFER_VOLATILE_WRITE) {
+                LUISA_DEBUG_ASSERT(args[0]->tag() == Expression::Tag::REF);
+                auto buffer_expr = static_cast<RefExpr const *>(args[0]);
+                opt->globallyCoherentBuffers.emplace(vis.f.builder()).value().emplace(buffer_expr->variable().uid());
+            }
             str << "_bytebfwrite"sv;
             auto elem = args[2]->type();
             bool aliasStruct = TypeIsAliased(elem);
@@ -2515,21 +2546,28 @@ void CodegenUtility::CodegenProperties(
         return (static_cast<uint>(kernel.variable_usage(v.uid())) & static_cast<uint>(Usage::WRITE)) != 0;
     };
     auto args = kernel.arguments();
+    auto globally_coherent_iter = opt->globallyCoherentBuffers.find(kernel.builder());
     for (auto &&i : vstd::ptr_range(args.data() + offset, args.size() - offset)) {
         auto print = [&] {
             auto usage = kernel.variable_usage(i.uid());
             if (i.type()->is_buffer() || i.type()->is_texture()) {
+                bool use_globallycoherent = false;
                 auto attris = i.type()->member_attributes();
                 if (!attris.empty()) {
                     for (auto &a : attris) {
                         if ((to_underlying(usage) & to_underlying(Usage::WRITE)) != 0) {
                             if (a.key == "cache"sv) {
                                 if (a.value == "coherent"sv) {
-                                    varData << "globallycoherent "sv;
+                                    use_globallycoherent = true;
                                 }
                             }
                         }
                     }
+                }
+                use_globallycoherent |= (globally_coherent_iter && globally_coherent_iter.value().contains(i.uid()));
+
+                if (use_globallycoherent && (luisa::to_underlying(kernel.variable_usage(i.uid())) & luisa::to_underlying(Usage::WRITE)) != 0) {
+                    varData << "globallycoherent "sv;
                 }
             }
             GetTypeName(*i.type(), varData, usage);

@@ -46,6 +46,7 @@ void CodegenStackData::Clear() {
     internalStruct.emplace(Type::of<CommittedHit>(), "_Hit0");
     internalStruct.emplace(Type::of<TriangleHit>(), "_Hit1");
     internalStruct.emplace(Type::of<ProceduralHit>(), "_Hit2");
+    globallyCoherentBuffers.clear();
 }
 
 std::pair<vstd::string_view, bool> CodegenStackData::CreateAliasedStruct(Type const *t) {

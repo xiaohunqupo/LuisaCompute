@@ -1164,22 +1164,25 @@ luisa::string_view Clanguage_CodegenUtils::gen_callop(CallOp op, Type const *ret
                     gen_vec_function(tmp_sb, "a0.# / tmp", return_type);
                     tmp_sb << ';';
                 } break;
-                case CallOp::BUFFER_READ: {
+                case CallOp::BUFFER_READ:
+                case CallOp::VOLATILE_READ: {
                     tmp_sb << "return ((";
                     get_type_name(tmp_sb, return_type);
                     tmp_sb << "*)(a0.ptr))[a1];";
                 } break;
-                case CallOp::BUFFER_WRITE: {
+                case CallOp::BUFFER_WRITE:
+                case CallOp::VOLATILE_WRITE: {
                     tmp_sb << "((";
                     get_type_name(tmp_sb, arg_types[2]);
                     tmp_sb << "*)(a0.ptr))[a1] = a2;";
                 } break;
+                case CallOp::BYTE_BUFFER_VOLATILE_READ:
                 case CallOp::BYTE_BUFFER_READ: {
                     tmp_sb << "return *((";
                     get_type_name(tmp_sb, return_type);
                     tmp_sb << "*)(a0.ptr + a1));";
                 } break;
-
+                case CallOp::BYTE_BUFFER_VOLATILE_WRITE:
                 case CallOp::BYTE_BUFFER_WRITE: {
                     tmp_sb << "*((";
                     get_type_name(tmp_sb, arg_types[2]);
@@ -1440,7 +1443,7 @@ void Clanguage_CodegenUtils::codegen(
     sb << " void " << entry_name << "(uint32_t3 thd_id, uint32_t3 blk_id, uint32_t3 dsp_id, uint32_t3 dsp_size, uint32_t3 ker_id, Args* args){\nbuiltin_c4434d750cf64f0eae3f73cca8650b16(thd_id, blk_id, dsp_id, dsp_size, ker_id";
     arg_idx = 0;
     for (auto &i : func.arguments()) {
-        
+
         sb << (i.is_reference() ? ", &args->a" : ", args->a") << luisa::format("{}", arg_idx);
         arg_idx++;
     }
