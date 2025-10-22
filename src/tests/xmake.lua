@@ -142,6 +142,7 @@ test_proj("test_normal_encoding")
 --     end)
 -- end)
 test_proj("test_mnist", true, function()
+    set_extension(".pyd")
     after_build(function(target)
         os.cp(path.join(os.scriptdir(), "test_mnist.py"), path.join(target:targetdir(), "test_mnist.py"), {
             copy_if_different = true

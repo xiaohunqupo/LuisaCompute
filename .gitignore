@@ -327,3 +327,5 @@ FidelityFX-FSR2/
 xess/
 !xrepo/**
 src/backends/common/hlsl/builtin_embed
+mnist_data/
+*.pth
