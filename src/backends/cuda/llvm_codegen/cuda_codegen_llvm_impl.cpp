@@ -95,7 +95,7 @@ inline void CUDACodegenLLVMImpl::_initialize() noexcept {
         }
         auto cpu_name = luisa::format("sm_{}", _config.cuda_arch);
         return _get_nvptx_target()->createTargetMachine(
-            nvptx_target_triple, llvm::StringRef{cpu_name}, {},
+            llvm::Triple{nvptx_target_triple}, llvm::StringRef{cpu_name}, {},
             options, llvm::Reloc::Static, llvm::CodeModel::Small, opt_level);
     }();
 
@@ -111,7 +111,7 @@ inline void CUDACodegenLLVMImpl::_initialize() noexcept {
     }();
 
     // set the target triple
-    _llvm_module->setTargetTriple(nvptx_target_triple);
+    _llvm_module->setTargetTriple(llvm::Triple{nvptx_target_triple});
     _llvm_module->setDataLayout(*_data_layout);
 
     // internalize all device functions
