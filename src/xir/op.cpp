@@ -486,7 +486,7 @@ luisa::string_view to_string(ResourceReadOp op) noexcept {
     switch (op) {
         case ResourceReadOp::BUFFER_READ: return "buffer_read"sv;
         case ResourceReadOp::BYTE_BUFFER_READ: return "byte_buffer_read"sv;
-        case ResourceReadOp::BUFFER_VOLATILE_READ: return "volatile_read"sv;
+        case ResourceReadOp::BUFFER_VOLATILE_READ: return "buffer_volatile_read"sv;
         case ResourceReadOp::BYTE_BUFFER_VOLATILE_READ: return "byte_buffer_volatile_read"sv;
         case ResourceReadOp::TEXTURE2D_READ: return "texture2d_read"sv;
         case ResourceReadOp::TEXTURE3D_READ: return "texture3d_read"sv;
@@ -506,7 +506,7 @@ ResourceReadOp resource_read_op_from_string(luisa::string_view name) noexcept {
     static const luisa::unordered_map<luisa::string_view, ResourceReadOp> m{
         {"buffer_read"sv, ResourceReadOp::BUFFER_READ},
         {"byte_buffer_read"sv, ResourceReadOp::BYTE_BUFFER_READ},
-        {"volatile_read"sv, ResourceReadOp::BUFFER_VOLATILE_READ},
+        {"buffer_volatile_read"sv, ResourceReadOp::BUFFER_VOLATILE_READ},
         {"byte_buffer_volatile_read"sv, ResourceReadOp::BYTE_BUFFER_VOLATILE_READ},
         {"texture2d_read"sv, ResourceReadOp::TEXTURE2D_READ},
         {"texture3d_read"sv, ResourceReadOp::TEXTURE3D_READ},
@@ -527,7 +527,7 @@ luisa::string_view to_string(ResourceWriteOp op) noexcept {
     using namespace std::string_view_literals;
     switch (op) {
         case ResourceWriteOp::BUFFER_WRITE: return "buffer_write"sv;
-        case ResourceWriteOp::BUFFER_VOLATILE_WRITE: return "volatile_write"sv;
+        case ResourceWriteOp::BUFFER_VOLATILE_WRITE: return "buffer_volatile_write"sv;
         case ResourceWriteOp::BYTE_BUFFER_WRITE: return "byte_buffer_write"sv;
         case ResourceWriteOp::BYTE_BUFFER_VOLATILE_WRITE: return "byte_buffer_volatile_write"sv;
         case ResourceWriteOp::TEXTURE2D_WRITE: return "texture2d_write"sv;
@@ -551,7 +551,7 @@ ResourceWriteOp resource_write_op_from_string(luisa::string_view name) noexcept 
     using namespace std::string_view_literals;
     static const luisa::unordered_map<luisa::string_view, ResourceWriteOp> m{
         {"buffer_write"sv, ResourceWriteOp::BUFFER_WRITE},
-        {"volatile_write"sv, ResourceWriteOp::BUFFER_VOLATILE_WRITE},
+        {"buffer_volatile_write"sv, ResourceWriteOp::BUFFER_VOLATILE_WRITE},
         {"byte_buffer_write"sv, ResourceWriteOp::BYTE_BUFFER_WRITE},
         {"byte_buffer_volatile_write"sv, ResourceWriteOp::BYTE_BUFFER_VOLATILE_WRITE},
         {"texture2d_write"sv, ResourceWriteOp::TEXTURE2D_WRITE},
