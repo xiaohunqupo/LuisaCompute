@@ -8,13 +8,10 @@ from pathlib import Path
 from torchvision import datasets, transforms
 import logging
 import torchvision.models as models
-import matplotlib.pyplot as plt
 
 if not torch.cuda.is_available():
     logging.error("CUDA environment unavailable.")
     exit(1)
-BATCH_SIZE = 512
-EPOCHS = 20
 device = torch.device("cuda")
 
 training_data = datasets.MNIST(
@@ -33,8 +30,9 @@ test_data = datasets.MNIST(
         [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
     ),
 )
-train_dataloader = DataLoader(training_data, batch_size=64, shuffle=True)
-test_dataloader = DataLoader(test_data, batch_size=64, shuffle=True)
+batch_size = 64
+train_dataloader = DataLoader(training_data, batch_size=batch_size, shuffle=True)
+test_dataloader = DataLoader(test_data, batch_size=batch_size, shuffle=True)
 
 normalize_func = transforms.Normalize((0.1307,), (0.3081,))
 
@@ -106,14 +104,17 @@ def test_loop(dataloader, model, loss_fn):
         f"Test Error: \n Accuracy: {(100 * correct):>0.1f}%, Avg loss: {test_loss:>8f} \n"
     )
 
+def get_first_test_data(dataloader):
+    with torch.no_grad():
+        for X, y in dataloader:
+            return X.to(device)
 
 # traning
 learning_rate = 1e-3
-batch_size = 16
 loss_fn = nn.CrossEntropyLoss()
 optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
 
-epochs = 10
+epochs = 15
 if not os.path.exists("mnist_model_weights.pth"):
     print("mnist_model_weights.pth not found, start training...")
     for t in range(epochs):
@@ -128,6 +129,8 @@ else:
 
 X = torch.rand(1, 28, 28, device=device)
 cuda_pointer = X.data_ptr()
+test_data = get_first_test_data(test_dataloader)
+test_data_ptr = test_data.data_ptr()
 
 print("Cuda pointer: " + str(cuda_pointer))
 default_stream = torch.cuda.default_stream()
@@ -137,11 +140,11 @@ test_mnist = ctypes.CDLL(Path(__file__).parent / "test_mnist.pyd")
 test_mnist.init(__file__, "dx")
 
 while not test_mnist.should_close():
-    if test_mnist.update_frame(ctypes.c_uint64(cuda_pointer)):
+    if test_mnist.update_frame(ctypes.c_uint64(cuda_pointer), ctypes.c_uint64(test_data_ptr)):
         with torch.no_grad():
-            S = normalize_func(1 - X)
+            S = normalize_func(X)
             logits = model(S)
             y_pred = logits.cpu().numpy()[-1].argmax()
             print(f"Predicted class: {y_pred}")
-
+    test_data_ptr = 0
 test_mnist.dispose()
