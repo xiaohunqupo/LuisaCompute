@@ -187,7 +187,8 @@ __device__ void lc_buffer_volatile_write(LCBuffer<T> buffer, Index index, T valu
 #ifdef LUISA_DEBUG
     lc_check_in_bounds(index, lc_buffer_size(buffer));
 #endif
-    (reinterpret_cast<volatile T*>(buffer.ptr))[index] = value;
+    buffer.ptr[index] = value;
+    __threadfence();
 }
 
 template<typename T>
@@ -2511,7 +2512,7 @@ template<typename T>
     lc_check_in_bounds(offset + sizeof(T), lc_buffer_size(buffer) + 1u);
     lc_assert(address % alignof(T) == 0u && "unaligned access");
 #endif
-    return *(reinterpret_cast<volatile T *>(address));
+    return *reinterpret_cast<volatile T *>(address);
 }
 
 template<typename T>
@@ -2532,7 +2533,8 @@ __device__ void lc_byte_buffer_volatile_write(LCBuffer<lc_ubyte> buffer, lc_ulon
     lc_check_in_bounds(offset + sizeof(T), lc_buffer_size(buffer) + 1u);
     lc_assert(address % alignof(T) == 0u && "unaligned access");
 #endif
-    *(reinterpret_cast<volatile T *>(address)) = value;
+    *(reinterpret_cast<T *>(address)) = value;
+    __threadfence();
 }
 
 [[nodiscard]] __device__ auto lc_byte_buffer_size(LCBuffer<const lc_byte> buffer) noexcept {

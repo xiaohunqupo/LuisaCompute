@@ -33,7 +33,7 @@ class NeuralNetwork(nn.Module):
             nn.ReLU(),
             nn.Linear(512, 512),
             nn.ReLU(),
-            nn.Linear(512, 10),
+            nn.Linear(512, 10)
         )
 
     def forward(self, x):
@@ -41,7 +41,7 @@ class NeuralNetwork(nn.Module):
         logits = self.linear_relu_stack(x)
         return logits
 
-model = NeuralNetwork()
+model = NeuralNetwork().to(device)
 
 def train_loop(dataloader, model, loss_fn, optimizer):
     size = len(dataloader.dataset)
@@ -50,8 +50,8 @@ def train_loop(dataloader, model, loss_fn, optimizer):
     model.train()
     for batch, (X, y) in enumerate(dataloader):
         # Compute prediction and loss
-        pred = model(X)
-        loss = loss_fn(pred, y)
+        pred = model(X.to(device))
+        loss = loss_fn(pred, y.to(device))
 
         # Backpropagation
         loss.backward()
@@ -73,11 +73,15 @@ def test_loop(dataloader, model, loss_fn):
 
     # Evaluating the model with torch.no_grad() ensures that no gradients are computed during test mode
     # also serves to reduce unnecessary gradient computations and memory usage for tensors with requires_grad=True
+    b = True
     with torch.no_grad():
         for X, y in dataloader:
-            pred = model(X)
-            test_loss += loss_fn(pred, y).item()
-            correct += (pred.argmax(1) == y).type(torch.float).sum().item()
+            if b:
+                b = False
+            pred = model(X.to(device))
+            cuda_y = y.to(device)
+            test_loss += loss_fn(pred, cuda_y).item()
+            correct += (pred.argmax(1) == cuda_y).type(torch.float).sum().item()
 
     test_loss /= num_batches
     correct /= size
@@ -101,10 +105,23 @@ if not os.path.exists('mnist_model_weights.pth'):
 else:
     print("mnist_model_weights.pth founded, loading...")
     model.load_state_dict(torch.load('mnist_model_weights.pth', weights_only=True))
-    model.eval()
 
-# test_mnist = ctypes.CDLL(Path(__file__).parent / "test_mnist.pyd")
-# test_mnist.init(__file__, "vk")
-# while not test_mnist.should_close():
-#     test_mnist.update_frame()
-# test_mnist.dispose()
+X = torch.rand(1, 28, 28, device=device)
+cuda_pointer = X.data_ptr()
+
+print("Cuda pointer: " + str(cuda_pointer))
+default_stream = torch.cuda.default_stream()
+print(f"Default CUDA Stream: {default_stream}")
+
+test_mnist = ctypes.CDLL(Path(__file__).parent / "test_mnist.pyd")
+test_mnist.init(__file__, "vk")
+while not test_mnist.should_close():
+    if test_mnist.update_frame(ctypes.c_uint64(cuda_pointer)):
+        with torch.no_grad():
+            print(X)
+            logits = model(X)
+            pred_probab = nn.Softmax(dim=1)(logits)
+            y_pred = pred_probab.argmax(1)
+            print(f"Predicted class: {y_pred}")
+        
+test_mnist.dispose()

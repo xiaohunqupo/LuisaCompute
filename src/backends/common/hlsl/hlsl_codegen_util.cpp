@@ -550,6 +550,11 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
         }
     };
     check_builtin_call_valid(expr->op(), expr->type(), args);
+    auto mark_coherent = [&](Expression const *expr) {
+        LUISA_DEBUG_ASSERT(expr->tag() == Expression::Tag::REF);
+        auto buffer_expr = static_cast<RefExpr const *>(expr);
+        opt->globallyCoherentBuffers.emplace(vis.f.builder()).value().emplace(buffer_expr->variable().uid());
+    };
     switch (expr->op()) {
         case CallOp::CUSTOM:
             str << "custom_"sv << vstd::to_string((opt->GetFuncCount(expr->custom())));
@@ -770,6 +775,9 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
         case CallOp::ATOMIC_FETCH_MIN:
         case CallOp::ATOMIC_FETCH_MAX: {
             auto rootVar = static_cast<RefExpr const *>(args[0]);
+            if (expr->type()->is_float() || expr->op() == CallOp::ATOMIC_COMPARE_EXCHANGE) {
+                mark_coherent(args[0]);
+            }
             auto &chain = opt->GetAtomicFunc(expr->op(), rootVar->variable(), expr->type(), args);
             chain.call_this_func(args, str, vis);
             return;
@@ -846,9 +854,7 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
         case CallOp::BUFFER_READ:
         case CallOp::BUFFER_VOLATILE_READ: {
             if (expr->op() == CallOp::BUFFER_VOLATILE_READ) {
-                LUISA_DEBUG_ASSERT(args[0]->tag() == Expression::Tag::REF);
-                auto buffer_expr = static_cast<RefExpr const *>(args[0]);
-                opt->globallyCoherentBuffers.emplace(vis.f.builder()).value().emplace(buffer_expr->variable().uid());
+                mark_coherent(args[0]);
             }
             bool aliasStruct = TypeIsAliased(expr->type());
             bool floatToInt = opt->atomicFloatToInt && (expr->type()->is_float32() || expr->type()->is_float64());
@@ -877,9 +883,7 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
         case CallOp::BUFFER_WRITE:
         case CallOp::BUFFER_VOLATILE_WRITE: {
             if (expr->op() == CallOp::BUFFER_VOLATILE_WRITE) {
-                LUISA_DEBUG_ASSERT(args[0]->tag() == Expression::Tag::REF);
-                auto buffer_expr = static_cast<RefExpr const *>(args[0]);
-                opt->globallyCoherentBuffers.emplace(vis.f.builder()).value().emplace(buffer_expr->variable().uid());
+                mark_coherent(args[0]);
             }
             auto elem = args[0]->type()->element();
             bool floatToInt = opt->atomicFloatToInt && (elem->is_float32() || elem->is_float64());
@@ -926,9 +930,7 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
         case CallOp::BYTE_BUFFER_READ:
         case CallOp::BYTE_BUFFER_VOLATILE_READ: {
             if (expr->op() == CallOp::BYTE_BUFFER_VOLATILE_READ) {
-                LUISA_DEBUG_ASSERT(args[0]->tag() == Expression::Tag::REF);
-                auto buffer_expr = static_cast<RefExpr const *>(args[0]);
-                opt->globallyCoherentBuffers.emplace(vis.f.builder()).value().emplace(buffer_expr->variable().uid());
+                mark_coherent(args[0]);
             }
             bool aliasStruct = TypeIsAliased(expr->type());
             if (aliasStruct) {
@@ -985,9 +987,7 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
         case CallOp::BYTE_BUFFER_WRITE:
         case CallOp::BYTE_BUFFER_VOLATILE_WRITE: {
             if (expr->op() == CallOp::BYTE_BUFFER_VOLATILE_WRITE) {
-                LUISA_DEBUG_ASSERT(args[0]->tag() == Expression::Tag::REF);
-                auto buffer_expr = static_cast<RefExpr const *>(args[0]);
-                opt->globallyCoherentBuffers.emplace(vis.f.builder()).value().emplace(buffer_expr->variable().uid());
+                mark_coherent(args[0]);
             }
             str << "_bytebfwrite"sv;
             auto elem = args[2]->type();
