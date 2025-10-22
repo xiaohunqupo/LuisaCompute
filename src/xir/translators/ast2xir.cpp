@@ -582,11 +582,15 @@ private:
             case CallOp::ATOMIC_FETCH_MAX: return atomic_call(AtomicOp::FETCH_MAX);
             case CallOp::ADDRESS_OF: LUISA_ERROR_WITH_LOCATION("Removed address_of operation.");
             case CallOp::BUFFER_READ: return resource_call(ResourceReadOp::BUFFER_READ);
+            case CallOp::BUFFER_VOLATILE_READ: return resource_call(ResourceReadOp::BUFFER_VOLATILE_READ);
             case CallOp::BUFFER_WRITE: return resource_call(ResourceWriteOp::BUFFER_WRITE);
+            case CallOp::BUFFER_VOLATILE_WRITE: return resource_call(ResourceWriteOp::BUFFER_VOLATILE_WRITE);
             case CallOp::BUFFER_SIZE: return resource_call(ResourceQueryOp::BUFFER_SIZE);
             case CallOp::BUFFER_ADDRESS: return resource_call(ResourceQueryOp::BUFFER_DEVICE_ADDRESS);
             case CallOp::BYTE_BUFFER_READ: return resource_call(ResourceReadOp::BYTE_BUFFER_READ);
+            case CallOp::BYTE_BUFFER_VOLATILE_READ: return resource_call(ResourceReadOp::BYTE_BUFFER_VOLATILE_READ);
             case CallOp::BYTE_BUFFER_WRITE: return resource_call(ResourceWriteOp::BYTE_BUFFER_WRITE);
+            case CallOp::BYTE_BUFFER_VOLATILE_WRITE: return resource_call(ResourceWriteOp::BYTE_BUFFER_VOLATILE_WRITE);
             case CallOp::BYTE_BUFFER_SIZE: return resource_call(ResourceQueryOp::BYTE_BUFFER_SIZE);
             case CallOp::TEXTURE_READ: return resource_call(texture_dim() == 2u ? ResourceReadOp::TEXTURE2D_READ : ResourceReadOp::TEXTURE3D_READ);
             case CallOp::TEXTURE_WRITE: return resource_call(texture_dim() == 2u ? ResourceWriteOp::TEXTURE2D_WRITE : ResourceWriteOp::TEXTURE3D_WRITE);

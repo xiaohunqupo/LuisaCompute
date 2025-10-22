@@ -164,12 +164,30 @@ template<typename T, typename Index>
 }
 
 template<typename T, typename Index>
+[[nodiscard]] __device__ T lc_buffer_volatile_read(LCBuffer<T> buffer, Index index) noexcept {
+    lc_assume(__isGlobal(buffer.ptr));
+#ifdef LUISA_DEBUG
+    lc_check_in_bounds(index, lc_buffer_size(buffer));
+#endif
+    return (reinterpret_cast<volatile T*>(buffer.ptr))[index];
+}
+
+template<typename T, typename Index>
 __device__ void lc_buffer_write(LCBuffer<T> buffer, Index index, T value) noexcept {
     lc_assume(__isGlobal(buffer.ptr));
 #ifdef LUISA_DEBUG
     lc_check_in_bounds(index, lc_buffer_size(buffer));
 #endif
     buffer.ptr[index] = value;
+}
+
+template<typename T, typename Index>
+__device__ void lc_buffer_volatile_write(LCBuffer<T> buffer, Index index, T value) noexcept {
+    lc_assume(__isGlobal(buffer.ptr));
+#ifdef LUISA_DEBUG
+    lc_check_in_bounds(index, lc_buffer_size(buffer));
+#endif
+    (reinterpret_cast<volatile T*>(buffer.ptr))[index] = value;
 }
 
 template<typename T>
@@ -2486,6 +2504,17 @@ template<typename T>
 }
 
 template<typename T>
+[[nodiscard]] __device__ T lc_byte_buffer_volatile_read(LCBuffer<const lc_ubyte> buffer, lc_ulong offset) noexcept {
+    lc_assume(__isGlobal(buffer.ptr));
+    auto address = reinterpret_cast<lc_ulong>(buffer.ptr + offset);
+#ifdef LUISA_DEBUG
+    lc_check_in_bounds(offset + sizeof(T), lc_buffer_size(buffer) + 1u);
+    lc_assert(address % alignof(T) == 0u && "unaligned access");
+#endif
+    return *(reinterpret_cast<volatile T *>(address));
+}
+
+template<typename T>
 __device__ void lc_byte_buffer_write(LCBuffer<lc_ubyte> buffer, lc_ulong offset, T value) noexcept {
     lc_assume(__isGlobal(buffer.ptr));
     auto address = reinterpret_cast<lc_ulong>(buffer.ptr + offset);
@@ -2494,6 +2523,16 @@ __device__ void lc_byte_buffer_write(LCBuffer<lc_ubyte> buffer, lc_ulong offset,
     lc_assert(address % alignof(T) == 0u && "unaligned access");
 #endif
     *reinterpret_cast<T *>(address) = value;
+}
+template<typename T>
+__device__ void lc_byte_buffer_volatile_write(LCBuffer<lc_ubyte> buffer, lc_ulong offset, T value) noexcept {
+    lc_assume(__isGlobal(buffer.ptr));
+    auto address = reinterpret_cast<lc_ulong>(buffer.ptr + offset);
+#ifdef LUISA_DEBUG
+    lc_check_in_bounds(offset + sizeof(T), lc_buffer_size(buffer) + 1u);
+    lc_assert(address % alignof(T) == 0u && "unaligned access");
+#endif
+    *(reinterpret_cast<volatile T *>(address)) = value;
 }
 
 [[nodiscard]] __device__ auto lc_byte_buffer_size(LCBuffer<const lc_byte> buffer) noexcept {

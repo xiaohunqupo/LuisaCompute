@@ -1576,8 +1576,15 @@ void CUDACodegenXIR::_emit_resource_query_inst(const xir::ResourceQueryInst *ins
 void CUDACodegenXIR::_emit_resource_read_inst(const xir::ResourceReadInst *inst) noexcept {
     _emit_result_value_eq(inst);
     switch (inst->op()) {
+        case xir::ResourceReadOp::BUFFER_VOLATILE_READ: _scratch << "lc_buffer_volatile_read"; break;
         case xir::ResourceReadOp::BUFFER_READ: _scratch << "lc_buffer_read"; break;
         case xir::ResourceReadOp::BYTE_BUFFER_READ: {
+            _scratch << "lc_byte_buffer_read<";
+            _emit_type_name(inst->type());
+            _scratch << ">";
+            break;
+        }
+        case xir::ResourceReadOp::BYTE_BUFFER_VOLATILE_READ: {
             _scratch << "lc_byte_buffer_read<";
             _emit_type_name(inst->type());
             _scratch << ">";
@@ -1617,7 +1624,9 @@ void CUDACodegenXIR::_emit_resource_write_inst(const xir::ResourceWriteInst *ins
     _emit_result_value_eq(inst);
     switch (inst->op()) {
         case xir::ResourceWriteOp::BUFFER_WRITE: _scratch << "lc_buffer_write"; break;
+        case xir::ResourceWriteOp::BUFFER_VOLATILE_WRITE: _scratch << "lc_buffer_volatile_write"; break;
         case xir::ResourceWriteOp::BYTE_BUFFER_WRITE: _scratch << "lc_byte_buffer_write"; break;
+        case xir::ResourceWriteOp::BYTE_BUFFER_VOLATILE_WRITE: _scratch << "lc_byte_buffer_volatile_write"; break;
         case xir::ResourceWriteOp::TEXTURE2D_WRITE: _scratch << "lc_texture_write"; break;
         case xir::ResourceWriteOp::TEXTURE3D_WRITE: _scratch << "lc_texture_write"; break;
         case xir::ResourceWriteOp::BINDLESS_BUFFER_WRITE: _scratch << "lc_bindless_buffer_write"; break;

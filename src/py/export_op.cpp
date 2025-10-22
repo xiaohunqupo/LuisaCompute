@@ -128,8 +128,8 @@ void export_op(py::module &m) {
         .value("ATOMIC_FETCH_MIN", CallOp::ATOMIC_FETCH_MIN)              /// [(atomic_ref, val) -> old]: stores min(old, val), returns old.
         .value("ATOMIC_FETCH_MAX", CallOp::ATOMIC_FETCH_MAX)              /// [(atomic_ref, val) -> old]: stores max(old, val), returns old.
 
-        .value("VOLATILE_WRITE", CallOp::VOLATILE_WRITE)  /// [(buffer, index) -> value]: reads the index-th element in buffer
-        .value("VOLATILE_READ", CallOp::VOLATILE_READ)  /// [(buffer, index) -> value]: reads the index-th element in buffer
+        .value("BUFFER_VOLATILE_WRITE", CallOp::BUFFER_VOLATILE_WRITE)  /// [(buffer, index) -> value]: reads the index-th element in buffer
+        .value("BUFFER_VOLATILE_READ", CallOp::BUFFER_VOLATILE_READ)  /// [(buffer, index) -> value]: reads the index-th element in buffer
         .value("BUFFER_READ", CallOp::BUFFER_READ)  /// [(buffer, index) -> value]: reads the index-th element in buffer
         .value("BUFFER_WRITE", CallOp::BUFFER_WRITE)/// [(buffer, index, value) -> void]: writes value into the index-th element of buffer
         .value("BYTE_BUFFER_VOLATILE_READ", CallOp::BYTE_BUFFER_VOLATILE_READ)

@@ -933,7 +933,9 @@ void CUDACodegenAST::visit(const CallExpr *expr) {
         case CallOp::ATOMIC_FETCH_MIN: _scratch << "lc_atomic_fetch_min"; break;
         case CallOp::ATOMIC_FETCH_MAX: _scratch << "lc_atomic_fetch_max"; break;
         case CallOp::BUFFER_READ: _scratch << "lc_buffer_read"; break;
+        case CallOp::BUFFER_VOLATILE_READ: _scratch << "lc_buffer_volatile_read"; break;
         case CallOp::BUFFER_WRITE: _scratch << "lc_buffer_write"; break;
+        case CallOp::BUFFER_VOLATILE_WRITE: _scratch << "lc_buffer_volatile_write"; break;
         case CallOp::BUFFER_SIZE: _scratch << "lc_buffer_size"; break;
         case CallOp::BUFFER_ADDRESS: _scratch << "lc_buffer_address"; break;
         case CallOp::BYTE_BUFFER_READ: {
@@ -942,7 +944,14 @@ void CUDACodegenAST::visit(const CallExpr *expr) {
             _scratch << ">";
             break;
         }
+        case CallOp::BYTE_BUFFER_VOLATILE_READ: {
+            _scratch << "lc_byte_buffer_volatile_read<";
+            _emit_type_name(expr->type());
+            _scratch << ">";
+            break;
+        }
         case CallOp::BYTE_BUFFER_WRITE: _scratch << "lc_byte_buffer_write"; break;
+        case CallOp::BYTE_BUFFER_VOLATILE_WRITE: _scratch << "lc_byte_buffer_volatile_write"; break;
         case CallOp::BYTE_BUFFER_SIZE: _scratch << "lc_byte_buffer_size"; break;
         case CallOp::TEXTURE_READ: _scratch << "lc_texture_read"; break;
         case CallOp::TEXTURE_WRITE: _scratch << "lc_texture_write"; break;

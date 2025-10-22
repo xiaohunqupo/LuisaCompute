@@ -1165,13 +1165,13 @@ luisa::string_view Clanguage_CodegenUtils::gen_callop(CallOp op, Type const *ret
                     tmp_sb << ';';
                 } break;
                 case CallOp::BUFFER_READ:
-                case CallOp::VOLATILE_READ: {
+                case CallOp::BUFFER_VOLATILE_READ: {
                     tmp_sb << "return ((";
                     get_type_name(tmp_sb, return_type);
                     tmp_sb << "*)(a0.ptr))[a1];";
                 } break;
                 case CallOp::BUFFER_WRITE:
-                case CallOp::VOLATILE_WRITE: {
+                case CallOp::BUFFER_VOLATILE_WRITE: {
                     tmp_sb << "((";
                     get_type_name(tmp_sb, arg_types[2]);
                     tmp_sb << "*)(a0.ptr))[a1] = a2;";

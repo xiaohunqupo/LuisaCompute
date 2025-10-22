@@ -844,8 +844,8 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             }
         } break;
         case CallOp::BUFFER_READ:
-        case CallOp::VOLATILE_READ: {
-            if (expr->op() == CallOp::VOLATILE_READ) {
+        case CallOp::BUFFER_VOLATILE_READ: {
+            if (expr->op() == CallOp::BUFFER_VOLATILE_READ) {
                 LUISA_DEBUG_ASSERT(args[0]->tag() == Expression::Tag::REF);
                 auto buffer_expr = static_cast<RefExpr const *>(args[0]);
                 opt->globallyCoherentBuffers.emplace(vis.f.builder()).value().emplace(buffer_expr->variable().uid());
@@ -875,8 +875,8 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             return;
         }
         case CallOp::BUFFER_WRITE:
-        case CallOp::VOLATILE_WRITE: {
-            if (expr->op() == CallOp::VOLATILE_WRITE) {
+        case CallOp::BUFFER_VOLATILE_WRITE: {
+            if (expr->op() == CallOp::BUFFER_VOLATILE_WRITE) {
                 LUISA_DEBUG_ASSERT(args[0]->tag() == Expression::Tag::REF);
                 auto buffer_expr = static_cast<RefExpr const *>(args[0]);
                 opt->globallyCoherentBuffers.emplace(vis.f.builder()).value().emplace(buffer_expr->variable().uid());

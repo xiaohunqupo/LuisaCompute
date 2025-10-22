@@ -95,7 +95,7 @@ public:
     [[nodiscard]] auto volatile_read(I &&index) const noexcept {
         auto f = detail::FunctionBuilder::current();
         auto expr = f->call(
-            Type::of<T>(), CallOp::VOLATILE_READ,
+            Type::of<T>(), CallOp::BUFFER_VOLATILE_READ,
             {_expression,
              detail::extract_expression(std::forward<I>(index))});
         return def<T>(expr);
@@ -117,7 +117,7 @@ public:
         requires is_integral_expr_v<I>
     void volatile_write(I &&index, Expr<T> value) const noexcept {
         detail::FunctionBuilder::current()->call(
-            CallOp::VOLATILE_WRITE,
+            CallOp::BUFFER_VOLATILE_WRITE,
             {_expression,
              detail::extract_expression(std::forward<I>(index)),
              value.expression()});
