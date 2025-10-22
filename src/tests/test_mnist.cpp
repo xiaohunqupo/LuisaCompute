@@ -125,6 +125,7 @@ struct MnistInterpreter {
             UInt2 coord = dispatch_id().xy();
             auto uv = (make_float2(coord) + 0.5f) / make_float2(dispatch_size().xy());
             auto dist = saturate(sd_capsule(uv, last_pos, pos, 0.01f) * 0.25f * mnist_resolution.x);
+
             auto idx = coord.x + coord.y * mnist_resolution.x;
             $if (clear) {
                 hdr_img.write(idx, dist);
