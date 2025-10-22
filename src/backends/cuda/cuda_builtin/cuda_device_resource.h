@@ -16,7 +16,7 @@ __device__ void lc_assume(bool) noexcept {}
 
 [[noreturn]] void lc_trap() noexcept { asm volatile("trap;"); }
 
-void lc_debug_break() noexcept {/* currently do nothing */}
+void lc_debug_break() noexcept { /* currently do nothing */ }
 
 template<typename T = void>
 [[noreturn]] __device__ T lc_unreachable(
@@ -169,7 +169,7 @@ template<typename T, typename Index>
 #ifdef LUISA_DEBUG
     lc_check_in_bounds(index, lc_buffer_size(buffer));
 #endif
-    return (reinterpret_cast<volatile T*>(buffer.ptr))[index];
+    return reinterpret_cast<volatile T *>(buffer.ptr)[index];
 }
 
 template<typename T, typename Index>
@@ -1330,11 +1330,11 @@ static_assert(sizeof(LCCommittedHit) == 24u, "LCCommittedHit size mismatch");
 static_assert(alignof(LCCommittedHit) == 8u, "LCCommittedHit align mismatch");
 
 struct alignas(16) LCMotionSRT {
-    lc_array<lc_float, 3> m0; // pivot
-    lc_array<lc_float, 4> m1; // quaternion
-    lc_array<lc_float, 3> m2; // scale
-    lc_array<lc_float, 3> m3; // shear
-    lc_array<lc_float, 3> m4; // translation
+    lc_array<lc_float, 3> m0;// pivot
+    lc_array<lc_float, 4> m1;// quaternion
+    lc_array<lc_float, 3> m2;// scale
+    lc_array<lc_float, 3> m3;// shear
+    lc_array<lc_float, 3> m4;// translation
 };
 
 static_assert(sizeof(LCMotionSRT) == 64u, "LCMotionSRT size mismatch");
@@ -1763,9 +1763,9 @@ enum LCHitKind : lc_uint {
 
 template<lc_uint payload_type, lc_uint sbt_offset, lc_uint reg_count = 0u>
 void lc_ray_traverse(lc_uint flags, LCAccel accel,
-                            LCRay ray, lc_float time, lc_uint mask,
-                            lc_uint r0 = lc_undef(),
-                            lc_uint r1 = lc_undef()) noexcept {
+                     LCRay ray, lc_float time, lc_uint mask,
+                     lc_uint r0 = lc_undef(),
+                     lc_uint r1 = lc_undef()) noexcept {
     static_assert(reg_count <= 2u, "Register count must be less than 2.");
     auto ox = ray.m0[0];
     auto oy = ray.m0[1];
@@ -2568,42 +2568,42 @@ __device__ void lc_byte_buffer_volatile_write(LCBuffer<lc_ubyte> buffer, lc_ulon
 [[nodiscard]] __device__ auto __match_all_sync(unsigned int mask, lc_half x, int *pred) noexcept {
     return __match_all_sync(mask, static_cast<float>(x), pred);
 }
-#define LC_WARP_ALL_EQ_SCALAR(T)                                                  \
+#define LC_WARP_ALL_EQ_SCALAR(T)                                           \
     [[nodiscard]] __device__ auto lc_warp_active_all_equal(T x) noexcept { \
-        auto mask = LC_WARP_ACTIVE_MASK;                                          \
-        auto pred = 0;                                                            \
-        __match_all_sync(mask, x, &pred);                                         \
-        return pred != 0;                                                         \
+        auto mask = LC_WARP_ACTIVE_MASK;                                   \
+        auto pred = 0;                                                     \
+        __match_all_sync(mask, x, &pred);                                  \
+        return pred != 0;                                                  \
     }
 #else
-#define LC_WARP_ALL_EQ_SCALAR(T)                                                  \
+#define LC_WARP_ALL_EQ_SCALAR(T)                                           \
     [[nodiscard]] __device__ auto lc_warp_active_all_equal(T x) noexcept { \
-        auto mask = LC_WARP_ACTIVE_MASK;                                          \
-        auto first = __ffs(mask) - 1u;                                            \
-        auto x0 = __shfl_sync(mask, x, first);                                    \
-        return static_cast<bool>(__all_sync(mask, x == x0));                      \
+        auto mask = LC_WARP_ACTIVE_MASK;                                   \
+        auto first = __ffs(mask) - 1u;                                     \
+        auto x0 = __shfl_sync(mask, x, first);                             \
+        return static_cast<bool>(__all_sync(mask, x == x0));               \
     }
 #endif
 
-#define LC_WARP_ALL_EQ_VECTOR2(T)                                                    \
+#define LC_WARP_ALL_EQ_VECTOR2(T)                                             \
     [[nodiscard]] __device__ auto lc_warp_active_all_equal(T##2 v) noexcept { \
-        return lc_make_bool2(lc_warp_active_all_equal(v.x),                          \
-                             lc_warp_active_all_equal(v.y));                         \
+        return lc_make_bool2(lc_warp_active_all_equal(v.x),                   \
+                             lc_warp_active_all_equal(v.y));                  \
     }
 
-#define LC_WARP_ALL_EQ_VECTOR3(T)                                                    \
+#define LC_WARP_ALL_EQ_VECTOR3(T)                                             \
     [[nodiscard]] __device__ auto lc_warp_active_all_equal(T##3 v) noexcept { \
-        return lc_make_bool3(lc_warp_active_all_equal(v.x),                          \
-                             lc_warp_active_all_equal(v.y),                          \
-                             lc_warp_active_all_equal(v.z));                         \
+        return lc_make_bool3(lc_warp_active_all_equal(v.x),                   \
+                             lc_warp_active_all_equal(v.y),                   \
+                             lc_warp_active_all_equal(v.z));                  \
     }
 
-#define LC_WARP_ALL_EQ_VECTOR4(T)                                                    \
+#define LC_WARP_ALL_EQ_VECTOR4(T)                                             \
     [[nodiscard]] __device__ auto lc_warp_active_all_equal(T##4 v) noexcept { \
-        return lc_make_bool4(lc_warp_active_all_equal(v.x),                          \
-                             lc_warp_active_all_equal(v.y),                          \
-                             lc_warp_active_all_equal(v.z),                          \
-                             lc_warp_active_all_equal(v.w));                         \
+        return lc_make_bool4(lc_warp_active_all_equal(v.x),                   \
+                             lc_warp_active_all_equal(v.y),                   \
+                             lc_warp_active_all_equal(v.z),                   \
+                             lc_warp_active_all_equal(v.w));                  \
     }
 
 #define LC_WARP_ALL_EQ(T)     \
@@ -2650,17 +2650,17 @@ template<typename T>
 template<typename T>
 [[nodiscard]] __device__ constexpr T lc_bit_xor(T x, T y) noexcept { return x ^ y; }
 
-#define LC_WARP_REDUCE_BIT_SCALAR_FALLBACK(op, T)                                     \
-    [[nodiscard]] __device__ auto lc_warp_active_bit_##op(lc_##T x) noexcept { \
-        return static_cast<lc_##T>(lc_warp_active_reduce_impl(                        \
-            x, [](lc_##T a, lc_##T b) noexcept { return lc_bit_##op(a, b); }));       \
+#define LC_WARP_REDUCE_BIT_SCALAR_FALLBACK(op, T)                               \
+    [[nodiscard]] __device__ auto lc_warp_active_bit_##op(lc_##T x) noexcept {  \
+        return static_cast<lc_##T>(lc_warp_active_reduce_impl(                  \
+            x, [](lc_##T a, lc_##T b) noexcept { return lc_bit_##op(a, b); })); \
     }
 
 #if __CUDA_ARCH__ >= 800
-#define LC_WARP_REDUCE_BIT_SCALAR(op, T)                                              \
-    [[nodiscard]] __device__ auto lc_warp_active_bit_##op(lc_##T x) noexcept { \
-        return static_cast<lc_##T>(__reduce_##op##_sync(LC_WARP_ACTIVE_MASK,          \
-                                                        static_cast<lc_uint>(x)));    \
+#define LC_WARP_REDUCE_BIT_SCALAR(op, T)                                           \
+    [[nodiscard]] __device__ auto lc_warp_active_bit_##op(lc_##T x) noexcept {     \
+        return static_cast<lc_##T>(__reduce_##op##_sync(LC_WARP_ACTIVE_MASK,       \
+                                                        static_cast<lc_uint>(x))); \
     }
 #else
 #define LC_WARP_REDUCE_BIT_SCALAR(op, T) LC_WARP_REDUCE_BIT_SCALAR_FALLBACK(op, T)
@@ -2690,21 +2690,21 @@ LC_WARP_REDUCE_BIT_SCALAR_FALLBACK(xor, long)
 #undef LC_WARP_REDUCE_BIT_SCALAR_FALLBACK
 #undef LC_WARP_REDUCE_BIT_SCALAR
 
-#define LC_WARP_REDUCE_BIT_VECTOR(op, T)                                                 \
+#define LC_WARP_REDUCE_BIT_VECTOR(op, T)                                          \
     [[nodiscard]] __device__ auto lc_warp_active_bit_##op(lc_##T##2 v) noexcept { \
-        return lc_make_##T##2(lc_warp_active_bit_##op(v.x),                              \
-                              lc_warp_active_bit_##op(v.y));                             \
-    }                                                                                    \
+        return lc_make_##T##2(lc_warp_active_bit_##op(v.x),                       \
+                              lc_warp_active_bit_##op(v.y));                      \
+    }                                                                             \
     [[nodiscard]] __device__ auto lc_warp_active_bit_##op(lc_##T##3 v) noexcept { \
-        return lc_make_##T##3(lc_warp_active_bit_##op(v.x),                              \
-                              lc_warp_active_bit_##op(v.y),                              \
-                              lc_warp_active_bit_##op(v.z));                             \
-    }                                                                                    \
+        return lc_make_##T##3(lc_warp_active_bit_##op(v.x),                       \
+                              lc_warp_active_bit_##op(v.y),                       \
+                              lc_warp_active_bit_##op(v.z));                      \
+    }                                                                             \
     [[nodiscard]] __device__ auto lc_warp_active_bit_##op(lc_##T##4 v) noexcept { \
-        return lc_make_##T##4(lc_warp_active_bit_##op(v.x),                              \
-                              lc_warp_active_bit_##op(v.y),                              \
-                              lc_warp_active_bit_##op(v.z),                              \
-                              lc_warp_active_bit_##op(v.w));                             \
+        return lc_make_##T##4(lc_warp_active_bit_##op(v.x),                       \
+                              lc_warp_active_bit_##op(v.y),                       \
+                              lc_warp_active_bit_##op(v.z),                       \
+                              lc_warp_active_bit_##op(v.w));                      \
     }
 
 LC_WARP_REDUCE_BIT_VECTOR(and, uint)
@@ -2743,30 +2743,30 @@ LC_WARP_REDUCE_BIT_VECTOR(xor, int)
     return lc_popcount(__ballot_sync(LC_WARP_ACTIVE_MASK, pred) & lc_warp_prefix_mask());
 }
 
-#define LC_WARP_READ_LANE_SCALAR(T)                                                        \
+#define LC_WARP_READ_LANE_SCALAR(T)                                                 \
     [[nodiscard]] __device__ auto lc_warp_read_lane(lc_##T x, lc_uint i) noexcept { \
-        return static_cast<lc_##T>(__shfl_sync(LC_WARP_ACTIVE_MASK, x, i));                \
+        return static_cast<lc_##T>(__shfl_sync(LC_WARP_ACTIVE_MASK, x, i));         \
     }
 
-#define LC_WARP_READ_LANE_VECTOR2(T)                                                          \
+#define LC_WARP_READ_LANE_VECTOR2(T)                                                   \
     [[nodiscard]] __device__ auto lc_warp_read_lane(lc_##T##2 v, lc_uint i) noexcept { \
-        return lc_make_##T##2(lc_warp_read_lane(v.x, i),                                      \
-                              lc_warp_read_lane(v.y, i));                                     \
+        return lc_make_##T##2(lc_warp_read_lane(v.x, i),                               \
+                              lc_warp_read_lane(v.y, i));                              \
     }
 
-#define LC_WARP_READ_LANE_VECTOR3(T)                                                          \
+#define LC_WARP_READ_LANE_VECTOR3(T)                                                   \
     [[nodiscard]] __device__ auto lc_warp_read_lane(lc_##T##3 v, lc_uint i) noexcept { \
-        return lc_make_##T##3(lc_warp_read_lane(v.x, i),                                      \
-                              lc_warp_read_lane(v.y, i),                                      \
-                              lc_warp_read_lane(v.z, i));                                     \
+        return lc_make_##T##3(lc_warp_read_lane(v.x, i),                               \
+                              lc_warp_read_lane(v.y, i),                               \
+                              lc_warp_read_lane(v.z, i));                              \
     }
 
-#define LC_WARP_READ_LANE_VECTOR4(T)                                                          \
+#define LC_WARP_READ_LANE_VECTOR4(T)                                                   \
     [[nodiscard]] __device__ auto lc_warp_read_lane(lc_##T##4 v, lc_uint i) noexcept { \
-        return lc_make_##T##4(lc_warp_read_lane(v.x, i),                                      \
-                              lc_warp_read_lane(v.y, i),                                      \
-                              lc_warp_read_lane(v.z, i),                                      \
-                              lc_warp_read_lane(v.w, i));                                     \
+        return lc_make_##T##4(lc_warp_read_lane(v.x, i),                               \
+                              lc_warp_read_lane(v.y, i),                               \
+                              lc_warp_read_lane(v.z, i),                               \
+                              lc_warp_read_lane(v.w, i));                              \
     }
 
 #define LC_WARP_READ_LANE(T)     \
@@ -2832,9 +2832,9 @@ template<typename T>
     return lc_warp_active_reduce_impl(x, [](T a, T b) noexcept { return a * b; });
 }
 
-#define LC_WARP_ACTIVE_REDUCE_SCALAR(op, T)                                       \
+#define LC_WARP_ACTIVE_REDUCE_SCALAR(op, T)                                \
     [[nodiscard]] __device__ auto lc_warp_active_##op(lc_##T x) noexcept { \
-        return lc_warp_active_##op##_impl<lc_##T>(x);                             \
+        return lc_warp_active_##op##_impl<lc_##T>(x);                      \
     }
 
 #if __CUDA_ARCH__ >= 800
@@ -2917,25 +2917,25 @@ LC_WARP_ACTIVE_REDUCE_SCALAR(product, half)
 
 #undef LC_WARP_ACTIVE_REDUCE_SCALAR
 
-#define LC_WARP_ACTIVE_REDUCE_VECTOR2(op, T)                                         \
+#define LC_WARP_ACTIVE_REDUCE_VECTOR2(op, T)                                  \
     [[nodiscard]] __device__ auto lc_warp_active_##op(lc_##T##2 v) noexcept { \
-        return lc_make_##T##2(lc_warp_active_##op(v.x),                              \
-                              lc_warp_active_##op(v.y));                             \
+        return lc_make_##T##2(lc_warp_active_##op(v.x),                       \
+                              lc_warp_active_##op(v.y));                      \
     }
 
-#define LC_WARP_ACTIVE_REDUCE_VECTOR3(op, T)                                         \
+#define LC_WARP_ACTIVE_REDUCE_VECTOR3(op, T)                                  \
     [[nodiscard]] __device__ auto lc_warp_active_##op(lc_##T##3 v) noexcept { \
-        return lc_make_##T##3(lc_warp_active_##op(v.x),                              \
-                              lc_warp_active_##op(v.y),                              \
-                              lc_warp_active_##op(v.z));                             \
+        return lc_make_##T##3(lc_warp_active_##op(v.x),                       \
+                              lc_warp_active_##op(v.y),                       \
+                              lc_warp_active_##op(v.z));                      \
     }
 
-#define LC_WARP_ACTIVE_REDUCE_VECTOR4(op, T)                                         \
+#define LC_WARP_ACTIVE_REDUCE_VECTOR4(op, T)                                  \
     [[nodiscard]] __device__ auto lc_warp_active_##op(lc_##T##4 v) noexcept { \
-        return lc_make_##T##4(lc_warp_active_##op(v.x),                              \
-                              lc_warp_active_##op(v.y),                              \
-                              lc_warp_active_##op(v.z),                              \
-                              lc_warp_active_##op(v.w));                             \
+        return lc_make_##T##4(lc_warp_active_##op(v.x),                       \
+                              lc_warp_active_##op(v.y),                       \
+                              lc_warp_active_##op(v.z),                       \
+                              lc_warp_active_##op(v.w));                      \
     }
 
 #define LC_WARP_ACTIVE_REDUCE(T)              \
@@ -2998,30 +2998,30 @@ template<typename T>
     return lc_warp_prefix_reduce_impl(x, static_cast<T>(1), [](T a, T b) noexcept { return a * b; });
 }
 
-#define LC_WARP_PREFIX_REDUCE_SCALAR(op, T)                                       \
+#define LC_WARP_PREFIX_REDUCE_SCALAR(op, T)                                \
     [[nodiscard]] __device__ auto lc_warp_prefix_##op(lc_##T x) noexcept { \
-        return lc_warp_prefix_##op##_impl<lc_##T>(x);                             \
+        return lc_warp_prefix_##op##_impl<lc_##T>(x);                      \
     }
 
-#define LC_WARP_PREFIX_REDUCE_VECTOR2(op, T)                                         \
+#define LC_WARP_PREFIX_REDUCE_VECTOR2(op, T)                                  \
     [[nodiscard]] __device__ auto lc_warp_prefix_##op(lc_##T##2 v) noexcept { \
-        return lc_make_##T##2(lc_warp_prefix_##op(v.x),                              \
-                              lc_warp_prefix_##op(v.y));                             \
+        return lc_make_##T##2(lc_warp_prefix_##op(v.x),                       \
+                              lc_warp_prefix_##op(v.y));                      \
     }
 
-#define LC_WARP_PREFIX_REDUCE_VECTOR3(op, T)                                         \
+#define LC_WARP_PREFIX_REDUCE_VECTOR3(op, T)                                  \
     [[nodiscard]] __device__ auto lc_warp_prefix_##op(lc_##T##3 v) noexcept { \
-        return lc_make_##T##3(lc_warp_prefix_##op(v.x),                              \
-                              lc_warp_prefix_##op(v.y),                              \
-                              lc_warp_prefix_##op(v.z));                             \
+        return lc_make_##T##3(lc_warp_prefix_##op(v.x),                       \
+                              lc_warp_prefix_##op(v.y),                       \
+                              lc_warp_prefix_##op(v.z));                      \
     }
 
-#define LC_WARP_PREFIX_REDUCE_VECTOR4(op, T)                                         \
+#define LC_WARP_PREFIX_REDUCE_VECTOR4(op, T)                                  \
     [[nodiscard]] __device__ auto lc_warp_prefix_##op(lc_##T##4 v) noexcept { \
-        return lc_make_##T##4(lc_warp_prefix_##op(v.x),                              \
-                              lc_warp_prefix_##op(v.y),                              \
-                              lc_warp_prefix_##op(v.z),                              \
-                              lc_warp_prefix_##op(v.w));                             \
+        return lc_make_##T##4(lc_warp_prefix_##op(v.x),                       \
+                              lc_warp_prefix_##op(v.y),                       \
+                              lc_warp_prefix_##op(v.z),                       \
+                              lc_warp_prefix_##op(v.w));                      \
     }
 
 #define LC_WARP_PREFIX_REDUCE(T)              \

@@ -1316,25 +1316,25 @@ private:
 
     [[nodiscard]] llvm::Value *_translate_buffer_write(CurrentFunction &current, IRBuilder &b,
                                                        const xir::ResourceWriteInst *inst,
-                                                       bool byte_address = false) noexcept {
+                                                       bool is_volatile, bool byte_address = false) noexcept {
         auto buffer = inst->operand(0u);
         auto slot = inst->operand(1u);
         auto llvm_elem_ptr = _get_buffer_element_ptr(current, b, buffer, slot, byte_address);
         auto value = inst->operand(2u);
         auto llvm_value = _lookup_value(current, b, value);// Get the value to write
         auto alignment = _get_type_alignment(value->type());
-        return b.CreateAlignedStore(llvm_value, llvm_elem_ptr, llvm::MaybeAlign{alignment});
+        return b.CreateAlignedStore(llvm_value, llvm_elem_ptr, llvm::MaybeAlign{alignment}, is_volatile);
     }
 
     [[nodiscard]] llvm::Value *_translate_buffer_read(CurrentFunction &current, IRBuilder &b,
                                                       const xir::ResourceReadInst *inst,
-                                                      bool byte_address = false) noexcept {
+                                                      bool is_volatile, bool byte_address = false) noexcept {
         auto buffer = inst->operand(0u);
         auto slot = inst->operand(1u);
         auto llvm_elem_ptr = _get_buffer_element_ptr(current, b, buffer, slot, byte_address);
         auto alignment = _get_type_alignment(inst->type());
         auto llvm_element_type = _translate_type(inst->type(), true);// Type of the value being read
-        return b.CreateAlignedLoad(llvm_element_type, llvm_elem_ptr, llvm::MaybeAlign{alignment});
+        return b.CreateAlignedLoad(llvm_element_type, llvm_elem_ptr, llvm::MaybeAlign{alignment}, is_volatile);
     }
 
     [[nodiscard]] llvm::Value *_translate_buffer_size(CurrentFunction &current, IRBuilder &b,
@@ -2682,10 +2682,10 @@ private:
     [[nodiscard]] llvm::Value *_translate_resource_read_inst(CurrentFunction &current, IRBuilder &b,
                                                              const xir::ResourceReadInst *inst) noexcept {
         switch (inst->op()) {
-            case xir::ResourceReadOp::BUFFER_VOLATILE_READ: 
-            case xir::ResourceReadOp::BUFFER_READ: return _translate_buffer_read(current, b, inst);
-            case xir::ResourceReadOp::BYTE_BUFFER_VOLATILE_READ:
-            case xir::ResourceReadOp::BYTE_BUFFER_READ: return _translate_buffer_read(current, b, inst, true);
+            case xir::ResourceReadOp::BUFFER_VOLATILE_READ: return _translate_buffer_read(current, b, inst, true);
+            case xir::ResourceReadOp::BUFFER_READ: return _translate_buffer_read(current, b, inst, false);
+            case xir::ResourceReadOp::BYTE_BUFFER_VOLATILE_READ: return _translate_buffer_read(current, b, inst, true, true);
+            case xir::ResourceReadOp::BYTE_BUFFER_READ: return _translate_buffer_read(current, b, inst, false, true);
             case xir::ResourceReadOp::TEXTURE2D_READ: return _translate_texture_read(current, b, inst);
             case xir::ResourceReadOp::TEXTURE3D_READ: return _translate_texture_read(current, b, inst);
             case xir::ResourceReadOp::BINDLESS_TEXTURE2D_READ: return _translate_bindless_texture_access(current, b, "luisa.bindless.texture2d.read", inst);
@@ -2702,10 +2702,10 @@ private:
     [[nodiscard]] llvm::Value *_translate_resource_write_inst(CurrentFunction &current, IRBuilder &b,
                                                               const xir::ResourceWriteInst *inst) noexcept {
         switch (inst->op()) {
-            case xir::ResourceWriteOp::BUFFER_VOLATILE_WRITE:
-            case xir::ResourceWriteOp::BUFFER_WRITE: return _translate_buffer_write(current, b, inst);
-            case xir::ResourceWriteOp::BYTE_BUFFER_VOLATILE_WRITE:
-            case xir::ResourceWriteOp::BYTE_BUFFER_WRITE: return _translate_buffer_write(current, b, inst, true);
+            case xir::ResourceWriteOp::BUFFER_VOLATILE_WRITE: return _translate_buffer_write(current, b, inst, true);
+            case xir::ResourceWriteOp::BUFFER_WRITE: return _translate_buffer_write(current, b, inst, false);
+            case xir::ResourceWriteOp::BYTE_BUFFER_VOLATILE_WRITE: return _translate_buffer_write(current, b, inst, true, true);
+            case xir::ResourceWriteOp::BYTE_BUFFER_WRITE: return _translate_buffer_write(current, b, inst, false, true);
             case xir::ResourceWriteOp::TEXTURE2D_WRITE: return _translate_texture_write(current, b, inst);
             case xir::ResourceWriteOp::TEXTURE3D_WRITE: return _translate_texture_write(current, b, inst);
             case xir::ResourceWriteOp::BINDLESS_BUFFER_WRITE: return _translate_bindless_buffer_write(current, b, inst);

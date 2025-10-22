@@ -1576,8 +1576,8 @@ void CUDACodegenXIR::_emit_resource_query_inst(const xir::ResourceQueryInst *ins
 void CUDACodegenXIR::_emit_resource_read_inst(const xir::ResourceReadInst *inst) noexcept {
     _emit_result_value_eq(inst);
     switch (inst->op()) {
-        case xir::ResourceReadOp::BUFFER_VOLATILE_READ: _scratch << "lc_buffer_volatile_read"; break;
         case xir::ResourceReadOp::BUFFER_READ: _scratch << "lc_buffer_read"; break;
+        case xir::ResourceReadOp::BUFFER_VOLATILE_READ: _scratch << "lc_buffer_volatile_read"; break;
         case xir::ResourceReadOp::BYTE_BUFFER_READ: {
             _scratch << "lc_byte_buffer_read<";
             _emit_type_name(inst->type());
