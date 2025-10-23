@@ -17,7 +17,7 @@ using InteropEvent = luisa::variant<
     TimelineEvent>;
 InteropEvent create_interop_event(Device &cuda_device, Device &render_device);
 Buffer<float> create_interop_buffer(Device &render_device, uint64_t size);
-vstd::variant<Buffer<float>, BufferView<float>> get_cuda_buffer(Device &torch_device, Device &render_device, Buffer<float> &render_buffer, uint64_t &cuda_ptr, uint64_t &cuda_handle);
+Buffer<float> get_cuda_buffer(Device &torch_device, Device &render_device, Buffer<float> &render_buffer, uint64_t &cuda_ptr, uint64_t &cuda_handle);
 void unmap_interop_handle(Device &render_device, uint64_t cuda_ptr, uint64_t handle);
 struct CudaDeviceConfigExtImpl : public CudaDeviceConfigExt {
     ExternalVkDevice external_device;
@@ -145,13 +145,13 @@ struct MnistInterpreter {
         };
         Kernel2D capsule_sdf = [&](BufferVar<float> hdr_img, Float2 last_pos, Float2 pos, Bool clear) {
             UInt2 coord = dispatch_id().xy();
-            auto uv = (make_float2(coord) + 0.5f) / make_float2(dispatch_size().xy());
-            auto dist = 1.f - saturate(sd_capsule(uv, last_pos, pos, 0.01f) * 0.8f * mnist_resolution.x);
             auto idx = coord.x + coord.y * mnist_resolution.x;
             $if (clear) {
-                hdr_img.write(idx, dist);
+                hdr_img.write(idx, 0.f);
             }
             $else {
+                auto uv = (make_float2(coord) + 0.5f) / make_float2(dispatch_size().xy());
+                auto dist = 1.f - saturate(sd_capsule(uv, last_pos, pos, 0.01f) * 0.8f * mnist_resolution.x);
                 hdr_img.write(idx, max(hdr_img.read(idx), dist));
             };
         };
@@ -220,18 +220,18 @@ struct MnistInterpreter {
         cmdlist << hdr2ldr_shader(draw_buffer, display_img, 2.f).dispatch(display_resolution);
         stream << cmdlist.commit() << swap_chain.present(display_img);
         uint64_t cuda_ptr, cuda_handle;
+        // Copy torch-tensor to display-buffer
         if (input_ptr != 0) {
             auto cuda_buffer = get_cuda_buffer(torch_device, render_device, draw_buffer, cuda_ptr, cuda_handle);
             auto torch_tensor_buffer = torch_device.import_external_buffer<float>((void *)input_ptr, draw_buffer.size());
-
-            cuda_buffer.visit([&](auto &&buffer) {
-                cmdlist << buffer.copy_from(torch_tensor_buffer);
-            });
+            cmdlist << cuda_buffer.copy_from(torch_tensor_buffer);
             // deferred deallocate external-buffer
+            // unmap memory-range after execute
             cmdlist.add_callback([this, cuda_buffer = std::move(cuda_buffer), cuda_ptr, cuda_handle]() {
                 unmap_interop_handle(render_device, cuda_ptr, cuda_handle);
             });
             cuda_stream << cmdlist.commit();
+            // Let render-stream wait cuda-inference-stream
             luisa::visit(
                 [&]<typename T>(T const &t) {
                     // Vulkan device
@@ -248,7 +248,9 @@ struct MnistInterpreter {
             cuda_ptr = 0;
             cuda_handle = 0;
         }
+        // Copy display-buffer to torch-tensor
         if (update) {
+            // Let cuda-inference-stream wait render-stream
             luisa::visit(
                 [&]<typename T>(T const &t) {
                     // Vulkan device
@@ -262,12 +264,13 @@ struct MnistInterpreter {
                     ++_evt_fence;
                 },
                 interop_event);
+            // import tensor's data pointer to buffer
             auto torch_tensor_buffer = torch_device.import_external_buffer<float>((void *)cuda_data_buffer_ptr, draw_buffer.size());
+            // make interop-buffer's cuda-view
             auto cuda_buffer = get_cuda_buffer(torch_device, render_device, draw_buffer, cuda_ptr, cuda_handle);
-            cuda_buffer.visit([&](auto &&buffer) {
-                cmdlist << torch_tensor_buffer.copy_from(buffer);
-            });
-            // deferred deallocate external-buffer
+            // copy interop-buffer to tensor
+            cmdlist << torch_tensor_buffer.copy_from(cuda_buffer);
+            // unmap memory-range after execute
             cmdlist.add_callback([this, cuda_buffer = std::move(cuda_buffer), cuda_ptr, cuda_handle]() {
                 unmap_interop_handle(render_device, cuda_ptr, cuda_handle);
             });
@@ -276,7 +279,6 @@ struct MnistInterpreter {
         return update;
     }
     ~MnistInterpreter() {
-
         stream.synchronize();
     }
 };
@@ -292,9 +294,7 @@ LUISA_EXPORT_API bool update_frame(uint64_t cuda_ptr, uint64_t input_cuda_ptr) {
     return interpreter->update(cuda_ptr, input_cuda_ptr);
 }
 LUISA_EXPORT_API void dispose() {
-    if (interpreter) {
-        interpreter.reset();
-    }
+    interpreter.reset();
 }
 
 Buffer<float> create_interop_buffer(Device &render_device, uint64_t size) {
@@ -309,7 +309,7 @@ Buffer<float> create_interop_buffer(Device &render_device, uint64_t size) {
         return {};
     }
 }
-vstd::variant<Buffer<float>, BufferView<float>> get_cuda_buffer(Device &torch_device, Device &render_device, Buffer<float> &render_buffer, uint64_t &cuda_ptr, uint64_t &cuda_handle) {
+Buffer<float> get_cuda_buffer(Device &torch_device, Device &render_device, Buffer<float> &render_buffer, uint64_t &cuda_ptr, uint64_t &cuda_handle) {
     cuda_handle = 0;
     cuda_ptr = 0;
     if (render_device.backend_name() == "vk") {
