@@ -8,6 +8,7 @@ from pathlib import Path
 from torchvision import datasets, transforms
 import logging
 import torchvision.models as models
+import sys
 
 if not torch.cuda.is_available():
     logging.error("CUDA environment unavailable.")
@@ -39,46 +40,47 @@ normalize_func = transforms.Normalize((0.1307,), (0.3081,))
 
 class NeuralNetwork(nn.Module):
     def __init__(self):
-        super().__init__()
-        self.flatten = nn.Flatten()
-        self.linear_relu_stack = nn.Sequential(
-            nn.Linear(28 * 28, 512),
-            nn.ReLU(),
-            nn.Linear(512, 512),
-            nn.ReLU(),
-            nn.Linear(512, 10),
-        )
+        super(NeuralNetwork, self).__init__()
+        self.conv1 = nn.Conv2d(1, 10, kernel_size=5) # Input channel 1 (grayscale), 10 output channels, 5x5 kernel
+        self.pool = nn.MaxPool2d(2, 2) # 2x2 max pooling
+        self.conv2 = nn.Conv2d(10, 20, kernel_size=5) # 10 input channels, 20 output channels, 5x5 kernel
+        self.fc1 = nn.Linear(320, 50) # Adjust input size based on output of conv/pool layers
+        self.fc2 = nn.Linear(50, 10) # 10 output classes for digits 0-9
 
     def forward(self, x):
-        x = self.flatten(x)
-        logits = self.linear_relu_stack(x)
-        return logits
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.pool(F.relu(self.conv2(x)))
+        x = x.view(-1, 320) # Flatten the tensor for the fully connected layer
+        x = F.relu(self.fc1(x))
+        x = self.fc2(x)
+        return x
 
 
 model = NeuralNetwork().to(device)
 
 
-def train_loop(dataloader, model, loss_fn, optimizer):
+def train_loop(dataloader, model: NeuralNetwork, loss_fn, optimizer):
     size = len(dataloader.dataset)
     # Set the model to training mode - important for batch normalization and dropout layers
     # Unnecessary in this situation but added for best practices
     model.train()
     for batch, (X, y) in enumerate(dataloader):
         # Compute prediction and loss
-        pred = model(X.to(device))
-        loss = loss_fn(pred, y.to(device))
+        inputs = X.to(device)
+        optimizer.zero_grad()
+        outputs = model(inputs)
+        loss = loss_fn(outputs, y.to(device))
 
         # Backpropagation
         loss.backward()
         optimizer.step()
-        optimizer.zero_grad()
 
         if batch % 100 == 0:
             loss, current = loss.item(), batch * batch_size + len(X)
             print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
 
 
-def test_loop(dataloader, model, loss_fn):
+def test_loop(dataloader, model: NeuralNetwork, loss_fn):
     # Set the model to evaluation mode - important for batch normalization and dropout layers
     # Unnecessary in this situation but added for best practices
     model.eval()
@@ -110,11 +112,11 @@ def get_first_test_data(dataloader):
             return X.to(device)
 
 # traning
-learning_rate = 1e-3
+learning_rate = 1e-4
 loss_fn = nn.CrossEntropyLoss()
-optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
+optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
-epochs = 15
+epochs = 5
 if not os.path.exists("mnist_model_weights.pth"):
     print("mnist_model_weights.pth not found, start training...")
     for t in range(epochs):
@@ -137,7 +139,10 @@ default_stream = torch.cuda.default_stream()
 print(f"Default CUDA Stream: {default_stream}")
 
 test_mnist = ctypes.CDLL(Path(__file__).parent / "test_mnist.pyd")
-test_mnist.init(__file__, "dx")
+backend_name = "vk"
+if len(sys.argv) > 1:
+    backend_name = sys.argv[1]
+test_mnist.init(__file__, backend_name)
 
 while not test_mnist.should_close():
     if test_mnist.update_frame(ctypes.c_uint64(cuda_pointer), ctypes.c_uint64(test_data_ptr)):

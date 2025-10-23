@@ -195,7 +195,7 @@ struct MnistInterpreter {
     }
     uint64_t _evt_fence{1};
     bool clear_next_frame{true};
-    bool space_pressed{false};
+    bool enter_pressed{false};
     bool update(uint64_t cuda_data_buffer_ptr, uint64_t input_ptr) {
         window.poll_events();
         bool update = false;
@@ -204,13 +204,15 @@ struct MnistInterpreter {
             cmdlist << capsule_sdf_shader(draw_buffer, float2(100), float2(100), true).dispatch(mnist_resolution);
         }
         if (window.is_key_down(Key::KEY_SPACE)) {
-            if (!space_pressed) {
-                clear_next_frame = true;
+            clear_next_frame = true;
+        }
+        if (window.is_key_down(Key::KEY_ENTER) || window.is_key_down(Key::KEY_KP_ENTER)) {
+            if (!enter_pressed) {
                 update = true;
             }
-            space_pressed = true;
+            enter_pressed = true;
         } else {
-            space_pressed = false;
+            enter_pressed = false;
         }
         if (pressed) {
             cmdlist << capsule_sdf_shader(draw_buffer, last_mouse_pos / make_float2(display_resolution), curr_mouse_pos / make_float2(display_resolution), false).dispatch(mnist_resolution);
@@ -235,7 +237,7 @@ struct MnistInterpreter {
                     // Vulkan device
                     if constexpr (std::is_same_v<T, TimelineEvent>) {
                         cuda_stream << t.signal(_evt_fence);
-                        stream <<  render_device.extension<VkCudaInterop>()->vk_wait(t, _evt_fence);
+                        stream << render_device.extension<VkCudaInterop>()->vk_wait(t, _evt_fence);
                     } else {
                         cuda_stream << t.cuda_signal(_evt_fence);
                         stream << t.dx_wait(_evt_fence);
