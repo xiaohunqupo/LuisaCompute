@@ -28,7 +28,7 @@ on_load(function(target, opt)
         target:add("frameworks", "CoreFoundation")
     end
     target:add("defines", "LUISA_BACKEND_ENABLE_VULKAN_SWAPCHAIN")
-    target:add("deps", "lc-vulkan-swapchain", "volk")
+    target:add("deps", "lc-vulkan-swapchain", "lc-volk")
 end)
 after_build(function(target)
     if not is_plat("windows") then

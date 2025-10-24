@@ -81,7 +81,7 @@ on_load(function(target)
         end
     end
     target:add("defines", "LUISA_BACKEND_ENABLE_VULKAN_SWAPCHAIN")
-    target:add("deps", "lc-vulkan-swapchain", "volk")
+    target:add("deps", "lc-vulkan-swapchain", "lc-volk")
 end)
 add_files("extensions/cuda_denoiser.cpp", "extensions/cuda_dstorage.cpp", "extensions/cuda_pinned_memory.cpp")
 add_links("cuda")

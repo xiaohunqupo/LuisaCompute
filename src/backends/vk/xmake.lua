@@ -15,7 +15,7 @@ elseif is_plat("linux") then
     add_defines("VK_USE_PLATFORM_XCB_KHR")
 end
 on_load(function(target)
-    target:add("deps", "volk")
+    target:add("deps", "lc-volk")
     if has_config("lc_vk_cuda_interop") then
         import("detect.sdks.find_cuda")
         import("cuda_sdkdir", {
