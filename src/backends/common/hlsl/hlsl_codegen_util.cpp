@@ -634,8 +634,19 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             str << "pow"sv;
             break;
         case CallOp::CLZ:
-            str << "firstbithigh"sv;
-            break;
+            LUISA_DEBUG_ASSERT(args.size() == 1);
+            str << "_clz("sv;
+            GetTypeName(*args[0]->type(), str, Usage::NONE);
+            str << ',';
+            args[0]->accept(vis);
+            str << ',';
+            if (args[0]->type()->is_vector()) {
+                str << luisa::format("{}", args[0]->type()->element()->size() * 8 - 1);
+            } else {
+                str << luisa::format("{}", args[0]->type()->size() * 8 - 1);
+            }
+            str << ')';
+            return;
         case CallOp::CTZ:
             str << "firstbitlow"sv;
             break;
