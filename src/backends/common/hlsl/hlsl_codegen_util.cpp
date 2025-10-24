@@ -786,7 +786,7 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
         case CallOp::ATOMIC_FETCH_MIN:
         case CallOp::ATOMIC_FETCH_MAX: {
             auto rootVar = static_cast<RefExpr const *>(args[0]);
-            if (expr->type()->is_float() || expr->op() == CallOp::ATOMIC_COMPARE_EXCHANGE) {
+            if ((expr->type()->is_float() && expr->op() != CallOp::ATOMIC_EXCHANGE) || expr->op() == CallOp::ATOMIC_COMPARE_EXCHANGE) {
                 mark_coherent(args[0]);
             }
             auto &chain = opt->GetAtomicFunc(expr->op(), rootVar->variable(), expr->type(), args);
