@@ -299,6 +299,9 @@ endif ()
 
 install(TARGETS luisa-compute-ext EXPORT LuisaComputeTargets)
 
-if (LUISA_COMPUTE_ENABLE_VULKAN OR LUISA_COMPUTE_ENABLE_CUDA)
+if (LUISA_COMPUTE_ENABLE_CPU OR
+        LUISA_COMPUTE_ENABLE_CUDA OR
+        LUISA_COMPUTE_ENABLE_REMOTE OR
+        LUISA_COMPUTE_ENABLE_FALLBACK)
     add_subdirectory(volk)
 endif ()
