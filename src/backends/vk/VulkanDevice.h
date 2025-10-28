@@ -53,9 +53,10 @@ struct VulkanDevice {
     ~VulkanDevice();
     uint32_t getMemoryType(uint32_t typeBits, VkMemoryPropertyFlags properties, VkBool32 *memTypeFound = nullptr) const;
     uint32_t getQueueFamilyIndex(VkQueueFlags queueFlags) const;
-    VkResult createLogicalDevice(VkPhysicalDeviceFeatures &enabledFeatures, vstd::span<const vstd::string> enabledExtensions, void *pNextChain, bool useSwapChain = true, VkQueueFlags requestedQueueTypes = VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT);
+    VkResult createLogicalDevice(VkPhysicalDeviceFeatures &enabledFeatures, vstd::span<const vstd::string> enabledExtensions, void *pNextChain, bool useSwapChain = true, VkQueueFlags requestedQueueTypes = VK_QUEUE_FLAG_BITS_MAX_ENUM);
     bool extensionSupported(vstd::string_view extension);
     VkFormat getSupportedDepthFormat(bool checkSamplingSupport);
     static void initVolk(luisa::filesystem::path const &custom_path, luisa::string_view lib_name);
+    static void forceFreeVolk();
 };
 }// namespace vks

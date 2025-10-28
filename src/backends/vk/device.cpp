@@ -134,7 +134,7 @@ vstd::vector<VkExtensionProperties> supported_exts(VkPhysicalDevice physical_dev
     vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &extensions_count, props.data());
     return props;
 }
-void create_instance(bool enableValidation, VkInstance &instance, luisa::filesystem::path const &custom_path, luisa::string_view lib_name) {
+void create_instance(bool enableValidation, VkInstance &instance, luisa::filesystem::path const &custom_path, luisa::string_view lib_name, luisa::span<luisa::string const> extra_exts) {
     vks::VulkanDevice::initVolk(custom_path, lib_name);
     if (!instance) {
         vstd::vector<const char *> instance_exts;
@@ -172,6 +172,9 @@ void create_instance(bool enableValidation, VkInstance &instance, luisa::filesys
 #elif defined(VK_USE_PLATFORM_HEADLESS_EXT)
         instance_exts.push_back(VK_EXT_HEADLESS_SURFACE_EXTENSION_NAME);
 #endif
+        for (auto &i : extra_exts) {
+            instance_exts.emplace_back(i.c_str());
+        }
 
         // Get extensions supported by the instance and store for later use
         uint32_t extCount = 0;
@@ -351,7 +354,14 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
 #else
                 constexpr bool enableValidation = true;
 #endif
-                detail::create_instance(enableValidation, detail::vk_instance, custom_path, lib_name);
+                luisa::vector<luisa::string> extra_exts = [&]() {
+                    if (_config_ext) {
+                        return _config_ext->extra_instance_exts();
+                    } else {
+                        return luisa::vector<luisa::string>{};
+                    }
+                }();
+                detail::create_instance(enableValidation, detail::vk_instance, custom_path, lib_name, extra_exts);
             }
         }
         bool fallback = false;
@@ -361,7 +371,7 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
         _init_device(ext_phy_device, ext_device, device_idx, fallback);
 
         if (_config_ext) {
-            _config_ext->readback_vulkan_device(instance(), physical_device(), logic_device(), alloc_callbacks(), _pso_header, _graphics_queue, _compute_queue, _copy_queue, gDxcCompiler->compiler(), gDxcCompiler->library(), gDxcCompiler->utils());
+            _config_ext->readback_vulkan_device(instance(), physical_device(), logic_device(), alloc_callbacks(), _pso_header, _graphics_queue, _compute_queue, _copy_queue, graphics_queue_index(), compute_queue_index(), copy_queue_index(), gDxcCompiler->compiler(), gDxcCompiler->library(), gDxcCompiler->utils());
         }
         exts.try_emplace(
 #ifdef LUISA_USE_SYSTEM_STL
@@ -500,6 +510,16 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
         _enable_device_exts.emplace_back(VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME);
 #endif
 #endif
+    }
+    luisa::vector<luisa::string> extra_exts = [&]() {
+        if (_config_ext) {
+            return _config_ext->extra_device_exts();
+        } else {
+            return luisa::vector<luisa::string>{};
+        }
+    }();
+    for (auto &i : extra_exts) {
+        _enable_device_exts.emplace_back(i.c_str());
     }
 
     VkPhysicalDeviceBufferDeviceAddressFeatures device_buffer_feature{
@@ -1026,15 +1046,17 @@ bool Device::is_event_completed(uint64_t handle, uint64_t fence_value) const noe
 }
 
 LUISA_EXPORT_API void backend_device_names(luisa::vector<luisa::string> &r) {
+    bool destroy_inst = false;
     {
         std::lock_guard lck{detail::instance_mtx};
         if (!detail::vk_instance) {
+            destroy_inst = true;
 #ifdef NDEBUG
             constexpr bool enableValidation = false;
 #else
             constexpr bool enableValidation = true;
 #endif
-            detail::create_instance(enableValidation, detail::vk_instance, {}, {});
+            detail::create_instance(enableValidation, detail::vk_instance, {}, {}, {});
         }
     }
     vstd::vector<VkPhysicalDevice> physical_devices;
@@ -1057,6 +1079,10 @@ LUISA_EXPORT_API void backend_device_names(luisa::vector<luisa::string> &r) {
         vkGetPhysicalDeviceProperties(i, &_device_properties);
         r.emplace_back(_device_properties.deviceName);
     }
+    if (destroy_inst) {
+        vkDestroyInstance(detail::vk_instance, Device::alloc_callbacks());
+        vks::VulkanDevice::forceFreeVolk();
+    }
 }
 
 hlsl::ShaderCompiler *Device::Compiler() {
@@ -1064,6 +1090,19 @@ hlsl::ShaderCompiler *Device::Compiler() {
 }
 
 VkInstance Device::instance() {
+    return detail::vk_instance;
+}
+// HACK: for some app need external instance without device
+LUISA_EXPORT_API VkInstance init_vk_instance(bool enable_validation, const luisa::string *extra_instance_exts, size_t extra_instance_ext_count, const char *custom_vk_lib_path, const char *custom_vk_lib_name) {
+    std::lock_guard lck{detail::instance_mtx};
+    if (!detail::vk_instance) {
+#ifdef NDEBUG
+        constexpr bool enableValidation = false;
+#else
+        constexpr bool enableValidation = true;
+#endif
+        detail::create_instance(enable_validation, detail::vk_instance, custom_vk_lib_path ? luisa::filesystem::path{custom_vk_lib_path} : luisa::filesystem::path{}, custom_vk_lib_name ? luisa::string_view{custom_vk_lib_name} : luisa::string_view{}, luisa::span{extra_instance_exts, extra_instance_ext_count});
+    }
     return detail::vk_instance;
 }
 

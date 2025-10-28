@@ -305,6 +305,10 @@ const luisa::filesystem::path &Context::data_directory() const noexcept {
     return _impl->data_directory;
 }
 
+const DynamicModule &Context::load_backend(luisa::string_view backend_name) const noexcept {
+    return _impl->load_backend(luisa::string{backend_name}).module;
+}
+
 const luisa::filesystem::path &Context::create_runtime_subdir(luisa::string_view folder_name) const noexcept {
     std::lock_guard lock{_impl->runtime_subdir_mutex};
     auto iter = _impl->runtime_subdir_paths.try_emplace(
