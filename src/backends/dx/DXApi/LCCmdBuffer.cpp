@@ -24,6 +24,31 @@
 #endif
 
 namespace lc::dx {
+auto get_resource_view(DXCustomCmd::ResourceHandle const &res) {
+    return luisa::visit(
+        [&]<typename T>(T const &t) -> EnhancedBarrierTracker::ResourceView {
+            if constexpr (std::is_same_v<T, Argument::Buffer>) {
+                return EnhancedBarrierTracker::ResourceView{
+                    BufferView{
+                        static_cast<Buffer const *>(reinterpret_cast<Resource const *>(t.handle)),
+                        t.offset,
+                        t.size}};
+            } else if constexpr (std::is_same_v<T, Argument::Texture>) {
+                return EnhancedBarrierTracker::ResourceView{
+                    EnhancedBarrierTracker::TexView{
+                        static_cast<TextureBase const *>(reinterpret_cast<Resource const *>(t.handle)),
+                        t.level}};
+            } else {
+                auto buffer = static_cast<BindlessArray const *>(reinterpret_cast<Resource const *>(t.handle))->BindlessBuffer();
+                return EnhancedBarrierTracker::ResourceView{
+                    BufferView{
+                        buffer,
+                        0,
+                        buffer->GetByteSize()}};
+            }
+        },
+        res);
+};
 CmdQueueBase::CmdQueueBase(Device *device, CmdQueueTag tag)
     : Resource{device}, tag{tag},
       logCallback([](luisa::string_view str) {
@@ -214,37 +239,12 @@ public:
         }
     };
     void visit(const DXCustomCmd *cmd) noexcept {
-        auto get_resource_view = [&](auto &&i) {
-            return luisa::visit(
-                [&]<typename T>(T const &t) -> EnhancedBarrierTracker::ResourceView {
-                    if constexpr (std::is_same_v<T, Argument::Buffer>) {
-                        return EnhancedBarrierTracker::ResourceView{
-                            BufferView{
-                                static_cast<Buffer const *>(reinterpret_cast<Resource const *>(t.handle)),
-                                t.offset,
-                                t.size}};
-                    } else if constexpr (std::is_same_v<T, Argument::Texture>) {
-                        return EnhancedBarrierTracker::ResourceView{
-                            EnhancedBarrierTracker::TexView{
-                                static_cast<TextureBase const *>(reinterpret_cast<Resource const *>(t.handle)),
-                                t.level}};
-                    } else {
-                        auto buffer = static_cast<BindlessArray const *>(reinterpret_cast<Resource const *>(t.handle))->BindlessBuffer();
-                        return EnhancedBarrierTracker::ResourceView{
-                            BufferView{
-                                buffer,
-                                0,
-                                buffer->GetByteSize()}};
-                    }
-                },
-                i.resource);
-        };
         for (auto i : const_cast<DXCustomCmd *>(cmd)->get_resource_usages()) {
-            auto res_view = get_resource_view(i);
+            auto res_view = get_resource_view(i.resource);
             stateTracker->Record(res_view, i.required_state);
         }
         for (auto i : const_cast<DXCustomCmd *>(cmd)->get_enhanced_resource_usages()) {
-            auto res_view = get_resource_view(i);
+            auto res_view = get_resource_view(i.resource);
             stateTracker->Record(
                 res_view,
                 i.sync,
@@ -1254,7 +1254,24 @@ void LCCmdBuffer::Execute(
         ID3D12DescriptorHeap *h[2] = {
             device->globalHeap->GetHeap(),
             device->samplerHeap->GetHeap()};
-
+        tracker->restoreStates.clear();
+        if (device->deviceSettings) {
+            auto after_states = device->deviceSettings->after_states(reinterpret_cast<uint64_t>(this));
+            auto before_states = device->deviceSettings->before_states(reinterpret_cast<uint64_t>(this));
+            for (auto &i : before_states) {
+                tracker->SetRes(get_resource_view(i.resource),
+                                i.sync, i.access, i.texture_layout);
+            }
+            for (auto &i : after_states) {
+                tracker->restoreStates.emplace(
+                    reinterpret_cast<Resource const *>(luisa::visit([](auto &&t) { return t.handle; }, i.resource)),
+                    EnhancedBarrierTracker::ResotreStates{
+                        get_resource_view(i.resource),
+                        i.sync,
+                        i.access,
+                        i.texture_layout});
+            }
+        }
         // for (auto &&command : commands) {
         for (auto &&lst : cmdLists) {
             if (allocType != D3D12_COMMAND_LIST_TYPE_COPY) {

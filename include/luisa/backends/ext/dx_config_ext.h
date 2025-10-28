@@ -11,6 +11,7 @@
 #endif
 #include <dxgi1_2.h>
 #include <luisa/runtime/rhi/device_interface.h>
+#include <luisa/backends/ext/dx_custom_cmd.h>
 
 struct IDxcCompiler3;
 struct IDxcLibrary;
@@ -49,18 +50,12 @@ struct DirectXDeviceConfigExt : public DeviceConfigExt {
         size_t sparse_image_block_size;
     };
 
-    struct D3D12Features {
-        bool enhanced_barrier : 1 {};
-        bool cooperative_vector : 1 {};
-    };
-
     virtual luisa::optional<ExternalDevice> CreateExternalDevice() noexcept { return {}; }
     virtual luisa::optional<GPUAllocatorSettings> GetGPUAllocatorSettings() noexcept { return {}; }
     virtual bool UseDRED() const noexcept { return false; }
     virtual bool LoadDXC() const noexcept { return true; }
     virtual bool UseEnhancedBarrier() const noexcept { return true; }
     virtual bool UseExperimental() const noexcept { return false; }
-    virtual void FeatureSupported(D3D12Features &features) noexcept {}
     // Called during create_device
     virtual void ReadbackDX12Device(
         ID3D12Device *device,
@@ -93,6 +88,8 @@ struct DirectXDeviceConfigExt : public DeviceConfigExt {
         ID3D12Fence *fence, uint64_t fenceIndex) noexcept { return false; }
     virtual bool SyncFence(ID3D12Fence *fence, uint64_t fenceIndex) { return false; }
     virtual ~DirectXDeviceConfigExt() noexcept override = default;
+    virtual luisa::span<DXCustomCmd::EnhancedResourceUsage const> before_states(uint64_t stream_handle) { return {}; }
+    virtual luisa::span<DXCustomCmd::EnhancedResourceUsage const> after_states(uint64_t stream_handle) { return {}; }
 };
 
 }// namespace luisa::compute

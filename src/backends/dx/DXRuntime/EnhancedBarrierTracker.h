@@ -81,7 +81,7 @@ public:
         bool operator!=(Range const &r) const { return !operator==(r); }
     };
     D3D12_COMMAND_LIST_TYPE listType;
-protected:
+public:
     struct BufferRange {
         // Range range;
         D3D12_BARRIER_SYNC before_sync;
@@ -98,7 +98,7 @@ protected:
     };
     struct TextureRange {
         bool level_inited{false};
-        bool level_require_update;
+        bool level_require_update{false};
         bool first_time{true};// used for backup
         D3D12_BARRIER_SYNC before_sync;
         D3D12_BARRIER_SYNC after_sync;
@@ -122,15 +122,27 @@ protected:
 
         ResourceStates(Type type, size_t size);
     };
+    struct ResotreStates {
+        ResourceView res;
+        D3D12_BARRIER_SYNC sync;
+        D3D12_BARRIER_ACCESS access;
+        D3D12_BARRIER_LAYOUT layout;
+    };
+    vstd::HashMap<Resource const*, ResotreStates> restoreStates;
     vstd::HashMap<Resource const *, ResourceStates> frameStates;
     vstd::vector<std::pair<Resource const *, ResourceStates *>> current_update_states;
     vstd::HashMap<Resource const *, size_t /* size */> writeStateMap;
-public:
     vstd::HashMap<Resource const *, size_t> &WriteStateMap() {
         return writeStateMap;
     }
     EnhancedBarrierTracker();
     virtual ~EnhancedBarrierTracker();
+    void SetRes(
+        ResourceView const &res,
+        D3D12_BARRIER_SYNC sync,
+        D3D12_BARRIER_ACCESS access,
+        D3D12_BARRIER_LAYOUT layout);
+
     void Record(
         ResourceView const &res,
         D3D12_BARRIER_SYNC sync,

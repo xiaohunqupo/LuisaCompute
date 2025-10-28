@@ -3,6 +3,7 @@
 #include <luisa/core/stl/filesystem.h>
 #include <luisa/core/stl/string.h>
 #include <luisa/runtime/rhi/device_interface.h>
+#include <luisa/backends/ext/vk_custom_cmd.h>
 struct IDxcCompiler3;
 struct IDxcLibrary;
 struct IDxcUtils;
@@ -55,5 +56,7 @@ public:
         IDxcCompiler3 *dxc_compiler,
         IDxcLibrary *dxc_library,
         IDxcUtils *dxc_utils) noexcept {}
+    virtual luisa::span<VKCustomCmd::ResourceUsage const> before_states(uint64_t stream_handle) { return {}; }
+    virtual luisa::span<VKCustomCmd::ResourceUsage const> after_states(uint64_t stream_handle) { return {}; }
 };
 }// namespace luisa::compute
