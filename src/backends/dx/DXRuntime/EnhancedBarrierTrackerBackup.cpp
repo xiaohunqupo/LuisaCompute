@@ -248,9 +248,15 @@ void EnhancedBarrierTrackerBackup::RestoreState(BarrierCallback *cmdBuffer) {
             barrier.Transition.Subresource = UINT32_MAX;
             barrier.Transition.StateBefore = before_state;
             barrier.Transition.StateAfter = after_state;
+            auto iter = restoreStates.find(i.first);
+            if (iter) {
+                auto &v = iter.value();
+                barrier.Transition.StateAfter = ToStates(v.sync, v.access, v.layout);
+            }
         } else {
             auto &vec = state.layer_states.get<1>();
             auto init_state = resPtr->GetInitState();
+            auto iter = restoreStates.find(i.first);
             for (auto idx : vstd::range(vec.size())) {
                 auto &i = vec[idx];
                 if (!i.level_inited || i.first_time) continue;
@@ -264,6 +270,10 @@ void EnhancedBarrierTrackerBackup::RestoreState(BarrierCallback *cmdBuffer) {
                 barrier.Transition.Subresource = idx;
                 barrier.Transition.StateBefore = before_state;
                 barrier.Transition.StateAfter = after_state;
+                if (iter) {
+                    auto &v = iter.value();
+                    barrier.Transition.StateAfter = ToStates(v.sync, v.access, v.layout);
+                }
             }
         }
     }

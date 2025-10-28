@@ -128,6 +128,69 @@ void ResourceBarrier::record(
         detail::BarrierAccessMap[luisa::to_underlying(usage)],
         detail::BarrierLayoutMap[luisa::to_underlying(usage)]);
 }
+void ResourceBarrier::set_res(
+    ResourceView const &res,
+    VkPipelineStageFlagBits2 stage,
+    VkAccessFlagBits2 access,
+    VkImageLayout layout) {
+    if (res.is_type_of<BufferView>()) {
+        // If the buffer is host-visible, should not be recorded by resource-barrier
+        if (res.get<0>().buffer->flush_host())
+            return;
+    }
+    using SubResource = vstd::variant<
+        BufferAfterRange,
+        uint /*tex level*/>;
+    ResourceStates::Type type;
+    bool allow_simul_access = true;
+    Resource const *vk_res;
+    size_t size;
+    VkImageLayout init_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+    auto resRange = res.multi_visit_or(
+        vstd::UndefEval<SubResource>{},
+        [&](BufferView const &bufferView) -> SubResource {
+            type = ResourceStates::Type::Buffer;
+            vk_res = bufferView.buffer;
+            size = bufferView.buffer->byte_size();
+            return BufferAfterRange{
+                // Range{bufferView.offset, bufferView.byteSize},
+                stage,
+                access};
+        },
+        [&](TexView const &texView) -> SubResource {
+            // TODO: set init layout
+            type = ResourceStates::Type::Texture;
+            size = texView.tex->mip();
+            vk_res = texView.tex;
+            init_layout = static_cast<Texture const *>(vk_res)->layout(texView.level);
+            allow_simul_access = texView.tex->simultaneous_access();
+            return texView.level;
+        });
+    auto ite = frame_states.emplace(vk_res, type, size);
+    auto &vec = ite.value().layer_states;
+
+    vec.visit(
+        [&]<typename T>(T &vec) {
+            if constexpr (std::is_same_v<T, BufferRange>) {
+                LUISA_DEBUG_ASSERT(resRange.index() == 0);
+                auto &&current_range = resRange.template get<0>();
+                vec = BufferRange{
+                    current_range.stage,
+                    VK_PIPELINE_STAGE_2_NONE,
+                    current_range.access,
+                    VK_ACCESS_2_NONE
+                    // vec.init_access,
+                };
+            } else {
+                LUISA_DEBUG_ASSERT(resRange.index() == 1);
+                auto current_level = resRange.template get<1>();
+                auto &tex_range = vec[current_level];
+                tex_range.before_stage = stage;
+                tex_range.before_access = access;
+                tex_range.before_layout = layout;
+            }
+        });
+}
 void ResourceBarrier::record(
     ResourceView const &res,
     VkPipelineStageFlagBits2 stage,
@@ -423,10 +486,17 @@ void ResourceBarrier::restore_states(VkCommandBuffer cmd_buffer) {
             barrier.buffer = static_cast<Buffer const *>(resPtr)->vk_buffer();
             barrier.offset = 0;
             barrier.size = std::numeric_limits<uint64_t>::max();
+            auto iter = restoreStates.find(i.first);
+            if (iter) {
+                auto &v = iter.value();
+                barrier.dstStageMask = v.after_stage;
+                barrier.dstAccessMask = v.after_access;
+            }
         } else {// Texture
             auto &vec = state.layer_states.get<1>();
             auto init_layout = VK_IMAGE_LAYOUT_GENERAL;
             auto tex = static_cast<Texture const *>(resPtr);
+            auto iter = restoreStates.find(i.first);
             for (auto idx : vstd::range((int64_t)vec.size())) {
                 auto &i = vec[idx];
                 if (!i.level_inited) continue;
@@ -445,6 +515,12 @@ void ResourceBarrier::restore_states(VkCommandBuffer cmd_buffer) {
                     .levelCount = 1,
                     .baseArrayLayer = 0,
                     .layerCount = 1};
+                if (iter) {
+                    auto &v = iter.value();
+                    barrier.dstStageMask = v.after_stage;
+                    barrier.newLayout = v.after_layout;
+                    barrier.dstAccessMask = v.after_access;
+                }
             }
         }
     }

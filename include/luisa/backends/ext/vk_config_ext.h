@@ -3,6 +3,7 @@
 #include <luisa/core/stl/filesystem.h>
 #include <luisa/core/stl/string.h>
 #include <luisa/runtime/rhi/device_interface.h>
+#include <luisa/backends/ext/vk_custom_cmd.h>
 struct IDxcCompiler3;
 struct IDxcLibrary;
 struct IDxcUtils;
@@ -38,6 +39,8 @@ public:
     virtual bool wait_semaphore(VkQueue queue, VkSemaphore _semaphore, uint64_t index) { return false; }
     virtual bool sync_semaphore(VkSemaphore _semaphore, uint64_t index) { return false; }
     virtual bool load_dxc() const { return true; }
+    virtual luisa::vector<luisa::string> extra_instance_exts() { return {}; }
+    virtual luisa::vector<luisa::string> extra_device_exts() { return {}; }
     virtual void readback_vulkan_device(
         VkInstance instance,
         VkPhysicalDevice physical_device,
@@ -47,8 +50,13 @@ public:
         VkQueue graphics_queue,
         VkQueue compute_queue,
         VkQueue copy_queue,
+        uint32_t graphics_queue_family_index,
+        uint32_t compute_queue_family_index,
+        uint32_t copy_queue_family_index,
         IDxcCompiler3 *dxc_compiler,
         IDxcLibrary *dxc_library,
         IDxcUtils *dxc_utils) noexcept {}
+    virtual luisa::span<VKCustomCmd::ResourceUsage const> before_states(uint64_t stream_handle) { return {}; }
+    virtual luisa::span<VKCustomCmd::ResourceUsage const> after_states(uint64_t stream_handle) { return {}; }
 };
 }// namespace luisa::compute

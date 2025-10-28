@@ -84,10 +84,13 @@ VulkanDevice::~VulkanDevice() {
     {
         std::lock_guard lck(gVolkMtx);
         if (--gVolkRefCount == 0) {
-            volkFinalize();
-            volk_initer.vk_module.reset();
+            forceFreeVolk();
         }
     }
+}
+void VulkanDevice::forceFreeVolk() {
+    volkFinalize();
+    volk_initer.vk_module.reset();
 }
 
 /**

@@ -352,25 +352,20 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
                 samplerHeap->GetHeap());
         }
         // Test device
-        DirectXDeviceConfigExt::D3D12Features features{};
         D3D12_FEATURE_DATA_D3D12_OPTIONS12 options12 = {};
         if (SUCCEEDED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS12, &options12, sizeof(options12)))) {
-            features.enhanced_barrier = options12.EnhancedBarriersSupported;
-            use_enhanced_barrier = (!deviceSettings || deviceSettings->UseEnhancedBarrier()) && options12.EnhancedBarriersSupported;
-            // use_enhanced_barrier = false;
+            use_enhanced_barrier = options12.EnhancedBarriersSupported;
         }
         if (useExperimental) {
             D3D12_FEATURE_DATA_D3D12_OPTIONS_EXPERIMENTAL FeatureDataTier = {};
             ThrowIfFailed(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS_EXPERIMENTAL,
                                                       &FeatureDataTier,
                                                       sizeof(FeatureDataTier)));
-            if (FeatureDataTier.CooperativeVectorTier >= D3D12_COOPERATIVE_VECTOR_TIER_1_0) {
-                features.cooperative_vector = true;
+            if (FeatureDataTier.CooperativeVectorTier < D3D12_COOPERATIVE_VECTOR_TIER_1_0) {
+                LUISA_ERROR("Experimental not supported.");
             }
         }
-        if (deviceSettings) {
-            deviceSettings->FeatureSupported(features);
-        }
+        use_enhanced_barrier = (!deviceSettings || deviceSettings->UseEnhancedBarrier()) && use_enhanced_barrier;
     } else {
         if (deviceSettings) {
             if (gDxcCompiler) {

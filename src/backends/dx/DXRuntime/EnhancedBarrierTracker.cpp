@@ -137,7 +137,68 @@ static D3D12_BARRIER_LAYOUT filter_layout(D3D12_BARRIER_LAYOUT last_layout, D3D1
     return last_layout;
 }
 }// namespace detail
+void EnhancedBarrierTracker::SetRes(
+    ResourceView const &res,
+    D3D12_BARRIER_SYNC sync,
+    D3D12_BARRIER_ACCESS access,
+    D3D12_BARRIER_LAYOUT layout) {
+    ResourceStates::Type type;
+    using SubResource = vstd::variant<
+        BufferAfterRange,
+        uint /*tex level*/>;
+    Resource const *d3d12Res;
+    size_t size;
+    bool allow_simul_access = true;
+    auto resRange = res.multi_visit_or(
+        vstd::UndefEval<SubResource>{},
+        [&](BufferView const &bufferView) -> SubResource {
+            type = ResourceStates::Type::Buffer;
+            d3d12Res = bufferView.buffer;
+            size = bufferView.buffer->GetByteSize();
+            return BufferAfterRange{
+                // Range{bufferView.offset, bufferView.byteSize},
+                sync,
+                access};
+        },
+        [&](TexView const &texView) -> SubResource {
+            // TODO: set init layout
+            type = ResourceStates::Type::Texture;
+            size = texView.tex->Mip();
+            d3d12Res = texView.tex;
+            allow_simul_access = texView.tex->AllowSimulAccess();
+            return texView.level;
+        },
+        [&](SwapChain const *swapchain) -> SubResource {
+            type = ResourceStates::Type::Texture;
+            d3d12Res = swapchain;
+            size = 1;
+            return 0u;
+        });
+    auto ite = frameStates.emplace(d3d12Res, type, size);
+    auto &vec = ite.value().layer_states;
 
+    vec.visit(
+        [&]<typename T>(T &vec) {
+            if constexpr (std::is_same_v<T, BufferRange>) {
+                LUISA_DEBUG_ASSERT(resRange.index() == 0);
+                auto &&current_range = resRange.template get<0>();
+                vec = BufferRange{
+                    current_range.sync,
+                    D3D12_BARRIER_SYNC_NONE,
+                    current_range.access,
+                    // vec.init_access,
+                    D3D12_BARRIER_ACCESS_COMMON};
+
+            } else {
+                LUISA_DEBUG_ASSERT(resRange.index() == 1);
+                auto current_level = resRange.template get<1>();
+                auto &tex_range = vec[current_level];
+                tex_range.before_sync = sync;
+                tex_range.before_access = access;
+                tex_range.before_layout = layout;
+            }
+        });
+}
 void EnhancedBarrierTracker::Record(
     Resource const *res,
     Range range,
@@ -490,9 +551,10 @@ void EnhancedBarrierTracker::Record(
                 auto current_level = resRange.template get<1>();
                 auto &tex_range = vec[current_level];
                 if (!tex_range.level_inited) {
-                    tex_range.level_inited = true;
                     tex_range.before_layout = init_layout;
                 }
+                tex_range.first_time = false;
+                tex_range.level_inited = true;
                 tex_range.level_require_update = true;
                 tex_range.after_sync |= sync;
                 // tex_range.after_access |= access;
@@ -616,9 +678,16 @@ void EnhancedBarrierTrackerImpl::RestoreState(BarrierCallback *cmdBuffer) {
             barrier.pResource = resPtr->GetResource();
             barrier.Offset = 0;
             barrier.Size = UINT64_MAX;
+            auto iter = restoreStates.find(i.first);
+            if (iter) {
+                auto &v = iter.value();
+                barrier.SyncAfter = v.sync;
+                barrier.AccessAfter = v.access;
+            }
         } else {// Texture
             auto &vec = state.layer_states.get<1>();
             auto init_layout = D3D12_BARRIER_LAYOUT_COMMON;
+            auto iter = restoreStates.find(i.first);
             for (auto idx : vstd::range(vec.size())) {
                 auto &i = vec[idx];
                 if (!i.level_inited) continue;
@@ -637,6 +706,12 @@ void EnhancedBarrierTrackerImpl::RestoreState(BarrierCallback *cmdBuffer) {
                     .NumArraySlices = 1,
                     .FirstPlane = 0,
                     .NumPlanes = 1};
+                if (iter) {
+                    auto &v = iter.value();
+                    barrier.SyncAfter = v.sync;
+                    barrier.LayoutAfter = v.layout;
+                    barrier.AccessAfter = v.access;
+                }
             }
         }
     }

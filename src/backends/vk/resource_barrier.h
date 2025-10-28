@@ -107,12 +107,24 @@ public:
     };
     QueueType queue_type{QueueType::Graphics};
     uint queue_index{0};
+    struct ResotreStates {
+        ResourceView res;
+        VkPipelineStageFlagBits2 after_stage{0};
+        VkAccessFlagBits2 after_access{0};
+        VkImageLayout after_layout{VK_IMAGE_LAYOUT_GENERAL};
+    };
+    vstd::HashMap<Resource const *, ResotreStates> restoreStates;
     ResourceBarrier();
     void add_buffer(Buffer const *buffer, size_t offset, size_t size);
     ~ResourceBarrier();
     void record(
         ResourceView const &res,
         Usage usage);
+    void set_res(
+        ResourceView const &res,
+        VkPipelineStageFlagBits2 stage,
+        VkAccessFlagBits2 access,
+        VkImageLayout layout);
     void record(
         ResourceView const &res,
         VkPipelineStageFlagBits2 stage,
