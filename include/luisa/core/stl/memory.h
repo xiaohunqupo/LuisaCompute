@@ -119,7 +119,7 @@ template<typename T>
 template<typename T>
 inline void deallocate_with_allocator(T *p) noexcept {
 #ifdef LUISA_USE_SYSTEM_STL
-    luisa::detail::allocator_deallocate(p, alignof(T))
+    luisa::detail::allocator_deallocate(p, alignof(T));
 #else
     allocator<T>{}.deallocate(p, 0u);
 #endif
