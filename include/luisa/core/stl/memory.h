@@ -109,12 +109,20 @@ struct allocator {
 
 template<typename T>
 [[nodiscard]] inline auto allocate_with_allocator(size_t n = 1u) noexcept {
+#ifdef LUISA_USE_SYSTEM_STL
+    return static_cast<T *>(luisa::detail::allocator_allocate(sizeof(T) * n, alignof(T)));
+#else
     return allocator<T>{}.allocate(n);
+#endif
 }
 
 template<typename T>
 inline void deallocate_with_allocator(T *p) noexcept {
+#ifdef LUISA_USE_SYSTEM_STL
+    luisa::detail::allocator_deallocate(p, alignof(T))
+#else
     allocator<T>{}.deallocate(p, 0u);
+#endif
 }
 
 template<typename T, typename... Args>
