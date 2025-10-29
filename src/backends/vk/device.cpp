@@ -521,10 +521,13 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
     for (auto &i : extra_exts) {
         _enable_device_exts.emplace_back(i.c_str());
     }
-
+    void *feature_next{nullptr};
+    if (_config_ext) {
+        feature_next = _config_ext->device_feature_settings();
+    }
     VkPhysicalDeviceBufferDeviceAddressFeatures device_buffer_feature{
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES,
-        nullptr,
+        feature_next,
         VK_TRUE};
 
     VkPhysicalDeviceDescriptorIndexingFeatures enable_bindless_features{
@@ -551,14 +554,13 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
 
     VkPhysicalDeviceTimelineSemaphoreFeatures enable_timeline_feature{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES,
-        .pNext = &enabledAccelerationStructureFeatures,
+        .pNext = fallback ? feature_next : &enabledAccelerationStructureFeatures,
         .timelineSemaphore = VK_TRUE};
     VkPhysicalDeviceSynchronization2Features barrier_feature{
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES,
         &enable_timeline_feature,
         true};
-    void *ext_chain = &barrier_feature;
-    VK_CHECK_RESULT(_vk_device->createLogicalDevice(_device_features, _enable_device_exts, ext_chain));
+    VK_CHECK_RESULT(_vk_device->createLogicalDevice(_device_features, _enable_device_exts, &barrier_feature));
     auto device = _vk_device->logicalDevice;
     volkLoadDevice(device);
 

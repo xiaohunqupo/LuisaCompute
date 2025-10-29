@@ -86,10 +86,10 @@ struct DirectXDeviceConfigExt : public DeviceConfigExt {
     virtual bool WaitFence(
         ID3D12CommandQueue *queue,
         ID3D12Fence *fence, uint64_t fenceIndex) noexcept { return false; }
-    virtual bool SyncFence(ID3D12Fence *fence, uint64_t fenceIndex) { return false; }
+    virtual bool SyncFence(ID3D12Fence *fence, uint64_t fenceIndex) noexcept { return false; }
     virtual ~DirectXDeviceConfigExt() noexcept override = default;
-    virtual luisa::span<DXCustomCmd::EnhancedResourceUsage const> before_states(uint64_t stream_handle) { return {}; }
-    virtual luisa::span<DXCustomCmd::EnhancedResourceUsage const> after_states(uint64_t stream_handle) { return {}; }
+    virtual luisa::span<DXCustomCmd::EnhancedResourceUsage const> before_states(uint64_t stream_handle) noexcept { return {}; }
+    virtual luisa::span<DXCustomCmd::EnhancedResourceUsage const> after_states(uint64_t stream_handle) noexcept { return {}; }
 };
 
 }// namespace luisa::compute
