@@ -23,8 +23,6 @@ classifiers = [
 dependencies = [
     "sourceinspect",
     "numpy",
-    "torch>=2.8.0",
-    "cupy>=13.6.0",
 ]
 license = { file = "LICENSE" }
 keywords = ["luisa", "rendering", "framework", "gpu", "stream", "architecture"]
