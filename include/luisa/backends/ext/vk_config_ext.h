@@ -23,24 +23,24 @@ public:
         luisa::filesystem::path lib_path;
         luisa::string lib_name;
     };
-    VulkanDeviceConfigExt() = default;
-    ~VulkanDeviceConfigExt() = default;
-    [[nodiscard]] virtual ExternalDevice create_external_device() {
+    VulkanDeviceConfigExt() noexcept = default;
+    ~VulkanDeviceConfigExt() noexcept = default;
+    [[nodiscard]] virtual ExternalDevice create_external_device() noexcept {
         return {};
     }
-    [[nodiscard]] virtual bool enable_fallback() const {
+    [[nodiscard]] virtual bool enable_fallback() const noexcept {
         return false;
     }
     virtual VkCommandBuffer borrow_command_buffer(
         StreamTag stream_tag) noexcept { return nullptr; }
     virtual VulkanLibPath external_vulkan_lib_path() noexcept { return {}; }
     virtual bool execute_command_buffer(VkCommandBuffer cmd_buffer) noexcept { return false; }
-    virtual bool signal_semaphore(VkQueue queue, VkSemaphore _semaphore, uint64_t index) { return false; }
-    virtual bool wait_semaphore(VkQueue queue, VkSemaphore _semaphore, uint64_t index) { return false; }
-    virtual bool sync_semaphore(VkSemaphore _semaphore, uint64_t index) { return false; }
-    virtual bool load_dxc() const { return true; }
-    virtual luisa::vector<luisa::string> extra_instance_exts() { return {}; }
-    virtual luisa::vector<luisa::string> extra_device_exts() { return {}; }
+    virtual bool signal_semaphore(VkQueue queue, VkSemaphore _semaphore, uint64_t index) noexcept { return false; }
+    virtual bool wait_semaphore(VkQueue queue, VkSemaphore _semaphore, uint64_t index) noexcept { return false; }
+    virtual bool sync_semaphore(VkSemaphore _semaphore, uint64_t index) noexcept { return false; }
+    virtual bool load_dxc() const noexcept { return true; }
+    virtual luisa::vector<luisa::string> extra_instance_exts() noexcept { return {}; }
+    virtual luisa::vector<luisa::string> extra_device_exts() noexcept { return {}; }
     virtual void readback_vulkan_device(
         VkInstance instance,
         VkPhysicalDevice physical_device,
@@ -56,7 +56,9 @@ public:
         IDxcCompiler3 *dxc_compiler,
         IDxcLibrary *dxc_library,
         IDxcUtils *dxc_utils) noexcept {}
-    virtual luisa::span<VKCustomCmd::ResourceUsage const> before_states(uint64_t stream_handle) { return {}; }
-    virtual luisa::span<VKCustomCmd::ResourceUsage const> after_states(uint64_t stream_handle) { return {}; }
+    virtual luisa::span<VKCustomCmd::ResourceUsage const> before_states(uint64_t stream_handle) noexcept { return {}; }
+    virtual luisa::span<VKCustomCmd::ResourceUsage const> after_states(uint64_t stream_handle) noexcept { return {}; }
+    // return VkPhysicalDeviceXXXFeatures*
+    virtual void *device_feature_settings() noexcept { return nullptr; }
 };
 }// namespace luisa::compute
