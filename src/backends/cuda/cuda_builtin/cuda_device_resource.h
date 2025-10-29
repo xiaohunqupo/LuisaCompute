@@ -169,7 +169,8 @@ template<typename T, typename Index>
 #ifdef LUISA_DEBUG
     lc_check_in_bounds(index, lc_buffer_size(buffer));
 #endif
-    return reinterpret_cast<volatile T *>(buffer.ptr)[index];
+    __threadfence();
+    return buffer.ptr[index];
 }
 
 template<typename T, typename Index>
@@ -2512,7 +2513,8 @@ template<typename T>
     lc_check_in_bounds(offset + sizeof(T), lc_buffer_size(buffer) + 1u);
     lc_assert(address % alignof(T) == 0u && "unaligned access");
 #endif
-    return *reinterpret_cast<volatile T *>(address);
+    __threadfence();
+    return *reinterpret_cast<T *>(address);
 }
 
 template<typename T>
