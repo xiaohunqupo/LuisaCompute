@@ -1185,7 +1185,7 @@ __device__ void lc_bindless_byte_buffer_write(LCBindlessArray array, lc_uint ind
     lc_assume(__isGlobal(array.slots));
     auto t = array.slots[index].tex3d;
     auto v = lc_make_float4();
-    asm("tex.3d.v4.f32.f32 {%0, %1, %2, %3}, [%4, {%5, %6, %7, %8}], %9;"
+    asm("tex.level.3d.v4.f32.f32 {%0, %1, %2, %3}, [%4, {%5, %6, %7, %8}], %9;"
         : "=f"(v.x), "=f"(v.y), "=f"(v.z), "=f"(v.w)
         : "l"(t), "f"(p.x), "f"(p.y), "f"(p.z), "f"(0.f), "f"(level));
     return v;
