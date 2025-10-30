@@ -175,7 +175,7 @@ void CodegenUtility::RegistStructType(Type const *type) {
     }
 }
 
-void CodegenUtility::GetVariableName(Variable::Tag type, uint id, vstd::StringBuilder &str) {
+void CodegenUtility::GetVariableName(Function f, Variable::Tag type, uint id, vstd::StringBuilder &str) {
     switch (type) {
         case Variable::Tag::BLOCK_ID:
             str << "grpId"sv;
@@ -271,6 +271,8 @@ void CodegenUtility::GetVariableName(Variable::Tag type, uint id, vstd::StringBu
             break;
         case Variable::Tag::SHARED:
             str << "_s"sv;
+            vstd::to_string(f.hash(), str);
+            str << '_';
             vstd::to_string(id, str);
             break;
         case Variable::Tag::REFERENCE:
@@ -300,8 +302,8 @@ void CodegenUtility::GetVariableName(Variable::Tag type, uint id, vstd::StringBu
     }
 }
 
-void CodegenUtility::GetVariableName(Variable const &type, vstd::StringBuilder &str) {
-    GetVariableName(type.tag(), type.uid(), str);
+void CodegenUtility::GetVariableName(Function f, Variable const &type, vstd::StringBuilder &str) {
+    GetVariableName(f, type.tag(), type.uid(), str);
 }
 
 bool CodegenUtility::GetConstName(uint64 hash, ConstantData const &data, vstd::StringBuilder &str) {
@@ -471,7 +473,7 @@ void CodegenUtility::GetFunctionDecl(Function func, vstd::StringBuilder &funcDec
                 RegistStructType(i.type());
 
                 vstd::StringBuilder varName;
-                CodegenUtility::GetVariableName(i, varName);
+                CodegenUtility::GetVariableName(func, i, varName);
                 if (i.type()->is_accel()) {
                     if ((to_underlying(usage) & to_underlying(Usage::WRITE)) == 0) {
                         CodegenUtility::GetTypeName(*i.type(), data, usage);
@@ -789,7 +791,7 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             if ((expr->type()->is_float() && expr->op() != CallOp::ATOMIC_EXCHANGE) || expr->op() == CallOp::ATOMIC_COMPARE_EXCHANGE) {
                 mark_coherent(args[0]);
             }
-            auto &chain = opt->GetAtomicFunc(expr->op(), rootVar->variable(), expr->type(), args);
+            auto &chain = opt->GetAtomicFunc(vis.f, expr->op(), rootVar->variable(), expr->type(), args);
             chain.call_this_func(args, str, vis);
             return;
         }
@@ -2526,13 +2528,12 @@ void CodegenUtility::PostprocessCodegenProperties(vstd::StringBuilder &finalResu
         }
     }
     for (auto &&kv : opt->sharedVariable) {
-        auto &&i = kv.second;
         finalResult << "groupshared "sv;
-        GetTypeName(*i.type()->element(), finalResult, Usage::READ, false);
+        GetTypeName(*kv.var.type()->element(), finalResult, Usage::READ, false);
         finalResult << ' ';
-        GetVariableName(i, finalResult);
+        GetVariableName(kv.func, kv.var, finalResult);
         finalResult << '[';
-        vstd::to_string(i.type()->dimension(), finalResult);
+        vstd::to_string(kv.var.type()->dimension(), finalResult);
         finalResult << "];\n"sv;
     }
 }
@@ -2583,14 +2584,14 @@ void CodegenUtility::CodegenProperties(
             }
             GetTypeName(*i.type(), varData, usage);
             varData << ' ';
-            GetVariableName(i, varData);
+            GetVariableName(kernel, i, varData);
         };
         auto printInstBuffer = [&]<bool writable>() {
             if constexpr (writable)
                 varData << "RWStructuredBuffer<_MeshInst> "sv;
             else
                 varData << "StructuredBuffer<_MeshInst> "sv;
-            GetVariableName(i, varData);
+            GetVariableName(kernel, i, varData);
             varData << "Inst"sv;
         };
         auto genArg = [&]<RegisterType regisT, bool rtBuffer = false, bool writable = false>(ShaderVariableType sT, char v) {

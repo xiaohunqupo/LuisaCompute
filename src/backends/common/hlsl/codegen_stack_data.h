@@ -57,12 +57,13 @@ struct CodegenStackData : public vstd::IOperatorNewBase {
 
     vstd::function<void(Type const *)> generateStruct;
     vstd::function<void(Type const *)> generateAliasedStruct;
-    vstd::unordered_map<uint64, Variable> sharedVariable;
+    SharedVarSet sharedVariable;
     vstd::unordered_set<AccessChain, AccessHash> atomicsFuncs;
     Expression const *tempSwitchExpr;
     size_t tempSwitchCounter = 0;
     CodegenStackData();
     AccessChain const &GetAtomicFunc(
+        Function func,
         CallOp op,
         Variable const &rootVar,
         Type const *retType,

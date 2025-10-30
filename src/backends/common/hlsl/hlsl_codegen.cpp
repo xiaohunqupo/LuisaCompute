@@ -208,7 +208,7 @@ void StringStateVisitor::visit(const AccessExpr *expr) {
 void StringStateVisitor::visit(const RefExpr *expr) {
     Variable v = expr->variable();
     vstd::StringBuilder tempStr;
-    util->GetVariableName(v, tempStr);
+    util->GetVariableName(f, v, tempStr);
     util->RegistStructType(v.type());
     str << tempStr;
 }
@@ -498,7 +498,7 @@ void StringStateVisitor::visit(const AssignStmt *state) {
     if (is_custom(state->lhs(), rqVar)) {
         auto iter = lazyDeclVars.find(rqVar);
         vstd::StringBuilder var_name;
-        util->GetVariableName(rqVar, var_name);
+        util->GetVariableName(f, rqVar, var_name);
         if (iter != lazyDeclVars.end()) {
             util->GetTypeName(*rqVar.type(), str, Usage::READ);
             str << ' '
@@ -595,7 +595,7 @@ void StringStateVisitor::VisitFunction(
         vstd::StringBuilder typeName;
         util->GetTypeName(*v.type(), typeName, f.variable_usage(v.uid()));
         vstd::StringBuilder varName;
-        util->GetVariableName(v, varName);
+        util->GetVariableName(f, v, varName);
 
         str << typeName << ' ' << varName;
         if (!(v.type()->is_resource() || v.type()->is_custom() || v.type()->is_cooperative_vector())) [[likely]] {
@@ -618,7 +618,7 @@ void StringStateVisitor::VisitFunction(
             // FIXME: redundant creation of string
             vstd::StringBuilder typeName;
             util->GetTypeName(*v.type(), typeName, f.variable_usage(v.uid()));
-            sharedVariables->emplace(v.hash(), v);
+            sharedVariables->emplace(f, v);
             shared_size += v.type()->size();
         }
         LUISA_ASSERT(shared_size <= 32768, "Shared memory size must be less than 64kb.");

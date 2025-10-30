@@ -126,7 +126,7 @@ vstd::vector<AccessChain::Node> AccessChain::nodes_from_exprs(luisa::span<Expres
     }
     return nodes;
 }
-void AccessChain::gen_func_impl(CodegenUtility *util, TemplateFunction const &tmp, luisa::span<Expression const *const> args, vstd::StringBuilder &builder) {
+void AccessChain::gen_func_impl(Function f, CodegenUtility *util, TemplateFunction const &tmp, luisa::span<Expression const *const> args, vstd::StringBuilder &builder) {
     size_t arg_start;
     vstd::StringBuilder chain_str;
     size_t arg_idx = 1;
@@ -165,7 +165,7 @@ void AccessChain::gen_func_impl(CodegenUtility *util, TemplateFunction const &tm
         }
     };
     if (_root_var.is_shared()) {
-        util->GetVariableName(_root_var, chain_str);
+        util->GetVariableName(f, _root_var, chain_str);
         build_access();
         arg_idx = 1;
         builder << tmp.ret_type << ' ' << _func_name << '(';

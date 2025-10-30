@@ -235,6 +235,7 @@ InterlockedCompareExchange($,old,asint(@),r);
 if(r==old) return asfloat(old);
 }})"sv;
 AccessChain const &CodegenStackData::GetAtomicFunc(
+    Function func,
     CallOp op,
     Variable const &rootVar,
     Type const *retType,
@@ -317,7 +318,7 @@ AccessChain const &CodegenStackData::GetAtomicFunc(
     if (iter.second) {
         auto &access_chain = const_cast<AccessChain &>(*iter.first);
         access_chain.init_name();
-        access_chain.gen_func_impl(util, tmp, exprs.subspan(exprs.size() - extra_arg_size, extra_arg_size), *incrementalFunc);
+        access_chain.gen_func_impl(func, util, tmp, exprs.subspan(exprs.size() - extra_arg_size, extra_arg_size), *incrementalFunc);
     }
     return *iter.first;
 }
