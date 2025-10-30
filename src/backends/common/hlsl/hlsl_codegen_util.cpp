@@ -864,11 +864,7 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
                 str << "_float"sv << n << 'x' << n;
             }
         } break;
-        case CallOp::BUFFER_READ:
-        case CallOp::BUFFER_VOLATILE_READ: {
-            if (expr->op() == CallOp::BUFFER_VOLATILE_READ) {
-                mark_coherent(args[0]);
-            }
+        case CallOp::BUFFER_READ: {
             bool aliasStruct = TypeIsAliased(expr->type());
             bool floatToInt = opt->atomicFloatToInt && (expr->type()->is_float32() || expr->type()->is_float64());
             if (aliasStruct) {
@@ -893,10 +889,41 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             }
             return;
         }
+        case CallOp::BUFFER_VOLATILE_READ: {
+            mark_coherent(args[0]);
+            bool aliasStruct = TypeIsAliased(expr->type());
+            bool floatToInt = opt->atomicFloatToInt && (expr->type()->is_float32() || expr->type()->is_float64());
+            if (aliasStruct) {
+                AliasedToOrigin(expr->type(), str);
+                str << '(';
+            }
+            if (floatToInt) {
+                str << "asfloat(";
+            }
+            str << "_volatile_bfread"sv;
+            auto elem = args[0]->type()->element();
+            if (IsNumVec3(*elem)) {
+                str << "Vec3"sv;
+            } else if (elem->is_matrix()) {
+                str << "Mat";
+            }
+            str << '<';
+            GetTypeName(*args[0]->type(), str, vis.f.variable_usage(static_cast<RefExpr const *>(args[0])->variable().uid()));
+            str << ',';
+            GetTypeName(*expr->type(), str, Usage::NONE);
+            str << ">(";
+            PrintArgs();
+            str << ')';
+            if (aliasStruct || floatToInt) {
+                str << ')';
+            }
+            return;
+        }
         case CallOp::BUFFER_WRITE:
         case CallOp::BUFFER_VOLATILE_WRITE: {
             if (expr->op() == CallOp::BUFFER_VOLATILE_WRITE) {
                 mark_coherent(args[0]);
+                str << "_volatile"sv;
             }
             auto elem = args[0]->type()->element();
             bool floatToInt = opt->atomicFloatToInt && (elem->is_float32() || elem->is_float64());
@@ -940,11 +967,73 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             }
             str << "_bfsize"sv;
         } break;
-        case CallOp::BYTE_BUFFER_READ:
         case CallOp::BYTE_BUFFER_VOLATILE_READ: {
-            if (expr->op() == CallOp::BYTE_BUFFER_VOLATILE_READ) {
-                mark_coherent(args[0]);
+            mark_coherent(args[0]);
+            bool aliasStruct = TypeIsAliased(expr->type());
+            if (aliasStruct) {
+                AliasedToOrigin(expr->type(), str);
+                str << '(';
             }
+            str << "_volatile_bytebfread"sv;
+            auto elem = expr->type();
+            if (IsNumVec3(*elem)) {
+                str << "Vec3"sv;
+                str << '<';
+                GetTypeName(*args[0]->type(), str, vis.f.variable_usage(static_cast<RefExpr const *>(args[0])->variable().uid()));
+                str << ',';
+                GetTypeName(*elem->element(), str, Usage::NONE);
+                str << "4,"sv;
+                GetTypeName(*expr->type(), str, Usage::NONE);
+                str << ">("sv;
+                args[0]->accept(vis);
+                str << ',';
+                args[1]->accept(vis);
+                str << ')';
+
+            } else if (elem->is_matrix()) {
+                str << "Mat"sv;
+                str << '<';
+                GetTypeName(*args[0]->type(), str, vis.f.variable_usage(static_cast<RefExpr const *>(args[0])->variable().uid()));
+                str << ',';
+                switch (elem->dimension()) {
+                    case 2:
+                        str << "_WrappedFloat2x2"sv;
+                        break;
+                    case 3:
+                        str << "_WrappedFloat3x3"sv;
+                        break;
+                    case 4:
+                        str << "_WrappedFloat4x4"sv;
+                        break;
+                }
+                str << ',';
+                GetTypeName(*expr->type(), str, Usage::NONE);
+                str << ">("sv;
+                args[0]->accept(vis);
+                str << ',';
+                args[1]->accept(vis);
+                str << ')';
+            } else {
+                str << '<';
+                GetTypeName(*args[0]->type(), str, vis.f.variable_usage(static_cast<RefExpr const *>(args[0])->variable().uid()));
+                str << ',';
+                if (aliasStruct) {
+                    str << opt->CreateAliasedStruct(elem).first;
+                } else {
+                    GetTypeName(*elem, str, Usage::NONE);
+                }
+                str << ">("sv;
+                args[0]->accept(vis);
+                str << ',';
+                args[1]->accept(vis);
+                str << ')';
+            }
+            if (aliasStruct) {
+                str << ')';
+            }
+            return;
+        }
+        case CallOp::BYTE_BUFFER_READ: {
             bool aliasStruct = TypeIsAliased(expr->type());
             if (aliasStruct) {
                 AliasedToOrigin(expr->type(), str);
@@ -1001,6 +1090,7 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
         case CallOp::BYTE_BUFFER_VOLATILE_WRITE: {
             if (expr->op() == CallOp::BYTE_BUFFER_VOLATILE_WRITE) {
                 mark_coherent(args[0]);
+                str << "_volatile"sv;
             }
             str << "_bytebfwrite"sv;
             auto elem = args[2]->type();
