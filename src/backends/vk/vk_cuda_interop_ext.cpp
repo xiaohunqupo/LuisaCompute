@@ -196,15 +196,15 @@ BufferCreationInfo VkCudaInteropImpl::create_interop_buffer(const Type *element,
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .pNext = &external_memory_info,
         .size = size_bytes,
-        .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-                 VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
-                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
-                 VK_BUFFER_USAGE_TRANSFER_DST_BIT |
-                 VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT |
-                 VK_BUFFER_USAGE_2_VERTEX_BUFFER_BIT |
-                 VK_BUFFER_USAGE_2_INDEX_BUFFER_BIT |
-                 VK_BUFFER_USAGE_2_SHADER_DEVICE_ADDRESS_BIT |
-                 VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
+        .usage = (VkBufferUsageFlags)(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                                      VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
+                                      VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
+                                      VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+                                      VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT |
+                                      VK_BUFFER_USAGE_2_VERTEX_BUFFER_BIT |
+                                      VK_BUFFER_USAGE_2_INDEX_BUFFER_BIT |
+                                      (_device->enable_device_address() ? VK_BUFFER_USAGE_2_SHADER_DEVICE_ADDRESS_BIT : 0) |
+                                      (_device->enable_raytracing() ? VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR : 0)),
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .queueFamilyIndexCount = 0,
         .pQueueFamilyIndices = nullptr};
@@ -240,7 +240,7 @@ BufferCreationInfo VkCudaInteropImpl::create_interop_buffer(const Type *element,
     VkMemoryAllocateFlagsInfo alloc_flag_info{
         .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO,
         .pNext = &export_allocate_info,
-        .flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT};
+        .flags = (VkMemoryAllocateFlags)(_device->enable_device_address() ? VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT : 0)};
 
     VkMemoryAllocateInfo alloc_info{};
     alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -287,7 +287,11 @@ ResourceCreationInfo VkCudaInteropImpl::create_interop_texture(
     image_info.format = Texture::to_vk_format(format);
     image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
     image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    image_info.usage = VK_IMAGE_USAGE_SAMPLED_BIT;
+    image_info.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                       VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                       VK_IMAGE_USAGE_SAMPLED_BIT |
+                       (allow_raster_target ? VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT : 0) |
+                       (is_srgb(format) ? 0 : VK_IMAGE_USAGE_STORAGE_BIT);
     image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     image_info.samples = VK_SAMPLE_COUNT_1_BIT;
     image_info.pNext = &external_memory_info;
@@ -322,7 +326,7 @@ ResourceCreationInfo VkCudaInteropImpl::create_interop_texture(
     VkMemoryAllocateFlagsInfo alloc_flag_info{
         .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO,
         .pNext = &export_allocate_info,
-        .flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT};
+        .flags = (VkMemoryAllocateFlags)(_device->enable_device_address() ? VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT : 0)};
     VkMemoryAllocateInfo alloc_info{};
     alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     alloc_info.allocationSize = mem_requirements.size;

@@ -134,7 +134,7 @@ vstd::vector<VkExtensionProperties> supported_exts(VkPhysicalDevice physical_dev
     vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &extensions_count, props.data());
     return props;
 }
-void create_instance(bool enableValidation, VkInstance &instance, luisa::filesystem::path const &custom_path, luisa::string_view lib_name, luisa::span<luisa::string const> extra_exts) {
+void create_instance(bool enableValidation, bool enableExtension, VkInstance &instance, luisa::filesystem::path const &custom_path, luisa::string_view lib_name, luisa::span<luisa::string const> extra_exts) {
     vks::VulkanDevice::initVolk(custom_path, lib_name);
     if (!instance) {
         vstd::vector<const char *> instance_exts;
@@ -151,27 +151,29 @@ void create_instance(bool enableValidation, VkInstance &instance, luisa::filesys
         appInfo.apiVersion = VK_API_VERSION_1_3;
 
         // Enable surface extensions depending on os
-        instance_exts.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
-        instance_exts.push_back(VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME);
+        if (enableExtension) {
+            instance_exts.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
+            instance_exts.push_back(VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME);
 #if defined(_WIN32)
-        instance_exts.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
+            instance_exts.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
 #elif defined(VK_USE_PLATFORM_ANDROID_KHR)
-        instance_exts.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
+            instance_exts.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
 #elif defined(_DIRECT2DISPLAY)
-        instance_exts.push_back(VK_KHR_DISPLAY_EXTENSION_NAME);
+            instance_exts.push_back(VK_KHR_DISPLAY_EXTENSION_NAME);
 #elif defined(VK_USE_PLATFORM_DIRECTFB_EXT)
-        instance_exts.push_back(VK_EXT_DIRECTFB_SURFACE_EXTENSION_NAME);
+            instance_exts.push_back(VK_EXT_DIRECTFB_SURFACE_EXTENSION_NAME);
 #elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
-        instance_exts.push_back(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
+            instance_exts.push_back(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
 #elif defined(VK_USE_PLATFORM_XCB_KHR)
-        instance_exts.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
+            instance_exts.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
 #elif defined(VK_USE_PLATFORM_IOS_MVK)
-        instance_exts.push_back(VK_MVK_IOS_SURFACE_EXTENSION_NAME);
+            instance_exts.push_back(VK_MVK_IOS_SURFACE_EXTENSION_NAME);
 #elif defined(VK_USE_PLATFORM_MACOS_MVK)
-        instance_exts.push_back(VK_MVK_MACOS_SURFACE_EXTENSION_NAME);
+            instance_exts.push_back(VK_MVK_MACOS_SURFACE_EXTENSION_NAME);
 #elif defined(VK_USE_PLATFORM_HEADLESS_EXT)
-        instance_exts.push_back(VK_EXT_HEADLESS_SURFACE_EXTENSION_NAME);
+            instance_exts.push_back(VK_EXT_HEADLESS_SURFACE_EXTENSION_NAME);
 #endif
+        }
         for (auto &i : extra_exts) {
             instance_exts.emplace_back(i.c_str());
         }
@@ -230,15 +232,12 @@ void create_instance(bool enableValidation, VkInstance &instance, luisa::filesys
             instanceCreateInfo.flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
         }
 #endif
-
-        if (instance_exts.size() > 0) {
-            if (settings.validation) {
-                instance_exts.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);// SRS - Dependency when VK_EXT_DEBUG_MARKER is enabled
-                instance_exts.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-            }
-            instanceCreateInfo.enabledExtensionCount = (uint32_t)instance_exts.size();
-            instanceCreateInfo.ppEnabledExtensionNames = instance_exts.data();
+        if (settings.validation) {
+            instance_exts.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);// SRS - Dependency when VK_EXT_DEBUG_MARKER is enabled
+            instance_exts.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
         }
+        instanceCreateInfo.enabledExtensionCount = (uint32_t)instance_exts.size();
+        instanceCreateInfo.ppEnabledExtensionNames = instance_exts.size() > 0 ? instance_exts.data() : nullptr;
         VK_CHECK_RESULT(vkCreateInstance(&instanceCreateInfo, Device::alloc_callbacks(), &instance));
     }
     volkLoadInstance(instance);
@@ -330,7 +329,14 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
         _external_graphics_queue = external_device.graphics_queue;
         _external_compute_queue = external_device.compute_queue;
         _external_copy_queue = external_device.copy_queue;
+        _enable_bindless = _config_ext->enable_bindless_feature();
+        _enable_raytracing = _config_ext->enable_raytracing_feature();
+        _enable_interop = _config_ext->enable_interop_feature();
+        _enable_device_address = _config_ext->enable_device_address_feature();
+        _enable_surface = _config_ext->enable_surface_feature();
     }
+    _enable_device_address |= _enable_raytracing;
+
     Context ctx{this->_ctx_impl};
 #ifndef LC_NO_HLSL_BUILTIN
     if (load_dxc) {
@@ -361,15 +367,14 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
                         return luisa::vector<luisa::string>{};
                     }
                 }();
-                detail::create_instance(enableValidation, detail::vk_instance, custom_path, lib_name, extra_exts);
+                detail::create_instance(enableValidation, _enable_surface, detail::vk_instance, custom_path, lib_name, extra_exts);
             }
         }
-        bool fallback = false;
-        if (_config_ext) {
-            fallback = _config_ext->enable_fallback();
-        }
-        _fallback = fallback;
-        _init_device(ext_phy_device, ext_device, device_idx, fallback);
+#ifndef LUISA_VULKAN_ENABLE_CUDA_INTEROP
+        _enable_interop = false;
+#endif
+
+        _init_device(ext_phy_device, ext_device, device_idx, _enable_bindless, _enable_raytracing, _enable_interop);
 
         if (_config_ext) {
             _config_ext->readback_vulkan_device(instance(), physical_device(), logic_device(), alloc_callbacks(), _pso_header, _graphics_queue, _compute_queue, _copy_queue, graphics_queue_index(), compute_queue_index(), copy_queue_index(), gDxcCompiler->compiler(), gDxcCompiler->library(), gDxcCompiler->utils());
@@ -434,7 +439,7 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
     // func_table.init(this);
 }
 
-void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice external_device, uint32_t selectedDevice, bool fallback) {
+void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice external_device, uint32_t selectedDevice, bool enable_bindless, bool enable_raytracing, bool enable_interop) {
     VkPhysicalDevice physical_device = external_physical_device;
     if (!physical_device) {
         VkResult err;
@@ -498,13 +503,15 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
     _vk_device.create(physical_device);
     _vk_device->logicalDevice = external_device;
     _enable_device_exts.emplace_back(VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME);
-    _enable_device_exts.emplace_back(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
-    if (!fallback) {
+    if (enable_bindless) {
+        _enable_device_exts.emplace_back(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
         _enable_device_exts.emplace_back(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
-        // _enable_device_exts.emplace_back(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
+    }
+    if (enable_raytracing) {
         _enable_device_exts.emplace_back(VK_KHR_RAY_QUERY_EXTENSION_NAME);
         _enable_device_exts.emplace_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
-#ifdef LUISA_VULKAN_ENABLE_CUDA_INTEROP
+    }
+    if (enable_interop) {
         _enable_device_exts.emplace_back(VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME);
         _enable_device_exts.emplace_back(VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME);
 #ifdef LUISA_PLATFORM_WINDOWS
@@ -513,7 +520,6 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
 #else
         _enable_device_exts.emplace_back(VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME);
         _enable_device_exts.emplace_back(VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME);
-#endif
 #endif
     }
     luisa::vector<luisa::string> extra_exts = [&]() {
@@ -543,29 +549,40 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
 
         .runtimeDescriptorArray = VK_TRUE,
     };
+    if (_enable_bindless) {
+        feature_next = &enable_bindless_features;
+    }
 
     VkPhysicalDeviceRayQueryFeaturesKHR enable_rayquery_features{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR,
-        .pNext = &enable_bindless_features,
+        .pNext = feature_next,
         .rayQuery = VK_TRUE};
     VkPhysicalDeviceAccelerationStructureFeaturesKHR enabledAccelerationStructureFeatures{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
         .pNext = &enable_rayquery_features,
         .accelerationStructure = VK_TRUE};
+    if (_enable_raytracing) {
+        feature_next = &enabledAccelerationStructureFeatures;
+    }
+
+    VkPhysicalDeviceBufferDeviceAddressFeatures device_buffer_feature{
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES,
+        feature_next,
+        VK_TRUE};
+    if (_enable_device_address) {
+        feature_next = &device_buffer_feature;
+    }
 
     VkPhysicalDeviceTimelineSemaphoreFeatures enable_timeline_feature{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES,
-        .pNext = fallback ? feature_next : &enabledAccelerationStructureFeatures,
+        .pNext = feature_next,
         .timelineSemaphore = VK_TRUE};
     VkPhysicalDeviceSynchronization2Features barrier_feature{
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES,
         &enable_timeline_feature,
         true};
-    VkPhysicalDeviceBufferDeviceAddressFeatures device_buffer_feature{
-        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES,
-        &barrier_feature,
-        VK_TRUE};
-    VK_CHECK_RESULT(_vk_device->createLogicalDevice(_device_features, _enable_device_exts, &device_buffer_feature));
+
+    VK_CHECK_RESULT(_vk_device->createLogicalDevice(_device_features, _enable_device_exts, &barrier_feature, _enable_surface));
     auto device = _vk_device->logicalDevice;
     volkLoadDevice(device);
 
@@ -590,7 +607,7 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
         .bindingCount = 1,
         .pBindingFlags = &desc_binding_flag};
     // bindless buffer desc_pool
-    if (!fallback) {
+    if (enable_bindless) {
         {
             buffer_heap_pool.full_size = 262144;
             VkDescriptorPoolSize pool_size;
@@ -1065,7 +1082,7 @@ LUISA_EXPORT_API void backend_device_names(luisa::vector<luisa::string> &r) {
 #else
             constexpr bool enableValidation = true;
 #endif
-            detail::create_instance(enableValidation, detail::vk_instance, {}, {}, {});
+            detail::create_instance(enableValidation, false, detail::vk_instance, {}, {}, {});
         }
     }
     vstd::vector<VkPhysicalDevice> physical_devices;
@@ -1110,7 +1127,7 @@ LUISA_EXPORT_API VkInstance init_vk_instance(bool enable_validation, const luisa
 #else
         constexpr bool enableValidation = true;
 #endif
-        detail::create_instance(enable_validation, detail::vk_instance, custom_vk_lib_path ? luisa::filesystem::path{custom_vk_lib_path} : luisa::filesystem::path{}, custom_vk_lib_name ? luisa::string_view{custom_vk_lib_name} : luisa::string_view{}, luisa::span{extra_instance_exts, extra_instance_ext_count});
+        detail::create_instance(enable_validation, false, detail::vk_instance, custom_vk_lib_path ? luisa::filesystem::path{custom_vk_lib_path} : luisa::filesystem::path{}, custom_vk_lib_name ? luisa::string_view{custom_vk_lib_name} : luisa::string_view{}, luisa::span{extra_instance_exts, extra_instance_ext_count});
     }
     return detail::vk_instance;
 }

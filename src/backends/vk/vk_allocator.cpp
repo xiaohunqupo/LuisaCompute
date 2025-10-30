@@ -31,7 +31,7 @@ AllocatedBuffer VkAllocator::allocate_buffer(size_t byte_size, VkBufferUsageFlag
 }
 VkAllocator::VkAllocator(Device &device) {
     VmaAllocatorCreateInfo createInfo{
-        .flags = {VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT},
+        .flags = VmaAllocatorCreateFlags(device.enable_device_address() ? VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT : 0),
         .physicalDevice = device.physical_device(),
         .device = device.logic_device(),
         .preferredLargeHeapBlockSize = 0,

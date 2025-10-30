@@ -65,7 +65,7 @@ class Device : public DeviceInterface, public vstd::IOperatorNewBase {
     BinaryIO const *_binary_io{};
     vstd::unique_ptr<DefaultBinaryIO> _default_file_io;
     bool inqueue_limit = true;// TODO
-    void _init_device(VkPhysicalDevice external_physical_device, VkDevice external_device, uint32_t selectedDevice, bool fallback);
+    void _init_device(VkPhysicalDevice external_physical_device, VkDevice external_device, uint32_t selectedDevice, bool enable_bindless, bool enable_raytracing, bool enable_interop);
 public:
     struct HeapAlloc {
         uint count = 0;
@@ -109,7 +109,11 @@ public:
     bool _external_graphics_queue : 1 {false};
     bool _external_compute_queue : 1 {false};
     bool _external_copy_queue : 1 {false};
-    bool _fallback : 1 {false};
+    bool _enable_bindless : 1 {true};
+    bool _enable_raytracing : 1 {true};
+    bool _enable_surface : 1 {true};
+    bool _enable_device_address : 1 {true};
+    bool _enable_interop : 1 {true};
     auto &graphics_queue_mtx() { return _graphics_queue_mtx; }
     auto &compute_queue_mtx() { return _compute_queue_mtx; }
     auto &copy_queue_mtx() { return _copy_queue_mtx; }
@@ -120,7 +124,11 @@ public:
     auto bdls_tex2d_set() const { return _bdls_tex2d_set; }
     auto bdls_tex3d_set() const { return _bdls_tex3d_set; }
     auto samplers() const { return luisa::span{_samplers}; }
-    bool fallback() const { return _fallback; }
+    bool enable_surface_feature() const { return _enable_surface; }
+    bool enable_bindless() const { return _enable_bindless; }
+    bool enable_interop() const { return _enable_interop; }
+    bool enable_raytracing() const { return _enable_raytracing; }
+    bool enable_device_address() const { return _enable_device_address; }
     static hlsl::ShaderCompiler *Compiler();
     static VkAllocationCallbacks *alloc_callbacks();
     static VkInstance instance();

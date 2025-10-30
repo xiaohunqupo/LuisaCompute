@@ -28,8 +28,20 @@ public:
     [[nodiscard]] virtual ExternalDevice create_external_device() noexcept {
         return {};
     }
-    [[nodiscard]] virtual bool enable_fallback() const noexcept {
-        return false;
+    [[nodiscard]] virtual bool enable_bindless_feature() const noexcept {
+        return true;
+    }
+    [[nodiscard]] virtual bool enable_raytracing_feature() const noexcept {
+        return true;
+    }
+    [[nodiscard]] virtual bool enable_interop_feature() const noexcept {
+        return true;
+    }
+    [[nodiscard]] virtual bool enable_device_address_feature() const noexcept {
+        return true;
+    }
+    [[nodiscard]] virtual bool enable_surface_feature() const noexcept {
+        return true;
     }
     virtual VkCommandBuffer borrow_command_buffer(
         StreamTag stream_tag) noexcept { return nullptr; }

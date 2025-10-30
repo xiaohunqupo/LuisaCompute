@@ -6,7 +6,11 @@
 #include <luisa/runtime/rtx/aabb.h>
 namespace lc::vk {
 Blas::Blas(Device *device, AccelOption const &option)
-    : Resource(device), option(option) {}
+    : Resource(device), option(option) {
+    if (!device->enable_raytracing()) [[unlikely]] {
+        LUISA_ERROR("Raytracing not enabled, BLAS can not be loaded.");
+    }
+}
 void Blas::_pre_build(
     CommandBuffer &cmdbuffer,
     VkAccelerationStructureGeometryKHR *acceleration_structure_geometry,

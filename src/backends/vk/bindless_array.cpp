@@ -26,6 +26,9 @@ BindlessArray::BindlessArray(Device *device, BindlessSlotType type, size_t size)
     : Resource(device),
       _indices_buffer(device, type == BindlessSlotType::MULTIPLE ? sizeof(BindlessStruct) * size : sizeof(uint)),
       _type(type) {
+    if (!device->enable_bindless()) [[unlikely]] {
+        LUISA_ERROR("Bindless not enabled, Bindless-Array can not be loaded.");
+    }
     switch (type) {
         case BindlessSlotType::MULTIPLE:
             typed_binded.reset_as<vstd::vector<std::pair<BindlessStruct, MapIndicies>>>(size);
@@ -457,8 +460,7 @@ void BindlessArray::update(
         _indices_buffer.vk_buffer(),
         0,
         _indices_buffer.byte_size()};
-    static_cast<UploadBuffer const *>(dsc_buffer.buffer)->copy_from(cache.data(), dsc_buffer.offset, 
-    luisa::size_bytes(cache));
+    static_cast<UploadBuffer const *>(dsc_buffer.buffer)->copy_from(cache.data(), dsc_buffer.offset, luisa::size_bytes(cache));
 
     write_desc_sets.emplace_back(VkWriteDescriptorSet{
         VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
