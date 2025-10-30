@@ -428,6 +428,7 @@ void MetalCodegenAST::_emit_function() noexcept {
             _scratch << "  auto print_buffer = args.print_buffer;\n";
         }
     } else {
+        LUISA_ASSERT(_function.shared_variables().empty(), "Shared memory declaration not allowed in callable.");
         auto texture_count = std::count_if(
             _function.arguments().begin(), _function.arguments().end(),
             [](auto arg) { return arg.type()->is_texture(); });
