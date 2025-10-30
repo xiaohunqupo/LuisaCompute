@@ -533,7 +533,7 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
 
     VkPhysicalDeviceDescriptorIndexingFeatures enable_bindless_features{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES,
-        .pNext = &feature_next,
+        .pNext = feature_next,
         .shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
         .shaderStorageImageArrayNonUniformIndexing = VK_TRUE,
 
