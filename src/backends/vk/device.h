@@ -109,6 +109,7 @@ public:
     bool _external_graphics_queue : 1 {false};
     bool _external_compute_queue : 1 {false};
     bool _external_copy_queue : 1 {false};
+    bool _fallback : 1 {false};
     auto &graphics_queue_mtx() { return _graphics_queue_mtx; }
     auto &compute_queue_mtx() { return _compute_queue_mtx; }
     auto &copy_queue_mtx() { return _copy_queue_mtx; }
@@ -119,6 +120,7 @@ public:
     auto bdls_tex2d_set() const { return _bdls_tex2d_set; }
     auto bdls_tex3d_set() const { return _bdls_tex3d_set; }
     auto samplers() const { return luisa::span{_samplers}; }
+    bool fallback() const { return _fallback; }
     static hlsl::ShaderCompiler *Compiler();
     static VkAllocationCallbacks *alloc_callbacks();
     static VkInstance instance();

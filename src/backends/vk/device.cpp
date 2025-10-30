@@ -368,6 +368,7 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
         if (_config_ext) {
             fallback = _config_ext->enable_fallback();
         }
+        _fallback = fallback;
         _init_device(ext_phy_device, ext_device, device_idx, fallback);
 
         if (_config_ext) {
@@ -459,6 +460,10 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
             LUISA_ERROR("Could not enumerate physical devices : {}", (int)err);
             return;
         }
+        if (physical_devices.empty()) [[unlikely]] {
+            LUISA_ERROR("Vulkan physical device not found.");
+            return;
+        }
 
         // GPU selection
 
@@ -478,7 +483,7 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
                 selectedDevice++;
             }
         }
-        physical_device = physical_devices[selectedDevice];
+        physical_device = physical_devices[std::min<uint32_t>(selectedDevice, physical_devices.size() - 1)];
     }
 
     // Store properties (including limits), features and memory properties of the physical device (so that examples can check against them)
@@ -493,12 +498,12 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
     _vk_device.create(physical_device);
     _vk_device->logicalDevice = external_device;
     _enable_device_exts.emplace_back(VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME);
+    _enable_device_exts.emplace_back(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
     if (!fallback) {
+        _enable_device_exts.emplace_back(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
         // _enable_device_exts.emplace_back(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
-        _enable_device_exts.emplace_back(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
         _enable_device_exts.emplace_back(VK_KHR_RAY_QUERY_EXTENSION_NAME);
         _enable_device_exts.emplace_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
-        _enable_device_exts.emplace_back(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
 #ifdef LUISA_VULKAN_ENABLE_CUDA_INTEROP
         _enable_device_exts.emplace_back(VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME);
         _enable_device_exts.emplace_back(VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME);
@@ -525,14 +530,10 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
     if (_config_ext) {
         feature_next = _config_ext->device_feature_settings();
     }
-    VkPhysicalDeviceBufferDeviceAddressFeatures device_buffer_feature{
-        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES,
-        feature_next,
-        VK_TRUE};
 
     VkPhysicalDeviceDescriptorIndexingFeatures enable_bindless_features{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES,
-        .pNext = &device_buffer_feature,
+        .pNext = &feature_next,
         .shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
         .shaderStorageImageArrayNonUniformIndexing = VK_TRUE,
 
@@ -560,7 +561,11 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES,
         &enable_timeline_feature,
         true};
-    VK_CHECK_RESULT(_vk_device->createLogicalDevice(_device_features, _enable_device_exts, &barrier_feature));
+    VkPhysicalDeviceBufferDeviceAddressFeatures device_buffer_feature{
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES,
+        &barrier_feature,
+        VK_TRUE};
+    VK_CHECK_RESULT(_vk_device->createLogicalDevice(_device_features, _enable_device_exts, &device_buffer_feature));
     auto device = _vk_device->logicalDevice;
     volkLoadDevice(device);
 
@@ -585,105 +590,107 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
         .bindingCount = 1,
         .pBindingFlags = &desc_binding_flag};
     // bindless buffer desc_pool
-    {
-        buffer_heap_pool.full_size = 262144;
-        VkDescriptorPoolSize pool_size;
-        pool_size.descriptorCount = buffer_heap_pool.full_size;
-        pool_size.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        VkDescriptorPoolCreateInfo createInfo{
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-            .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
-            .maxSets = 1,
-            .poolSizeCount = 1,
-            .pPoolSizes = &pool_size};
-        VK_CHECK_RESULT(vkCreateDescriptorPool(logic_device(), &createInfo, alloc_callbacks(), &_bdls_buffer_desc_pool));
-        VkDescriptorSetLayoutBinding binding{
-            0,
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            buffer_heap_pool.full_size,
-            VK_SHADER_STAGE_ALL,
-            nullptr};
-        VkDescriptorSetLayoutCreateInfo descriptorLayout{
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-            .pNext = &bindless_binding_flags,
-            .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
-            .bindingCount = 1,
-            .pBindings = &binding};
-        VK_CHECK_RESULT(vkCreateDescriptorSetLayout(logic_device(), &descriptorLayout, alloc_callbacks(), &_bdls_buffer_set_layout));
-        VkDescriptorSetAllocateInfo alloc_info{
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-            .descriptorPool = _bdls_buffer_desc_pool,
-            .descriptorSetCount = 1,
-            .pSetLayouts = &_bdls_buffer_set_layout};
-        VK_CHECK_RESULT(vkAllocateDescriptorSets(logic_device(), &alloc_info, &_bdls_buffer_set));
-    }
-    // bindless tex2d desc_pool
-    {
-        tex2d_heap_pool.full_size = 262144;
-        VkDescriptorPoolSize pool_size;
-        pool_size.descriptorCount = tex2d_heap_pool.full_size;
-        pool_size.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-        VkDescriptorPoolCreateInfo createInfo{
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-            .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
-            .maxSets = 1,
-            .poolSizeCount = 1,
-            .pPoolSizes = &pool_size};
-        VK_CHECK_RESULT(vkCreateDescriptorPool(logic_device(), &createInfo, alloc_callbacks(), &_bdls_tex2d_desc_pool));
-        VkDescriptorSetLayoutBinding binding{
-            0,
-            VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-            tex2d_heap_pool.full_size,
-            VK_SHADER_STAGE_ALL,
-            nullptr};
-        VkDescriptorSetLayoutCreateInfo descriptorLayout{
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-            .pNext = &bindless_binding_flags,
-            .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
-            .bindingCount = 1,
-            .pBindings = &binding};
-        VK_CHECK_RESULT(vkCreateDescriptorSetLayout(logic_device(), &descriptorLayout, alloc_callbacks(), &_bdls_tex2d_set_layout));
-        VkDescriptorSetAllocateInfo alloc_info{
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-            .descriptorPool = _bdls_tex2d_desc_pool,
-            .descriptorSetCount = 1,
-            .pSetLayouts = &_bdls_tex2d_set_layout};
-        VK_CHECK_RESULT(vkAllocateDescriptorSets(logic_device(), &alloc_info, &_bdls_tex2d_set));
-        tex2d_bindless_imgview.resize(tex2d_heap_pool.full_size);
-    }
-    // bindless tex3d desc_pool
-    {
-        tex3d_heap_pool.full_size = 262144;
-        VkDescriptorPoolSize pool_size;
-        pool_size.descriptorCount = tex3d_heap_pool.full_size;
-        pool_size.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-        VkDescriptorPoolCreateInfo createInfo{
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-            .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
-            .maxSets = 1,
-            .poolSizeCount = 1,
-            .pPoolSizes = &pool_size};
-        VK_CHECK_RESULT(vkCreateDescriptorPool(logic_device(), &createInfo, alloc_callbacks(), &_bdls_tex3d_desc_pool));
-        VkDescriptorSetLayoutBinding binding{
-            0,
-            VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-            tex3d_heap_pool.full_size,
-            VK_SHADER_STAGE_ALL,
-            nullptr};
-        VkDescriptorSetLayoutCreateInfo descriptorLayout{
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-            .pNext = &bindless_binding_flags,
-            .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
-            .bindingCount = 1,
-            .pBindings = &binding};
-        VK_CHECK_RESULT(vkCreateDescriptorSetLayout(logic_device(), &descriptorLayout, alloc_callbacks(), &_bdls_tex3d_set_layout));
-        VkDescriptorSetAllocateInfo alloc_info{
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-            .descriptorPool = _bdls_tex3d_desc_pool,
-            .descriptorSetCount = 1,
-            .pSetLayouts = &_bdls_tex3d_set_layout};
-        VK_CHECK_RESULT(vkAllocateDescriptorSets(logic_device(), &alloc_info, &_bdls_tex3d_set));
-        tex3d_bindless_imgview.resize(tex3d_heap_pool.full_size);
+    if (!fallback) {
+        {
+            buffer_heap_pool.full_size = 262144;
+            VkDescriptorPoolSize pool_size;
+            pool_size.descriptorCount = buffer_heap_pool.full_size;
+            pool_size.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            VkDescriptorPoolCreateInfo createInfo{
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+                .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
+                .maxSets = 1,
+                .poolSizeCount = 1,
+                .pPoolSizes = &pool_size};
+            VK_CHECK_RESULT(vkCreateDescriptorPool(logic_device(), &createInfo, alloc_callbacks(), &_bdls_buffer_desc_pool));
+            VkDescriptorSetLayoutBinding binding{
+                0,
+                VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                buffer_heap_pool.full_size,
+                VK_SHADER_STAGE_ALL,
+                nullptr};
+            VkDescriptorSetLayoutCreateInfo descriptorLayout{
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+                .pNext = &bindless_binding_flags,
+                .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
+                .bindingCount = 1,
+                .pBindings = &binding};
+            VK_CHECK_RESULT(vkCreateDescriptorSetLayout(logic_device(), &descriptorLayout, alloc_callbacks(), &_bdls_buffer_set_layout));
+            VkDescriptorSetAllocateInfo alloc_info{
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+                .descriptorPool = _bdls_buffer_desc_pool,
+                .descriptorSetCount = 1,
+                .pSetLayouts = &_bdls_buffer_set_layout};
+            VK_CHECK_RESULT(vkAllocateDescriptorSets(logic_device(), &alloc_info, &_bdls_buffer_set));
+        }
+        // bindless tex2d desc_pool
+        {
+            tex2d_heap_pool.full_size = 262144;
+            VkDescriptorPoolSize pool_size;
+            pool_size.descriptorCount = tex2d_heap_pool.full_size;
+            pool_size.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+            VkDescriptorPoolCreateInfo createInfo{
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+                .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
+                .maxSets = 1,
+                .poolSizeCount = 1,
+                .pPoolSizes = &pool_size};
+            VK_CHECK_RESULT(vkCreateDescriptorPool(logic_device(), &createInfo, alloc_callbacks(), &_bdls_tex2d_desc_pool));
+            VkDescriptorSetLayoutBinding binding{
+                0,
+                VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+                tex2d_heap_pool.full_size,
+                VK_SHADER_STAGE_ALL,
+                nullptr};
+            VkDescriptorSetLayoutCreateInfo descriptorLayout{
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+                .pNext = &bindless_binding_flags,
+                .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
+                .bindingCount = 1,
+                .pBindings = &binding};
+            VK_CHECK_RESULT(vkCreateDescriptorSetLayout(logic_device(), &descriptorLayout, alloc_callbacks(), &_bdls_tex2d_set_layout));
+            VkDescriptorSetAllocateInfo alloc_info{
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+                .descriptorPool = _bdls_tex2d_desc_pool,
+                .descriptorSetCount = 1,
+                .pSetLayouts = &_bdls_tex2d_set_layout};
+            VK_CHECK_RESULT(vkAllocateDescriptorSets(logic_device(), &alloc_info, &_bdls_tex2d_set));
+            tex2d_bindless_imgview.resize(tex2d_heap_pool.full_size);
+        }
+        // bindless tex3d desc_pool
+        {
+            tex3d_heap_pool.full_size = 262144;
+            VkDescriptorPoolSize pool_size;
+            pool_size.descriptorCount = tex3d_heap_pool.full_size;
+            pool_size.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+            VkDescriptorPoolCreateInfo createInfo{
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+                .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
+                .maxSets = 1,
+                .poolSizeCount = 1,
+                .pPoolSizes = &pool_size};
+            VK_CHECK_RESULT(vkCreateDescriptorPool(logic_device(), &createInfo, alloc_callbacks(), &_bdls_tex3d_desc_pool));
+            VkDescriptorSetLayoutBinding binding{
+                0,
+                VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+                tex3d_heap_pool.full_size,
+                VK_SHADER_STAGE_ALL,
+                nullptr};
+            VkDescriptorSetLayoutCreateInfo descriptorLayout{
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+                .pNext = &bindless_binding_flags,
+                .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
+                .bindingCount = 1,
+                .pBindings = &binding};
+            VK_CHECK_RESULT(vkCreateDescriptorSetLayout(logic_device(), &descriptorLayout, alloc_callbacks(), &_bdls_tex3d_set_layout));
+            VkDescriptorSetAllocateInfo alloc_info{
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+                .descriptorPool = _bdls_tex3d_desc_pool,
+                .descriptorSetCount = 1,
+                .pSetLayouts = &_bdls_tex3d_set_layout};
+            VK_CHECK_RESULT(vkAllocateDescriptorSets(logic_device(), &alloc_info, &_bdls_tex3d_set));
+            tex3d_bindless_imgview.resize(tex3d_heap_pool.full_size);
+        }
     }
     // sampler desc_pool
     {
