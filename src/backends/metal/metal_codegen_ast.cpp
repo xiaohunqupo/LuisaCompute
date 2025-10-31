@@ -963,6 +963,8 @@ void MetalCodegenAST::visit(const CallExpr *expr) noexcept {
         case CallOp::ATOMIC_FETCH_MAX: _scratch << "lc_atomic_fetch_max"; break;
         case CallOp::BUFFER_READ: _scratch << "buffer_read"; break;
         case CallOp::BUFFER_WRITE: _scratch << "buffer_write"; break;
+        case CallOp::BUFFER_VOLATILE_READ: _scratch << "buffer_read_volatile"; break;
+        case CallOp::BUFFER_VOLATILE_WRITE: _scratch << "buffer_write_volatile"; break;
         case CallOp::BUFFER_SIZE: _scratch << "buffer_size"; break;
         case CallOp::BYTE_BUFFER_READ: {
             _scratch << "byte_buffer_read<";
@@ -971,6 +973,13 @@ void MetalCodegenAST::visit(const CallExpr *expr) noexcept {
             break;
         }
         case CallOp::BYTE_BUFFER_WRITE: _scratch << "byte_buffer_write"; break;
+        case CallOp::BYTE_BUFFER_VOLATILE_READ: {
+            _scratch << "byte_buffer_read_volatile<";
+            _emit_type_name(expr->type());
+            _scratch << ">";
+            break;
+        }
+        case CallOp::BYTE_BUFFER_VOLATILE_WRITE: _scratch << "byte_buffer_write_volatile"; break;
         case CallOp::BYTE_BUFFER_SIZE: _scratch << "byte_buffer_size"; break;
         case CallOp::TEXTURE_READ: _scratch << "texture_read"; break;
         case CallOp::TEXTURE_WRITE: _scratch << "texture_write"; break;
