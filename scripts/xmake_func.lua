@@ -383,46 +383,84 @@ end)
 rule_end()
 
 rule('lc_install_sdk')
-before_build(function(target)
+on_prepare(function(target)
     local custom_sdk_dir
     custom_sdk_dir = target:extraconf("rules", 'lc_install_sdk', "sdk_dir")
     if not custom_sdk_dir then
         custom_sdk_dir = get_config("lc_sdk_dir")
     end
-    if type(custom_sdk_dir) == "string" and not os.exists(custom_sdk_dir) then
-        return
-    end
-    local bin_dir = target:targetdir()
     local lib = import('lib')
-    lib.mkdirs(bin_dir)
     local libnames = target:extraconf("rules", "lc_install_sdk", "libnames")
-    if type(libnames) == "string" then
+    -- Support:
+
+    -- add_rules('lc_install_sdk', {
+    --     sdk_dir = xxx
+    --     libnames = {{
+    --         name = yyy,
+    --         install_dir = ""
+    --         plat_spec = true                 -- name will be transformed to yyyy-linux-x64.zip
+    --     }}
+    -- })
+
+    -- add_rules('lc_install_sdk', {
+    --     libnames = xxx
+    --     
+    -- })
+
+    -- and
+
+    -- add_rules('lc_install_sdk', {
+    --     sdk_dir = xxx
+    --     libnames = {
+    --         name = yyy
+    --     }
+    -- })
+    if type(libnames) == "string" or (type(libnames) == "table" and type(libnames["name"]) == "string") then
         libnames = {libnames}
     end
     local find_sdk = import('find_sdk')
     local sdks = find_sdk.sdks()
-    local sdk_dir = find_sdk.sdk_dir(os.arch(), custom_sdk_dir)
+    local sdk_dir = find_sdk.sdk_dir(custom_sdk_dir)
     os.mkdir(sdk_dir)
     for _, lib in ipairs(libnames) do
-        local sdk_map
-        
-        local function log_err()
-            utils.error("Library: " .. find_sdk.sdks()[lib]['name'] ..
-                            " not installed, should download from " ..
-                            find_sdk.sdk_address(find_sdk.sdks()[lib]) .. ' to ' ..
-                            find_sdk.sdk_dir(os.arch(), custom_sdk_dir) .. '.')
+        local install_dir = lib["install_dir"]
+        if not install_dir then
+            install_dir = target:targetdir()
+        else
+            install_dir = path.join(install_dir, os.host(), os.arch())
         end
-        find_sdk.install_sdk(lib, custom_sdk_dir)
+        os.mkdir(install_dir)
+        local sdk_map
+
+        local function log_err()
+            utils.error("Library: " .. find_sdk.sdks()[lib]['name'] .. " not installed, should download from " ..
+                            find_sdk.sdk_address(find_sdk.sdks()[lib]) .. ' to ' .. find_sdk.sdk_dir(custom_sdk_dir) ..
+                            '.')
+        end
+        local function process_sdk_map(sdk_map)
+            if sdk_map["plat_spec"] then
+                local t = sdk_map['name']
+                sdk_map['name'] = path.basename(t) .. '-' .. os.host() .. '-' .. os.arch() .. path.extension(t)
+            end
+        end
         if type(lib) == "string" then
+            sdk_map = sdks[lib]
+            process_sdk_map(sdk_map)
+            find_sdk.install_sdk(sdk_map, custom_sdk_dir)
             local valid = find_sdk.check_file(lib, custom_sdk_dir)
             if not valid then
                 log_err();
                 return
             end
-            sdk_map = sdks[lib]
         else
             sdk_map = lib
+            process_sdk_map(sdk_map)
+            if sdk_map['address'] == nil then
+                sdk_map['address'] = false
+            end
+            find_sdk.install_sdk(sdk_map, custom_sdk_dir)
         end
+
         local src_dir = path.join(sdk_dir, path.basename(sdk_map["name"]))
         local function is_empty_folder()
             if os.exists(src_dir) and not os.isfile(src_dir) then
@@ -437,8 +475,8 @@ before_build(function(target)
         if is_empty_folder() then
             find_sdk.unzip_sdk(sdk_map['name'], sdk_dir, src_dir)
         end
-        for _, filepath in ipairs(os.filedirs(path.join(src_dir, "**"))) do
-            os.cp(filepath, path.join(target:targetdir(), path.filename(filepath)), {
+        for _, filepath in ipairs(os.filedirs(path.join(src_dir, "*"))) do
+            os.cp(filepath, path.join(install_dir, path.filename(filepath)), {
                 copy_if_different = true
             })
         end

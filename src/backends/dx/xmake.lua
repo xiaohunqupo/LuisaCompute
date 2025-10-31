@@ -54,7 +54,6 @@ on_load(function(target)
                     end
                 end
             end
-
             target:add("links", "nvrtc_static", "cudart_static", "cuda")
             target:add("defines", "LCDX_ENABLE_CUDA")
             target:add("syslinks", "Cfgmgr32", "Advapi32")
@@ -62,6 +61,10 @@ on_load(function(target)
     end
 end)
 set_pcxxheader("lc_dx_pch.h")
+target_end()
+
+target("lc_install_dxsdk")
+set_kind("phony")
 add_rules('lc_install_sdk', {
     libnames = 'dx_sdk'
 })

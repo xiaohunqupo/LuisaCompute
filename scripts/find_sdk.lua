@@ -4,12 +4,16 @@ import("lib.detect.find_file")
 import("core.project.config")
 local _sdks = {
     dx_sdk = {
-        name = 'dx_sdk_20250816.zip',
+        name = 'dx_sdk_20250816.zip'
     }
 }
 
 function sdk_address(sdk)
-    return sdk['address'] or 'https://github.com/LuisaGroup/SDKs/releases/download/sdk/'
+    local address = sdk['address']
+    if address == nil then
+        return 'https://github.com/LuisaGroup/SDKs/releases/download/sdk/'
+    end
+    return address
 end
 function sdk_mirror_addresses(sdk)
     return sdk['mirror_addresses'] or {}
@@ -18,7 +22,7 @@ function sdks()
     return _sdks
 end
 local lc_project_dir = path.directory(os.scriptdir())
-function sdk_dir(arch, custom_dir)
+function sdk_dir(custom_dir)
     if custom_dir then
         if not path.is_absolute(custom_dir) then
             custom_dir = path.absolute(custom_dir, os.projectdir())
@@ -26,16 +30,15 @@ function sdk_dir(arch, custom_dir)
     else
         custom_dir = path.join(lc_project_dir, 'SDKs/')
     end
-    return path.join(custom_dir, arch)
+    return path.join(custom_dir, os.host(), os.arch())
 end
 
-function get_or_create_sdk_dir(arch, custom_dir)
-    local dir = sdk_dir(arch, custom_dir)
+function get_or_create_sdk_dir(custom_dir)
+    local dir = sdk_dir(custom_dir)
     local lib = import('lib')
     lib.mkdirs(dir)
     return dir
 end
-
 
 -- use_lib_cache = true
 
@@ -99,7 +102,7 @@ function unzip_sdk(tool_name, in_dir, out_dir)
 end
 
 function install_sdk(sdk_map, custom_dir)
-    local dir = get_or_create_sdk_dir(os.arch(), custom_dir)
+    local dir = get_or_create_sdk_dir(custom_dir)
     local _sdks = sdks()
     if not sdk_map then
         utils.error("Invalid sdk: " .. sdk_map["name"])
@@ -109,7 +112,7 @@ function install_sdk(sdk_map, custom_dir)
 end
 
 function check_file(sdk_name, custom_dir)
-    local dir = sdk_dir(os.arch(), custom_dir)
+    local dir = sdk_dir(custom_dir)
     local _sdks = sdks()
     local sdk_map = _sdks[sdk_name]
     local zip = sdk_map['name']
