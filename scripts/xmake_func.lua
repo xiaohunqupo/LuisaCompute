@@ -397,7 +397,8 @@ on_prepare(function(target)
     --     sdk_dir = xxx
     --     libnames = {{
     --         name = yyy,
-    --         install_dir = ""
+    --         extract_dir = xxx                 -- extract to default dir or target dir
+    --         copy_dir = ""                    -- no copy or copy to target dir
     --         plat_spec = true                 -- name will be transformed to yyyy-linux-x64.zip
     --     }}
     -- })
@@ -423,13 +424,15 @@ on_prepare(function(target)
     local sdk_dir = find_sdk.sdk_dir(custom_sdk_dir)
     os.mkdir(sdk_dir)
     for _, lib in ipairs(libnames) do
-        local install_dir = lib["install_dir"]
-        if not install_dir then
-            install_dir = target:targetdir()
+        local copy_dir = lib["copy_dir"]
+        if not copy_dir then
+            copy_dir = target:targetdir()
         else
-            install_dir = path.join(install_dir, os.host(), os.arch())
+            copy_dir = path.join(copy_dir, os.host(), os.arch())
         end
-        os.mkdir(install_dir)
+        if #copy_dir > 0 then
+            os.mkdir(copy_dir)
+        end
         local sdk_map
 
         local function log_err()
@@ -442,11 +445,11 @@ on_prepare(function(target)
                 local t = sdk_map['name']
                 sdk_map['name'] = path.basename(t) .. '-' .. os.host() .. '-' .. os.arch() .. path.extension(t)
             end
+            find_sdk.install_sdk(sdk_map, custom_sdk_dir)
         end
         if type(lib) == "string" then
             sdk_map = sdks[lib]
             process_sdk_map(sdk_map)
-            find_sdk.install_sdk(sdk_map, custom_sdk_dir)
             local valid = find_sdk.check_file(lib, custom_sdk_dir)
             if not valid then
                 log_err();
@@ -455,16 +458,15 @@ on_prepare(function(target)
         else
             sdk_map = lib
             process_sdk_map(sdk_map)
-            if sdk_map['address'] == nil then
-                sdk_map['address'] = false
-            end
-            find_sdk.install_sdk(sdk_map, custom_sdk_dir)
         end
 
-        local src_dir = path.join(sdk_dir, path.basename(sdk_map["name"]))
+        local extract_dir = lib["extract_dir"]
+        if not extract_dir or #extract_dir == 0 then
+            extract_dir = path.join(sdk_dir, path.basename(sdk_map["name"]))
+        end
         local function is_empty_folder()
-            if os.exists(src_dir) and not os.isfile(src_dir) then
-                for _, v in ipairs(os.filedirs(path.join(src_dir, '*'))) do
+            if os.exists(extract_dir) and not os.isfile(extract_dir) then
+                for _, v in ipairs(os.filedirs(path.join(extract_dir, '*'))) do
                     return false
                 end
                 return true
@@ -473,12 +475,14 @@ on_prepare(function(target)
             end
         end
         if is_empty_folder() then
-            find_sdk.unzip_sdk(sdk_map['name'], sdk_dir, src_dir)
+            find_sdk.unzip_sdk(sdk_map['name'], sdk_dir, extract_dir)
         end
-        for _, filepath in ipairs(os.filedirs(path.join(src_dir, "*"))) do
-            os.cp(filepath, path.join(install_dir, path.filename(filepath)), {
-                copy_if_different = true
-            })
+        if #copy_dir > 0 then
+            for _, filepath in ipairs(os.filedirs(path.join(extract_dir, "*"))) do
+                os.cp(filepath, path.join(copy_dir, path.filename(filepath)), {
+                    copy_if_different = true
+                })
+            end
         end
     end
 end)

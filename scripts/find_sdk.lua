@@ -13,6 +13,9 @@ function sdk_address(sdk)
     if address == nil then
         return 'https://github.com/LuisaGroup/SDKs/releases/download/sdk/'
     end
+    if #address == 0 then -- no download
+        return nil
+    end
     return address
 end
 function sdk_mirror_addresses(sdk)
@@ -68,6 +71,9 @@ function file_from_github(sdk_map, dir)
     local zip, address, mirror_address
     zip = sdk_map['name']
     address = sdk_address(sdk_map)
+    if not address then
+        return
+    end
     mirror_address = sdk_mirror_addresses(sdk_map)
 
     local zip_dir = find_file(zip, {dir})
