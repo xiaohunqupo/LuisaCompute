@@ -2,9 +2,40 @@ import("net.http")
 import("utils.archive")
 import("lib.detect.find_file")
 import("core.project.config")
-local packages = import("packages")
+local _sdks = {
+    dx_sdk = {
+        name = 'dx_sdk_20250816.zip',
+    }
+}
 
-find_sdk = find_sdk or {}
+function sdk_address(sdk)
+    return sdk['address'] or 'https://github.com/LuisaGroup/SDKs/releases/download/sdk/'
+end
+function sdk_mirror_addresses(sdk)
+    return sdk['mirror_addresses'] or {}
+end
+function sdks()
+    return _sdks
+end
+local lc_project_dir = path.directory(os.scriptdir())
+function sdk_dir(arch, custom_dir)
+    if custom_dir then
+        if not path.is_absolute(custom_dir) then
+            custom_dir = path.absolute(custom_dir, os.projectdir())
+        end
+    else
+        custom_dir = path.join(lc_project_dir, 'SDKs/')
+    end
+    return path.join(custom_dir, arch)
+end
+
+function get_or_create_sdk_dir(arch, custom_dir)
+    local dir = sdk_dir(arch, custom_dir)
+    local lib = import('lib')
+    lib.mkdirs(dir)
+    return dir
+end
+
 
 -- use_lib_cache = true
 
@@ -33,14 +64,14 @@ end
 function file_from_github(sdk_map, dir)
     local zip, address, mirror_address
     zip = sdk_map['name']
-    address = packages.sdk_address(sdk_map)
-    mirror_address = packages.sdk_mirror_addresses(sdk_map)
+    address = sdk_address(sdk_map)
+    mirror_address = sdk_mirror_addresses(sdk_map)
 
     local zip_dir = find_file(zip, {dir})
     local dst_dir = path.join(dir, zip)
     if (zip_dir == nil) then
         local url = vformat(address)
-        print("download: " .. url .. zip .. " to: " .. dir)
+        print("downloading: " .. url .. zip .. " to: " .. dir)
         try_download(zip, url, mirror_address, dst_dir, {
             continue = false
         })
@@ -67,20 +98,19 @@ function unzip_sdk(tool_name, in_dir, out_dir)
     end
 end
 
-function install_sdk(sdk_name, custom_dir)
-    local dir = packages.get_or_create_sdk_dir(os.arch(), custom_dir)
-    local _sdks = packages.sdks()
-    local sdk_map = _sdks[sdk_name]
+function install_sdk(sdk_map, custom_dir)
+    local dir = get_or_create_sdk_dir(os.arch(), custom_dir)
+    local _sdks = sdks()
     if not sdk_map then
-        utils.error("Invalid sdk: " .. sdk_name)
+        utils.error("Invalid sdk: " .. sdk_map["name"])
         return
     end
     file_from_github(sdk_map, dir)
 end
 
 function check_file(sdk_name, custom_dir)
-    local dir = packages.sdk_dir(os.arch(), custom_dir)
-    local _sdks = packages.sdks()
+    local dir = sdk_dir(os.arch(), custom_dir)
+    local _sdks = sdks()
     local sdk_map = _sdks[sdk_name]
     local zip = sdk_map['name']
     local zip_dir = find_file(zip, {dir})

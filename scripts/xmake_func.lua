@@ -391,18 +391,20 @@ before_build(function(target)
     if type(libnames) == "string" then
         libnames = {libnames}
     end
-    local packages = import('packages')
     local find_sdk = import('find_sdk')
-    local sdks = packages.sdks()
-    local sdk_dir = packages.sdk_dir(os.arch(), custom_sdk_dir)
+    local sdks = find_sdk.sdks()
+    local sdk_dir = find_sdk.sdk_dir(os.arch(), custom_sdk_dir)
+    os.mkdir(sdk_dir)
     for _, lib in ipairs(libnames) do
         local sdk_map
+        
         local function log_err()
-            utils.error("Library: " .. packages.sdks()[lib]['name'] ..
-                            " not installed, run 'xmake lua setup.lua' or download it manually from " ..
-                            packages.sdk_address(packages.sdks()[lib]) .. ' to ' ..
-                            packages.sdk_dir(os.arch(), custom_sdk_dir) .. '.')
+            utils.error("Library: " .. find_sdk.sdks()[lib]['name'] ..
+                            " not installed, should download from " ..
+                            find_sdk.sdk_address(find_sdk.sdks()[lib]) .. ' to ' ..
+                            find_sdk.sdk_dir(os.arch(), custom_sdk_dir) .. '.')
         end
+        find_sdk.install_sdk(lib, custom_sdk_dir)
         if type(lib) == "string" then
             local valid = find_sdk.check_file(lib, custom_sdk_dir)
             if not valid then
