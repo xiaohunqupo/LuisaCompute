@@ -102,6 +102,22 @@ inline void buffer_write(LCBuffer<T> buffer, I index, T value) {
     buffer.data[index] = value;
 }
 
+#if __METAL_VERSION__ >= 320
+
+template<typename T, typename I>
+[[nodiscard]] inline auto buffer_read_volatile(LCBuffer<T> buffer, I index) {
+    atomic_thread_fence(mem_flags::mem_device, memory_order_seq_cst);
+    return buffer.data[index];
+}
+
+template<typename T, typename I>
+inline void buffer_write_volatile(LCBuffer<T> buffer, I index, T value) {
+    buffer.data[index] = value;
+    atomic_thread_fence(mem_flags::mem_device, memory_order_seq_cst);
+}
+
+#endif
+
 template<typename T>
 inline auto buffer_size(LCBuffer<T> buffer) {
     return buffer.size / sizeof(T);
@@ -121,6 +137,22 @@ template<typename T>
 inline void byte_buffer_write(LCBuffer<lc_byte> buffer, ulong index, T value) {
     *reinterpret_cast<device T *>(buffer.data + index) = value;
 }
+
+#if __METAL_VERSION__ >= 320
+
+template<typename T>
+[[nodiscard]] auto byte_buffer_read_volatile(LCBuffer<const lc_byte> buffer, ulong index) {
+    atomic_thread_fence(mem_flags::mem_device, memory_order_seq_cst);
+    return *reinterpret_cast<device const T *>(buffer.data + index);
+}
+
+template<typename T>
+inline void byte_buffer_write_volatile(LCBuffer<lc_byte> buffer, ulong index, T value) {
+    *reinterpret_cast<device T *>(buffer.data + index) = value;
+    atomic_thread_fence(mem_flags::mem_device, memory_order_seq_cst);
+}
+
+#endif
 
 inline ulong byte_buffer_size(LCBuffer<const lc_byte> buffer) {
     return buffer.size;
