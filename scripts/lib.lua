@@ -212,3 +212,44 @@ function to_byte_array(input, out)
     out:erase(1)
     return str_size
 end
+
+function lexically_normal(input_path)
+    if #input_path == 0 then
+        return input_path
+    end
+    local path_first_char = input_path:sub(1, 1)
+    local tb = path.split(input_path)
+    local final_path = StringBuilder()
+    local cut = char('/')
+    if path_first_char == '\\' or path_first_char == '/' then
+        final_path:add_char(cut)
+    end
+    local i = 1
+    local path_started = false
+    while i <= #tb do
+        if tb[i] == '..' and path_started then
+            table.remove(tb, i)
+            table.remove(tb, i - 1)
+            i = i - 1
+        else
+            i = i + 1
+        end
+        if (not path_started) and tb[i] ~= '..' and tb[i] ~= '.' then
+            path_started = true
+        end
+    end
+    for i = 1, #tb do
+        if final_path:size() > 0 and final_path:get(final_path:size()) ~= cut then
+            final_path:add_char(cut)
+        end
+        if not (tb[i] == '.' and i > 1) then
+            final_path:add(tb[i])
+        end
+    end
+    if path.islastsep(input_path) then
+        final_path:add_char(cut)
+    end
+    local r = final_path:to_string()
+    final_path:dispose()
+    return r
+end

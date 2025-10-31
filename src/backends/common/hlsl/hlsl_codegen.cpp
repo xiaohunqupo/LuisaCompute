@@ -608,7 +608,7 @@ void StringStateVisitor::VisitFunction(
         vstd::StringBuilder typeName;
         util->GetTypeName(*v.type(), typeName, f.variable_usage(v.uid()));
         vstd::StringBuilder varName;
-        util->GetVariableName(v, varName);
+        util->GetVariableName(func, v, varName);
         str << typeName << ' ' << varName << "_grad=("sv << typeName << ")0;\n"sv;
     }
 #endif

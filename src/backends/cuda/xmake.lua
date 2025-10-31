@@ -68,12 +68,16 @@ add_rules("lc_compile_codegen", {
 })
 add_files("cuda_builtin.lua")
 set_pcxxheader("lc_cuda_pch.h")
-add_headerfiles("*.h", "../common/default_binary_io.h")
+add_headerfiles("*.h")
 on_load(function(target)
+    local lib = import("lib", {rootdir = get_config("_lc_script_path")})
+    target:add("headerfiles", lib.lexically_normal(path.join(os.scriptdir(), "../common/default_binary_io.h")))
+    
     local src_path = os.scriptdir()
     local exclude_files = {}
     exclude_files["cuda_nvrtc_compiler.cpp"] = true
     exclude_files["cuda_builtin_embedded.cpp"] = true
+    exclude_files["cuda_devrt_embedded.cpp"] = true
     for _, filepath in ipairs(os.files(path.join(src_path, "*.cpp"))) do
         local file_name = path.filename(filepath)
         if not exclude_files[file_name] then
