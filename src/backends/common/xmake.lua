@@ -15,6 +15,11 @@ if has_config("lc_cuda_backend") then
             public = true
         })
     end
+    on_load(function(target)
+        if target:is_plat("macosx") then
+            target:add("files", path.join(os.scriptdir(), "moltenvk_surface.mm"))
+        end
+    end)
     target_end()
 end
 

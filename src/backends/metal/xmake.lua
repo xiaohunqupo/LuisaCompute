@@ -6,7 +6,7 @@ _config_project({
 })
 add_deps("lc-runtime")
 add_headerfiles("*.h")
-add_files("*.mm", "../common/default_binary_io.cpp")
+add_files("*.mm")
 
 on_load(function(target)
     local src_path = os.scriptdir()
@@ -16,6 +16,8 @@ on_load(function(target)
             target:add("files", filepath)
         end
     end
+    local lib = import("lib", {rootdir = get_config("_lc_script_path")})
+    target:add("files", lib.lexically_normal(path.join(os.scriptdir(), "../common/default_binary_io.cpp")))
 end)
 
 add_frameworks("Foundation", "Metal", "QuartzCore", "AppKit")
