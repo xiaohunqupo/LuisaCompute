@@ -1,12 +1,11 @@
 local script_dir = path.join(os.scriptdir(), "cuda_builtin")
-local dst_script_dir = os.scriptdir()
 
 function src_dir()
     return script_dir
 end
 
 function dst_file()
-    return path.join(dst_script_dir, "cuda_builtin_embedded.cpp")
+    return path.join(script_dir, "cuda_builtin_embedded.cpp")
 end
 
 function meta_dir()

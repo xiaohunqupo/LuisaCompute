@@ -74,6 +74,7 @@ on_load(function(target)
     local exclude_files = {}
     exclude_files["cuda_nvrtc_compiler.cpp"] = true
     exclude_files["cuda_builtin_embedded.cpp"] = true
+    exclude_files["cuda_devrt_embedded.cpp"] = true
     for _, filepath in ipairs(os.files(path.join(src_path, "*.cpp"))) do
         local file_name = path.filename(filepath)
         if not exclude_files[file_name] then

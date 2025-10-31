@@ -6,7 +6,17 @@ _config_project({
 })
 add_deps("lc-runtime")
 add_headerfiles("*.h")
-add_files("*.cpp", "*.mm", "../common/default_binary_io.cpp")
+add_files("*.mm", "../common/default_binary_io.cpp")
+
+on_load(function(target)
+    local src_path = os.scriptdir()
+    for _, filepath in ipairs(os.files(path.join(src_path, "*.cpp"))) do
+        local file_name = path.filename(filepath)
+        if file_name ~= "metal_builtin_embedded.cpp" then
+            target:add("files", filepath)
+        end
+    end
+end)
 
 add_frameworks("Foundation", "Metal", "QuartzCore", "AppKit")
 add_syslinks("compression")
