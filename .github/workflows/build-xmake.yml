@@ -40,7 +40,6 @@ jobs:
           vulkan-use-cache: true
       - name: "Configure and Build"
         run: |
-          xmake lua setup.lua
           xmake f -p linux -a x86_64 --toolchain=${{ matrix.toolchain }} -m ${{ matrix.config }} --lc_cuda_backend=true --lc_enable_dsl=true --lc_enable_gui=true --lc_enable_unity_build=false --lc_enable_tests=true --lc_enable_mimalloc=false --check -c -y
           xmake
 
@@ -85,7 +84,6 @@ jobs:
       - name: "Configure and Build"
         shell: cmd
         run: |
-          xmake lua setup.lua ../luisa_compute_sdks
           if "${{ matrix.compiler }}" == "llvm" (
             xmake f -p windows -a x64 --toolchain=llvm --sdk="C:/Program Files/LLVM" -m ${{ matrix.config }} --lc_vk_backend=true --lc_dx_backend=true --lc_cuda_backend=true --lc_enable_dsl=true --lc_enable_gui=true --lc_enable_unity_build=false --lc_enable_tests=true --lc_sdk_dir=../luisa_compute_sdks --check -c -y
           ) else (
