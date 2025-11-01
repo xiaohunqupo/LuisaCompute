@@ -132,7 +132,7 @@ auto RasterShader::create_pipeline(
         .rasterizerDiscardEnable = false,
         .polygonMode = VK_POLYGON_MODE_FILL,
         .cullMode = cull_mode,
-        .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+        .frontFace = state.front_counter_clockwise ? VK_FRONT_FACE_COUNTER_CLOCKWISE : VK_FRONT_FACE_CLOCKWISE,
         .depthBiasEnable = VK_FALSE,
         .depthBiasConstantFactor = 0,
         .depthBiasClamp = 1.f,
@@ -322,7 +322,7 @@ auto RasterShader::create_pipeline(
             .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
             .module = pixel_shader_module,
             .pName = "main"}};
-    v.render_pass = create_render_pass(device(), rtv_textures, dsv_textures);
+    v.render_pass = create_render_pass(device(), state, rtv_textures, dsv_textures);
     VkGraphicsPipelineCreateInfo graphics_pipeline_create_info{
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
         .stageCount = vstd::array_count(shader_stages),
@@ -347,17 +347,37 @@ auto RasterShader::create_pipeline(
 }
 VkRenderPass RasterShader::create_render_pass(
     Device *device,
+    RasterState const &state,
     luisa::span<Argument::Texture const> rtv_textures,
     Argument::Texture dsv_textures) {
     VkAttachmentLoadOp color_attachment_load_op = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     VkAttachmentStoreOp color_attachment_store_op = VK_ATTACHMENT_STORE_OP_STORE;
     VkImageLayout color_attachment_image_layout = VK_IMAGE_LAYOUT_UNDEFINED;
-
+    bool blend = false;
+    if (state.blend_state.enable_blend) {
+        switch (state.blend_state.img_op) {
+            case BlendWeight::One:
+            case BlendWeight::ImgColor:
+            case BlendWeight::ImgAlpha:
+            case BlendWeight::OneMinusImgColor:
+            case BlendWeight::OneMinusImgAlpha:
+                blend = true;
+                break;
+        }
+        switch (state.blend_state.prim_op) {
+            case BlendWeight::ImgColor:
+            case BlendWeight::ImgAlpha:
+            case BlendWeight::OneMinusImgColor:
+            case BlendWeight::OneMinusImgAlpha:
+                blend = true;
+                break;
+        }
+    }
     // Samples can keep the color attachment contents, e.g. if they have previously written to the swap chain images
-    // if (flags & RenderPassCreateFlags::ColorAttachmentLoad) {
-    //     color_attachment_load_op = VK_ATTACHMENT_LOAD_OP_LOAD;
-    //     color_attachment_image_layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-    // }
+    if (blend) {
+        color_attachment_load_op = VK_ATTACHMENT_LOAD_OP_LOAD;
+        color_attachment_image_layout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
+    }
     luisa::fixed_vector<VkAttachmentDescription, 9> attachments;
     luisa::fixed_vector<VkAttachmentReference, 8> color_references;
     VkAttachmentReference depth_reference{};
@@ -385,11 +405,19 @@ VkRenderPass RasterShader::create_render_pass(
         auto tex = reinterpret_cast<Texture *>(dsv_textures.handle);
         a.format = Texture::to_vk_format(tex->format());
         a.samples = VK_SAMPLE_COUNT_1_BIT;
-        a.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-        a.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-        a.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-        a.stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
-        a.initialLayout = VK_IMAGE_LAYOUT_GENERAL;
+        if (state.depth_state.enable_depth) {
+            a.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+            a.storeOp = state.depth_state.write ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_DONT_CARE;
+            a.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+            a.stencilStoreOp = state.depth_state.write ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_DONT_CARE;
+            a.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        } else {
+            a.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+            a.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+            a.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+            a.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+            a.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        }
         a.finalLayout = VK_IMAGE_LAYOUT_GENERAL;
         depth_reference.attachment = attach_idx;
         depth_reference.layout = a.finalLayout;
