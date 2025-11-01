@@ -3,6 +3,14 @@ option("_lc_enable_py", {
     showmenu = false
 })
 
+option("_lc_script_path")
+set_showmenu(false)
+set_default(false)
+after_check(function(option)
+    option:set_value(os.scriptdir())
+end)
+option_end()
+
 option("_lc_check_env")
 set_showmenu(false)
 set_default(false)
@@ -374,65 +382,35 @@ on_buildcmd_file(function(target, batchcmds, sourcefile, opt)
 end)
 rule_end()
 
+-- Support:
+
+-- add_rules('lc_install_sdk', {
+--     sdk_dir = xxx
+--     libnames = {{
+--         name = yyy,
+--         extract_dir = xxx                 -- extract to default dir or target dir
+--         copy_dir = ""                    -- no copy or copy to target dir
+--         plat_spec = true                 -- name will be transformed to yyyy-linux-x64.zip
+--     }}
+-- })
+
+-- add_rules('lc_install_sdk', {
+--     libnames = xxx
+--     
+-- })
+
+-- and
+
+-- add_rules('lc_install_sdk', {
+--     sdk_dir = xxx
+--     libnames = {
+--         name = yyy
+--     }
+-- })
 rule('lc_install_sdk')
-before_build(function(target)
-    local custom_sdk_dir
-    custom_sdk_dir = target:extraconf("rules", 'lc_install_sdk', "sdk_dir")
-    if not custom_sdk_dir then
-        custom_sdk_dir = get_config("lc_sdk_dir")
-    end
-    if type(custom_sdk_dir) == "string" and not os.exists(custom_sdk_dir) then
-        return
-    end
-    local bin_dir = target:targetdir()
-    local lib = import('lib')
-    lib.mkdirs(bin_dir)
-    local libnames = target:extraconf("rules", "lc_install_sdk", "libnames")
-    if type(libnames) == "string" then
-        libnames = {libnames}
-    end
-    local packages = import('packages')
-    local find_sdk = import('find_sdk')
-    local sdks = packages.sdks()
-    local sdk_dir = packages.sdk_dir(os.arch(), custom_sdk_dir)
-    for _, lib in ipairs(libnames) do
-        local sdk_map
-        local function log_err()
-            utils.error("Library: " .. packages.sdks()[lib]['name'] ..
-                            " not installed, run 'xmake lua setup.lua' or download it manually from " ..
-                            packages.sdk_address(packages.sdks()[lib]) .. ' to ' ..
-                            packages.sdk_dir(os.arch(), custom_sdk_dir) .. '.')
-        end
-        if type(lib) == "string" then
-            local valid = find_sdk.check_file(lib, custom_sdk_dir)
-            if not valid then
-                log_err();
-                return
-            end
-            sdk_map = sdks[lib]
-        else
-            sdk_map = lib
-        end
-        local src_dir = path.join(sdk_dir, path.basename(sdk_map["name"]))
-        local function is_empty_folder()
-            if os.exists(src_dir) and not os.isfile(src_dir) then
-                for _, v in ipairs(os.filedirs(path.join(src_dir, '*'))) do
-                    return false
-                end
-                return true
-            else
-                return true
-            end
-        end
-        if is_empty_folder() then
-            find_sdk.unzip_sdk(sdk_map['name'], sdk_dir, src_dir)
-        end
-        for _, filepath in ipairs(os.filedirs(path.join(src_dir, "**"))) do
-            os.cp(filepath, path.join(target:targetdir(), path.filename(filepath)), {
-                copy_if_different = true
-            })
-        end
-    end
+on_prepare(function(target)
+    import("find_sdk")
+    find_sdk.on_install_sdk(target, 'lc_install_sdk')
 end)
 rule_end()
 

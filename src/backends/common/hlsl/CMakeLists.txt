@@ -56,6 +56,7 @@ if (LUISA_COMPUTE_ENABLE_DX OR LUISA_COMPUTE_ENABLE_VULKAN)
             shader_compiler.cpp
             shader_compiler.h
             shader_property.h
+            shared_var.h
             string_builder.cpp
             string_builder.h
             struct_generator.cpp

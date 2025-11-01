@@ -2,9 +2,46 @@ import("net.http")
 import("utils.archive")
 import("lib.detect.find_file")
 import("core.project.config")
-local packages = import("packages")
+local _sdks = {
+    dx_sdk = {
+        name = 'dx_sdk_20250816.zip'
+    }
+}
 
-find_sdk = find_sdk or {}
+function sdk_address(sdk)
+    local address = sdk['address']
+    if address == nil then
+        return 'https://github.com/LuisaGroup/SDKs/releases/download/sdk/'
+    end
+    if #address == 0 then -- no download
+        return nil
+    end
+    return address
+end
+function sdk_mirror_addresses(sdk)
+    return sdk['mirror_addresses'] or {}
+end
+function sdks()
+    return _sdks
+end
+local lc_project_dir = path.directory(os.scriptdir())
+function sdk_dir(custom_dir)
+    if custom_dir then
+        if not path.is_absolute(custom_dir) then
+            custom_dir = path.absolute(custom_dir, os.projectdir())
+        end
+    else
+        custom_dir = path.join(lc_project_dir, 'SDKs/')
+    end
+    return path.join(custom_dir, os.host(), os.arch())
+end
+
+function get_or_create_sdk_dir(custom_dir)
+    local dir = sdk_dir(custom_dir)
+    local lib = import('lib')
+    lib.mkdirs(dir)
+    return dir
+end
 
 -- use_lib_cache = true
 
@@ -13,16 +50,12 @@ local function try_download(zip, url, mirror_urls, dst_dir, settings)
         local zip_dir = find_file(zip, {dst_dir})
         return zip_dir ~= nil
     end
-    http.download(url .. zip, dst_dir, {
-        continue = false
-    })
+    http.download(url .. zip, dst_dir)
     if check_file_valid() then
         return
     end
     for i, mirror_url in ipairs(mirror_urls) do
-        http.download(mirror_url .. zip, dst_dir, {
-            continue = false
-        })
+        http.download(mirror_url .. zip, dst_dir)
         if check_file_valid() then
             return
         end
@@ -33,14 +66,17 @@ end
 function file_from_github(sdk_map, dir)
     local zip, address, mirror_address
     zip = sdk_map['name']
-    address = packages.sdk_address(sdk_map)
-    mirror_address = packages.sdk_mirror_addresses(sdk_map)
+    address = sdk_address(sdk_map)
+    if not address then
+        return
+    end
+    mirror_address = sdk_mirror_addresses(sdk_map)
 
     local zip_dir = find_file(zip, {dir})
     local dst_dir = path.join(dir, zip)
     if (zip_dir == nil) then
         local url = vformat(address)
-        print("download: " .. url .. zip .. " to: " .. dir)
+        print("downloading: " .. url .. zip .. " to: " .. dir)
         try_download(zip, url, mirror_address, dst_dir, {
             continue = false
         })
@@ -67,22 +103,98 @@ function unzip_sdk(tool_name, in_dir, out_dir)
     end
 end
 
-function install_sdk(sdk_name, custom_dir)
-    local dir = packages.get_or_create_sdk_dir(os.arch(), custom_dir)
-    local _sdks = packages.sdks()
-    local sdk_map = _sdks[sdk_name]
+function install_sdk(sdk_map, custom_dir)
+    local dir = get_or_create_sdk_dir(custom_dir)
+    local _sdks = sdks()
     if not sdk_map then
-        utils.error("Invalid sdk: " .. sdk_name)
+        utils.error("Invalid sdk: " .. sdk_map["name"])
         return
     end
     file_from_github(sdk_map, dir)
 end
 
 function check_file(sdk_name, custom_dir)
-    local dir = packages.sdk_dir(os.arch(), custom_dir)
-    local _sdks = packages.sdks()
+    local dir = sdk_dir(custom_dir)
+    local _sdks = sdks()
     local sdk_map = _sdks[sdk_name]
     local zip = sdk_map['name']
     local zip_dir = find_file(zip, {dir})
     return zip_dir ~= nil
+end
+
+function on_install_sdk(target, rule_name)
+    local custom_sdk_dir
+    custom_sdk_dir = target:extraconf("rules", rule_name, "sdk_dir")
+    if not custom_sdk_dir then
+        custom_sdk_dir = get_config("lc_sdk_dir")
+    end
+    local lib = import('lib')
+    local libnames = target:extraconf("rules", rule_name, "libnames")
+    if type(libnames) == "string" or (type(libnames) == "table" and type(libnames["name"]) == "string") then
+        libnames = {libnames}
+    end
+    local sdks = sdks()
+    local sdk_dir = sdk_dir(custom_sdk_dir)
+    os.mkdir(sdk_dir)
+    for _, lib in ipairs(libnames) do
+        local copy_dir = lib["copy_dir"]
+        if not copy_dir then
+            copy_dir = target:targetdir()
+        else
+            copy_dir = path.join(copy_dir, os.host(), os.arch())
+        end
+        if #copy_dir > 0 then
+            os.mkdir(copy_dir)
+        end
+        local sdk_map
+
+        local function log_err()
+            utils.error("Library: " .. sdks()[lib]['name'] .. " not installed, should download from " ..
+                            sdk_address(sdks()[lib]) .. ' to ' .. sdk_dir(custom_sdk_dir) .. '.')
+        end
+        local function process_sdk_map(sdk_map)
+            if sdk_map["plat_spec"] then
+                local t = sdk_map['name']
+                sdk_map['name'] = path.basename(t) .. '-' .. os.host() .. '-' .. os.arch() .. path.extension(t)
+            end
+            install_sdk(sdk_map, custom_sdk_dir)
+        end
+        if type(lib) == "string" then
+            sdk_map = sdks[lib]
+            process_sdk_map(sdk_map)
+            local valid = check_file(lib, custom_sdk_dir)
+            if not valid then
+                log_err();
+                return
+            end
+        else
+            sdk_map = lib
+            process_sdk_map(sdk_map)
+        end
+
+        local extract_dir = lib["extract_dir"]
+        if not extract_dir or #extract_dir == 0 then
+            extract_dir = path.join(sdk_dir, path.basename(sdk_map["name"]))
+        end
+        local function is_empty_folder()
+            if os.exists(extract_dir) and not os.isfile(extract_dir) then
+                for _, v in ipairs(os.filedirs(path.join(extract_dir, '*'))) do
+                    return false
+                end
+                return true
+            else
+                return true
+            end
+        end
+        if is_empty_folder() then
+            unzip_sdk(sdk_map['name'], sdk_dir, extract_dir)
+        end
+        if #copy_dir > 0 then
+            for _, filepath in ipairs(os.filedirs(path.join(extract_dir, "*"))) do
+                os.cp(filepath, path.join(copy_dir, path.filename(filepath)), {
+                    copy_if_different = true
+                })
+            end
+        end
+    end
 end

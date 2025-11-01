@@ -299,12 +299,10 @@ endif ()
 
 install(TARGETS luisa-compute-ext EXPORT LuisaComputeTargets)
 
-if (LUISA_COMPUTE_USE_SYSTEM_VOLK)
-    find_package(volk REQUIRED)
-    add_library(luisa-compute-ext-volk INTERFACE)
-    target_link_libraries(luisa-compute-ext-volk INTERFACE volk::volk)
-    target_compile_definitions(luisa-compute-ext-volk INTERFACE LUISA_USE_SYSTEM_VOLK=1)
-    luisa_compute_install_extension(luisa-compute-ext-volk)
-else ()
+if (LUISA_COMPUTE_ENABLE_CPU OR
+    LUISA_COMPUTE_ENABLE_VULKAN OR
+    LUISA_COMPUTE_ENABLE_CUDA OR
+    LUISA_COMPUTE_ENABLE_REMOTE OR
+    LUISA_COMPUTE_ENABLE_FALLBACK)
     add_subdirectory(volk)
 endif ()

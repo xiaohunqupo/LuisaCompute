@@ -46,6 +46,23 @@ void DecodeCmd(vstd::span<const Argument> args, Visitor &&visitor) {
         }
     }
 }
+ResourceBarrier::ResourceView get_resource_view(VKCustomCmd::ResourceHandle const &res) {
+    return luisa::visit(
+        [&]<typename T>(T const &t) -> ResourceBarrier::ResourceView {
+            if constexpr (std::is_same_v<T, Argument::Buffer>) {
+                auto buffer = reinterpret_cast<Buffer const *>(t.handle);
+                return BufferView(buffer, t.offset, t.size);
+            } else if constexpr (std::is_same_v<T, Argument::Texture>) {
+                auto tex = reinterpret_cast<Texture const *>(t.handle);
+                return TexView(tex, t.level);
+            } else {
+                auto bdls = reinterpret_cast<BindlessArray const *>(t.handle);
+                auto &buffer = bdls->indices_buffer();
+                return BufferView(&buffer, 0, buffer.byte_size());
+            }
+        },
+        res);
+}
 bool ReorderFuncTable::is_res_in_bindless(uint64_t bindless_handle, uint64_t resource_handle) const noexcept {
     return reinterpret_cast<BindlessArray *>(bindless_handle)->is_ptr_in_bindless(resource_handle);
 }
@@ -670,7 +687,23 @@ void Stream::dispatch(
 
         auto cb = cmdbuffer.cmdbuffer();
         auto cb_ptr = &cb;
-
+        resource_barrier.restoreStates.clear();
+        if (device()->config_ext()) {
+            auto after_states = device()->config_ext()->after_states(reinterpret_cast<uint64_t>(this));
+            auto before_states = device()->config_ext()->before_states(reinterpret_cast<uint64_t>(this));
+            for (auto &i : before_states) {
+                resource_barrier.set_res(get_resource_view(i.resource), i.stage, i.access, i.texture_layout);
+            }
+            for (auto &i : after_states) {
+                resource_barrier.restoreStates.emplace(
+                    reinterpret_cast<Resource const *>(luisa::visit([](auto &&t) { return t.handle; }, i.resource)),
+                    ResourceBarrier::ResotreStates{
+                        get_resource_view(i.resource),
+                        i.stage,
+                        i.access,
+                        i.texture_layout});
+            }
+        }
         cmdbuffer.resource_barrier = &resource_barrier;
         cmdbuffer.uniform_data = &uniform_data;
         cmdbuffer.desc_sets = &desc_sets;
@@ -1171,28 +1204,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                         case to_underlying(CustomCommandUUID::CUSTOM_DISPATCH): {
                             auto custom_cmd = static_cast<VKCustomCmd const *>(c);
                             for (auto &&i : const_cast<VKCustomCmd *>(custom_cmd)->get_resource_usages()) {
-                                luisa::visit(
-                                    [&]<typename T>(T const &t) {
-                                        if constexpr (std::is_same_v<T, Argument::Buffer>) {
-                                            auto buffer = reinterpret_cast<Buffer const *>(t.handle);
-                                            resource_barrier->record(
-                                                BufferView(buffer, t.offset, t.size),
-                                                i.stage, i.access, i.texture_layout);
-                                        } else if constexpr (std::is_same_v<T, Argument::Texture>) {
-                                            auto tex = reinterpret_cast<Texture const *>(t.handle);
-                                            resource_barrier->record(
-                                                TexView(tex, t.level),
-                                                i.stage, i.access, i.texture_layout);
-                                        } else {
-                                            auto bdls = reinterpret_cast<BindlessArray const *>(t.handle);
-                                            auto &buffer = bdls->indices_buffer();
-                                            resource_barrier->record(
-                                                BufferView(&buffer, 0, buffer.byte_size()),
-                                                i.stage, i.access, i.texture_layout);
-                                            resource_barrier->process_bindless(bdls, ResourceBarrier::Usage::ComputeRead);
-                                        }
-                                    },
-                                    i.resource);
+                                resource_barrier->record(get_resource_view(i.resource), i.stage, i.access, i.texture_layout);
                             }
                         } break;
                         //TODO: other commands

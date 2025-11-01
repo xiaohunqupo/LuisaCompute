@@ -169,7 +169,8 @@ template<typename T, typename Index>
 #ifdef LUISA_DEBUG
     lc_check_in_bounds(index, lc_buffer_size(buffer));
 #endif
-    return reinterpret_cast<volatile T *>(buffer.ptr)[index];
+    __threadfence();
+    return buffer.ptr[index];
 }
 
 template<typename T, typename Index>
@@ -1184,7 +1185,7 @@ __device__ void lc_bindless_byte_buffer_write(LCBindlessArray array, lc_uint ind
     lc_assume(__isGlobal(array.slots));
     auto t = array.slots[index].tex3d;
     auto v = lc_make_float4();
-    asm("tex.3d.v4.f32.f32 {%0, %1, %2, %3}, [%4, {%5, %6, %7, %8}], %9;"
+    asm("tex.level.3d.v4.f32.f32 {%0, %1, %2, %3}, [%4, {%5, %6, %7, %8}], %9;"
         : "=f"(v.x), "=f"(v.y), "=f"(v.z), "=f"(v.w)
         : "l"(t), "f"(p.x), "f"(p.y), "f"(p.z), "f"(0.f), "f"(level));
     return v;
@@ -2512,7 +2513,8 @@ template<typename T>
     lc_check_in_bounds(offset + sizeof(T), lc_buffer_size(buffer) + 1u);
     lc_assert(address % alignof(T) == 0u && "unaligned access");
 #endif
-    return *reinterpret_cast<volatile T *>(address);
+    __threadfence();
+    return *reinterpret_cast<T *>(address);
 }
 
 template<typename T>
@@ -2621,7 +2623,7 @@ LC_WARP_ALL_EQ(lc_long)
 LC_WARP_ALL_EQ(lc_ulong)
 LC_WARP_ALL_EQ(lc_float)
 LC_WARP_ALL_EQ(lc_half)
-//LC_WARP_ALL_EQ(lc_double)// TODO
+LC_WARP_ALL_EQ(lc_double)// TODO
 
 #undef LC_WARP_ALL_EQ_SCALAR
 #undef LC_WARP_ALL_EQ_VECTOR2
@@ -2784,7 +2786,7 @@ LC_WARP_READ_LANE(long)
 LC_WARP_READ_LANE(ulong)
 LC_WARP_READ_LANE(float)
 LC_WARP_READ_LANE(half)
-//LC_WARP_READ_LANE(double)// TODO
+LC_WARP_READ_LANE(double)// TODO
 
 #undef LC_WARP_READ_LANE_SCALAR
 #undef LC_WARP_READ_LANE_VECTOR2
@@ -2910,10 +2912,10 @@ LC_WARP_ACTIVE_REDUCE_SCALAR(max, half)
 LC_WARP_ACTIVE_REDUCE_SCALAR(sum, half)
 LC_WARP_ACTIVE_REDUCE_SCALAR(product, half)
 // TODO: double
-// LC_WARP_ACTIVE_REDUCE_SCALAR(min, double)
-// LC_WARP_ACTIVE_REDUCE_SCALAR(max, double)
-// LC_WARP_ACTIVE_REDUCE_SCALAR(sum, double)
-// LC_WARP_ACTIVE_REDUCE_SCALAR(product, double)
+LC_WARP_ACTIVE_REDUCE_SCALAR(min, double)
+LC_WARP_ACTIVE_REDUCE_SCALAR(max, double)
+LC_WARP_ACTIVE_REDUCE_SCALAR(sum, double)
+LC_WARP_ACTIVE_REDUCE_SCALAR(product, double)
 
 #undef LC_WARP_ACTIVE_REDUCE_SCALAR
 
@@ -2960,7 +2962,7 @@ LC_WARP_ACTIVE_REDUCE(ulong)
 LC_WARP_ACTIVE_REDUCE(long)
 LC_WARP_ACTIVE_REDUCE(float)
 LC_WARP_ACTIVE_REDUCE(half)
-//LC_WARP_ACTIVE_REDUCE(double)// TODO
+LC_WARP_ACTIVE_REDUCE(double)// TODO
 
 #undef LC_WARP_ACTIVE_REDUCE_VECTOR2
 #undef LC_WARP_ACTIVE_REDUCE_VECTOR3
@@ -3042,7 +3044,7 @@ LC_WARP_PREFIX_REDUCE(ulong)
 LC_WARP_PREFIX_REDUCE(long)
 LC_WARP_PREFIX_REDUCE(float)
 LC_WARP_PREFIX_REDUCE(half)
-//LC_WARP_PREFIX_REDUCE(double)// TODO
+LC_WARP_PREFIX_REDUCE(double)// TODO
 
 #undef LC_WARP_PREFIX_REDUCE_SCALAR
 #undef LC_WARP_PREFIX_REDUCE_VECTOR2

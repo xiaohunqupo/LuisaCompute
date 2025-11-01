@@ -10,6 +10,7 @@
 #include <luisa/core/logging.h>
 #include <luisa/core/binary_io.h>
 #include "string_builder.h"
+#include "shared_var.h"
 namespace lc::hlsl {
 using namespace luisa;
 using namespace luisa::compute;
@@ -50,8 +51,8 @@ public:
     ~CodegenUtility();
     uint IsBool(Type const &type);
     bool GetConstName(uint64 hash, ConstantData const &data, vstd::StringBuilder &str);
-    void GetVariableName(Variable const &type, vstd::StringBuilder &str);
-    void GetVariableName(Variable::Tag type, uint id, vstd::StringBuilder &str);
+    void GetVariableName(Function func, Variable const &type, vstd::StringBuilder &str);
+    void GetVariableName(Function func, Variable::Tag type, uint id, vstd::StringBuilder &str);
     void GetTypeName(Type const &type, vstd::StringBuilder &str, Usage usage, bool local_var = true);
     void GetFunctionDecl(Function func, vstd::StringBuilder &str);
     void GetFunctionName(Function callable, vstd::StringBuilder &result);
@@ -132,7 +133,7 @@ private:
     luisa::unordered_set<Variable, VarHash> lazyDeclVars;
 
 public:
-    luisa::unordered_map<uint64, Variable> *sharedVariables = nullptr;
+    SharedVarSet *sharedVariables = nullptr;
     void visit(const UnaryExpr *expr) override;
     void visit(const BinaryExpr *expr) override;
     void visit(const MemberExpr *expr) override;

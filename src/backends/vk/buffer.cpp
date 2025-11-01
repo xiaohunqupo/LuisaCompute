@@ -70,9 +70,8 @@ bool ReadbackBuffer::flush_host() const {
     return true;
 }
 
-DefaultBuffer::DefaultBuffer(Device *device, VkBuffer vk_buffer, VkDeviceMemory memory, size_t size_bytes) 
-: Buffer{device, size_bytes} 
-{
+DefaultBuffer::DefaultBuffer(Device *device, VkBuffer vk_buffer, VkDeviceMemory memory, size_t size_bytes)
+    : Buffer{device, size_bytes} {
     _buffer = vk_buffer;
     _allocated_memory = memory;
     _external_allocation = true;
@@ -92,9 +91,9 @@ DefaultBuffer::DefaultBuffer(Device *device, size_t size_bytes, bool used_as_acc
                            VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT |
                            VK_BUFFER_USAGE_2_VERTEX_BUFFER_BIT |
                            VK_BUFFER_USAGE_2_INDEX_BUFFER_BIT |
-                           VK_BUFFER_USAGE_2_SHADER_DEVICE_ADDRESS_BIT |
-                           (used_as_accel ? (VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR) :
-                                            0)),
+                           (device->enable_device_address() ? VK_BUFFER_USAGE_2_SHADER_DEVICE_ADDRESS_BIT : 0) |
+                           ((device->enable_raytracing() && used_as_accel) ? VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR :
+                                                                             0)),
                        AccessType::None);
     _buffer = res.buffer;
     _allocation = res.allocation;
@@ -137,9 +136,9 @@ SparseBuffer::SparseBuffer(Device *device, size_t size_bytes, bool used_as_accel
             VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
             VK_BUFFER_USAGE_TRANSFER_DST_BIT |
             VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT |
-            VK_BUFFER_USAGE_2_SHADER_DEVICE_ADDRESS_BIT |
-            (used_as_accel ? (VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR) :
-                             0)),
+            (device->enable_device_address() ? VK_BUFFER_USAGE_2_SHADER_DEVICE_ADDRESS_BIT : 0) |
+            ((device->enable_raytracing() && used_as_accel) ? (VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR) :
+                                                              0)),
         .queueFamilyIndexCount = 0};
     VK_CHECK_RESULT(vkCreateBuffer(
         device->logic_device(),

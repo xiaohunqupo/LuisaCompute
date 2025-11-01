@@ -125,8 +125,12 @@ int main(int argc, char *argv[]) {
     Constant float_consts = {1.0f, 2.0f};
     Constant int_consts = const_vector;
 
-    Kernel1D<Buffer<float>, uint, BindlessArray> kernel_def = [&](BufferVar<float> buffer_float, Var<uint> count, Var<BindlessArray> heap) noexcept -> void {
+    auto kernel_def = [&](BufferVar<float> buffer_float, Var<uint> count, Var<BindlessArray> heap, BufferVar<int3> b0, BufferVar<float4x4> b1, Var<ByteBuffer> bb) noexcept -> void {
         using namespace dsl_literals;
+        b0.volatile_write(1, b0.volatile_read(0));
+        b1.volatile_write(1, b1.volatile_read(0));
+        bb.volatile_write(16, bb.volatile_read<float3>(1));
+        bb.volatile_write(16, bb.volatile_read<float3x3>(1));
         auto lx = 0._half;
         auto ly = 0._float;
         auto lz = 0_ulong2;
@@ -211,7 +215,7 @@ int main(int argc, char *argv[]) {
     };
     auto t1 = clock.toc();
 
-    auto kernel = device.compile(kernel_def);
+    auto kernel = device.compile<2>(kernel_def);
     // auto command = kernel(float_buffer, 12u).dispatch(1024u);
     // auto launch_command = static_cast<ShaderDispatchCommand *>(command.get());
 }

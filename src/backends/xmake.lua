@@ -28,7 +28,7 @@ on_load(function(target)
     --     inherit = false
     -- })
     if has_config("lc_dx_backend") then
-        target:add("deps", "lc-backend-dx", {
+        target:add("deps", "lc-backend-dx", "lc_install_dxsdk", {
             inherit = false
         })
     end

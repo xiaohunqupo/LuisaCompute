@@ -25,12 +25,6 @@ void FunctionBuilder::pop(FunctionBuilder *func) noexcept {
         f->_return_type.value_or(nullptr) != nullptr) [[unlikely]] {
         LUISA_ERROR_WITH_LOCATION("Kernels cannot have non-void return types.");
     }
-    if (f->tag() != Tag::KERNEL &&
-        (!f->shared_variables().empty() ||
-         f->propagated_builtin_callables().test(CallOp::SYNCHRONIZE_BLOCK))) {
-        LUISA_ERROR_WITH_LOCATION("Shared variables and block synchronization "
-                                  "are only allowed in kernels.");
-    }
     if (f->_arguments.size() != f->_bound_arguments.size()) {
         LUISA_ERROR_WITH_LOCATION(
             "Arguments and their bindings have different sizes ({} and {}).",

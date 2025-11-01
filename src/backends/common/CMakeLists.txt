@@ -114,8 +114,11 @@ function(luisa_compute_link_llvm_into_backend backend)
     endif ()
 
     if (NOT LLVM_FOUND)
+        message(STATUS "LLVM not found, skipping LLVM linking for backend ${backend}")
         return()
     endif ()
+
+    include(HandleLLVMOptions)
 
     message(STATUS "Linking LLVM to target ${LUISA_LINK_LLVM_TARGET} with components: ${LUISA_LINK_LLVM_COMPONENTS}")
 

@@ -6,13 +6,15 @@ _config_project({
 })
 add_deps("lc-runtime", "lc-vstl", "lc-hlsl-codegen")
 add_files("**.cpp")
-add_headerfiles("**.h", "../common/default_binary_io.h")
+add_headerfiles("**.h")
 add_includedirs("./")
 add_syslinks("dxgi")
 if is_plat("windows") then
     add_defines("UNICODE", "_CRT_SECURE_NO_WARNINGS")
 end
 on_load(function(target)
+    local lib = import("lib", {rootdir = get_config("_lc_script_path")})
+    target:add("headerfiles", lib.lexically_normal(path.join(os.scriptdir(), "../common/default_binary_io.h")))
     target:add("syslinks", "D3D12")
     target:add("defines", "LUISA_DX_SDK")
     if has_config("lc_enable_win_pix") then
@@ -52,7 +54,6 @@ on_load(function(target)
                     end
                 end
             end
-
             target:add("links", "nvrtc_static", "cudart_static", "cuda")
             target:add("defines", "LCDX_ENABLE_CUDA")
             target:add("syslinks", "Cfgmgr32", "Advapi32")
@@ -60,6 +61,10 @@ on_load(function(target)
     end
 end)
 set_pcxxheader("lc_dx_pch.h")
+target_end()
+
+target("lc_install_dxsdk")
+set_kind("phony")
 add_rules('lc_install_sdk', {
     libnames = 'dx_sdk'
 })

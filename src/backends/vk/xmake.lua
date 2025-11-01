@@ -5,7 +5,7 @@ _config_project({
     batch_size = 8
 })
 add_deps("lc-runtime", "lc-vstl", "lc-hlsl-codegen")
-add_headerfiles("*.h", "../common/default_binary_io.h")
+add_headerfiles("*.h")
 add_files("*.cpp")
 set_pcxxheader("lc_vk_pch.h")
 -- TODO: use dxc for vulkan, only windows temporarily
@@ -15,7 +15,17 @@ elseif is_plat("linux") then
     add_defines("VK_USE_PLATFORM_XCB_KHR")
 end
 on_load(function(target)
-    target:add("deps", "volk")
+    local lib = import("lib", {
+        rootdir = get_config("_lc_script_path")
+    })
+    local function rela(p)
+        return lib.lexically_normal(path.join(os.scriptdir(), p))
+    end
+    target:add("headerfiles", rela("../common/default_binary_io.h"))
+    target:add("deps", "lc-volk")
+    if target:is_plat("macosx") then
+        target:add("files", rela("../common/moltenvk_surface.mm"))
+    end
     if has_config("lc_vk_cuda_interop") then
         import("detect.sdks.find_cuda")
         import("cuda_sdkdir", {
@@ -26,8 +36,12 @@ on_load(function(target)
             utils.error("cuda not found.")
         else
             local cuda_linkdirs = cuda["linkdirs"]
-            target:add("linkdirs", cuda_linkdirs, {public = true})
-            target:add("includedirs", cuda["includedirs"], {public = true})
+            target:add("linkdirs", cuda_linkdirs, {
+                public = true
+            })
+            target:add("includedirs", cuda["includedirs"], {
+                public = true
+            })
             if target:is_plat("linux") and type(cuda_linkdirs) == "table" then
                 for _, v in ipairs(cuda_linkdirs) do
                     local stubs_dir = path.join(v, "stubs")

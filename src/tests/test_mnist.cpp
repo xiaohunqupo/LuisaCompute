@@ -12,9 +12,19 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using InteropEvent = luisa::variant<
+    DxCudaTimelineEvent,
+    TimelineEvent>;
+InteropEvent create_interop_event(Device &cuda_device, Device &render_device);
 Buffer<float> create_interop_buffer(Device &render_device, uint64_t size);
-vstd::variant<Buffer<float>, BufferView<float>> get_cuda_buffer(Device &torch_device, Device &render_device, Buffer<float> &render_buffer, uint64_t &cuda_ptr, uint64_t &cuda_handle);
+Buffer<float> get_cuda_buffer(Device &torch_device, Device &render_device, Buffer<float> &render_buffer, uint64_t &cuda_ptr, uint64_t &cuda_handle);
 void unmap_interop_handle(Device &render_device, uint64_t cuda_ptr, uint64_t handle);
+struct CudaDeviceConfigExtImpl : public CudaDeviceConfigExt {
+    ExternalVkDevice external_device;
+    [[nodiscard]] ExternalVkDevice get_external_vk_device() const noexcept override {
+        return external_device;
+    }
+};
 luisa::string from_wstr(const wchar_t *arg) {
     auto start = arg;
     while (*arg != 0) {
@@ -39,6 +49,7 @@ struct MnistInterpreter {
     Shader2D<Buffer<float>, Image<float>, float> hdr2ldr_shader;
     float2 last_mouse_pos{};
     float2 curr_mouse_pos{};
+    InteropEvent interop_event;
     bool pressed = false;
     Swapchain swap_chain;
     Buffer<float> draw_buffer;
@@ -53,10 +64,21 @@ struct MnistInterpreter {
           window{"mnist", display_resolution}
 
     {
-        if (render_device.backend_name() != "cuda") {
-            torch_device = context.create_device("cuda");
-            cuda_stream = torch_device.create_stream();
+        DeviceConfig cuda_settings;
+        {
+            auto interop_ext = render_device.extension<VkCudaInterop>();
+            if (interop_ext) {
+                auto ext_device = luisa::make_unique<CudaDeviceConfigExtImpl>();
+                ext_device->external_device = interop_ext->get_external_vk_device();
+                cuda_settings = DeviceConfig{
+                    .extension = std::move(ext_device),
+                    .device_index = static_cast<size_t>(interop_ext->cuda_device_index())};
+            }
         }
+
+        torch_device = context.create_device("cuda", &cuda_settings);
+        cuda_stream = torch_device.create_stream();
+        interop_event = create_interop_event(torch_device, render_device);
         Callable cubic_hermite{[](Float A, Float B, Float C, Float D, Float t) {
             Float t2 = t * t;
             Float t3 = t * t * t;
@@ -69,8 +91,8 @@ struct MnistInterpreter {
         }};
 
         Callable point_sample = [](BufferVar<float> img, UInt2 tex_size, Float2 uv) {
-            auto coord = make_uint2(uv * make_float2(tex_size.x.cast<float>(), tex_size.y.cast<float>()));
-            return img.read(coord.x + tex_size.x * coord.y);
+            auto coord = make_uint2(clamp(uv * make_float2(tex_size.x.cast<float>(), tex_size.y.cast<float>()), float2(0.f), make_float2(tex_size) - 0.5f));
+            return saturate(img.read(coord.x + tex_size.x * coord.y));
         };
         // https://www.shadertoy.com/view/MllSzX
         Callable bicubic_hermite_texture_sample([&](BufferVar<float> img, Float2 P) {
@@ -123,14 +145,14 @@ struct MnistInterpreter {
         };
         Kernel2D capsule_sdf = [&](BufferVar<float> hdr_img, Float2 last_pos, Float2 pos, Bool clear) {
             UInt2 coord = dispatch_id().xy();
-            auto uv = (make_float2(coord) + 0.5f) / make_float2(dispatch_size().xy());
-            auto dist = saturate(sd_capsule(uv, last_pos, pos, 0.01f) * 0.25f * mnist_resolution.x);
             auto idx = coord.x + coord.y * mnist_resolution.x;
             $if (clear) {
-                hdr_img.write(idx, dist);
+                hdr_img.write(idx, 0.f);
             }
             $else {
-                hdr_img.write(idx, min(hdr_img.read(idx), dist));
+                auto uv = (make_float2(coord) + 0.5f) / make_float2(dispatch_size().xy());
+                auto dist = 1.f - saturate(sd_capsule(uv, last_pos, pos, 0.01f) * 0.8f * mnist_resolution.x);
+                hdr_img.write(idx, max(hdr_img.read(idx), dist));
             };
         };
         Kernel2D hdr2ldr_kernel = [&](BufferVar<float> hdr_image, ImageFloat ldr_image, Float scale) noexcept {
@@ -171,9 +193,10 @@ struct MnistInterpreter {
         draw_buffer = create_interop_buffer(render_device, mnist_resolution.x * mnist_resolution.y);
         display_img = render_device.create_image<float>(swap_chain.backend_storage(), display_resolution);
     }
+    uint64_t _evt_fence{1};
     bool clear_next_frame{true};
-    bool space_pressed{false};
-    bool update(uint64_t cuda_data_buffer_ptr) {
+    bool enter_pressed{false};
+    bool update(uint64_t cuda_data_buffer_ptr, uint64_t input_ptr) {
         window.poll_events();
         bool update = false;
         if (clear_next_frame) {
@@ -181,36 +204,81 @@ struct MnistInterpreter {
             cmdlist << capsule_sdf_shader(draw_buffer, float2(100), float2(100), true).dispatch(mnist_resolution);
         }
         if (window.is_key_down(Key::KEY_SPACE)) {
-            if (!space_pressed) {
-                clear_next_frame = true;
+            clear_next_frame = true;
+        }
+        if (window.is_key_down(Key::KEY_ENTER) || window.is_key_down(Key::KEY_KP_ENTER)) {
+            if (!enter_pressed) {
                 update = true;
             }
-            space_pressed = true;
+            enter_pressed = true;
         } else {
-            space_pressed = false;
+            enter_pressed = false;
         }
         if (pressed) {
             cmdlist << capsule_sdf_shader(draw_buffer, last_mouse_pos / make_float2(display_resolution), curr_mouse_pos / make_float2(display_resolution), false).dispatch(mnist_resolution);
         }
         cmdlist << hdr2ldr_shader(draw_buffer, display_img, 2.f).dispatch(display_resolution);
         stream << cmdlist.commit() << swap_chain.present(display_img);
-        if (update) {
-            auto &torch_stream = cuda_stream ? cuda_stream : stream;
-            stream.synchronize();
-            auto torch_tensor_buffer = torch_device.import_external_buffer<float>((void *)cuda_data_buffer_ptr, draw_buffer.size());
-            uint64_t cuda_ptr, cuda_handle;
+        uint64_t cuda_ptr, cuda_handle;
+        // Copy torch-tensor to display-buffer
+        if (input_ptr != 0) {
             auto cuda_buffer = get_cuda_buffer(torch_device, render_device, draw_buffer, cuda_ptr, cuda_handle);
-            cuda_buffer.visit([&](auto &&buffer) {
-                cmdlist << torch_tensor_buffer.copy_from(buffer);
-            });
+            auto torch_tensor_buffer = torch_device.import_external_buffer<float>((void *)input_ptr, draw_buffer.size());
+            cmdlist << cuda_buffer.copy_from(torch_tensor_buffer);
             // deferred deallocate external-buffer
-            torch_stream << cmdlist.commit() << synchronize();
-            unmap_interop_handle(render_device, cuda_ptr, cuda_handle);
+            // unmap memory-range after execute
+            cmdlist.add_callback([this, cuda_buffer = std::move(cuda_buffer), cuda_ptr, cuda_handle]() {
+                unmap_interop_handle(render_device, cuda_ptr, cuda_handle);
+            });
+            cuda_stream << cmdlist.commit();
+            // Let render-stream wait cuda-inference-stream
+            luisa::visit(
+                [&]<typename T>(T const &t) {
+                    // Vulkan device
+                    if constexpr (std::is_same_v<T, TimelineEvent>) {
+                        cuda_stream << t.signal(_evt_fence);
+                        stream << render_device.extension<VkCudaInterop>()->vk_wait(t, _evt_fence);
+                    } else {
+                        cuda_stream << t.cuda_signal(_evt_fence);
+                        stream << t.dx_wait(_evt_fence);
+                    }
+                    ++_evt_fence;
+                },
+                interop_event);
+            cuda_ptr = 0;
+            cuda_handle = 0;
+        }
+        // Copy display-buffer to torch-tensor
+        if (update) {
+            // Let cuda-inference-stream wait render-stream
+            luisa::visit(
+                [&]<typename T>(T const &t) {
+                    // Vulkan device
+                    if constexpr (std::is_same_v<T, TimelineEvent>) {
+                        stream << render_device.extension<VkCudaInterop>()->vk_signal(t, _evt_fence);
+                        cuda_stream << t.wait(_evt_fence);
+                    } else {
+                        stream << t.dx_signal(_evt_fence);
+                        cuda_stream << t.cuda_wait(_evt_fence);
+                    }
+                    ++_evt_fence;
+                },
+                interop_event);
+            // import tensor's data pointer to buffer
+            auto torch_tensor_buffer = torch_device.import_external_buffer<float>((void *)cuda_data_buffer_ptr, draw_buffer.size());
+            // make interop-buffer's cuda-view
+            auto cuda_buffer = get_cuda_buffer(torch_device, render_device, draw_buffer, cuda_ptr, cuda_handle);
+            // copy interop-buffer to tensor
+            cmdlist << torch_tensor_buffer.copy_from(cuda_buffer);
+            // unmap memory-range after execute
+            cmdlist.add_callback([this, cuda_buffer = std::move(cuda_buffer), cuda_ptr, cuda_handle]() {
+                unmap_interop_handle(render_device, cuda_ptr, cuda_handle);
+            });
+            cuda_stream << cmdlist.commit();
         }
         return update;
     }
     ~MnistInterpreter() {
-
         stream.synchronize();
     }
 };
@@ -221,20 +289,16 @@ LUISA_EXPORT_API void init(wchar_t const *runtime_dir, wchar_t const *backend_na
 LUISA_EXPORT_API bool should_close() {
     return !interpreter || interpreter->window.should_close();
 }
-LUISA_EXPORT_API bool update_frame(uint64_t cuda_ptr) {
+LUISA_EXPORT_API bool update_frame(uint64_t cuda_ptr, uint64_t input_cuda_ptr) {
     if (!interpreter) return false;
-    return interpreter->update(cuda_ptr);
+    return interpreter->update(cuda_ptr, input_cuda_ptr);
 }
 LUISA_EXPORT_API void dispose() {
-    if (interpreter) {
-        interpreter.reset();
-    }
+    interpreter.reset();
 }
 
 Buffer<float> create_interop_buffer(Device &render_device, uint64_t size) {
-    if (render_device.backend_name() == "cuda") {
-        return render_device.create_buffer<float>(size);
-    } else if (render_device.backend_name() == "vk") {
+    if (render_device.backend_name() == "vk") {
         auto vk_interop = render_device.extension<VkCudaInterop>();
         return vk_interop->create_buffer<float>(size);
     } else if (render_device.backend_name() == "dx") {
@@ -245,12 +309,10 @@ Buffer<float> create_interop_buffer(Device &render_device, uint64_t size) {
         return {};
     }
 }
-vstd::variant<Buffer<float>, BufferView<float>> get_cuda_buffer(Device &torch_device, Device &render_device, Buffer<float> &render_buffer, uint64_t &cuda_ptr, uint64_t &cuda_handle) {
+Buffer<float> get_cuda_buffer(Device &torch_device, Device &render_device, Buffer<float> &render_buffer, uint64_t &cuda_ptr, uint64_t &cuda_handle) {
     cuda_handle = 0;
     cuda_ptr = 0;
-    if (render_device.backend_name() == "cuda") {
-        return render_buffer.view();
-    } else if (render_device.backend_name() == "vk") {
+    if (render_device.backend_name() == "vk") {
         auto vk_interop = render_device.extension<VkCudaInterop>();
         vk_interop->cuda_buffer(render_buffer.handle(), &cuda_ptr, &cuda_handle);
         return torch_device.import_external_buffer<float>(reinterpret_cast<void *>(cuda_ptr), render_buffer.size());
@@ -272,5 +334,17 @@ void unmap_interop_handle(Device &render_device, uint64_t cuda_ptr, uint64_t han
     } else if (render_device.backend_name() == "dx") {
         auto dx_interop = render_device.extension<DxCudaInterop>();
         dx_interop->unmap(reinterpret_cast<void *>(cuda_ptr), reinterpret_cast<void *>(handle));
+    }
+}
+InteropEvent create_interop_event(Device &cuda_device, Device &render_device) {
+    if (render_device.backend_name() == "vk") {
+        auto vk_interop = render_device.extension<VkCudaInterop>();
+        return cuda_device.create_timeline_event();
+    } else if (render_device.backend_name() == "dx") {
+        auto dx_interop = render_device.extension<DxCudaInterop>();
+        return dx_interop->create_timeline_event();
+    } else {
+        LUISA_ERROR("Unsupported backend {}", render_device.backend_name());
+        return {};
     }
 }

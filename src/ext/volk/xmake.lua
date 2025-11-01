@@ -1,4 +1,5 @@
-target("volk")
+target("lc-volk")
+set_basename("luisa-volk")
 _config_project({
     project_kind = "static"
 })

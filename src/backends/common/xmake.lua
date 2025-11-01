@@ -9,12 +9,17 @@ if has_config("lc_cuda_backend") then
     set_values("vk_public", true)
     add_headerfiles("vulkan_instance.h")
     add_files("vulkan_swapchain.cpp", "vulkan_instance.cpp")
-    add_deps("lc-core", "volk")
+    add_deps("lc-core", "lc-volk")
     if is_plat("linux") then
         add_syslinks("xcb", "X11", {
             public = true
         })
     end
+    on_load(function(target)
+        if target:is_plat("macosx") then
+            target:add("files", path.join(os.scriptdir(), "moltenvk_surface.mm"))
+        end
+    end)
     target_end()
 end
 

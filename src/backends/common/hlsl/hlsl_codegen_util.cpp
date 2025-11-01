@@ -175,7 +175,7 @@ void CodegenUtility::RegistStructType(Type const *type) {
     }
 }
 
-void CodegenUtility::GetVariableName(Variable::Tag type, uint id, vstd::StringBuilder &str) {
+void CodegenUtility::GetVariableName(Function f, Variable::Tag type, uint id, vstd::StringBuilder &str) {
     switch (type) {
         case Variable::Tag::BLOCK_ID:
             str << "grpId"sv;
@@ -271,6 +271,8 @@ void CodegenUtility::GetVariableName(Variable::Tag type, uint id, vstd::StringBu
             break;
         case Variable::Tag::SHARED:
             str << "_s"sv;
+            vstd::to_string(f.hash(), str);
+            str << '_';
             vstd::to_string(id, str);
             break;
         case Variable::Tag::REFERENCE:
@@ -300,8 +302,8 @@ void CodegenUtility::GetVariableName(Variable::Tag type, uint id, vstd::StringBu
     }
 }
 
-void CodegenUtility::GetVariableName(Variable const &type, vstd::StringBuilder &str) {
-    GetVariableName(type.tag(), type.uid(), str);
+void CodegenUtility::GetVariableName(Function f, Variable const &type, vstd::StringBuilder &str) {
+    GetVariableName(f, type.tag(), type.uid(), str);
 }
 
 bool CodegenUtility::GetConstName(uint64 hash, ConstantData const &data, vstd::StringBuilder &str) {
@@ -471,7 +473,7 @@ void CodegenUtility::GetFunctionDecl(Function func, vstd::StringBuilder &funcDec
                 RegistStructType(i.type());
 
                 vstd::StringBuilder varName;
-                CodegenUtility::GetVariableName(i, varName);
+                CodegenUtility::GetVariableName(func, i, varName);
                 if (i.type()->is_accel()) {
                     if ((to_underlying(usage) & to_underlying(Usage::WRITE)) == 0) {
                         CodegenUtility::GetTypeName(*i.type(), data, usage);
@@ -634,8 +636,19 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             str << "pow"sv;
             break;
         case CallOp::CLZ:
-            str << "firstbithigh"sv;
-            break;
+            LUISA_DEBUG_ASSERT(args.size() == 1);
+            str << "_clz("sv;
+            GetTypeName(*args[0]->type(), str, Usage::NONE);
+            str << ',';
+            args[0]->accept(vis);
+            str << ',';
+            if (args[0]->type()->is_vector()) {
+                str << luisa::format("{}", args[0]->type()->element()->size() * 8 - 1);
+            } else {
+                str << luisa::format("{}", args[0]->type()->size() * 8 - 1);
+            }
+            str << ')';
+            return;
         case CallOp::CTZ:
             str << "firstbitlow"sv;
             break;
@@ -775,10 +788,10 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
         case CallOp::ATOMIC_FETCH_MIN:
         case CallOp::ATOMIC_FETCH_MAX: {
             auto rootVar = static_cast<RefExpr const *>(args[0]);
-            if (expr->type()->is_float() || expr->op() == CallOp::ATOMIC_COMPARE_EXCHANGE) {
+            if ((expr->type()->is_float() && expr->op() != CallOp::ATOMIC_EXCHANGE) || expr->op() == CallOp::ATOMIC_COMPARE_EXCHANGE) {
                 mark_coherent(args[0]);
             }
-            auto &chain = opt->GetAtomicFunc(expr->op(), rootVar->variable(), expr->type(), args);
+            auto &chain = opt->GetAtomicFunc(vis.f, expr->op(), rootVar->variable(), expr->type(), args);
             chain.call_this_func(args, str, vis);
             return;
         }
@@ -851,11 +864,7 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
                 str << "_float"sv << n << 'x' << n;
             }
         } break;
-        case CallOp::BUFFER_READ:
-        case CallOp::BUFFER_VOLATILE_READ: {
-            if (expr->op() == CallOp::BUFFER_VOLATILE_READ) {
-                mark_coherent(args[0]);
-            }
+        case CallOp::BUFFER_READ: {
             bool aliasStruct = TypeIsAliased(expr->type());
             bool floatToInt = opt->atomicFloatToInt && (expr->type()->is_float32() || expr->type()->is_float64());
             if (aliasStruct) {
@@ -880,10 +889,41 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             }
             return;
         }
+        case CallOp::BUFFER_VOLATILE_READ: {
+            mark_coherent(args[0]);
+            bool aliasStruct = TypeIsAliased(expr->type());
+            bool floatToInt = opt->atomicFloatToInt && (expr->type()->is_float32() || expr->type()->is_float64());
+            if (aliasStruct) {
+                AliasedToOrigin(expr->type(), str);
+                str << '(';
+            }
+            if (floatToInt) {
+                str << "asfloat(";
+            }
+            str << "_volatile_bfread"sv;
+            auto elem = args[0]->type()->element();
+            if (IsNumVec3(*elem)) {
+                str << "Vec3"sv;
+            } else if (elem->is_matrix()) {
+                str << "Mat";
+            }
+            str << '<';
+            GetTypeName(*args[0]->type(), str, vis.f.variable_usage(static_cast<RefExpr const *>(args[0])->variable().uid()));
+            str << ',';
+            GetTypeName(*expr->type(), str, Usage::NONE);
+            str << ">(";
+            PrintArgs();
+            str << ')';
+            if (aliasStruct || floatToInt) {
+                str << ')';
+            }
+            return;
+        }
         case CallOp::BUFFER_WRITE:
         case CallOp::BUFFER_VOLATILE_WRITE: {
             if (expr->op() == CallOp::BUFFER_VOLATILE_WRITE) {
                 mark_coherent(args[0]);
+                str << "_volatile"sv;
             }
             auto elem = args[0]->type()->element();
             bool floatToInt = opt->atomicFloatToInt && (elem->is_float32() || elem->is_float64());
@@ -927,11 +967,73 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             }
             str << "_bfsize"sv;
         } break;
-        case CallOp::BYTE_BUFFER_READ:
         case CallOp::BYTE_BUFFER_VOLATILE_READ: {
-            if (expr->op() == CallOp::BYTE_BUFFER_VOLATILE_READ) {
-                mark_coherent(args[0]);
+            mark_coherent(args[0]);
+            bool aliasStruct = TypeIsAliased(expr->type());
+            if (aliasStruct) {
+                AliasedToOrigin(expr->type(), str);
+                str << '(';
             }
+            str << "_volatile_bytebfread"sv;
+            auto elem = expr->type();
+            if (IsNumVec3(*elem)) {
+                str << "Vec3"sv;
+                str << '<';
+                GetTypeName(*args[0]->type(), str, vis.f.variable_usage(static_cast<RefExpr const *>(args[0])->variable().uid()));
+                str << ',';
+                GetTypeName(*elem->element(), str, Usage::NONE);
+                str << "4,"sv;
+                GetTypeName(*expr->type(), str, Usage::NONE);
+                str << ">("sv;
+                args[0]->accept(vis);
+                str << ',';
+                args[1]->accept(vis);
+                str << ')';
+
+            } else if (elem->is_matrix()) {
+                str << "Mat"sv;
+                str << '<';
+                GetTypeName(*args[0]->type(), str, vis.f.variable_usage(static_cast<RefExpr const *>(args[0])->variable().uid()));
+                str << ',';
+                switch (elem->dimension()) {
+                    case 2:
+                        str << "_WrappedFloat2x2"sv;
+                        break;
+                    case 3:
+                        str << "_WrappedFloat3x3"sv;
+                        break;
+                    case 4:
+                        str << "_WrappedFloat4x4"sv;
+                        break;
+                }
+                str << ',';
+                GetTypeName(*expr->type(), str, Usage::NONE);
+                str << ">("sv;
+                args[0]->accept(vis);
+                str << ',';
+                args[1]->accept(vis);
+                str << ')';
+            } else {
+                str << '<';
+                GetTypeName(*args[0]->type(), str, vis.f.variable_usage(static_cast<RefExpr const *>(args[0])->variable().uid()));
+                str << ',';
+                if (aliasStruct) {
+                    str << opt->CreateAliasedStruct(elem).first;
+                } else {
+                    GetTypeName(*elem, str, Usage::NONE);
+                }
+                str << ">("sv;
+                args[0]->accept(vis);
+                str << ',';
+                args[1]->accept(vis);
+                str << ')';
+            }
+            if (aliasStruct) {
+                str << ')';
+            }
+            return;
+        }
+        case CallOp::BYTE_BUFFER_READ: {
             bool aliasStruct = TypeIsAliased(expr->type());
             if (aliasStruct) {
                 AliasedToOrigin(expr->type(), str);
@@ -988,6 +1090,7 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
         case CallOp::BYTE_BUFFER_VOLATILE_WRITE: {
             if (expr->op() == CallOp::BYTE_BUFFER_VOLATILE_WRITE) {
                 mark_coherent(args[0]);
+                str << "_volatile"sv;
             }
             str << "_bytebfwrite"sv;
             auto elem = args[2]->type();
@@ -2515,13 +2618,12 @@ void CodegenUtility::PostprocessCodegenProperties(vstd::StringBuilder &finalResu
         }
     }
     for (auto &&kv : opt->sharedVariable) {
-        auto &&i = kv.second;
         finalResult << "groupshared "sv;
-        GetTypeName(*i.type()->element(), finalResult, Usage::READ, false);
+        GetTypeName(*kv.var.type()->element(), finalResult, Usage::READ, false);
         finalResult << ' ';
-        GetVariableName(i, finalResult);
+        GetVariableName(kv.func, kv.var, finalResult);
         finalResult << '[';
-        vstd::to_string(i.type()->dimension(), finalResult);
+        vstd::to_string(kv.var.type()->dimension(), finalResult);
         finalResult << "];\n"sv;
     }
 }
@@ -2572,14 +2674,14 @@ void CodegenUtility::CodegenProperties(
             }
             GetTypeName(*i.type(), varData, usage);
             varData << ' ';
-            GetVariableName(i, varData);
+            GetVariableName(kernel, i, varData);
         };
         auto printInstBuffer = [&]<bool writable>() {
             if constexpr (writable)
                 varData << "RWStructuredBuffer<_MeshInst> "sv;
             else
                 varData << "StructuredBuffer<_MeshInst> "sv;
-            GetVariableName(i, varData);
+            GetVariableName(kernel, i, varData);
             varData << "Inst"sv;
         };
         auto genArg = [&]<RegisterType regisT, bool rtBuffer = false, bool writable = false>(ShaderVariableType sT, char v) {

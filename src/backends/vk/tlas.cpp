@@ -17,7 +17,11 @@ struct TlasInputInst {
 };
 }// namespace tlas_detail
 Tlas::Tlas(Device *device, AccelOption const &option)
-    : Resource(device) {}
+    : Resource(device) {
+    if (!device->enable_raytracing()) [[unlikely]] {
+        LUISA_ERROR("Raytracing not enabled, TLAS can not be loaded.");
+    }
+}
 void Tlas::pre_build(
     CommandBuffer &cmdbuffer,
     uint instance_count,
@@ -142,7 +146,7 @@ void Tlas::pre_build(
             inst_ptr->index = i.first;
             inst_ptr->flags = AccelBuildCommand::Modification::flag_primitive;
             resource_barrier->record(BufferView{i.second->mesh->_accel_buffer.get()},
-                                         ResourceBarrier::Usage::AccelInstanceBuffer);
+                                     ResourceBarrier::Usage::AccelInstanceBuffer);
             auto addr = i.second->mesh->get_accel_device_address();
             inst_ptr->mesh = reinterpret_cast<std::array<uint, 2> &>(addr);
             ++inst_ptr;

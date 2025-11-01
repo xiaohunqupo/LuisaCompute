@@ -59,6 +59,7 @@ public:
     // program panic when no installed backends compiled
     [[nodiscard]] Device create_default_device() noexcept;
     [[nodiscard]] luisa::vector<luisa::string> backend_device_names(luisa::string_view backend_name) const noexcept;
+    [[nodiscard]] const DynamicModule &load_backend(luisa::string_view backend_name) const noexcept;
 };
 
 }// namespace luisa::compute
