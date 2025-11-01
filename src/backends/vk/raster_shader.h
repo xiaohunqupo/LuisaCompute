@@ -76,6 +76,7 @@ public:
         RasterState const &state);
     static VkRenderPass create_render_pass(
         Device *device,
+        RasterState const& state,
         luisa::span<Argument::Texture const> rtv_textures,
         Argument::Texture dsv_textures);
     ~RasterShader();
