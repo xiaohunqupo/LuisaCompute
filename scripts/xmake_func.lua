@@ -382,109 +382,35 @@ on_buildcmd_file(function(target, batchcmds, sourcefile, opt)
 end)
 rule_end()
 
+-- Support:
+
+-- add_rules('lc_install_sdk', {
+--     sdk_dir = xxx
+--     libnames = {{
+--         name = yyy,
+--         extract_dir = xxx                 -- extract to default dir or target dir
+--         copy_dir = ""                    -- no copy or copy to target dir
+--         plat_spec = true                 -- name will be transformed to yyyy-linux-x64.zip
+--     }}
+-- })
+
+-- add_rules('lc_install_sdk', {
+--     libnames = xxx
+--     
+-- })
+
+-- and
+
+-- add_rules('lc_install_sdk', {
+--     sdk_dir = xxx
+--     libnames = {
+--         name = yyy
+--     }
+-- })
 rule('lc_install_sdk')
 on_prepare(function(target)
-    local custom_sdk_dir
-    custom_sdk_dir = target:extraconf("rules", 'lc_install_sdk', "sdk_dir")
-    if not custom_sdk_dir then
-        custom_sdk_dir = get_config("lc_sdk_dir")
-    end
-    local lib = import('lib')
-    local libnames = target:extraconf("rules", "lc_install_sdk", "libnames")
-    -- Support:
-
-    -- add_rules('lc_install_sdk', {
-    --     sdk_dir = xxx
-    --     libnames = {{
-    --         name = yyy,
-    --         extract_dir = xxx                 -- extract to default dir or target dir
-    --         copy_dir = ""                    -- no copy or copy to target dir
-    --         plat_spec = true                 -- name will be transformed to yyyy-linux-x64.zip
-    --     }}
-    -- })
-
-    -- add_rules('lc_install_sdk', {
-    --     libnames = xxx
-    --     
-    -- })
-
-    -- and
-
-    -- add_rules('lc_install_sdk', {
-    --     sdk_dir = xxx
-    --     libnames = {
-    --         name = yyy
-    --     }
-    -- })
-    if type(libnames) == "string" or (type(libnames) == "table" and type(libnames["name"]) == "string") then
-        libnames = {libnames}
-    end
-    local find_sdk = import('find_sdk')
-    local sdks = find_sdk.sdks()
-    local sdk_dir = find_sdk.sdk_dir(custom_sdk_dir)
-    os.mkdir(sdk_dir)
-    for _, lib in ipairs(libnames) do
-        local copy_dir = lib["copy_dir"]
-        if not copy_dir then
-            copy_dir = target:targetdir()
-        else
-            copy_dir = path.join(copy_dir, os.host(), os.arch())
-        end
-        if #copy_dir > 0 then
-            os.mkdir(copy_dir)
-        end
-        local sdk_map
-
-        local function log_err()
-            utils.error("Library: " .. find_sdk.sdks()[lib]['name'] .. " not installed, should download from " ..
-                            find_sdk.sdk_address(find_sdk.sdks()[lib]) .. ' to ' .. find_sdk.sdk_dir(custom_sdk_dir) ..
-                            '.')
-        end
-        local function process_sdk_map(sdk_map)
-            if sdk_map["plat_spec"] then
-                local t = sdk_map['name']
-                sdk_map['name'] = path.basename(t) .. '-' .. os.host() .. '-' .. os.arch() .. path.extension(t)
-            end
-            find_sdk.install_sdk(sdk_map, custom_sdk_dir)
-        end
-        if type(lib) == "string" then
-            sdk_map = sdks[lib]
-            process_sdk_map(sdk_map)
-            local valid = find_sdk.check_file(lib, custom_sdk_dir)
-            if not valid then
-                log_err();
-                return
-            end
-        else
-            sdk_map = lib
-            process_sdk_map(sdk_map)
-        end
-
-        local extract_dir = lib["extract_dir"]
-        if not extract_dir or #extract_dir == 0 then
-            extract_dir = path.join(sdk_dir, path.basename(sdk_map["name"]))
-        end
-        local function is_empty_folder()
-            if os.exists(extract_dir) and not os.isfile(extract_dir) then
-                for _, v in ipairs(os.filedirs(path.join(extract_dir, '*'))) do
-                    return false
-                end
-                return true
-            else
-                return true
-            end
-        end
-        if is_empty_folder() then
-            find_sdk.unzip_sdk(sdk_map['name'], sdk_dir, extract_dir)
-        end
-        if #copy_dir > 0 then
-            for _, filepath in ipairs(os.filedirs(path.join(extract_dir, "*"))) do
-                os.cp(filepath, path.join(copy_dir, path.filename(filepath)), {
-                    copy_if_different = true
-                })
-            end
-        end
-    end
+    import("find_sdk")
+    find_sdk.on_install_sdk(target, 'lc_install_sdk')
 end)
 rule_end()
 
