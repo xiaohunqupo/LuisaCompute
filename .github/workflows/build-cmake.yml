@@ -30,7 +30,6 @@ jobs:
           chmod +x llvm.sh
           sudo ./llvm.sh 18 all
           sudo apt-get -y install build-essential wget cmake ninja-build uuid-dev libxinerama-dev libxcursor-dev libxi-dev libvulkan-dev libembree-dev
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
       - name: "Install CUDA Keyring"
         run: |
           wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/${{ matrix.platform.cuda-keyring }}/cuda-keyring_1.1-1_all.deb
