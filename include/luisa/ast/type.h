@@ -481,6 +481,7 @@ public:
     [[nodiscard]] bool is_int16() const noexcept;
     [[nodiscard]] bool is_uint16() const noexcept;
 
+    [[nodiscard]] bool is_bool_or_bool_vector() const noexcept;
     [[nodiscard]] bool is_int_or_int_vector() const noexcept;
     [[nodiscard]] bool is_uint_or_uint_vector() const noexcept;
     [[nodiscard]] bool is_float_or_float_vector() const noexcept;

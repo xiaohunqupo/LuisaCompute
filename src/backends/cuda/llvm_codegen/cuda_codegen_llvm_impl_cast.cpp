@@ -102,10 +102,7 @@ llvm::Value *CUDACodegenLLVMImpl::_bitwise_cast(IB &b, FunctionContext &func_ctx
         return _convert_llvm_mem_value_to_reg(b, llvm_dst_mem, dst_type);
     }
     // generic, we make a temporary alloca, store the src value, and load as the dst type
-    auto llvm_temp = _with_insertion_point_backed_up(b, [&] {
-        b.SetInsertPoint(&func_ctx.llvm_alloca_block->front());
-        return b.CreateAlloca(llvm_src_mem->getType());
-    });
+    auto llvm_temp = _create_temp_in_alloca_block(func_ctx, llvm_src_mem->getType(), src_type->alignment());
     b.CreateAlignedStore(llvm_src_mem, llvm_temp, llvm::Align{src_type->alignment()});
     auto llvm_dst_mem = b.CreateAlignedLoad(llvm_dst_type->mem_type, llvm_temp, llvm::Align{dst_type->alignment()});
     return _convert_llvm_mem_value_to_reg(b, llvm_dst_mem, dst_type);

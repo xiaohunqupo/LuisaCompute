@@ -23,6 +23,14 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionCont
         auto llvm_rhs = _get_llvm_value(b, func_ctx, inst->operand(1));
         return op(llvm_lhs, llvm_rhs);
     };
+    auto translate_relational = [&](auto op) noexcept {
+        LUISA_DEBUG_ASSERT(inst->operand_count() == 2 &&
+                           inst->operand(0)->type() == inst->operand(1)->type() &&
+                           inst->type()->is_bool_or_bool_vector());
+        auto llvm_lhs = _get_llvm_value(b, func_ctx, inst->operand(0));
+        auto llvm_rhs = _get_llvm_value(b, func_ctx, inst->operand(1));
+        return op(llvm_lhs, llvm_rhs);
+    };
     auto translate_ternary = [&](auto op) noexcept {
         LUISA_DEBUG_ASSERT(inst->operand_count() == 3 &&
                            inst->operand(0)->type() == inst->type() &&
@@ -150,30 +158,30 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionCont
             LUISA_DEBUG_ASSERT(lhs->getType()->isIntOrIntVectorTy());
             return b.CreateIntrinsic(llvm::Intrinsic::fshr, lhs->getType(), {lhs, lhs, rhs});
         });
-        case xir::ArithmeticOp::BINARY_LESS: return translate_binary([&](auto lhs, auto rhs) noexcept {
+        case xir::ArithmeticOp::BINARY_LESS: return translate_relational([&](auto lhs, auto rhs) noexcept {
             return inst->type()->is_int_or_int_vector()   ? b.CreateICmpSLT(lhs, rhs) :
                    inst->type()->is_uint_or_uint_vector() ? b.CreateICmpULT(lhs, rhs) :
                                                             b.CreateFCmpOLT(lhs, rhs);
         });
-        case xir::ArithmeticOp::BINARY_GREATER: return translate_binary([&](auto lhs, auto rhs) noexcept {
+        case xir::ArithmeticOp::BINARY_GREATER: return translate_relational([&](auto lhs, auto rhs) noexcept {
             return inst->type()->is_int_or_int_vector()   ? b.CreateICmpSGT(lhs, rhs) :
                    inst->type()->is_uint_or_uint_vector() ? b.CreateICmpUGT(lhs, rhs) :
                                                             b.CreateFCmpOGT(lhs, rhs);
         });
-        case xir::ArithmeticOp::BINARY_LESS_EQUAL: return translate_binary([&](auto lhs, auto rhs) noexcept {
+        case xir::ArithmeticOp::BINARY_LESS_EQUAL: return translate_relational([&](auto lhs, auto rhs) noexcept {
             return inst->type()->is_int_or_int_vector()   ? b.CreateICmpSLE(lhs, rhs) :
                    inst->type()->is_uint_or_uint_vector() ? b.CreateICmpULE(lhs, rhs) :
                                                             b.CreateFCmpOLE(lhs, rhs);
         });
-        case xir::ArithmeticOp::BINARY_GREATER_EQUAL: return translate_binary([&](auto lhs, auto rhs) noexcept {
+        case xir::ArithmeticOp::BINARY_GREATER_EQUAL: return translate_relational([&](auto lhs, auto rhs) noexcept {
             return inst->type()->is_int_or_int_vector()   ? b.CreateICmpSGE(lhs, rhs) :
                    inst->type()->is_uint_or_uint_vector() ? b.CreateICmpUGE(lhs, rhs) :
                                                             b.CreateFCmpOGE(lhs, rhs);
         });
-        case xir::ArithmeticOp::BINARY_EQUAL: return translate_binary([&](auto lhs, auto rhs) noexcept {
+        case xir::ArithmeticOp::BINARY_EQUAL: return translate_relational([&](auto lhs, auto rhs) noexcept {
             return inst->type()->is_float_or_float_vector() ? b.CreateFCmpOEQ(lhs, rhs) : b.CreateICmpEQ(lhs, rhs);
         });
-        case xir::ArithmeticOp::BINARY_NOT_EQUAL: return translate_binary([&](auto lhs, auto rhs) noexcept {
+        case xir::ArithmeticOp::BINARY_NOT_EQUAL: return translate_relational([&](auto lhs, auto rhs) noexcept {
             return inst->type()->is_float_or_float_vector() ? b.CreateFCmpONE(lhs, rhs) : b.CreateICmpNE(lhs, rhs);
         });
         case xir::ArithmeticOp::ALL: {
@@ -773,10 +781,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_shuffle(IB &b, FunctionContext &fun
     auto dst_type = inst->type();
     LUISA_DEBUG_ASSERT(src_type->element() == dst_type->element());
     auto llvm_src_mem = _convert_llvm_reg_value_to_mem(b, llvm_src, src_type);
-    auto llvm_temp = _with_insertion_point_backed_up(b, [&] {
-        b.SetInsertPoint(&func_ctx.llvm_alloca_block->front());
-        return b.CreateAlloca(llvm_src->getType(), nullptr, "shuffle.temp");
-    });
+    auto llvm_temp = _create_temp_in_alloca_block(func_ctx, llvm_src_mem->getType(), src_type->alignment());
     b.CreateStore(llvm_src_mem, llvm_temp);
     auto llvm_dst_type = _get_llvm_type(dst_type)->reg_type;
     auto llvm_dst = static_cast<llvm::Value *>(llvm::PoisonValue::get(llvm_dst_type));
@@ -794,10 +799,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_insert(IB &b, FunctionContext &func
     auto llvm_value = _get_llvm_value(b, func_ctx, inst->operand(1));
     auto index_uses = inst->operand_uses().subspan(2);
     auto llvm_src_mem = _convert_llvm_reg_value_to_mem(b, llvm_src, inst->type());
-    auto llvm_temp = _with_insertion_point_backed_up(b, [&] {
-        b.SetInsertPoint(&func_ctx.llvm_alloca_block->front());
-        return b.CreateAlloca(llvm_src->getType(), nullptr, "insert.temp");
-    });
+    auto llvm_temp = _create_temp_in_alloca_block(func_ctx, llvm_src_mem->getType(), inst->type()->alignment());
     b.CreateStore(llvm_src_mem, llvm_temp);
     auto [llvm_ptr, elem_type] = _lower_access_chain_address(b, func_ctx, llvm_temp, inst->type(), index_uses);
     LUISA_DEBUG_ASSERT(elem_type == inst->operand(1)->type());
@@ -809,10 +811,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_extract(IB &b, FunctionContext &fun
     auto llvm_src = _get_llvm_value(b, func_ctx, inst->operand(0));
     auto index_uses = inst->operand_uses().subspan(1);
     auto llvm_src_mem = _convert_llvm_reg_value_to_mem(b, llvm_src, inst->operand(0)->type());
-    auto llvm_temp = _with_insertion_point_backed_up(b, [&] {
-        b.SetInsertPoint(&func_ctx.llvm_alloca_block->front());
-        return b.CreateAlloca(llvm_src->getType(), nullptr, "extract.temp");
-    });
+    auto llvm_temp = _create_temp_in_alloca_block(func_ctx, llvm_src_mem->getType(), inst->operand(0)->type()->alignment());
     b.CreateStore(llvm_src_mem, llvm_temp);
     auto [llvm_ptr, elem_type] = _lower_access_chain_address(b, func_ctx, llvm_temp, inst->operand(0)->type(), index_uses);
     LUISA_DEBUG_ASSERT(elem_type == inst->type());

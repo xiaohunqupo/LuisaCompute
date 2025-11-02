@@ -118,27 +118,6 @@ private:
         LUISA_ERROR_WITH_LOCATION("Unsupported value type.");
     }
 
-    class InsertionPointGuard {
-    private:
-        IB &_b;
-        llvm::BasicBlock::iterator _p;
-
-    public:
-        explicit InsertionPointGuard(IB &b) noexcept : _b{b}, _p{b.GetInsertPoint()} {}
-        ~InsertionPointGuard() noexcept { _b.SetInsertPoint(_p); }
-        // avoid copy and move
-        InsertionPointGuard(InsertionPointGuard &&) noexcept = delete;
-        InsertionPointGuard(const InsertionPointGuard &) noexcept = delete;
-        InsertionPointGuard &operator=(InsertionPointGuard &&) noexcept = delete;
-        InsertionPointGuard &operator=(const InsertionPointGuard &) noexcept = delete;
-    };
-
-    template<typename F>
-    static decltype(auto) _with_insertion_point_backed_up(IB &b, F &&f) noexcept {
-        InsertionPointGuard _{b};
-        return std::invoke(std::forward<F>(f));
-    }
-
     template<typename T, typename... Extra>
     [[nodiscard]] auto _to_string(T *llvm_object, Extra &&...extra) const noexcept {
         std::string str;
@@ -180,6 +159,7 @@ private:
     static void _mark_llvm_function_as_pure(llvm::Function *func) noexcept;
     [[nodiscard]] llvm::Function *_get_assert_function() noexcept;
     [[nodiscard]] llvm::Function *_get_vprintf_function() noexcept;
+    [[nodiscard]] llvm::Function *_get_texture2d_read_function(llvm::VectorType *llvm_value_type) noexcept;
     [[nodiscard]] llvm::Function *_get_texture2d_write_function(llvm::VectorType *llvm_value_type) noexcept;
 
     /* the following methods are defined in cuda_codegen_llvm_impl_const.cpp */
@@ -237,6 +217,7 @@ private:
     [[nodiscard]] llvm::Value *_translate_gep_inst(IB &b, FunctionContext &func_ctx, const xir::GEPInst *inst) noexcept;
     [[nodiscard]] llvm::Value *_load_llvm_value(IB &b, llvm::Value *llvm_ptr, const Type *type) noexcept;
     void _store_llvm_value(IB &b, llvm::Value *llvm_ptr, llvm::Value *llvm_value, const Type *type) noexcept;
+    [[nodiscard]] static llvm::Value *_create_temp_in_alloca_block(FunctionContext &func_ctx, llvm::Type *t, size_t a) noexcept;
 
     // atomic instructions, defined in cuda_codegen_llvm_impl_atomic.cpp
     [[nodiscard]] llvm::Value *_translate_atomic_inst(IB &b, FunctionContext &func_ctx, const xir::AtomicInst *inst) noexcept;

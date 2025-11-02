@@ -52,4 +52,11 @@ void CUDACodegenLLVMImpl::_store_llvm_value(IB &b, llvm::Value *llvm_ptr, llvm::
     b.CreateAlignedStore(llvm_mem_v, llvm_ptr, llvm::Align{type->alignment()});
 }
 
+llvm::Value *CUDACodegenLLVMImpl::_create_temp_in_alloca_block(FunctionContext &func_ctx, llvm::Type *t, size_t a) noexcept {
+    IB b{func_ctx.llvm_alloca_block->getTerminator()};
+    auto llvm_alloca = b.CreateAlloca(t);
+    llvm_alloca->setAlignment(llvm::Align{a});
+    return llvm_alloca;
+}
+
 }// namespace luisa::compute::cuda

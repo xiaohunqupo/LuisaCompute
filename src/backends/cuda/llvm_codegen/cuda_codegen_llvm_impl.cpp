@@ -3,6 +3,7 @@
 //
 
 #include <llvm/IR/LegacyPassManager.h>
+#include <llvm/IR/DebugInfo.h>
 #include <llvm/Analysis/TargetTransformInfo.h>
 #include <llvm/Analysis/TargetLibraryInfo.h>
 #include <llvm/Support/TargetSelect.h>
@@ -32,8 +33,8 @@ CUDACodegenLLVMImpl::CUDACodegenLLVMImpl(CUDACodegenLLVMConfig config) noexcept
 
 CUDACodegenLLVMImpl::FunctionContext::FunctionContext(llvm::Function *f) noexcept
     : llvm_func{f},
-      llvm_alloca_block{llvm::BasicBlock::Create(llvm_func->getContext(), "alloca", llvm_func)},
-      llvm_entry_block{llvm::BasicBlock::Create(llvm_func->getContext(), "entry", llvm_func)} {
+      llvm_alloca_block{llvm::BasicBlock::Create(f->getContext(), "alloca", f)},
+      llvm_entry_block{llvm::BasicBlock::Create(f->getContext(), "entry", f)} {
     IB b{llvm_alloca_block};
     b.CreateBr(llvm_entry_block);
 }
@@ -106,7 +107,10 @@ inline void CUDACodegenLLVMImpl::_initialize() noexcept {
         llvm::SMDiagnostic error;
         llvm::StringRef bc{reinterpret_cast<const char *>(luisa_compute_cuda_libdevice_10),
                            luisa_compute_cuda_libdevice_10_size};
-        if (auto m = llvm::parseIR({bc, "libdevice.10.bc"}, error, _llvm_context)) { return m; }
+        if (auto m = llvm::parseIR({bc, "libdevice.10.bc"}, error, _llvm_context)) {
+            llvm::StripDebugInfo(*m);
+            return m;
+        }
         LUISA_ERROR_WITH_LOCATION("Failed to parse libdevice bitcode: {}", error.getMessage());
     }();
 
@@ -226,7 +230,10 @@ luisa::string CUDACodegenLLVMImpl::generate(const xir::Module &xir_module) noexc
     _llvm_module->setModuleIdentifier(xir_module.name().value_or(""));
     for (auto func : xir_module.function_list()) {
         if (auto def = func->definition()) {
-            static_cast<void>(_translate_function(def));
+            [[maybe_unused]] auto llvm_f = _translate_function(def);
+#ifndef NDEBUG
+            llvm::verifyFunction(*llvm_f, &llvm::errs());
+#endif
         }
     }
 #ifndef NDEBUG

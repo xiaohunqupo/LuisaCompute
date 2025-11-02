@@ -69,7 +69,16 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_resource_read_inst(IB &b, FunctionC
         case xir::ResourceReadOp::BUFFER_VOLATILE_READ: break;
         case xir::ResourceReadOp::BYTE_BUFFER_READ: break;
         case xir::ResourceReadOp::BYTE_BUFFER_VOLATILE_READ: break;
-        case xir::ResourceReadOp::TEXTURE2D_READ: break;
+        case xir::ResourceReadOp::TEXTURE2D_READ: {
+            auto llvm_texture = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto llvm_coord = _get_llvm_value(b, func_ctx, inst->operand(1));
+            auto llvm_texture_handle = b.CreateExtractValue(llvm_texture, 0);
+            auto llvm_texture_storage = b.CreateExtractValue(llvm_texture, 1);
+            auto llvm_result_type = _get_llvm_type(inst->type())->reg_type;
+            LUISA_DEBUG_ASSERT(llvm_result_type->isVectorTy());
+            auto llvm_func = _get_texture2d_read_function(llvm::cast<llvm::VectorType>(llvm_result_type));
+            return b.CreateCall(llvm_func, {llvm_texture_handle, llvm_texture_storage, llvm_coord});
+        }
         case xir::ResourceReadOp::TEXTURE3D_READ: break;
         case xir::ResourceReadOp::BINDLESS_BUFFER_READ: break;
         case xir::ResourceReadOp::BINDLESS_BYTE_BUFFER_READ: break;
@@ -94,6 +103,7 @@ void CUDACodegenLLVMImpl::_translate_resource_write_inst(IB &b, FunctionContext 
             auto llvm_value = _get_llvm_value(b, func_ctx, inst->operand(2));
             auto llvm_texture_handle = b.CreateExtractValue(llvm_texture, 0);
             auto llvm_texture_storage = b.CreateExtractValue(llvm_texture, 1);
+            LUISA_DEBUG_ASSERT(llvm_value->getType()->isVectorTy());
             auto llvm_func = _get_texture2d_write_function(llvm::cast<llvm::VectorType>(llvm_value->getType()));
             b.CreateCall(llvm_func, {llvm_texture_handle, llvm_texture_storage, llvm_coord, llvm_value});
             return;
