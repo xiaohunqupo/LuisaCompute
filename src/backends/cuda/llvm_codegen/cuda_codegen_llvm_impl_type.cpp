@@ -91,22 +91,9 @@ CUDACodegenLLVMImpl::_get_llvm_type(const Type *type) noexcept {
                 auto dim = type->dimension();
                 LUISA_DEBUG_ASSERT(dim == 2 || dim == 3 || dim == 4);
                 auto llvm_reg_type = llvm::VectorType::get(elem->reg_type, dim, false);
-                // i1/i64/f64 vector types are has different size or alignment in memory compared to XIR
-                auto llvm_elem_reg_type = elem->reg_type;
-                // i1 vectors are stored as i8 vectors in memory
-                if (llvm_elem_reg_type->isIntegerTy(1)) {
-                    auto llvm_i8_type = llvm::Type::getInt8Ty(_llvm_context);
-                    auto llvm_mem_type = llvm::VectorType::get(llvm_i8_type, dim, false);
-                    return make_llvm_type_info(llvm_mem_type, llvm_reg_type, type->size(), type->alignment());
-                }
-                // i64/f64 vectors are stored as padded arrays in memory
-                if ((llvm_elem_reg_type->isIntegerTy(64) || llvm_elem_reg_type->isDoubleTy()) && dim > 2u) {
-                    // we use padded array types in memory for these types
-                    auto llvm_mem_type = llvm::ArrayType::get(elem->mem_type, dim == 3 ? 4 : dim);
-                    return make_llvm_type_info(llvm_mem_type, llvm_reg_type, type->size(), type->alignment());
-                }
+                auto llvm_mem_type = llvm::ArrayType::get(elem->mem_type, luisa::align(dim, 2));
                 // other vector types are the same in memory and registers
-                return make_llvm_type_info(llvm_reg_type, llvm_reg_type, type->size(), type->alignment());
+                return make_llvm_type_info(llvm_mem_type, llvm_reg_type, type->size(), type->alignment());
             }
             case Type::Tag::MATRIX: {
                 auto dim = type->dimension();
@@ -325,6 +312,49 @@ llvm::Type *CUDACodegenLLVMImpl::_get_llvm_accel_instance_type() noexcept {
             sizeof(optix::Instance), alignof(optix::Instance));
     }
     return _llvm_accel_instance_type;
+}
+
+std::pair<llvm::Value *, const Type *>
+CUDACodegenLLVMImpl::_lower_access_chain_address(IB &b, FunctionContext &func_ctx, llvm::Value *llvm_ptr,
+                                                 const Type *type, luisa::span<const xir::Use *const> index_uses) noexcept {
+    // FIXME: we directly calculate the address here, which might hinder LLVM optimizations
+    LUISA_DEBUG_ASSERT(llvm_ptr->getType()->isPointerTy());
+    for (auto index_use : index_uses) {
+        auto llvm_index = _get_llvm_value(b, func_ctx, index_use->value());
+        switch (type->tag()) {
+            case Type::Tag::VECTOR: {
+                type = type->element();
+                auto llvm_elem_type = _get_llvm_type(type)->mem_type;
+                llvm_ptr = b.CreateInBoundsGEP(llvm_elem_type, llvm_ptr, {llvm_index});
+                break;
+            }
+            case Type::Tag::MATRIX: {
+                type = Type::vector(type->element(), type->dimension());
+                auto llvm_col_type = _get_llvm_type(type)->mem_type;
+                llvm_ptr = b.CreateInBoundsGEP(llvm_col_type, llvm_ptr, {llvm_index});
+                break;
+            }
+            case Type::Tag::ARRAY: {
+                type = type->element();
+                auto llvm_elem_type = _get_llvm_type(type)->mem_type;
+                llvm_ptr = b.CreateInBoundsGEP(llvm_elem_type, llvm_ptr, {llvm_index});
+                break;
+            }
+            case Type::Tag::STRUCTURE: {
+                LUISA_DEBUG_ASSERT(llvm::isa<llvm::ConstantInt>(llvm_index));
+                auto member_index = llvm::cast<llvm::ConstantInt>(llvm_index)->getZExtValue();
+                LUISA_DEBUG_ASSERT(member_index < type->members().size());
+                auto llvm_struct_info = _get_llvm_type(type);
+                auto llvm_member_offset = llvm_struct_info->member_offsets[member_index];
+                type = type->members()[member_index];
+                auto llvm_i8_type = b.getInt8Ty();
+                llvm_ptr = b.CreateConstInBoundsGEP1_64(llvm_i8_type, llvm_ptr, llvm_member_offset);
+                break;
+            }
+            default: LUISA_ERROR("Invalid GEP base type: {}.", type->description());
+        }
+    }
+    return std::make_pair(llvm_ptr, type);
 }
 
 }// namespace luisa::compute::cuda

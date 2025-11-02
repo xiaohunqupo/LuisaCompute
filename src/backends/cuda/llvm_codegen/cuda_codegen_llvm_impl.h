@@ -134,9 +134,18 @@ private:
     };
 
     template<typename F>
-    static decltype(auto) with_insertion_point_backed_up(IB &b, F &&f) noexcept {
+    static decltype(auto) _with_insertion_point_backed_up(IB &b, F &&f) noexcept {
         InsertionPointGuard _{b};
         return std::invoke(std::forward<F>(f));
+    }
+
+    template<typename T, typename... Extra>
+    [[nodiscard]] auto _to_string(T *llvm_object, Extra &&...extra) const noexcept {
+        std::string str;
+        llvm::raw_string_ostream os{str};
+        llvm_object->print(os, std::forward<Extra>(extra)...);
+        os.flush();
+        return str;
     }
 
 private:
@@ -155,6 +164,9 @@ private:
     [[nodiscard]] llvm::Type *_get_llvm_bindless_array_slot_type() noexcept;
     [[nodiscard]] llvm::Type *_get_llvm_accel_type() noexcept;
     [[nodiscard]] llvm::Type *_get_llvm_accel_instance_type() noexcept;
+    [[nodiscard]] std::pair<llvm::Value *, const Type *>
+    _lower_access_chain_address(IB &b, FunctionContext &func_ctx, llvm::Value *llvm_ptr,
+                                const Type *type, luisa::span<const xir::Use *const> index_uses) noexcept;
 
     /* the following methods are defined in cuda_codegen_llvm_impl_func.cpp */
     [[nodiscard]] llvm::Function *_get_or_declare_llvm_function(const xir::Function *func) noexcept;
@@ -168,6 +180,7 @@ private:
     static void _mark_llvm_function_as_pure(llvm::Function *func) noexcept;
     [[nodiscard]] llvm::Function *_get_assert_function() noexcept;
     [[nodiscard]] llvm::Function *_get_vprintf_function() noexcept;
+    [[nodiscard]] llvm::Function *_get_texture2d_write_function(llvm::VectorType *llvm_value_type) noexcept;
 
     /* the following methods are defined in cuda_codegen_llvm_impl_const.cpp */
     [[nodiscard]] llvm::Value *_get_llvm_literal(IB &b, const Type *type, const void *data) noexcept;
@@ -223,7 +236,7 @@ private:
     void _translate_store_inst(IB &b, FunctionContext &func_ctx, const xir::StoreInst *inst) noexcept;
     [[nodiscard]] llvm::Value *_translate_gep_inst(IB &b, FunctionContext &func_ctx, const xir::GEPInst *inst) noexcept;
     [[nodiscard]] llvm::Value *_load_llvm_value(IB &b, llvm::Value *llvm_ptr, const Type *type) noexcept;
-    void store_llvm_value(IB &b, llvm::Value *llvm_ptr, llvm::Value *llvm_value, const Type *type) noexcept;
+    void _store_llvm_value(IB &b, llvm::Value *llvm_ptr, llvm::Value *llvm_value, const Type *type) noexcept;
 
     // atomic instructions, defined in cuda_codegen_llvm_impl_atomic.cpp
     [[nodiscard]] llvm::Value *_translate_atomic_inst(IB &b, FunctionContext &func_ctx, const xir::AtomicInst *inst) noexcept;

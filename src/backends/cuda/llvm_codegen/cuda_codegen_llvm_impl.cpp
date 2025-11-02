@@ -229,6 +229,9 @@ luisa::string CUDACodegenLLVMImpl::generate(const xir::Module &xir_module) noexc
             static_cast<void>(_translate_function(def));
         }
     }
+#ifndef NDEBUG
+    llvm::verifyModule(*_llvm_module, &llvm::errs());
+#endif
     _run_optimization_passes();
     _llvm_module->print(llvm::errs(), nullptr);// debug
     return _generate_ptx();

@@ -4,6 +4,8 @@
 
 #include "cuda_codegen_llvm_impl.h"
 
+#include <llvm/IR/Mangler.h>
+
 namespace luisa::compute::cuda {
 
 llvm::Value *CUDACodegenLLVMImpl::_translate_resource_query_inst(IB &b, FunctionContext &func_ctx, const xir::ResourceQueryInst *inst) noexcept {
@@ -58,6 +60,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_resource_query_inst(IB &b, Function
         case xir::ResourceQueryOp::RAY_TRACING_QUERY_ALL_MOTION_BLUR: break;
         case xir::ResourceQueryOp::RAY_TRACING_QUERY_ANY_MOTION_BLUR: break;
     }
+    LUISA_NOT_IMPLEMENTED();
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_translate_resource_read_inst(IB &b, FunctionContext &func_ctx, const xir::ResourceReadInst *inst) noexcept {
@@ -76,6 +79,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_resource_read_inst(IB &b, FunctionC
         case xir::ResourceReadOp::BINDLESS_TEXTURE3D_READ_LEVEL: break;
         case xir::ResourceReadOp::DEVICE_ADDRESS_READ: break;
     }
+    LUISA_NOT_IMPLEMENTED();
 }
 
 void CUDACodegenLLVMImpl::_translate_resource_write_inst(IB &b, FunctionContext &func_ctx, const xir::ResourceWriteInst *inst) noexcept {
@@ -84,7 +88,16 @@ void CUDACodegenLLVMImpl::_translate_resource_write_inst(IB &b, FunctionContext 
         case xir::ResourceWriteOp::BUFFER_VOLATILE_WRITE: break;
         case xir::ResourceWriteOp::BYTE_BUFFER_WRITE: break;
         case xir::ResourceWriteOp::BYTE_BUFFER_VOLATILE_WRITE: break;
-        case xir::ResourceWriteOp::TEXTURE2D_WRITE: break;
+        case xir::ResourceWriteOp::TEXTURE2D_WRITE: {
+            auto llvm_texture = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto llvm_coord = _get_llvm_value(b, func_ctx, inst->operand(1));
+            auto llvm_value = _get_llvm_value(b, func_ctx, inst->operand(2));
+            auto llvm_texture_handle = b.CreateExtractValue(llvm_texture, 0);
+            auto llvm_texture_storage = b.CreateExtractValue(llvm_texture, 1);
+            auto llvm_func = _get_texture2d_write_function(llvm::cast<llvm::VectorType>(llvm_value->getType()));
+            b.CreateCall(llvm_func, {llvm_texture_handle, llvm_texture_storage, llvm_coord, llvm_value});
+            return;
+        }
         case xir::ResourceWriteOp::TEXTURE3D_WRITE: break;
         case xir::ResourceWriteOp::BINDLESS_BUFFER_WRITE: break;
         case xir::ResourceWriteOp::BINDLESS_BYTE_BUFFER_WRITE: break;
@@ -98,6 +111,7 @@ void CUDACodegenLLVMImpl::_translate_resource_write_inst(IB &b, FunctionContext 
         case xir::ResourceWriteOp::INDIRECT_DISPATCH_SET_KERNEL: break;
         case xir::ResourceWriteOp::INDIRECT_DISPATCH_SET_COUNT: break;
     }
+    LUISA_NOT_IMPLEMENTED();
 }
 
 }// namespace luisa::compute::cuda

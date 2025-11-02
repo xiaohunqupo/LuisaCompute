@@ -273,4 +273,22 @@ void CUDACodegenLLVMImpl::_translate_outline_inst(IB &b, FunctionContext &func_c
     LUISA_ERROR_WITH_LOCATION("Outline instruction should have been lowered.");
 }
 
+// void luisa.cuda.texture.2d.write.<type>(i64 handle, i64 storage, <2 x i32> coord, <type> value)
+llvm::Function *CUDACodegenLLVMImpl::_get_texture2d_write_function(llvm::VectorType *llvm_value_type) noexcept {
+    auto name = luisa::format("luisa.cuda.texture.2d.write.{}", _to_string(llvm_value_type->getElementType()));
+    if (auto llvm_func = _llvm_module->getFunction(name)) { return llvm_func; }
+    auto llvm_void_type = llvm::Type::getVoidTy(_llvm_context);
+    auto llvm_i64_type = llvm::Type::getInt64Ty(_llvm_context);
+    auto llvm_i32_type = llvm::Type::getInt32Ty(_llvm_context);
+    auto llvm_coord_type = llvm::VectorType::get(llvm_i32_type, 2, false);
+    auto llvm_func_type = llvm::FunctionType::get(
+        llvm_void_type, {llvm_i64_type, llvm_i64_type, llvm_coord_type, llvm_value_type}, false);
+    auto llvm_func = llvm::Function::Create(llvm_func_type, llvm::Function::PrivateLinkage, name, *_llvm_module);
+    llvm_func->addFnAttr(llvm::Attribute::AlwaysInline);
+    auto llvm_entry = llvm::BasicBlock::Create(_llvm_context, "entry", llvm_func);
+    IB b{llvm_entry};
+    b.CreateRetVoid();// TODO: implement texture write
+    return llvm_func;
+}
+
 }// namespace luisa::compute::cuda

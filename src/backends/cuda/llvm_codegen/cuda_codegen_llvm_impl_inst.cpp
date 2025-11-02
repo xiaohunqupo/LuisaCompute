@@ -18,7 +18,7 @@ llvm::Value *CUDACodegenLLVMImpl::_create_llvm_vector(IB &b, llvm::ArrayRef<llvm
 void CUDACodegenLLVMImpl::_translate_instruction(IB &b, FunctionContext &func_ctx, const xir::Instruction *inst) noexcept {
     llvm::Value *result{nullptr};
     auto handle_case = [&]<typename F>(F f) noexcept -> llvm::Value * {
-        if constexpr (std::is_invocable_r_v<void, F>) {
+        if constexpr (std::is_same_v<decltype(f()), void>) {
             f();
             return nullptr;
         } else {

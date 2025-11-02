@@ -31,51 +31,14 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_load_inst(IB &b, FunctionContext &f
 void CUDACodegenLLVMImpl::_translate_store_inst(IB &b, FunctionContext &func_ctx, const xir::StoreInst *inst) noexcept {
     auto llvm_ptr = func_ctx.get_local_value<llvm::Value>(inst->variable());
     auto llvm_value = _get_llvm_value(b, func_ctx, inst->value());
-    store_llvm_value(b, llvm_ptr, llvm_value, inst->value()->type());
+    _store_llvm_value(b, llvm_ptr, llvm_value, inst->value()->type());
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_translate_gep_inst(IB &b, FunctionContext &func_ctx, const xir::GEPInst *inst) noexcept {
-    // FIXME: we directly calculate the address here, which might hinder LLVM optimizations
-    auto base = inst->base();
-    auto llvm_ptr = func_ctx.get_local_value<llvm::Value>(base);
-    LUISA_DEBUG_ASSERT(llvm_ptr->getType()->isPointerTy());
-    auto type = base->type();
-    for (auto index_use : inst->index_uses()) {
-        auto llvm_index = _get_llvm_value(b, func_ctx, index_use->value());
-        switch (type->tag()) {
-            case Type::Tag::VECTOR: {
-                type = type->element();
-                auto llvm_elem_type = _get_llvm_type(type)->mem_type;
-                llvm_ptr = b.CreateInBoundsGEP(llvm_elem_type, llvm_ptr, {llvm_index});
-                break;
-            }
-            case Type::Tag::MATRIX: {
-                type = Type::vector(type->element(), type->dimension());
-                auto llvm_col_type = _get_llvm_type(type)->mem_type;
-                llvm_ptr = b.CreateInBoundsGEP(llvm_col_type, llvm_ptr, {llvm_index});
-                break;
-            }
-            case Type::Tag::ARRAY: {
-                type = type->element();
-                auto llvm_elem_type = _get_llvm_type(type)->mem_type;
-                llvm_ptr = b.CreateInBoundsGEP(llvm_elem_type, llvm_ptr, {llvm_index});
-                break;
-            }
-            case Type::Tag::STRUCTURE: {
-                LUISA_DEBUG_ASSERT(llvm::isa<llvm::ConstantInt>(llvm_index));
-                auto member_index = llvm::cast<llvm::ConstantInt>(llvm_index)->getZExtValue();
-                LUISA_DEBUG_ASSERT(member_index < type->members().size());
-                auto llvm_struct_info = _get_llvm_type(type);
-                auto llvm_member_offset = llvm_struct_info->member_offsets[member_index];
-                type = type->members()[member_index];
-                auto llvm_i8_type = b.getInt8Ty();
-                llvm_ptr = b.CreateConstInBoundsGEP1_64(llvm_i8_type, llvm_ptr, llvm_member_offset);
-                break;
-            }
-            default: LUISA_ERROR("Invalid GEP base type: {}.", type->description());
-        }
-    }
-    return llvm_ptr;
+    auto llvm_base_ptr = _get_llvm_value(b, func_ctx, inst->base());
+    auto [llvm_elem_ptr, elem_type] = _lower_access_chain_address(b, func_ctx, llvm_base_ptr, inst->base()->type(), inst->operand_uses().subspan(1));
+    LUISA_DEBUG_ASSERT(elem_type == inst->type());
+    return llvm_elem_ptr;
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_load_llvm_value(IB &b, llvm::Value *llvm_ptr, const Type *type) noexcept {
@@ -84,7 +47,7 @@ llvm::Value *CUDACodegenLLVMImpl::_load_llvm_value(IB &b, llvm::Value *llvm_ptr,
     return _convert_llvm_mem_value_to_reg(b, llvm_mem_v, type);
 }
 
-void CUDACodegenLLVMImpl::store_llvm_value(IB &b, llvm::Value *llvm_ptr, llvm::Value *llvm_value, const Type *type) noexcept {
+void CUDACodegenLLVMImpl::_store_llvm_value(IB &b, llvm::Value *llvm_ptr, llvm::Value *llvm_value, const Type *type) noexcept {
     auto llvm_mem_v = _convert_llvm_reg_value_to_mem(b, llvm_value, type);
     b.CreateAlignedStore(llvm_mem_v, llvm_ptr, llvm::Align{type->alignment()});
 }

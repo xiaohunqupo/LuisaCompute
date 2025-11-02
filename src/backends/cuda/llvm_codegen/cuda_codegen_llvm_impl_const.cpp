@@ -128,7 +128,6 @@ llvm::Value *CUDACodegenLLVMImpl::_get_llvm_constant(IB &b, const xir::Constant 
         return llvm_const;
     }
     // find global constant
-    llvm::Align alignment{type->alignment()};
     auto iter = _xir_to_llvm_global.try_emplace(c, nullptr).first;
     if (iter->second == nullptr) {
         // create global constant

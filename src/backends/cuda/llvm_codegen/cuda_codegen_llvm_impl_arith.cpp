@@ -36,7 +36,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionCont
     auto dot_product_fp = [&](llvm::Value *u, llvm::Value *v) noexcept {
         LUISA_DEBUG_ASSERT(u->getType()->isVectorTy() && v->getType()->isFPOrFPVectorTy() && u->getType() == v->getType());
         auto zero = llvm::ConstantFP::getNegativeZero(u->getType()->getScalarType());
-        return b.CreateFAddReduce(b.CreateFMul(u, v), zero);
+        return b.CreateFAddReduce(zero, b.CreateFMul(u, v));
     };
     auto inf_nan_mask_and_test = [&](llvm::Type *t) noexcept -> std::pair<llvm::Constant *, llvm::Constant *> {
         LUISA_DEBUG_ASSERT(t->isFPOrFPVectorTy());
@@ -494,7 +494,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionCont
             auto v = _get_llvm_value(b, func_ctx, inst->operand(0));
             LUISA_DEBUG_ASSERT(v->getType()->isVectorTy());
             return v->getType()->isFPOrFPVectorTy() ?
-                       b.CreateFAddReduce(v, llvm::ConstantFP::getNegativeZero(v->getType()->getScalarType())) :
+                       b.CreateFAddReduce(llvm::ConstantFP::getNegativeZero(v->getType()->getScalarType()), v) :
                        b.CreateAddReduce(v);
         }
         case xir::ArithmeticOp::REDUCE_PRODUCT: {
@@ -502,7 +502,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionCont
             LUISA_DEBUG_ASSERT(v->getType()->isVectorTy());
             auto elem_type = v->getType()->getScalarType();
             return v->getType()->isFPOrFPVectorTy() ?
-                       b.CreateFMulReduce(v, llvm::ConstantFP::get(elem_type, 1.)) :
+                       b.CreateFMulReduce(llvm::ConstantFP::get(elem_type, 1.), v) :
                        b.CreateMulReduce(v);
         }
         case xir::ArithmeticOp::REDUCE_MIN: {
@@ -722,20 +722,101 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_aggregate(IB &b, FunctionContext &f
         }
         case Type::Tag::STRUCTURE: {
             LUISA_DEBUG_ASSERT(inst->operand_count() == inst->type()->members().size());
-
+            for (auto i = 0; i < inst->operand_count(); i++) {
+                auto llvm_elem = _get_llvm_value(b, func_ctx, inst->operand(i));
+                LUISA_DEBUG_ASSERT(llvm_elem->getType() == llvm_result_type->reg_type->getStructElementType(i));
+                llvm_result = b.CreateInsertValue(llvm_result, llvm_elem, i);
+            }
+            return llvm_result;
         }
         default: break;
     }
     LUISA_ERROR_WITH_LOCATION("Unsupported aggregate type {} in LLVM codegen.", inst->type()->description());
 }
 
+namespace detail {
+
+[[nodiscard]] inline uint64_t evaluate_xir_constant_as_uint64(const xir::Constant *c) noexcept {
+    switch (c->type()->tag()) {
+        case Type::Tag::INT8: return c->as<int8_t>();
+        case Type::Tag::UINT8: return c->as<uint8_t>();
+        case Type::Tag::INT16: return c->as<int16_t>();
+        case Type::Tag::UINT16: return c->as<uint16_t>();
+        case Type::Tag::INT32: return c->as<int32_t>();
+        case Type::Tag::UINT32: return c->as<uint32_t>();
+        case Type::Tag::INT64: return c->as<int64_t>();
+        case Type::Tag::UINT64: return c->as<uint64_t>();
+        default: LUISA_ERROR_WITH_LOCATION("Unsupported constant type {} for uint64 evaluation.", c->type()->description());
+    }
+}
+
+}// namespace detail
+
 llvm::Value *CUDACodegenLLVMImpl::_translate_shuffle(IB &b, FunctionContext &func_ctx, const xir::ArithmeticInst *inst) noexcept {
+    LUISA_DEBUG_ASSERT(inst->type()->is_vector());
+    auto llvm_src = _get_llvm_value(b, func_ctx, inst->operand(0));
+    auto index_uses = inst->operand_uses().subspan(1);
+    LUISA_DEBUG_ASSERT(index_uses.size() == inst->type()->dimension());
+    if (std::all_of(index_uses.begin(), index_uses.end(), [](const xir::Use *index_use) noexcept {
+            return index_use->value()->isa<xir::Constant>();
+        })) {// we may use shuffle vector if all indices are known at compile time
+        llvm::SmallVector<int> llvm_indices;
+        llvm_indices.reserve(index_uses.size());
+        for (auto index_use : index_uses) {
+            auto static_index = static_cast<const xir::Constant *>(index_use->value());
+            llvm_indices.emplace_back(static_cast<int>(detail::evaluate_xir_constant_as_uint64(static_index)));
+        }
+        return b.CreateShuffleVector(llvm_src, llvm_indices);
+    }
+    // otherwise, extract and insert per element
+    auto src_type = inst->operand(0)->type();
+    auto dst_type = inst->type();
+    LUISA_DEBUG_ASSERT(src_type->element() == dst_type->element());
+    auto llvm_src_mem = _convert_llvm_reg_value_to_mem(b, llvm_src, src_type);
+    auto llvm_temp = _with_insertion_point_backed_up(b, [&] {
+        b.SetInsertPoint(&func_ctx.llvm_alloca_block->front());
+        return b.CreateAlloca(llvm_src->getType(), nullptr, "shuffle.temp");
+    });
+    b.CreateStore(llvm_src_mem, llvm_temp);
+    auto llvm_dst_type = _get_llvm_type(dst_type)->reg_type;
+    auto llvm_dst = static_cast<llvm::Value *>(llvm::PoisonValue::get(llvm_dst_type));
+    for (auto [i, index_use] : llvm::enumerate(index_uses)) {
+        auto [llvm_src_elem_ptr, elem_type] = _lower_access_chain_address(b, func_ctx, llvm_temp, src_type, std::array{index_use});
+        auto llvm_src_elem = _load_llvm_value(b, llvm_src_elem_ptr, src_type->element());
+        llvm_dst = b.CreateInsertElement(llvm_dst, llvm_src_elem, i);
+    }
+    return llvm_dst;
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_translate_insert(IB &b, FunctionContext &func_ctx, const xir::ArithmeticInst *inst) noexcept {
+    auto llvm_src = _get_llvm_value(b, func_ctx, inst->operand(0));
+    LUISA_DEBUG_ASSERT(inst->type() == inst->operand(0)->type());
+    auto llvm_value = _get_llvm_value(b, func_ctx, inst->operand(1));
+    auto index_uses = inst->operand_uses().subspan(2);
+    auto llvm_src_mem = _convert_llvm_reg_value_to_mem(b, llvm_src, inst->type());
+    auto llvm_temp = _with_insertion_point_backed_up(b, [&] {
+        b.SetInsertPoint(&func_ctx.llvm_alloca_block->front());
+        return b.CreateAlloca(llvm_src->getType(), nullptr, "insert.temp");
+    });
+    b.CreateStore(llvm_src_mem, llvm_temp);
+    auto [llvm_ptr, elem_type] = _lower_access_chain_address(b, func_ctx, llvm_temp, inst->type(), index_uses);
+    LUISA_DEBUG_ASSERT(elem_type == inst->operand(1)->type());
+    _store_llvm_value(b, llvm_ptr, llvm_value, elem_type);
+    return _load_llvm_value(b, llvm_temp, inst->type());
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_translate_extract(IB &b, FunctionContext &func_ctx, const xir::ArithmeticInst *inst) noexcept {
+    auto llvm_src = _get_llvm_value(b, func_ctx, inst->operand(0));
+    auto index_uses = inst->operand_uses().subspan(1);
+    auto llvm_src_mem = _convert_llvm_reg_value_to_mem(b, llvm_src, inst->operand(0)->type());
+    auto llvm_temp = _with_insertion_point_backed_up(b, [&] {
+        b.SetInsertPoint(&func_ctx.llvm_alloca_block->front());
+        return b.CreateAlloca(llvm_src->getType(), nullptr, "extract.temp");
+    });
+    b.CreateStore(llvm_src_mem, llvm_temp);
+    auto [llvm_ptr, elem_type] = _lower_access_chain_address(b, func_ctx, llvm_temp, inst->operand(0)->type(), index_uses);
+    LUISA_DEBUG_ASSERT(elem_type == inst->type());
+    return _load_llvm_value(b, llvm_ptr, elem_type);
 }
 
 }// namespace luisa::compute::cuda
