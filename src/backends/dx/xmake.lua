@@ -62,10 +62,3 @@ on_load(function(target)
 end)
 set_pcxxheader("lc_dx_pch.h")
 target_end()
-
-target("lc_install_dxsdk")
-set_kind("phony")
-add_rules('lc_install_sdk', {
-    libnames = 'dx_sdk'
-})
-target_end()

@@ -1,4 +1,22 @@
 includes("common")
+target("lc_backend_sdk")
+do
+    set_kind("phony")
+    local libnames = {}
+    if os.host() == "windows" and (has_config("lc_dx_backend") or has_config("lc_vk_backend")) then
+        table.insert(libnames, 'dx_sdk')
+    end
+    if os.host() == "linux" and os.arch() == "x86_64" and has_config("lc_vk_backend") then
+        table.insert(libnames, 'vk_sdk')
+    end
+    if #libnames > 0 then
+        add_rules('lc_install_sdk', {
+            libnames = libnames
+        })
+    end
+end
+target_end()
+
 if has_config("lc_dx_backend") then
     includes("dx")
 end
@@ -27,8 +45,9 @@ on_load(function(target)
     -- target:add("deps", "lc-backend-toy-c", {
     --     inherit = false
     -- })
+    target:add("deps", "lc_backend_sdk");
     if has_config("lc_dx_backend") then
-        target:add("deps", "lc-backend-dx", "lc_install_dxsdk", {
+        target:add("deps", "lc-backend-dx", {
             inherit = false
         })
     end

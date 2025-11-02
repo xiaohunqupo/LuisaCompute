@@ -21,7 +21,7 @@ if (WIN32)
         message(STATUS "DirectX SDK directory: ${LUISA_COMPUTE_DX_SDK_DIR}")
     endif ()
     if (NOT LUISA_COMPUTE_DX_SDK_DIR OR NOT EXISTS "${LUISA_COMPUTE_DX_SDK_DIR}")
-        set(LUISA_COMPUTE_DX_SDK_DOWNLOAD_URL "https://github.com/LuisaGroup/SDKs/releases/download/sdk/dx_sdk_20250614.zip")
+        set(LUISA_COMPUTE_DX_SDK_DOWNLOAD_URL "https://github.com/LuisaGroup/SDKs/releases/download/sdk/dx_sdk_20250816.zip")
         set(LUISA_COMPUTE_DX_SDK_SHA256 "9888a483c3a0ee69cf90eec1772153706871a06ad1248c4c615a054bc23ce8a5")
         message(STATUS "Downloading DirectX SDK from ${LUISA_COMPUTE_DX_SDK_DOWNLOAD_URL}")
         include(FetchContent)
@@ -35,7 +35,6 @@ if (WIN32)
 
     # check if the SDK files exist
     set(LUISA_COMPUTE_DX_SDK_FILES
-            DirectML.dll
             dstorage.dll
             dstoragecore.dll
             dxcompiler.dll

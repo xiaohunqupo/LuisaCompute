@@ -5,6 +5,9 @@ import("core.project.config")
 local _sdks = {
     dx_sdk = {
         name = 'dx_sdk_20250816.zip'
+    },
+    vk_sdk = {
+        name = 'linux_dxc_2025_07_14.x86_64.zip'
     }
 }
 
@@ -97,6 +100,7 @@ function unzip_sdk(tool_name, in_dir, out_dir)
     local zip_file = find_tool_zip(tool_name, in_dir)
     if (zip_file.dir ~= nil) then
         print("install: " .. zip_file.name)
+        os.mkdir(out_dir)
         archive.extract(zip_file.dir, out_dir)
     else
         utils.error("failed to install " .. tool_name .. ", file " .. zip_file.name .. " not found!")
@@ -190,6 +194,7 @@ function on_install_sdk(target, rule_name)
             unzip_sdk(sdk_map['name'], sdk_dir, extract_dir)
         end
         if #copy_dir > 0 then
+            os.mkdir(copy_dir)
             for _, filepath in ipairs(os.filedirs(path.join(extract_dir, "*"))) do
                 os.cp(filepath, path.join(copy_dir, path.filename(filepath)), {
                     copy_if_different = true
