@@ -126,21 +126,25 @@ void setupDebugging(VkInstance instance) {
     VkResult result = vkCreateDebugUtilsMessengerEXT(instance, &debugUtilsMessengerCI, Device::alloc_callbacks(), &debugUtilsMessenger);
     assert(result == VK_SUCCESS);
 }
-vstd::vector<VkExtensionProperties> supported_exts(VkPhysicalDevice physical_device) {
+vstd::unordered_set<luisa::string> supported_exts(VkPhysicalDevice physical_device) {
     uint extensions_count;
     vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &extensions_count, nullptr);
     vstd::vector<VkExtensionProperties> props;
     luisa::enlarge_by(props, extensions_count);
     vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &extensions_count, props.data());
-    return props;
+    vstd::unordered_set<luisa::string> result;
+    result.reserve(props.size());
+    for (auto &i : props) {
+        result.emplace(i.extensionName);
+    }
+    return result;
 }
-void create_instance(bool enableValidation, bool enableExtension, VkInstance &instance, luisa::filesystem::path const &custom_path, luisa::string_view lib_name, luisa::span<luisa::string const> extra_exts) {
+void create_instance(bool enableValidation, bool &enableSurface, VkInstance &instance, luisa::filesystem::path const &custom_path, luisa::string_view lib_name, luisa::span<luisa::string const> extra_exts) {
     vks::VulkanDevice::initVolk(custom_path, lib_name);
     if (!instance) {
         vstd::vector<const char *> instance_exts;
         instance_exts.reserve(8);
         vstd::unordered_set<vstd::string> supported_instance_exts;
-
         // Validation can also be forced via a define
         settings.validation = enableValidation;
 
@@ -149,50 +153,57 @@ void create_instance(bool enableValidation, bool enableExtension, VkInstance &in
         appInfo.pApplicationName = "luisa_compute";
         appInfo.pEngineName = appInfo.pApplicationName;
         appInfo.apiVersion = VK_API_VERSION_1_3;
-
-        // Enable surface extensions depending on os
-        if (enableExtension) {
-            instance_exts.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
-            instance_exts.push_back(VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME);
-#if defined(_WIN32)
-            instance_exts.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
-#elif defined(VK_USE_PLATFORM_ANDROID_KHR)
-            instance_exts.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
-#elif defined(_DIRECT2DISPLAY)
-            instance_exts.push_back(VK_KHR_DISPLAY_EXTENSION_NAME);
-#elif defined(VK_USE_PLATFORM_DIRECTFB_EXT)
-            instance_exts.push_back(VK_EXT_DIRECTFB_SURFACE_EXTENSION_NAME);
-#elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
-            instance_exts.push_back(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
-#elif defined(VK_USE_PLATFORM_XCB_KHR)
-            instance_exts.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
-#elif defined(VK_USE_PLATFORM_IOS_MVK)
-            instance_exts.push_back(VK_MVK_IOS_SURFACE_EXTENSION_NAME);
-#elif defined(VK_USE_PLATFORM_MACOS_MVK)
-            instance_exts.push_back(VK_MVK_MACOS_SURFACE_EXTENSION_NAME);
-#elif defined(VK_USE_PLATFORM_HEADLESS_EXT)
-            instance_exts.push_back(VK_EXT_HEADLESS_SURFACE_EXTENSION_NAME);
-#endif
-        }
-        for (auto &i : extra_exts) {
-            instance_exts.emplace_back(i.c_str());
-        }
-
         // Get extensions supported by the instance and store for later use
         uint32_t extCount = 0;
         vkEnumerateInstanceExtensionProperties(nullptr, &extCount, nullptr);
         if (extCount > 0) {
             vstd::vector<VkExtensionProperties> extensions(extCount);
             if (vkEnumerateInstanceExtensionProperties(nullptr, &extCount, &extensions.front()) == VK_SUCCESS) {
+                supported_instance_exts.reserve(extensions.size());
                 for (VkExtensionProperties extension : extensions) {
                     supported_instance_exts.emplace(extension.extensionName);
                 }
             }
         }
+        // Enable surface extensions depending on os
+        auto emplace_instance_ext = [&](const char *name) {
+            if (supported_instance_exts.find(name) != supported_instance_exts.end()) {
+                instance_exts.push_back(name);
+                return true;
+            } else {
+                return false;
+            }
+        };
+        if (enableSurface) {
+            enableSurface &= emplace_instance_ext(VK_KHR_SURFACE_EXTENSION_NAME);
+            enableSurface &= emplace_instance_ext(VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME);
+#if defined(_WIN32)
+            enableSurface &= emplace_instance_ext(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
+#elif defined(VK_USE_PLATFORM_ANDROID_KHR)
+            enableSurface &= emplace_instance_ext(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
+#elif defined(_DIRECT2DISPLAY)
+            enableSurface &= emplace_instance_ext(VK_KHR_DISPLAY_EXTENSION_NAME);
+#elif defined(VK_USE_PLATFORM_DIRECTFB_EXT)
+            enableSurface &= emplace_instance_ext(VK_EXT_DIRECTFB_SURFACE_EXTENSION_NAME);
+#elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
+            enableSurface &= emplace_instance_ext(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
+#elif defined(VK_USE_PLATFORM_XCB_KHR)
+            enableSurface &= emplace_instance_ext(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
+#elif defined(VK_USE_PLATFORM_IOS_MVK)
+            enableSurface &= emplace_instance_ext(VK_MVK_IOS_SURFACE_EXTENSION_NAME);
+#elif defined(VK_USE_PLATFORM_MACOS_MVK)
+            enableSurface &= emplace_instance_ext(VK_MVK_MACOS_SURFACE_EXTENSION_NAME);
+#elif defined(VK_USE_PLATFORM_HEADLESS_EXT)
+            enableSurface &= emplace_instance_ext(VK_EXT_HEADLESS_SURFACE_EXTENSION_NAME);
+#endif
+        }
+        for (auto &i : extra_exts) {
+            instance_exts.emplace_back(i.c_str());
+        }
 #if (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK))
         // SRS - When running on iOS/macOS with MoltenVK, enable VK_KHR_get_physical_device_properties2 if not already enabled by the example (required by VK_KHR_portability_subset)
         if (std::find(instance_exts.begin(), instance_exts.end(), VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME) == instance_exts.end()) {
-            instance_exts.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+            emplace_instance_ext(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
         }
 #endif
         VkInstanceCreateInfo instanceCreateInfo = {};
@@ -228,13 +239,13 @@ void create_instance(bool enableValidation, bool enableExtension, VkInstance &in
 #if (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK)) && defined(VK_KHR_portability_enumeration)
         // SRS - When running on iOS/macOS with MoltenVK and VK_KHR_portability_enumeration is defined and supported by the instance, enable the extension and the flag
         if (supported_instance_exts.find(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME) == supported_instance_exts.end()) {
-            instance_exts.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+            emplace_instance_ext(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
             instanceCreateInfo.flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
         }
 #endif
         if (settings.validation) {
-            instance_exts.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);// SRS - Dependency when VK_EXT_DEBUG_MARKER is enabled
-            instance_exts.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+            emplace_instance_ext(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);// SRS - Dependency when VK_EXT_DEBUG_MARKER is enabled
+            emplace_instance_ext(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
         }
         instanceCreateInfo.enabledExtensionCount = (uint32_t)instance_exts.size();
         instanceCreateInfo.ppEnabledExtensionNames = instance_exts.size() > 0 ? instance_exts.data() : nullptr;
@@ -306,6 +317,7 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
     VkDevice ext_device{};
     luisa::filesystem::path custom_path;
     luisa::string_view lib_name;
+
     if (_config_ext) {
         auto external_device = _config_ext->create_external_device();
         ext_phy_device = external_device.physical_device;
@@ -367,14 +379,15 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
                         return luisa::vector<luisa::string>{};
                     }
                 }();
-                detail::create_instance(enableValidation, _enable_surface, detail::vk_instance, custom_path, lib_name, extra_exts);
+                bool enable_surface = _enable_surface;
+                detail::create_instance(enableValidation, enable_surface, detail::vk_instance, custom_path, lib_name, extra_exts);
+                _enable_surface = enable_surface;
             }
         }
 #ifndef LUISA_VULKAN_ENABLE_CUDA_INTEROP
         _enable_interop = false;
 #endif
-
-        _init_device(ext_phy_device, ext_device, device_idx, _enable_bindless, _enable_raytracing, _enable_interop);
+        _init_device(ext_phy_device, ext_device, device_idx);
 
         if (_config_ext) {
             _config_ext->readback_vulkan_device(instance(), physical_device(), logic_device(), alloc_callbacks(), _pso_header, _graphics_queue, _compute_queue, _copy_queue, graphics_queue_index(), compute_queue_index(), copy_queue_index(), gDxcCompiler->compiler(), gDxcCompiler->library(), gDxcCompiler->utils());
@@ -439,7 +452,7 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
     // func_table.init(this);
 }
 
-void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice external_device, uint32_t selectedDevice, bool enable_bindless, bool enable_raytracing, bool enable_interop) {
+void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice external_device, uint32_t selectedDevice) {
     VkPhysicalDevice physical_device = external_physical_device;
     if (!physical_device) {
         VkResult err;
@@ -492,6 +505,7 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
     }
 
     // Store properties (including limits), features and memory properties of the physical device (so that examples can check against them)
+    auto supported_ext = detail::supported_exts(physical_device);
     vkGetPhysicalDeviceFeatures(physical_device, &_device_features);
     vkGetPhysicalDeviceMemoryProperties(physical_device, &_device_memory_properties);
 
@@ -503,24 +517,45 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
     _vk_device.create(physical_device);
     _vk_device->logicalDevice = external_device;
     _enable_device_exts.emplace_back(VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME);
-    if (enable_bindless) {
-        _enable_device_exts.emplace_back(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
-        _enable_device_exts.emplace_back(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
+    if (_enable_bindless) {
+        if (supported_ext.find(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME) != supported_ext.end() &&
+            supported_ext.find(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME) != supported_ext.end()) {
+            _enable_device_exts.emplace_back(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
+            _enable_device_exts.emplace_back(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
+        } else {
+            _enable_bindless = false;
+        }
     }
-    if (enable_raytracing) {
-        _enable_device_exts.emplace_back(VK_KHR_RAY_QUERY_EXTENSION_NAME);
-        _enable_device_exts.emplace_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
+    if (_enable_raytracing) {
+        if (supported_ext.find(VK_KHR_RAY_QUERY_EXTENSION_NAME) != supported_ext.end() &&
+            supported_ext.find(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME) != supported_ext.end()) {
+            _enable_device_exts.emplace_back(VK_KHR_RAY_QUERY_EXTENSION_NAME);
+            _enable_device_exts.emplace_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
+        } else {
+            _enable_raytracing = false;
+        }
     }
-    if (enable_interop) {
-        _enable_device_exts.emplace_back(VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME);
-        _enable_device_exts.emplace_back(VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME);
+    if (_enable_interop) {
+        if (supported_ext.find(VK_KHR_RAY_QUERY_EXTENSION_NAME) != supported_ext.end() &&
+            supported_ext.find(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME) != supported_ext.end()
 #ifdef LUISA_PLATFORM_WINDOWS
-        _enable_device_exts.emplace_back(VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME);
-        _enable_device_exts.emplace_back(VK_KHR_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME);
+            && supported_ext.find(VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME) != supported_ext.end() && supported_ext.find(VK_KHR_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME) != supported_ext.end()
 #else
-        _enable_device_exts.emplace_back(VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME);
-        _enable_device_exts.emplace_back(VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME);
+            && supported_ext.find(VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME) != supported_ext.end() && supported_ext.find(VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME) != supported_ext.end()
 #endif
+        ) {
+            _enable_device_exts.emplace_back(VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME);
+            _enable_device_exts.emplace_back(VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME);
+#ifdef LUISA_PLATFORM_WINDOWS
+            _enable_device_exts.emplace_back(VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME);
+            _enable_device_exts.emplace_back(VK_KHR_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME);
+#else
+            _enable_device_exts.emplace_back(VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME);
+            _enable_device_exts.emplace_back(VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME);
+#endif
+        } else {
+            _enable_interop = false;
+        }
     }
     luisa::vector<luisa::string> extra_exts = [&]() {
         if (_config_ext) {
@@ -530,7 +565,8 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
         }
     }();
     for (auto &i : extra_exts) {
-        _enable_device_exts.emplace_back(i.c_str());
+        if (supported_ext.find(i) != supported_ext.end())
+            _enable_device_exts.emplace_back(i.c_str());
     }
     void *feature_next{nullptr};
     if (_config_ext) {
@@ -607,7 +643,7 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
         .bindingCount = 1,
         .pBindingFlags = &desc_binding_flag};
     // bindless buffer desc_pool
-    if (enable_bindless) {
+    if (_enable_bindless) {
         {
             buffer_heap_pool.full_size = 262144;
             VkDescriptorPoolSize pool_size;
@@ -1082,7 +1118,8 @@ LUISA_EXPORT_API void backend_device_names(luisa::vector<luisa::string> &r) {
 #else
             constexpr bool enableValidation = true;
 #endif
-            detail::create_instance(enableValidation, false, detail::vk_instance, {}, {}, {});
+            bool enable_surface{false};
+            detail::create_instance(enableValidation, enable_surface, detail::vk_instance, {}, {}, {});
         }
     }
     vstd::vector<VkPhysicalDevice> physical_devices;
@@ -1127,7 +1164,8 @@ LUISA_EXPORT_API VkInstance init_vk_instance(bool enable_validation, const luisa
 #else
         constexpr bool enableValidation = true;
 #endif
-        detail::create_instance(enable_validation, false, detail::vk_instance, custom_vk_lib_path ? luisa::filesystem::path{custom_vk_lib_path} : luisa::filesystem::path{}, custom_vk_lib_name ? luisa::string_view{custom_vk_lib_name} : luisa::string_view{}, luisa::span{extra_instance_exts, extra_instance_ext_count});
+        bool enable_surface{false};
+        detail::create_instance(enable_validation, enable_surface, detail::vk_instance, custom_vk_lib_path ? luisa::filesystem::path{custom_vk_lib_path} : luisa::filesystem::path{}, custom_vk_lib_name ? luisa::string_view{custom_vk_lib_name} : luisa::string_view{}, luisa::span{extra_instance_exts, extra_instance_ext_count});
     }
     return detail::vk_instance;
 }

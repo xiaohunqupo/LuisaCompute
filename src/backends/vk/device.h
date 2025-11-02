@@ -65,7 +65,7 @@ class Device : public DeviceInterface, public vstd::IOperatorNewBase {
     BinaryIO const *_binary_io{};
     vstd::unique_ptr<DefaultBinaryIO> _default_file_io;
     bool inqueue_limit = true;// TODO
-    void _init_device(VkPhysicalDevice external_physical_device, VkDevice external_device, uint32_t selectedDevice, bool enable_bindless, bool enable_raytracing, bool enable_interop);
+    void _init_device(VkPhysicalDevice external_physical_device, VkDevice external_device, uint32_t selectedDevice);
 public:
     struct HeapAlloc {
         uint count = 0;

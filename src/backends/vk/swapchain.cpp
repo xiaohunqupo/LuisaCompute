@@ -776,6 +776,9 @@ void Swapchain::create_swapchain(
 
 Swapchain::Swapchain(Device *device)
     : Resource(device) {
+    if (!device->enable_surface_feature()) [[unlikely]] {
+        LUISA_ERROR("Surface not enabled, Swapcchain can not be created.");
+    }
 }
 void Swapchain::_recreate_swapchain() {
     auto back_buffers = _swapchain_framebuffers.size();
