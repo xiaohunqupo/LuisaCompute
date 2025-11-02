@@ -5,6 +5,9 @@
 #pragma once
 
 #include <cstdint>
+#include <array>
+
+#include <luisa/core/stl/string.h>
 
 namespace luisa::compute::cuda {
 

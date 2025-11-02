@@ -589,10 +589,6 @@ private:
         return b.CreateAlignedLoad(llvm_base_type, llvm_temp, llvm::MaybeAlign{alignment});
     }
 
-    [[nodiscard]] llvm::Value *_translate_unary_plus(CurrentFunction &current, IRBuilder &b, const xir::Value *operand) noexcept {
-        return _lookup_value(current, b, operand);
-    }
-
     [[nodiscard]] llvm::Value *_translate_unary_minus(CurrentFunction &current, IRBuilder &b, const xir::Value *operand) noexcept {
         auto llvm_operand = _lookup_value(current, b, operand);
         auto operand_type = operand->type();
@@ -1213,18 +1209,27 @@ private:
         auto llvm_operand = _lookup_value(current, b, operand);
         switch (operand->type()->element()->tag()) {
             case Type::Tag::INT8: [[fallthrough]];
-            case Type::Tag::UINT8: [[fallthrough]];
             case Type::Tag::INT16: [[fallthrough]];
-            case Type::Tag::UINT16: [[fallthrough]];
             case Type::Tag::INT32: [[fallthrough]];
+            case Type::Tag::INT64: {
+                switch (op) {
+                    case xir::ArithmeticOp::REDUCE_SUM: return b.CreateAddReduce(llvm_operand);
+                    case xir::ArithmeticOp::REDUCE_PRODUCT: return b.CreateMulReduce(llvm_operand);
+                    case xir::ArithmeticOp::REDUCE_MIN: return b.CreateIntMinReduce(llvm_operand, true);
+                    case xir::ArithmeticOp::REDUCE_MAX: return b.CreateIntMaxReduce(llvm_operand, true);
+                    default: break;
+                }
+                LUISA_ERROR_WITH_LOCATION("Invalid reduce operation: {}.", xir::to_string(op));
+            }
+            case Type::Tag::UINT8: [[fallthrough]];
+            case Type::Tag::UINT16: [[fallthrough]];
             case Type::Tag::UINT32: [[fallthrough]];
-            case Type::Tag::INT64: [[fallthrough]];
             case Type::Tag::UINT64: {
                 switch (op) {
                     case xir::ArithmeticOp::REDUCE_SUM: return b.CreateAddReduce(llvm_operand);
                     case xir::ArithmeticOp::REDUCE_PRODUCT: return b.CreateMulReduce(llvm_operand);
-                    case xir::ArithmeticOp::REDUCE_MIN: return b.CreateIntMinReduce(llvm_operand);
-                    case xir::ArithmeticOp::REDUCE_MAX: return b.CreateIntMaxReduce(llvm_operand);
+                    case xir::ArithmeticOp::REDUCE_MIN: return b.CreateIntMinReduce(llvm_operand, false);
+                    case xir::ArithmeticOp::REDUCE_MAX: return b.CreateIntMaxReduce(llvm_operand, false);
                     default: break;
                 }
                 LUISA_ERROR_WITH_LOCATION("Invalid reduce operation: {}.", xir::to_string(op));
@@ -2125,7 +2130,6 @@ private:
 
     [[nodiscard]] llvm::Value *_translate_arithmetic_inst(CurrentFunction &current, IRBuilder &b, const xir::ArithmeticInst *inst) noexcept {
         switch (inst->op()) {
-            case xir::ArithmeticOp::UNARY_PLUS: return _translate_unary_plus(current, b, inst->operand(0u));
             case xir::ArithmeticOp::UNARY_MINUS: return _translate_unary_minus(current, b, inst->operand(0u));
             case xir::ArithmeticOp::UNARY_BIT_NOT: return _translate_unary_bit_not(current, b, inst->operand(0u));
             case xir::ArithmeticOp::BINARY_ADD: return _translate_binary_add(current, b, inst->operand(0u), inst->operand(1u));
@@ -2263,7 +2267,7 @@ private:
                 // step(edge, x) = x < edge ? 0 : 1 = uitofp(x >= edge)
                 auto llvm_edge = _lookup_value(current, b, inst->operand(0u));
                 auto llvm_x = _lookup_value(current, b, inst->operand(1u));
-                auto llvm_cmp = b.CreateFCmpOGE(llvm_x, llvm_edge);
+                auto llvm_cmp = b.CreateFCmpOGT(llvm_x, llvm_edge);
                 return b.CreateUIToFP(llvm_cmp, llvm_x->getType());
             }
             case xir::ArithmeticOp::ABS: {

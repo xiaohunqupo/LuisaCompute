@@ -249,4 +249,29 @@ llvm::Function *CUDACodegenLLVMImpl::_get_vprintf_function() noexcept {
     return llvm::Function::Create(llvm_func_type, llvm::Function::ExternalLinkage, "vprintf", *_llvm_module);
 }
 
+llvm::Value *CUDACodegenLLVMImpl::_translate_call_inst(IB &b, FunctionContext &func_ctx, const xir::CallInst *inst) noexcept {
+    auto llvm_callee = _get_or_declare_llvm_function(inst->callee());
+    llvm::SmallVector<llvm::Value *> llvm_args;
+    llvm_args.reserve(inst->argument_count() + 2u);
+    for (auto i = 0u; i < inst->argument_count(); i++) {
+        auto llvm_arg = _get_llvm_value(b, func_ctx, inst->argument(i));
+        // cast pointer arguments to address space 0 if not already
+        if (auto llvm_arg_type = llvm_arg->getType();
+            llvm_arg_type->isPointerTy() && llvm_arg_type->getPointerAddressSpace() != 0) {
+            llvm_arg = b.CreateAddrSpaceCast(llvm_arg, b.getPtrTy());
+        }
+        llvm_args.emplace_back(llvm_arg);
+    }
+    // append dispatch_size and kernel_id arguments
+    llvm_args.emplace_back(_read_dispatch_size(b, func_ctx));
+    llvm_args.emplace_back(_read_kernel_id(b, func_ctx));
+    // create call instruction
+    auto call_inst = b.CreateCall(llvm_callee, llvm_args, inst->name().value_or(""));
+    return inst->type() == nullptr ? nullptr : call_inst;
+}
+
+void CUDACodegenLLVMImpl::_translate_outline_inst(IB &b, FunctionContext &func_ctx, const xir::OutlineInst *inst) noexcept {
+    LUISA_ERROR_WITH_LOCATION("Outline instruction should have been lowered.");
+}
+
 }// namespace luisa::compute::cuda

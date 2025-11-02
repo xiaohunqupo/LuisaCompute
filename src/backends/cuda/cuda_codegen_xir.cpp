@@ -1271,7 +1271,6 @@ void CUDACodegenXIR::_emit_arithmetic_inst(const xir::ArithmeticInst *inst, int 
     auto b = [&](auto op) noexcept { _emit_with_template(inst, "(", 0, ") ", op, " (", 1, ")"); };
     auto f = [&](auto s) noexcept { _emit_intrinsic_call(s, inst); };
     switch (inst->op()) {
-        case xir::ArithmeticOp::UNARY_PLUS: u("+"); break;
         case xir::ArithmeticOp::UNARY_MINUS: u("-"); break;
         case xir::ArithmeticOp::UNARY_BIT_NOT: {
             if (auto t = inst->type(); t->is_bool() || t->is_bool_vector()) {

@@ -120,4 +120,15 @@ llvm::Value *CUDACodegenLLVMImpl::_read_kernel_id(IB &, const FunctionContext &f
     return func_ctx.llvm_kernel_id;
 }
 
+llvm::Value *CUDACodegenLLVMImpl::_read_warp_active_lane_mask(IB &b) noexcept {
+    if (_config.enable_ray_tracing) { LUISA_NOT_IMPLEMENTED(); }
+    return b.CreateIntrinsic(b.getInt32Ty(), llvm::Intrinsic::nvvm_activemask, {});
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_read_warp_prefix_lane_mask(IB &b) noexcept {
+    if (_config.enable_ray_tracing) { LUISA_NOT_IMPLEMENTED(); }
+    return b.CreateIntrinsic(b.getInt32Ty(), llvm::Intrinsic::nvvm_read_ptx_sreg_lanemask_lt,
+                             {}, {}, "sreg.warp.prefix.lane.mask");
+}
+
 }// namespace luisa::compute::cuda

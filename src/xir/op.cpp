@@ -30,7 +30,6 @@ AllocaOp alloca_op_from_string(luisa::string_view name) noexcept {
 luisa::string_view to_string(ArithmeticOp op) noexcept {
     using namespace std::string_view_literals;
     switch (op) {
-        case ArithmeticOp::UNARY_PLUS: return "unary_plus"sv;
         case ArithmeticOp::UNARY_MINUS: return "unary_minus"sv;
         case ArithmeticOp::UNARY_BIT_NOT: return "unary_bit_not"sv;
         case ArithmeticOp::BINARY_ADD: return "binary_add"sv;
@@ -131,7 +130,6 @@ luisa::string_view to_string(ArithmeticOp op) noexcept {
 ArithmeticOp arithmetic_op_from_string(luisa::string_view name) noexcept {
     using namespace std::string_view_literals;
     static const luisa::unordered_map<luisa::string_view, ArithmeticOp> m{
-        {"unary_plus"sv, ArithmeticOp::UNARY_PLUS},
         {"unary_minus"sv, ArithmeticOp::UNARY_MINUS},
         {"unary_bit_not"sv, ArithmeticOp::UNARY_BIT_NOT},
         {"binary_add"sv, ArithmeticOp::BINARY_ADD},

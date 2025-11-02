@@ -17,7 +17,6 @@ enum class AllocaOp {
 enum class ArithmeticOp {
 
     // unary operators
-    UNARY_PLUS,   // +x
     UNARY_MINUS,  // -x
     UNARY_BIT_NOT,// ~x
 

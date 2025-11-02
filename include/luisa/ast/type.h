@@ -480,6 +480,11 @@ public:
     [[nodiscard]] bool is_uint8() const noexcept;
     [[nodiscard]] bool is_int16() const noexcept;
     [[nodiscard]] bool is_uint16() const noexcept;
+
+    [[nodiscard]] bool is_int_or_int_vector() const noexcept;
+    [[nodiscard]] bool is_uint_or_uint_vector() const noexcept;
+    [[nodiscard]] bool is_float_or_float_vector() const noexcept;
+
     /// Arithmetic = float || int || uint
     [[nodiscard]] bool is_arithmetic() const noexcept;
 
@@ -502,6 +507,9 @@ public:
     [[nodiscard]] bool is_uint16_vector() const noexcept;
     [[nodiscard]] bool is_int64_vector() const noexcept;
     [[nodiscard]] bool is_uint64_vector() const noexcept;
+    [[nodiscard]] bool is_int_vector() const noexcept;
+    [[nodiscard]] bool is_uint_vector() const noexcept;
+    [[nodiscard]] bool is_float_vector() const noexcept;
     [[nodiscard]] bool is_matrix() const noexcept;
     [[nodiscard]] bool is_structure() const noexcept;
     [[nodiscard]] bool is_buffer() const noexcept;

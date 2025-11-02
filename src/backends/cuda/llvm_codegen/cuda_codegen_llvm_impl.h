@@ -95,7 +95,7 @@ private:
     llvm::DenseMap<const xir::Value *, llvm::Constant *> _xir_to_llvm_global;
     llvm::DenseMap<const xir::KernelFunction *, luisa::unique_ptr<KernelArgumentStruct>> _kernel_arg_struct_types;
 
-    template<typename T>
+    template<typename T = llvm::Value>
         requires std::derived_from<T, llvm::Value>
     [[nodiscard]] T *_get_llvm_value(IB &b, const FunctionContext &func_ctx, const xir::Value *v) noexcept {
         LUISA_DEBUG_ASSERT(v != nullptr, "Value is null.");
@@ -117,6 +117,27 @@ private:
             default: break;
         }
         LUISA_ERROR_WITH_LOCATION("Unsupported value type.");
+    }
+
+    class InsertionPointGuard {
+    private:
+        IB &_b;
+        llvm::BasicBlock::iterator _p;
+
+    public:
+        explicit InsertionPointGuard(IB &b) noexcept : _b{b}, _p{b.GetInsertPoint()} {}
+        ~InsertionPointGuard() noexcept { _b.SetInsertPoint(_p); }
+        // avoid copy and move
+        InsertionPointGuard(InsertionPointGuard &&) noexcept = delete;
+        InsertionPointGuard(const InsertionPointGuard &) noexcept = delete;
+        InsertionPointGuard &operator=(InsertionPointGuard &&) noexcept = delete;
+        InsertionPointGuard &operator=(const InsertionPointGuard &) noexcept = delete;
+    };
+
+    template<typename F>
+    static decltype(auto) with_insertion_point_backed_up(IB &b, F &&f) noexcept {
+        InsertionPointGuard _{b};
+        return std::invoke(std::forward<F>(f));
     }
 
 private:
@@ -164,13 +185,23 @@ private:
     [[nodiscard]] llvm::Value *_read_warp_size(IB &b, const FunctionContext &func_ctx) noexcept;
     [[nodiscard]] llvm::Value *_read_warp_lane_id(IB &b, const FunctionContext &func_ctx) noexcept;
     [[nodiscard]] llvm::Value *_read_kernel_id(IB &b, const FunctionContext &func_ctx) noexcept;
+    [[nodiscard]] llvm::Value *_read_warp_active_lane_mask(IB &b) noexcept;
+    [[nodiscard]] llvm::Value *_read_warp_prefix_lane_mask(IB &b) noexcept;
 
-    /* the following methods are defined in cuda_codegen_llvm_impl_inst.cpp */
-    [[nodiscard]] static llvm::Value *_create_llvm_vector(IB &b, llvm::ArrayRef<llvm::Value *> elems) noexcept;
+    /* the following methods are defined in cuda_codegen_llvm_impl_cast.cpp */
     [[nodiscard]] static llvm::Value *_convert_llvm_reg_value_to_mem(IB &b, llvm::Value *reg_v, llvm::Type *mem_type) noexcept;
     [[nodiscard]] static llvm::Value *_convert_llvm_mem_value_to_reg(IB &b, llvm::Value *mem_v, llvm::Type *reg_type) noexcept;
+    [[nodiscard]] llvm::Value *_bitwise_cast(IB &b, FunctionContext &func_ctx, llvm::Value *llvm_src, const Type *src_type, const Type *dst_type) noexcept;
+    [[nodiscard]] llvm::Value *_static_cast(IB &b, FunctionContext &func_ctx, llvm::Value *llvm_src, const Type *src_type, const Type *dst_type) noexcept;
+    [[nodiscard]] llvm::Value *_static_cast_scalar_to_scalar(IB &b, FunctionContext &func_ctx, llvm::Value *llvm_src, const Type *src_type, const Type *dst_type) noexcept;
+    [[nodiscard]] llvm::Value *_static_cast_scalar_to_vector(IB &b, FunctionContext &func_ctx, llvm::Value *llvm_src, const Type *src_type, const Type *dst_type) noexcept;
+    [[nodiscard]] llvm::Value *_static_cast_vector_to_vector(IB &b, FunctionContext &func_ctx, llvm::Value *llvm_src, const Type *src_type, const Type *dst_type) noexcept;
+
+    /* the following methods are defined in cuda_codegen_llvm_impl_inst.cpp, if not otherwise specified */
+    [[nodiscard]] static llvm::Value *_create_llvm_vector(IB &b, llvm::ArrayRef<llvm::Value *> elems) noexcept;
     void _translate_instruction(IB &b, FunctionContext &func_ctx, const xir::Instruction *inst) noexcept;
-    // control flow instructions: if, switch, loop, simple_loop, branch, conditional_branch, unreachable, break, continue, return, raster_discard
+
+    // control flow instructions: if, switch, loop, simple_loop, branch, conditional_branch, unreachable, break, continue, return, raster_discard, defined in cuda_codegen_llvm_impl_cflow.cpp
     void _translate_if_inst(IB &b, FunctionContext &func_ctx, const xir::IfInst *inst) noexcept;
     void _translate_switch_inst(IB &b, FunctionContext &func_ctx, const xir::SwitchInst *inst) noexcept;
     void _translate_loop_inst(IB &b, FunctionContext &func_ctx, const xir::LoopInst *inst) noexcept;
@@ -182,42 +213,56 @@ private:
     void _translate_continue_inst(IB &b, FunctionContext &func_ctx, const xir::ContinueInst *inst) noexcept;
     void _translate_return_inst(IB &b, FunctionContext &func_ctx, const xir::ReturnInst *inst) noexcept;
     void _translate_raster_discard_inst(IB &b, FunctionContext &func_ctx, const xir::RasterDiscardInst *inst) noexcept;
-    // PHI nodes
+
+    // PHI nodes, defined in cuda_codegen_llvm_impl_phi.cpp
     [[nodiscard]] llvm::PHINode *_translate_phi_inst(IB &b, FunctionContext &func_ctx, const xir::PhiInst *inst) noexcept;
     void _finalize_pending_phi_nodes(const FunctionContext &func_ctx) noexcept;
-    // variable instructions: alloca, load, store, gep
+
+    // variable instructions: alloca, load, store, gep, defined in cuda_codegen_llvm_impl_var.cpp
     [[nodiscard]] llvm::Value *_translate_alloca_inst(IB &b, FunctionContext &func_ctx, const xir::AllocaInst *inst) noexcept;
     [[nodiscard]] llvm::Value *_translate_load_inst(IB &b, FunctionContext &func_ctx, const xir::LoadInst *inst) noexcept;
     void _translate_store_inst(IB &b, FunctionContext &func_ctx, const xir::StoreInst *inst) noexcept;
     [[nodiscard]] llvm::Value *_translate_gep_inst(IB &b, FunctionContext &func_ctx, const xir::GEPInst *inst) noexcept;
-    // atomic instructions
+
+    // atomic instructions, defined in cuda_codegen_llvm_impl_atomic.cpp
     [[nodiscard]] llvm::Value *_translate_atomic_inst(IB &b, FunctionContext &func_ctx, const xir::AtomicInst *inst) noexcept;
-    // arithmetic instructions
+
+    // arithmetic instructions, defined in cuda_codegen_llvm_impl_arith.cpp
     [[nodiscard]] llvm::Value *_translate_arithmetic_inst(IB &b, FunctionContext &func_ctx, const xir::ArithmeticInst *inst) noexcept;
-    // thread group instructions
+    [[nodiscard]] llvm::Value *_call_libdevice_unary_op(IB &b, llvm::StringRef op_name, llvm::Value *llvm_value) noexcept;
+    [[nodiscard]] llvm::Value *_call_libdevice_binary_op(IB &b, llvm::StringRef op_name, llvm::Value *llvm_lhs, llvm::Value *llvm_rhs) noexcept;
+
+    // thread group instructions, defined in cuda_codegen_llvm_impl_cta.cpp
     [[nodiscard]] llvm::Value *_translate_thread_group_inst(IB &b, FunctionContext &func_ctx, const xir::ThreadGroupInst *inst) noexcept;
-    // resource instructions: resource_query, resource_read, resource_write
+
+    // resource instructions: resource_query, resource_read, resource_write, defined in cuda_codegen_llvm_impl_resource.cpp
     [[nodiscard]] llvm::Value *_translate_resource_query_inst(IB &b, FunctionContext &func_ctx, const xir::ResourceQueryInst *inst) noexcept;
     [[nodiscard]] llvm::Value *_translate_resource_read_inst(IB &b, FunctionContext &func_ctx, const xir::ResourceReadInst *inst) noexcept;
     void _translate_resource_write_inst(IB &b, FunctionContext &func_ctx, const xir::ResourceWriteInst *inst) noexcept;
-    // ray query instructions: ray_query_loop, ray_query_dispatch, ray_query_object_read, ray_query_object_write, ray_query_pipeline
+
+    // ray query instructions: ray_query_loop, ray_query_dispatch, ray_query_object_read, ray_query_object_write, ray_query_pipeline, defined in cuda_codegen_llvm_impl_rtx.cpp
     void _translate_ray_query_loop_inst(IB &b, FunctionContext &func_ctx, const xir::RayQueryLoopInst *inst) noexcept;
     void _translate_ray_query_dispatch_inst(IB &b, FunctionContext &func_ctx, const xir::RayQueryDispatchInst *inst) noexcept;
     [[nodiscard]] llvm::Value *_translate_ray_query_object_read_inst(IB &b, FunctionContext &func_ctx, const xir::RayQueryObjectReadInst *inst) noexcept;
     void _translate_ray_query_object_write_inst(IB &b, FunctionContext &func_ctx, const xir::RayQueryObjectWriteInst *inst) noexcept;
     void _translate_ray_query_pipeline_inst(IB &b, FunctionContext &func_ctx, const xir::RayQueryPipelineInst *inst) noexcept;
-    // autodiff instructions: autodiff_scope, autodiff_intrinsic
+
+    // autodiff instructions: autodiff_scope, autodiff_intrinsic, defined in cuda_codegen_llvm_impl_autodiff.cpp
     void _translate_autodiff_scope_inst(IB &b, FunctionContext &func_ctx, const xir::AutodiffScopeInst *inst) noexcept;
     [[nodiscard]] llvm::Value *_translate_autodiff_intrinsic_inst(IB &b, FunctionContext &func_ctx, const xir::AutodiffIntrinsicInst *inst) noexcept;
-    // other instructions: call, cast, print, clock, debug_break, assert, assume
-    [[nodiscard]] llvm::Value *_translate_call_inst(IB &b, FunctionContext &func_ctx, const xir::CallInst *inst) noexcept;
+
+    // cast instruction, defined in cuda_codegen_llvm_impl_cast.cpp
     [[nodiscard]] llvm::Value *_translate_cast_inst(IB &b, FunctionContext &func_ctx, const xir::CastInst *inst) noexcept;
+
+    // debug and profile instructions: print, clock, debug_break, assert, assume, defined in cuda_codegen_llvm_impl_debug.cpp
     void _translate_print_inst(IB &b, FunctionContext &func_ctx, const xir::PrintInst *inst) noexcept;
     [[nodiscard]] llvm::Value *_translate_clock_inst(IB &b, FunctionContext &func_ctx, const xir::ClockInst *inst) noexcept;
     void _translate_debug_break_inst(IB &b, FunctionContext &func_ctx, const xir::DebugBreakInst *inst) noexcept;
     void _translate_assert_inst(IB &b, FunctionContext &func_ctx, const xir::AssertInst *inst) noexcept;
     void _translate_assume_inst(IB &b, FunctionContext &func_ctx, const xir::AssumeInst *inst) noexcept;
-    // outline instruction
+
+    // call and outline instruction, defined in cuda_codegen_llvm_impl_func.cpp
+    [[nodiscard]] llvm::Value *_translate_call_inst(IB &b, FunctionContext &func_ctx, const xir::CallInst *inst) noexcept;
     void _translate_outline_inst(IB &b, FunctionContext &func_ctx, const xir::OutlineInst *inst) noexcept;
 
 public:

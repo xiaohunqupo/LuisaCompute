@@ -78,10 +78,10 @@ private:
 private:
     [[nodiscard]] Value *_translate_unary_expr(XIRBuilder &b, const UnaryExpr *expr) noexcept {
         auto operand = _translate_expression(b, expr->operand(), true);
+        if (expr->op() == UnaryOp::PLUS) { return operand; }// +x is just x in SSA
         // matrices need special handling
         if (operand->type()->is_matrix()) {
             switch (expr->op()) {
-                case UnaryOp::PLUS: return operand;
                 case UnaryOp::MINUS: return b.call(expr->type(), ArithmeticOp::MATRIX_COMP_NEG, {operand});
                 default: break;
             }
@@ -90,10 +90,10 @@ private:
         // normal cases
         auto op = [unary_op = expr->op()] {
             switch (unary_op) {
-                case UnaryOp::PLUS: return ArithmeticOp::UNARY_PLUS;
                 case UnaryOp::MINUS: return ArithmeticOp::UNARY_MINUS;
                 case UnaryOp::NOT: return ArithmeticOp::UNARY_BIT_NOT;
                 case UnaryOp::BIT_NOT: return ArithmeticOp::UNARY_BIT_NOT;
+                default: break;
             }
             LUISA_ERROR_WITH_LOCATION("Unexpected unary operation.");
         }();

@@ -29,6 +29,17 @@ if (LUISA_COMPUTE_CUDA_LINKED_LLVM)
             cuda_codegen_llvm_impl_inst.cpp
             cuda_codegen_llvm_impl_sreg.cpp
             cuda_codegen_llvm_impl_func.cpp
+            cuda_codegen_llvm_impl_cast.cpp
             cuda_codegen_llvm_impl_const.cpp
+            cuda_codegen_llvm_impl_var.cpp
+            cuda_codegen_llvm_impl_cflow.cpp
+            cuda_codegen_llvm_impl_phi.cpp
+            cuda_codegen_llvm_impl_atomic.cpp
+            cuda_codegen_llvm_impl_autodiff.cpp
+            cuda_codegen_llvm_impl_arith.cpp
+            cuda_codegen_llvm_impl_cta.cpp
+            cuda_codegen_llvm_impl_debug.cpp
+            cuda_codegen_llvm_impl_resource.cpp
+            cuda_codegen_llvm_impl_rtx.cpp
     )
 endif ()

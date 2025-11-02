@@ -785,6 +785,15 @@ bool Type::is_int8() const noexcept { return tag() == Tag::INT8; }
 bool Type::is_uint8() const noexcept { return tag() == Tag::UINT8; }
 bool Type::is_int16() const noexcept { return tag() == Tag::INT16; }
 bool Type::is_uint16() const noexcept { return tag() == Tag::UINT16; }
+
+bool Type::is_int_or_int_vector() const noexcept { return is_int() || is_int_vector(); }
+bool Type::is_uint_or_uint_vector() const noexcept { return is_uint() || is_uint_vector(); }
+bool Type::is_float_or_float_vector() const noexcept { return is_float() || is_float_vector(); }
+
+bool Type::is_int_vector() const noexcept { return is_vector() && element()->is_int(); }
+bool Type::is_uint_vector() const noexcept { return is_vector() && element()->is_uint(); }
+bool Type::is_float_vector() const noexcept { return is_vector() && element()->is_float(); }
+
 bool Type::is_int64() const noexcept { return tag() == Tag::INT64; }
 bool Type::is_uint64() const noexcept { return tag() == Tag::UINT64; }
 
