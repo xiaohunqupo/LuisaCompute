@@ -231,9 +231,6 @@ luisa::string CUDACodegenLLVMImpl::generate(const xir::Module &xir_module) noexc
     for (auto func : xir_module.function_list()) {
         if (auto def = func->definition()) {
             [[maybe_unused]] auto llvm_f = _translate_function(def);
-#ifndef NDEBUG
-            llvm::verifyFunction(*llvm_f, &llvm::errs());
-#endif
         }
     }
 #ifndef NDEBUG
