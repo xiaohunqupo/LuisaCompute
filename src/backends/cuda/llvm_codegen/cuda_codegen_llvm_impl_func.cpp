@@ -105,8 +105,7 @@ llvm::Function *CUDACodegenLLVMImpl::_translate_kernel_function(const xir::Kerne
     for (auto arg : func->arguments()) {
         auto member_index = arg_struct_info->argument_indices[arg_index];
         auto llvm_member_mem = b.CreateExtractValue(llvm_arg_struct, member_index, arg->name().value_or(""));
-        auto llvm_member_reg_type = arg_struct_info->argument_reg_types[arg_index];
-        auto llvm_member_reg = _convert_llvm_mem_value_to_reg(b, llvm_member_mem, llvm_member_reg_type);
+        auto llvm_member_reg = arg->is_value() ? _convert_llvm_mem_value_to_reg(b, llvm_member_mem, arg->type()) : llvm_member_mem;
         func_ctx.local_values.try_emplace(arg, llvm_member_reg);
         arg_index++;
     }

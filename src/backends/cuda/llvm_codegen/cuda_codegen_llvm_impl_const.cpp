@@ -48,7 +48,9 @@ llvm::Value *CUDACodegenLLVMImpl::_get_llvm_literal(IB &b, const Type *type, con
                 LUISA_DEBUG_ASSERT(llvm::isa<llvm::Constant>(llvm_elem));
                 llvm_elems.emplace_back(llvm::cast<llvm::Constant>(llvm_elem));
             }
-            llvm::ConstantVector::get(llvm_elems);
+            auto llvm_vector = llvm::ConstantVector::get(llvm_elems);
+            LUISA_DEBUG_ASSERT(llvm_vector->getType() == _get_llvm_type(type)->reg_type);
+            return llvm_vector;
         }
         case Type::Tag::MATRIX: {
             auto dim = type->dimension();
@@ -66,7 +68,9 @@ llvm::Value *CUDACodegenLLVMImpl::_get_llvm_literal(IB &b, const Type *type, con
             }
             auto llvm_col_type = llvm_cols.front()->getType();
             auto llvm_matrix_type = llvm::ArrayType::get(llvm_col_type, dim);
-            return llvm::ConstantArray::get(llvm_matrix_type, llvm_cols);
+            auto llvm_matrix = llvm::ConstantArray::get(llvm_matrix_type, llvm_cols);
+            LUISA_DEBUG_ASSERT(llvm_matrix->getType() == _get_llvm_type(type)->reg_type);
+            return llvm_matrix;
         }
         case Type::Tag::ARRAY: {
             auto elem_type = type->element();
@@ -91,40 +95,25 @@ llvm::Value *CUDACodegenLLVMImpl::_get_llvm_literal(IB &b, const Type *type, con
             }
             auto llvm_elem_type = llvm_elems.front()->getType();
             auto llvm_array_type = llvm::ArrayType::get(llvm_elem_type, dim);
-            return llvm::ConstantArray::get(llvm_array_type, llvm_elems);
+            auto llvm_array = llvm::ConstantArray::get(llvm_array_type, llvm_elems);
+            LUISA_DEBUG_ASSERT(llvm_array->getType() == _get_llvm_type(type)->reg_type);
+            return llvm_array;
         }
         case Type::Tag::STRUCTURE: {
             auto llvm_type_info = _get_llvm_type(type);
             llvm::SmallVector<llvm::Constant *> llvm_elems;
             LUISA_DEBUG_ASSERT(llvm::isa<llvm::StructType>(llvm_type_info->reg_type));
             auto llvm_struct_type = llvm::cast<llvm::StructType>(llvm_type_info->reg_type);
-            llvm_elems.reserve(llvm_struct_type->getNumElements());
-            auto output_index = 0u;
-            for (auto i = 0u; i < llvm_type_info->member_indices.size(); i++) {
-                auto member_index = llvm_type_info->member_indices[i];
-                while (output_index < member_index) {
-                    // padding
-                    auto llvm_padding_type = llvm_struct_type->getElementType(output_index);
-                    auto llvm_padding = llvm::PoisonValue::get(llvm_padding_type);
-                    llvm_elems.emplace_back(llvm_padding);
-                    output_index++;
-                }
-                auto member_type = type->members()[i];
+            for (auto [i, member] : llvm::enumerate(type->members())) {
                 auto member_offset = llvm_type_info->member_offsets[i];
-                auto p_member = static_cast<const std::byte *>(data) + member_offset;
-                auto llvm_member = _get_llvm_literal(b, member_type, p_member);
+                auto p = static_cast<const std::byte *>(data) + member_offset;
+                auto llvm_member = _get_llvm_literal(b, member, p);
                 LUISA_DEBUG_ASSERT(llvm::isa<llvm::Constant>(llvm_member));
                 llvm_elems.emplace_back(llvm::cast<llvm::Constant>(llvm_member));
-                output_index++;
             }
-            if (output_index < llvm_struct_type->getNumElements()) {
-                // tail padding
-                LUISA_DEBUG_ASSERT(output_index + 1 == llvm_struct_type->getNumElements());
-                auto llvm_padding_type = llvm_struct_type->getElementType(output_index);
-                auto llvm_padding = llvm::PoisonValue::get(llvm_padding_type);
-                llvm_elems.emplace_back(llvm_padding);
-            }
-            return llvm::ConstantStruct::get(llvm_struct_type, llvm_elems);
+            auto llvm_struct = llvm::ConstantStruct::get(llvm_struct_type, llvm_elems);
+            LUISA_DEBUG_ASSERT(llvm_struct->getType() == llvm_type_info->reg_type);
+            return llvm_struct;
         }
         default: break;
     }
@@ -149,15 +138,11 @@ llvm::Value *CUDACodegenLLVMImpl::_get_llvm_constant(IB &b, const xir::Constant 
             *_llvm_module, b.getInt8Ty(), true, llvm::GlobalValue::PrivateLinkage,
             llvm_init, "const", nullptr, llvm::GlobalVariable::NotThreadLocal,
             nvptx_address_space_constant, false);
-        global->setAlignment(alignment);
+        global->setAlignment(llvm::Align{type->alignment()});
         global->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
         iter->second = global;
     }
-    auto llvm_type = _get_llvm_type(type);
-    LUISA_DEBUG_ASSERT(llvm_type->reg_type == llvm_type->mem_type,
-                       "Global constant must have same reg and mem type.");
-    // don't worry about the huge load, we will delay it in extract(constant)
-    return b.CreateAlignedLoad(llvm_type->reg_type, iter->second, alignment, false);
+    return _load_llvm_value(b, iter->second, type);
 }
 
 }// namespace luisa::compute::cuda

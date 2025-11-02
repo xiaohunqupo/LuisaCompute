@@ -6,55 +6,111 @@
 
 namespace luisa::compute::cuda {
 
-llvm::Value *CUDACodegenLLVMImpl::_convert_llvm_reg_value_to_mem(IB &b, llvm::Value *reg_v, llvm::Type *mem_type) noexcept {
+llvm::Value *CUDACodegenLLVMImpl::_convert_llvm_reg_value_to_mem(IB &b, llvm::Value *reg_v, const Type *type) noexcept {
     auto reg_type = reg_v->getType();
-    if (reg_type == mem_type) { return reg_v; }
+    auto type_info = _get_llvm_type(type);
+    LUISA_DEBUG_ASSERT(reg_type == type_info->reg_type);
+    if (reg_type == type_info->mem_type) { return reg_v; }
     // i1 scalars and vectors are stored as i8 in memory
     if (reg_type->isIntOrIntVectorTy(1)) {
-        LUISA_DEBUG_ASSERT(mem_type->isIntOrIntVectorTy(8));
-        return b.CreateZExt(reg_v, mem_type, reg_v->getName().str() + ".to.mem");
+        LUISA_DEBUG_ASSERT(type_info->mem_type->isIntOrIntVectorTy(8));
+        return b.CreateZExt(reg_v, type_info->mem_type, reg_v->getName().str() + ".to.mem");
     }
-    // otherwise it must be i64/f64 vector types
-    LUISA_DEBUG_ASSERT(reg_type->isVectorTy());
-    auto elem_type = llvm::cast<llvm::VectorType>(reg_type)->getElementType();
-    auto elem_count = llvm::cast<llvm::VectorType>(reg_type)->getElementCount().getFixedValue();
-    LUISA_DEBUG_ASSERT(elem_count == 3 || elem_count == 4);
-    // i64/f64 vectors are stored as padded arrays in memory
-    auto padded_elem_count = elem_count == 3 ? 4 : elem_count;
-    LUISA_DEBUG_ASSERT(mem_type->isArrayTy() &&
-                       mem_type->getArrayElementType() == elem_type &&
-                       mem_type->getArrayNumElements() == padded_elem_count);
-    auto mem_v = static_cast<llvm::Value *>(llvm::PoisonValue::get(mem_type));
-    for (auto i = 0u; i < elem_count; i++) {
-        auto reg_elem = b.CreateExtractElement(reg_v, i);
-        mem_v = b.CreateInsertValue(mem_v, reg_elem, i);
+    // other vectors must be i64/f64
+    if (reg_type->isVectorTy()) {
+        auto elem_type = llvm::cast<llvm::VectorType>(reg_type)->getElementType();
+        auto elem_count = llvm::cast<llvm::VectorType>(reg_type)->getElementCount().getFixedValue();
+        LUISA_DEBUG_ASSERT(elem_count == 3 || elem_count == 4);
+        // i64/f64 vectors are stored as padded arrays in memory
+        auto padded_elem_count = elem_count == 3 ? 4 : elem_count;
+        LUISA_DEBUG_ASSERT(type_info->mem_type->isArrayTy() &&
+                           type_info->mem_type->getArrayElementType() == elem_type &&
+                           type_info->mem_type->getArrayNumElements() == padded_elem_count);
+        auto mem_v = static_cast<llvm::Value *>(llvm::PoisonValue::get(type_info->mem_type));
+        for (auto i = 0u; i < elem_count; i++) {
+            auto reg_elem = b.CreateExtractElement(reg_v, i);
+            mem_v = b.CreateInsertValue(mem_v, reg_elem, i);
+        }
+        mem_v->setName(reg_v->getName().str() + ".to.mem");
+        return mem_v;
     }
-    mem_v->setName(reg_v->getName().str() + ".to.mem");
-    return mem_v;
+    // array or matrix types, we need to convert element by element
+    if (reg_type->isArrayTy()) {
+        auto llvm_dst = static_cast<llvm::Value *>(llvm::PoisonValue::get(type_info->mem_type));
+        auto dim = type->dimension();
+        LUISA_DEBUG_ASSERT(reg_type->getArrayNumElements() == dim);
+        auto elem_type = type->is_matrix() ? Type::vector(type->element(), dim) : type->element();
+        for (auto i = 0u; i < dim; i++) {
+            auto llvm_reg_elem = b.CreateExtractValue(reg_v, i);
+            auto llvm_mem_elem = _convert_llvm_reg_value_to_mem(b, llvm_reg_elem, elem_type);
+            llvm_dst = b.CreateInsertValue(llvm_dst, llvm_mem_elem, i);
+        }
+        llvm_dst->setName(reg_v->getName().str() + ".to.mem");
+        return llvm_dst;
+    }
+    // must be structure type now
+    LUISA_DEBUG_ASSERT(reg_type->isStructTy());
+    auto llvm_dst = static_cast<llvm::Value *>(llvm::PoisonValue::get(type_info->mem_type));
+    auto member_count = type->members().size();
+    for (auto i = 0u; i < member_count; i++) {
+        auto llvm_reg_member = b.CreateExtractValue(reg_v, i);
+        auto llvm_mem_member = _convert_llvm_reg_value_to_mem(b, llvm_reg_member, type->members()[i]);
+        llvm_dst = b.CreateInsertValue(llvm_dst, llvm_mem_member, i);
+    }
+    llvm_dst->setName(reg_v->getName().str() + ".to.mem");
+    return llvm_dst;
 }
 
-llvm::Value *CUDACodegenLLVMImpl::_convert_llvm_mem_value_to_reg(IB &b, llvm::Value *mem_v, llvm::Type *reg_type) noexcept {
+llvm::Value *CUDACodegenLLVMImpl::_convert_llvm_mem_value_to_reg(IB &b, llvm::Value *mem_v, const Type *type) noexcept {
     auto mem_type = mem_v->getType();
-    if (mem_type == reg_type) { return mem_v; }
+    auto type_info = _get_llvm_type(type);
+    LUISA_DEBUG_ASSERT(mem_type == type_info->mem_type);
+    if (mem_type == type_info->reg_type) { return mem_v; }
     // i1 scalars and vectors are stored as i8 in memory
-    if (reg_type->isIntOrIntVectorTy(1)) {
+    if (type_info->reg_type->isIntOrIntVectorTy(1)) {
         LUISA_DEBUG_ASSERT(mem_type->isIntOrIntVectorTy(8));
-        return b.CreateTrunc(mem_v, reg_type, mem_v->getName().str() + ".to.reg");
+        return b.CreateTrunc(mem_v, type_info->reg_type, mem_v->getName().str() + ".to.reg");
     }
-    // otherwise it must be i64/f64 vector types
-    LUISA_DEBUG_ASSERT(reg_type->isVectorTy());
-    auto elem_type = llvm::cast<llvm::VectorType>(reg_type)->getElementType();
-    auto elem_count = llvm::cast<llvm::VectorType>(reg_type)->getElementCount().getFixedValue();
-    LUISA_DEBUG_ASSERT(elem_count == 3 || elem_count == 4);
-    // i64/f64 vectors are stored as padded arrays in memory
-    auto padded_elem_count = elem_count == 3 ? 4 : elem_count;
-    LUISA_DEBUG_ASSERT(mem_type->isArrayTy() &&
-                       mem_type->getArrayElementType() == elem_type &&
-                       mem_type->getArrayNumElements() == padded_elem_count);
-    auto reg_v = static_cast<llvm::Value *>(llvm::PoisonValue::get(reg_type));
-    for (auto i = 0u; i < elem_count; i++) {
-        auto mem_elem = b.CreateExtractValue(mem_v, i);
-        reg_v = b.CreateInsertElement(reg_v, mem_elem, i);
+    // other vector types must be i64/f64
+    if (type_info->reg_type->isVectorTy()) {
+        auto elem_type = llvm::cast<llvm::VectorType>(type_info->reg_type)->getElementType();
+        auto elem_count = llvm::cast<llvm::VectorType>(type_info->reg_type)->getElementCount().getFixedValue();
+        LUISA_DEBUG_ASSERT(elem_count == 3 || elem_count == 4);
+        // i64/f64 vectors are stored as padded arrays in memory
+        auto padded_elem_count = elem_count == 3 ? 4 : elem_count;
+        LUISA_DEBUG_ASSERT(mem_type->isArrayTy() &&
+                           mem_type->getArrayElementType() == elem_type &&
+                           mem_type->getArrayNumElements() == padded_elem_count);
+        auto reg_v = static_cast<llvm::Value *>(llvm::PoisonValue::get(type_info->reg_type));
+        for (auto i = 0u; i < elem_count; i++) {
+            auto mem_elem = b.CreateExtractValue(mem_v, i);
+            reg_v = b.CreateInsertElement(reg_v, mem_elem, i);
+        }
+        reg_v->setName(mem_v->getName().str() + ".to.reg");
+        return reg_v;
+    }
+    // array or matrix types, we need to convert element by element
+    if (type_info->reg_type->isArrayTy()) {
+        auto reg_v = static_cast<llvm::Value *>(llvm::PoisonValue::get(type_info->reg_type));
+        auto dim = type->dimension();
+        LUISA_DEBUG_ASSERT(mem_type->getArrayNumElements() == dim);
+        auto elem_type = type->is_matrix() ? Type::vector(type->element(), dim) : type->element();
+        for (auto i = 0u; i < dim; i++) {
+            auto llvm_mem_elem = b.CreateExtractValue(mem_v, i);
+            auto llvm_reg_elem = _convert_llvm_mem_value_to_reg(b, llvm_mem_elem, elem_type);
+            reg_v = b.CreateInsertValue(reg_v, llvm_reg_elem, i);
+        }
+        reg_v->setName(mem_v->getName().str() + ".to.reg");
+        return reg_v;
+    }
+    // must be structure type now
+    LUISA_DEBUG_ASSERT(type_info->reg_type->isStructTy());
+    auto reg_v = static_cast<llvm::Value *>(llvm::PoisonValue::get(type_info->reg_type));
+    auto member_count = type->members().size();
+    for (auto i = 0u; i < member_count; i++) {
+        auto llvm_mem_member = b.CreateExtractValue(mem_v, i);
+        auto llvm_reg_member = _convert_llvm_mem_value_to_reg(b, llvm_mem_member, type->members()[i]);
+        reg_v = b.CreateInsertValue(reg_v, llvm_reg_member, i);
     }
     reg_v->setName(mem_v->getName().str() + ".to.reg");
     return reg_v;
@@ -62,22 +118,21 @@ llvm::Value *CUDACodegenLLVMImpl::_convert_llvm_mem_value_to_reg(IB &b, llvm::Va
 
 llvm::Value *CUDACodegenLLVMImpl::_bitwise_cast(IB &b, FunctionContext &func_ctx, llvm::Value *llvm_src, const Type *src_type, const Type *dst_type) noexcept {
     if (src_type == dst_type) { return llvm_src; }
-    auto llvm_src_type = _get_llvm_type(src_type);
     auto llvm_dst_type = _get_llvm_type(dst_type);
-    auto llvm_src_mem = _convert_llvm_reg_value_to_mem(b, llvm_src, llvm_src_type->mem_type);
+    auto llvm_src_mem = _convert_llvm_reg_value_to_mem(b, llvm_src, src_type);
     // scalars or vectors, we can use the built-in llvm bitwise cast
     if ((src_type->is_scalar() || src_type->is_vector()) && (dst_type->is_scalar() || dst_type->is_vector())) {
         auto llvm_dst_mem = b.CreateBitCast(llvm_src_mem, llvm_dst_type->mem_type);
-        return _convert_llvm_mem_value_to_reg(b, llvm_dst_mem, llvm_dst_type->reg_type);
+        return _convert_llvm_mem_value_to_reg(b, llvm_dst_mem, dst_type);
     }
     // generic, we make a temporary alloca, store the src value, and load as the dst type
     auto llvm_temp = with_insertion_point_backed_up(b, [&] {
         b.SetInsertPoint(&func_ctx.llvm_alloca_block->front());
-        return b.CreateAlloca(llvm_src_type->mem_type);
+        return b.CreateAlloca(llvm_src_mem->getType());
     });
     b.CreateAlignedStore(llvm_src_mem, llvm_temp, llvm::Align{src_type->alignment()});
     auto llvm_dst_mem = b.CreateAlignedLoad(llvm_dst_type->mem_type, llvm_temp, llvm::Align{dst_type->alignment()});
-    return _convert_llvm_mem_value_to_reg(b, llvm_dst_mem, llvm_dst_type->reg_type);
+    return _convert_llvm_mem_value_to_reg(b, llvm_dst_mem, dst_type);
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_static_cast(IB &b, FunctionContext &func_ctx, llvm::Value *llvm_src, const Type *src_type, const Type *dst_type) noexcept {

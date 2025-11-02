@@ -24,21 +24,14 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_alloca_inst(IB &b, FunctionContext 
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_translate_load_inst(IB &b, FunctionContext &func_ctx, const xir::LoadInst *inst) noexcept {
-    auto llvm_type = _get_llvm_type(inst->type());
     auto llvm_ptr = func_ctx.get_local_value<llvm::Value>(inst->variable());
-    auto llvm_mem_v = b.CreateAlignedLoad(llvm_type->mem_type, llvm_ptr,
-                                          llvm::Align{inst->type()->alignment()},
-                                          inst->name().value_or(""));
-    return _convert_llvm_mem_value_to_reg(b, llvm_mem_v, llvm_type->reg_type);
+    return _load_llvm_value(b, llvm_ptr, inst->type());
 }
 
 void CUDACodegenLLVMImpl::_translate_store_inst(IB &b, FunctionContext &func_ctx, const xir::StoreInst *inst) noexcept {
-    auto type = inst->value()->type();
-    auto llvm_type = _get_llvm_type(type);
     auto llvm_ptr = func_ctx.get_local_value<llvm::Value>(inst->variable());
-    auto llvm_reg_v = func_ctx.get_local_value<llvm::Value>(inst->value());
-    auto llvm_mem_v = _convert_llvm_reg_value_to_mem(b, llvm_reg_v, llvm_type->mem_type);
-    b.CreateAlignedStore(llvm_mem_v, llvm_ptr, llvm::Align{type->alignment()});
+    auto llvm_value = _get_llvm_value(b, func_ctx, inst->value());
+    store_llvm_value(b, llvm_ptr, llvm_value, inst->value()->type());
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_translate_gep_inst(IB &b, FunctionContext &func_ctx, const xir::GEPInst *inst) noexcept {
@@ -83,6 +76,17 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_gep_inst(IB &b, FunctionContext &fu
         }
     }
     return llvm_ptr;
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_load_llvm_value(IB &b, llvm::Value *llvm_ptr, const Type *type) noexcept {
+    auto llvm_type = _get_llvm_type(type);
+    auto llvm_mem_v = b.CreateAlignedLoad(llvm_type->mem_type, llvm_ptr, llvm::Align{type->alignment()});
+    return _convert_llvm_mem_value_to_reg(b, llvm_mem_v, type);
+}
+
+void CUDACodegenLLVMImpl::store_llvm_value(IB &b, llvm::Value *llvm_ptr, llvm::Value *llvm_value, const Type *type) noexcept {
+    auto llvm_mem_v = _convert_llvm_reg_value_to_mem(b, llvm_value, type);
+    b.CreateAlignedStore(llvm_mem_v, llvm_ptr, llvm::Align{type->alignment()});
 }
 
 }// namespace luisa::compute::cuda

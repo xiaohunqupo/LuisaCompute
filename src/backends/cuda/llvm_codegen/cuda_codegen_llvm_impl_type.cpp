@@ -116,9 +116,10 @@ CUDACodegenLLVMImpl::_get_llvm_type(const Type *type) noexcept {
                 return make_llvm_type_info(llvm_mem_type, llvm_reg_type, type->size(), type->alignment());
             }
             case Type::Tag::ARRAY: {
-                auto llvm_elem_type = _get_llvm_type(type->element())->mem_type;
-                auto llvm_type = llvm::ArrayType::get(llvm_elem_type, type->dimension());
-                return make_llvm_type_info(llvm_type, llvm_type, type->size(), type->alignment());
+                auto llvm_elem_type = _get_llvm_type(type->element());
+                auto llvm_reg_type = llvm::ArrayType::get(llvm_elem_type->reg_type, type->dimension());
+                auto llvm_mem_type = llvm::ArrayType::get(llvm_elem_type->mem_type, type->dimension());
+                return make_llvm_type_info(llvm_mem_type, llvm_reg_type, type->size(), type->alignment());
             }
             case Type::Tag::STRUCTURE: {
                 luisa::vector<size_t> member_indices;
@@ -126,26 +127,32 @@ CUDACodegenLLVMImpl::_get_llvm_type(const Type *type) noexcept {
                 auto member_count = type->members().size();
                 member_indices.reserve(member_count);
                 member_offsets.reserve(member_count);
-                llvm::SmallVector<llvm::Type *> llvm_member_types;
+                llvm::SmallVector<llvm::Type *> llvm_member_reg_types;
+                llvm::SmallVector<llvm::Type *> llvm_member_mem_types;
                 auto llvm_i8_type = llvm::Type::getInt8Ty(_llvm_context);
                 auto current_offset = static_cast<size_t>(0u);
                 for (auto member : type->members()) {
+                    auto llvm_member_type = _get_llvm_type(member);
+                    // reg type is trivial
+                    llvm_member_reg_types.emplace_back(llvm_member_type->reg_type);
+                    // for mem type, we should take care of alignment
                     auto next_offset = luisa::align(current_offset, member->alignment());
                     if (next_offset > current_offset) {
-                        llvm_member_types.emplace_back(
+                        llvm_member_mem_types.emplace_back(
                             llvm::ArrayType::get(llvm_i8_type, next_offset - current_offset));
                     }
-                    member_indices.emplace_back(llvm_member_types.size());
+                    member_indices.emplace_back(llvm_member_mem_types.size());
                     member_offsets.emplace_back(next_offset);
-                    llvm_member_types.emplace_back(_get_llvm_type(member)->mem_type);
+                    llvm_member_mem_types.emplace_back(llvm_member_type->mem_type);
                     current_offset = next_offset + member->size();
                 }
                 if (current_offset < type->size()) {
-                    llvm_member_types.emplace_back(
+                    llvm_member_mem_types.emplace_back(
                         llvm::ArrayType::get(llvm_i8_type, type->size() - current_offset));
                 }
-                auto llvm_type = llvm::StructType::get(_llvm_context, llvm_member_types, false);
-                return make_llvm_type_info(llvm_type, llvm_type, type->size(), type->alignment(),
+                auto llvm_reg_type = llvm::StructType::get(_llvm_context, llvm_member_reg_types, false);
+                auto llvm_mem_type = llvm::StructType::get(_llvm_context, llvm_member_mem_types, false);
+                return make_llvm_type_info(llvm_mem_type, llvm_reg_type, type->size(), type->alignment(),
                                            std::move(member_indices), std::move(member_offsets));
             }
             case Type::Tag::BUFFER: {
@@ -189,7 +196,6 @@ const CUDACodegenLLVMImpl::KernelArgumentStruct *CUDACodegenLLVMImpl::_get_kerne
         return iter->second.get();
     }
     std::vector<llvm::Type *> llvm_arg_members;
-    std::vector<llvm::Type *> llvm_arg_reg_types;
     std::vector<size_t> llvm_arg_member_indices;
     auto current_offset = static_cast<size_t>(0u);
     static constexpr auto alignment = KernelArgumentStruct::argument_alignment;
@@ -202,7 +208,6 @@ const CUDACodegenLLVMImpl::KernelArgumentStruct *CUDACodegenLLVMImpl::_get_kerne
         llvm_arg_member_indices.emplace_back(llvm_arg_members.size());
         auto llvm_arg_type = _get_llvm_type(arg->type());
         llvm_arg_members.emplace_back(llvm_arg_type->mem_type);
-        llvm_arg_reg_types.emplace_back(llvm_arg_type->reg_type);
         current_offset = next_offset + _data_layout->getTypeAllocSize(llvm_arg_members.back()).getFixedValue();
     }
     // tail padding and <i32 x 4> for dispatch_size and kernel_id
@@ -218,7 +223,6 @@ const CUDACodegenLLVMImpl::KernelArgumentStruct *CUDACodegenLLVMImpl::_get_kerne
     auto kernel_arg_struct = luisa::make_unique<KernelArgumentStruct>(KernelArgumentStruct{
         .llvm_type = llvm_arg_struct_type,
         .argument_indices = std::move(llvm_arg_member_indices),
-        .argument_reg_types = std::move(llvm_arg_reg_types),
         .dispatch_size_and_kernel_id_index = dispatch_size_and_kernel_id_index,
     });
     auto [iter, success] = _kernel_arg_struct_types.try_emplace(func, std::move(kernel_arg_struct));

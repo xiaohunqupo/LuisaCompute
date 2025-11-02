@@ -50,7 +50,6 @@ public:
         static constexpr auto argument_alignment = 16u;// all arguments are aligned to 16 bytes
         llvm::StructType *llvm_type;
         std::vector<size_t> argument_indices;
-        std::vector<llvm::Type *> argument_reg_types;
         size_t dispatch_size_and_kernel_id_index;
     };
 
@@ -189,8 +188,8 @@ private:
     [[nodiscard]] llvm::Value *_read_warp_prefix_lane_mask(IB &b) noexcept;
 
     /* the following methods are defined in cuda_codegen_llvm_impl_cast.cpp */
-    [[nodiscard]] static llvm::Value *_convert_llvm_reg_value_to_mem(IB &b, llvm::Value *reg_v, llvm::Type *mem_type) noexcept;
-    [[nodiscard]] static llvm::Value *_convert_llvm_mem_value_to_reg(IB &b, llvm::Value *mem_v, llvm::Type *reg_type) noexcept;
+    [[nodiscard]] llvm::Value *_convert_llvm_reg_value_to_mem(IB &b, llvm::Value *reg_v, const Type *type) noexcept;
+    [[nodiscard]] llvm::Value *_convert_llvm_mem_value_to_reg(IB &b, llvm::Value *mem_v, const Type *type) noexcept;
     [[nodiscard]] llvm::Value *_bitwise_cast(IB &b, FunctionContext &func_ctx, llvm::Value *llvm_src, const Type *src_type, const Type *dst_type) noexcept;
     [[nodiscard]] llvm::Value *_static_cast(IB &b, FunctionContext &func_ctx, llvm::Value *llvm_src, const Type *src_type, const Type *dst_type) noexcept;
     [[nodiscard]] llvm::Value *_static_cast_scalar_to_scalar(IB &b, FunctionContext &func_ctx, llvm::Value *llvm_src, const Type *src_type, const Type *dst_type) noexcept;
@@ -223,6 +222,8 @@ private:
     [[nodiscard]] llvm::Value *_translate_load_inst(IB &b, FunctionContext &func_ctx, const xir::LoadInst *inst) noexcept;
     void _translate_store_inst(IB &b, FunctionContext &func_ctx, const xir::StoreInst *inst) noexcept;
     [[nodiscard]] llvm::Value *_translate_gep_inst(IB &b, FunctionContext &func_ctx, const xir::GEPInst *inst) noexcept;
+    [[nodiscard]] llvm::Value *_load_llvm_value(IB &b, llvm::Value *llvm_ptr, const Type *type) noexcept;
+    void store_llvm_value(IB &b, llvm::Value *llvm_ptr, llvm::Value *llvm_value, const Type *type) noexcept;
 
     // atomic instructions, defined in cuda_codegen_llvm_impl_atomic.cpp
     [[nodiscard]] llvm::Value *_translate_atomic_inst(IB &b, FunctionContext &func_ctx, const xir::AtomicInst *inst) noexcept;
@@ -231,6 +232,15 @@ private:
     [[nodiscard]] llvm::Value *_translate_arithmetic_inst(IB &b, FunctionContext &func_ctx, const xir::ArithmeticInst *inst) noexcept;
     [[nodiscard]] llvm::Value *_call_libdevice_unary_op(IB &b, llvm::StringRef op_name, llvm::Value *llvm_value) noexcept;
     [[nodiscard]] llvm::Value *_call_libdevice_binary_op(IB &b, llvm::StringRef op_name, llvm::Value *llvm_lhs, llvm::Value *llvm_rhs) noexcept;
+    [[nodiscard]] llvm::Value *_translate_outer_product(IB &b, llvm::Value *lhs, llvm::Value *rhs) noexcept;
+    [[nodiscard]] llvm::Value *_translate_matrix_multiply(IB &b, llvm::Value *lhs, llvm::Value *rhs) noexcept;
+    [[nodiscard]] llvm::Value *_translate_matrix_determinant(IB &b, llvm::Value *m) noexcept;
+    [[nodiscard]] llvm::Value *_translate_matrix_transpose(IB &b, llvm::Value *m) noexcept;
+    [[nodiscard]] llvm::Value *_translate_matrix_inverse(IB &b, llvm::Value *m) noexcept;
+    [[nodiscard]] llvm::Value *_translate_aggregate(IB &b, FunctionContext &func_ctx, const xir::ArithmeticInst *inst) noexcept;
+    [[nodiscard]] llvm::Value *_translate_shuffle(IB &b, FunctionContext &func_ctx, const xir::ArithmeticInst *inst) noexcept;
+    [[nodiscard]] llvm::Value *_translate_insert(IB &b, FunctionContext &func_ctx, const xir::ArithmeticInst *inst) noexcept;
+    [[nodiscard]] llvm::Value *_translate_extract(IB &b, FunctionContext &func_ctx, const xir::ArithmeticInst *inst) noexcept;
 
     // thread group instructions, defined in cuda_codegen_llvm_impl_cta.cpp
     [[nodiscard]] llvm::Value *_translate_thread_group_inst(IB &b, FunctionContext &func_ctx, const xir::ThreadGroupInst *inst) noexcept;

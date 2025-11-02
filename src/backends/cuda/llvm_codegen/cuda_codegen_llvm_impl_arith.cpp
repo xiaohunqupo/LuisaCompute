@@ -4,6 +4,8 @@
 
 #include "cuda_codegen_llvm_impl.h"
 
+#include <llvm/IR/MatrixBuilder.h>
+
 namespace luisa::compute::cuda {
 
 llvm::Value *CUDACodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionContext &func_ctx, const xir::ArithmeticInst *inst) noexcept {
@@ -517,7 +519,12 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionCont
                    inst->type()->is_uint() ? b.CreateIntMaxReduce(v, false) :
                                              b.CreateFPMaxReduce(v);
         }
-        case xir::ArithmeticOp::OUTER_PRODUCT: break;
+        case xir::ArithmeticOp::OUTER_PRODUCT: {
+            LUISA_DEBUG_ASSERT(inst->type()->is_matrix() && inst->operand_count() == 2);
+            auto lhs = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto rhs = _get_llvm_value(b, func_ctx, inst->operand(1));
+            return _translate_outer_product(b, lhs, rhs);
+        }
         case xir::ArithmeticOp::MATRIX_COMP_NEG: return translate_matrix_comp_unary_op([&](auto col) noexcept {
             return b.CreateFNeg(col);
         });
@@ -533,14 +540,32 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionCont
         case xir::ArithmeticOp::MATRIX_COMP_DIV: return translate_matrix_comp_binary_op([&](auto lhs_col, auto rhs_col) noexcept {
             return b.CreateFDiv(lhs_col, rhs_col);
         });
-        case xir::ArithmeticOp::MATRIX_LINALG_MUL: break;
-        case xir::ArithmeticOp::MATRIX_DETERMINANT: break;
-        case xir::ArithmeticOp::MATRIX_TRANSPOSE: break;
-        case xir::ArithmeticOp::MATRIX_INVERSE: break;
-        case xir::ArithmeticOp::AGGREGATE: break;
-        case xir::ArithmeticOp::SHUFFLE: break;
-        case xir::ArithmeticOp::INSERT: break;
-        case xir::ArithmeticOp::EXTRACT: break;
+        case xir::ArithmeticOp::MATRIX_LINALG_MUL: {
+            LUISA_DEBUG_ASSERT(inst->operand_count() == 2 &&
+                               inst->operand(0)->type()->is_matrix() &&
+                               (inst->operand(1)->type()->is_matrix() || inst->operand(1)->type()->is_vector()) &&
+                               inst->operand(0)->type()->dimension() == inst->operand(1)->type()->dimension() &&
+                               inst->operand(0)->type() == inst->type());
+            auto lhs = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto rhs = _get_llvm_value(b, func_ctx, inst->operand(1));
+            return _translate_matrix_multiply(b, lhs, rhs);
+        }
+        case xir::ArithmeticOp::MATRIX_DETERMINANT: return translate_unary([&](auto m) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_matrix());
+            return _translate_matrix_determinant(b, m);
+        });
+        case xir::ArithmeticOp::MATRIX_TRANSPOSE: return translate_unary([&](auto m) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_matrix());
+            return _translate_matrix_transpose(b, m);
+        });
+        case xir::ArithmeticOp::MATRIX_INVERSE: return translate_unary([&](auto m) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_matrix());
+            return _translate_matrix_inverse(b, m);
+        });
+        case xir::ArithmeticOp::AGGREGATE: return _translate_aggregate(b, func_ctx, inst);
+        case xir::ArithmeticOp::SHUFFLE: return _translate_shuffle(b, func_ctx, inst);
+        case xir::ArithmeticOp::INSERT: return _translate_insert(b, func_ctx, inst);
+        case xir::ArithmeticOp::EXTRACT: return _translate_extract(b, func_ctx, inst);
     }
     LUISA_NOT_IMPLEMENTED();
 }
@@ -601,6 +626,116 @@ llvm::Value *CUDACodegenLLVMImpl::_call_libdevice_binary_op(IB &b, llvm::StringR
     }
     // scalar
     return call_scalar(llvm_lhs, llvm_rhs);
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_translate_outer_product(IB &b, llvm::Value *lhs, llvm::Value *rhs) noexcept {
+    LUISA_DEBUG_ASSERT(lhs->getType() == rhs->getType());
+    if (auto col_type = llvm::dyn_cast<llvm::VectorType>(lhs->getType())) {// vector outer product
+        auto dim = col_type->getElementCount().getFixedValue();
+        auto result_type = llvm::ArrayType::get(col_type, dim);
+        auto result = static_cast<llvm::Value *>(llvm::PoisonValue::get(result_type));
+        for (auto i = 0; i < dim; i++) {
+            auto s = b.CreateVectorSplat(dim, b.CreateExtractElement(rhs, i));
+            result = b.CreateInsertValue(result, b.CreateFMul(lhs, s), i);
+        }
+        return result;
+    }
+    // matrix outer product: A * B^T
+    auto rhs_transposed = _translate_matrix_transpose(b, rhs);
+    return _translate_matrix_multiply(b, lhs, rhs_transposed);
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_translate_matrix_multiply(IB &b, llvm::Value *lhs, llvm::Value *rhs) noexcept {
+    LUISA_DEBUG_ASSERT(lhs->getType()->isArrayTy());
+    auto dim = lhs->getType()->getArrayNumElements();
+    if (rhs->getType()->isVectorTy()) {// matrix * vector
+        auto result = static_cast<llvm::Value *>(llvm::ConstantFP::getNegativeZero(rhs->getType()));
+        for (auto i = 0; i < dim; i++) {
+            auto lhs_col = b.CreateExtractValue(lhs, i);
+            auto rhs_elem = b.CreateExtractElement(rhs, i);
+            auto rhs_elem_splat = b.CreateVectorSplat(dim, rhs_elem);
+            result = b.CreateFMA(lhs_col, rhs_elem_splat, result);
+        }
+        return result;
+    }
+    // matrix * matrix, reduce to matrix * each column vector of rhs
+    LUISA_DEBUG_ASSERT(lhs->getType() == rhs->getType());
+    auto result = static_cast<llvm::Value *>(llvm::PoisonValue::get(lhs->getType()));
+    for (auto i = 0; i < dim; i++) {
+        auto rhs_col = b.CreateExtractValue(rhs, i);
+        auto result_col = _translate_matrix_multiply(b, lhs, rhs_col);
+        result = b.CreateInsertValue(result, result_col, i);
+    }
+    return result;
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_translate_matrix_determinant(IB &b, llvm::Value *m) noexcept {
+    LUISA_NOT_IMPLEMENTED();
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_translate_matrix_transpose(IB &b, llvm::Value *m) noexcept {
+    LUISA_DEBUG_ASSERT(m->getType()->isArrayTy());
+    auto dim = m->getType()->getArrayNumElements();
+    auto col_type = m->getType()->getArrayElementType();
+    llvm::SmallVector<llvm::Value *, 4> src_cols;
+    for (auto i = 0; i < dim; i++) { src_cols.emplace_back(b.CreateExtractValue(m, i)); }
+    auto dst = static_cast<llvm::Value *>(llvm::PoisonValue::get(m->getType()));
+    for (auto i = 0; i < dim; i++) {
+        auto dst_col = static_cast<llvm::Value *>(llvm::PoisonValue::get(col_type));
+        for (auto j = 0; j < dim; j++) {
+            auto elem = b.CreateExtractElement(src_cols[j], i);
+            dst_col = b.CreateInsertElement(dst_col, elem, j);
+        }
+        dst = b.CreateInsertValue(dst, dst_col, i);
+    }
+    return dst;
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_translate_matrix_inverse(IB &b, llvm::Value *m) noexcept {
+    LUISA_NOT_IMPLEMENTED();
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_translate_aggregate(IB &b, FunctionContext &func_ctx, const xir::ArithmeticInst *inst) noexcept {
+    auto llvm_result_type = _get_llvm_type(inst->type());
+    auto llvm_result = static_cast<llvm::Value *>(llvm::PoisonValue::get(llvm_result_type->reg_type));
+    switch (inst->type()->tag()) {
+        case Type::Tag::VECTOR: {
+            LUISA_DEBUG_ASSERT(inst->operand_count() == inst->type()->dimension());
+            auto llvm_elem_type = llvm::cast<llvm::VectorType>(llvm_result_type->reg_type)->getElementType();
+            for (auto i = 0; i < inst->operand_count(); i++) {
+                auto llvm_elem = _get_llvm_value(b, func_ctx, inst->operand(i));
+                LUISA_DEBUG_ASSERT(llvm_elem->getType() == llvm_elem_type);
+                llvm_result = b.CreateInsertElement(llvm_result, llvm_elem, i);
+            }
+            return llvm_result;
+        }
+        case Type::Tag::MATRIX: [[fallthrough]];
+        case Type::Tag::ARRAY: {
+            LUISA_DEBUG_ASSERT(inst->operand_count() == inst->type()->dimension());
+            auto llvm_elem_type = llvm_result_type->reg_type->getArrayElementType();
+            for (auto i = 0; i < inst->operand_count(); i++) {
+                auto llvm_elem = _get_llvm_value(b, func_ctx, inst->operand(i));
+                LUISA_DEBUG_ASSERT(llvm_elem->getType() == llvm_elem_type);
+                llvm_result = b.CreateInsertValue(llvm_result, llvm_elem, i);
+            }
+            return llvm_result;
+        }
+        case Type::Tag::STRUCTURE: {
+            LUISA_DEBUG_ASSERT(inst->operand_count() == inst->type()->members().size());
+
+        }
+        default: break;
+    }
+    LUISA_ERROR_WITH_LOCATION("Unsupported aggregate type {} in LLVM codegen.", inst->type()->description());
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_translate_shuffle(IB &b, FunctionContext &func_ctx, const xir::ArithmeticInst *inst) noexcept {
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_translate_insert(IB &b, FunctionContext &func_ctx, const xir::ArithmeticInst *inst) noexcept {
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_translate_extract(IB &b, FunctionContext &func_ctx, const xir::ArithmeticInst *inst) noexcept {
 }
 
 }// namespace luisa::compute::cuda
