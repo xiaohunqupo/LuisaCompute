@@ -3,8 +3,8 @@ local rename_rule_idx = table.getn(_config_rules)
 includes("ext/volk", "ext/stb")
 -- ext
 if not has_config("lc_use_xrepo") then
-    lc_eastl_enable_custom_malloc = has_config("lc_enable_mimalloc")
-    lc_eastl_enable_mimalloc = has_config("lc_enable_custom_malloc")
+    lc_eastl_enable_custom_malloc = has_config("lc_enable_custom_malloc")
+    lc_eastl_enable_mimalloc = has_config("lc_enable_mimalloc")
     includes("ext/EASTL", "ext/spdlog", "ext/reproc", "ext/liblmdb")
     lc_eastl_enable_mimalloc = nil
     lc_eastl_enable_custom_malloc = nil
