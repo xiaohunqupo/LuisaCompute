@@ -204,7 +204,7 @@ const CUDACodegenLLVMImpl::KernelArgumentStruct *CUDACodegenLLVMImpl::_get_kerne
         llvm_arg_members.emplace_back(llvm::ArrayType::get(llvm_i8_type, count));
     }
     auto dispatch_size_and_kernel_id_index = llvm_arg_members.size();
-    auto llvm_i32x4_type = llvm::VectorType::get(llvm::Type::getInt32Ty(_llvm_context), 4, false);
+    auto llvm_i32x4_type = llvm::ArrayType::get(llvm::Type::getInt32Ty(_llvm_context), 4);
     llvm_arg_members.emplace_back(llvm_i32x4_type);
     auto llvm_arg_struct_type = llvm::StructType::create(_llvm_context, llvm_arg_members, "kernel.params.struct");
     auto kernel_arg_struct = luisa::make_unique<KernelArgumentStruct>(KernelArgumentStruct{
