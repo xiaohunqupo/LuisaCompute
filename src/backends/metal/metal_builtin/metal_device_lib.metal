@@ -418,7 +418,7 @@ inline auto atomic_exchange_explicit(threadgroup atomic_float *a, float x, memor
 inline auto atomic_fetch_min_explicit(device atomic_float *a, float val, memory_order) {
     for (;;) {
         if (auto old = atomic_load_explicit(static_cast<device volatile atomic_float *>(a), memory_order_relaxed);
-            old <= val || atomic_compare_exchange_explicit(a, old, val, memory_order_relaxed)) {
+            old <= val || atomic_compare_exchange_explicit(a, old, val, memory_order_relaxed) == old) {
             return old;
         }
     }
@@ -436,7 +436,7 @@ inline auto atomic_fetch_min_explicit(threadgroup atomic_float *a, float val, me
 inline auto atomic_fetch_max_explicit(device atomic_float *a, float val, memory_order) {
     for (;;) {
         if (auto old = atomic_load_explicit(static_cast<device volatile atomic_float *>(a), memory_order_relaxed);
-            old >= val || atomic_compare_exchange_explicit(a, old, val, memory_order_relaxed)) {
+            old >= val || atomic_compare_exchange_explicit(a, old, val, memory_order_relaxed) == old) {
             return old;
         }
     }
