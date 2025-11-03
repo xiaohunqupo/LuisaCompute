@@ -15,9 +15,7 @@
 
 ### C++ with XMake
 
-- [XMake](https://xmake.io/) 3.0.2+
-- The LLVM toolchain is recommended and well-tested
-- Building with XMake on Linux and macOS is experimental. You may encounter with RPATH issues. Please use CMake instead.
+- [XMake](https://xmake.io/) 3.0.4+
 
 ### C++ with CMake
 
