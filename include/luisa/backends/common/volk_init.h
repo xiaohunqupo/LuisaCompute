@@ -31,6 +31,8 @@ class VolkInitializer {
 
 public:
     DynamicModule vk_module;
+
+    // TODO: fix and clean up this code...
     void init(const luisa::filesystem::path &custom_path = {}, luisa::string_view lib_name = {}) {
         auto init_custom = [&] {
             auto ptr = vk_module.address("vkGetInstanceProcAddr");
@@ -50,18 +52,14 @@ public:
             vk_module = DynamicModule::load(custom_path, "vulkan-1");
 #elif defined(__APPLE__)
             do {
-                vk_module = DynamicModule::load(custom_path, "libvulkan");
+                vk_module = DynamicModule::load(current_path, "vulkan");
                 if (vk_module) break;
-                vk_module = DynamicModule::load(custom_path, "libvulkan.1");
+                vk_module = DynamicModule::load(current_path, "vulkan.1");
                 if (vk_module) break;
-                vk_module = DynamicModule::load(custom_path, "libMoltenVK");
-                if (vk_module) break;
-                vk_module = DynamicModule::load(custom_path, "MoltenVK");
-                if (vk_module) break;
-                vk_module = DynamicModule::load(custom_path, "vulkan");
+                vk_module = DynamicModule::load(current_path, "MoltenVK");
             } while (false);
 #else
-            vk_module = DynamicModule::load(custom_path, "libvulkan");
+            vk_module = DynamicModule::load(custom_path, "vulkan");
 #endif
             if (!vk_module) [[unlikely]] {
                 LUISA_ERROR("Vulkan lib not found at {}", luisa::to_string(custom_path));
@@ -74,23 +72,19 @@ public:
             }
             init_custom();
         } else {
-            auto current_path = current_executable_path();
+            auto current_path = std::filesystem::canonical(current_executable_path()).parent_path();
 #if defined(_WIN32)
             vk_module = DynamicModule::load(current_path, "vulkan-1");
 #elif defined(__APPLE__)
             do {
-                vk_module = DynamicModule::load(current_path, "libvulkan");
+                vk_module = DynamicModule::load(current_path, "vulkan");
                 if (vk_module) break;
-                vk_module = DynamicModule::load(current_path, "libvulkan.1");
-                if (vk_module) break;
-                vk_module = DynamicModule::load(current_path, "libMoltenVK");
+                vk_module = DynamicModule::load(current_path, "vulkan.1");
                 if (vk_module) break;
                 vk_module = DynamicModule::load(current_path, "MoltenVK");
-                if (vk_module) break;
-                vk_module = DynamicModule::load(current_path, "vulkan");
             } while (false);
 #else
-            vk_module = DynamicModule::load(current_path, "libvulkan");
+            vk_module = DynamicModule::load(current_path, "vulkan");
 #endif
             if (vk_module) [[unlikely]] {
                 init_custom();

@@ -236,10 +236,17 @@ luisa::string CUDACodegenLLVMImpl::generate(const xir::Module &xir_module) noexc
         }
     }
 #ifndef NDEBUG
-    llvm::verifyModule(*_llvm_module, &llvm::errs());
+    if (llvm::verifyModule(*_llvm_module, &llvm::errs())) {
+        LUISA_WARNING_WITH_LOCATION("LLVM module verification failed. Dumping IR to debug.ll");
+        std::error_code ec;
+        if (llvm::raw_fd_ostream os{"debug.ll", ec}; ec) {
+            LUISA_WARNING_WITH_LOCATION("Failed to create debug.ll: {}", ec.message());
+        } else {
+            _llvm_module->print(os, nullptr, true, true);
+        }
+    }
 #endif
     _run_optimization_passes();
-    _llvm_module->print(llvm::errs(), nullptr);// debug
     return _generate_ptx();
 }
 

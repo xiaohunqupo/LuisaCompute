@@ -134,7 +134,6 @@ DynamicModule DynamicModule::load(
             to_string(p), clock.toc());
         return DynamicModule{handle};
     }
-
     return DynamicModule{nullptr};
 }
 

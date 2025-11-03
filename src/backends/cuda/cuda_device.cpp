@@ -671,7 +671,8 @@ ShaderCreationInfo CUDADevice::_load_or_compile_shader(luisa::string name,
                                                        const string &source, const ShaderOption &option,
                                                        luisa::span<const char *const> nvrtc_options,
                                                        const CUDAShaderMetadata &expected_metadata,
-                                                       luisa::vector<ShaderDispatchCommand::Argument> bound_arguments) noexcept {
+                                                       luisa::vector<ShaderDispatchCommand::Argument> bound_arguments,
+                                                       luisa::string force_ptx) noexcept {
 
     // generate a default name if not specified
     auto uses_user_path = !name.empty();
@@ -683,6 +684,11 @@ ShaderCreationInfo CUDADevice::_load_or_compile_shader(luisa::string name,
 
     // try disk cache
     auto ptx = [&] {
+        if (!force_ptx.empty()) {
+            return luisa::vector<std::byte>{
+                reinterpret_cast<std::byte *>(force_ptx.data()),
+                reinterpret_cast<std::byte *>(force_ptx.data()) + force_ptx.size() + 1};
+        }
         luisa::unique_ptr<BinaryStream> ptx_stream;
         luisa::unique_ptr<BinaryStream> metadata_stream;
         if (uses_user_path) {
@@ -767,6 +773,7 @@ ShaderCreationInfo CUDADevice::create_shader(const ShaderOption &option, Functio
 
     // codegen
     StringScratch scratch;
+    luisa::string ptx_from_llvm;
     auto print_formats = [&] {
 #ifdef LUISA_ENABLE_XIR
 #ifdef LUISA_COMPUTE_ENABLE_LLVM
@@ -781,8 +788,8 @@ ShaderCreationInfo CUDADevice::create_shader(const ShaderOption &option, Functio
                 .enable_ray_tracing = kernel.requires_raytracing(),
                 .enable_printing = kernel.requires_printing(),
             };
-            auto ptx = luisa_compute_cuda_codegen_llvm(*xir_module, config);
-            LUISA_INFO("Generated PTX:\n{}", ptx);
+            ptx_from_llvm = luisa_compute_cuda_codegen_llvm(*xir_module, config);
+            LUISA_INFO("Generated PTX:\n{}", ptx_from_llvm);
         }
 #endif
         if (LUISA_USE_EXPERIMENTAL_XIR_CODEGEN) {
@@ -954,7 +961,8 @@ ShaderCreationInfo CUDADevice::create_shader(const ShaderOption &option, Functio
     };
     return _load_or_compile_shader(option.name, scratch.string(),
                                    option, nvrtc_options,
-                                   metadata, std::move(bound_arguments));
+                                   metadata, std::move(bound_arguments),
+                                   ptx_from_llvm);
 }
 
 ShaderCreationInfo CUDADevice::create_shader(const ShaderOption &option, const ir::KernelModule *kernel) noexcept {

@@ -159,30 +159,36 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionCont
             return b.CreateIntrinsic(llvm::Intrinsic::fshr, lhs->getType(), {lhs, lhs, rhs});
         });
         case xir::ArithmeticOp::BINARY_LESS: return translate_relational([&](auto lhs, auto rhs) noexcept {
-            return inst->type()->is_int_or_int_vector()   ? b.CreateICmpSLT(lhs, rhs) :
-                   inst->type()->is_uint_or_uint_vector() ? b.CreateICmpULT(lhs, rhs) :
-                                                            b.CreateFCmpOLT(lhs, rhs);
+            auto op_type = inst->operand(0)->type();
+            return op_type->is_int_or_int_vector()   ? b.CreateICmpSLT(lhs, rhs) :
+                   op_type->is_uint_or_uint_vector() ? b.CreateICmpULT(lhs, rhs) :
+                                                       b.CreateFCmpOLT(lhs, rhs);
         });
         case xir::ArithmeticOp::BINARY_GREATER: return translate_relational([&](auto lhs, auto rhs) noexcept {
-            return inst->type()->is_int_or_int_vector()   ? b.CreateICmpSGT(lhs, rhs) :
-                   inst->type()->is_uint_or_uint_vector() ? b.CreateICmpUGT(lhs, rhs) :
-                                                            b.CreateFCmpOGT(lhs, rhs);
+            auto op_type = inst->operand(0)->type();
+            return op_type->is_int_or_int_vector()   ? b.CreateICmpSGT(lhs, rhs) :
+                   op_type->is_uint_or_uint_vector() ? b.CreateICmpUGT(lhs, rhs) :
+                                                       b.CreateFCmpOGT(lhs, rhs);
         });
         case xir::ArithmeticOp::BINARY_LESS_EQUAL: return translate_relational([&](auto lhs, auto rhs) noexcept {
-            return inst->type()->is_int_or_int_vector()   ? b.CreateICmpSLE(lhs, rhs) :
-                   inst->type()->is_uint_or_uint_vector() ? b.CreateICmpULE(lhs, rhs) :
-                                                            b.CreateFCmpOLE(lhs, rhs);
+            auto op_type = inst->operand(0)->type();
+            return op_type->is_int_or_int_vector()   ? b.CreateICmpSLE(lhs, rhs) :
+                   op_type->is_uint_or_uint_vector() ? b.CreateICmpULE(lhs, rhs) :
+                                                       b.CreateFCmpOLE(lhs, rhs);
         });
         case xir::ArithmeticOp::BINARY_GREATER_EQUAL: return translate_relational([&](auto lhs, auto rhs) noexcept {
-            return inst->type()->is_int_or_int_vector()   ? b.CreateICmpSGE(lhs, rhs) :
-                   inst->type()->is_uint_or_uint_vector() ? b.CreateICmpUGE(lhs, rhs) :
-                                                            b.CreateFCmpOGE(lhs, rhs);
+            auto op_type = inst->operand(0)->type();
+            return op_type->is_int_or_int_vector()   ? b.CreateICmpSGE(lhs, rhs) :
+                   op_type->is_uint_or_uint_vector() ? b.CreateICmpUGE(lhs, rhs) :
+                                                       b.CreateFCmpOGE(lhs, rhs);
         });
         case xir::ArithmeticOp::BINARY_EQUAL: return translate_relational([&](auto lhs, auto rhs) noexcept {
-            return inst->type()->is_float_or_float_vector() ? b.CreateFCmpOEQ(lhs, rhs) : b.CreateICmpEQ(lhs, rhs);
+            auto op_type = inst->operand(0)->type();
+            return op_type->is_float_or_float_vector() ? b.CreateFCmpOEQ(lhs, rhs) : b.CreateICmpEQ(lhs, rhs);
         });
         case xir::ArithmeticOp::BINARY_NOT_EQUAL: return translate_relational([&](auto lhs, auto rhs) noexcept {
-            return inst->type()->is_float_or_float_vector() ? b.CreateFCmpONE(lhs, rhs) : b.CreateICmpNE(lhs, rhs);
+            auto op_type = inst->operand(0)->type();
+            return op_type->is_float_or_float_vector() ? b.CreateFCmpONE(lhs, rhs) : b.CreateICmpNE(lhs, rhs);
         });
         case xir::ArithmeticOp::ALL: {
             auto llvm_v = _get_llvm_value(b, func_ctx, inst->operand(0));
@@ -330,7 +336,8 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionCont
         });
         case xir::ArithmeticOp::COS: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-            return b.CreateUnaryIntrinsic(llvm::Intrinsic::cos, v);
+            // return b.CreateUnaryIntrinsic(llvm::Intrinsic::cos, v);
+            return _call_libdevice_unary_op(b, "cos", v);
         });
         case xir::ArithmeticOp::COSH: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
@@ -342,7 +349,8 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionCont
         });
         case xir::ArithmeticOp::SIN: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-            return b.CreateUnaryIntrinsic(llvm::Intrinsic::sin, v);
+            // return b.CreateUnaryIntrinsic(llvm::Intrinsic::sin, v);
+            return _call_libdevice_unary_op(b, "sin", v);
         });
         case xir::ArithmeticOp::SINH: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
