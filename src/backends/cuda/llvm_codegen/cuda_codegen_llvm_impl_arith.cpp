@@ -390,7 +390,8 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionCont
         });
         case xir::ArithmeticOp::POW: return translate_binary([&](auto base, auto exponent) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-            return b.CreateBinaryIntrinsic(llvm::Intrinsic::pow, base, exponent);
+            // return b.CreateBinaryIntrinsic(llvm::Intrinsic::pow, base, exponent);
+            return _call_libdevice_binary_op(b, "pow", base, exponent);
         });
         case xir::ArithmeticOp::POW_INT: {
             auto base = _get_llvm_value(b, func_ctx, inst->operand(0));

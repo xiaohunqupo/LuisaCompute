@@ -63,9 +63,7 @@ llvm::Value *CUDACodegenLLVMImpl::_read_thread_id(IB &b, const FunctionContext &
             llvm::Intrinsic::nvvm_read_ptx_sreg_tid_z,
         };
         auto llvm_tid_axis = b.CreateIntrinsic(llvm_i32_type, intrinsics[axis], {});
-        auto llvm_tid_axis_ge_zero = b.CreateICmpSGE(llvm_tid_axis, b.getInt32(0));
-        auto llvm_tid_axis_lt_block_size = b.CreateICmpSLT(llvm_tid_axis, b.getInt32(_config.block_size[axis]));
-        b.CreateAssumption(llvm_tid_axis_ge_zero);
+        auto llvm_tid_axis_lt_block_size = b.CreateICmpULT(llvm_tid_axis, b.getInt32(_config.block_size[axis]));
         b.CreateAssumption(llvm_tid_axis_lt_block_size);
         return llvm_tid_axis;
     };

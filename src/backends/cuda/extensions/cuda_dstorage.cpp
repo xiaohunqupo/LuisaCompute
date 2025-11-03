@@ -14,6 +14,8 @@
 #include <unistd.h>
 #endif
 
+#undef None
+
 namespace luisa::compute::cuda {
 
 [[nodiscard]] static bool check_cuda_property_supported(CUdevice device, CUdevice_attribute prop) noexcept {

@@ -19,6 +19,8 @@
 
 #include "extensions/cuda_dstorage.h"
 
+#undef None
+
 namespace luisa::compute::cuda {
 
 class UserCallbackContext : public CUDACallbackContext {

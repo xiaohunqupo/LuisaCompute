@@ -214,9 +214,9 @@ void update_file_if_changed(const std::filesystem::path &file_path, std::string_
     if (ec) {
         std::cerr << "Error: failed to create directories for output file: " << ec.message() << std::endl;
         exit(1);
-    }
-    if (auto existing = read_file_content(abs_path, true);
-        std::equal(existing.begin(), existing.end(), content.begin(), content.end())) {
+    }auto existing = read_file_content(abs_path, true);
+    std::erase(existing, '\r');
+    if (std::equal(existing.begin(), existing.end(), content.begin(), content.end())) {
         return;
     }
     std::ofstream ofs{abs_path, std::ios::binary | std::ios::trunc};

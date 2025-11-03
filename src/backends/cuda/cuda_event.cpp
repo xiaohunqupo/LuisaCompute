@@ -2,6 +2,8 @@
 
 #include <volk.h>
 
+#undef None
+
 #include <luisa/core/clock.h>
 #include <luisa/core/platform.h>
 

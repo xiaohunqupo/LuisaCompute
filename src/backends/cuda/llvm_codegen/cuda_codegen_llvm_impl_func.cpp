@@ -456,6 +456,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_call_inst(IB &b, FunctionContext &f
     llvm_args.emplace_back(_read_kernel_id(b, func_ctx));
     // create call instruction
     auto call_inst = b.CreateCall(llvm_callee, llvm_args, inst->name().value_or(""));
+    call_inst->setCallingConv(llvm_callee->getCallingConv());
     return inst->type() == nullptr ? nullptr : call_inst;
 }
 
