@@ -15,11 +15,8 @@ elseif is_plat("linux") then
     add_defines("VK_USE_PLATFORM_XCB_KHR")
 end
 on_load(function(target)
-    local lib = import("lib", {
-        rootdir = get_config("_lc_script_path")
-    })
     local function rela(p)
-        return lib.lexically_normal(path.join(os.scriptdir(), p))
+        return path.normalize(path.join(os.scriptdir(), p))
     end
     target:add("headerfiles", rela("../common/default_binary_io.h"))
     target:add("deps", "lc-volk")

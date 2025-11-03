@@ -5,11 +5,8 @@ _config_project({
 })
 
 on_load(function(target)
-    local lib = import("lib", {
-        rootdir = get_config("_lc_script_path")
-    })
     local function rela(p)
-        return lib.lexically_normal(path.join(os.scriptdir(), p))
+        return path.normalize(path.join(os.scriptdir(), p))
     end
     target:add("headerfiles", rela("../ext/glfw/include/**.h"))
     target:add("files", rela("../ext/glfw/src/*.c"))
@@ -24,7 +21,7 @@ on_load(function(target)
         target:add("defines", "_GLFW_WIN32")
         target:add("syslinks", "User32", "Gdi32", "Shell32")
     elseif target:is_plat("macosx") then
-        target:add("files", lib.lexically_normal(path.join(os.scriptdir(), "../ext/glfw/src/*.m")))
+        target:add("files", path.normalize(path.join(os.scriptdir(), "../ext/glfw/src/*.m")))
         target:add("mflags", "-fno-objc-arc")
         target:add("defines", "_GLFW_COCOA")
         target:add("frameworks", "Foundation", "Cocoa", "IOKit", "OpenGL", "QuartzCore")
@@ -38,11 +35,8 @@ _config_project({
     project_kind = "shared"
 })
 on_load(function(target)
-    local lib = import("lib", {
-        rootdir = get_config("_lc_script_path")
-    })
     local function rela(p)
-        return lib.lexically_normal(path.join(os.scriptdir(), p))
+        return path.normalize(path.join(os.scriptdir(), p))
     end
     target:add("headerfiles", rela("../ext/imgui/*.h"), rela("../ext/imgui/backends/*.h"))
     target:add("files", rela("../ext/imgui/*.cpp"), rela("../ext/imgui/backends/imgui_impl_glfw.cpp"))
@@ -71,11 +65,8 @@ _config_project({
     project_kind = "shared"
 })
 on_load(function(target)
-    local lib = import("lib", {
-        rootdir = get_config("_lc_script_path")
-    })
     local function rela(p)
-        return lib.lexically_normal(path.join(os.scriptdir(), p))
+        return path.normalize(path.join(os.scriptdir(), p))
     end
     target:add("headerfiles", rela("../../include/luisa/gui/**.h"))
 end)

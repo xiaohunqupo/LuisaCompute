@@ -5,9 +5,8 @@ _config_project({
     batch_size = 4
 })
 on_load(function(target)
-    local lib = import("lib", {rootdir = get_config("_lc_script_path")})
     local function rela(p)
-        return lib.lexically_normal(path.join(os.scriptdir(), p))
+        return path.normalize(path.join(os.scriptdir(), p))
     end
     target:add("includedirs", rela("../../include"), rela("../ext/xxHash/"), rela("../ext/magic_enum/include"),
         rela("../ext/half/include"), {

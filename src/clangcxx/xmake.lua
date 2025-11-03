@@ -7,10 +7,7 @@ if not is_mode("debug") then
     set_pcxxheader("src/lc_clangcxx_pch.h")
     add_files("src/**.cpp")
     on_load(function(target, opt)
-        local lib = import("lib", {
-            rootdir = get_config("_lc_script_path")
-        })
-        target:add("headerfiles", lib.lexically_normal(path.join(os.scriptdir(), "../common/default_binary_io.h")))
+        target:add("headerfiles", path.normalize(path.join(os.scriptdir(), "../common/default_binary_io.h")))
         local libs = {}
         local lc_llvm_path = get_config("lc_llvm_path")
         if (not lc_llvm_path) or (lc_llvm_path == "") then

@@ -70,8 +70,7 @@ add_files("cuda_builtin.lua")
 set_pcxxheader("lc_cuda_pch.h")
 add_headerfiles("*.h")
 on_load(function(target)
-    local lib = import("lib", {rootdir = get_config("_lc_script_path")})
-    target:add("headerfiles", lib.lexically_normal(path.join(os.scriptdir(), "../common/default_binary_io.h")))
+    target:add("headerfiles", path.normalize(path.join(os.scriptdir(), "../common/default_binary_io.h")))
     
     local src_path = os.scriptdir()
     local exclude_files = {}
