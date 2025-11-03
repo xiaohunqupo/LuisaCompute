@@ -34,13 +34,20 @@ on_load(function(target)
         })
     end
     if has_config("lc_use_system_stl") then
-        target:add("defines", "LUISA_USE_SYSTEM_STL", "_ENABLE_EXTENDED_ALIGNED_STORAGE", {public = true})
+        target:add("defines", "LUISA_USE_SYSTEM_STL", "_ENABLE_EXTENDED_ALIGNED_STORAGE", {
+            public = true
+        })
     end
     target:add("defines", "LUISA_CORE_EXPORT_DLL")
     if target:is_plat("windows") then
         target:add("defines", "_CRT_SECURE_NO_WARNINGS")
     end
-    target:add("deps", "eastl", "spdlog", "lc-check-winsdk")
+    if has_config("lc_use_xrepo") then
+        target:add("packages", "eastl", "spdlog")
+    else
+        target:add("deps", "eastl", "spdlog")
+    end
+    target:add("deps", "lc-check-winsdk")
     if has_config("spdlog_only_fmt") then -- Use no spdlog
         target:add("defines", "LUISA_CUSTOM_LOGGER", {
             public = true

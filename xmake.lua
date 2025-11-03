@@ -53,6 +53,8 @@ option("lc_win_runtime", {default = false})
 option("lc_llvm_path", {default = false})
 option("lc_embree_path", {default = false})
 option("lc_use_system_stl", {default = false})
+-- third-party
+option("lc_use_xrepo", {default = false})
 
 -- pre-defined options end
 -- try options.lua

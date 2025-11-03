@@ -1,10 +1,14 @@
-enable_mimalloc = has_config("lc_enable_mimalloc")
-enable_custom_malloc = has_config("lc_enable_custom_malloc")
 table.insert(_config_rules, "lc-rename-ext")
 local rename_rule_idx = table.getn(_config_rules)
-includes("ext/EASTL", "ext/spdlog", "ext/reproc", "ext/liblmdb", "ext/volk", "ext/stb")
--- yyjson
-do
+includes("ext/volk", "ext/stb")
+-- ext
+if not has_config("lc_use_xrepo") then
+    lc_eastl_enable_custom_malloc = has_config("lc_enable_mimalloc")
+    lc_eastl_enable_mimalloc = has_config("lc_enable_custom_malloc")
+    includes("ext/EASTL", "ext/spdlog", "ext/reproc", "ext/liblmdb")
+    lc_eastl_enable_mimalloc = nil
+    lc_eastl_enable_custom_malloc = nil
+    -- yyjson
     target("lc-yyjson")
     _config_project({
         project_kind = "static"

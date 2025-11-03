@@ -53,10 +53,8 @@ _config_project({
     project_kind = "shared",
     batch_size = 4
 })
-add_deps("lc-runtime", "lc-cuda-base", "reproc")
-if has_config("lc_cuda_ext_lcub") then
-    add_deps("lc-compute-cuda-ext-lcub")
-end
+add_deps("lc-runtime", "lc-cuda-base")
+
 add_deps("lc_embed_codegen", {
     inherit = false,
     public = false
@@ -70,8 +68,15 @@ add_files("cuda_builtin.lua")
 set_pcxxheader("lc_cuda_pch.h")
 add_headerfiles("*.h")
 on_load(function(target)
+    if has_config("lc_use_xrepo") then
+        target:add("packages", "reproc")
+    else
+        target:add("deps", "reproc")
+    end
+    if has_config("lc_cuda_ext_lcub") then
+        target:add("deps", "lc-compute-cuda-ext-lcub")
+    end
     target:add("headerfiles", path.normalize(path.join(os.scriptdir(), "../common/default_binary_io.h")))
-    
     local src_path = os.scriptdir()
     local exclude_files = {}
     exclude_files["cuda_nvrtc_compiler.cpp"] = true
