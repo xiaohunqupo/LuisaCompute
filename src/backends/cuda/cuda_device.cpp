@@ -789,7 +789,6 @@ ShaderCreationInfo CUDADevice::create_shader(const ShaderOption &option, Functio
                 .enable_printing = kernel.requires_printing(),
             };
             ptx_from_llvm = luisa_compute_cuda_codegen_llvm(*xir_module, config);
-            LUISA_INFO("Generated PTX:\n{}", ptx_from_llvm);
         }
 #endif
         if (LUISA_USE_EXPERIMENTAL_XIR_CODEGEN) {

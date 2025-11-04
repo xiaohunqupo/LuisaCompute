@@ -230,7 +230,7 @@ llvm::Value *CUDACodegenLLVMImpl::_texel_cast(IB &b, llvm::Value *llvm_src, llvm
         auto dst_max = llvm::Constant::getAllOnesValue(dst_type);
         auto dst_max_fp = b.CreateUIToFP(dst_max, src_type);
         auto src_zero = llvm::Constant::getNullValue(src_type);
-        auto src_one = llvm::Constant::getAllOnesValue(src_type);
+        auto src_one = llvm::ConstantFP::get(src_type, 1.);
         auto src_clamped = b.CreateMinNum(b.CreateMaxNum(llvm_src, src_zero), src_one);
         auto src_scaled = b.CreateFMul(src_clamped, dst_max_fp);
         auto src_round = b.CreateUnaryIntrinsic(llvm::Intrinsic::rint, src_scaled);

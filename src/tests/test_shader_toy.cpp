@@ -78,12 +78,8 @@ int main(int argc, char *argv[]) {
         image.write(xy, make_float4(accum, 1.0f));
     };
 
-    Kernel2D<Image<float>, float> k = main_kernel;
-    main_kernel = k;
-    k = main_kernel;
-
     auto clear = device.compile(clear_kernel);
-    auto shader = device.compile(k);
+    auto shader = device.compile(main_kernel);
 
     static constexpr uint width = 1024u;
     static constexpr uint height = 1024u;
