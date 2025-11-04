@@ -179,6 +179,20 @@ void CUDACodegenLLVMImpl::_dump_module(const std::filesystem::path &path) const 
 
 void CUDACodegenLLVMImpl::_run_optimization_passes() noexcept {
 
+    // add fast-math flags to FPMathOperators
+    if (_config.enable_fast_math) {
+        for (auto &f : *_llvm_module) {
+            for (auto &bb : f) {
+                for (auto &inst : bb) {
+                    if (llvm::isa<llvm::FPMathOperator>(inst)) {
+                        inst.setFast(true);
+                    }
+                }
+            }
+        }
+    }
+
+    // run optimization passes
     llvm::LoopAnalysisManager LAM;
     llvm::FunctionAnalysisManager FAM;
     llvm::CGSCCAnalysisManager CGAM;

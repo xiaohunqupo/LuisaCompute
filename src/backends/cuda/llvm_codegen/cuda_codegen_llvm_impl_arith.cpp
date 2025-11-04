@@ -2,9 +2,9 @@
 // Created by mike on 11/1/25.
 //
 
+#include <numbers>
 #include "cuda_codegen_llvm_impl.h"
-
-#include <llvm/IR/MatrixBuilder.h>
+#include "luisa/core/constants.h"
 
 namespace luisa::compute::cuda {
 
@@ -40,6 +40,13 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionCont
         auto llvm_b = _get_llvm_value(b, func_ctx, inst->operand(1));
         auto llvm_c = _get_llvm_value(b, func_ctx, inst->operand(2));
         return op(llvm_a, llvm_b, llvm_c);
+    };
+    auto call_exp2 = [&](auto v) noexcept -> llvm::Value * {
+#if LLVM_VERSION_MAJOR >= 20// NVPTX can correctly lower exp2 intrinsic since LLVM 20
+        return b.CreateUnaryIntrinsic(llvm::Intrinsic::exp2, v);
+#else// otherwise we need to call libdevice function
+        return _call_libdevice_unary_op(b, "exp2", v);
+#endif
     };
     auto dot_product_fp = [&](llvm::Value *u, llvm::Value *v) noexcept {
         LUISA_DEBUG_ASSERT(u->getType()->isVectorTy() && v->getType()->isFPOrFPVectorTy() && u->getType() == v->getType());
@@ -247,7 +254,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionCont
         });
         case xir::ArithmeticOp::ABS: return translate_unary([&](auto v) noexcept {
             return inst->type()->is_float_or_float_vector() ? b.CreateUnaryIntrinsic(llvm::Intrinsic::fabs, v) :
-                   inst->type()->is_int_or_int_vector()     ? b.CreateIntrinsic(llvm::Intrinsic::abs, v->getType(), {v}) :
+                   inst->type()->is_int_or_int_vector()     ? b.CreateIntrinsic(llvm::Intrinsic::abs, v->getType(), {v, b.getInt1(false)}) :
                                                               v;
         });
         case xir::ArithmeticOp::MIN: return translate_binary([&](auto lhs, auto rhs) noexcept {
@@ -292,11 +299,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionCont
         }
         case xir::ArithmeticOp::ACOS: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-#if LLVM_VERSION_MAJOR >= 19
-            return b.CreateUnaryIntrinsic(llvm::Intrinsic::acos, v);
-#else
             return _call_libdevice_unary_op(b, "acos", v);
-#endif
         });
         case xir::ArithmeticOp::ACOSH: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
@@ -304,11 +307,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionCont
         });
         case xir::ArithmeticOp::ASIN: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-#if LLVM_VERSION_MAJOR >= 19
-            return b.CreateUnaryIntrinsic(llvm::Intrinsic::asin, v);
-#else
             return _call_libdevice_unary_op(b, "asin", v);
-#endif
         });
         case xir::ArithmeticOp::ASINH: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
@@ -316,19 +315,11 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionCont
         });
         case xir::ArithmeticOp::ATAN: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-#if LLVM_VERSION_MAJOR >= 19
-            return b.CreateUnaryIntrinsic(llvm::Intrinsic::atan, v);
-#else
             return _call_libdevice_unary_op(b, "atan", v);
-#endif
         });
         case xir::ArithmeticOp::ATAN2: return translate_binary([&](auto y, auto x) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-#if LLVM_VERSION_MAJOR >= 20
-            return b.CreateBinaryIntrinsic(llvm::Intrinsic::atan2, y, x);
-#else
             return _call_libdevice_binary_op(b, "atan2", y, x);
-#endif
         });
         case xir::ArithmeticOp::ATANH: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
@@ -336,69 +327,72 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionCont
         });
         case xir::ArithmeticOp::COS: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-            // return b.CreateUnaryIntrinsic(llvm::Intrinsic::cos, v);
             return _call_libdevice_unary_op(b, "cos", v);
         });
         case xir::ArithmeticOp::COSH: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-#if LLVM_VERSION_MAJOR >= 19
-            return b.CreateUnaryIntrinsic(llvm::Intrinsic::cosh, v);
-#else
             return _call_libdevice_unary_op(b, "cosh", v);
-#endif
         });
         case xir::ArithmeticOp::SIN: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-            // return b.CreateUnaryIntrinsic(llvm::Intrinsic::sin, v);
             return _call_libdevice_unary_op(b, "sin", v);
         });
         case xir::ArithmeticOp::SINH: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-#if LLVM_VERSION_MAJOR >= 19
-            return b.CreateUnaryIntrinsic(llvm::Intrinsic::sinh, v);
-#else
             return _call_libdevice_unary_op(b, "sinh", v);
-#endif
         });
         case xir::ArithmeticOp::TAN: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-            return b.CreateUnaryIntrinsic(llvm::Intrinsic::tan, v);
+            return _call_libdevice_unary_op(b, "tan", v);
         });
         case xir::ArithmeticOp::TANH: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-#if LLVM_VERSION_MAJOR >= 19
-            return b.CreateUnaryIntrinsic(llvm::Intrinsic::tanh, v);
-#else
             return _call_libdevice_unary_op(b, "tanh", v);
-#endif
         });
         case xir::ArithmeticOp::EXP: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-            return b.CreateUnaryIntrinsic(llvm::Intrinsic::exp, v);
+            if (_config.enable_fast_math) {
+#if __cpp_lib_math_constants
+                constexpr auto const_log2e = std::numbers::log2e;
+#else
+                const auto const_log2e = 1.442695040888963407359924681001892137;
+#endif
+                auto log2e = llvm::ConstantFP::get(v->getType(), const_log2e);
+                return call_exp2(b.CreateFMul(v, log2e));
+            }
+            return _call_libdevice_unary_op(b, "exp", v);
         });
         case xir::ArithmeticOp::EXP2: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-            return b.CreateUnaryIntrinsic(llvm::Intrinsic::exp2, v);
+            return call_exp2(v);
         });
-        case xir::ArithmeticOp::EXP10: return translate_unary([&](auto v) noexcept {
+        case xir::ArithmeticOp::EXP10: return translate_unary([&](auto v) noexcept -> llvm::Value * {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-            return b.CreateUnaryIntrinsic(llvm::Intrinsic::exp10, v);
+            if (_config.enable_fast_math) {
+                auto log2_10 = llvm::ConstantFP::get(v->getType(), std::log2(10.));
+                return call_exp2(b.CreateFMul(v, log2_10));
+            }
+            return _call_libdevice_unary_op(b, "exp10", v);
         });
         case xir::ArithmeticOp::LOG: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-            return b.CreateUnaryIntrinsic(llvm::Intrinsic::log, v);
+            return _call_libdevice_unary_op(b, "log", v);
         });
         case xir::ArithmeticOp::LOG2: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-            return b.CreateUnaryIntrinsic(llvm::Intrinsic::log2, v);
+            return _call_libdevice_unary_op(b, "log2", v);
         });
         case xir::ArithmeticOp::LOG10: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-            return b.CreateUnaryIntrinsic(llvm::Intrinsic::log10, v);
+            return _call_libdevice_unary_op(b, "log10", v);
         });
         case xir::ArithmeticOp::POW: return translate_binary([&](auto base, auto exponent) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-            // return b.CreateBinaryIntrinsic(llvm::Intrinsic::pow, base, exponent);
+            // we can optimize pow(a, b) = std::exp2(b * std::log2(a)) if fast math is enabled and a is a constant
+            if (_config.enable_fast_math && llvm::isa<llvm::Constant>(base)) {
+                auto log2_base = b.CreateUnaryIntrinsic(llvm::Intrinsic::log2, base);
+                return call_exp2(b.CreateFMul(exponent, log2_base));
+            }
             return _call_libdevice_binary_op(b, "pow", base, exponent);
         });
         case xir::ArithmeticOp::POW_INT: {
@@ -407,16 +401,16 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionCont
             LUISA_DEBUG_ASSERT(base->getType()->isFPOrFPVectorTy() &&
                                exponent->getType()->isIntOrIntVectorTy() &&
                                inst->type()->is_float_or_float_vector());
+            // TODO: is powi lowerable on NVPTX?
             return b.CreateBinaryIntrinsic(llvm::Intrinsic::powi, base, exponent);
         }
         case xir::ArithmeticOp::SQRT: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-            return b.CreateUnaryIntrinsic(llvm::Intrinsic::sqrt, v);
+            return _call_libdevice_unary_op(b, "sqrt", v);
         });
         case xir::ArithmeticOp::RSQRT: return translate_unary([&](auto v) noexcept {// 1 / sqrt(v)
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-            auto sqrt_v = b.CreateUnaryIntrinsic(llvm::Intrinsic::sqrt, v);
-            return b.CreateFDiv(llvm::ConstantFP::get(sqrt_v->getType(), 1.), sqrt_v);
+            return _call_libdevice_unary_op(b, "rsqrt", v);
         });
         case xir::ArithmeticOp::CEIL: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
@@ -475,7 +469,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionCont
         case xir::ArithmeticOp::LENGTH: {
             auto v = _get_llvm_value(b, func_ctx, inst->operand(0));
             auto length_sq = dot_product_fp(v, v);
-            return b.CreateUnaryIntrinsic(llvm::Intrinsic::sqrt, length_sq);
+            return _call_libdevice_unary_op(b, "sqrt", length_sq);
         }
         case xir::ArithmeticOp::LENGTH_SQUARED: {
             auto v = _get_llvm_value(b, func_ctx, inst->operand(0));
@@ -484,7 +478,13 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionCont
         case xir::ArithmeticOp::NORMALIZE: {
             auto v = _get_llvm_value(b, func_ctx, inst->operand(0));
             auto length_sq = dot_product_fp(v, v);
-            auto length = b.CreateUnaryIntrinsic(llvm::Intrinsic::sqrt, length_sq);
+            if (_config.enable_fast_math) {// fast normalize: v * rsqrt(length_sq)
+                auto length_rsqrt = _call_libdevice_unary_op(b, "rsqrt", length_sq);
+                auto length_rsqrt_splat = b.CreateVectorSplat(inst->type()->dimension(), length_rsqrt);
+                return b.CreateFMul(v, length_rsqrt_splat);
+            }
+            // precise normalize: v / sqrt(length_sq)
+            auto length = _call_libdevice_unary_op(b, "sqrt", length_sq);
             auto length_splat = b.CreateVectorSplat(inst->type()->dimension(), length);
             return b.CreateFDiv(v, length_splat);
         }
@@ -587,12 +587,29 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionCont
     LUISA_NOT_IMPLEMENTED();
 }
 
+namespace detail {
+
+[[nodiscard]] llvm::Function *find_libdevice_function(llvm::Module &m, llvm::StringRef op_name,
+                                                      llvm::Type *t, bool enable_fast_math) noexcept {
+    auto op_suffix = t->isDoubleTy() ? "" : "f";
+    if (enable_fast_math) {
+        auto nv_fast_op_name = luisa::format("__nv_fast_{}{}", std::string_view{op_name}, op_suffix);
+        if (auto op = m.getFunction(nv_fast_op_name)) {
+            return op;
+        }
+    }
+    auto nv_op_name = luisa::format("__nv_{}{}", std::string_view{op_name}, op_suffix);
+    auto op = m.getFunction(nv_op_name);
+    LUISA_ASSERT(op != nullptr, "libdevice function {} not found.", op_name);
+    return op;
+}
+
+}// namespace detail
+
 llvm::Value *CUDACodegenLLVMImpl::_call_libdevice_unary_op(IB &b, llvm::StringRef op_name, llvm::Value *llvm_value) noexcept {
     auto llvm_scalar_t = llvm_value->getType()->getScalarType();
+    auto op = detail::find_libdevice_function(*_llvm_module, op_name, llvm_scalar_t, _config.enable_fast_math);
     auto should_cast_to_float = !llvm_scalar_t->isFloatTy() && !llvm_scalar_t->isDoubleTy();
-    auto nv_op_name = luisa::format("__nv_{}{}", std::string_view{op_name}, llvm_scalar_t->isDoubleTy() ? "" : "f");
-    auto op = _llvm_module->getFunction(nv_op_name);
-    LUISA_ASSERT(op != nullptr, "libdevice function {} not found.", op_name);
     auto call_scalar = [&](llvm::Value *llvm_elem) noexcept {
         if (should_cast_to_float) { llvm_elem = b.CreateFPExt(llvm_elem, llvm::Type::getFloatTy(b.getContext())); }
         auto llvm_res_elem = static_cast<llvm::Value *>(b.CreateCall(op, {llvm_elem}));
@@ -616,10 +633,8 @@ llvm::Value *CUDACodegenLLVMImpl::_call_libdevice_unary_op(IB &b, llvm::StringRe
 llvm::Value *CUDACodegenLLVMImpl::_call_libdevice_binary_op(IB &b, llvm::StringRef op_name, llvm::Value *llvm_lhs, llvm::Value *llvm_rhs) noexcept {
     LUISA_DEBUG_ASSERT(llvm_lhs->getType() == llvm_rhs->getType());
     auto llvm_scalar_t = llvm_lhs->getType()->getScalarType();
+    auto op = detail::find_libdevice_function(*_llvm_module, op_name, llvm_scalar_t, _config.enable_fast_math);
     auto should_cast_to_float = !llvm_scalar_t->isFloatTy() && !llvm_scalar_t->isDoubleTy();
-    auto nv_op_name = luisa::format("__nv_{}{}", std::string_view{op_name}, llvm_scalar_t->isDoubleTy() ? "" : "f");
-    auto op = _llvm_module->getFunction(nv_op_name);
-    LUISA_ASSERT(op != nullptr, "libdevice function {} not found.", op_name);
     auto call_scalar = [&](llvm::Value *llvm_lhs_elem, llvm::Value *llvm_rhs_elem) noexcept {
         if (should_cast_to_float) {
             llvm_lhs_elem = b.CreateFPExt(llvm_lhs_elem, llvm::Type::getFloatTy(b.getContext()));
@@ -789,14 +804,11 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_shuffle(IB &b, FunctionContext &fun
     auto src_type = inst->operand(0)->type();
     auto dst_type = inst->type();
     LUISA_DEBUG_ASSERT(src_type->element() == dst_type->element());
-    auto llvm_src_mem = _convert_llvm_reg_value_to_mem(b, llvm_src, src_type);
-    auto llvm_temp = _create_temp_in_alloca_block(func_ctx, llvm_src_mem->getType(), src_type->alignment());
-    b.CreateStore(llvm_src_mem, llvm_temp);
     auto llvm_dst_type = _get_llvm_type(dst_type)->reg_type;
     auto llvm_dst = static_cast<llvm::Value *>(llvm::PoisonValue::get(llvm_dst_type));
     for (auto [i, index_use] : llvm::enumerate(index_uses)) {
-        auto [llvm_src_elem_ptr, elem_type] = _lower_access_chain_address(b, func_ctx, llvm_temp, src_type, std::array{index_use});
-        auto llvm_src_elem = _load_llvm_value(b, llvm_src_elem_ptr, src_type->element());
+        auto llvm_index = _get_llvm_value(b, func_ctx, index_use->value());
+        auto llvm_src_elem = b.CreateExtractElement(llvm_src, llvm_index);
         llvm_dst = b.CreateInsertElement(llvm_dst, llvm_src_elem, i);
     }
     return llvm_dst;
