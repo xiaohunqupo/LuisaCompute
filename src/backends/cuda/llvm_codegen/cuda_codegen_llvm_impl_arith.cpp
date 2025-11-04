@@ -402,7 +402,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionCont
                                exponent->getType()->isIntOrIntVectorTy() &&
                                inst->type()->is_float_or_float_vector());
             // make sure that exponent is i32 or i32 vector
-            if (!exponent->getType()->isIntegerTy(32)) {
+            if (!exponent->getType()->getScalarType()->isIntegerTy(32)) {
                 auto i32_type = static_cast<llvm::Type *>(b.getInt32Ty());
                 if (inst->type()->is_vector()) {
                     i32_type = llvm::VectorType::get(i32_type, inst->type()->dimension(), false);
