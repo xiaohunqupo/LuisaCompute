@@ -26,23 +26,8 @@
 #include <luisa/core/stl/string.h>
 #include <luisa/core/stl/vector.h>
 #include <luisa/core/magic_enum.h>
+#include <luisa/backends/common/vulkan_check_error.h>
 #include <luisa/backends/common/volk_init.h>
-
-#define LUISA_CHECK_VULKAN(x)                                            \
-    do {                                                                 \
-        auto ret = x;                                                    \
-        if (ret != VK_SUCCESS) [[unlikely]] {                            \
-            if (ret > 0 || ret == VK_ERROR_OUT_OF_DATE_KHR) [[likely]] { \
-                LUISA_WARNING_WITH_LOCATION(                             \
-                    "Vulkan call `" #x "` returned {} (code = {}).",     \
-                    ::luisa::to_string(ret), luisa::to_underlying(ret)); \
-            } else [[unlikely]] {                                        \
-                LUISA_ERROR_WITH_LOCATION(                               \
-                    "Vulkan call `" #x "` failed: {} (code = {}).",      \
-                    ::luisa::to_string(ret), luisa::to_underlying(ret)); \
-            }                                                            \
-        }                                                                \
-    } while (false)
 
 namespace luisa::compute {
 

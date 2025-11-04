@@ -7,11 +7,12 @@
 
 namespace luisa {
 
+class MemorySanitizer;
+
 /**
  * @brief Dynamic module loader
  *
  */
-class MemorySanitizer;
 class LUISA_CORE_API DynamicModule : concepts::Noncopyable {
 
 private:
@@ -115,6 +116,12 @@ public:
      */
     [[nodiscard]] static DynamicModule load(const luisa::filesystem::path &folder,
                                             std::string_view name) noexcept;
+
+    /**
+     * @brief Load module with the specified path, without adding prefixes or suffices.
+     */
+    [[nodiscard]] static DynamicModule load_exact(const std::filesystem::path &path) noexcept;
+
 };
 
 }// namespace luisa

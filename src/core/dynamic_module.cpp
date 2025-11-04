@@ -102,36 +102,31 @@ void DynamicModule::remove_search_path(const std::filesystem::path &path) noexce
 
 DynamicModule DynamicModule::load(std::string_view name) noexcept {
     std::lock_guard lock{dynamic_module_search_path_mutex()};
-    Clock clock;
     auto &&paths = dynamic_module_search_paths();
     for (auto iter = paths.crbegin(); iter != paths.crend(); iter++) {
-        auto p = iter->first / dynamic_module_name(name);
-        if (auto handle = dynamic_module_load(p)) {
-            LUISA_INFO(
-                "Loaded dynamic module '{}' in {} ms.",
-                to_string(p), clock.toc());
-            return DynamicModule{handle};
+        if (auto m = load(iter->first, name)) {
+            return m;
         }
     }
-    auto module_name = dynamic_module_name(name);
-    if (auto handle = dynamic_module_load(module_name)) {
-        LUISA_INFO(
-            "Loaded dynamic module '{}' in {} ms.",
-            module_name, clock.toc());
-        return DynamicModule{handle};
-    }
-    return DynamicModule{nullptr};
+    return load({}, name);
 }
 
-DynamicModule DynamicModule::load(
-    const luisa::filesystem::path &folder,
-    luisa::string_view name) noexcept {
+DynamicModule DynamicModule::load(const luisa::filesystem::path &folder, luisa::string_view name) noexcept {
+    auto make_path = [&folder](auto file_name) noexcept {
+        return folder.empty() ? std::filesystem::path{file_name} : folder / file_name;
+    };
+    if (auto m = load_exact(make_path(dynamic_module_name(name)))) {
+        return m;
+    }
+    // might be a full name
+    return load_exact(make_path(name));
+}
+
+DynamicModule DynamicModule::load_exact(const std::filesystem::path &path) noexcept {
     Clock clock;
-    auto p = folder / dynamic_module_name(name);
-    if (auto handle = dynamic_module_load(p)) {
-        LUISA_INFO(
-            "Loaded dynamic module '{}' in {} ms.",
-            to_string(p), clock.toc());
+    if (auto handle = dynamic_module_load(path)) {
+        LUISA_INFO("Loaded dynamic module '{}' in {} ms.",
+                   to_string(path), clock.toc());
         return DynamicModule{handle};
     }
     return DynamicModule{nullptr};
