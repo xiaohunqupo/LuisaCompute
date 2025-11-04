@@ -144,7 +144,7 @@ function on_install_sdk(target, rule_name)
         local copy_dir = lib["copy_dir"]
         if not copy_dir then
             copy_dir = target:targetdir()
-        else
+        elseif #copy_dir > 0 then
             copy_dir = path.join(copy_dir, os.host(), os.arch())
         end
         if #copy_dir > 0 then
@@ -194,7 +194,6 @@ function on_install_sdk(target, rule_name)
             unzip_sdk(sdk_map['name'], sdk_dir, extract_dir)
         end
         if #copy_dir > 0 then
-            os.mkdir(copy_dir)
             for _, filepath in ipairs(os.filedirs(path.join(extract_dir, "*"))) do
                 os.cp(filepath, path.join(copy_dir, path.filename(filepath)), {
                     copy_if_different = true
