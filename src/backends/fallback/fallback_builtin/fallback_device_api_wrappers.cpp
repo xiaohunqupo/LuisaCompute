@@ -194,7 +194,7 @@ LUISA_FALLBACK_WRAPPER float luisa_fallback_wrapper_matrix4d_determinant(const f
     const auto inv_1 = inv1 * sign_b;
     const auto inv_2 = inv2 * sign_a;
     const auto inv_3 = inv3 * sign_b;
-    const auto dot0 = m.cols[0] * inv_0;
+    const auto dot0 = m.cols[0] * llvm_float4{inv_0.x, inv_1.x, inv_2.x, inv_3.x};
     return dot0.x + dot0.y + dot0.z + dot0.w;
 }
 
