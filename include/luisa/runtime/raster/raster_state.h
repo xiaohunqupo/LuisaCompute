@@ -21,7 +21,7 @@ enum class Comparison : uint8_t {
 class MeshFormat {
 
 private:
-    luisa::vector<luisa::vector<VertexAttribute>> _streams;
+    luisa::fixed_vector<luisa::fixed_vector<VertexAttribute, 1>, 1> _streams;
 
 public:
     MeshFormat() noexcept {}
