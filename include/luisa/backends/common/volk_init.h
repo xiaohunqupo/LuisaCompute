@@ -52,11 +52,11 @@ public:
             vk_module = DynamicModule::load(custom_path, "vulkan-1");
 #elif defined(__APPLE__)
             do {
-                vk_module = DynamicModule::load(current_path, "vulkan");
+                vk_module = DynamicModule::load(custom_path, "MoltenVK");
                 if (vk_module) break;
-                vk_module = DynamicModule::load(current_path, "vulkan.1");
+                vk_module = DynamicModule::load(custom_path, "vulkan.1");
                 if (vk_module) break;
-                vk_module = DynamicModule::load(current_path, "MoltenVK");
+                vk_module = DynamicModule::load(custom_path, "vulkan");
             } while (false);
 #else
             vk_module = DynamicModule::load(custom_path, "vulkan");
@@ -72,25 +72,7 @@ public:
             }
             init_custom();
         } else {
-            auto current_path = std::filesystem::canonical(current_executable_path()).parent_path();
-#if defined(_WIN32)
-            vk_module = DynamicModule::load(current_path, "vulkan-1");
-#elif defined(__APPLE__)
-            do {
-                vk_module = DynamicModule::load(current_path, "vulkan");
-                if (vk_module) break;
-                vk_module = DynamicModule::load(current_path, "vulkan.1");
-                if (vk_module) break;
-                vk_module = DynamicModule::load(current_path, "MoltenVK");
-            } while (false);
-#else
-            vk_module = DynamicModule::load(current_path, "vulkan");
-#endif
-            if (vk_module) [[unlikely]] {
-                init_custom();
-            } else {
-                LUISA_CHECK_VULKAN(volkInitialize());
-            }
+            LUISA_CHECK_VULKAN(volkInitialize());
         }
     }
 };
