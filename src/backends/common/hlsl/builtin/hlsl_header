@@ -65,7 +65,17 @@ DeviceMemoryBarrier();
 return b[idx];
 }
 template<typename T,typename BufferType>
+T _coherent_volatile_bfread(globallycoherent BufferType b,uint idx){
+DeviceMemoryBarrier();
+return b[idx];
+}
+template<typename T,typename BufferType>
 T _volatile_bfreadVec3(BufferType b,uint idx){
+DeviceMemoryBarrier();
+return b[idx].xyz;
+}
+template<typename T,typename BufferType>
+T _coherent_volatile_bfreadVec3(globallycoherent BufferType b,uint idx){
 DeviceMemoryBarrier();
 return b[idx].xyz;
 }
@@ -75,7 +85,17 @@ DeviceMemoryBarrier();
 return b[idx].m;
 }
 template<typename T,typename BufferType>
+T _coherent_volatile_bfreadMat(globallycoherent BufferType b,uint idx){
+DeviceMemoryBarrier();
+return b[idx].m;
+}
+template<typename T,typename BufferType>
 T _volatile_bytebfread(BufferType b,uint idx){
+DeviceMemoryBarrier();
+return b.template Load<T>(idx);
+}
+template<typename T,typename BufferType>
+T _coherent_volatile_bytebfread(globallycoherent BufferType b,uint idx){
 DeviceMemoryBarrier();
 return b.template Load<T>(idx);
 }
@@ -85,7 +105,17 @@ DeviceMemoryBarrier();
 return b.template Load<BufferElem>(idx).xyz;
 }
 template<typename BufferElem,typename T,typename BufferType>
+T _coherent_volatile_bytebfreadVec3(globallycoherent BufferType b,uint idx){
+DeviceMemoryBarrier();
+return b.template Load<BufferElem>(idx).xyz;
+}
+template<typename BufferElem,typename T,typename BufferType>
 T _volatile_bytebfreadMat(BufferType b,uint idx){
+DeviceMemoryBarrier();
+return b.template Load<BufferElem>(idx).m;
+}
+template<typename BufferElem,typename T,typename BufferType>
+T _coherent_volatile_bytebfreadMat(globallycoherent BufferType b,uint idx){
 DeviceMemoryBarrier();
 return b.template Load<BufferElem>(idx).m;
 }

@@ -463,12 +463,17 @@ void CodegenUtility::GetFunctionDecl(Function func, vstd::StringBuilder &funcDec
             data += "()"sv;
         } else {
             data += '(';
+            auto globallycoherent_iter = opt->globallyCoherentBuffers.find(func.builder());
             for (auto &&i : func.arguments()) {
                 Usage usage = func.variable_usage(i.uid());
                 if (i.tag() == Variable::Tag::REFERENCE) {
                     if ((static_cast<uint32_t>(usage) & static_cast<uint32_t>(Usage::WRITE)) != 0) {
                         data += "inout "sv;
                     }
+                } else if (i.type()->is_buffer() &&
+                           (luisa::to_underlying(func.variable_usage(i.uid())) & luisa::to_underlying(Usage::WRITE)) != 0 &&
+                           globallycoherent_iter && globallycoherent_iter.value().find(i.uid()) != globallycoherent_iter.value().end()) {
+                    data += "globallycoherent "sv;
                 }
                 RegistStructType(i.type());
 
@@ -559,8 +564,8 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
     };
     switch (expr->op()) {
         case CallOp::CUSTOM:
-            str << "custom_"sv << vstd::to_string((opt->GetFuncCount(expr->custom())));
-            str << '(';
+            str << "custom_"sv << vstd::to_string((opt->GetFuncCount(expr->custom())))
+                << '(';
             {
                 uint64 sz = 0;
                 auto iter = opt->globallyCoherentBuffers.find(expr->custom().builder());
@@ -900,6 +905,10 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             if (floatToInt) {
                 str << "asfloat(";
             }
+            if ((luisa::to_underlying(vis.f.variable_usage(static_cast<RefExpr const *>(args[0])->variable().uid())) &
+                 luisa::to_underlying(Usage::WRITE)) != 0) {
+                str << "_coherent"sv;
+            }
             str << "_volatile_bfread"sv;
             auto elem = args[0]->type()->element();
             if (IsNumVec3(*elem)) {
@@ -971,6 +980,10 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             if (aliasStruct) {
                 AliasedToOrigin(expr->type(), str);
                 str << '(';
+            }
+            if ((luisa::to_underlying(vis.f.variable_usage(static_cast<RefExpr const *>(args[0])->variable().uid())) &
+                 luisa::to_underlying(Usage::WRITE)) != 0) {
+                str << "_coherent"sv;
             }
             str << "_volatile_bytebfread"sv;
             auto elem = expr->type();
@@ -2169,6 +2182,17 @@ void CodegenUtility::CodegenFunction(Function func, vstd::StringBuilder &result,
         vstd::unordered_set<Variable> grad_vars;
         glob_variables_with_grad(func, grad_vars);
 #endif
+        auto printFunctionContent = [&] {
+            vstd::StringBuilder funcContent;
+            StringStateVisitor vis(func, funcContent, this);
+            vis.sharedVariables = &opt->sharedVariable;
+            vis.VisitFunction(
+#ifdef LUISA_ENABLE_IR
+                grad_vars,
+#endif
+                func);
+            return funcContent;
+        };
         if (func.tag() == Function::Tag::KERNEL) {
             opt->funcType = CodegenStackData::FuncType::Kernel;
             auto warp_size = func.allowed_warp_size();
@@ -2215,21 +2239,15 @@ void main(uint3 thdId:SV_GroupThreadId,uint3 dspId:SV_DispatchThreadID,uint3 grp
                 opt->arguments.try_emplace(i.uid(), idx);
                 ++idx;
             }
+            result << printFunctionContent();
+
         } else {
+            auto funcContent = printFunctionContent();
             opt->funcType = CodegenStackData::FuncType::Callable;
             GetFunctionDecl(func, result);
-            result << "{\n"sv;
+            result << "{\n"sv << funcContent;
         }
-        {
 
-            StringStateVisitor vis(func, result, this);
-            vis.sharedVariables = &opt->sharedVariable;
-            vis.VisitFunction(
-#ifdef LUISA_ENABLE_IR
-                grad_vars,
-#endif
-                func);
-        }
         result << "}\n"sv;
     };
     vstd::unordered_set<uint64_t> callableMap;
