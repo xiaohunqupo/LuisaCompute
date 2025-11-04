@@ -59,32 +59,32 @@ row_major float4x4 m;
 #define _bfread(bf,idx) bf[idx]
 #define _bfreadVec3(bf,idx) bf[idx].xyz
 #define _bfreadMat(bf,idx) bf[idx].m
-template<typename BufferType,typename T>
+template<typename T,typename BufferType>
 T _volatile_bfread(BufferType b,uint idx){
 DeviceMemoryBarrier();
 return b[idx];
 }
-template<typename BufferType,typename T>
+template<typename T,typename BufferType>
 T _volatile_bfreadVec3(BufferType b,uint idx){
 DeviceMemoryBarrier();
 return b[idx].xyz;
 }
-template<typename BufferType,typename T>
+template<typename T,typename BufferType>
 T _volatile_bfreadMat(BufferType b,uint idx){
 DeviceMemoryBarrier();
 return b[idx].m;
 }
-template<typename BufferType,typename T>
+template<typename T,typename BufferType>
 T _volatile_bytebfread(BufferType b,uint idx){
 DeviceMemoryBarrier();
 return b.template Load<T>(idx);
 }
-template<typename BufferType,typename BufferElem,typename T>
+template<typename BufferElem,typename T,typename BufferType>
 T _volatile_bytebfreadVec3(BufferType b,uint idx){
 DeviceMemoryBarrier();
 return b.template Load<BufferElem>(idx).xyz;
 }
-template<typename BufferType,typename BufferElem,typename T>
+template<typename BufferElem,typename T,typename BufferType>
 T _volatile_bytebfreadMat(BufferType b,uint idx){
 DeviceMemoryBarrier();
 return b.template Load<BufferElem>(idx).m;

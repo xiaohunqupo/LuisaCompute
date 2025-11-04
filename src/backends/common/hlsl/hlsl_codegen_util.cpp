@@ -908,8 +908,6 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
                 str << "Mat";
             }
             str << '<';
-            GetTypeName(*args[0]->type(), str, vis.f.variable_usage(static_cast<RefExpr const *>(args[0])->variable().uid()));
-            str << ',';
             GetTypeName(*expr->type(), str, Usage::NONE);
             str << ">(";
             PrintArgs();
@@ -979,8 +977,6 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             if (IsNumVec3(*elem)) {
                 str << "Vec3"sv;
                 str << '<';
-                GetTypeName(*args[0]->type(), str, vis.f.variable_usage(static_cast<RefExpr const *>(args[0])->variable().uid()));
-                str << ',';
                 GetTypeName(*elem->element(), str, Usage::NONE);
                 str << "4,"sv;
                 GetTypeName(*expr->type(), str, Usage::NONE);
@@ -993,8 +989,6 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             } else if (elem->is_matrix()) {
                 str << "Mat"sv;
                 str << '<';
-                GetTypeName(*args[0]->type(), str, vis.f.variable_usage(static_cast<RefExpr const *>(args[0])->variable().uid()));
-                str << ',';
                 switch (elem->dimension()) {
                     case 2:
                         str << "_WrappedFloat2x2"sv;
@@ -1015,8 +1009,6 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
                 str << ')';
             } else {
                 str << '<';
-                GetTypeName(*args[0]->type(), str, vis.f.variable_usage(static_cast<RefExpr const *>(args[0])->variable().uid()));
-                str << ',';
                 if (aliasStruct) {
                     str << opt->CreateAliasedStruct(elem).first;
                 } else {
