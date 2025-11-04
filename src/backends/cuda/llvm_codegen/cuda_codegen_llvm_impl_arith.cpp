@@ -401,8 +401,15 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionCont
             LUISA_DEBUG_ASSERT(base->getType()->isFPOrFPVectorTy() &&
                                exponent->getType()->isIntOrIntVectorTy() &&
                                inst->type()->is_float_or_float_vector());
-            // TODO: is powi lowerable on NVPTX?
-            return b.CreateBinaryIntrinsic(llvm::Intrinsic::powi, base, exponent);
+            // make sure that exponent is i32 or i32 vector
+            if (!exponent->getType()->isIntegerTy(32)) {
+                auto i32_type = static_cast<llvm::Type *>(b.getInt32Ty());
+                if (inst->type()->is_vector()) {
+                    i32_type = llvm::VectorType::get(i32_type, inst->type()->dimension(), false);
+                }
+                exponent = b.CreateIntCast(exponent, i32_type, true);
+            }
+            return _call_libdevice_binary_op(b, "powi", base, exponent);
         }
         case xir::ArithmeticOp::SQRT: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
@@ -631,23 +638,22 @@ llvm::Value *CUDACodegenLLVMImpl::_call_libdevice_unary_op(IB &b, llvm::StringRe
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_call_libdevice_binary_op(IB &b, llvm::StringRef op_name, llvm::Value *llvm_lhs, llvm::Value *llvm_rhs) noexcept {
-    LUISA_DEBUG_ASSERT(llvm_lhs->getType() == llvm_rhs->getType());
-    auto llvm_scalar_t = llvm_lhs->getType()->getScalarType();
-    auto op = detail::find_libdevice_function(*_llvm_module, op_name, llvm_scalar_t, _config.enable_fast_math);
-    auto should_cast_to_float = !llvm_scalar_t->isFloatTy() && !llvm_scalar_t->isDoubleTy();
+    auto llvm_lhs_scalar_t = llvm_lhs->getType()->getScalarType();
+    auto llvm_rhs_scalar_t = llvm_rhs->getType()->getScalarType();
+    auto op = detail::find_libdevice_function(*_llvm_module, op_name, llvm_lhs_scalar_t, _config.enable_fast_math);
+    auto lhs_should_cast_to_float = llvm_lhs_scalar_t->isFloatingPointTy() && !llvm_lhs_scalar_t->isFloatTy() && !llvm_lhs_scalar_t->isDoubleTy();
+    auto rhs_should_cast_to_float = llvm_rhs_scalar_t->isFloatingPointTy() && !llvm_rhs_scalar_t->isFloatTy() && !llvm_rhs_scalar_t->isDoubleTy();
     auto call_scalar = [&](llvm::Value *llvm_lhs_elem, llvm::Value *llvm_rhs_elem) noexcept {
-        if (should_cast_to_float) {
-            llvm_lhs_elem = b.CreateFPExt(llvm_lhs_elem, llvm::Type::getFloatTy(b.getContext()));
-            llvm_rhs_elem = b.CreateFPExt(llvm_rhs_elem, llvm::Type::getFloatTy(b.getContext()));
-        }
+        if (lhs_should_cast_to_float) { llvm_lhs_elem = b.CreateFPExt(llvm_lhs_elem, llvm::Type::getFloatTy(b.getContext())); }
+        if (rhs_should_cast_to_float) { llvm_rhs_elem = b.CreateFPExt(llvm_rhs_elem, llvm::Type::getFloatTy(b.getContext())); }
         auto llvm_res_elem = static_cast<llvm::Value *>(b.CreateCall(op, {llvm_lhs_elem, llvm_rhs_elem}));
-        if (should_cast_to_float) { llvm_res_elem = b.CreateFPTrunc(llvm_res_elem, llvm_scalar_t); }
+        if (lhs_should_cast_to_float) { llvm_res_elem = b.CreateFPTrunc(llvm_res_elem, llvm_lhs_scalar_t); }
         return llvm_res_elem;
     };
     // if it's a vector, need to call per element
     if (auto vt = llvm::dyn_cast<llvm::VectorType>(llvm_lhs->getType())) {
         auto dim = vt->getElementCount().getFixedValue();
-        auto llvm_result = static_cast<llvm::Value *>(llvm::PoisonValue::get(llvm_lhs->getType()));
+        auto llvm_result = static_cast<llvm::Value *>(llvm::PoisonValue::get(vt));
         for (auto i = 0; i < dim; i++) {
             auto llvm_lhs_elem = b.CreateExtractElement(llvm_lhs, i);
             auto llvm_rhs_elem = b.CreateExtractElement(llvm_rhs, i);
