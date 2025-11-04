@@ -192,7 +192,7 @@ private:
             create_info_wl.sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR;
             create_info_wl.display = display_handle ? reinterpret_cast<wl_display *>(display_handle) : wl_display_connect(nullptr);
             create_info_wl.surface = reinterpret_cast<wl_surface *>(window_handle);
-        auto vkCreateWaylandSurfaceKHR = (PFN_vkCreateWaylandSurfaceKHR)vkGetInstanceProcAddr(_instance->handle(), "vkCreateWaylandSurfaceKHR");
+            auto vkCreateWaylandSurfaceKHR = (PFN_vkCreateWaylandSurfaceKHR)vkGetInstanceProcAddr(_instance->handle(), "vkCreateWaylandSurfaceKHR");
             LUISA_CHECK_VULKAN(vkCreateWaylandSurfaceKHR(_instance->handle(), &create_info_wl, nullptr, &_surface));
         } else {// X uses 32-bit IDs
             create_surface_xlib();
@@ -424,7 +424,9 @@ private:
                            bool is_recreation, bool allow_hdr, bool vsync) noexcept {
 
         auto support = _query_swapchain_support(_physical_device);
-        if (support.capabilities.maxImageCount == 0u) { support.capabilities.maxImageCount = back_buffers; }
+        if (support.capabilities.maxImageCount == 0u) {
+            support.capabilities.maxImageCount = std::max(back_buffers, support.capabilities.minImageCount);
+        }
         if (!is_recreation) {// only allow change back buffer count and swapchain format on first creation
             back_buffers = std::clamp(
                 back_buffers,
@@ -505,9 +507,15 @@ private:
 
         // get the swapchain images
         auto image_count = back_buffers;
+        LUISA_CHECK_VULKAN(vkGetSwapchainImagesKHR(_device, _swapchain, &image_count, nullptr));
+        LUISA_ASSERT(image_count != 0);
+        if (image_count != back_buffers) {
+            LUISA_WARNING_WITH_LOCATION("Swapchain image count mismatch: required = {}, actual = {}.", back_buffers, image_count);
+            back_buffers = image_count;
+        }
         _swapchain_images.resize(image_count);
         LUISA_CHECK_VULKAN(vkGetSwapchainImagesKHR(_device, _swapchain, &image_count, _swapchain_images.data()));
-        LUISA_ASSERT(image_count == back_buffers, "Swapchain image count mismatch.");
+        LUISA_ASSERT(image_count == back_buffers);
 
         // create the swapchain image views
         _swapchain_image_views.resize(image_count);
@@ -1025,6 +1033,8 @@ public:
                 luisa::to_string(ret));
         }
         LUISA_CHECK_VULKAN(vkResetFences(_device, 1, &_in_flight_fences[_current_frame]));
+
+        image_index = image_index % _swapchain_framebuffers.size();
 
         // update descriptor set if necessary
         if (image != _cached_image_infos[_current_frame].imageView ||
