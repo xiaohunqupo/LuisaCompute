@@ -1,7 +1,8 @@
 #pragma once
 #include <luisa/backends/ext/raster_ext_interface.h>
 #include <luisa/runtime/device.h>
-namespace luisa::compute{
+#include <luisa/backends/ext/raster_cmd.h>
+namespace luisa::compute {
 
 template<typename V, typename P>
 [[nodiscard]] typename RasterKernel<V, P>::RasterShaderType Device::compile(
@@ -27,4 +28,7 @@ RasterShader<Args...> Device::load_raster_shader(
     luisa::string_view shader_name) noexcept {
     return _create<RasterShader<Args...>>(extension<RasterExt>(), shader_name);
 }
+inline luisa::unique_ptr<Command> RasterExt::clear_render_target(ImageView<float> render_target, float4 value) noexcept {
+    return luisa::make_unique<ClearRenderTargetCommand>(render_target.handle(), value, render_target.level());
 }
+}// namespace luisa::compute

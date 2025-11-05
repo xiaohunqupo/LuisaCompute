@@ -91,6 +91,7 @@ public:
         DepthRead,
         DepthWrite,
         DepthClear,
+        RenderTargetClear,
         IndirectArgs,
         VertexRead,
         IndexRead,

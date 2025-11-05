@@ -157,7 +157,7 @@ size_t BottomAccel::PreProcessStates(
         bottomStruct.Inputs.Flags =
             (D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS)(((uint)bottomStruct.Inputs.Flags) & (~((uint)D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PERFORM_UPDATE)));
     }
-
+    tracker.Record(GetAccelBuffer(), EnhancedBarrierTracker::Range(), EnhancedBarrierTracker::Usage::BuildAccel);
     return (update ? bottomLevelPrebuildInfo.UpdateScratchDataSizeInBytes : bottomLevelPrebuildInfo.ScratchDataSizeInBytes) + sizeof(size_t);
 }
 bool BottomAccel::CheckAccel(
@@ -204,8 +204,6 @@ void BottomAccel::UpdateStates(
             0,
             nullptr);
     }
-    auto vv = accelBuffer->GetInitState();
-    tracker.Record(GetAccelBuffer(), EnhancedBarrierTracker::Range(), EnhancedBarrierTracker::Usage::BuildAccel);
 }
 void BottomAccel::FinalCopy(
     CommandBufferBuilder &builder,

@@ -3,6 +3,8 @@
 #include <luisa/runtime/rhi/device_interface.h>
 #include <luisa/runtime/raster/raster_state.h>
 namespace luisa::compute {
+template <typename T>
+class ImageView;
 enum class IndexFormat {
     UInt16,
     UInt32
@@ -33,5 +35,7 @@ public:
     // depth buffer
     [[nodiscard]] virtual ResourceCreationInfo create_depth_buffer(DepthFormat format, uint width, uint height) noexcept = 0;
     virtual void destroy_depth_buffer(uint64_t handle) noexcept = 0;
+
+    inline luisa::unique_ptr<Command> clear_render_target(ImageView<float> render_target, float4 value) noexcept;
 };
 }// namespace luisa::compute

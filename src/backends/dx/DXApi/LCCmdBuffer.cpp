@@ -318,6 +318,12 @@ public:
             EnhancedBarrierTracker::TexView(rt, 0),
             EnhancedBarrierTracker::Usage::DepthWrite);
     }
+    void visit(const ClearRenderTargetCommand *cmd) noexcept {
+        auto rt = reinterpret_cast<TextureBase *>(cmd->handle());
+        stateTracker->Record(
+            EnhancedBarrierTracker::TexView(rt, cmd->level()),
+            EnhancedBarrierTracker::Usage::RenderTarget);
+    }
     void visit(const TextureDownloadCommand *cmd) noexcept override {
         auto rt = reinterpret_cast<TextureBase *>(cmd->handle());
         stateTracker->Record(
@@ -431,6 +437,9 @@ public:
         switch (cmd->custom_cmd_uuid()) {
             case to_underlying(CustomCommandUUID::RASTER_CLEAR_DEPTH):
                 visit(static_cast<ClearDepthCommand const *>(cmd));
+                break;
+            case to_underlying(CustomCommandUUID::RASTER_CLEAR_RENDER_TARGET):
+                visit(static_cast<ClearRenderTargetCommand const *>(cmd));
                 break;
             case to_underlying(CustomCommandUUID::RASTER_DRAW_SCENE):
                 visit(static_cast<DrawRasterSceneCommand const *>(cmd));
@@ -805,8 +814,23 @@ public:
         viewDesc.Texture2D.MipSlice = 0;
         device->device->CreateDepthStencilView(rt->GetResource(), &viewDesc, dsvHandle);
         D3D12_CLEAR_FLAGS clearFlags = D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL;
-        RECT rect{0, 0, static_cast<int>(rt->Width()), static_cast<int>(rt->Height())};
-        cmdList->ClearDepthStencilView(dsvHandle, clearFlags, cmd->value(), 0, 1, &rect);
+        cmdList->ClearDepthStencilView(dsvHandle, clearFlags, cmd->value(), 0, 0, nullptr);
+    }
+    void visit(const ClearRenderTargetCommand *cmd) {
+        auto rt = reinterpret_cast<TextureBase *>(cmd->handle());
+        auto cmdList = bd->GetCB()->CmdList();
+        FLOAT values[4];
+        float4 c_values = cmd->value();
+        std::memcpy(values, &c_values, sizeof(float4));
+
+        auto alloc = bd->GetCB()->GetAlloc();
+        D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle;
+        auto chunk = alloc->rtvAllocator.allocate(1);
+        auto descHeap = reinterpret_cast<DescriptorHeap *>(chunk.handle);
+        rtvHandle = descHeap->hCPU(chunk.offset);
+        auto viewDesc = rt->GetRenderTargetDesc(cmd->level());
+        device->device->CreateRenderTargetView(rt->GetResource(), &viewDesc, rtvHandle);
+        cmdList->ClearRenderTargetView(rtvHandle, values, 0, nullptr);
     }
     void visit(const TextureDownloadCommand *cmd) noexcept override {
 #ifdef LCDX_ENABLE_WINPIX
@@ -992,6 +1016,9 @@ public:
         switch (cmd->custom_cmd_uuid()) {
             case to_underlying(CustomCommandUUID::RASTER_CLEAR_DEPTH):
                 visit(static_cast<ClearDepthCommand const *>(cmd));
+                break;
+            case to_underlying(CustomCommandUUID::RASTER_CLEAR_RENDER_TARGET):
+                visit(static_cast<ClearRenderTargetCommand const *>(cmd));
                 break;
             case to_underlying(CustomCommandUUID::RASTER_DRAW_SCENE):
                 visit(static_cast<DrawRasterSceneCommand const *>(cmd));

@@ -1184,6 +1184,13 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                                 TexView(tex, 0),
                                 ResourceBarrier::Usage::DepthClear);
                         } break;
+                        case to_underlying(CustomCommandUUID::RASTER_CLEAR_RENDER_TARGET): {
+                            auto cmd = static_cast<ClearRenderTargetCommand const *>(c);
+                            auto tex = reinterpret_cast<Texture const *>(cmd->handle());
+                            resource_barrier->record(
+                                TexView(tex, cmd->level()),
+                                ResourceBarrier::Usage::RenderTargetClear);
+                        } break;
                         case to_underlying(CustomCommandUUID::RASTER_DRAW_SCENE): {
                             auto cmd = static_cast<DrawRasterSceneCommand const *>(c);
                             auto shader = reinterpret_cast<RasterShader *>(cmd->handle());
@@ -1821,6 +1828,26 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                                 tex->vk_image(),
                                 resource_barrier->get_layout(tex, 0),
                                 &depth_stencil_value,
+                                1,
+                                &sub_range);
+                        } break;
+                        case to_underlying(CustomCommandUUID::RASTER_CLEAR_RENDER_TARGET): {
+                            auto cmd = static_cast<ClearRenderTargetCommand const *>(c);
+                            auto tex = reinterpret_cast<Texture *>(cmd->handle());
+                            VkClearColorValue color_value;
+                            float4 values = cmd->value();
+                            std::memcpy(color_value.float32, &values, sizeof(float4));
+                            VkImageSubresourceRange sub_range{
+                                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                .baseMipLevel = 0,
+                                .levelCount = 1,
+                                .baseArrayLayer = 0,
+                                .layerCount = 1};
+                            vkCmdClearColorImage(
+                                _cmdbuffer,
+                                tex->vk_image(),
+                                resource_barrier->get_layout(tex, cmd->level()),
+                                &color_value,
                                 1,
                                 &sub_range);
                         } break;

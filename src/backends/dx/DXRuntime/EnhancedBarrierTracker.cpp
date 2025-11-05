@@ -451,6 +451,8 @@ void EnhancedBarrierTracker::Record(
     size_t size;
     bool allow_simul_access = true;
     D3D12_BARRIER_LAYOUT init_layout = D3D12_BARRIER_LAYOUT_COMMON;
+    D3D12_BARRIER_ACCESS init_access = D3D12_BARRIER_ACCESS_COMMON;
+    D3D12_BARRIER_SYNC init_sync = D3D12_BARRIER_SYNC_NONE;
 
     auto resRange = res.multi_visit_or(
         vstd::UndefEval<SubResource>{},
@@ -478,7 +480,18 @@ void EnhancedBarrierTracker::Record(
             size = 1;
             return 0u;
         });
-    auto ite = frameStates.emplace(d3d12Res, type, size);
+    auto iter = frameStates.try_emplace(d3d12Res, type, size);
+    if (iter.second) {
+        detail::LegacyBarrierToEnhanced(
+            d3d12Res->GetInitState(),
+            init_sync,
+            init_access,
+            init_layout);
+        if (init_access == D3D12_BARRIER_ACCESS_RAYTRACING_ACCELERATION_STRUCTURE_READ) {
+            init_access |= D3D12_BARRIER_ACCESS_RAYTRACING_ACCELERATION_STRUCTURE_WRITE;
+        }
+    }
+    auto ite = iter.first;
     auto &vec = ite.value().layer_states;
     if (!ite.value().require_update) {
         current_update_states.emplace_back(ite.key(), &ite.value());
@@ -491,9 +504,9 @@ void EnhancedBarrierTracker::Record(
                 LUISA_DEBUG_ASSERT(resRange.index() == 0);
                 auto &&current_range = resRange.template get<0>();
                 BufferRange new_range{
-                    D3D12_BARRIER_SYNC_NONE,
+                    init_sync,
                     current_range.sync,
-                    D3D12_BARRIER_ACCESS_COMMON,
+                    init_access,
                     // vec.init_access,
                     current_range.access};
                 // if (vec.size() > 64)// Combine all if too many ranges
@@ -551,6 +564,8 @@ void EnhancedBarrierTracker::Record(
                 auto current_level = resRange.template get<1>();
                 auto &tex_range = vec[current_level];
                 if (!tex_range.level_inited) {
+                    tex_range.before_sync = init_sync;
+                    tex_range.before_access = init_access;
                     tex_range.before_layout = init_layout;
                 }
                 tex_range.first_time = false;

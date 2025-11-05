@@ -869,6 +869,9 @@ public:
     void visit(const ClearDepthCommand *command) noexcept {
         add_command(command, set_write(command->handle(), Range{}, ResourceType::Texture_Buffer));
     }
+    void visit(const ClearRenderTargetCommand *command) noexcept {
+        add_command(command, set_write(command->handle(), Range{command->level(), 1}, ResourceType::Texture_Buffer));
+    }
 
     // BindlessArray : read multi resources
     void visit(const BindlessArrayUpdateCommand *command) noexcept override {
@@ -953,6 +956,9 @@ public:
         switch (uuid_value) {
             case to_underlying(CustomCommandUUID::RASTER_CLEAR_DEPTH):
                 visit(static_cast<ClearDepthCommand const *>(custom_cmd));
+                break;
+            case to_underlying(CustomCommandUUID::RASTER_CLEAR_RENDER_TARGET):
+                visit(static_cast<ClearRenderTargetCommand const *>(custom_cmd));
                 break;
             case to_underlying(CustomCommandUUID::RASTER_DRAW_SCENE):
                 visit(static_cast<DrawRasterSceneCommand const *>(custom_cmd));

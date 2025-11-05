@@ -20,6 +20,7 @@ static constexpr VkPipelineStageFlagBits2 BarrierSyncMap[] = {
     VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,//DepthRead
     VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,//DepthWrite
     VK_PIPELINE_STAGE_2_CLEAR_BIT,                                                             //DepthClear
+    VK_PIPELINE_STAGE_2_CLEAR_BIT,                                                             //RenderTargetClear
     VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,                                                     //IndirectArgs
     VK_PIPELINE_STAGE_2_VERTEX_ATTRIBUTE_INPUT_BIT,                                            //VertexRead,
     VK_PIPELINE_STAGE_2_INDEX_INPUT_BIT,                                                       //  IndexRead,
@@ -42,6 +43,7 @@ static constexpr VkAccessFlagBits2 BarrierAccessMap[] = {
     VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT,   //DepthRead
     VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,  //DepthWrite
     VK_ACCESS_2_TRANSFER_WRITE_BIT,                  //DepthClear
+    VK_ACCESS_2_TRANSFER_WRITE_BIT,                  //RenderTargetClear
     VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT,           // IndirectArgs
     VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT,           //VertexRead,
     VK_ACCESS_2_INDEX_READ_BIT,                      //  IndexRead,
@@ -64,7 +66,8 @@ static constexpr VkImageLayout BarrierLayoutMap[] = {
     VK_IMAGE_LAYOUT_GENERAL,                         // CopyAccelDst
     VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, //DepthRead
     VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,//DepthWrite
-    VK_IMAGE_LAYOUT_GENERAL,                         //DepthClear
+    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,            //DepthClear
+    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,            //RenderTargetClear
     VK_IMAGE_LAYOUT_GENERAL,                         // IndirectArgs
     VK_IMAGE_LAYOUT_GENERAL,                         //VertexRead,
     VK_IMAGE_LAYOUT_GENERAL,                         //  IndexRead,

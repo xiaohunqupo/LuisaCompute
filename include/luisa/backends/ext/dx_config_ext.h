@@ -54,7 +54,7 @@ struct DirectXDeviceConfigExt : public DeviceConfigExt {
     virtual luisa::optional<GPUAllocatorSettings> GetGPUAllocatorSettings() noexcept { return {}; }
     virtual bool UseDRED() const noexcept { return false; }
     virtual bool LoadDXC() const noexcept { return true; }
-    virtual bool UseEnhancedBarrier() const noexcept { return true; }
+    virtual bool UseEnhancedBarrier() const noexcept { return false; }
     virtual bool UseExperimental() const noexcept { return false; }
     // Called during create_device
     virtual void ReadbackDX12Device(

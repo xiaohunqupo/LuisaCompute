@@ -243,6 +243,10 @@ void Stream::custom(DeviceInterface *dev, Command *cmd) {
             auto c = static_cast<ClearDepthCommand *>(cmd);
             mark_handle(c->handle(), Usage::WRITE, Range{});
         } break;
+        case to_underlying(CustomCommandUUID::RASTER_CLEAR_RENDER_TARGET): {
+            auto c = static_cast<ClearRenderTargetCommand *>(cmd);
+            mark_handle(c->handle(), Usage::WRITE, Range{c->level(), 1});
+        } break;
         case to_underlying(CustomCommandUUID::RASTER_DRAW_SCENE): {
             // auto c = static_cast<DrawRasterSceneCommand *>(cmd);
             // mark_shader_dispatch(dev, c, false);

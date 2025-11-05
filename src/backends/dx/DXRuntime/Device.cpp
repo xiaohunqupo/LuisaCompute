@@ -365,7 +365,7 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
                 LUISA_ERROR("Experimental not supported.");
             }
         }
-        use_enhanced_barrier = (!deviceSettings || deviceSettings->UseEnhancedBarrier()) && use_enhanced_barrier;
+        use_enhanced_barrier = (deviceSettings && deviceSettings->UseEnhancedBarrier()) && use_enhanced_barrier;
     } else {
         if (deviceSettings) {
             if (gDxcCompiler) {

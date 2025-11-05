@@ -82,4 +82,23 @@ public:
     LUISA_MAKE_COMMAND_COMMON(StreamTag::GRAPHICS)
 };
 
+class ClearRenderTargetCommand final : public CustomCommand {
+    friend lc::validation::Stream;
+    uint64_t _handle;
+    float4 _value;
+    uint _level;
+
+public:
+    explicit ClearRenderTargetCommand(uint64_t handle, float4 value, uint level) noexcept
+        : _handle{handle}, _value(value), _level(level) {
+    }
+    uint64_t custom_cmd_uuid() const noexcept override { return to_underlying(CustomCommandUUID::RASTER_CLEAR_RENDER_TARGET); }
+    void set_handle(uint64_t handle) noexcept { _handle = handle; }
+    [[nodiscard]] auto handle() const noexcept { return _handle; }
+    [[nodiscard]] auto value() const noexcept { return _value; }
+    [[nodiscard]] auto level() const noexcept { return _level; }
+
+    LUISA_MAKE_COMMAND_COMMON(StreamTag::GRAPHICS)
+};
+
 }// namespace luisa::compute
