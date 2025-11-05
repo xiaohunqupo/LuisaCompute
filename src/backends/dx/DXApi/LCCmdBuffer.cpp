@@ -1097,6 +1097,7 @@ public:
                     .Flags = D3D12_DSV_FLAG_NONE};
                 viewDesc.Texture2D.MipSlice = 0;
                 device->device->CreateDepthStencilView(tex->GetResource(), &viewDesc, dsvHandle);
+                dsvFormat = DepthBuffer::GFXFormatToDepth(tex->Format());
             }
             cmdList->OMSetRenderTargets(rtvs.size(), &rtvHandle, true, dsvHandlePtr);
         }
