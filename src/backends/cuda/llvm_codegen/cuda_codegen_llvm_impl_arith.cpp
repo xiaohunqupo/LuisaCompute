@@ -41,12 +41,30 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionCont
         auto llvm_c = _get_llvm_value(b, func_ctx, inst->operand(2));
         return op(llvm_a, llvm_b, llvm_c);
     };
-    auto call_exp2 = [&](auto v) noexcept -> llvm::Value * {
-#if LLVM_VERSION_MAJOR >= 20// NVPTX can correctly lower exp2 intrinsic since LLVM 20
-        return b.CreateUnaryIntrinsic(llvm::Intrinsic::exp2, v);
-#else// otherwise we need to call libdevice function
-        return _call_libdevice_unary_op(b, "exp2", v);
-#endif
+    auto call_exp2 = [&](llvm::Value *v) noexcept -> llvm::Value * {
+        if (auto scalar_t = v->getType()->getScalarType(); !scalar_t->isHalfTy()) {
+            return _call_libdevice_unary_op(b, "exp2", v);
+        }
+        if (auto vector_t = llvm::dyn_cast<llvm::VectorType>(v->getType())) {
+            auto dim = vector_t->getElementCount().getFixedValue();
+            auto result = static_cast<llvm::Value *>(llvm::PoisonValue::get(vector_t));
+            for (auto i = 0; i < dim; i += 2) {
+                auto pair = b.CreateShuffleVector(v, {i * 2 + 0, i * 2 + 1});
+                auto exp2 = b.CreateIntrinsic(llvm::Intrinsic::nvvm_ex2_approx_f16x2, {pair});
+                auto exp2_x = b.CreateExtractElement(exp2, b.getInt32(0));
+                auto exp2_y = b.CreateExtractElement(exp2, b.getInt32(1));
+                result = b.CreateInsertElement(result, exp2_x, i * 2 + 0);
+                result = b.CreateInsertElement(result, exp2_y, i * 2 + 1);
+            }
+            if (dim % 2 != 0) {
+                auto last = b.CreateExtractElement(v, dim - 1);
+                auto exp2 = b.CreateIntrinsic(llvm::Intrinsic::nvvm_ex2_approx_f16, last);
+                result = b.CreateInsertElement(result, exp2, dim - 1);
+            }
+            return result;
+        }
+        // scalar
+        return b.CreateIntrinsic(llvm::Intrinsic::nvvm_ex2_approx_f16, {v});
     };
     auto dot_product_fp = [&](llvm::Value *u, llvm::Value *v) noexcept {
         LUISA_DEBUG_ASSERT(u->getType()->isVectorTy() && v->getType()->isFPOrFPVectorTy() && u->getType() == v->getType());
@@ -388,10 +406,14 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionCont
         });
         case xir::ArithmeticOp::POW: return translate_binary([&](auto base, auto exponent) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-            // we can optimize pow(a, b) = std::exp2(b * std::log2(a)) if fast math is enabled and a is a constant
-            if (_config.enable_fast_math && llvm::isa<llvm::Constant>(base)) {
-                auto log2_base = b.CreateUnaryIntrinsic(llvm::Intrinsic::log2, base);
-                return call_exp2(b.CreateFMul(exponent, log2_base));
+            // we can optimize pow(a, b) = std::exp2(b * std::log2(a)) for fp16 if fast math is enabled
+            if (_config.enable_fast_math) {
+                if (auto scalar_t = base->getType()->getScalarType(); !scalar_t->isFloatTy() && !scalar_t->isDoubleTy()) {
+                    auto log2_base = llvm::isa<llvm::Constant>(base) ?
+                                         b.CreateUnaryIntrinsic(llvm::Intrinsic::log2, base) :
+                                         _call_libdevice_unary_op(b, "log2", base);
+                    return call_exp2(b.CreateFMul(exponent, log2_base));
+                }
             }
             return _call_libdevice_binary_op(b, "pow", base, exponent);
         });
