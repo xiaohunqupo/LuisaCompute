@@ -149,8 +149,8 @@ LUISA_FALLBACK_WRAPPER float luisa_fallback_wrapper_matrix2d_determinant(const f
 
 LUISA_FALLBACK_WRAPPER float luisa_fallback_wrapper_matrix3d_determinant(const float3x3 *pm) noexcept {
     auto m = *reinterpret_cast<const llvm_float3x3 *>(pm);
-    return m.cols[0].x * (m.cols[1].y * m.cols[2].z - m.cols[2].y * m.cols[1].z) -
-           m.cols[1].x * (m.cols[0].y * m.cols[2].z - m.cols[2].y * m.cols[0].z) +
+    return m.cols[0].x * (m.cols[1].y * m.cols[2].z - m.cols[2].y * m.cols[1].z) +
+           m.cols[1].x * (m.cols[2].y * m.cols[0].z - m.cols[0].y * m.cols[2].z) +
            m.cols[2].x * (m.cols[0].y * m.cols[1].z - m.cols[1].y * m.cols[0].z);
 }
 
@@ -209,8 +209,8 @@ LUISA_FALLBACK_WRAPPER void luisa_fallback_wrapper_matrix2d_inverse(const float2
 
 LUISA_FALLBACK_WRAPPER void luisa_fallback_wrapper_matrix3d_inverse(const float3x3 *pm, float3x3 *out) noexcept {
     auto m = *reinterpret_cast<const llvm_float3x3 *>(pm);
-    const auto determinant = m.cols[0].x * (m.cols[1].y * m.cols[2].z - m.cols[2].y * m.cols[1].z) -
-                             m.cols[1].x * (m.cols[0].y * m.cols[2].z - m.cols[2].y * m.cols[0].z) +
+    const auto determinant = m.cols[0].x * (m.cols[1].y * m.cols[2].z - m.cols[2].y * m.cols[1].z) +
+                             m.cols[1].x * (m.cols[2].y * m.cols[0].z - m.cols[0].y * m.cols[2].z) +
                              m.cols[2].x * (m.cols[0].y * m.cols[1].z - m.cols[1].y * m.cols[0].z);
     const auto one_over_determinant = 1.0f / determinant;
     out->cols[0].x = (m.cols[1].y * m.cols[2].z - m.cols[2].y * m.cols[1].z) * one_over_determinant;

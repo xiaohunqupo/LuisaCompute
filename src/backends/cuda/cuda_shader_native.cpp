@@ -15,8 +15,7 @@ namespace luisa::compute::cuda {
 CUDAShaderNative::CUDAShaderNative(CUDADevice *device, luisa::vector<std::byte> ptx,
                                    const char *entry, const CUDAShaderMetadata &metadata,
                                    luisa::vector<ShaderDispatchCommand::Argument> bound_arguments) noexcept
-    : CUDAShader{CUDAShaderPrinter::create(metadata.format_types),
-                 metadata.argument_usages},
+    : CUDAShader{CUDAShaderPrinter::create(metadata.format_types), metadata.argument_usages},
       _entry{entry},
       _block_size{metadata.block_size.x,
                   metadata.block_size.y,

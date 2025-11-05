@@ -733,30 +733,30 @@ namespace detail {
 
 [[nodiscard]] llvm::Value *cuda_codegen_llvm_determinant2x2(CUDACodegenLLVMImpl::IB &b, llvm::Value *m0, llvm::Value *m1) noexcept {
     auto m00 = b.CreateExtractElement(m0, b.getInt32(0));
-    auto m10 = b.CreateExtractElement(m0, b.getInt32(1));
-    auto m01 = b.CreateExtractElement(m1, b.getInt32(0));
+    auto m01 = b.CreateExtractElement(m0, b.getInt32(1));
+    auto m10 = b.CreateExtractElement(m1, b.getInt32(0));
     auto m11 = b.CreateExtractElement(m1, b.getInt32(1));
     // det = m00 * m11 - m10 * m01
     return b.CreateFSub(b.CreateFMul(m00, m11), b.CreateFMul(m10, m01));
 }
 
 [[nodiscard]] llvm::Value *cuda_codegen_llvm_determinant3x3(CUDACodegenLLVMImpl::IB &b, llvm::Value *m0, llvm::Value *m1, llvm::Value *m2) noexcept {
-    auto m00 = b.CreateExtractElement(m0, b.getInt32(0));
-    auto m10 = b.CreateExtractElement(m0, b.getInt32(1));
-    auto m20 = b.CreateExtractElement(m0, b.getInt32(2));
-    auto m01 = b.CreateExtractElement(m1, b.getInt32(0));
-    auto m11 = b.CreateExtractElement(m1, b.getInt32(1));
-    auto m21 = b.CreateExtractElement(m1, b.getInt32(2));
-    auto m02 = b.CreateExtractElement(m2, b.getInt32(0));
-    auto m12 = b.CreateExtractElement(m2, b.getInt32(1));
-    auto m22 = b.CreateExtractElement(m2, b.getInt32(2));
     // det = m00 * (m11 * m22 - m21 * m12)
     //     + m10 * (m21 * m02 - m01 * m22)
     //     + m20 * (m01 * m12 - m11 * m02)
-    auto t0 = b.CreateFMul(m00, b.CreateFSub(b.CreateFMul(m11, m22), b.CreateFMul(m21, m12)));
-    auto t1 = b.CreateFMul(m10, b.CreateFSub(b.CreateFMul(m21, m02), b.CreateFMul(m01, m22)));
-    auto t2 = b.CreateFMul(m20, b.CreateFSub(b.CreateFMul(m01, m12), b.CreateFMul(m11, m02)));
-    return b.CreateFAdd(b.CreateFAdd(t0, t1), t2);
+    auto m00 = b.CreateExtractElement(m0, b.getInt32(0));
+    auto m01 = b.CreateExtractElement(m0, b.getInt32(1));
+    auto m02 = b.CreateExtractElement(m0, b.getInt32(2));
+    auto m10 = b.CreateExtractElement(m1, b.getInt32(0));
+    auto m11 = b.CreateExtractElement(m1, b.getInt32(1));
+    auto m12 = b.CreateExtractElement(m1, b.getInt32(2));
+    auto m20 = b.CreateExtractElement(m2, b.getInt32(0));
+    auto m21 = b.CreateExtractElement(m2, b.getInt32(1));
+    auto m22 = b.CreateExtractElement(m2, b.getInt32(2));
+    auto term0 = b.CreateFMul(m00, b.CreateFSub(b.CreateFMul(m11, m22), b.CreateFMul(m21, m12)));
+    auto term1 = b.CreateFMul(m10, b.CreateFSub(b.CreateFMul(m21, m02), b.CreateFMul(m01, m22)));
+    auto term2 = b.CreateFMul(m20, b.CreateFSub(b.CreateFMul(m01, m12), b.CreateFMul(m11, m02)));
+    return b.CreateFAdd(b.CreateFAdd(term0, term1), term2);
 }
 
 [[nodiscard]] llvm::Value *cuda_codegen_llvm_determinant4x4(CUDACodegenLLVMImpl::IB &b, llvm::Value *m0, llvm::Value *m1, llvm::Value *m2, llvm::Value *m3) noexcept {
@@ -800,9 +800,8 @@ namespace detail {
     // inv_3 = inv3 * sign_b
     // dot0 = m0 * vec4{inv_0.x, inv_1.x, inv_2.x, inv_3.x}
     // det = dot0.x + dot0.y + dot0.z + dot0.w
-    auto make_vec4 = [&b](auto e0, auto e1, auto e2, auto e3) noexcept {
-        auto t = llvm::VectorType::get(e0->getType(), 4, false);
-        auto v = static_cast<llvm::Value *>(llvm::PoisonValue::get(t));
+    auto make_vec4 = [&](auto e0, auto e1, auto e2, auto e3) noexcept {
+        auto v = static_cast<llvm::Value *>(llvm::PoisonValue::get(m0->getType()));
         v = b.CreateInsertElement(v, e0, b.getInt32(0));
         v = b.CreateInsertElement(v, e1, b.getInt32(1));
         v = b.CreateInsertElement(v, e2, b.getInt32(2));
@@ -873,20 +872,304 @@ namespace detail {
     return b.CreateFAddReduce(llvm::ConstantFP::getNegativeZero(m00->getType()), dot0);
 }
 
+[[nodiscard]] llvm::Value *cuda_codegen_llvm_inverse2x2(CUDACodegenLLVMImpl::IB &b, llvm::Value *m0, llvm::Value *m1) noexcept {
+    // const auto one_over_determinant = 1.0f / (m[0][0] * m[1][1] - m[1][0] * m[0][1]);
+    // return make_float2x2(m[1][1] * one_over_determinant,
+    //                      -m[0][1] * one_over_determinant,
+    //                      -m[1][0] * one_over_determinant,
+    //                      +m[0][0] * one_over_determinant);
+    auto m00 = b.CreateExtractElement(m0, b.getInt32(0));
+    auto m01 = b.CreateExtractElement(m0, b.getInt32(1));
+    auto m10 = b.CreateExtractElement(m1, b.getInt32(0));
+    auto m11 = b.CreateExtractElement(m1, b.getInt32(1));
+    auto det = b.CreateFSub(b.CreateFMul(m00, m11), b.CreateFMul(m10, m01));
+    auto one = llvm::ConstantFP::get(m00->getType(), 1.);
+    auto one_over_det = b.CreateFDiv(one, det);
+    auto minus_one_over_det = b.CreateFNeg(one_over_det);
+    auto im0 = static_cast<llvm::Value *>(llvm::PoisonValue::get(m0->getType()));
+    im0 = b.CreateInsertElement(im0, b.CreateFMul(m11, one_over_det), b.getInt32(0));
+    im0 = b.CreateInsertElement(im0, b.CreateFMul(m01, minus_one_over_det), b.getInt32(1));
+    auto im1 = static_cast<llvm::Value *>(llvm::PoisonValue::get(m1->getType()));
+    im1 = b.CreateInsertElement(im1, b.CreateFMul(m10, minus_one_over_det), b.getInt32(0));
+    im1 = b.CreateInsertElement(im1, b.CreateFMul(m00, one_over_det), b.getInt32(1));
+    auto im = static_cast<llvm::Value *>(llvm::PoisonValue::get(llvm::ArrayType::get(m0->getType(), 2)));
+    im = b.CreateInsertValue(im, im0, 0);
+    im = b.CreateInsertValue(im, im1, 1);
+    return im;
+}
+
+[[nodiscard]] llvm::Value *cuda_codegen_llvm_inverse3x3(CUDACodegenLLVMImpl::IB &b, llvm::Value *m0, llvm::Value *m1, llvm::Value *m2) noexcept {
+    // const auto one_over_determinant = 1.0f /
+    //                                   (m[0].x * (m[1].y * m[2].z - m[2].y * m[1].z) +
+    //                                    m[1].x * (m[2].y * m[0].z - m[0].y * m[2].z) +
+    //                                    m[2].x * (m[0].y * m[1].z - m[1].y * m[0].z));
+    // return make_float3x3(
+    //     (m[1].y * m[2].z - m[2].y * m[1].z) * one_over_determinant,
+    //     (m[2].y * m[0].z - m[0].y * m[2].z) * one_over_determinant,
+    //     (m[0].y * m[1].z - m[1].y * m[0].z) * one_over_determinant,
+    //     (m[2].x * m[1].z - m[1].x * m[2].z) * one_over_determinant,
+    //     (m[0].x * m[2].z - m[2].x * m[0].z) * one_over_determinant,
+    //     (m[1].x * m[0].z - m[0].x * m[1].z) * one_over_determinant,
+    //     (m[1].x * m[2].y - m[2].x * m[1].y) * one_over_determinant,
+    //     (m[2].x * m[0].y - m[0].x * m[2].y) * one_over_determinant,
+    //     (m[0].x * m[1].y - m[1].x * m[0].y) * one_over_determinant);
+    auto m00 = b.CreateExtractElement(m0, b.getInt32(0));
+    auto m01 = b.CreateExtractElement(m0, b.getInt32(1));
+    auto m02 = b.CreateExtractElement(m0, b.getInt32(2));
+    auto m10 = b.CreateExtractElement(m1, b.getInt32(0));
+    auto m11 = b.CreateExtractElement(m1, b.getInt32(1));
+    auto m12 = b.CreateExtractElement(m1, b.getInt32(2));
+    auto m20 = b.CreateExtractElement(m2, b.getInt32(0));
+    auto m21 = b.CreateExtractElement(m2, b.getInt32(1));
+    auto m22 = b.CreateExtractElement(m2, b.getInt32(2));
+    auto term0 = b.CreateFMul(m00, b.CreateFSub(b.CreateFMul(m11, m22), b.CreateFMul(m21, m12)));
+    auto term1 = b.CreateFMul(m10, b.CreateFSub(b.CreateFMul(m21, m02), b.CreateFMul(m01, m22)));
+    auto term2 = b.CreateFMul(m20, b.CreateFSub(b.CreateFMul(m01, m12), b.CreateFMul(m11, m02)));
+    auto det = b.CreateFAdd(b.CreateFAdd(term0, term1), term2);
+    auto one = llvm::ConstantFP::get(m00->getType(), 1.);
+    auto one_over_det = b.CreateFDiv(one, det);
+    auto im00 = b.CreateFMul(b.CreateFSub(b.CreateFMul(m11, m22), b.CreateFMul(m21, m12)), one_over_det);
+    auto im01 = b.CreateFMul(b.CreateFSub(b.CreateFMul(m21, m02), b.CreateFMul(m01, m22)), one_over_det);
+    auto im02 = b.CreateFMul(b.CreateFSub(b.CreateFMul(m01, m12), b.CreateFMul(m11, m02)), one_over_det);
+    auto im10 = b.CreateFMul(b.CreateFSub(b.CreateFMul(m20, m12), b.CreateFMul(m10, m22)), one_over_det);
+    auto im11 = b.CreateFMul(b.CreateFSub(b.CreateFMul(m00, m22), b.CreateFMul(m20, m02)), one_over_det);
+    auto im12 = b.CreateFMul(b.CreateFSub(b.CreateFMul(m10, m02), b.CreateFMul(m00, m12)), one_over_det);
+    auto im20 = b.CreateFMul(b.CreateFSub(b.CreateFMul(m10, m21), b.CreateFMul(m20, m11)), one_over_det);
+    auto im21 = b.CreateFMul(b.CreateFSub(b.CreateFMul(m20, m01), b.CreateFMul(m00, m21)), one_over_det);
+    auto im22 = b.CreateFMul(b.CreateFSub(b.CreateFMul(m00, m11), b.CreateFMul(m10, m01)), one_over_det);
+    auto im0 = static_cast<llvm::Value *>(llvm::PoisonValue::get(m0->getType()));
+    im0 = b.CreateInsertElement(im0, im00, b.getInt32(0));
+    im0 = b.CreateInsertElement(im0, im01, b.getInt32(1));
+    im0 = b.CreateInsertElement(im0, im02, b.getInt32(2));
+    auto im1 = static_cast<llvm::Value *>(llvm::PoisonValue::get(m1->getType()));
+    im1 = b.CreateInsertElement(im1, im10, b.getInt32(0));
+    im1 = b.CreateInsertElement(im1, im11, b.getInt32(1));
+    im1 = b.CreateInsertElement(im1, im12, b.getInt32(2));
+    auto im2 = static_cast<llvm::Value *>(llvm::PoisonValue::get(m2->getType()));
+    im2 = b.CreateInsertElement(im2, im20, b.getInt32(0));
+    im2 = b.CreateInsertElement(im2, im21, b.getInt32(1));
+    im2 = b.CreateInsertElement(im2, im22, b.getInt32(2));
+    auto im = static_cast<llvm::Value *>(llvm::PoisonValue::get(llvm::ArrayType::get(m0->getType(), 3)));
+    im = b.CreateInsertValue(im, im0, 0);
+    im = b.CreateInsertValue(im, im1, 1);
+    im = b.CreateInsertValue(im, im2, 2);
+    return im;
+}
+
+[[nodiscard]] llvm::Value *cuda_codegen_llvm_inverse4x4(CUDACodegenLLVMImpl::IB &b, llvm::Value *m0, llvm::Value *m1, llvm::Value *m2, llvm::Value *m3) noexcept {
+    // const auto coef00 = m[2].z * m[3].w - m[3].z * m[2].w;
+    // const auto coef02 = m[1].z * m[3].w - m[3].z * m[1].w;
+    // const auto coef03 = m[1].z * m[2].w - m[2].z * m[1].w;
+    // const auto coef04 = m[2].y * m[3].w - m[3].y * m[2].w;
+    // const auto coef06 = m[1].y * m[3].w - m[3].y * m[1].w;
+    // const auto coef07 = m[1].y * m[2].w - m[2].y * m[1].w;
+    // const auto coef08 = m[2].y * m[3].z - m[3].y * m[2].z;
+    // const auto coef10 = m[1].y * m[3].z - m[3].y * m[1].z;
+    // const auto coef11 = m[1].y * m[2].z - m[2].y * m[1].z;
+    // const auto coef12 = m[2].x * m[3].w - m[3].x * m[2].w;
+    // const auto coef14 = m[1].x * m[3].w - m[3].x * m[1].w;
+    // const auto coef15 = m[1].x * m[2].w - m[2].x * m[1].w;
+    // const auto coef16 = m[2].x * m[3].z - m[3].x * m[2].z;
+    // const auto coef18 = m[1].x * m[3].z - m[3].x * m[1].z;
+    // const auto coef19 = m[1].x * m[2].z - m[2].x * m[1].z;
+    // const auto coef20 = m[2].x * m[3].y - m[3].x * m[2].y;
+    // const auto coef22 = m[1].x * m[3].y - m[3].x * m[1].y;
+    // const auto coef23 = m[1].x * m[2].y - m[2].x * m[1].y;
+    // const auto fac0 = lc_make_float4(coef00, coef00, coef02, coef03);
+    // const auto fac1 = lc_make_float4(coef04, coef04, coef06, coef07);
+    // const auto fac2 = lc_make_float4(coef08, coef08, coef10, coef11);
+    // const auto fac3 = lc_make_float4(coef12, coef12, coef14, coef15);
+    // const auto fac4 = lc_make_float4(coef16, coef16, coef18, coef19);
+    // const auto fac5 = lc_make_float4(coef20, coef20, coef22, coef23);
+    // const auto Vec0 = lc_make_float4(m[1].x, m[0].x, m[0].x, m[0].x);
+    // const auto Vec1 = lc_make_float4(m[1].y, m[0].y, m[0].y, m[0].y);
+    // const auto Vec2 = lc_make_float4(m[1].z, m[0].z, m[0].z, m[0].z);
+    // const auto Vec3 = lc_make_float4(m[1].w, m[0].w, m[0].w, m[0].w);
+    // const auto inv0 = Vec1 * fac0 - Vec2 * fac1 + Vec3 * fac2;
+    // const auto inv1 = Vec0 * fac0 - Vec2 * fac3 + Vec3 * fac4;
+    // const auto inv2 = Vec0 * fac1 - Vec1 * fac3 + Vec3 * fac5;
+    // const auto inv3 = Vec0 * fac2 - Vec1 * fac4 + Vec2 * fac5;
+    // constexpr auto sign_a = lc_make_float4(+1.0f, -1.0f, +1.0f, -1.0f);
+    // constexpr auto sign_b = lc_make_float4(-1.0f, +1.0f, -1.0f, +1.0f);
+    // const auto inv_0 = inv0 * sign_a;
+    // const auto inv_1 = inv1 * sign_b;
+    // const auto inv_2 = inv2 * sign_a;
+    // const auto inv_3 = inv3 * sign_b;
+    // const auto dot0 = m[0] * lc_make_float4(inv_0.x, inv_1.x, inv_2.x, inv_3.x);
+    // const auto dot1 = dot0.x + dot0.y + dot0.z + dot0.w;
+    // const auto one_over_determinant = 1.0f / dot1;
+    // return lc_make_float4x4(inv_0 * one_over_determinant,
+    //                         inv_1 * one_over_determinant,
+    //                         inv_2 * one_over_determinant,
+    //                         inv_3 * one_over_determinant);
+    auto m00 = b.CreateExtractElement(m0, b.getInt32(0));
+    auto m01 = b.CreateExtractElement(m0, b.getInt32(1));
+    auto m02 = b.CreateExtractElement(m0, b.getInt32(2));
+    auto m03 = b.CreateExtractElement(m0, b.getInt32(3));
+    auto m10 = b.CreateExtractElement(m1, b.getInt32(0));
+    auto m11 = b.CreateExtractElement(m1, b.getInt32(1));
+    auto m12 = b.CreateExtractElement(m1, b.getInt32(2));
+    auto m13 = b.CreateExtractElement(m1, b.getInt32(3));
+    auto m20 = b.CreateExtractElement(m2, b.getInt32(0));
+    auto m21 = b.CreateExtractElement(m2, b.getInt32(1));
+    auto m22 = b.CreateExtractElement(m2, b.getInt32(2));
+    auto m23 = b.CreateExtractElement(m2, b.getInt32(3));
+    auto m30 = b.CreateExtractElement(m3, b.getInt32(0));
+    auto m31 = b.CreateExtractElement(m3, b.getInt32(1));
+    auto m32 = b.CreateExtractElement(m3, b.getInt32(2));
+    auto m33 = b.CreateExtractElement(m3, b.getInt32(3));
+    auto coef00 = b.CreateFSub(b.CreateFMul(m22, m33), b.CreateFMul(m32, m23));
+    auto coef02 = b.CreateFSub(b.CreateFMul(m12, m33), b.CreateFMul(m32, m13));
+    auto coef03 = b.CreateFSub(b.CreateFMul(m12, m23), b.CreateFMul(m22, m13));
+    auto coef04 = b.CreateFSub(b.CreateFMul(m21, m33), b.CreateFMul(m31, m23));
+    auto coef06 = b.CreateFSub(b.CreateFMul(m11, m33), b.CreateFMul(m31, m13));
+    auto coef07 = b.CreateFSub(b.CreateFMul(m11, m23), b.CreateFMul(m21, m13));
+    auto coef08 = b.CreateFSub(b.CreateFMul(m21, m32), b.CreateFMul(m31, m22));
+    auto coef10 = b.CreateFSub(b.CreateFMul(m11, m32), b.CreateFMul(m31, m12));
+    auto coef11 = b.CreateFSub(b.CreateFMul(m11, m22), b.CreateFMul(m21, m12));
+    auto coef12 = b.CreateFSub(b.CreateFMul(m20, m33), b.CreateFMul(m30, m23));
+    auto coef14 = b.CreateFSub(b.CreateFMul(m10, m33), b.CreateFMul(m30, m13));
+    auto coef15 = b.CreateFSub(b.CreateFMul(m10, m23), b.CreateFMul(m20, m13));
+    auto coef16 = b.CreateFSub(b.CreateFMul(m20, m32), b.CreateFMul(m30, m22));
+    auto coef18 = b.CreateFSub(b.CreateFMul(m10, m32), b.CreateFMul(m30, m12));
+    auto coef19 = b.CreateFSub(b.CreateFMul(m10, m22), b.CreateFMul(m20, m12));
+    auto coef20 = b.CreateFSub(b.CreateFMul(m20, m31), b.CreateFMul(m30, m21));
+    auto coef22 = b.CreateFSub(b.CreateFMul(m10, m31), b.CreateFMul(m30, m11));
+    auto coef23 = b.CreateFSub(b.CreateFMul(m10, m21), b.CreateFMul(m20, m11));
+    auto make_vec4 = [&](auto e0, auto e1, auto e2, auto e3) noexcept {
+        auto v = static_cast<llvm::Value *>(llvm::PoisonValue::get(m0->getType()));
+        v = b.CreateInsertElement(v, e0, b.getInt32(0));
+        v = b.CreateInsertElement(v, e1, b.getInt32(1));
+        v = b.CreateInsertElement(v, e2, b.getInt32(2));
+        v = b.CreateInsertElement(v, e3, b.getInt32(3));
+        return v;
+    };
+    auto fac0 = make_vec4(coef00, coef00, coef02, coef03);
+    auto fac1 = make_vec4(coef04, coef04, coef06, coef07);
+    auto fac2 = make_vec4(coef08, coef08, coef10, coef11);
+    auto fac3 = make_vec4(coef12, coef12, coef14, coef15);
+    auto fac4 = make_vec4(coef16, coef16, coef18, coef19);
+    auto fac5 = make_vec4(coef20, coef20, coef22, coef23);
+    auto vec0 = make_vec4(m10, m00, m00, m00);
+    auto vec1 = make_vec4(m11, m01, m01, m01);
+    auto vec2 = make_vec4(m12, m02, m02, m02);
+    auto vec3 = make_vec4(m13, m03, m03, m03);
+    auto inv0 = b.CreateFAdd(b.CreateFSub(b.CreateFMul(vec1, fac0), b.CreateFMul(vec2, fac1)), b.CreateFMul(vec3, fac2));
+    auto inv1 = b.CreateFAdd(b.CreateFSub(b.CreateFMul(vec0, fac0), b.CreateFMul(vec2, fac3)), b.CreateFMul(vec3, fac4));
+    auto inv2 = b.CreateFAdd(b.CreateFSub(b.CreateFMul(vec0, fac1), b.CreateFMul(vec1, fac3)), b.CreateFMul(vec3, fac5));
+    auto inv3 = b.CreateFAdd(b.CreateFSub(b.CreateFMul(vec0, fac2), b.CreateFMul(vec1, fac4)), b.CreateFMul(vec2, fac5));
+    auto minus_one = llvm::ConstantFP::get(m00->getType(), -1.);
+    auto one = llvm::ConstantFP::get(m00->getType(), 1.);
+    auto sign_a = llvm::ConstantVector::get({one, minus_one, one, minus_one});
+    auto sign_b = llvm::ConstantVector::get({minus_one, one, minus_one, one});
+    auto inv_0 = b.CreateFMul(inv0, sign_a);
+    auto inv_1 = b.CreateFMul(inv1, sign_b);
+    auto inv_2 = b.CreateFMul(inv2, sign_a);
+    auto inv_3 = b.CreateFMul(inv3, sign_b);
+    auto inv_0_x = b.CreateExtractElement(inv_0, b.getInt32(0));
+    auto inv_1_x = b.CreateExtractElement(inv_1, b.getInt32(0));
+    auto inv_2_x = b.CreateExtractElement(inv_2, b.getInt32(0));
+    auto inv_3_x = b.CreateExtractElement(inv_3, b.getInt32(0));
+    auto dot0 = b.CreateFMul(m0, make_vec4(inv_0_x, inv_1_x, inv_2_x, inv_3_x));
+    auto dot1 = b.CreateFAddReduce(llvm::ConstantFP::getNegativeZero(m00->getType()), dot0);
+    auto one_over_det = b.CreateFDiv(one, dot1);
+    one_over_det = b.CreateVectorSplat(4, one_over_det);
+    auto im0 = b.CreateFMul(inv_0, one_over_det);
+    auto im1 = b.CreateFMul(inv_1, one_over_det);
+    auto im2 = b.CreateFMul(inv_2, one_over_det);
+    auto im3 = b.CreateFMul(inv_3, one_over_det);
+    auto im = static_cast<llvm::Value *>(llvm::PoisonValue::get(llvm::ArrayType::get(m0->getType(), 4)));
+    im = b.CreateInsertValue(im, im0, 0);
+    im = b.CreateInsertValue(im, im1, 1);
+    im = b.CreateInsertValue(im, im2, 2);
+    im = b.CreateInsertValue(im, im3, 3);
+    return im;
+}
+
 }// namespace detail
 
 llvm::Value *CUDACodegenLLVMImpl::_translate_matrix_determinant(IB &b, llvm::Value *m) noexcept {
     auto scalar_t = m->getType()->getArrayElementType()->getScalarType();
     auto dim = m->getType()->getArrayNumElements();
     auto name = luisa::format("luisa.determinant.{}.{}x{}", _to_string(scalar_t), dim, dim);
-    if (auto func = _llvm_module->getFunction(name)) {
-        return b.CreateCall(func, {m});
+    auto func = _llvm_module->getFunction(name);
+    if (func == nullptr) {
+        auto func_type = llvm::FunctionType::get(scalar_t, {m->getType()}, false);
+        func = llvm::Function::Create(func_type, llvm::Function::PrivateLinkage, name, *_llvm_module);
+        func->addFnAttr(llvm::Attribute::AlwaysInline);
+        auto entry_bb = llvm::BasicBlock::Create(_llvm_context, "entry", func);
+        IB func_b{entry_bb};
+        auto matrix = func->getArg(0);
+        auto det = static_cast<llvm::Value *>(nullptr);
+        switch (dim) {
+            case 2: {
+                auto m0 = func_b.CreateExtractValue(matrix, 0);
+                auto m1 = func_b.CreateExtractValue(matrix, 1);
+                det = detail::cuda_codegen_llvm_determinant2x2(func_b, m0, m1);
+                break;
+            }
+            case 3: {
+                auto m0 = func_b.CreateExtractValue(matrix, 0);
+                auto m1 = func_b.CreateExtractValue(matrix, 1);
+                auto m2 = func_b.CreateExtractValue(matrix, 2);
+                det = detail::cuda_codegen_llvm_determinant3x3(func_b, m0, m1, m2);
+                break;
+            }
+            case 4: {
+                auto m0 = func_b.CreateExtractValue(matrix, 0);
+                auto m1 = func_b.CreateExtractValue(matrix, 1);
+                auto m2 = func_b.CreateExtractValue(matrix, 2);
+                auto m3 = func_b.CreateExtractValue(matrix, 3);
+                det = detail::cuda_codegen_llvm_determinant4x4(func_b, m0, m1, m2, m3);
+                break;
+            }
+            default: LUISA_ERROR_WITH_LOCATION("Unsupported matrix dimension {} for determinant.", dim);
+        }
+        func_b.CreateRet(det);
     }
-    LUISA_NOT_IMPLEMENTED();
+    return b.CreateCall(func, {m});
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_translate_matrix_inverse(IB &b, llvm::Value *m) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    auto scalar_t = m->getType()->getArrayElementType()->getScalarType();
+    auto dim = m->getType()->getArrayNumElements();
+    auto name = luisa::format("luisa.inverse.{}.{}x{}", _to_string(scalar_t), dim, dim);
+    auto func = _llvm_module->getFunction(name);
+    if (func == nullptr) {
+        auto func_type = llvm::FunctionType::get(m->getType(), {m->getType()}, false);
+        func = llvm::Function::Create(func_type, llvm::Function::PrivateLinkage, name, *_llvm_module);
+        func->addFnAttr(llvm::Attribute::AlwaysInline);
+        auto entry_bb = llvm::BasicBlock::Create(_llvm_context, "entry", func);
+        IB func_b{entry_bb};
+        auto matrix = func->getArg(0);
+        auto inv = static_cast<llvm::Value *>(nullptr);
+        switch (dim) {
+            case 2: {
+                auto m0 = func_b.CreateExtractValue(matrix, 0);
+                auto m1 = func_b.CreateExtractValue(matrix, 1);
+                inv = detail::cuda_codegen_llvm_inverse2x2(func_b, m0, m1);
+                break;
+            }
+            case 3: {
+                auto m0 = func_b.CreateExtractValue(matrix, 0);
+                auto m1 = func_b.CreateExtractValue(matrix, 1);
+                auto m2 = func_b.CreateExtractValue(matrix, 2);
+                inv = detail::cuda_codegen_llvm_inverse3x3(func_b, m0, m1, m2);
+                break;
+            }
+            case 4: {
+                auto m0 = func_b.CreateExtractValue(matrix, 0);
+                auto m1 = func_b.CreateExtractValue(matrix, 1);
+                auto m2 = func_b.CreateExtractValue(matrix, 2);
+                auto m3 = func_b.CreateExtractValue(matrix, 3);
+                inv = detail::cuda_codegen_llvm_inverse4x4(func_b, m0, m1, m2, m3);
+                break;
+            }
+            default: LUISA_ERROR_WITH_LOCATION("Unsupported matrix dimension {} for determinant.", dim);
+        }
+        func_b.CreateRet(inv);
+    }
+    return b.CreateCall(func, {m});
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_translate_matrix_transpose(IB &b, llvm::Value *m) noexcept {
@@ -981,10 +1264,8 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_shuffle(IB &b, FunctionContext &fun
         return b.CreateShuffleVector(llvm_src, llvm_indices);
     }
     // otherwise, extract and insert per element
-    auto src_type = inst->operand(0)->type();
-    auto dst_type = inst->type();
-    LUISA_DEBUG_ASSERT(src_type->element() == dst_type->element());
-    auto llvm_dst_type = _get_llvm_type(dst_type)->reg_type;
+    auto llvm_dst_type = _get_llvm_type(inst->type())->reg_type;
+    LUISA_DEBUG_ASSERT(llvm_src->getType()->getScalarType() == llvm_dst_type->getScalarType());
     auto llvm_dst = static_cast<llvm::Value *>(llvm::PoisonValue::get(llvm_dst_type));
     for (auto [i, index_use] : llvm::enumerate(index_uses)) {
         auto llvm_index = _get_llvm_value(b, func_ctx, index_use->value());
@@ -999,6 +1280,13 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_insert(IB &b, FunctionContext &func
     LUISA_DEBUG_ASSERT(inst->type() == inst->operand(0)->type());
     auto llvm_value = _get_llvm_value(b, func_ctx, inst->operand(1));
     auto index_uses = inst->operand_uses().subspan(2);
+    // vector element insertion
+    if (llvm_src->getType()->isVectorTy()) {
+        LUISA_DEBUG_ASSERT(index_uses.size() == 1);
+        auto llvm_index = _get_llvm_value(b, func_ctx, index_uses.front()->value());
+        return b.CreateInsertElement(llvm_src, llvm_value, llvm_index);
+    }
+    // generic
     auto llvm_src_mem = _convert_llvm_reg_value_to_mem(b, llvm_src, inst->type());
     auto llvm_temp = _create_temp_in_alloca_block(func_ctx, llvm_src_mem->getType(), inst->type()->alignment());
     b.CreateStore(llvm_src_mem, llvm_temp);
@@ -1011,6 +1299,13 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_insert(IB &b, FunctionContext &func
 llvm::Value *CUDACodegenLLVMImpl::_translate_extract(IB &b, FunctionContext &func_ctx, const xir::ArithmeticInst *inst) noexcept {
     auto llvm_src = _get_llvm_value(b, func_ctx, inst->operand(0));
     auto index_uses = inst->operand_uses().subspan(1);
+    // vector element extraction
+    if (llvm_src->getType()->isVectorTy()) {
+        LUISA_DEBUG_ASSERT(index_uses.size() == 1);
+        auto llvm_index = _get_llvm_value(b, func_ctx, index_uses.front()->value());
+        return b.CreateExtractElement(llvm_src, llvm_index);
+    }
+    // generic
     auto llvm_src_mem = _convert_llvm_reg_value_to_mem(b, llvm_src, inst->operand(0)->type());
     auto llvm_temp = _create_temp_in_alloca_block(func_ctx, llvm_src_mem->getType(), inst->operand(0)->type()->alignment());
     b.CreateStore(llvm_src_mem, llvm_temp);
