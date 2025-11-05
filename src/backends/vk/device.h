@@ -40,9 +40,6 @@ class Device : public DeviceInterface, public vstd::IOperatorNewBase {
     vstd::unordered_map<vstd::string, Ext> exts;
     luisa::unique_ptr<VulkanDeviceConfigExt> _config_ext;
     vstd::optional<vks::VulkanDevice> _vk_device;
-    VkPhysicalDeviceProperties _device_properties{};
-    VkPhysicalDeviceFeatures _device_features{};
-    VkPhysicalDeviceMemoryProperties _device_memory_properties{};
     vstd::vector<vstd::string> _enable_device_exts;
     VkQueue _graphics_queue{};
     VkQueue _compute_queue{};

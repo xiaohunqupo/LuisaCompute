@@ -728,7 +728,10 @@ void Swapchain::create_swapchain(
     auto image_count = back_buffers;
     _swapchain_images.resize(image_count);
     VK_CHECK_RESULT(vkGetSwapchainImagesKHR(logic_device, _swapchain, &image_count, _swapchain_images.data()));
-    LUISA_ASSERT(image_count == back_buffers, "Swapchain image count mismatch.");
+    if (image_count != back_buffers) {
+        LUISA_WARNING_WITH_LOCATION("Swapchain image count mismatch: required = {}, actual = {}.", back_buffers, image_count);
+        back_buffers = image_count;
+    }
 
     // create the swapchain image views
     _swapchain_image_views.resize(image_count);

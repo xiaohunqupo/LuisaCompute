@@ -487,11 +487,12 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
 
         // Select physical device to be used for the Vulkan example
         // Defaults to the first device unless specified by command line
+        VkPhysicalDeviceProperties device_properties;
         if (selectedDevice == -1) {
             selectedDevice = 0;
             for (auto &&i : physical_devices) {
-                vkGetPhysicalDeviceProperties(i, &_device_properties);
-                luisa::string device_name{_device_properties.deviceName};
+                vkGetPhysicalDeviceProperties(i, &device_properties);
+                luisa::string device_name{device_properties.deviceName};
                 if (device_name.find("GeForce") != luisa::string::npos ||
                     device_name.find("Radeon") != luisa::string::npos ||
                     device_name.find("Arc") != luisa::string::npos) {
@@ -506,8 +507,8 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
 
     // Store properties (including limits), features and memory properties of the physical device (so that examples can check against them)
     auto supported_ext = detail::supported_exts(physical_device);
-    vkGetPhysicalDeviceFeatures(physical_device, &_device_features);
-    vkGetPhysicalDeviceMemoryProperties(physical_device, &_device_memory_properties);
+    VkPhysicalDeviceFeatures device_features{};
+    vkGetPhysicalDeviceFeatures(physical_device, &device_features);
 
     // Derived examples can override this to set actual features (based on above readings) to enable for logical device creation
 
@@ -516,7 +517,14 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
     // and encapsulates functions related to a device
     _vk_device.create(physical_device);
     _vk_device->logicalDevice = external_device;
+    if (supported_ext.find(VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME) == supported_ext.end()) [[unlikely]] {
+        LUISA_ERROR("Necessary extension \"VK_KHR_timeline_semaphore\" is unsupported.");
+    }
+    if (supported_ext.find(VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME) == supported_ext.end()) [[unlikely]] {
+        LUISA_ERROR("Necessary extension \"VK_KHR_synchronization2\" is unsupported.");
+    }
     _enable_device_exts.emplace_back(VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME);
+    _enable_device_exts.emplace_back(VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME);
     if (_enable_bindless) {
         if (supported_ext.find(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME) != supported_ext.end() &&
             supported_ext.find(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME) != supported_ext.end()) {
@@ -617,8 +625,7 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES,
         &enable_timeline_feature,
         true};
-
-    VK_CHECK_RESULT(_vk_device->createLogicalDevice(_device_features, _enable_device_exts, &barrier_feature, _enable_surface));
+    VK_CHECK_RESULT(_vk_device->createLogicalDevice(device_features, _enable_device_exts, &barrier_feature, _enable_surface));
     auto device = _vk_device->logicalDevice;
     volkLoadDevice(device);
 
@@ -1137,10 +1144,10 @@ LUISA_EXPORT_API void backend_device_names(luisa::vector<luisa::string> &r) {
         return;
     }
     r.reserve(physical_devices.size());
-    VkPhysicalDeviceProperties _device_properties;
+    VkPhysicalDeviceProperties device_properties;
     for (auto &&i : physical_devices) {
-        vkGetPhysicalDeviceProperties(i, &_device_properties);
-        r.emplace_back(_device_properties.deviceName);
+        vkGetPhysicalDeviceProperties(i, &device_properties);
+        r.emplace_back(device_properties.deviceName);
     }
     if (destroy_inst) {
         vkDestroyInstance(detail::vk_instance, Device::alloc_callbacks());

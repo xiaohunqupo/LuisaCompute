@@ -18,6 +18,7 @@ private:
                 DepthFormat format, uint2 size) noexcept;
 
 public:
+    DepthBuffer() noexcept = default;
     DepthBuffer(DeviceInterface *device, RasterExt *raster_ext, DepthFormat format, uint2 size) noexcept;
     ~DepthBuffer() noexcept;
     DepthBuffer(DepthBuffer &&) noexcept = default;
@@ -37,4 +38,3 @@ public:
 };
 
 }// namespace luisa::compute
-
