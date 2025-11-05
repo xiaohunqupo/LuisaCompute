@@ -219,7 +219,7 @@ private:
     [[nodiscard]] llvm::Value *_translate_gep_inst(IB &b, FunctionContext &func_ctx, const xir::GEPInst *inst) noexcept;
     [[nodiscard]] llvm::Value *_load_llvm_value(IB &b, llvm::Value *llvm_ptr, const Type *type) noexcept;
     void _store_llvm_value(IB &b, llvm::Value *llvm_ptr, llvm::Value *llvm_value, const Type *type) noexcept;
-    [[nodiscard]] static llvm::Value *_create_temp_in_alloca_block(FunctionContext &func_ctx, llvm::Type *t, size_t a) noexcept;
+    [[nodiscard]] static llvm::Value *_create_temp_in_alloca_block(FunctionContext &func_ctx, llvm::Type *t, size_t align = 0) noexcept;
 
     // atomic instructions, defined in cuda_codegen_llvm_impl_atomic.cpp
     [[nodiscard]] llvm::Value *_translate_atomic_inst(IB &b, FunctionContext &func_ctx, const xir::AtomicInst *inst) noexcept;

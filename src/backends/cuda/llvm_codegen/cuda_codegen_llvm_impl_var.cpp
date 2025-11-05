@@ -52,10 +52,10 @@ void CUDACodegenLLVMImpl::_store_llvm_value(IB &b, llvm::Value *llvm_ptr, llvm::
     b.CreateAlignedStore(llvm_mem_v, llvm_ptr, llvm::Align{type->alignment()});
 }
 
-llvm::Value *CUDACodegenLLVMImpl::_create_temp_in_alloca_block(FunctionContext &func_ctx, llvm::Type *t, size_t a) noexcept {
+llvm::Value *CUDACodegenLLVMImpl::_create_temp_in_alloca_block(FunctionContext &func_ctx, llvm::Type *t, size_t align) noexcept {
     IB b{func_ctx.llvm_alloca_block->getTerminator()};
     auto llvm_alloca = b.CreateAlloca(t);
-    llvm_alloca->setAlignment(llvm::Align{a});
+    if (align != 0) { llvm_alloca->setAlignment(llvm::Align{align}); }
     return llvm_alloca;
 }
 
