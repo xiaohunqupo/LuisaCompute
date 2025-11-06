@@ -162,7 +162,7 @@ template<class F>
 }
 
 template<class F>
-    requires(std::is_invocable_v<F, uint32_t>)
+    requires(std::is_invocable_v<F, uint32_t> || std::is_invocable_v<F, uint32_t, uint32_t>)
 void parallel(uint32_t job_count, F &&lambda, uint32_t internal_jobs = 1) noexcept {
     auto thread_count = std::clamp<uint32_t>(job_count / internal_jobs, 1u, worker_thread_count());
     if (thread_count > 1) {
@@ -171,8 +171,12 @@ void parallel(uint32_t job_count, F &&lambda, uint32_t internal_jobs = 1) noexce
             uint32_t i = 0u;
             while ((i = counter.value.fetch_add(internal_jobs)) < job_count) {
                 auto end = std::min<uint32_t>(i + internal_jobs, job_count);
-                for (uint32_t v = i; v < end; ++v) {
-                    lambda(v);
+                if constexpr (std::is_invocable_v<F, uint32_t>) {
+                    for (uint32_t v = i; v < end; ++v) {
+                        lambda(v);
+                    }
+                } else {
+                    lambda(i, end);
                 }
             }
             evt.done();
@@ -182,14 +186,18 @@ void parallel(uint32_t job_count, F &&lambda, uint32_t internal_jobs = 1) noexce
         }
         evt.wait();
     } else {
-        for (uint32_t i = 0; i < job_count; ++i) {
-            lambda(i);
+        if constexpr (std::is_invocable_v<F, uint32_t>) {
+            for (uint32_t i = 0; i < job_count; ++i) {
+                lambda(i);
+            }
+        } else {
+            lambda(0u, job_count);
         }
     }
 }
 
 template<class F, class Iter>
-    requires(std::is_invocable_v<F, Iter, Iter>)
+    requires(std::is_invocable_v<F, Iter, Iter> || std::is_invocable_v<F, Iter>)
 void parallel(Iter begin, Iter end, size_t batch, F f, size_t inplace_batch_threahold = 1ull) {
     auto n = _distance(begin, end);
     size_t batchCount = (n + batch - 1) / batch;
@@ -200,18 +208,31 @@ void parallel(Iter begin, Iter end, size_t batch, F f, size_t inplace_batch_thre
             auto r = begin;
             _advance(r, toAdvance);
             n -= toAdvance;
-            f(l, r);
+            if constexpr (std::is_invocable_v<F, Iter>) {
+                for (auto b = l; b != r; ++b) {
+                    f(b);
+                }
+            } else {
+                f(l, r);
+            }
             begin = r;
         }
     } else {
         auto thread_count = std::clamp<size_t>(batchCount, 1u, std::thread::hardware_concurrency());
-        counter counter(thread_count);
+        luisa::fiber::counter counter(thread_count);
         luisa::SharedFunction<void()> shared_func{[atomic_fence = detail::NonMovableAtomic<size_t>(0), counter, batchCount, batch, n, begin, f = std::forward<F>(f)]() mutable {
             size_t i = 0ull;
             while ((i = atomic_fence.value.fetch_add(1)) < batchCount) {
                 auto begin_idx = i * batch;
                 auto end_idx = std::min<size_t>((i + 1) * batch, static_cast<size_t>(n));
-                f(begin + begin_idx, begin + end_idx);
+                if constexpr (std::is_invocable_v<F, Iter>) {
+                    auto end = begin + end_idx;
+                    for (auto b = begin + begin_idx; b != end; ++b) {
+                        f(b);
+                    }
+                } else {
+                    f(begin + begin_idx, begin + end_idx);
+                }
             }
             counter.done();
         }};
@@ -228,7 +249,7 @@ auto async_parallel(Iter begin, Iter end, size_t batch, F f, size_t inplace_batc
     size_t batchCount = (n + batch - 1) / batch;
 
     auto thread_count = std::clamp<size_t>(batchCount, 1u, std::thread::hardware_concurrency());
-    counter counter(thread_count);
+    luisa::fiber::counter counter(thread_count);
     luisa::SharedFunction<void()> shared_func{[atomic_fence = detail::NonMovableAtomic<size_t>(0), counter, batchCount, batch, n, begin, f = std::forward<F>(f)]() mutable {
         size_t i = 0ull;
         while ((i = atomic_fence.value.fetch_add(1)) < batchCount) {
