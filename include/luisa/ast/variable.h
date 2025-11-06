@@ -39,7 +39,8 @@ public:
         KERNEL_ID,
         WARP_LANE_COUNT,
         WARP_LANE_ID,
-        OBJECT_ID
+        RASTER_OBJECT_ID,
+        RASTER_BARYCENTRICS
     };
 
 private:
@@ -76,7 +77,8 @@ public:
                _tag == Tag::KERNEL_ID ||
                _tag == Tag::WARP_LANE_COUNT ||
                _tag == Tag::WARP_LANE_ID ||
-               _tag == Tag::OBJECT_ID;
+               _tag == Tag::RASTER_OBJECT_ID ||
+               _tag == Tag::RASTER_BARYCENTRICS;
     }
 };
 

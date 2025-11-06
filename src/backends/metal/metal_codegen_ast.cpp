@@ -367,7 +367,8 @@ void MetalCodegenAST::_emit_variable_name(Variable v) noexcept {
         case Variable::Tag::KERNEL_ID: _scratch << "kid"; break;
         case Variable::Tag::WARP_LANE_COUNT: _scratch << "ws"; break;
         case Variable::Tag::WARP_LANE_ID: _scratch << "lid"; break;
-        case Variable::Tag::OBJECT_ID: LUISA_NOT_IMPLEMENTED();
+        case Variable::Tag::RASTER_BARYCENTRICS:
+        case Variable::Tag::RASTER_OBJECT_ID: LUISA_NOT_IMPLEMENTED();
     }
 }
 

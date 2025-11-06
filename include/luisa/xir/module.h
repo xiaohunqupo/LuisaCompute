@@ -61,6 +61,7 @@ public:
     [[nodiscard]] SPR_DispatchID *create_dispatch_id() noexcept;
     [[nodiscard]] SPR_KernelID *create_kernel_id() noexcept;
     [[nodiscard]] SPR_ObjectID *create_object_id() noexcept;
+    [[nodiscard]] SPR_Barycentrics *create_bary_centrics() noexcept;
     [[nodiscard]] SPR_BlockSize *create_block_size() noexcept;
     [[nodiscard]] SPR_WarpSize *create_warp_size() noexcept;
     [[nodiscard]] SPR_DispatchSize *create_dispatch_size() noexcept;

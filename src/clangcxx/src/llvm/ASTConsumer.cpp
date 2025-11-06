@@ -1087,7 +1087,9 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                         else if (exprName == "kernel_id")
                             current = fb->kernel_id();
                         else if (exprName == "object_id")
-                            current = fb->object_id();
+                            current = fb->raster_object_id();
+                        else if (exprName == "barycentrics")
+                            current = fb->raster_barycentrics();
                         else if (exprName == "warp_lane_count")
                             current = fb->warp_lane_count();
                         else if (exprName == "warp_lane_id")

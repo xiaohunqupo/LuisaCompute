@@ -317,7 +317,7 @@ impl<'a: 'b, 'b> AST2IR<'a, 'b> {
                         let v = builder.call(Func::WarpLaneId, &[], t);
                         builder.local(v)
                     }
-                    "OBJECT_ID" => todo!("OBJECT_ID"),
+                    "RASTER_OBJECT_ID" => todo!("RASTER_OBJECT_ID"),
                     _ => panic!("Invalid variable tag: {}", v_tag),
                 };
                 self._curr_ctx_mut().variables.insert(i as u32, v);

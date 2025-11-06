@@ -10,7 +10,8 @@ enum struct DerivedSpecialRegisterTag {
     WARP_LANE_ID,
     DISPATCH_ID,
     KERNEL_ID,
-    OBJECT_ID,
+    RASTER_OBJECT_ID,
+    RASTER_BARYCENTRICS,
     BLOCK_SIZE,
     WARP_SIZE,
     DISPATCH_SIZE,
@@ -24,7 +25,8 @@ enum struct DerivedSpecialRegisterTag {
         case DerivedSpecialRegisterTag::WARP_LANE_ID: return "warp_lane_id"sv;
         case DerivedSpecialRegisterTag::DISPATCH_ID: return "dispatch_id"sv;
         case DerivedSpecialRegisterTag::KERNEL_ID: return "kernel_id"sv;
-        case DerivedSpecialRegisterTag::OBJECT_ID: return "object_id"sv;
+        case DerivedSpecialRegisterTag::RASTER_OBJECT_ID: return "object_id"sv;
+        case DerivedSpecialRegisterTag::RASTER_BARYCENTRICS: return "barycentrics"sv;
         case DerivedSpecialRegisterTag::BLOCK_SIZE: return "block_size"sv;
         case DerivedSpecialRegisterTag::WARP_SIZE: return "warp_size"sv;
         case DerivedSpecialRegisterTag::DISPATCH_SIZE: return "dispatch_size"sv;
@@ -89,7 +91,8 @@ using SPR_BlockID = DerivedSpecialRegister<uint3, DerivedSpecialRegisterTag::BLO
 using SPR_WarpLaneID = DerivedSpecialRegister<uint, DerivedSpecialRegisterTag::WARP_LANE_ID>;
 using SPR_DispatchID = DerivedSpecialRegister<uint3, DerivedSpecialRegisterTag::DISPATCH_ID>;
 using SPR_KernelID = DerivedSpecialRegister<uint, DerivedSpecialRegisterTag::KERNEL_ID>;
-using SPR_ObjectID = DerivedSpecialRegister<uint, DerivedSpecialRegisterTag::OBJECT_ID>;
+using SPR_ObjectID = DerivedSpecialRegister<uint, DerivedSpecialRegisterTag::RASTER_OBJECT_ID>;
+using SPR_Barycentrics = DerivedSpecialRegister<uint, DerivedSpecialRegisterTag::RASTER_BARYCENTRICS>;
 using SPR_BlockSize = DerivedSpecialRegister<uint3, DerivedSpecialRegisterTag::BLOCK_SIZE>;
 using SPR_WarpSize = DerivedSpecialRegister<uint, DerivedSpecialRegisterTag::WARP_SIZE>;
 using SPR_DispatchSize = DerivedSpecialRegister<uint3, DerivedSpecialRegisterTag::DISPATCH_SIZE>;

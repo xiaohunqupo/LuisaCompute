@@ -94,8 +94,10 @@ private:
                                     case xir::DerivedSpecialRegisterTag::BLOCK_ID: usage |= (1u << CurrentFunction::builtin_variable_index_block_id); break;
                                     case xir::DerivedSpecialRegisterTag::WARP_LANE_ID: break;
                                     case xir::DerivedSpecialRegisterTag::DISPATCH_ID: usage |= (1u << CurrentFunction::builtin_variable_index_dispatch_id); break;
-                                    case xir::DerivedSpecialRegisterTag::KERNEL_ID: LUISA_NOT_IMPLEMENTED();
-                                    case xir::DerivedSpecialRegisterTag::OBJECT_ID: LUISA_NOT_IMPLEMENTED();
+                                    case xir::DerivedSpecialRegisterTag::KERNEL_ID:
+                                    case xir::DerivedSpecialRegisterTag::RASTER_BARYCENTRICS:
+                                    case xir::DerivedSpecialRegisterTag::RASTER_OBJECT_ID:
+                                        LUISA_NOT_IMPLEMENTED();
                                     case xir::DerivedSpecialRegisterTag::BLOCK_SIZE: usage |= (1u << CurrentFunction::builtin_variable_index_block_size); break;
                                     case xir::DerivedSpecialRegisterTag::WARP_SIZE: break;
                                     case xir::DerivedSpecialRegisterTag::DISPATCH_SIZE: usage |= (1u << CurrentFunction::builtin_variable_index_dispatch_size); break;
@@ -423,8 +425,10 @@ private:
             case xir::DerivedSpecialRegisterTag::BLOCK_ID: return current.builtin_variables[CurrentFunction::builtin_variable_index_block_id];
             case xir::DerivedSpecialRegisterTag::WARP_LANE_ID: return llvm::ConstantInt::get(b.getInt32Ty(), 0);// CPU only has one lane
             case xir::DerivedSpecialRegisterTag::DISPATCH_ID: return current.builtin_variables[CurrentFunction::builtin_variable_index_dispatch_id];
-            case xir::DerivedSpecialRegisterTag::KERNEL_ID: LUISA_NOT_IMPLEMENTED();
-            case xir::DerivedSpecialRegisterTag::OBJECT_ID: LUISA_NOT_IMPLEMENTED();
+            case xir::DerivedSpecialRegisterTag::KERNEL_ID:
+            case xir::DerivedSpecialRegisterTag::RASTER_BARYCENTRICS:
+            case xir::DerivedSpecialRegisterTag::RASTER_OBJECT_ID:
+                LUISA_NOT_IMPLEMENTED();
             case xir::DerivedSpecialRegisterTag::BLOCK_SIZE: return current.builtin_variables[CurrentFunction::builtin_variable_index_block_size];
             case xir::DerivedSpecialRegisterTag::WARP_SIZE: return llvm::ConstantInt::get(b.getInt32Ty(), 1);// CPU only has one lane
             case xir::DerivedSpecialRegisterTag::DISPATCH_SIZE: return current.builtin_variables[CurrentFunction::builtin_variable_index_dispatch_size];

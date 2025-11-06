@@ -305,7 +305,8 @@ const RefExpr *FunctionBuilder::block_id() noexcept { return _builtin(Type::of<u
 const RefExpr *FunctionBuilder::dispatch_id() noexcept { return _builtin(Type::of<uint3>(), Variable::Tag::DISPATCH_ID); }
 const RefExpr *FunctionBuilder::dispatch_size() noexcept { return _builtin(Type::of<uint3>(), Variable::Tag::DISPATCH_SIZE); }
 const RefExpr *FunctionBuilder::kernel_id() noexcept { return _builtin(Type::of<uint3>(), Variable::Tag::KERNEL_ID); }
-const RefExpr *FunctionBuilder::object_id() noexcept { return _builtin(Type::of<uint>(), Variable::Tag::OBJECT_ID); }
+const RefExpr *FunctionBuilder::raster_object_id() noexcept { return _builtin(Type::of<uint>(), Variable::Tag::RASTER_OBJECT_ID); }
+const RefExpr *FunctionBuilder::raster_barycentrics() noexcept { return _builtin(Type::of<uint>(), Variable::Tag::RASTER_BARYCENTRICS); }
 const RefExpr *FunctionBuilder::warp_lane_count() noexcept { return _builtin(Type::of<uint>(), Variable::Tag::WARP_LANE_COUNT); }
 const RefExpr *FunctionBuilder::warp_lane_id() noexcept { return _builtin(Type::of<uint>(), Variable::Tag::WARP_LANE_ID); }
 
@@ -1139,7 +1140,8 @@ const Expression *FunctionBuilder::_internalize(const Expression *expr) noexcept
                     case Variable::Tag::KERNEL_ID: [[fallthrough]];
                     case Variable::Tag::WARP_LANE_COUNT: [[fallthrough]];
                     case Variable::Tag::WARP_LANE_ID: [[fallthrough]];
-                    case Variable::Tag::OBJECT_ID: return _builtin(v.type(), v.tag());
+                    case Variable::Tag::RASTER_OBJECT_ID: [[fallthrough]];
+                    case Variable::Tag::RASTER_BARYCENTRICS: return _builtin(v.type(), v.tag());
                     default: break;
                 }
                 LUISA_ERROR_WITH_LOCATION(

@@ -178,15 +178,19 @@ void CodegenUtility::RegistStructType(Type const *type) {
 void CodegenUtility::GetVariableName(Function f, Variable::Tag type, uint id, vstd::StringBuilder &str) {
     switch (type) {
         case Variable::Tag::BLOCK_ID:
+            LUISA_ASSERT(!opt->isRaster, "block id only allowed in compute shader");
             str << "grpId"sv;
             break;
         case Variable::Tag::DISPATCH_ID:
+            LUISA_ASSERT(!opt->isRaster, "dispatch id only allowed in compute shader");
             str << "dspId"sv;
             break;
         case Variable::Tag::THREAD_ID:
+            LUISA_ASSERT(!opt->isRaster, "thread id only allowed in compute shader");
             str << "thdId"sv;
             break;
         case Variable::Tag::DISPATCH_SIZE:
+            LUISA_ASSERT(!opt->isRaster, "dispatch_size only allowed in compute shader");
             if (opt->funcType == CodegenStackData::FuncType::Kernel) {
                 if (opt->isSpirv)
                     str << "dsp_c.v.xyz"sv;
@@ -197,16 +201,20 @@ void CodegenUtility::GetVariableName(Function f, Variable::Tag type, uint id, vs
             }
             break;
         case Variable::Tag::KERNEL_ID:
-            if (opt->funcType == CodegenStackData::FuncType::Kernel) {
-                if (opt->isSpirv)
-                    str << "dsp_c.v.w"sv;
-                else
-                    str << "dsp_c.w"sv;
+            if (opt->isRaster) {
+                str << "primId"sv;
             } else {
-                str << "ker"sv;
+                if (opt->funcType == CodegenStackData::FuncType::Kernel) {
+                    if (opt->isSpirv)
+                        str << "dsp_c.v.w"sv;
+                    else
+                        str << "dsp_c.w"sv;
+                } else {
+                    str << "ker"sv;
+                }
             }
             break;
-        case Variable::Tag::OBJECT_ID:
+        case Variable::Tag::RASTER_OBJECT_ID:
             LUISA_ASSERT(opt->isRaster, "object id only allowed in raster shader");
             if (opt->isSpirv)
                 str << "obj_id.v"sv;
@@ -214,7 +222,12 @@ void CodegenUtility::GetVariableName(Function f, Variable::Tag type, uint id, vs
                 str << "obj_id"sv;
 
             break;
+        case Variable::Tag::RASTER_BARYCENTRICS:
+            LUISA_ASSERT(opt->isRaster, "barycentrics only allowed in raster shader");
+            str << "bary"sv;
+            break;
         case Variable::Tag::WARP_LANE_COUNT:
+            LUISA_ASSERT(!opt->isRaster, "warp ops only allowed in compute shader");
             if (opt->funcType == CodegenStackData::FuncType::Callable) {
                 str << "_wrpct"sv;
             } else {
@@ -222,6 +235,7 @@ void CodegenUtility::GetVariableName(Function f, Variable::Tag type, uint id, vs
             }
             break;
         case Variable::Tag::WARP_LANE_ID:
+            LUISA_ASSERT(!opt->isRaster, "warp ops only allowed in compute shader");
             if (opt->funcType == CodegenStackData::FuncType::Callable) {
                 str << "_wrpid"sv;
             } else {
@@ -2293,7 +2307,7 @@ void CodegenUtility::CodegenPixel(Function pixel, vstd::StringBuilder &result, b
     vstd::StringBuilder retName;
     auto retType = pixel.return_type();
     GetTypeName(*retType, retName, Usage::READ);
-    result << retName << " pixel(v2p p){\n"sv;
+    result << retName << " pixel(v2p p,float3 bary,uint primId){\n"sv;
     if (cBufferNonEmpty) {
         result << "_Args a = _Global[0];\n"sv;
     }
@@ -2321,12 +2335,12 @@ void CodegenUtility::CodegenPixel(Function pixel, vstd::StringBuilder &result, b
     }
     result << R"(
 }
-void main(v2p p)"sv;
+void main(v2p p,float3 bary:SV_Barycentrics,uint primId:SV_PrimitiveID)"sv;
     if (retType->is_scalar() || retType->is_vector()) {
         result << ",out "sv;
         GetTypeName(*retType, result, Usage::READ);
         result << R"( o0:SV_TARGET0){
-o0=pixel(p);
+o0=pixel(p,bary,primId);
 }
 )"sv;
     } else if (retType->is_structure()) {
@@ -2340,7 +2354,7 @@ o0=pixel(p);
         }
         result << "){\n"sv;
         GetTypeName(*retType, result, Usage::READ);
-        result << " o=pixel(p);\n"sv;
+        result << " o=pixel(p,bary,primId);\n"sv;
         for (auto i : vstd::range(retType->members().size())) {
             auto num = vstd::to_string(i);
             result << 'o' << num << "=o.v"sv << num << ";\n"sv;
@@ -2366,7 +2380,8 @@ static bool IsCBuffer(Variable::Tag t) {
         case Variable::Tag::DISPATCH_ID:
         case Variable::Tag::DISPATCH_SIZE:
         case Variable::Tag::KERNEL_ID:
-        case Variable::Tag::OBJECT_ID:
+        case Variable::Tag::RASTER_BARYCENTRICS:
+        case Variable::Tag::RASTER_OBJECT_ID:
             return false;
         default:
             return true;

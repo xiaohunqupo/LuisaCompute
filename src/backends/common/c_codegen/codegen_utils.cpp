@@ -1329,9 +1329,6 @@ void Clanguage_CodegenUtils::gen_var_name(vstd::StringBuilder &sb, Variable cons
         case Variable::Tag::KERNEL_ID:
             sb << "ker_id";
             break;
-        case Variable::Tag::OBJECT_ID:
-            sb << "ker_id";
-            break;
         case Variable::Tag::REFERENCE:
             sb << luisa::format("r{}", var.uid());
             break;

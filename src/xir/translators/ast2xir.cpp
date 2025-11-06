@@ -272,7 +272,8 @@ private:
                 case Variable::Tag::KERNEL_ID: return m->create_kernel_id();
                 case Variable::Tag::WARP_LANE_COUNT: return m->create_warp_size();
                 case Variable::Tag::WARP_LANE_ID: return m->create_warp_lane_id();
-                case Variable::Tag::OBJECT_ID: return m->create_object_id();
+                case Variable::Tag::RASTER_BARYCENTRICS: return m->create_bary_centrics();
+                case Variable::Tag::RASTER_OBJECT_ID: return m->create_object_id();
                 default: break;
             }
             LUISA_ERROR_WITH_LOCATION("Unexpected variable type.");

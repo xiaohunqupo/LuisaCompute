@@ -69,7 +69,8 @@ SpecialRegister *Module::create_special_register(DerivedSpecialRegisterTag tag) 
                 case DerivedSpecialRegisterTag::WARP_LANE_ID: return luisa::make_managed<SPR_WarpLaneID>(this);
                 case DerivedSpecialRegisterTag::DISPATCH_ID: return luisa::make_managed<SPR_DispatchID>(this);
                 case DerivedSpecialRegisterTag::KERNEL_ID: return luisa::make_managed<SPR_KernelID>(this);
-                case DerivedSpecialRegisterTag::OBJECT_ID: return luisa::make_managed<SPR_ObjectID>(this);
+                case DerivedSpecialRegisterTag::RASTER_OBJECT_ID: return luisa::make_managed<SPR_ObjectID>(this);
+                case DerivedSpecialRegisterTag::RASTER_BARYCENTRICS: return luisa::make_managed<SPR_Barycentrics>(this);
                 case DerivedSpecialRegisterTag::BLOCK_SIZE: return luisa::make_managed<SPR_BlockSize>(this);
                 case DerivedSpecialRegisterTag::WARP_SIZE: return luisa::make_managed<SPR_WarpSize>(this);
                 case DerivedSpecialRegisterTag::DISPATCH_SIZE: return luisa::make_managed<SPR_DispatchSize>(this);
@@ -113,9 +114,15 @@ SPR_KernelID *Module::create_kernel_id() noexcept {
 }
 
 SPR_ObjectID *Module::create_object_id() noexcept {
-    auto sreg = create_special_register(DerivedSpecialRegisterTag::OBJECT_ID);
+    auto sreg = create_special_register(DerivedSpecialRegisterTag::RASTER_OBJECT_ID);
     LUISA_DEBUG_ASSERT(sreg->isa<SPR_ObjectID>(), "Invalid special register type.");
     return static_cast<SPR_ObjectID *>(sreg);
+}
+
+SPR_Barycentrics *Module::create_bary_centrics() noexcept {
+    auto sreg = create_special_register(DerivedSpecialRegisterTag::RASTER_BARYCENTRICS);
+    LUISA_DEBUG_ASSERT(sreg->isa<SPR_Barycentrics>(), "Invalid special register type.");
+    return static_cast<SPR_Barycentrics *>(sreg);
 }
 
 SPR_BlockSize *Module::create_block_size() noexcept {

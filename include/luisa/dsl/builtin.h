@@ -121,9 +121,6 @@ inline void device_assert(Expr<bool> pred, luisa::string_view msg) noexcept {
 [[nodiscard]] inline const auto dispatch_id() noexcept {
     return def<uint3>(detail::FunctionBuilder::current()->dispatch_id());
 }
-[[nodiscard]] inline auto object_id() noexcept {
-    return def<uint>(detail::FunctionBuilder::current()->object_id());
-}
 [[nodiscard]] inline auto kernel_id() noexcept {
     return def<uint>(detail::FunctionBuilder::current()->kernel_id());
 }
