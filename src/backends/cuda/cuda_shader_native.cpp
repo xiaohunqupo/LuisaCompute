@@ -23,11 +23,19 @@ CUDAShaderNative::CUDAShaderNative(CUDADevice *device, luisa::vector<std::byte> 
       _bound_arguments{std::move(bound_arguments)} {
 
     auto load_ptx = [&](const void *ptx, size_t ptx_size) noexcept {
+        auto devrt = device->cudadevrt_library();
+        if (devrt.empty() || std::string_view{static_cast<const char *>(ptx), ptx_size}.find("kernel_launcher") == std::string_view::npos) {
+            LUISA_WARNING_WITH_LOCATION(
+                "CUDA Device Runtime library is not linked. "
+                "Indirect dispatch will not be available for this kernel.");
+            if (auto ret = cuModuleLoadData(&_module, ptx); ret != CUDA_SUCCESS) { return ret; }
+            LUISA_CHECK_CUDA(cuModuleGetFunction(&_function, _module, entry));
+            return CUDA_SUCCESS;
+        }
         CUlinkState link_state{};
         size_t cubin_size;
         void *cubin = nullptr;
         LUISA_CHECK_CUDA(cuLinkCreate(0u, nullptr, nullptr, &link_state));
-        auto devrt = device->cudadevrt_library();
         if (!devrt.empty()) {
             LUISA_CHECK_CUDA(cuLinkAddData(link_state, CU_JIT_INPUT_LIBRARY,
                                            const_cast<char *>(device->cudadevrt_library().data()),
