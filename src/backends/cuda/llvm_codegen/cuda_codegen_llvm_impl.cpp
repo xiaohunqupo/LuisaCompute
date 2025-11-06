@@ -261,6 +261,14 @@ luisa::string CUDACodegenLLVMImpl::generate(const xir::Module &xir_module) noexc
     }
 #endif
     _run_optimization_passes();
+    static auto dump_llvm_ir = [] {
+        using namespace std::string_view_literals;
+        auto env = getenv("LUISA_DUMP_LLVM_IR");
+        return env != nullptr && env == "1"sv;
+    }();
+    if (dump_llvm_ir) {
+        _llvm_module->print(llvm::errs(), nullptr, true, true);
+    }
     return _generate_ptx();
 }
 
