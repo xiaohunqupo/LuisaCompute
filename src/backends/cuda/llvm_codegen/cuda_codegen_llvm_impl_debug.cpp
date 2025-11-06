@@ -7,8 +7,12 @@
 namespace luisa::compute::cuda {
 
 void CUDACodegenLLVMImpl::_translate_print_inst(IB &b, FunctionContext &func_ctx, const xir::PrintInst *inst) noexcept {
-    std::string printf_format = "[cuda] ";
+    std::string printf_format = "[cycle %llu] [cuda] ";
     llvm::SmallVector<llvm::Value *, 8> llvm_args;
+    // use clock to present the time
+    auto llvm_clock = b.CreateIntrinsic(llvm::Intrinsic::nvvm_read_ptx_sreg_clock64, {});
+    llvm_args.emplace_back(llvm_clock);
+    // decode real print arguments
     auto op_uses = inst->operand_uses();
     auto decode_value = [&](auto &&self, const Type *type, llvm::Value *llvm_value) -> void {
         switch (type->tag()) {
