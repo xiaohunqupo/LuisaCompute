@@ -298,9 +298,8 @@ int main(int argc, char **argv) {
     Stream stream = device.create_stream();
 
     constexpr size_t WARP_SIZE = 32;
-    constexpr size_t array_size = 256;
     constexpr size_t BLOCK_SIZE = 256;
-    constexpr size_t NUM_TILES = 100;
+    constexpr size_t NUM_TILES = 10000;
     const size_t num_blocks = ceil(float(NUM_TILES) / BLOCK_SIZE);
     auto scan_tile_buffer = device.create_buffer<ScanTileState<int>>(WARP_SIZE + NUM_TILES);
 
@@ -309,10 +308,11 @@ int main(int argc, char **argv) {
 
     // init status to invalid and obb
     Kernel1D init_kernel = [&](BufferVar<ScanTileState<int>> tile_state) noexcept {
+        luisa::compute::set_block_size(BLOCK_SIZE);
         luisa::parallel_primitive::ScanTileStateViewer<int, true>::InitializeWardStatus(tile_state, NUM_TILES);
     };
     auto init_shader = device.compile(init_kernel);
-    cmdlist << init_shader(scan_tile_buffer.view()).dispatch(num_blocks);
+    cmdlist << init_shader(scan_tile_buffer.view()).dispatch(num_blocks * BLOCK_SIZE);
     stream << cmdlist.commit() << synchronize();
 
     auto scan_op = [](const Var<int> &a, const Var<int> &b) noexcept { return a + b; };
