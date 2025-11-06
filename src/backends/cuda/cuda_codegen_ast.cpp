@@ -1449,15 +1449,7 @@ void CUDACodegenAST::visit(const AutoDiffStmt *stmt) {
     stmt->body()->accept(*this);
 }
 
-void CUDACodegenAST::emit(Function f,
-                          luisa::string_view device_lib,
-                          luisa::string_view native_include) {
-    emit(f, [device_lib](StringScratch &scratch) { scratch << device_lib; }, native_include);
-}
-
-void CUDACodegenAST::emit(Function f,
-                          luisa::move_only_function<void(StringScratch &)> const &get_device_lib,
-                          luisa::string_view native_include) {
+void CUDACodegenAST::emit(Function f, luisa::string_view device_lib, luisa::string_view native_include) {
 
     _requires_printing = f.requires_printing();
     _requires_optix = f.requires_raytracing();
@@ -1478,14 +1470,17 @@ void CUDACodegenAST::emit(Function f,
             _scratch << "#define LUISA_ENABLE_OPTIX_RAY_QUERY\n";
             _ray_query_lowering->preprocess(f);
         }
+        if (f.use_cooperative_operations() || f.propagated_builtin_callables().uses_cooperative()) {
+            _scratch << "@define OPTIX_INCLUDE_COOPERATIVE_VECTOR\n";
+        }
     }
     _scratch << "#define LC_BLOCK_SIZE lc_make_uint3("
              << f.block_size().x << ", "
              << f.block_size().y << ", "
              << f.block_size().z << ")\n"
-             << "\n/* built-in device library begin */\n";
-    get_device_lib(_scratch);
-    _scratch << "\n/* built-in device library end */\n\n";
+             << "\n/* built-in device library begin */\n"
+             << device_lib
+             << "\n/* built-in device library end */\n\n";
 
     _emit_type_decl(f);
 

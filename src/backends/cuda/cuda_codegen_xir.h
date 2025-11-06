@@ -10,14 +10,17 @@ namespace luisa::compute::cuda {
 
 class CUDACodegenXIR final {
 
-private:
+public:
     struct PrintInfo {
         const Type *type;
         size_t index;
     };
+    using PrintFormatVector = luisa::vector<std::pair<luisa::string, const Type *>>;
+
+private:
     StringScratch &_scratch;
     luisa::unordered_map<const xir::PrintInst *, PrintInfo> _print_info;
-    luisa::vector<std::pair<luisa::string, const Type *>> _print_formats;
+    PrintFormatVector _print_formats;
     luisa::vector<const xir::Instruction *> _control_flow_stack;
     bool _allow_indirect_dispatch;
     bool _requires_printing{false};

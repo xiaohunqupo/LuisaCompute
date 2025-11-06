@@ -24,8 +24,7 @@ private:
 
 public:
     [[nodiscard]] static auto create(const CUDAShaderPrinter *printer,
-                                     const void *data,
-                                     Log log_callback) noexcept {
+                                     const void *data, Log log_callback) noexcept {
         return _pool().create(printer, data, std::move(log_callback));
     }
 

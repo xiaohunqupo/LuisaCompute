@@ -789,6 +789,7 @@ ShaderCreationInfo CUDADevice::create_shader(const ShaderOption &option, Functio
                 .enable_printing = kernel.requires_printing(),
             };
             ptx_from_llvm = luisa_compute_cuda_codegen_llvm(*xir_module, config);
+            return CUDACodegenXIR::PrintFormatVector{};
         }
 #endif
         if (LUISA_USE_EXPERIMENTAL_XIR_CODEGEN) {
@@ -797,11 +798,7 @@ ShaderCreationInfo CUDADevice::create_shader(const ShaderOption &option, Functio
             CUDACodegenXIR codegen{scratch, !_cudadevrt_library.empty()};
             StringScratch s;
             codegen.emit(xir_module.get(), kernel.bound_arguments(),
-                         ([&] {
-                             _compiler->get_device_library()(s);
-                             return s.string_view();
-                         })(),
-                         option.native_include);
+                         compiler()->device_library(), option.native_include);
             LUISA_INFO("CUDA Codegen XIR generated source in {} ms.", clk.toc());
             // dump for debugging
             {
@@ -814,9 +811,7 @@ ShaderCreationInfo CUDADevice::create_shader(const ShaderOption &option, Functio
 #endif
         Clock clk;
         CUDACodegenAST codegen{scratch, !_cudadevrt_library.empty()};
-        codegen.emit(kernel, [&](StringScratch &scratch) {
-            _compiler->get_device_library()(scratch);
-            _compiler->get_device_optional_library()(scratch, kernel); }, option.native_include);
+        codegen.emit(kernel, _compiler->device_library(), option.native_include);
         LUISA_VERBOSE("Generated CUDA source in {} ms.", clk.toc());
         return std::move(codegen).move_print_formats();
     }();
@@ -919,7 +914,7 @@ ShaderCreationInfo CUDADevice::create_shader(const ShaderOption &option, Functio
     //  }
 
     // compute hash
-    auto src_hash = _compiler->compute_hash(scratch.string(), nvrtc_options);
+    auto src_hash = CUDACompiler::compute_hash(scratch.string(), nvrtc_options);
 
     // create metadata
     CUDAShaderMetadata metadata{

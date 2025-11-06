@@ -7,7 +7,7 @@
 namespace luisa::compute::cuda {
 
 void CUDACodegenLLVMImpl::_translate_print_inst(IB &b, FunctionContext &func_ctx, const xir::PrintInst *inst) noexcept {
-    std::string printf_format;
+    std::string printf_format = "[cuda] ";
     llvm::SmallVector<llvm::Value *, 8> llvm_args;
     auto op_uses = inst->operand_uses();
     auto decode_value = [&](auto &&self, const Type *type, llvm::Value *llvm_value) -> void {
@@ -164,7 +164,8 @@ void CUDACodegenLLVMImpl::_translate_print_inst(IB &b, FunctionContext &func_ctx
     // create global string for format
     auto llvm_format = b.CreateGlobalString(printf_format, "luisa.string.print.format");
     // all set, call vprintf
-    b.CreateCall(llvm_vprintf, {llvm_format, llvm_temp});
+    auto llvm_call = b.CreateCall(llvm_vprintf, {llvm_format, llvm_temp});
+    llvm_call->addFnAttr(llvm::Attribute::NoUnwind);
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_translate_clock_inst(IB &b, FunctionContext &func_ctx, const xir::ClockInst *inst) noexcept {

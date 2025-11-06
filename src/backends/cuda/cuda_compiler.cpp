@@ -179,25 +179,18 @@ size_t CUDACompiler::type_size(const Type *type) noexcept {
 
 CUDACompiler::CUDACompiler(const CUDADevice *device) noexcept
     : _device{device},
-      _get_device_library{[device](StringScratch &scratch) {
-          scratch << luisa::string_view{reinterpret_cast<const char *>(luisa_compute_cuda_device_half), luisa_compute_cuda_device_half_size}
-                  << luisa::string_view{reinterpret_cast<const char *>(luisa_compute_cuda_device_math), luisa_compute_cuda_device_math_size}
-                  << luisa::string_view{reinterpret_cast<const char *>(luisa_compute_cuda_device_resource), luisa_compute_cuda_device_resource_size};
-      }},
-      _get_device_optional_library([device](StringScratch &scratch, Function func) {
-          if (func.use_cooperative_operations() || func.propagated_builtin_callables().uses_cooperative()) {
-              scratch << luisa::string_view{reinterpret_cast<const char *>(luisa_compute_cuda_device_coop), luisa_compute_cuda_device_coop_size};
-          }
-      }),
       _cache{Cache::create(max_cache_item_count)},
-      _nvrtc_path{luisa::to_string(find_standalone_nvrtc(
-          device->context().runtime_directory()))},
+      _nvrtc_path{luisa::to_string(find_standalone_nvrtc(device->context().runtime_directory()))},
       _nvrtc_version{query_nvrtc_version(_nvrtc_path.c_str())} {
     LUISA_VERBOSE("CUDA NVRTC compiler version = {}.", _nvrtc_version);
+    _device_library
+        .append(luisa::string_view{reinterpret_cast<const char *>(luisa_compute_cuda_device_half), luisa_compute_cuda_device_half_size})
+        .append(luisa::string_view{reinterpret_cast<const char *>(luisa_compute_cuda_device_math), luisa_compute_cuda_device_math_size})
+        .append(luisa::string_view{reinterpret_cast<const char *>(luisa_compute_cuda_device_resource), luisa_compute_cuda_device_resource_size})
+        .append(luisa::string_view{reinterpret_cast<const char *>(luisa_compute_cuda_device_coop), luisa_compute_cuda_device_coop_size});
 }
 
-uint64_t CUDACompiler::compute_hash(const string &src,
-                                    luisa::span<const char *const> options) const noexcept {
+uint64_t CUDACompiler::compute_hash(const string &src, luisa::span<const char *const> options) noexcept {
     auto hash = hash_value(src);
     for (auto o : options) { hash = hash_value(o, hash); }
     return hash;

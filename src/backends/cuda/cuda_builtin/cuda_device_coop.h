@@ -1,7 +1,4 @@
 
-// If you manually define OPTIX_INCLUDE_COOPERATIVE_VECTOR to override the default behavior, you must
-// set it to 0 or 1 and not simply define it with no value (which will default it have a value of 0).
-#    define OPTIX_INCLUDE_COOPERATIVE_VECTOR 1
 typedef unsigned long long CUdeviceptr;
 
 typedef enum OptixCoopVecElemType

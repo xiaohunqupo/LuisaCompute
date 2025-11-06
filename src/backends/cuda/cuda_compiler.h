@@ -27,11 +27,10 @@ public:
 
 private:
     const CUDADevice *_device;
-    luisa::move_only_function<void(StringScratch &)> _get_device_library;
-    luisa::move_only_function<void(StringScratch &, Function)> _get_device_optional_library;
     mutable luisa::unique_ptr<Cache> _cache;
     luisa::string _nvrtc_path;
     uint32_t _nvrtc_version;
+    luisa::string _device_library;
 
 public:
     explicit CUDACompiler(const CUDADevice *device) noexcept;
@@ -40,13 +39,11 @@ public:
     CUDACompiler &operator=(CUDACompiler &&) noexcept = default;
     CUDACompiler &operator=(const CUDACompiler &) noexcept = delete;
     [[nodiscard]] auto nvrtc_version() const noexcept { return _nvrtc_version; }
-    [[nodiscard]] auto const &get_device_library() const noexcept { return _get_device_library; }
-    [[nodiscard]] auto const &get_device_optional_library() const noexcept { return _get_device_optional_library; }
+    [[nodiscard]] auto device_library() const noexcept { return luisa::string_view{_device_library}; }
     [[nodiscard]] luisa::vector<std::byte> compile(const luisa::string &src, const luisa::string &src_filename,
                                                    luisa::span<const char *const> options,
                                                    const CUDAShaderMetadata *metadata = nullptr) const noexcept;
-    [[nodiscard]] uint64_t compute_hash(const luisa::string &src,
-                                        luisa::span<const char *const> options) const noexcept;
+    [[nodiscard]] static uint64_t compute_hash(const luisa::string &src, luisa::span<const char *const> options) noexcept;
     [[nodiscard]] static size_t type_size(const Type *type) noexcept;
     [[nodiscard]] auto device() const noexcept { return _device; }
 };
