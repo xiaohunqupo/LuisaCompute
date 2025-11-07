@@ -668,7 +668,6 @@ void export_runtime(py::module &m) {
         .def("kernel_id", &FunctionBuilder::kernel_id, pyref)
         .def("warp_lane_count", &FunctionBuilder::warp_lane_count, pyref)
         .def("warp_lane_id", &FunctionBuilder::warp_lane_id, pyref)
-        .def("object_id", &FunctionBuilder::object_id, pyref)
         .def("dispatch_size", &FunctionBuilder::dispatch_size, pyref)
 
         .def("local", &FunctionBuilder::local, pyref)
