@@ -60,15 +60,15 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_atomic_inst(IB &b, FunctionContext 
         }
         case xir::AtomicOp::FETCH_ADD: {
             LUISA_DEBUG_ASSERT(llvm_values.size() == 1);
-            return b.CreateAtomicRMW(llvm::AtomicRMWInst::Add,
-                                     llvm_elem_ptr, llvm_values[0],
+            auto llvm_op = elem_type->is_float() ? llvm::AtomicRMWInst::FAdd : llvm::AtomicRMWInst::Add;
+            return b.CreateAtomicRMW(llvm_op, llvm_elem_ptr, llvm_values[0],
                                      llvm::MaybeAlign{elem_type->alignment()},
                                      llvm::AtomicOrdering::Monotonic);
         }
         case xir::AtomicOp::FETCH_SUB: {
             LUISA_DEBUG_ASSERT(llvm_values.size() == 1);
-            return b.CreateAtomicRMW(llvm::AtomicRMWInst::Sub,
-                                     llvm_elem_ptr, llvm_values[0],
+            auto llvm_op = elem_type->is_float() ? llvm::AtomicRMWInst::FSub : llvm::AtomicRMWInst::Sub;
+            return b.CreateAtomicRMW(llvm_op, llvm_elem_ptr, llvm_values[0],
                                      llvm::MaybeAlign{elem_type->alignment()},
                                      llvm::AtomicOrdering::Monotonic);
         }
