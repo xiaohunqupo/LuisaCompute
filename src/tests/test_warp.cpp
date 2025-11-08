@@ -81,7 +81,9 @@ int main(int argc, char *argv[]) {
     stream
         << lhs_buffer.copy_from(lhs_matrix.data())
         << rhs_buffer.copy_from(rhs_matrix.data())
-        << mat_mul_shader(lhs_buffer, rhs_buffer, result_buffer, k_matrix_size).dispatch(k_matrix_size * k_warp_size, k_matrix_size) << result_buffer.copy_to(result_matrix.data()) << synchronize();
+        << mat_mul_shader(lhs_buffer, rhs_buffer, result_buffer, k_matrix_size).dispatch(k_matrix_size * k_warp_size, k_matrix_size)
+        << result_buffer.copy_to(result_matrix.data())
+        << synchronize();
     // Host calculation validation
     for (int x = 0; x < k_matrix_size; ++x) {
         for (int y = 0; y < k_matrix_size; ++y) {

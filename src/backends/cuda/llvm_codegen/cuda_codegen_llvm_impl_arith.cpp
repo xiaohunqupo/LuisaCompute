@@ -42,7 +42,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionCont
         return op(llvm_a, llvm_b, llvm_c);
     };
     auto call_exp2 = [&](llvm::Value *v) noexcept -> llvm::Value * {
-        if (auto scalar_t = v->getType()->getScalarType(); !scalar_t->isHalfTy()) {
+        if (_config.cuda_arch < nvvm_required_arch_exp2_f16 || !v->getType()->getScalarType()->isHalfTy()) {
             return _call_libdevice_unary_op(b, "exp2", v);
         }
         if (auto vector_t = llvm::dyn_cast<llvm::VectorType>(v->getType())) {
