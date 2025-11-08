@@ -120,7 +120,7 @@ llvm::Value *CUDACodegenLLVMImpl::_get_llvm_literal(IB &b, const Type *type, con
     LUISA_ERROR_WITH_LOCATION("Cannot create LLVM literal for type: {}.", type->description());
 }
 
-llvm::Value *CUDACodegenLLVMImpl::_get_llvm_constant(IB &b, const xir::Constant *c) noexcept {
+llvm::Value *CUDACodegenLLVMImpl::_get_llvm_constant(IB &b, const xir::Constant *c, bool load_global) noexcept {
     auto type = c->type();
     if (type->is_basic()) {
         auto llvm_const = _get_llvm_literal(b, type, c->data());
@@ -142,7 +142,7 @@ llvm::Value *CUDACodegenLLVMImpl::_get_llvm_constant(IB &b, const xir::Constant 
         llvm_global->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
         iter->second = llvm_global;
     }
-    return _load_llvm_value(b, iter->second, type);
+    return load_global ? _load_llvm_value(b, iter->second, type) : iter->second;
 }
 
 }// namespace luisa::compute::cuda

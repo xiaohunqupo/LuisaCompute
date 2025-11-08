@@ -16,7 +16,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_alloca_inst(IB &b, FunctionContext 
     // shared alloca's are mapped to global variables in address space nvvm_address_space_shared
     auto llvm_global = new llvm::GlobalVariable{
         *_llvm_module, llvm_type, false, llvm::GlobalValue::PrivateLinkage,
-        nullptr, inst->name().value_or("shared"), nullptr,
+        llvm::UndefValue::get(llvm_type), inst->name().value_or("shared"), nullptr,
         llvm::GlobalValue::NotThreadLocal, nvptx_address_space_shared, false};
     llvm_global->setAlignment(llvm::Align{inst->type()->alignment()});
     llvm_global->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);

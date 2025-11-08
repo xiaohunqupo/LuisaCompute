@@ -1190,7 +1190,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_matrix_transpose(IB &b, llvm::Value
     return dst;
 }
 
-llvm::Value *CUDACodegenLLVMImpl::_translate_aggregate(IB &b, FunctionContext &func_ctx, const xir::ArithmeticInst *inst) noexcept {
+llvm::Value *CUDACodegenLLVMImpl::_translate_aggregate(IB &b, const FunctionContext &func_ctx, const xir::ArithmeticInst *inst) noexcept {
     auto llvm_result_type = _get_llvm_type(inst->type());
     auto llvm_result = static_cast<llvm::Value *>(llvm::PoisonValue::get(llvm_result_type->reg_type));
     switch (inst->type()->tag()) {
@@ -1286,6 +1286,13 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_insert(IB &b, FunctionContext &func
         auto llvm_index = _get_llvm_value(b, func_ctx, index_uses.front()->value());
         return b.CreateInsertElement(llvm_src, llvm_value, llvm_index);
     }
+    // struct or array element insertion with a single constant index
+    LUISA_DEBUG_ASSERT(llvm_src->getType()->isAggregateType());
+    if (index_uses.size() == 1 && index_uses.front()->value()->isa<xir::Constant>()) {
+        auto index = static_cast<const xir::Constant *>(index_uses.front()->value());
+        auto static_index = static_cast<unsigned>(detail::evaluate_xir_constant_as_uint64(index));
+        return b.CreateInsertValue(llvm_src, llvm_value, static_index);
+    }
     // generic
     auto llvm_src_mem = _convert_llvm_reg_value_to_mem(b, llvm_src, inst->type());
     auto llvm_temp = _create_temp_in_alloca_block(func_ctx, llvm_src_mem->getType(), inst->type()->alignment());
@@ -1297,6 +1304,16 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_insert(IB &b, FunctionContext &func
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_translate_extract(IB &b, FunctionContext &func_ctx, const xir::ArithmeticInst *inst) noexcept {
+    // extract from global array, we fold extract(load(global)) into load(global[index]) to reduce memory traffic
+    if (auto src = inst->operand(0); src->isa<xir::Constant>() && src->type()->is_array()) {
+        auto llvm_global = _get_llvm_constant(b, static_cast<const xir::Constant *>(src), false);
+        LUISA_DEBUG_ASSERT(llvm_global->getType()->isPointerTy());
+        auto index_uses = inst->operand_uses().subspan(1);
+        auto [llvm_ptr, elem_type] = _lower_access_chain_address(b, func_ctx, llvm_global, src->type(), index_uses);
+        LUISA_DEBUG_ASSERT(elem_type == inst->type());
+        return _load_llvm_value(b, llvm_ptr, elem_type);
+    }
+    // otherwise, normal extraction
     auto llvm_src = _get_llvm_value(b, func_ctx, inst->operand(0));
     auto index_uses = inst->operand_uses().subspan(1);
     // vector element extraction
@@ -1304,6 +1321,13 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_extract(IB &b, FunctionContext &fun
         LUISA_DEBUG_ASSERT(index_uses.size() == 1);
         auto llvm_index = _get_llvm_value(b, func_ctx, index_uses.front()->value());
         return b.CreateExtractElement(llvm_src, llvm_index);
+    }
+    // struct or array element extraction with a single constant index
+    LUISA_DEBUG_ASSERT(llvm_src->getType()->isAggregateType());
+    if (index_uses.size() == 1 && index_uses.front()->value()->isa<xir::Constant>()) {
+        auto index = static_cast<const xir::Constant *>(index_uses.front()->value());
+        auto static_index = static_cast<unsigned>(detail::evaluate_xir_constant_as_uint64(index));
+        return b.CreateExtractValue(llvm_src, static_index);
     }
     // generic
     auto llvm_src_mem = _convert_llvm_reg_value_to_mem(b, llvm_src, inst->operand(0)->type());

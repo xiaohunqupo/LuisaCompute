@@ -166,11 +166,10 @@ private:
 
     /* the following methods are defined in cuda_codegen_llvm_impl_const.cpp */
     [[nodiscard]] llvm::Value *_get_llvm_literal(IB &b, const Type *type, const void *data) noexcept;
-    [[nodiscard]] llvm::Value *_get_llvm_constant(IB &b, const xir::Constant *c) noexcept;
+    [[nodiscard]] llvm::Value *_get_llvm_constant(IB &b, const xir::Constant *c, bool load_global = true) noexcept;
 
     /* the following methods are defined in cuda_codegen_llvm_impl_sreg.cpp */
-    [[nodiscard]] llvm::Value *_read_special_register(IB &b, const FunctionContext &func_ctx,
-                                                      xir::DerivedSpecialRegisterTag tag) noexcept;
+    [[nodiscard]] llvm::Value *_read_special_register(IB &b, const FunctionContext &func_ctx, xir::DerivedSpecialRegisterTag tag) noexcept;
     [[nodiscard]] llvm::Value *_read_block_id(IB &b, const FunctionContext &func_ctx) noexcept;
     [[nodiscard]] llvm::Value *_read_block_size(IB &b, const FunctionContext &func_ctx) noexcept;
     [[nodiscard]] llvm::Value *_read_thread_id(IB &b, const FunctionContext &func_ctx) noexcept;
@@ -232,9 +231,9 @@ private:
     [[nodiscard]] llvm::Value *_translate_outer_product(IB &b, llvm::Value *lhs, llvm::Value *rhs) noexcept;
     [[nodiscard]] llvm::Value *_translate_matrix_multiply(IB &b, llvm::Value *lhs, llvm::Value *rhs) noexcept;
     [[nodiscard]] llvm::Value *_translate_matrix_determinant(IB &b, llvm::Value *m) noexcept;
-    [[nodiscard]] llvm::Value *_translate_matrix_transpose(IB &b, llvm::Value *m) noexcept;
+    [[nodiscard]] static llvm::Value *_translate_matrix_transpose(IB &b, llvm::Value *m) noexcept;
     [[nodiscard]] llvm::Value *_translate_matrix_inverse(IB &b, llvm::Value *m) noexcept;
-    [[nodiscard]] llvm::Value *_translate_aggregate(IB &b, FunctionContext &func_ctx, const xir::ArithmeticInst *inst) noexcept;
+    [[nodiscard]] llvm::Value *_translate_aggregate(IB &b, const FunctionContext &func_ctx, const xir::ArithmeticInst *inst) noexcept;
     [[nodiscard]] llvm::Value *_translate_shuffle(IB &b, FunctionContext &func_ctx, const xir::ArithmeticInst *inst) noexcept;
     [[nodiscard]] llvm::Value *_translate_insert(IB &b, FunctionContext &func_ctx, const xir::ArithmeticInst *inst) noexcept;
     [[nodiscard]] llvm::Value *_translate_extract(IB &b, FunctionContext &func_ctx, const xir::ArithmeticInst *inst) noexcept;
