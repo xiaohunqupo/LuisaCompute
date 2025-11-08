@@ -194,14 +194,16 @@ void CUDACodegenLLVMImpl::_translate_assume_inst(IB &b, FunctionContext &func_ct
 }
 
 void CUDACodegenLLVMImpl::_create_assertion_with_message(IB &b, llvm::Value *cond, luisa::string_view message) noexcept {
-    auto llvm_msg = llvm::ConstantDataArray::getString(_llvm_context, message);
-    // ReSharper disable once CppDFAMemoryLeak
-    auto llvm_msg_gv = new llvm::GlobalVariable(
-        *_llvm_module, llvm_msg->getType(), true,
-        llvm::GlobalValue::PrivateLinkage, llvm_msg, "luisa.assert.message",
-        nullptr, llvm::GlobalValue::NotThreadLocal, nvptx_address_space_constant);
-    auto llvm_assert_f = _get_assert_function();
-    b.CreateCall(llvm_assert_f, {cond, llvm_msg_gv});
+    if (_config.enable_debug_info) {// we only create assertions when debug info is enabled
+        auto llvm_msg = llvm::ConstantDataArray::getString(_llvm_context, message);
+        // ReSharper disable once CppDFAMemoryLeak
+        auto llvm_msg_gv = new llvm::GlobalVariable(
+            *_llvm_module, llvm_msg->getType(), true,
+            llvm::GlobalValue::PrivateLinkage, llvm_msg, "luisa.assert.message",
+            nullptr, llvm::GlobalValue::NotThreadLocal, nvptx_address_space_constant);
+        auto llvm_assert_f = _get_assert_function();
+        b.CreateCall(llvm_assert_f, {cond, llvm_msg_gv});
+    }
 }
 
 }// namespace luisa::compute::cuda

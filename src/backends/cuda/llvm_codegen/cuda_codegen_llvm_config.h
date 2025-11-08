@@ -8,6 +8,7 @@
 #include <array>
 
 #include <luisa/core/stl/string.h>
+#include <luisa/ast/function.h>
 
 namespace luisa::compute::cuda {
 
@@ -21,6 +22,7 @@ struct CUDACodegenLLVMConfig {
     };
 
     luisa::string source_file{};
+    luisa::span<const Function::Binding> bindings{};
     std::array<uint32_t, 3> block_size{};// {0, 0, 0} if dynamic, must be constant for now
     uint32_t cuda_arch{};
     OptLevel opt_level{OptLevel::LEVEL_AGGRESSIVE};

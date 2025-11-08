@@ -2,10 +2,12 @@
 // Created by mike on 9/25/25.
 //
 
+#include <luisa/xir/passes/dom_tree.h>
+#include <luisa/ast/function.h>
+#include <luisa/runtime/rhi/pixel.h>
+
+#include "../cuda_texture.h"
 #include "cuda_codegen_llvm_impl.h"
-#include "luisa/xir/passes/dom_tree.h"
-#include "luisa/ast/function.h"
-#include "luisa/runtime/rhi/pixel.h"
 
 namespace luisa::compute::cuda {
 
@@ -108,6 +110,15 @@ llvm::Function *CUDACodegenLLVMImpl::_translate_kernel_function(const xir::Kerne
         auto llvm_member_mem = b.CreateExtractValue(llvm_arg_struct, member_index, arg->name().value_or(""));
         auto llvm_member_reg = arg->is_value() ? _convert_llvm_mem_value_to_reg(b, llvm_member_mem, arg->type()) : llvm_member_mem;
         func_ctx.local_values.try_emplace(arg, llvm_member_reg);
+        // create assumptions for bound textures' storage modes
+        if (arg_index < _config.bindings.size() && arg->is_resource() && arg->type()->is_texture()) {
+            if (auto binding = std::get_if<Function::TextureBinding>(&_config.bindings[arg_index])) {
+                auto storage = reinterpret_cast<CUDATexture *>(binding->handle)->storage();
+                auto llvm_storage = b.CreateExtractValue(llvm_member_reg, 1);
+                auto llvm_same_storage = b.CreateICmpEQ(llvm_storage, b.getInt64(luisa::to_underlying(storage)));
+                b.CreateAssumption(llvm_same_storage);
+            }
+        }
         arg_index++;
     }
     // load dispatch_size_and_kernel_id
