@@ -3,9 +3,7 @@
 
 namespace luisa::compute::cuda {
 
-CUDABufferBase::CUDABufferBase(size_t size_bytes,
-                               Location loc,
-                               int host_alloc_flags) noexcept
+CUDABufferBase::CUDABufferBase(size_t size_bytes, Location loc, int host_alloc_flags) noexcept
     : _device_address{}, _size_bytes{size_bytes}, _external_memory{false}, _is_reserved_memory{false} {
     switch (loc) {
         case Location::FORCE_HOST: {
@@ -49,11 +47,10 @@ CUDABufferBase::~CUDABufferBase() noexcept {
     if (_external_memory) { return; }
     if (_host_address != nullptr) {
         LUISA_CHECK_CUDA(cuMemFreeHost(_host_address));
+    } else if (_is_reserved_memory) {
+        LUISA_CHECK_CUDA(cuMemAddressFree(_device_address, _size_bytes));
     } else {
-        if (_is_reserved_memory)
-            LUISA_CHECK_CUDA(cuMemAddressFree(_device_address, _size_bytes));
-        else
-            LUISA_CHECK_CUDA(cuMemFree(_device_address));
+        LUISA_CHECK_CUDA(cuMemFree(_device_address));
     }
     auto size = _size_bytes;
     LUISA_VERBOSE_WITH_LOCATION(
@@ -62,7 +59,10 @@ CUDABufferBase::~CUDABufferBase() noexcept {
 }
 
 CUDABufferBase::CUDABufferBase(CUdeviceptr external_ptr, size_t size_bytes) noexcept
-    : _device_address{external_ptr}, _size_bytes{size_bytes}, _external_memory{true} {}
+    : _device_address{external_ptr},
+      _size_bytes{size_bytes},
+      _external_memory{true},
+      _is_reserved_memory{false} {}
 
 CUDABuffer::Binding CUDABuffer::binding(size_t offset, size_t size) const noexcept {
     LUISA_ASSERT(offset + size <= size_bytes(), "CUDABuffer::binding() out of range.");

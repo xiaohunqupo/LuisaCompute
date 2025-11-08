@@ -442,6 +442,14 @@ llvm::Function *CUDACodegenLLVMImpl::_get_texture2d_write_function(llvm::VectorT
     return llvm_func;
 }
 
+llvm::Function *CUDACodegenLLVMImpl::_get_texture3d_read_function(llvm::VectorType *llvm_value_type) noexcept {
+    LUISA_NOT_IMPLEMENTED("3D texture read not implemented.");
+}
+
+llvm::Function *CUDACodegenLLVMImpl::_get_texture3d_write_function(llvm::VectorType *llvm_value_type) noexcept {
+    LUISA_NOT_IMPLEMENTED("3D texture write not implemented.");
+}
+
 llvm::Value *CUDACodegenLLVMImpl::_translate_call_inst(IB &b, FunctionContext &func_ctx, const xir::CallInst *inst) noexcept {
     auto llvm_callee = _get_or_declare_llvm_function(inst->callee());
     llvm::SmallVector<llvm::Value *> llvm_args;

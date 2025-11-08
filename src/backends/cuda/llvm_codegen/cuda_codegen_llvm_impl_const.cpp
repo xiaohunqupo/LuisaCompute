@@ -133,13 +133,14 @@ llvm::Value *CUDACodegenLLVMImpl::_get_llvm_constant(IB &b, const xir::Constant 
         // create global constant
         llvm::ArrayRef const_data{static_cast<const uint8_t *>(c->data()), type->size()};
         auto llvm_init = llvm::ConstantDataArray::get(_llvm_context, const_data);
-        auto global = new llvm::GlobalVariable(
-            *_llvm_module, b.getInt8Ty(), true, llvm::GlobalValue::PrivateLinkage,
+        auto llvm_global_type = llvm::ArrayType::get(b.getInt8Ty(), type->size());
+        auto llvm_global = new llvm::GlobalVariable(
+            *_llvm_module, llvm_global_type, true, llvm::GlobalValue::PrivateLinkage,
             llvm_init, "const", nullptr, llvm::GlobalVariable::NotThreadLocal,
             nvptx_address_space_constant, false);
-        global->setAlignment(llvm::Align{type->alignment()});
-        global->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
-        iter->second = global;
+        llvm_global->setAlignment(llvm::Align{type->alignment()});
+        llvm_global->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
+        iter->second = llvm_global;
     }
     return _load_llvm_value(b, iter->second, type);
 }

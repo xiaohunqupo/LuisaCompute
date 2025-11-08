@@ -161,6 +161,8 @@ private:
     [[nodiscard]] llvm::Function *_get_vprintf_function() noexcept;
     [[nodiscard]] llvm::Function *_get_texture2d_read_function(llvm::VectorType *llvm_value_type) noexcept;
     [[nodiscard]] llvm::Function *_get_texture2d_write_function(llvm::VectorType *llvm_value_type) noexcept;
+    [[nodiscard]] llvm::Function *_get_texture3d_read_function(llvm::VectorType *llvm_value_type) noexcept;
+    [[nodiscard]] llvm::Function *_get_texture3d_write_function(llvm::VectorType *llvm_value_type) noexcept;
 
     /* the following methods are defined in cuda_codegen_llvm_impl_const.cpp */
     [[nodiscard]] llvm::Value *_get_llvm_literal(IB &b, const Type *type, const void *data) noexcept;
@@ -189,7 +191,6 @@ private:
     [[nodiscard]] llvm::Value *_static_cast_scalar_to_vector(IB &b, FunctionContext &func_ctx, llvm::Value *llvm_src, const Type *src_type, const Type *dst_type) noexcept;
     [[nodiscard]] llvm::Value *_static_cast_vector_to_vector(IB &b, FunctionContext &func_ctx, llvm::Value *llvm_src, const Type *src_type, const Type *dst_type) noexcept;
     [[nodiscard]] llvm::Value *_texel_cast(IB &b, llvm::Value *llvm_src, llvm::Type *dst_type) noexcept;
-    [[nodiscard]] llvm::Value *_texel_write_cast(IB &b, llvm::Value *llvm_src, llvm::Type *dst_type) noexcept;
 
     /* the following methods are defined in cuda_codegen_llvm_impl_inst.cpp, if not otherwise specified */
     [[nodiscard]] static llvm::Value *_create_llvm_vector(IB &b, llvm::ArrayRef<llvm::Value *> elems) noexcept;
@@ -245,6 +246,7 @@ private:
     [[nodiscard]] llvm::Value *_translate_resource_query_inst(IB &b, FunctionContext &func_ctx, const xir::ResourceQueryInst *inst) noexcept;
     [[nodiscard]] llvm::Value *_translate_resource_read_inst(IB &b, FunctionContext &func_ctx, const xir::ResourceReadInst *inst) noexcept;
     void _translate_resource_write_inst(IB &b, FunctionContext &func_ctx, const xir::ResourceWriteInst *inst) noexcept;
+    [[nodiscard]] llvm::Value *_get_buffer_element_pointer(IB &b, llvm::Value *buffer, llvm::Value *index, size_t index_stride, size_t element_size) noexcept;
 
     // ray query instructions: ray_query_loop, ray_query_dispatch, ray_query_object_read, ray_query_object_write, ray_query_pipeline, defined in cuda_codegen_llvm_impl_rtx.cpp
     void _translate_ray_query_loop_inst(IB &b, FunctionContext &func_ctx, const xir::RayQueryLoopInst *inst) noexcept;
@@ -266,6 +268,7 @@ private:
     void _translate_debug_break_inst(IB &b, FunctionContext &func_ctx, const xir::DebugBreakInst *inst) noexcept;
     void _translate_assert_inst(IB &b, FunctionContext &func_ctx, const xir::AssertInst *inst) noexcept;
     void _translate_assume_inst(IB &b, FunctionContext &func_ctx, const xir::AssumeInst *inst) noexcept;
+    void _create_assertion_with_message(IB &b, llvm::Value *cond, luisa::string_view message) noexcept;
 
     // call and outline instruction, defined in cuda_codegen_llvm_impl_func.cpp
     [[nodiscard]] llvm::Value *_translate_call_inst(IB &b, FunctionContext &func_ctx, const xir::CallInst *inst) noexcept;
