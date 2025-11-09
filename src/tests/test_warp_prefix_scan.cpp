@@ -17,9 +17,9 @@ int main(int argc, char *argv[]) {
     auto shader = device.compile<1>([]() noexcept {
         $if (thread_x() % 2u == 0u) {
             auto result = warp_prefix_sum(make_half4(.5_h));
-            device_log("{} -> {}", thread_x(), result);
+            device_log("{} -> {}", dispatch_x(), result);
         };
     });
 
-    stream << shader().dispatch(32u) << synchronize();
+    stream << shader().dispatch(1024u) << synchronize();
 }
