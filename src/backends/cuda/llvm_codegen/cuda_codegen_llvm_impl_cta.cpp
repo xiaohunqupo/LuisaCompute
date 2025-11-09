@@ -91,7 +91,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_thread_group_inst(IB &b, FunctionCo
         LUISA_DEBUG_ASSERT(value->getType()->isIntOrIntVectorTy(32));
         auto shuffle = [&b, mask](llvm::Value *x, auto offset) noexcept {
             return b.CreateIntrinsic(llvm::Intrinsic::nvvm_shfl_sync_up_i32,
-                                     {mask, x, b.getInt32(offset), b.getInt32(0)});
+                                     {mask, x, b.getInt32(offset), b.getInt32(0) /* !!! NOTE: ONYL shfl_sync_up USES 0 !!! */});
         };
         auto prev_mask = b.CreateIntrinsic(b.getInt32Ty(), llvm::Intrinsic::nvvm_read_ptx_sreg_lanemask_lt, {});
         auto active_prev_mask = b.CreateAnd(prev_mask, mask);
