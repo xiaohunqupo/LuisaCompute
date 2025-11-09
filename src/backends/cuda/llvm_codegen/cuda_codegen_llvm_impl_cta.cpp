@@ -79,9 +79,10 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_thread_group_inst(IB &b, FunctionCo
             value = b.CreateIntrinsic(llvm::Intrinsic::nvvm_shfl_sync_idx_i32,
                                       {mask, value, active_prev_lane, b.getInt32(31)});
         }
-        // value = select(lane == active_prev_lane, unit, value)
-        auto is_active_prev = b.CreateICmpEQ(lane, active_prev_lane);
-        value = b.CreateSelect(is_active_prev, unit, value);
+        // value = select(lane == first_active_lane, unit, value)
+        auto first_active_lane = b.CreateBinaryIntrinsic(llvm::Intrinsic::cttz, mask, b.getInt1(false));
+        auto is_first_active = b.CreateICmpEQ(lane, first_active_lane);
+        value = b.CreateSelect(is_first_active, unit, value);
         // perform shuffles
         for (auto offset = 1u; offset <= 16u; offset *= 2u) {
             auto shuffled_value = static_cast<llvm::Value *>(nullptr);
@@ -97,7 +98,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_thread_group_inst(IB &b, FunctionCo
                 shuffled_value = shuffle(value, offset);
             }
             auto lane_ge_offset = b.CreateICmpUGE(lane, b.getInt32(offset));
-            auto alive_mask = b.CreateShl(b.getInt32(1), b.CreateXor(lane, offset));
+            auto alive_mask = b.CreateShl(b.getInt32(1), b.CreateSub(lane, b.getInt32(offset)));
             auto is_alive = b.CreateICmpNE(b.CreateAnd(mask, alive_mask), b.getInt32(0));
             auto cond = b.CreateAnd(lane_ge_offset, is_alive);
             value = b.CreateSelect(cond, binary_op(value, shuffled_value), value);
