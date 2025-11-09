@@ -7,7 +7,7 @@
 namespace luisa::compute::cuda {
 
 llvm::Value *CUDACodegenLLVMImpl::_create_llvm_vector(IB &b, llvm::ArrayRef<llvm::Value *> elems) noexcept {
-    LUISA_DEBUG_ASSERT(elems.size() >= 2 && elems.size() <= 4);
+    LUISA_DEBUG_ASSERT(!elems.empty());
     LUISA_DEBUG_ASSERT(std::all_of(elems.begin(), elems.end(), [&](auto e) { return e->getType() == elems.front()->getType(); }));
     auto llvm_vec_type = llvm::VectorType::get(elems.front()->getType(), static_cast<unsigned>(elems.size()), false);
     auto vec = static_cast<llvm::Value *>(llvm::PoisonValue::get(llvm_vec_type));
