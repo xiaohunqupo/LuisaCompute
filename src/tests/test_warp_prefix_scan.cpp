@@ -15,9 +15,10 @@ int main(int argc, char *argv[]) {
     auto stream = device.create_stream();
 
     auto shader = device.compile<1>([]() noexcept {
-        set_block_size(32u);
-        auto result = warp_prefix_sum(1);
-        device_log("{} -> {}", thread_x(), result);
+        $if (thread_x() % 2u == 0u) {
+            auto result = warp_prefix_sum(make_half4(.5_h));
+            device_log("{} -> {}", thread_x(), result);
+        };
     });
 
     stream << shader().dispatch(32u) << synchronize();
