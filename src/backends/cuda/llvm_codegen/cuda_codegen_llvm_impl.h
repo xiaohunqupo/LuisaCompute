@@ -79,7 +79,8 @@ public:
 
     static constexpr auto nvvm_required_arch_exp2_f16 = 80;
     static constexpr auto nvvm_required_arch_match_all = 75;
-    static constexpr auto nvvm_required_arch_redux_bitwise = 80;
+    static constexpr auto nvvm_required_arch_redux_i32 = 80;
+    static constexpr auto nvvm_required_arch_redux_f32 = 101;
 
 private:
     CUDACodegenLLVMConfig _config;

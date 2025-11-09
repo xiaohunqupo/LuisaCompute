@@ -28,19 +28,19 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_thread_group_inst(IB &b, FunctionCo
         return b.CreateBitCast(v, target_type);
     };
 
-    auto reduce = [&](llvm::Value *mask, llvm::Value *lane, llvm::Value *value, auto binary_op) noexcept -> llvm::Value * {
+    auto reduce_active = [&](llvm::Value *mask, llvm::Value *lane, llvm::Value *value, auto binary_op) noexcept -> llvm::Value * {
+        LUISA_DEBUG_ASSERT(value->getType()->iisIntOrIntVectorTy(32));
         auto shuffle = [&b, mask](llvm::Value *x, auto offset) noexcept {
             return b.CreateIntrinsic(llvm::Intrinsic::nvvm_shfl_sync_bfly_i32,
                                      {mask, x, b.getInt32(offset), b.getInt32(31)});
         };
-        LUISA_DEBUG_ASSERT(mask->getType()->iisIntOrIntVectorTy(32));
         for (auto offset = 16u; offset >= 1u; offset /= 2u) {
             auto shuffled_value = static_cast<llvm::Value *>(nullptr);
             if (auto vt = llvm::dyn_cast<llvm::VectorType>(value->getType())) {
                 llvm::SmallVector<llvm::Value *, 8> shuffled_values;
                 auto dim = vt->getElementCount().getFixedValue();
                 for (auto i = 0; i < dim; i++) {
-                    auto elem = b.CreateExtractElement(value, b.getInt32(i));
+                    auto elem = b.CreateExtractElement(value, i);
                     shuffled_values.emplace_back(shuffle(elem, offset));
                 }
                 shuffled_value = _create_llvm_vector(b, shuffled_values);
@@ -50,6 +50,57 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_thread_group_inst(IB &b, FunctionCo
             auto alive_mask = b.CreateShl(b.getInt32(1), b.CreateXor(lane, offset));
             auto is_alive = b.CreateICmpNE(b.CreateAnd(mask, alive_mask), b.getInt32(0));
             value = b.CreateSelect(is_alive, binary_op(value, shuffled_value), value);
+        }
+        return value;
+    };
+
+    auto reduce_prefix = [&](llvm::Value *mask, llvm::Value *lane, llvm::Value *unit, llvm::Value *value, auto binary_op) noexcept {
+        LUISA_DEBUG_ASSERT(value->getType()->iisIntOrIntVectorTy(32));
+        auto shuffle = [&b, mask](llvm::Value *x, auto offset) noexcept {
+            return b.CreateIntrinsic(llvm::Intrinsic::nvvm_shfl_sync_up_i32,
+                                     {mask, x, b.getInt32(offset), b.getInt32(31)});
+        };
+        auto prev_mask = b.CreateIntrinsic(b.getInt32Ty(), llvm::Intrinsic::nvvm_read_ptx_sreg_lanemask_lt, {});
+        auto active_prev_mask = b.CreateAnd(prev_mask, mask);
+        auto active_prev_lane = b.CreateSub(b.getInt32(31),
+                                            b.CreateUnaryIntrinsic(llvm::Intrinsic::ctlz, active_prev_mask),
+                                            "", true, true);
+        // value = shfl_sync_idx(mask, x, active_prev_lane)
+        if (auto vt = llvm::dyn_cast<llvm::VectorType>(value->getType())) {
+            llvm::SmallVector<llvm::Value *, 8> shuffled_values;
+            auto dim = vt->getElementCount().getFixedValue();
+            for (auto i = 0; i < dim; i++) {
+                auto elem = b.CreateExtractElement(value, i);
+                shuffled_values.emplace_back(b.CreateIntrinsic(llvm::Intrinsic::nvvm_shfl_sync_idx_i32,
+                                                               {mask, elem, active_prev_lane, b.getInt32(31)}));
+            }
+            value = _create_llvm_vector(b, shuffled_values);
+        } else {
+            value = b.CreateIntrinsic(llvm::Intrinsic::nvvm_shfl_sync_idx_i32,
+                                      {mask, value, active_prev_lane, b.getInt32(31)});
+        }
+        // value = select(lane == active_prev_lane, unit, value)
+        auto is_active_prev = b.CreateICmpEQ(lane, active_prev_lane);
+        value = b.CreateSelect(is_active_prev, unit, value);
+        // perform shuffles
+        for (auto offset = 1u; offset <= 16u; offset *= 2u) {
+            auto shuffled_value = static_cast<llvm::Value *>(nullptr);
+            if (auto vt = llvm::dyn_cast<llvm::VectorType>(value->getType())) {
+                llvm::SmallVector<llvm::Value *, 8> shuffled_values;
+                auto dim = vt->getElementCount().getFixedValue();
+                for (auto i = 0; i < dim; i++) {
+                    auto elem = b.CreateExtractElement(value, i);
+                    shuffled_values.emplace_back(shuffle(elem, offset));
+                }
+                shuffled_value = _create_llvm_vector(b, shuffled_values);
+            } else {
+                shuffled_value = shuffle(value, offset);
+            }
+            auto lane_ge_offset = b.CreateICmpUGE(lane, b.getInt32(offset));
+            auto alive_mask = b.CreateShl(b.getInt32(1), b.CreateXor(lane, offset));
+            auto is_alive = b.CreateICmpNE(b.CreateAnd(mask, alive_mask), b.getInt32(0));
+            auto cond = b.CreateAnd(lane_ge_offset, is_alive);
+            value = b.CreateSelect(cond, binary_op(value, shuffled_value), value);
         }
         return value;
     };
@@ -161,14 +212,14 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_thread_group_inst(IB &b, FunctionCo
             auto llvm_result_packed = static_cast<llvm::Value *>(llvm::PoisonValue::get(llvm_packed_value->getType()));
             auto handle_one_i32 = [&](llvm::Value *llvm_local_i32) noexcept -> llvm::Value * {
                 // we can use nvvm.redux.sync.and/or/xor on supported archs
-                if (_config.cuda_arch >= nvvm_required_arch_redux_bitwise) {
+                if (_config.cuda_arch >= nvvm_required_arch_redux_i32) {
                     auto llvm_op = op == xir::ThreadGroupOp::WARP_ACTIVE_BIT_AND ? llvm::Intrinsic::nvvm_redux_sync_and :
                                    op == xir::ThreadGroupOp::WARP_ACTIVE_BIT_OR  ? llvm::Intrinsic::nvvm_redux_sync_or :
                                                                                    llvm::Intrinsic::nvvm_redux_sync_xor;
                     return b.CreateIntrinsic(b.getInt32Ty(), llvm_op, {llvm_local_i32, llvm_active_mask});
                 }
                 // otherwise, we fall back to shuffle and manual reduction
-                return reduce(llvm_active_mask, llvm_lane_id, llvm_local_i32, [&](auto x, auto y) noexcept {
+                return reduce_active(llvm_active_mask, llvm_lane_id, llvm_local_i32, [&](auto x, auto y) noexcept {
                     switch (op) {
                         case xir::ThreadGroupOp::WARP_ACTIVE_BIT_AND: return b.CreateAnd(x, y);
                         case xir::ThreadGroupOp::WARP_ACTIVE_BIT_OR: return b.CreateOr(x, y);
@@ -198,11 +249,74 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_thread_group_inst(IB &b, FunctionCo
         case xir::ThreadGroupOp::WARP_ACTIVE_PRODUCT: [[fallthrough]];
         case xir::ThreadGroupOp::WARP_ACTIVE_SUM: {
             auto llvm_value = _get_llvm_value(b, func_ctx, inst->operand(0));
-            LUISA_DEBUG_ASSERT(llvm_value->getType()->isIntOrIntVectorTy() || llvm_value->getType()->isFPOrFPVectorTy());
+            auto llvm_value_type = llvm_value->getType();
+            LUISA_DEBUG_ASSERT(llvm_value_type->isIntOrIntVectorTy() || llvm_value_type->isFPOrFPVectorTy());
             auto llvm_active_mask = _read_warp_active_lane_mask(b);
+            // we might use nvvm.redux.sync.i32/fp32 on supported archs
+            if (op != xir::ThreadGroupOp::WARP_ACTIVE_PRODUCT &&
+                _config.cuda_arch >= nvvm_required_arch_redux_i32 &&
+                llvm_value_type->isIntOrIntVectorTy() &&
+                llvm_value_type->getScalarType()->getPrimitiveSizeInBits() <= 32) {
+                auto reduce_scalar = [&](llvm::Value *v) noexcept -> llvm::Value * {
+                    auto scalar_t = v->getType();
+                    v = b.CreateZExt(v, b.getInt32Ty());
+                    if (op == xir::ThreadGroupOp::WARP_ACTIVE_MAX) {
+                        auto llvm_op = inst->type()->is_int_or_int_vector() ? llvm::Intrinsic::nvvm_redux_sync_max :
+                                                                              llvm::Intrinsic::nvvm_redux_sync_umax;
+                        v = b.CreateIntrinsic(b.getInt32Ty(), llvm_op, {v, llvm_active_mask});
+                    } else if (op == xir::ThreadGroupOp::WARP_ACTIVE_MIN) {
+                        auto llvm_op = inst->type()->is_int_or_int_vector() ? llvm::Intrinsic::nvvm_redux_sync_min :
+                                                                              llvm::Intrinsic::nvvm_redux_sync_umin;
+                        v = b.CreateIntrinsic(b.getInt32Ty(), llvm_op, {v, llvm_active_mask});
+                    } else if (op == xir::ThreadGroupOp::WARP_ACTIVE_SUM) {
+                        v = b.CreateIntrinsic(b.getInt32Ty(), llvm::Intrinsic::nvvm_redux_sync_add, {v, llvm_active_mask});
+                    } else {
+                        LUISA_ERROR_WITH_LOCATION("Invalid integer warp reduction op.");
+                    }
+                    return b.CreateTrunc(v, scalar_t);
+                };
+                if (auto vt = llvm::dyn_cast<llvm::VectorType>(llvm_value_type)) {
+                    llvm::SmallVector<llvm::Value *, 4> llvm_reduced_elems;
+                    auto dim = vt->getElementCount().getFixedValue();
+                    for (auto i = 0; i < dim; i++) {
+                        auto llvm_elem = b.CreateExtractElement(llvm_value, i);
+                        llvm_reduced_elems.emplace_back(reduce_scalar(llvm_elem));
+                    }
+                    return _create_llvm_vector(b, llvm_reduced_elems);
+                }
+                return reduce_scalar(llvm_value);
+            }
+            if (op != xir::ThreadGroupOp::WARP_ACTIVE_SUM &&
+                op != xir::ThreadGroupOp::WARP_ACTIVE_PRODUCT &&
+                _config.cuda_arch >= nvvm_required_arch_redux_f32 &&
+                llvm_value_type->isFPOrFPVectorTy() &&
+                llvm_value_type->getScalarType()->getPrimitiveSizeInBits() <= 32) {
+                auto reduce_scalar = [&](llvm::Value *v) noexcept -> llvm::Value * {
+                    auto scalar_t = v->getType();
+                    v = b.CreateFPExt(v, b.getFloatTy());
+                    if (op == xir::ThreadGroupOp::WARP_ACTIVE_MAX) {
+                        v = b.CreateIntrinsic(b.getFloatTy(), llvm::Intrinsic::nvvm_redux_sync_fmax, {v, llvm_active_mask});
+                    } else if (op == xir::ThreadGroupOp::WARP_ACTIVE_MIN) {
+                        v = b.CreateIntrinsic(b.getFloatTy(), llvm::Intrinsic::nvvm_redux_sync_fmin, {v, llvm_active_mask});
+                    } else {
+                        LUISA_ERROR_WITH_LOCATION("Invalid floating-point warp reduction op.");
+                    }
+                    return b.CreateFPTrunc(v, scalar_t);
+                };
+                if (auto vt = llvm::dyn_cast<llvm::VectorType>(llvm_value_type)) {
+                    llvm::SmallVector<llvm::Value *, 4> llvm_reduced_elems;
+                    auto dim = vt->getElementCount().getFixedValue();
+                    for (auto i = 0; i < dim; i++) {
+                        auto llvm_elem = b.CreateExtractElement(llvm_value, i);
+                        llvm_reduced_elems.emplace_back(reduce_scalar(llvm_elem));
+                    }
+                    return _create_llvm_vector(b, llvm_reduced_elems);
+                }
+                return reduce_scalar(llvm_value);
+            }
             auto llvm_lane_id = _read_warp_lane_id(b, func_ctx);
             auto llvm_packed_value = pack_into_i32_vector(llvm_value).first;
-            auto llvm_result_packed = reduce(llvm_active_mask, llvm_lane_id, llvm_packed_value, [&](auto x, auto y) noexcept {
+            auto llvm_result_packed = reduce_active(llvm_active_mask, llvm_lane_id, llvm_packed_value, [&](auto x, auto y) noexcept {
                 switch (op) {
                     case xir::ThreadGroupOp::WARP_ACTIVE_MAX:
                         return inst->type()->is_int_or_int_vector()   ? b.CreateBinaryIntrinsic(llvm::Intrinsic::smax, x, y) :
@@ -259,11 +373,37 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_thread_group_inst(IB &b, FunctionCo
             auto llvm_ballot_and_prefix = b.CreateAnd(llvm_ballot, llvm_prefix_mask);
             return b.CreateUnaryIntrinsic(llvm::Intrinsic::ctpop, llvm_ballot_and_prefix);
         }
-        case xir::ThreadGroupOp::WARP_PREFIX_SUM: {
-            break;
-        }
+        case xir::ThreadGroupOp::WARP_PREFIX_SUM: [[fallthrough]];
         case xir::ThreadGroupOp::WARP_PREFIX_PRODUCT: {
-            break;
+            auto llvm_value = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto llvm_value_type = llvm_value->getType();
+            LUISA_DEBUG_ASSERT(llvm_value_type->isIntOrIntVectorTy() || llvm_value_type->isFPOrFPVectorTy());
+            auto llvm_active_mask = _read_warp_active_lane_mask(b);
+            auto llvm_lane_id = _read_warp_lane_id(b, func_ctx);
+            auto llvm_packed_value = pack_into_i32_vector(llvm_value).first;
+            auto llvm_result_packed = static_cast<llvm::Value *>(nullptr);
+            if (op == xir::ThreadGroupOp::WARP_PREFIX_SUM) {
+                auto llvm_unit = pack_into_i32_vector(llvm::Constant::getNullValue(llvm_value_type)).first;
+                llvm_result_packed = reduce_prefix(llvm_active_mask, llvm_lane_id, llvm_unit, llvm_packed_value, [&](auto x, auto y) noexcept {
+                    return inst->type()->is_int_or_int_vector()   ? b.CreateNSWAdd(x, y) :
+                           inst->type()->is_uint_or_uint_vector() ? b.CreateAdd(x, y) :
+                                                                    b.CreateFAdd(x, y);
+                });
+            } else if (op == xir::ThreadGroupOp::WARP_PREFIX_PRODUCT) {
+                auto llvm_unit = pack_into_i32_vector(
+                                     llvm_value_type->isIntOrIntVectorTy() ?
+                                         llvm::ConstantInt::get(llvm_value_type, 1) :
+                                         llvm::ConstantFP::get(llvm_value_type, 1.))
+                                     .first;
+                llvm_result_packed = reduce_prefix(llvm_active_mask, llvm_lane_id, llvm_unit, llvm_packed_value, [&](auto x, auto y) noexcept {
+                    return inst->type()->is_int_or_int_vector()   ? b.CreateNSWMul(x, y) :
+                           inst->type()->is_uint_or_uint_vector() ? b.CreateMul(x, y) :
+                                                                    b.CreateFMul(x, y);
+                });
+            } else {
+                LUISA_ERROR_WITH_LOCATION("Invalid warp prefix op.");
+            }
+            return unpack_from_i32_vector(llvm_result_packed, llvm_value->getType());
         }
         case xir::ThreadGroupOp::WARP_READ_LANE: [[fallthrough]];
         case xir::ThreadGroupOp::WARP_READ_FIRST_ACTIVE_LANE: {

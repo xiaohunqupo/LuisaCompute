@@ -1214,13 +1214,14 @@ const Expression *FunctionBuilder::_internalize(const Expression *expr) noexcept
     _captured_external_variables.emplace(expr, internalized);
     return internalized;
 }
+
 luisa::optional<uint8_t> FunctionBuilder::allowed_warp_size() const noexcept {
     if (_allowed_warp_size != 255) {
-        return {_allowed_warp_size};
-    } else {
-        return {};
+        return _allowed_warp_size;
     }
+    return luisa::nullopt;
 }
+
 void FunctionBuilder::set_allowed_warp_size(uint8_t value) noexcept {
     switch (value) {
         case 4:
