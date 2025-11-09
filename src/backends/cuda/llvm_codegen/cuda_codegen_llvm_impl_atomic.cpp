@@ -16,7 +16,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_atomic_inst(IB &b, FunctionContext 
             auto llvm_index = _get_llvm_value(b, func_ctx, index_uses.front()->value());
             index_uses = index_uses.subspan(1);
             auto elem_type = base->type()->element();
-            LUISA_DEBUG_ASSERT(element_type != nullptr);
+            LUISA_DEBUG_ASSERT(elem_type != nullptr);
             auto llvm_elem_ptr = _get_buffer_element_pointer(b, llvm_base, llvm_index, elem_type->size(), elem_type->size());
             return std::make_pair(llvm_elem_ptr, elem_type);
         }

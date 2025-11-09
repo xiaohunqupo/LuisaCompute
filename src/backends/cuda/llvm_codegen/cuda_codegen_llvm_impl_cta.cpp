@@ -29,7 +29,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_thread_group_inst(IB &b, FunctionCo
     };
 
     auto reduce_active = [&](llvm::Value *mask, llvm::Value *lane, llvm::Value *value, auto binary_op) noexcept -> llvm::Value * {
-        LUISA_DEBUG_ASSERT(value->getType()->iisIntOrIntVectorTy(32));
+        LUISA_DEBUG_ASSERT(value->getType()->isIntOrIntVectorTy(32));
         auto shuffle = [&b, mask](llvm::Value *x, auto offset) noexcept {
             return b.CreateIntrinsic(llvm::Intrinsic::nvvm_shfl_sync_bfly_i32,
                                      {mask, x, b.getInt32(offset), b.getInt32(31)});
@@ -55,7 +55,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_thread_group_inst(IB &b, FunctionCo
     };
 
     auto reduce_prefix = [&](llvm::Value *mask, llvm::Value *lane, llvm::Value *unit, llvm::Value *value, auto binary_op) noexcept {
-        LUISA_DEBUG_ASSERT(value->getType()->iisIntOrIntVectorTy(32));
+        LUISA_DEBUG_ASSERT(value->getType()->isIntOrIntVectorTy(32));
         auto shuffle = [&b, mask](llvm::Value *x, auto offset) noexcept {
             return b.CreateIntrinsic(llvm::Intrinsic::nvvm_shfl_sync_up_i32,
                                      {mask, x, b.getInt32(offset), b.getInt32(31)});
