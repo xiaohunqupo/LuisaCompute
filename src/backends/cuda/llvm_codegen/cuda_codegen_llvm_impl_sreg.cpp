@@ -56,13 +56,17 @@ llvm::Value *CUDACodegenLLVMImpl::_read_thread_id(IB &b, const FunctionContext &
         auto llvm_tid = b.CreateURem(llvm_dispatch_id, llvm_block_size, "sreg.thread.id");
         return llvm_tid;
     }
-    auto call = [&, llvm_i32_type = b.getInt32Ty()](auto axis) noexcept {
+    auto call = [&, llvm_i32_type = b.getInt32Ty()](auto axis) noexcept -> llvm::Value * {
+        // an axis must be 0 if the block size on that axis is 1
+        if (_config.block_size[axis] == 1u) { return b.getInt32(0); }
+        // otherwise, read the thread id from special register
         constexpr std::array intrinsics = {
             llvm::Intrinsic::nvvm_read_ptx_sreg_tid_x,
             llvm::Intrinsic::nvvm_read_ptx_sreg_tid_y,
             llvm::Intrinsic::nvvm_read_ptx_sreg_tid_z,
         };
         auto llvm_tid_axis = b.CreateIntrinsic(llvm_i32_type, intrinsics[axis], {});
+        // the following assumption somehow breaks the optimization passes
         // auto llvm_tid_axis_lt_block_size = b.CreateICmpULT(llvm_tid_axis, b.getInt32(_config.block_size[axis]));
         // b.CreateAssumption(llvm_tid_axis_lt_block_size);
         return llvm_tid_axis;
