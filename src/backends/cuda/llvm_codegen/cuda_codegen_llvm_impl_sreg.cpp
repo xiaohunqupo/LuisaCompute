@@ -120,7 +120,9 @@ llvm::Value *CUDACodegenLLVMImpl::_read_kernel_id(IB &, const FunctionContext &f
 
 llvm::Value *CUDACodegenLLVMImpl::_read_warp_active_lane_mask(IB &b) noexcept {
     if (_config.enable_ray_tracing) { LUISA_NOT_IMPLEMENTED(); }
-    return b.CreateIntrinsic(b.getInt32Ty(), llvm::Intrinsic::nvvm_activemask, {});
+    auto mask = b.CreateIntrinsic(b.getInt32Ty(), llvm::Intrinsic::nvvm_activemask, {});
+    mask->setName("sreg.warp.active.mask");
+    return mask;
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_read_warp_prefix_lane_mask(IB &b) noexcept {

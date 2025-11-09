@@ -91,7 +91,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_thread_group_inst(IB &b, FunctionCo
         LUISA_DEBUG_ASSERT(value->getType()->isIntOrIntVectorTy(32));
         auto shuffle = [&b, mask](llvm::Value *x, auto offset) noexcept {
             return b.CreateIntrinsic(llvm::Intrinsic::nvvm_shfl_sync_up_i32,
-                                     {mask, x, b.getInt32(offset), b.getInt32(31)});
+                                     {mask, x, b.getInt32(offset), b.getInt32(0)});
         };
         auto prev_mask = b.CreateIntrinsic(b.getInt32Ty(), llvm::Intrinsic::nvvm_read_ptx_sreg_lanemask_lt, {});
         auto active_prev_mask = b.CreateAnd(prev_mask, mask);
@@ -113,7 +113,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_thread_group_inst(IB &b, FunctionCo
                                       {mask, value, active_prev_lane, b.getInt32(31)});
         }
         // value = select(lane == first_active_lane, unit, value)
-        auto first_active_lane = b.CreateBinaryIntrinsic(llvm::Intrinsic::cttz, mask, b.getInt1(false));
+        auto first_active_lane = b.CreateBinaryIntrinsic(llvm::Intrinsic::cttz, mask, b.getInt1(true));
         auto is_first_active = b.CreateICmpEQ(lane, first_active_lane);
         value = b.CreateSelect(is_first_active, unit, value);
         // perform shuffles
@@ -167,14 +167,14 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_thread_group_inst(IB &b, FunctionCo
         case xir::ThreadGroupOp::WARP_IS_FIRST_ACTIVE_LANE: {// lane_id == ctz(activemask)
             LUISA_DEBUG_ASSERT(inst->type()->is_bool());
             auto llvm_active_mask = _read_warp_active_lane_mask(b);
-            auto llvm_first_active_lane_id = b.CreateBinaryIntrinsic(llvm::Intrinsic::cttz, llvm_active_mask, b.getInt1(false));
+            auto llvm_first_active_lane_id = b.CreateBinaryIntrinsic(llvm::Intrinsic::cttz, llvm_active_mask, b.getInt1(true));
             auto llvm_lane_id = _read_warp_lane_id(b, func_ctx);
             return b.CreateICmpEQ(llvm_lane_id, llvm_first_active_lane_id);
         }
         case xir::ThreadGroupOp::WARP_FIRST_ACTIVE_LANE: {// ctz(activemask)
             LUISA_DEBUG_ASSERT(inst->type()->is_int32() || inst->type()->is_uint32());
             auto llvm_active_mask = _read_warp_active_lane_mask(b);
-            return b.CreateBinaryIntrinsic(llvm::Intrinsic::cttz, llvm_active_mask, b.getInt1(false));
+            return b.CreateBinaryIntrinsic(llvm::Intrinsic::cttz, llvm_active_mask, b.getInt1(true));
         }
         case xir::ThreadGroupOp::WARP_ACTIVE_ALL_EQUAL: {
             LUISA_DEBUG_ASSERT(inst->type()->is_bool_or_bool_vector());
@@ -205,7 +205,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_thread_group_inst(IB &b, FunctionCo
                 return _create_llvm_vector(b, llvm_preds);
             }
             // otherwise, we fall back to shuffle, compare, and vote
-            auto llvm_first_active_lane_id = b.CreateBinaryIntrinsic(llvm::Intrinsic::cttz, llvm_active_mask, b.getInt1(false));
+            auto llvm_first_active_lane_id = b.CreateBinaryIntrinsic(llvm::Intrinsic::cttz, llvm_active_mask, b.getInt1(true));
             auto [llvm_packed_value, packed_i32_count] = pack_into_i32_vector(llvm_value);
             auto llvm_packed_value_from_first = static_cast<llvm::Value *>(llvm::PoisonValue::get(llvm_packed_value->getType()));
             for (auto i = 0; i < packed_i32_count; i++) {
@@ -455,7 +455,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_thread_group_inst(IB &b, FunctionCo
             auto llvm_value = _get_llvm_value(b, func_ctx, inst->operand(0));
             auto llvm_lane_id = op == xir::ThreadGroupOp::WARP_READ_LANE ?
                                     _get_llvm_value(b, func_ctx, inst->operand(1)) :
-                                    b.CreateBinaryIntrinsic(llvm::Intrinsic::cttz, llvm_active_mask, b.getInt1(false));
+                                    b.CreateBinaryIntrinsic(llvm::Intrinsic::cttz, llvm_active_mask, b.getInt1(true));
             LUISA_DEBUG_ASSERT(llvm_lane_id->getType()->isIntegerTy(32));
             auto [llvm_value_packed, llvm_packed_i32_count] = pack_into_i32_vector(llvm_value);
             auto llvm_result_packed = static_cast<llvm::Value *>(llvm::PoisonValue::get(llvm_value_packed->getType()));
