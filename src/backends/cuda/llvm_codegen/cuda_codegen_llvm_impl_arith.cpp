@@ -288,19 +288,19 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionCont
             return b.CreateBinaryIntrinsic(max_op, lhs, rhs);
         });
         case xir::ArithmeticOp::CLZ: return translate_unary([&](auto v) noexcept {
-            LUISA_DEBUG_ASSERT(inst->type()->is_int_or_int_vector());
+            LUISA_DEBUG_ASSERT(v->getType()->isIntOrIntVectorTy());
             return b.CreateUnaryIntrinsic(llvm::Intrinsic::ctlz, v);
         });
         case xir::ArithmeticOp::CTZ: return translate_unary([&](auto v) noexcept {
-            LUISA_DEBUG_ASSERT(inst->type()->is_int_or_int_vector());
+            LUISA_DEBUG_ASSERT(v->getType()->isIntOrIntVectorTy());
             return b.CreateUnaryIntrinsic(llvm::Intrinsic::cttz, v);
         });
         case xir::ArithmeticOp::POPCOUNT: return translate_unary([&](auto v) noexcept {
-            LUISA_DEBUG_ASSERT(inst->type()->is_int_or_int_vector());
+            LUISA_DEBUG_ASSERT(v->getType()->isIntOrIntVectorTy());
             return b.CreateUnaryIntrinsic(llvm::Intrinsic::ctpop, v);
         });
         case xir::ArithmeticOp::REVERSE: return translate_unary([&](auto v) noexcept {
-            LUISA_DEBUG_ASSERT(inst->type()->is_int_or_int_vector());
+            LUISA_DEBUG_ASSERT(v->getType()->isIntOrIntVectorTy());
             return b.CreateUnaryIntrinsic(llvm::Intrinsic::bitreverse, v);
         });
         case xir::ArithmeticOp::ISINF: {
