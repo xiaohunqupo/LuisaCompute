@@ -2326,11 +2326,11 @@ private:
             }
             case xir::ArithmeticOp::CLZ: {
                 auto llvm_x = _lookup_value(current, b, inst->operand(0u));
-                return b.CreateUnaryIntrinsic(llvm::Intrinsic::ctlz, llvm_x);
+                return b.CreateBinaryIntrinsic(llvm::Intrinsic::ctlz, llvm_x, b.getInt1(false));
             }
             case xir::ArithmeticOp::CTZ: {
                 auto llvm_x = _lookup_value(current, b, inst->operand(0u));
-                return b.CreateUnaryIntrinsic(llvm::Intrinsic::cttz, llvm_x);
+                return b.CreateBinaryIntrinsic(llvm::Intrinsic::cttz, llvm_x, b.getInt1(false));
             }
             case xir::ArithmeticOp::POPCOUNT: {
                 auto llvm_x = _lookup_value(current, b, inst->operand(0u));

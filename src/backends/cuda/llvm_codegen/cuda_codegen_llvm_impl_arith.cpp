@@ -289,11 +289,11 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionCont
         });
         case xir::ArithmeticOp::CLZ: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(v->getType()->isIntOrIntVectorTy());
-            return b.CreateUnaryIntrinsic(llvm::Intrinsic::ctlz, v);
+            return b.CreateBinaryIntrinsic(llvm::Intrinsic::ctlz, v, b.getInt1(false));
         });
         case xir::ArithmeticOp::CTZ: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(v->getType()->isIntOrIntVectorTy());
-            return b.CreateUnaryIntrinsic(llvm::Intrinsic::cttz, v);
+            return b.CreateBinaryIntrinsic(llvm::Intrinsic::cttz, v, b.getInt1(false));
         });
         case xir::ArithmeticOp::POPCOUNT: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(v->getType()->isIntOrIntVectorTy());

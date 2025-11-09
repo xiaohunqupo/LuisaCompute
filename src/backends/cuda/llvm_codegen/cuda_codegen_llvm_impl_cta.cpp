@@ -63,7 +63,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_thread_group_inst(IB &b, FunctionCo
         auto prev_mask = b.CreateIntrinsic(b.getInt32Ty(), llvm::Intrinsic::nvvm_read_ptx_sreg_lanemask_lt, {});
         auto active_prev_mask = b.CreateAnd(prev_mask, mask);
         auto active_prev_lane = b.CreateSub(b.getInt32(31),
-                                            b.CreateUnaryIntrinsic(llvm::Intrinsic::ctlz, active_prev_mask),
+                                            b.CreateBinaryIntrinsic(llvm::Intrinsic::ctlz, active_prev_mask, b.getInt1(false)),
                                             "", true, true);
         // value = shfl_sync_idx(mask, x, active_prev_lane)
         if (auto vt = llvm::dyn_cast<llvm::VectorType>(value->getType())) {
@@ -134,14 +134,14 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_thread_group_inst(IB &b, FunctionCo
         case xir::ThreadGroupOp::WARP_IS_FIRST_ACTIVE_LANE: {// lane_id == ctz(activemask)
             LUISA_DEBUG_ASSERT(inst->type()->is_bool());
             auto llvm_active_mask = _read_warp_active_lane_mask(b);
-            auto llvm_first_active_lane_id = b.CreateUnaryIntrinsic(llvm::Intrinsic::cttz, llvm_active_mask);
+            auto llvm_first_active_lane_id = b.CreateBinaryIntrinsic(llvm::Intrinsic::cttz, llvm_active_mask, b.getInt1(false));
             auto llvm_lane_id = _read_warp_lane_id(b, func_ctx);
             return b.CreateICmpEQ(llvm_lane_id, llvm_first_active_lane_id);
         }
         case xir::ThreadGroupOp::WARP_FIRST_ACTIVE_LANE: {// ctz(activemask)
             LUISA_DEBUG_ASSERT(inst->type()->is_int32() || inst->type()->is_uint32());
             auto llvm_active_mask = _read_warp_active_lane_mask(b);
-            return b.CreateUnaryIntrinsic(llvm::Intrinsic::cttz, llvm_active_mask);
+            return b.CreateBinaryIntrinsic(llvm::Intrinsic::cttz, llvm_active_mask, b.getInt1(false));
         }
         case xir::ThreadGroupOp::WARP_ACTIVE_ALL_EQUAL: {
             LUISA_DEBUG_ASSERT(inst->type()->is_bool_or_bool_vector());
@@ -172,7 +172,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_thread_group_inst(IB &b, FunctionCo
                 return _create_llvm_vector(b, llvm_preds);
             }
             // otherwise, we fall back to shuffle, compare, and vote
-            auto llvm_first_active_lane_id = b.CreateUnaryIntrinsic(llvm::Intrinsic::cttz, llvm_active_mask);
+            auto llvm_first_active_lane_id = b.CreateBinaryIntrinsic(llvm::Intrinsic::cttz, llvm_active_mask, b.getInt1(false));
             auto [llvm_packed_value, packed_i32_count] = pack_into_i32_vector(llvm_value);
             auto llvm_packed_value_from_first = static_cast<llvm::Value *>(llvm::PoisonValue::get(llvm_packed_value->getType()));
             for (auto i = 0; i < packed_i32_count; i++) {
@@ -411,7 +411,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_thread_group_inst(IB &b, FunctionCo
             auto llvm_value = _get_llvm_value(b, func_ctx, inst->operand(0));
             auto llvm_lane_id = op == xir::ThreadGroupOp::WARP_READ_LANE ?
                                     _get_llvm_value(b, func_ctx, inst->operand(1)) :
-                                    b.CreateUnaryIntrinsic(llvm::Intrinsic::cttz, llvm_active_mask);
+                                    b.CreateBinaryIntrinsic(llvm::Intrinsic::cttz, llvm_active_mask, b.getInt1(false));
             LUISA_DEBUG_ASSERT(llvm_lane_id->getType()->isIntegerTy(32));
             auto [llvm_value_packed, llvm_packed_i32_count] = pack_into_i32_vector(llvm_value);
             auto llvm_result_packed = static_cast<llvm::Value *>(llvm::PoisonValue::get(llvm_value_packed->getType()));
