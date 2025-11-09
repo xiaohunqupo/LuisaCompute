@@ -338,7 +338,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_thread_group_inst(IB &b, FunctionCo
                 }
                 LUISA_ERROR_WITH_LOCATION("Invalid warp reduction op.");
             });
-            return unpack_from_i32_vector(llvm_result_packed, llvm_value->getType());
+            return unpack_from_i32_vector(llvm_result_packed, llvm_value_type);
         }
         case xir::ThreadGroupOp::WARP_ACTIVE_ALL: {
             LUISA_DEBUG_ASSERT(inst->type()->is_bool());
@@ -403,7 +403,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_thread_group_inst(IB &b, FunctionCo
             } else {
                 LUISA_ERROR_WITH_LOCATION("Invalid warp prefix op.");
             }
-            return unpack_from_i32_vector(llvm_result_packed, llvm_value->getType());
+            return unpack_from_i32_vector(llvm_result_packed, llvm_value_type);
         }
         case xir::ThreadGroupOp::WARP_READ_LANE: [[fallthrough]];
         case xir::ThreadGroupOp::WARP_READ_FIRST_ACTIVE_LANE: {
