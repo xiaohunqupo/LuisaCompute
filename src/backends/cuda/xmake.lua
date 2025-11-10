@@ -68,7 +68,7 @@ add_files("cuda_builtin.lua")
 set_pcxxheader("lc_cuda_pch.h")
 add_headerfiles("*.h")
 on_load(function(target)
-    if has_config("lc_use_xrepo") then
+    if has_config("lc_reproc_use_xrepo") then
         target:add("packages", "reproc")
     else
         target:add("deps", "reproc")

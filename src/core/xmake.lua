@@ -42,10 +42,11 @@ on_load(function(target)
     if target:is_plat("windows") then
         target:add("defines", "_CRT_SECURE_NO_WARNINGS")
     end
-    if has_config("lc_use_xrepo") then
-        target:add("packages", "eastl", "spdlog")
+    target:add("deps", "eastl")
+    if has_config("lc_spdlog_use_xrepo") then
+        target:add("packages", "spdlog")
     else
-        target:add("deps", "eastl", "spdlog")
+        target:add("deps", "spdlog")
     end
     target:add("deps", "lc-check-winsdk")
     if has_config("spdlog_only_fmt") then -- Use no spdlog

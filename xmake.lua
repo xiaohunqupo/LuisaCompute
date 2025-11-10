@@ -54,7 +54,12 @@ option("lc_llvm_path", {default = false})
 option("lc_embree_path", {default = false})
 option("lc_use_system_stl", {default = false})
 -- third-party
-option("lc_use_xrepo", {default = false})
+option("lc_spdlog_use_xrepo", {default = false})
+option("lc_reproc_use_xrepo", {default = false})
+option("lc_lmdb_use_xrepo", {default = false})
+option("lc_imgui_use_xrepo", {default = false})
+option("lc_glfw_use_xrepo", {default = false})
+option("lc_yyjson_use_xrepo", {default = false})
 
 -- pre-defined options end
 -- try options.lua

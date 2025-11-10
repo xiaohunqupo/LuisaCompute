@@ -17,7 +17,7 @@ set_pcxxheader("lc_vstl_pch.h")
 add_headerfiles("../../include/luisa/vstl/**.h")
 add_files("**.cpp")
 on_load(function(target)
-    if has_config("lc_use_xrepo") then
+    if has_config("lc_lmdb_use_xrepo") then
         target:add("packages", "lmdb")
     else
         target:add("deps", "lmdb")
