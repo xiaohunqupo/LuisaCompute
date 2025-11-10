@@ -99,7 +99,7 @@ end
 function unzip_sdk(tool_name, in_dir, out_dir)
     local zip_file = find_tool_zip(tool_name, in_dir)
     if (zip_file.dir ~= nil) then
-        print("install: " .. zip_file.name)
+        print("installing: " .. zip_file.name)
         os.mkdir(out_dir)
         archive.extract(zip_file.dir, out_dir)
     else
@@ -195,11 +195,20 @@ function on_install_sdk(target, rule_name)
             sdk_map = lib
             process_sdk_map(sdk_map)
         end
-
+        local sdk_name = sdk_map["name"]
+        if not sdk_name then
+            utils.error("Package invalid without name.")
+            goto END_LOOP
+        end
         local extract_dir = lib["extract_dir"]
         if not extract_dir or #extract_dir == 0 then
-            extract_dir = path.join(sdk_dir, path.basename(sdk_map["name"]))
+            extract_dir = path.join(sdk_dir, path.basename(sdk_name))
         end
+        -- Check cache
+        local target_cache_dir = path.join(os.projectdir(), "build/.lcsdk", os.host(), os.arch())
+        local target_cache_file = path.join(target_cache_dir, sdk_name .. ".ini")
+
+        local require_extract
         local function is_empty_folder()
             if os.exists(extract_dir) and not os.isfile(extract_dir) then
                 for _, v in ipairs(os.filedirs(path.join(extract_dir, '*'))) do
@@ -210,8 +219,24 @@ function on_install_sdk(target, rule_name)
                 return true
             end
         end
-        if is_empty_folder() then
+        local file_sha256 = hash.sha256(path.join(sdk_dir, sdk_name))
+        local function is_cache_mismatch()
+            if not os.exists(target_cache_file) then
+                return true
+            end
+            return io.readfile(target_cache_file) ~= file_sha256
+        end
+        local function unzip()
             unzip_sdk(sdk_map['name'], sdk_dir, extract_dir)
+            os.mkdir(target_cache_dir)
+            io.writefile(target_cache_file, file_sha256)
+        end
+        if is_empty_folder() then
+            print("Package " .. sdk_name .. " extract_dir empty, extracting.")
+            unzip()
+        elseif is_cache_mismatch() then
+            print("Package " .. sdk_name .. " hash mismatch, extracting.")
+            unzip()
         end
         if #copy_dir > 0 then
             for _, filepath in ipairs(os.filedirs(path.join(extract_dir, "*"))) do
@@ -220,5 +245,6 @@ function on_install_sdk(target, rule_name)
                 })
             end
         end
+        ::END_LOOP::
     end
 end
