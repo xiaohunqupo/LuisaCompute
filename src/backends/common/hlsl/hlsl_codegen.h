@@ -74,8 +74,7 @@ public:
 
     void GenerateCBuffer(
         std::initializer_list<vstd::IRange<Variable> *> f,
-        vstd::StringBuilder &result,
-        uint &bind_count);
+        vstd::StringBuilder &result);
     void GenerateBindless(
         CodegenResult::Properties &properties,
         vstd::StringBuilder &str,

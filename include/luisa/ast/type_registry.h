@@ -270,7 +270,6 @@ struct is_valid_reflection : std::false_type {};
 template<typename S, typename... M, typename O, O... os>
 struct is_valid_reflection<S, std::tuple<M...>, std::integer_sequence<O, os...>> {
 
-    static_assert(alignof(S) >= 4u, "Structs must be aligned to at least 4 bytes.");
 
 private:
     [[nodiscard]] constexpr static auto _check() noexcept {
@@ -350,7 +349,6 @@ constexpr auto is_valid_reflection_v = is_valid_reflection<S, M, O>::value;
             LUISA_MAP_LIST(                                                  \
                 LUISA_STRUCTURE_MAP_MEMBER_TO_OFFSET,                        \
                 ##__VA_ARGS__)>;                                             \
-        static_assert(alignof(this_type) >= 4);                              \
         static_assert(luisa::compute::detail::is_valid_reflection_v<         \
                       this_type, type, offset>);                             \
     };                                                                       \
@@ -387,7 +385,6 @@ constexpr auto is_valid_reflection_v = is_valid_reflection<S, M, O>::value;
             std::tuple<LUISA_MAP_LIST(LUISA_STRUCTURE_MAP_MEMBER_TO_TYPE, __VA_ARGS__)>;                        \
         using offset =                                                                                          \
             std::integer_sequence<size_t, LUISA_MAP_LIST(LUISA_STRUCTURE_MAP_MEMBER_TO_OFFSET, ##__VA_ARGS__)>; \
-        static_assert(alignof(LUISA_MACRO_EVAL(S())) >= 4);                                                     \
         static_assert(luisa::compute::detail::is_valid_reflection_v<LUISA_MACRO_EVAL(S()), type, offset>);      \
     };                                                                                                          \
     LUISA_MACRO_EVAL(TEMPLATE())                                                                                \

@@ -22,7 +22,6 @@ static HLSLCompressedHeader get_hlsl_builtin(luisa::string_view ss) { return {};
 }// namespace lc_hlsl
 #endif
 namespace lc::hlsl {
-static std::atomic_bool rootsig_exceed_warned = false;
 #ifdef LUISA_ENABLE_IR
 static void glob_variables_with_grad(Function f, vstd::unordered_set<Variable> &gradient_variables) noexcept {
     if (f.requires_autodiff())
@@ -397,6 +396,9 @@ void CodegenUtility::GetTypeName(Type const &type, vstd::StringBuilder &str, Usa
             if ((static_cast<uint>(usage) & static_cast<uint>(Usage::WRITE)) != 0)
                 str << "RW"sv;
             auto ele = type.element();
+            // if (!opt->isSpirv && ele->size() < 4) [[unlikely]] {
+            //     LUISA_ERROR("HLSL do not support buffer's member type {} which alignment less than 4-bytes.", ele->description());
+            // }
             // StructuredBuffer
             if (ele != nullptr) {
                 bool aliasStruct = TypeIsAliased(ele);
@@ -2408,8 +2410,7 @@ bool CodegenUtility::IsCBufferNonEmpty(Function f) {
 }
 void CodegenUtility::GenerateCBuffer(
     std::initializer_list<vstd::IRange<Variable> *> fs,
-    vstd::StringBuilder &result,
-    uint &bind_count) {
+    vstd::StringBuilder &result) {
     result << "struct _Args{\n"sv;
     size_t align = 0;
     size_t size = 0;
@@ -2438,10 +2439,12 @@ void CodegenUtility::GenerateCBuffer(
     size_t struct_size = 0;
     for (auto &&f : fs) {
         size_t size_cache = 0;
+        Type const *last_type = nullptr;
         for (auto &&i : *f) {
             if (!detail::IsCBuffer(i.tag())) continue;
             size_cache++;
-            StructGenerator::ProvideAlignVariable(i.type()->alignment(), align, struct_size, result);
+            StructGenerator::ProvideAlignVariable(last_type, i.type()->alignment(), align, struct_size, result);
+            last_type = i.type();
             if (opt->isSpirv && i.type()->tag() == Type::Tag::BOOL) {
                 result << "int";
             } else
@@ -2474,7 +2477,6 @@ StructuredBuffer<_Args> _Global;
 StructuredBuffer<_Args> _Global:register(t0);
 )"sv;
     }
-    bind_count += 2;
 }
 void CodegenUtility::GenerateBindless(
     CodegenResult::Properties &properties,
@@ -2563,6 +2565,7 @@ void CodegenUtility::PreprocessCodegenProperties(
                 0,
                 0u,
                 1});
+        bind_count += 2;
     }
     GenerateBindless(properties, varData, isSpirv, bind_count);
 }
@@ -2726,6 +2729,7 @@ void CodegenUtility::CodegenProperties(
                 case ShaderVariableType::SRVBufferHeap:
                 case ShaderVariableType::UAVBufferHeap:
                 case ShaderVariableType::CBVBufferHeap:
+                case ShaderVariableType::SPIRVAccel:
                     bind_count += 1;
                     break;
                 default: break;
@@ -2892,7 +2896,7 @@ CodegenResult CodegenUtility::Codegen(
     auto argRange = vstd::make_ite_range(kernel.arguments()).i_range();
     uint bind_count = 2;
     if (nonEmptyCbuffer) {
-        GenerateCBuffer({&argRange}, varData, bind_count);
+        GenerateCBuffer({&argRange}, varData);
     }
     if (isSpirV) {
         if (opt->noRegister) {
@@ -2927,11 +2931,10 @@ uint4 v;
     CodegenProperties(properties, varData, kernel, 0, indexer, bind_count);
     PostprocessCodegenProperties(finalResult, kernel.requires_autodiff());
     finalResult << varData << incrementalFunc << codegenData;
-    if (bind_count >= 64) [[unlikely]] {
-        LUISA_ERROR("Arguments binding size: {} exceeds 64 32-bit units not supported by hardware device. Try to use bindless instead.", bind_count);
-    } else if (bind_count > 16) [[unlikely]] {
-        if (!rootsig_exceed_warned.exchange(true)) {
-            LUISA_INFO("Arguments binding size {} exceeds 16 32-bit unit (max 64 allowed). This may cause extra performance cost, try to use bindless instead.", bind_count);
+    if (!isSpirV) {
+        // https://learn.microsoft.com/en-us/windows/win32/direct3d12/root-signature-limits
+        if (bind_count >= 64) [[unlikely]] {
+            LUISA_ERROR("Arguments binding size: {} exceeds 64 32-bit units not supported by hardware device. Try to use bindless instead.", bind_count);
         }
     }
     return {
@@ -3101,7 +3104,7 @@ uint obj_id:register(b0);
 
     opt->funcType = CodegenStackData::FuncType::Callable;
     if (nonEmptyCbuffer) {
-        GenerateCBuffer(funcs, varData, bind_count);
+        GenerateCBuffer(funcs, varData);
     }
     CodegenResult::Properties properties;
     DXILRegisterIndexer dxilRegisters;
@@ -3112,12 +3115,9 @@ uint obj_id:register(b0);
     CodegenProperties(properties, varData, pixelFunc, 1, indexer, bind_count);
     PostprocessCodegenProperties(finalResult, false);
     finalResult << varData << incrementalFunc << codegenData;
+    // https://learn.microsoft.com/en-us/windows/win32/direct3d12/root-signature-limits
     if (bind_count >= 64) [[unlikely]] {
         LUISA_ERROR("Arguments binding size: {} exceeds 64 32-bit units not supported by hardware device. Try to use bindless instead.", bind_count);
-    } else if (bind_count > 16) [[unlikely]] {
-        if (!rootsig_exceed_warned.exchange(true)) {
-            LUISA_INFO("Arguments binding size {} exceeds 16 32-bit unit (max 64 allowed). This may cause extra performance cost, try to use bindless instead.", bind_count);
-        }
     }
     return {
         std::move(finalResult),

@@ -29,14 +29,20 @@ size_t StructureType::align() const {
         }
     }
 }*/
-void StructGenerator::ProvideAlignVariable(size_t tarAlign, size_t &alignCount, size_t &structSize, vstd::StringBuilder &structDesc) {
+void StructGenerator::ProvideAlignVariable(Type const *type, size_t tarAlign, size_t &alignCount, size_t &structSize, vstd::StringBuilder &structDesc) {
     auto alignedSize = (structSize + tarAlign - 1u) / tarAlign * tarAlign;
     auto padding = alignedSize - structSize;
     if (padding == 0) return;
     // use bitfields to fill small gaps (< 4B)
     auto bit_padding = (padding & 3);
-    if (bit_padding > 0)
-        structDesc << "int _a"sv << vstd::to_string(alignCount++) << ":" << vstd::to_string(bit_padding * 8) << ";\n"sv;
+    if (bit_padding > 0) {
+        if (type && (type->is_float16() || type->is_float16_vector())) {
+            LUISA_ASSERT(bit_padding == 2, "Invalid struct alignment.");
+            structDesc << "half _a"sv << vstd::to_string(alignCount++) << ";\n"sv;
+        } else {
+            structDesc << "int _a"sv << vstd::to_string(alignCount++) << ":" << vstd::to_string(bit_padding * 8) << ";\n"sv;
+        }
+    }
     padding -= bit_padding;
     // handle remaining gaps (4 to 12B)
     if (padding != 0) {
@@ -59,13 +65,15 @@ void StructGenerator::InitAsStructAlised(
     size_t alignCount = 0;
     size_t structSize = 0;
     structDesc.reserve(256);
+    Type const *last_type = nullptr;
 
     auto Align = [&](size_t tarAlign) {
-        ProvideAlignVariable(tarAlign, alignCount, structSize, structDesc);
+        ProvideAlignVariable(last_type, tarAlign, alignCount, structSize, structDesc);
     };
     size_t varIdx = 0;
     for (auto &&i : vars) {
         Align(i->alignment());
+        last_type = i;
         switch (i->tag()) {
             case Type::Tag::STRUCTURE:
             case Type::Tag::ARRAY:
@@ -106,9 +114,6 @@ void StructGenerator::InitAsArrayAliased(
     size_t structIdx,
     Callback const &visitor,
     bool isSpirv) {
-    if (t->alignment() < 4) [[unlikely]] {
-        LUISA_ERROR("HLSL do not support member's type {} which alignment less than 4-bytes.", t->description());
-    }
     auto i = t->element();
     if (i->is_structure() || i->is_array()) {
         auto name = util->opt->CreateAliasedStruct(i);
@@ -132,13 +137,14 @@ void StructGenerator::InitAsStruct(
     size_t alignCount = 0;
     size_t structSize = 0;
     structDesc.reserve(256);
-
+    Type const *last_type = nullptr;
     auto Align = [&](size_t tarAlign) {
-        ProvideAlignVariable(tarAlign, alignCount, structSize, structDesc);
+        ProvideAlignVariable(last_type, tarAlign, alignCount, structSize, structDesc);
     };
     size_t varIdx = 0;
     for (auto &&i : vars) {
         Align(i->alignment());
+        last_type = i;
         switch (i->tag()) {
             case Type::Tag::STRUCTURE:
             case Type::Tag::ARRAY:
@@ -165,9 +171,6 @@ void StructGenerator::InitAsArray(
     Callback const &visitor,
     bool isSpirv) {
     auto &&ele = t->element();
-    if (t->alignment() < 4) [[unlikely]] {
-        LUISA_ERROR("HLSL do not support member's type {} which alignment less than 4-bytes.", t->description());
-    }
     util->GetTypeName(*ele, structDesc, Usage::READ, false);
     structDesc << " v["sv << vstd::to_string(t->dimension()) << "];\n";
 }
