@@ -197,7 +197,6 @@ void export_op(py::module &m) {
         // optimization hints
         .value("ASSUME", CallOp::ASSUME)
         .value("UNREACHABLE", CallOp::UNREACHABLE)
-        .value("RASTER_DISCARD", CallOp::RASTER_DISCARD)
         .value("INDIRECT_SET_DISPATCH_KERNEL", CallOp::INDIRECT_SET_DISPATCH_KERNEL)
         .value("INDIRECT_SET_DISPATCH_COUNT", CallOp::INDIRECT_SET_DISPATCH_COUNT)
         .value("RAY_QUERY_PROCEDURAL_CANDIDATE_HIT", CallOp::RAY_QUERY_PROCEDURAL_CANDIDATE_HIT)

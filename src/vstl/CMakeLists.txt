@@ -4,6 +4,7 @@ set(LUISA_COMPUTE_VSTL_SOURCES
         md5.cpp
         stack_allocator.cpp
         string_utility.cpp
+        string_builder.cpp
         v_guid.cpp
         vstl.cpp)
 

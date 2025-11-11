@@ -1113,6 +1113,9 @@ void MetalCodegenAST::visit(const CallExpr *expr) noexcept {
             _scratch << ">";
             break;
         }
+        case CallOp::RASTER_SET_Z_DEPTH: [[fallthrough]];
+        case CallOp::RASTER_SET_Z_DEPTH_GREATER_EQUAL: [[fallthrough]];
+        case CallOp::RASTER_SET_Z_DEPTH_LESS_EQUAL: [[fallthrough]];
         case CallOp::RASTER_DISCARD: _scratch << "discard_fragment"; break;
         case CallOp::INDIRECT_SET_DISPATCH_COUNT: _scratch << "lc_indirect_dispatch_set_count"; break;
         case CallOp::INDIRECT_SET_DISPATCH_KERNEL: _scratch << "lc_indirect_dispatch_set_kernel"; break;

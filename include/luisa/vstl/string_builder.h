@@ -2,7 +2,7 @@
 #include <luisa/vstl/common.h>
 
 namespace vstd {
-class StringBuilder final {
+class LUISA_VSTL_API StringBuilder final {
     vstd::fixed_vector<char, 32> vec;
 
 public:
@@ -58,8 +58,8 @@ public:
     decltype(auto) end() const { return vec.end(); }
     void erase(auto &&iter) { vec.erase(iter); }
 };
-void to_string(double val, StringBuilder &builder) noexcept;
-void to_string(float val, StringBuilder &builder) noexcept;
+LUISA_VSTL_API void to_string(double val, StringBuilder &builder) noexcept;
+LUISA_VSTL_API void to_string(float val, StringBuilder &builder) noexcept;
 template<class Ty>
 inline void IntegerToString(const Ty Val, StringBuilder &str) noexcept {// convert Val to string
     static_assert(std::is_integral_v<Ty>, "_Ty must be integral");

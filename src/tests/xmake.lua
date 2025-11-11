@@ -1,12 +1,23 @@
 local lc_enable_gui = has_config("lc_enable_gui")
 -- TEST MAIN with doctest
 ------------------------------------
+function tool_target_with_lc(name)
+    local bin_name = name .. "_b"
+    target(name)
+    set_kind("phony")
+    add_rules("lc_run_target")
+    add_deps(bin_name, "lc-backends-dummy", {
+        inherit = false
+    })
+    target_end()
+
+    target(bin_name)
+    set_basename(name)
+end
 
 local function lc_add_app(appname, folder, name, deps)
 
-    local bin_name = appname .. "_b"
-    target(bin_name)
-    set_basename(appname)
+    tool_target_with_lc(appname)
     _config_project({
         project_kind = "binary"
     })
@@ -45,13 +56,6 @@ local function lc_add_app(appname, folder, name, deps)
 
     target_end()
 
-    target(appname)
-    set_kind("phony")
-    add_deps(bin_name, "lc-backends-dummy", {
-        inherit = false
-    })
-    add_rules("lc_run_target")
-    target_end()
 end
 
 -- temp test suites
@@ -86,10 +90,7 @@ local function test_proj(name, gui_dep, callable, kind)
     if gui_dep and not lc_enable_gui then
         return
     end
-    local bin_name = name .. "_b"
-
-    target(bin_name)
-    set_basename(name)
+    tool_target_with_lc(name)
     _config_project({
         project_kind = kind or "binary"
     })
@@ -105,14 +106,6 @@ local function test_proj(name, gui_dep, callable, kind)
     if callable then
         callable()
     end
-    target_end()
-
-    target(name)
-    set_kind("phony")
-    add_deps(bin_name, "lc-backends-dummy", {
-        inherit = false
-    })
-    add_rules("lc_run_target")
     target_end()
 end
 
@@ -218,14 +211,6 @@ if not is_mode("debug") then
             add_deps("lc-clangcxx")
             set_pcxxheader("lc_test_pch.h")
         end)
-        target("clangcxx_compiler")
-        _config_project({
-            project_kind = "binary"
-        })
-        add_files("clangcxx_compiler.cpp")
-        add_deps("lc-runtime", "lc-vstl", "lc-clangcxx")
-        set_pcxxheader("lc_test_pch.h")
-        target_end()
     end
 end
 
@@ -331,4 +316,7 @@ if has_config("lc_dx_backend") and enable_fsr3 then
             end
         end)
     end)
+end
+if not is_mode("debug") and has_config("lc_enable_clangcxx") then
+    includes("clangcxx_compiler")
 end

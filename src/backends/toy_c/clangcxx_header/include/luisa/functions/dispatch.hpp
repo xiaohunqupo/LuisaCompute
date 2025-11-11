@@ -14,6 +14,4 @@ namespace luisa::shader {
 
 [[callop("SYNCHRONIZE_BLOCK")]] extern void sync_block();
 
-// raster
-[[callop("RASTER_DISCARD")]] extern void discard();
 }// namespace luisa::shader

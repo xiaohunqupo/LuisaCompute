@@ -170,8 +170,8 @@ enum struct CallOp : uint32_t {
     ATOMIC_FETCH_MIN,       /// [(atomic_ref, val) -> old]: stores min(old, val), returns old.
     ATOMIC_FETCH_MAX,       /// [(atomic_ref, val) -> old]: stores max(old, val), returns old.
 
-    BUFFER_VOLATILE_READ,  /// same as BUFFER_READ
-    BUFFER_VOLATILE_WRITE, /// same as BUFFER_WRITE
+    BUFFER_VOLATILE_READ, /// same as BUFFER_READ
+    BUFFER_VOLATILE_WRITE,/// same as BUFFER_WRITE
 
     ADDRESS_OF,// (expr) -> uint64
 
@@ -180,11 +180,11 @@ enum struct CallOp : uint32_t {
     BUFFER_SIZE,   /// [(buffer) -> size]
     BUFFER_ADDRESS,/// [(buffer) -> address]
 
-    BYTE_BUFFER_READ, /// [(buffer, byte_index) -> value]: reads the index-th element in buffer
+    BYTE_BUFFER_READ,          /// [(buffer, byte_index) -> value]: reads the index-th element in buffer
     BYTE_BUFFER_VOLATILE_READ, /// [(buffer, byte_index) -> value]: reads the index-th element in buffer
-    BYTE_BUFFER_WRITE,/// [(buffer, byte_index, value) -> void]: writes value into the index-th element of buffer
+    BYTE_BUFFER_WRITE,         /// [(buffer, byte_index, value) -> void]: writes value into the index-th element of buffer
     BYTE_BUFFER_VOLATILE_WRITE,/// [(buffer, byte_index, value) -> void]: writes value into the index-th element of buffer
-    BYTE_BUFFER_SIZE, /// [(buffer) -> size_bytes]
+    BYTE_BUFFER_SIZE,          /// [(buffer) -> size_bytes]
 
     TEXTURE_READ, /// [(texture, coord) -> value]
     TEXTURE_WRITE,/// [(texture, coord, value) -> void]
@@ -403,7 +403,13 @@ enum struct CallOp : uint32_t {
     RAY_QUERY_IS_PROCEDURAL_CANDIDATE,
 
     // rasterization
-    RASTER_DISCARD,// (): void
+    RASTER_DISCARD,    // (): void  discard-pixel (only in pixel shader)
+    // set z_depth (only in pixel shader, may disable early-z)
+    RASTER_SET_Z_DEPTH,// (float): void 
+    // set z_depth that assumed greater or equal than origin (only in pixel shader, without disable early-z)
+    RASTER_SET_Z_DEPTH_GREATER_EQUAL,// (float): void 
+    // set z_depth that assumed less or equal than origin (only in pixel shader, without disable early-z)
+    RASTER_SET_Z_DEPTH_LESS_EQUAL,// (float): void
 
     // Derivative Operations for 2x2 quad
     // partial derivative

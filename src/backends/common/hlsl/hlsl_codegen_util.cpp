@@ -1615,6 +1615,21 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             LUISA_ASSERT(opt->isPixelShader, "Raster-Discard can only be used in pixel shader");
             str << "discard";
             return;
+        case CallOp::RASTER_SET_Z_DEPTH:
+            LUISA_ASSERT(opt->isPixelShader, "Raster-Discard can only be used in pixel shader");
+            str << "_z_depth=";
+            args[0]->accept(vis);
+            return;
+        case CallOp::RASTER_SET_Z_DEPTH_GREATER_EQUAL:
+            LUISA_ASSERT(opt->isPixelShader, "Raster-Discard can only be used in pixel shader");
+            str << "_z_depth_gequal=";
+            args[0]->accept(vis);
+            return;
+        case CallOp::RASTER_SET_Z_DEPTH_LESS_EQUAL:
+            LUISA_ASSERT(opt->isPixelShader, "Raster-Discard can only be used in pixel shader");
+            str << "_z_depth_lequal=";
+            args[0]->accept(vis);
+            return;
         case CallOp::DDX: {
             if (opt->isRaster) {
                 LUISA_ASSERT(opt->isPixelShader, "ddx can only be used in pixel shader");
@@ -2309,7 +2324,20 @@ void CodegenUtility::CodegenPixel(Function pixel, vstd::StringBuilder &result, b
     vstd::StringBuilder retName;
     auto retType = pixel.return_type();
     GetTypeName(*retType, retName, Usage::READ);
-    result << retName << " pixel(v2p p,float3 bary,uint primId){\n"sv;
+    auto set_depth = pixel.propagated_builtin_callables().test(CallOp::RASTER_SET_Z_DEPTH);
+    auto set_depth_lequal = pixel.propagated_builtin_callables().test(CallOp::RASTER_SET_Z_DEPTH_LESS_EQUAL);
+    auto set_depth_gequal = pixel.propagated_builtin_callables().test(CallOp::RASTER_SET_Z_DEPTH_GREATER_EQUAL);
+    result << retName << " pixel(v2p p,float3 bary,uint primId"sv;
+    if (set_depth) {
+        result << ",out float _z_depth"sv;
+    }
+    if (set_depth_lequal) {
+        result << ",out float _z_depth_lequal";
+    }
+    if (set_depth_gequal) {
+        result << ",out float _z_depth_gequal";
+    }
+    result << "){\n"sv;
     if (cBufferNonEmpty) {
         result << "_Args a = _Global[0];\n"sv;
     }
@@ -2338,13 +2366,33 @@ void CodegenUtility::CodegenPixel(Function pixel, vstd::StringBuilder &result, b
     result << R"(
 }
 void main(v2p p,float3 bary:SV_Barycentrics,uint primId:SV_PrimitiveID)"sv;
+    if (set_depth) {
+        result << ",out float _z_depth:SV_Depth"sv;
+    }
+    if (set_depth_lequal) {
+        result << ",out float _z_depth_lequal:SV_DepthLessEqual"sv;
+    }
+    if (set_depth_gequal) {
+        result << ",out float _z_depth_gequal:SV_DepthGreaterEqual"sv;
+    }
+    auto write_arg = [&]() {
+        if (set_depth) {
+            result << ",_z_depth"sv;
+        }
+        if (set_depth_lequal) {
+            result << ",_z_depth_lequal"sv;
+        }
+        if (set_depth_gequal) {
+            result << ",_z_depth_gequal"sv;
+        }
+    };
     if (retType->is_scalar() || retType->is_vector()) {
         result << ",out "sv;
         GetTypeName(*retType, result, Usage::READ);
         result << R"( o0:SV_TARGET0){
-o0=pixel(p,bary,primId);
-}
-)"sv;
+o0=pixel(p,bary,primId)"sv;
+        write_arg();
+        result << ");\n}\n"sv;
     } else if (retType->is_structure()) {
         size_t idx = 0;
         for (auto &&i : retType->members()) {
@@ -2356,7 +2404,9 @@ o0=pixel(p,bary,primId);
         }
         result << "){\n"sv;
         GetTypeName(*retType, result, Usage::READ);
-        result << " o=pixel(p,bary,primId);\n"sv;
+        result << " o=pixel(p,bary,primId"sv;
+        write_arg();
+        result << ");\n"sv;
         for (auto i : vstd::range(retType->members().size())) {
             auto num = vstd::to_string(i);
             result << 'o' << num << "=o.v"sv << num << ";\n"sv;

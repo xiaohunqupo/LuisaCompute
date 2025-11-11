@@ -1807,11 +1807,6 @@ template<typename T>
     return grad;
 }
 
-inline void discard() noexcept {
-    detail::FunctionBuilder::current()->call(
-        CallOp::RASTER_DISCARD, {});
-}
-
 // barriers
 /// Synchronize thread block.
 inline void sync_block() noexcept {

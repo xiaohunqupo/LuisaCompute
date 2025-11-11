@@ -9,7 +9,7 @@
 #include <luisa/runtime/raster/raster_state.h>
 #include <luisa/core/logging.h>
 #include <luisa/core/binary_io.h>
-#include "string_builder.h"
+#include <luisa/vstl/string_builder.h>
 #include "shared_var.h"
 namespace lc::hlsl {
 using namespace luisa;

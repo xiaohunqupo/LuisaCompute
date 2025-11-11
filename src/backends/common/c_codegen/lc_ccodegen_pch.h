@@ -9,4 +9,4 @@
 #include <luisa/core/mathematics.h>
 #include <luisa/ast/function.h>
 #include <luisa/ast/function_builder.h>
-#include "../hlsl/string_builder.h"
+#include <luisa/vstl/string_builder.h>

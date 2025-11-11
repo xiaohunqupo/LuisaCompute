@@ -3,7 +3,7 @@
 #include <luisa/ast/op.h>
 #include <luisa/ast/expression.h>
 #include <luisa/ast/type.h>
-#include "string_builder.h"
+#include <luisa/vstl/string_builder.h>
 #include <luisa/vstl/md5.h>
 #include <luisa/core/stl/hash.h>
 namespace lc::hlsl {
