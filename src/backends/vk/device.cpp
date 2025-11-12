@@ -1163,7 +1163,7 @@ VkInstance Device::instance() {
     return detail::vk_instance;
 }
 // HACK: for some app need external instance without device
-LUISA_EXPORT_API VkInstance init_vk_instance(bool enable_validation, const luisa::string *extra_instance_exts, size_t extra_instance_ext_count, const char *custom_vk_lib_path, const char *custom_vk_lib_name) {
+LUISA_EXPORT_API VkInstance init_vk_instance(bool enable_validation, bool& enable_surface, const luisa::string *extra_instance_exts, size_t extra_instance_ext_count, const char *custom_vk_lib_path, const char *custom_vk_lib_name) {
     std::lock_guard lck{detail::instance_mtx};
     if (!detail::vk_instance) {
 #ifdef NDEBUG
@@ -1171,7 +1171,6 @@ LUISA_EXPORT_API VkInstance init_vk_instance(bool enable_validation, const luisa
 #else
         constexpr bool enableValidation = true;
 #endif
-        bool enable_surface{false};
         detail::create_instance(enable_validation, enable_surface, detail::vk_instance, custom_vk_lib_path ? luisa::filesystem::path{custom_vk_lib_path} : luisa::filesystem::path{}, custom_vk_lib_name ? luisa::string_view{custom_vk_lib_name} : luisa::string_view{}, luisa::span{extra_instance_exts, extra_instance_ext_count});
     }
     return detail::vk_instance;
