@@ -68,7 +68,7 @@ Texture::Texture(
             VK_IMAGE_USAGE_TRANSFER_DST_BIT |
             VK_IMAGE_USAGE_SAMPLED_BIT |
             (allow_raster_target ? VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT : 0) |
-            (is_srgb(format) ? 0 : VK_IMAGE_USAGE_STORAGE_BIT));
+            ((is_srgb(format) || is_block_compressed(format)) ? 0 : VK_IMAGE_USAGE_STORAGE_BIT));
     _vk_img = allocation.image;
     _allocation = allocation.allocation;
     _layouts.resize(mip);
@@ -155,7 +155,7 @@ void Texture::init_as_sparse(
         .tiling = VK_IMAGE_TILING_OPTIMAL,
         .usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
-    if (!is_srgb(format)) {
+    if (!(is_srgb(format) || is_block_compressed(format))) {
         img_create_info.usage |= VK_IMAGE_USAGE_STORAGE_BIT;
     }
     VK_CHECK_RESULT(vkCreateImage(device()->logic_device(), &img_create_info, Device::alloc_callbacks(), &_vk_img));
