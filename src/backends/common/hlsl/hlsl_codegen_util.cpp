@@ -203,7 +203,7 @@ void CodegenUtility::GetVariableName(Function f, Variable::Tag type, uint id, vs
             if (opt->isRaster) {
                 str << "primId"sv;
             } else {
-                if (opt->funcType == CodegenStackData::FuncType::Kernel) {
+                if (opt->funcType != CodegenStackData::FuncType::Callable) {
                     if (opt->isSpirv)
                         str << "dsp_c.v.w"sv;
                     else
@@ -215,10 +215,14 @@ void CodegenUtility::GetVariableName(Function f, Variable::Tag type, uint id, vs
             break;
         case Variable::Tag::RASTER_OBJECT_ID:
             LUISA_ASSERT(opt->isRaster, "object id only allowed in raster shader");
-            if (opt->isSpirv)
-                str << "obj_id.v"sv;
-            else
-                str << "obj_id"sv;
+            if (opt->funcType != CodegenStackData::FuncType::Callable) {
+                if (opt->isSpirv)
+                    str << "obj_id.v"sv;
+                else
+                    str << "obj_id"sv;
+            } else {
+                str << "ker"sv;
+            }
 
             break;
         case Variable::Tag::RASTER_BARYCENTRICS:

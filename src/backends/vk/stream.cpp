@@ -806,15 +806,18 @@ void Stream::update_sparse_resources(luisa::vector<SparseUpdateTile> &&textures_
     size_t buffer_bind_count = 0;
     size_t img_bind_count = 0;
     for (auto &i : textures_update) {
-        auto &v = counter.try_emplace(i.handle, 0).first->second;
+        auto iter = counter.try_emplace(i.handle, 0);
+        auto &v = iter.first->second;
         v.size += 1;
         luisa::visit(
             [&]<typename T>(T const &op) {
                 if constexpr (std::is_same_v<SparseTextureMapOperation, T> || std::is_same_v<SparseTextureUnMapOperation, T>) {
-                    img_bind_count += 1;
+                    if (iter.second)
+                        img_bind_count += 1;
                     v.is_buffer = false;
                 } else {
-                    buffer_bind_count += 1;
+                    if (iter.second)
+                        buffer_bind_count += 1;
                     v.is_buffer = true;
                 }
             },

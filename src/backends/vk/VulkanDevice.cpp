@@ -186,7 +186,9 @@ VkResult VulkanDevice::createLogicalDevice(VkPhysicalDeviceFeatures &enabledFeat
     // Get queue family indices for the requested queue family types
     // Note that the indices may overlap depending on the implementation
 
-    const float defaultQueuePriority(0.0f);
+    const float defaultQueuePriority(1.0f);
+    const float computedefaultQueuePriority(0.5f);
+    const float copydefaultQueuePriority(0.0f);
 
     // Graphics queue
     if (requestedQueueTypes & VK_QUEUE_GRAPHICS_BIT) {
@@ -210,7 +212,7 @@ VkResult VulkanDevice::createLogicalDevice(VkPhysicalDeviceFeatures &enabledFeat
             queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
             queueInfo.queueFamilyIndex = queueFamilyIndices.compute;
             queueInfo.queueCount = 1;
-            queueInfo.pQueuePriorities = &defaultQueuePriority;
+            queueInfo.pQueuePriorities = &computedefaultQueuePriority;
             queueCreateInfos.push_back(queueInfo);
         }
     } else {
@@ -227,7 +229,7 @@ VkResult VulkanDevice::createLogicalDevice(VkPhysicalDeviceFeatures &enabledFeat
             queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
             queueInfo.queueFamilyIndex = queueFamilyIndices.transfer;
             queueInfo.queueCount = 1;
-            queueInfo.pQueuePriorities = &defaultQueuePriority;
+            queueInfo.pQueuePriorities = &copydefaultQueuePriority;
             queueCreateInfos.push_back(queueInfo);
         }
     } else {

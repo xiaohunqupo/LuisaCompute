@@ -250,7 +250,7 @@ on_load(function(target)
         })
     elseif is_mode("releasedbg") then
         if not win_runtime then
-            win_runtime = "MDd"
+            win_runtime = "MD"
         end
         target:set("optimize", _get_or("optimize", "none"))
         target:add("cxflags", "/GS-", "/Gd", {
