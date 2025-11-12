@@ -273,7 +273,7 @@ llvm::Function *CUDACodegenLLVMImpl::_get_vprintf_function() noexcept {
     return llvm::Function::Create(llvm_func_type, llvm::Function::ExternalLinkage, "vprintf", *_llvm_module);
 }
 
-// <type> luisa.cuda.texture.2d.read.<type>(i64 handle, i64 storage, <2 x i32> coord)
+// <4 x type> luisa.cuda.texture.2d.read.<type>(i64 handle, i64 storage, <2 x i32> coord)
 //
 // i16 @llvm.nvvm.suld.2d.i8.<clamp>(i64 %tex, i32 %x, i32 %y)
 // i16 @llvm.nvvm.suld.2d.i16.<clamp>(i64 %tex, i32 %x, i32 %y)
@@ -305,9 +305,9 @@ llvm::Function *CUDACodegenLLVMImpl::_get_texture2d_read_function(llvm::VectorTy
     auto llvm_storage = llvm_func->getArg(1);
     llvm_storage->setName("surface.storage");
     auto llvm_coord = llvm_func->getArg(2);
+    llvm_coord->setName("coord");
     auto llvm_coord_x = b.CreateExtractElement(llvm_coord, b.getInt64(0), "coord.x");
     auto llvm_coord_y = b.CreateExtractElement(llvm_coord, b.getInt64(1), "coord.y");
-    llvm_coord->setName("coord");
     auto llvm_default_block = llvm::BasicBlock::Create(_llvm_context, "switch.default", llvm_func);
     auto llvm_switch = b.CreateSwitch(llvm_storage, llvm_default_block, 16);
     auto create_case = [&](PixelStorage storage, llvm::Intrinsic::ID intrinsic, llvm::Type *llvm_channel_type) noexcept {
@@ -366,7 +366,101 @@ llvm::Function *CUDACodegenLLVMImpl::_get_texture2d_read_function(llvm::VectorTy
     return llvm_func;
 }
 
-// void luisa.cuda.texture.2d.write.<type>(i64 handle, i64 storage, <2 x i32> coord, <type> value)
+// <4 x type> luisa.cuda.texture.3d.read.<type>(i64 handle, i64 storage, <3 x i32> coord)
+//
+// i16 @llvm.nvvm.suld.3d.i8.<clamp>(i64 %tex, i32 %x, i32 %y, i32 %z)
+// i16 @llvm.nvvm.suld.3d.i16.<clamp>(i64 %tex, i32 %x, i32 %y, i32 %z)
+// i32 @llvm.nvvm.suld.3d.i32.<clamp>(i64 %tex, i32 %x, i32 %y, i32 %z)
+// i64 @llvm.nvvm.suld.3d.i64.<clamp>(i64 %tex, i32 %x, i32 %y, i32 %z)
+//
+// %short2 @llvm.nvvm.suld.3d.v2i8.<clamp>(i64 %tex, i32 %x, i32 %y, i32 %z)
+// %short2 @llvm.nvvm.suld.3d.v2i16.<clamp>(i64 %tex, i32 %x, i32 %y, i32 %z)
+// %int2 @llvm.nvvm.suld.3d.v2i32.<clamp>(i64 %tex, i32 %x, i32 %y, i32 %z)
+// %long2 @llvm.nvvm.suld.3d.v2i64.<clamp>(i64 %tex, i32 %x, i32 %y, i32 %z)
+//
+// %short4 @llvm.nvvm.suld.3d.v4i8.<clamp>(i64 %tex, i32 %x, i32 %y, i32 %z)
+// %short4 @llvm.nvvm.suld.3d.v4i16.<clamp>(i64 %tex, i32 %x, i32 %y, i32 %z)
+// %int4 @llvm.nvvm.suld.3d.v4i32.<clamp>(i64 %tex, i32 %x, i32 %y, i32 %z)
+llvm::Function *CUDACodegenLLVMImpl::_get_texture3d_read_function(llvm::VectorType *llvm_value_type) noexcept {
+    auto name = luisa::format("luisa.cuda.texture.3d.read.{}", _to_string(llvm_value_type->getElementType()));
+    if (auto llvm_func = _llvm_module->getFunction(name)) { return llvm_func; }
+    auto llvm_i64_type = llvm::Type::getInt64Ty(_llvm_context);
+    auto llvm_i32_type = llvm::Type::getInt32Ty(_llvm_context);
+    auto llvm_coord_type = llvm::VectorType::get(llvm_i32_type, 3, false);
+    auto llvm_func_type = llvm::FunctionType::get(
+        llvm_value_type, {llvm_i64_type, llvm_i64_type, llvm_coord_type}, false);
+    auto llvm_func = llvm::Function::Create(llvm_func_type, llvm::Function::PrivateLinkage, name, *_llvm_module);
+    llvm_func->addFnAttr(llvm::Attribute::AlwaysInline);
+    auto llvm_entry = llvm::BasicBlock::Create(_llvm_context, "entry", llvm_func);
+    IB b{llvm_entry};
+    auto llvm_handle = llvm_func->getArg(0);
+    llvm_handle->setName("surface.handle");
+    auto llvm_storage = llvm_func->getArg(1);
+    llvm_storage->setName("surface.storage");
+    auto llvm_coord = llvm_func->getArg(2);
+    llvm_coord->setName("coord");
+    auto llvm_coord_x = b.CreateExtractElement(llvm_coord, b.getInt64(0), "coord.x");
+    auto llvm_coord_y = b.CreateExtractElement(llvm_coord, b.getInt64(1), "coord.y");
+    auto llvm_coord_z = b.CreateExtractElement(llvm_coord, b.getInt64(2), "coord.z");
+    auto llvm_default_block = llvm::BasicBlock::Create(_llvm_context, "switch.default", llvm_func);
+    auto llvm_switch = b.CreateSwitch(llvm_storage, llvm_default_block, 16);
+    auto create_case = [&](PixelStorage storage, llvm::Intrinsic::ID intrinsic, llvm::Type *llvm_channel_type) noexcept {
+        auto llvm_case_block = llvm::BasicBlock::Create(_llvm_context, luisa::format("switch.case.{}", luisa::to_string(storage)), llvm_func);
+        llvm_switch->addCase(b.getInt64(luisa::to_underlying(storage)), llvm_case_block);
+        b.SetInsertPoint(llvm_case_block);
+        // call suld intrinsic
+        auto pixel_size = pixel_storage_size(storage, luisa::make_uint3(1));
+        auto llvm_coord_x_bytes = b.CreateMul(llvm_coord_x, b.getInt32(pixel_size), "coord.x.bytes", true, true);
+        auto llvm_raw = b.CreateIntrinsic(intrinsic, {llvm_handle, llvm_coord_x_bytes, llvm_coord_y, llvm_coord_z});
+        // convert raw to vector type
+        auto channel_count = pixel_storage_channel_count(storage);
+        LUISA_DEBUG_ASSERT(channel_count == 1 || channel_count == 2 || channel_count == 4);
+        auto llvm_src_type = llvm::VectorType::get(llvm_channel_type, 4, false);
+        auto llvm_src = static_cast<llvm::Value *>(llvm::Constant::getNullValue(llvm_src_type));
+        if (channel_count == 1) {
+            auto llvm_channel = llvm_channel_type->isIntegerTy(8) ?
+                                    b.CreateTrunc(llvm_raw, llvm_channel_type) :
+                                    b.CreateBitCast(llvm_raw, llvm_channel_type);
+            llvm_src = b.CreateInsertElement(llvm_src, llvm_channel, b.getInt64(0));
+        } else {
+            for (auto i = 0; i < channel_count; i++) {
+                auto llvm_channel = b.CreateExtractValue(llvm_raw, i);
+                llvm_channel = llvm_channel_type->isIntegerTy(8) ?
+                                   b.CreateTrunc(llvm_channel, llvm_channel_type) :
+                                   b.CreateBitCast(llvm_channel, llvm_channel_type);
+                llvm_src = b.CreateInsertElement(llvm_src, llvm_channel, i);
+            }
+        }
+        // cast to the dst type
+        auto llvm_dst = _texel_cast(b, llvm_src, llvm_value_type);
+        b.CreateRet(llvm_dst);
+    };
+    auto llvm_i8_type = llvm::Type::getInt8Ty(_llvm_context);
+    auto llvm_i16_type = llvm::Type::getInt16Ty(_llvm_context);
+    auto llvm_f16_type = llvm::Type::getHalfTy(_llvm_context);
+    auto llvm_f32_type = llvm::Type::getFloatTy(_llvm_context);
+    create_case(PixelStorage::BYTE1, llvm::Intrinsic::nvvm_suld_3d_i8_zero, llvm_i8_type);
+    create_case(PixelStorage::BYTE2, llvm::Intrinsic::nvvm_suld_3d_v2i8_zero, llvm_i8_type);
+    create_case(PixelStorage::BYTE4, llvm::Intrinsic::nvvm_suld_3d_v4i8_zero, llvm_i8_type);
+    create_case(PixelStorage::SHORT1, llvm::Intrinsic::nvvm_suld_3d_i16_zero, llvm_i16_type);
+    create_case(PixelStorage::SHORT2, llvm::Intrinsic::nvvm_suld_3d_v2i16_zero, llvm_i16_type);
+    create_case(PixelStorage::SHORT4, llvm::Intrinsic::nvvm_suld_3d_v4i16_zero, llvm_i16_type);
+    create_case(PixelStorage::INT1, llvm::Intrinsic::nvvm_suld_3d_i32_zero, llvm_i32_type);
+    create_case(PixelStorage::INT2, llvm::Intrinsic::nvvm_suld_3d_v2i32_zero, llvm_i32_type);
+    create_case(PixelStorage::INT4, llvm::Intrinsic::nvvm_suld_3d_v4i32_zero, llvm_i32_type);
+    create_case(PixelStorage::HALF1, llvm::Intrinsic::nvvm_suld_3d_i16_zero, llvm_f16_type);
+    create_case(PixelStorage::HALF2, llvm::Intrinsic::nvvm_suld_3d_v2i16_zero, llvm_f16_type);
+    create_case(PixelStorage::HALF4, llvm::Intrinsic::nvvm_suld_3d_v4i16_zero, llvm_f16_type);
+    create_case(PixelStorage::FLOAT1, llvm::Intrinsic::nvvm_suld_3d_i32_zero, llvm_f32_type);
+    create_case(PixelStorage::FLOAT2, llvm::Intrinsic::nvvm_suld_3d_v2i32_zero, llvm_f32_type);
+    create_case(PixelStorage::FLOAT4, llvm::Intrinsic::nvvm_suld_3d_v4i32_zero, llvm_f32_type);
+    // default block is unreachable
+    b.SetInsertPoint(llvm_default_block);
+    b.CreateUnreachable();
+    return llvm_func;
+}
+
+// void luisa.cuda.texture.2d.write.<type>(i64 handle, i64 storage, <2 x i32> coord, <4 x type> value)
 //
 // void @llvm.nvvm.sust.b.2d.i8.<clamp>(i64 %tex, i32 %x, i32 %y, i16 %r)
 // void @llvm.nvvm.sust.b.2d.i16.<clamp>(i64 %tex, i32 %x, i32 %y, i16 %r)
@@ -462,12 +556,95 @@ llvm::Function *CUDACodegenLLVMImpl::_get_texture2d_write_function(llvm::VectorT
     return llvm_func;
 }
 
-llvm::Function *CUDACodegenLLVMImpl::_get_texture3d_read_function(llvm::VectorType *llvm_value_type) noexcept {
-    LUISA_NOT_IMPLEMENTED("3D texture read not implemented.");
-}
-
+// void luisa.cuda.texture.3d.write.<type>(i64 handle, i64 storage, <3 x i32> coord, <4 x type> value)
+//
+// void @llvm.nvvm.sust.b.3d.i8.<clamp>(i64 %tex, i32 %x, i32 %y, i32 %z, i16 %r)
+// void @llvm.nvvm.sust.b.3d.i16.<clamp>(i64 %tex, i32 %x, i32 %y, i32 %z, i16 %r)
+// void @llvm.nvvm.sust.b.3d.i32.<clamp>(i64 %tex, i32 %x, i32 %y, i32 %z, i32 %r)
+// void @llvm.nvvm.sust.b.3d.i64.<clamp>(i64 %tex, i32 %x, i32 %y, i32 %z, i64 %r)
+//
+// void @llvm.nvvm.sust.b.3d.v2i8.<clamp>(i64 %tex, i32 %x, i32 %y, i32 %z, i16 %r, i16 %g)
+// void @llvm.nvvm.sust.b.3d.v2i16.<clamp>(i64 %tex, i32 %x, i32 %y, i32 %z, i16 %r, i16 %g)
+// void @llvm.nvvm.sust.b.3d.v2i32.<clamp>(i64 %tex, i32 %x, i32 %y, i32 %z, i32 %r, i32 %g)
+// void @llvm.nvvm.sust.b.3d.v2i64.<clamp>(i64 %tex, i32 %x, i32 %y, i32 %z, i64 %r, i64 %g)
+//
+// void @llvm.nvvm.sust.b.3d.v4i8.<clamp>(i64 %tex, i32 %x, i32 %y, i32 %z, i16 %r, i16 %g, i16 %b, i16 %a)
+// void @llvm.nvvm.sust.b.3d.v4i16.<clamp>(i64 %tex, i32 %x, i32 %y, i32 %z, i16 %r, i16 %g, i16 %b, i16 %a)
+// void @llvm.nvvm.sust.b.3d.v4i32.<clamp>(i64 %tex, i32 %x, i32 %y, i32 %z, i32 %r, i32 %g, i32 %b, i32 %a)
 llvm::Function *CUDACodegenLLVMImpl::_get_texture3d_write_function(llvm::VectorType *llvm_value_type) noexcept {
-    LUISA_NOT_IMPLEMENTED("3D texture write not implemented.");
+    auto name = luisa::format("luisa.cuda.texture.3d.write.{}", _to_string(llvm_value_type->getElementType()));
+    if (auto llvm_func = _llvm_module->getFunction(name)) { return llvm_func; }
+    auto llvm_void_type = llvm::Type::getVoidTy(_llvm_context);
+    auto llvm_i64_type = llvm::Type::getInt64Ty(_llvm_context);
+    auto llvm_i32_type = llvm::Type::getInt32Ty(_llvm_context);
+    auto llvm_coord_type = llvm::VectorType::get(llvm_i32_type, 3, false);
+    auto llvm_func_type = llvm::FunctionType::get(
+        llvm_void_type, {llvm_i64_type, llvm_i64_type, llvm_coord_type, llvm_value_type}, false);
+    auto llvm_func = llvm::Function::Create(llvm_func_type, llvm::Function::PrivateLinkage, name, *_llvm_module);
+    llvm_func->addFnAttr(llvm::Attribute::AlwaysInline);
+    auto llvm_entry = llvm::BasicBlock::Create(_llvm_context, "entry", llvm_func);
+    IB b{llvm_entry};
+    auto llvm_handle = llvm_func->getArg(0);
+    llvm_handle->setName("surface.handle");
+    auto llvm_storage = llvm_func->getArg(1);
+    llvm_storage->setName("surface.storage");
+    auto llvm_coord = llvm_func->getArg(2);
+    llvm_coord->setName("coord");
+    auto llvm_coord_x = b.CreateExtractElement(llvm_coord, b.getInt64(0), "coord.x");
+    auto llvm_coord_y = b.CreateExtractElement(llvm_coord, b.getInt64(1), "coord.y");
+    auto llvm_coord_z = b.CreateExtractElement(llvm_coord, b.getInt64(2), "coord.z");
+    auto llvm_value = llvm_func->getArg(3);
+    llvm_value->setName("value");
+    auto llvm_default_block = llvm::BasicBlock::Create(_llvm_context, "switch.default", llvm_func);
+    auto llvm_switch = b.CreateSwitch(llvm_storage, llvm_default_block, 16);
+    auto create_case = [&](PixelStorage storage, llvm::Intrinsic::ID intrinsic, llvm::Type *llvm_channel_type, llvm::Type *llvm_storage_channel_type) noexcept {
+        auto llvm_case_block = llvm::BasicBlock::Create(_llvm_context, luisa::format("switch.case.{}", luisa::to_string(storage)), llvm_func);
+        llvm_switch->addCase(b.getInt64(luisa::to_underlying(storage)), llvm_case_block);
+        b.SetInsertPoint(llvm_case_block);
+        // cast value to pixel format
+        auto channel_count = pixel_storage_channel_count(storage);
+        LUISA_DEBUG_ASSERT(channel_count == 1 || channel_count == 2 || channel_count == 4);
+        auto llvm_dst_type = llvm::VectorType::get(llvm_channel_type, 4, false);
+        auto llvm_dst = _texel_cast(b, llvm_value, llvm_dst_type);
+        auto llvm_raw_type = llvm::VectorType::get(llvm_storage_channel_type, 4, false);
+        auto llvm_raw = llvm_channel_type->isIntegerTy(8) ? b.CreateZExt(llvm_dst, llvm_raw_type) : b.CreateBitCast(llvm_dst, llvm_raw_type);
+        llvm::SmallVector<llvm::Value *, 8> llvm_args;
+        llvm_args.emplace_back(llvm_handle);
+        auto pixel_size = pixel_storage_size(storage, luisa::make_uint3(1));
+        auto llvm_coord_x_bytes = b.CreateMul(llvm_coord_x, b.getInt32(pixel_size), "coord.x.bytes", true, true);
+        llvm_args.emplace_back(llvm_coord_x_bytes);
+        llvm_args.emplace_back(llvm_coord_y);
+        llvm_args.emplace_back(llvm_coord_z);
+        for (auto i = 0; i < channel_count; i++) {
+            auto llvm_channel = b.CreateExtractElement(llvm_raw, i);
+            llvm_args.emplace_back(llvm_channel);
+        }
+        b.CreateIntrinsic(intrinsic, llvm_args);
+        b.CreateRetVoid();
+    };
+    auto llvm_i8_type = llvm::Type::getInt8Ty(_llvm_context);
+    auto llvm_i16_type = llvm::Type::getInt16Ty(_llvm_context);
+    auto llvm_f16_type = llvm::Type::getHalfTy(_llvm_context);
+    auto llvm_f32_type = llvm::Type::getFloatTy(_llvm_context);
+    create_case(PixelStorage::BYTE1, llvm::Intrinsic::nvvm_sust_b_3d_i8_zero, llvm_i8_type, llvm_i16_type);
+    create_case(PixelStorage::BYTE2, llvm::Intrinsic::nvvm_sust_b_3d_v2i8_zero, llvm_i8_type, llvm_i16_type);
+    create_case(PixelStorage::BYTE4, llvm::Intrinsic::nvvm_sust_b_3d_v4i8_zero, llvm_i8_type, llvm_i16_type);
+    create_case(PixelStorage::SHORT1, llvm::Intrinsic::nvvm_sust_b_3d_i16_zero, llvm_i16_type, llvm_i16_type);
+    create_case(PixelStorage::SHORT2, llvm::Intrinsic::nvvm_sust_b_3d_v2i16_zero, llvm_i16_type, llvm_i16_type);
+    create_case(PixelStorage::SHORT4, llvm::Intrinsic::nvvm_sust_b_3d_v4i16_zero, llvm_i16_type, llvm_i16_type);
+    create_case(PixelStorage::INT1, llvm::Intrinsic::nvvm_sust_b_3d_i32_zero, llvm_i32_type, llvm_i32_type);
+    create_case(PixelStorage::INT2, llvm::Intrinsic::nvvm_sust_b_3d_v2i32_zero, llvm_i32_type, llvm_i32_type);
+    create_case(PixelStorage::INT4, llvm::Intrinsic::nvvm_sust_b_3d_v4i32_zero, llvm_i32_type, llvm_i32_type);
+    create_case(PixelStorage::HALF1, llvm::Intrinsic::nvvm_sust_b_3d_i16_zero, llvm_f16_type, llvm_i16_type);
+    create_case(PixelStorage::HALF2, llvm::Intrinsic::nvvm_sust_b_3d_v2i16_zero, llvm_f16_type, llvm_i16_type);
+    create_case(PixelStorage::HALF4, llvm::Intrinsic::nvvm_sust_b_3d_v4i16_zero, llvm_f16_type, llvm_i16_type);
+    create_case(PixelStorage::FLOAT1, llvm::Intrinsic::nvvm_sust_b_3d_i32_zero, llvm_f32_type, llvm_i32_type);
+    create_case(PixelStorage::FLOAT2, llvm::Intrinsic::nvvm_sust_b_3d_v2i32_zero, llvm_f32_type, llvm_i32_type);
+    create_case(PixelStorage::FLOAT4, llvm::Intrinsic::nvvm_sust_b_3d_v4i32_zero, llvm_f32_type, llvm_i32_type);
+    // default block is unreachable
+    b.SetInsertPoint(llvm_default_block);
+    b.CreateUnreachable();
+    return llvm_func;
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_translate_call_inst(IB &b, FunctionContext &func_ctx, const xir::CallInst *inst) noexcept {
