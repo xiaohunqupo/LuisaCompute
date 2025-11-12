@@ -290,7 +290,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_resource_read_inst(IB &b, FunctionC
             auto llvm_f32_type = b.getFloatTy();
             auto llvm_f32x4_type = llvm::StructType::get(llvm_f32_type, llvm_f32_type, llvm_f32_type, llvm_f32_type);
             auto llvm_asm_type = llvm::FunctionType::get(llvm_f32x4_type,
-                                                         {llvm_i64_type, llvm_i32_type, llvm_i32_type, llvm_i32_type, llvm_i32_type},
+                                                         {llvm_i64_type, llvm_i32_type, llvm_i32_type, llvm_i32_type, llvm_i32_type, llvm_i32_type},
                                                          false);
             auto llvm_asm = llvm::InlineAsm::get(llvm_asm_type,
                                                  "tex.level.3d.v4.f32.s32 {$0, $1, $2, $3}, [$4, {$5, $6, $7, $8}], $9;",
