@@ -11,7 +11,7 @@ UploadBuffer::UploadBuffer(Device *device, size_t size_bytes)
           device->allocator()
               .allocate_buffer(
                   size_bytes,
-                  (VkBufferUsageFlagBits)((uint)VK_BUFFER_USAGE_TRANSFER_SRC_BIT | (uint)VK_BUFFER_USAGE_STORAGE_BUFFER_BIT),
+                  (VkBufferUsageFlagBits)((uint)VK_BUFFER_USAGE_TRANSFER_SRC_BIT | (uint)VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT),
                   AccessType::Upload)} {
     VK_CHECK_RESULT(vmaMapMemory(
         device->allocator().allocator(),
@@ -84,7 +84,7 @@ DefaultBuffer::DefaultBuffer(Device *device, size_t size_bytes, bool used_as_acc
                        size_bytes,
                        static_cast<VkBufferUsageFlagBits>(
                            extra_bit |
-                           VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
                            VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
                            VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
                            VK_BUFFER_USAGE_TRANSFER_DST_BIT |
@@ -131,7 +131,7 @@ SparseBuffer::SparseBuffer(Device *device, size_t size_bytes, bool used_as_accel
         .size = size_bytes,
         .usage = static_cast<VkBufferUsageFlags>(
             extra_bit |
-            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
             VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
             VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
             VK_BUFFER_USAGE_TRANSFER_DST_BIT |

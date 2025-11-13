@@ -196,7 +196,8 @@ BufferCreationInfo VkCudaInteropImpl::create_interop_buffer(const Type *element,
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .pNext = &external_memory_info,
         .size = size_bytes,
-        .usage = (VkBufferUsageFlags)(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+        .usage = (VkBufferUsageFlags)(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT |
+                                      VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
                                       VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
                                       VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
                                       VK_BUFFER_USAGE_TRANSFER_DST_BIT |

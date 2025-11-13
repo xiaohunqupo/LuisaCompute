@@ -212,7 +212,7 @@ struct BindPropVisitor {
             reinterpret_cast<Buffer const *>(bf.handle)->vk_buffer(),
             bf.offset,
             bf.size};
-        auto &a = cmdbuffer->write_desc_sets->emplace_back(VkWriteDescriptorSet{
+        cmdbuffer->write_desc_sets->emplace_back(VkWriteDescriptorSet{
             VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
             nullptr,
             desc_set,
