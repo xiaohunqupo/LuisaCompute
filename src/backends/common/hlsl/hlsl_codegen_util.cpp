@@ -228,6 +228,7 @@ void CodegenUtility::GetVariableName(Function f, Variable::Tag type, uint id, vs
         case Variable::Tag::RASTER_BARYCENTRICS:
             LUISA_ASSERT(opt->isRaster, "barycentrics only allowed in raster shader");
             str << "bary"sv;
+            opt->pixelUseBarycentric = true;
             break;
         case Variable::Tag::WARP_LANE_COUNT:
             LUISA_ASSERT(!opt->isRaster, "warp ops only allowed in compute shader");
@@ -2332,6 +2333,9 @@ void CodegenUtility::CodegenPixel(Function pixel, vstd::StringBuilder &result, b
     auto set_depth_lequal = pixel.propagated_builtin_callables().test(CallOp::RASTER_SET_Z_DEPTH_LESS_EQUAL);
     auto set_depth_gequal = pixel.propagated_builtin_callables().test(CallOp::RASTER_SET_Z_DEPTH_GREATER_EQUAL);
     result << retName << " pixel(v2p p,float3 bary,uint primId"sv;
+    if (opt->pixelUseBarycentric) {
+        result << ",float3 bary"sv;
+    }
     if (set_depth) {
         result << ",out float _z_depth"sv;
     }
@@ -2367,9 +2371,11 @@ void CodegenUtility::CodegenPixel(Function pixel, vstd::StringBuilder &result, b
 #endif
             pixel);
     }
-    result << R"(
-}
-void main(v2p p,float3 bary:SV_Barycentrics,uint primId:SV_PrimitiveID)"sv;
+    result << "\n}\nvoid main(v2p p"sv;
+    result << ",uint primId:SV_PrimitiveID"sv;
+    if (opt->pixelUseBarycentric) {
+        result << ",float3 bary:SV_Barycentrics"sv;
+    }
     if (set_depth) {
         result << ",out float _z_depth:SV_Depth"sv;
     }
@@ -2380,6 +2386,9 @@ void main(v2p p,float3 bary:SV_Barycentrics,uint primId:SV_PrimitiveID)"sv;
         result << ",out float _z_depth_gequal:SV_DepthGreaterEqual"sv;
     }
     auto write_arg = [&]() {
+        if (opt->pixelUseBarycentric) {
+            result << ",bary"sv;
+        }
         if (set_depth) {
             result << ",_z_depth"sv;
         }
@@ -2394,7 +2403,7 @@ void main(v2p p,float3 bary:SV_Barycentrics,uint primId:SV_PrimitiveID)"sv;
         result << ",out "sv;
         GetTypeName(*retType, result, Usage::READ);
         result << R"( o0:SV_TARGET0){
-o0=pixel(p,bary,primId)"sv;
+o0=pixel(p,primId)"sv;
         write_arg();
         result << ");\n}\n"sv;
     } else if (retType->is_structure()) {
@@ -2408,7 +2417,7 @@ o0=pixel(p,bary,primId)"sv;
         }
         result << "){\n"sv;
         GetTypeName(*retType, result, Usage::READ);
-        result << " o=pixel(p,bary,primId"sv;
+        result << " o=pixel(p,primId"sv;
         write_arg();
         result << ");\n"sv;
         for (auto i : vstd::range(retType->members().size())) {

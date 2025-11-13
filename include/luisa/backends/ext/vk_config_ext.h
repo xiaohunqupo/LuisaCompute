@@ -51,6 +51,7 @@ public:
     virtual bool wait_semaphore(VkQueue queue, VkSemaphore _semaphore, uint64_t index) noexcept { return false; }
     virtual bool sync_semaphore(VkSemaphore _semaphore, uint64_t index) noexcept { return false; }
     virtual bool load_dxc() const noexcept { return true; }
+    virtual void init_volk(PFN_vkGetInstanceProcAddr handler) noexcept {}
     virtual luisa::vector<luisa::string> extra_instance_exts() noexcept { return {}; }
     virtual luisa::vector<luisa::string> extra_device_exts() noexcept { return {}; }
     virtual void readback_vulkan_device(

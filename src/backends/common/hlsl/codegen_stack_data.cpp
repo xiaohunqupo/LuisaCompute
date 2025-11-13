@@ -41,6 +41,7 @@ void CodegenStackData::Clear() {
     useTex2DBindless = false;
     useTex3DBindless = false;
     useBufferBindless = false;
+    pixelUseBarycentric = false;
     atomicFloatToInt = false;
     internalStruct.clear();
     internalStruct.emplace(Type::of<CommittedHit>(), "_Hit0");

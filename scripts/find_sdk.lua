@@ -160,91 +160,110 @@ function on_install_sdk(target, rule_name)
     local sdks = sdks()
     local sdk_dir = sdk_dir(custom_sdk_dir)
     os.mkdir(sdk_dir)
+    import("async.jobgraph")
+    import("async.runjobs")
+    if #libnames == 0 then
+        return
+    end
+    local jobs = jobgraph.new()
+    local job_count = 0
     for _, lib in ipairs(libnames) do
-        local copy_dir = lib["copy_dir"]
-        if not copy_dir then
-            copy_dir = target:targetdir()
-        elseif #copy_dir > 0 then
-            copy_dir = path.join(copy_dir, os.host(), os.arch())
-        end
-        if #copy_dir > 0 then
-            os.mkdir(copy_dir)
-        end
-        local sdk_map
-
-        local function log_err()
-            utils.error("Library: " .. sdks()[lib]['name'] .. " not installed, should download from " ..
-                            sdk_address(sdks()[lib]) .. ' to ' .. sdk_dir(custom_sdk_dir) .. '.')
-        end
-        local function process_sdk_map(sdk_map)
-            if sdk_map["plat_spec"] then
-                local t = sdk_map['name']
-                sdk_map['name'] = path.basename(t) .. '-' .. os.host() .. '-' .. os.arch() .. path.extension(t)
+        local job_name = target:name() .. tostring(job_count)
+        job_count = job_count + 1
+        jobs:add(job_name, function()
+            local copy_dir = lib["copy_dir"]
+            if not copy_dir then
+                copy_dir = target:targetdir()
+            elseif #copy_dir > 0 then
+                copy_dir = path.join(copy_dir, os.host(), os.arch())
             end
-            install_sdk(sdk_map, custom_sdk_dir)
-        end
-        if type(lib) == "string" then
-            sdk_map = sdks[lib]
-            process_sdk_map(sdk_map)
-            local valid = check_file(lib, custom_sdk_dir)
-            if not valid then
-                log_err();
+            if #copy_dir > 0 then
+                os.mkdir(copy_dir)
+            end
+            local sdk_map
+
+            local function log_err()
+                utils.error("Library: " .. sdks()[lib]['name'] .. " not installed, should download from " ..
+                                sdk_address(sdks()[lib]) .. ' to ' .. sdk_dir(custom_sdk_dir) .. '.')
+            end
+            local function process_sdk_map(sdk_map)
+                if sdk_map["plat_spec"] then
+                    local t = sdk_map['name']
+                    sdk_map['name'] = path.basename(t) .. '-' .. os.host() .. '-' .. os.arch() .. path.extension(t)
+                end
+                install_sdk(sdk_map, custom_sdk_dir)
+            end
+            if type(lib) == "string" then
+                sdk_map = sdks[lib]
+                process_sdk_map(sdk_map)
+                local valid = check_file(lib, custom_sdk_dir)
+                if not valid then
+                    log_err();
+                    return
+                end
+            else
+                sdk_map = lib
+                process_sdk_map(sdk_map)
+            end
+            local sdk_name = sdk_map["name"]
+
+            if not sdk_name then
+                utils.error("Package invalid without name.")
                 return
             end
-        else
-            sdk_map = lib
-            process_sdk_map(sdk_map)
-        end
-        local sdk_name = sdk_map["name"]
-        if not sdk_name then
-            utils.error("Package invalid without name.")
-            goto END_LOOP
-        end
-        local extract_dir = lib["extract_dir"]
-        if not extract_dir or #extract_dir == 0 then
-            extract_dir = path.join(sdk_dir, path.basename(sdk_name))
-        end
-        -- Check cache
-        local target_cache_dir = path.join(os.projectdir(), "build/.lcsdk", os.host(), os.arch())
-        local target_cache_file = path.join(target_cache_dir, sdk_name .. ".ini")
+            local extract_dir = lib["extract_dir"]
+            if not extract_dir or #extract_dir == 0 then
+                extract_dir = path.join(sdk_dir, path.basename(sdk_name))
+            end
+            -- Check cache
+            local target_cache_dir = path.join(os.projectdir(), "build/.lcsdk", os.host(), os.arch())
+            local target_cache_file = path.join(target_cache_dir, sdk_name .. ".ini")
 
-        local require_extract
-        local function is_empty_folder()
-            if os.exists(extract_dir) and not os.isfile(extract_dir) then
-                for _, v in ipairs(os.filedirs(path.join(extract_dir, '*'))) do
-                    return false
+            local require_extract
+            local function is_empty_folder()
+                if os.exists(extract_dir) and not os.isfile(extract_dir) then
+                    for _, v in ipairs(os.filedirs(path.join(extract_dir, '*'))) do
+                        return false
+                    end
+                    return true
+                else
+                    return true
                 end
-                return true
-            else
-                return true
             end
-        end
-        local file_sha256 = hash.sha256(path.join(sdk_dir, sdk_name))
-        local function is_cache_mismatch()
-            if not os.exists(target_cache_file) then
-                return true
+            local file_sha256 = hash.sha256(path.join(sdk_dir, sdk_name))
+            local function is_cache_mismatch()
+                if not os.exists(target_cache_file) then
+                    return true
+                end
+                return io.readfile(target_cache_file) ~= file_sha256
             end
-            return io.readfile(target_cache_file) ~= file_sha256
-        end
-        local function unzip()
-            unzip_sdk(sdk_map['name'], sdk_dir, extract_dir)
-            os.mkdir(target_cache_dir)
-            io.writefile(target_cache_file, file_sha256)
-        end
-        if is_empty_folder() then
-            print("Package " .. sdk_name .. " extract_dir empty, extracting.")
-            unzip()
-        elseif is_cache_mismatch() then
-            print("Package " .. sdk_name .. " hash mismatch, extracting.")
-            unzip()
-        end
-        if #copy_dir > 0 then
-            for _, filepath in ipairs(os.filedirs(path.join(extract_dir, "*"))) do
-                os.cp(filepath, path.join(copy_dir, path.filename(filepath)), {
-                    copy_if_different = true
-                })
+            local function unzip()
+                unzip_sdk(sdk_map['name'], sdk_dir, extract_dir)
+                os.mkdir(target_cache_dir)
+                io.writefile(target_cache_file, file_sha256)
             end
-        end
-        ::END_LOOP::
+            if is_empty_folder() then
+                print("Package " .. sdk_name .. " extract_dir empty, extracting.")
+                unzip()
+            elseif is_cache_mismatch() then
+                print("Package " .. sdk_name .. " hash mismatch, extracting.")
+                unzip()
+            end
+            if #copy_dir > 0 then
+                for _, filepath in ipairs(os.filedirs(path.join(extract_dir, "*"))) do
+                    os.cp(filepath, path.join(copy_dir, path.filename(filepath)), {
+                        copy_if_different = true
+                    })
+                end
+            end
+        end)
     end
+
+    runjobs(target:name() .. "_install", jobs, {
+        comax = 1000,
+        timeout = -1,
+        timer = function(running_jobs_indices)
+            utils.error("timeout.")
+        end
+    })
 end

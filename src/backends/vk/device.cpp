@@ -390,6 +390,7 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
         _init_device(ext_phy_device, ext_device, device_idx);
 
         if (_config_ext) {
+            _config_ext->init_volk(vkGetInstanceProcAddr);
             _config_ext->readback_vulkan_device(instance(), physical_device(), logic_device(), alloc_callbacks(), _pso_header, _graphics_queue, _compute_queue, _copy_queue, graphics_queue_index(), compute_queue_index(), copy_queue_index(), gDxcCompiler->compiler(), gDxcCompiler->library(), gDxcCompiler->utils());
         }
         exts.try_emplace(
@@ -524,6 +525,11 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
     }
     bool enable_16bit = false;
     bool enable_atomic64_bit = false;
+    bool enable_barycentric = false;
+    if (supported_ext.find(VK_KHR_FRAGMENT_SHADER_BARYCENTRIC_EXTENSION_NAME) != supported_ext.end()) {
+        _enable_device_exts.emplace_back(VK_KHR_FRAGMENT_SHADER_BARYCENTRIC_EXTENSION_NAME);
+        enable_barycentric = true;
+    }
     if (supported_ext.find(VK_KHR_SHADER_ATOMIC_INT64_EXTENSION_NAME) != supported_ext.end()) {
         _enable_device_exts.emplace_back(VK_KHR_SHADER_ATOMIC_INT64_EXTENSION_NAME);
         enable_atomic64_bit = true;
@@ -593,6 +599,14 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
     if (_config_ext) {
         feature_next = _config_ext->device_feature_settings();
     }
+    VkPhysicalDeviceFragmentShaderBarycentricFeaturesKHR raster_bary{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_BARYCENTRIC_FEATURES_KHR,
+        .pNext = feature_next,
+        .fragmentShaderBarycentric = VK_TRUE};
+    if (enable_barycentric) {
+        feature_next = &raster_bary;
+    }
+
     VkPhysicalDevice16BitStorageFeatures bit16_feature{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES,
         .pNext = feature_next,
@@ -617,8 +631,8 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
         feature_next,
         true};
     VkPhysicalDeviceVulkan12Features vk12_feature{
-        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
-        &barrier_feature,
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+        .pNext = &barrier_feature,
         .shaderBufferInt64Atomics = enable_atomic64_bit ? VK_TRUE : VK_FALSE,
         .shaderSharedInt64Atomics = enable_atomic64_bit ? VK_TRUE : VK_FALSE,
         .shaderFloat16 = enable_16bit ? VK_TRUE : VK_FALSE,
