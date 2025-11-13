@@ -10,6 +10,7 @@
 
 #include <volk.h>
 #include "VulkanInitializers.hpp"
+#include <luisa/core/stl/string.h>
 
 #include <math.h>
 #include <stdlib.h>
@@ -38,7 +39,7 @@
 
 // Macro to check and display Vulkan return results
 
-const std::string getAssetPath();
+const luisa::string getAssetPath();
 
 namespace vks
 {
@@ -48,10 +49,10 @@ namespace vks
 		extern bool errorModeSilent;
 
 		/** @brief Returns an error code as a string */
-		std::string errorString(VkResult errorCode);
+		luisa::string errorString(VkResult errorCode);
 
 		/** @brief Returns the device type as a string */
-		std::string physicalDeviceTypeString(VkPhysicalDeviceType type);
+		luisa::string physicalDeviceTypeString(VkPhysicalDeviceType type);
 
 		// Selected a suitable supported depth format starting with 32 bit down to 16 bit
 		// Returns false if none of the depth formats in the list is supported by the device
@@ -101,7 +102,7 @@ namespace vks
 #endif
 
 		/** @brief Checks if a file exists */
-		bool fileExists(const std::string &filename);
+		bool fileExists(const luisa::string &filename);
 
 		uint32_t alignedSize(uint32_t value, uint32_t alignment);
 	}

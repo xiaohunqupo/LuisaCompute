@@ -10,7 +10,7 @@
 #include "log.h"
 #if !(defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK))
 // iOS & macOS: VulkanExampleBase::getAssetPath() implemented externally to allow access to Objective-C components
-const std::string getAssetPath()
+const luisa::string getAssetPath()
 {
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
 	return "";
@@ -28,7 +28,7 @@ namespace vks
 	{
 		bool errorModeSilent = false;
 
-		std::string errorString(VkResult errorCode)
+		luisa::string errorString(VkResult errorCode)
 		{
 			switch (errorCode)
 			{
@@ -62,7 +62,7 @@ namespace vks
 			}
 		}
 
-		std::string physicalDeviceTypeString(VkPhysicalDeviceType type)
+		luisa::string physicalDeviceTypeString(VkPhysicalDeviceType type)
 		{
 			switch (type)
 			{
@@ -367,7 +367,7 @@ namespace vks
 		}
 #endif
 
-		bool fileExists(const std::string &filename)
+		bool fileExists(const luisa::string &filename)
 		{
 			std::ifstream f(filename.c_str());
 			return !f.fail();
