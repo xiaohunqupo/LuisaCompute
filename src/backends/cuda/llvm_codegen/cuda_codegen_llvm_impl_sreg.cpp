@@ -86,11 +86,9 @@ llvm::Value *CUDACodegenLLVMImpl::_read_dispatch_size(IB &, const FunctionContex
 llvm::Value *CUDACodegenLLVMImpl::_read_dispatch_id(IB &b, const FunctionContext &func_ctx) noexcept {
     if (_config.enable_ray_tracing) {
         // asm("call (%0), _optix_get_launch_index_$axis, ();" : "=r"(out) : );
-        auto call = [&b](auto axis) noexcept {
-            auto llvm_i32_type = b.getInt32Ty();
-            auto llvm_asm_type = llvm::FunctionType::get(llvm_i32_type, false);
+        auto call = [this, &b](auto axis) noexcept {
             auto llvm_asm_str = luisa::format("call ($0), _optix_get_launch_index_{}, ();", axis);
-            auto llvm_asm = llvm::InlineAsm::get(llvm_asm_type, llvm::StringRef{llvm_asm_str}, "=r", false);
+            auto llvm_asm = _get_inline_asm(llvm_asm_str, "=r", false);
             return b.CreateCall(llvm_asm, {}, std::string{"sreg.dispatch.id."}.append(axis));
         };
         auto llvm_did_x = call("x");

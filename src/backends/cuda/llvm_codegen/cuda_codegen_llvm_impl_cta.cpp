@@ -152,21 +152,10 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_thread_group_inst(IB &b, FunctionCo
         case xir::ThreadGroupOp::SHADER_EXECUTION_REORDER: {
             // no-op in CUDA, while asm sideeffect "call (), _optix_hitobject_reorder, ($0,$1);", "r,r"(i32 %3, i32 %4) in ray tracing shaders
             if (_config.enable_ray_tracing) {
-                auto llvm_void_type = b.getVoidTy();
-                auto llvm_i32_type = b.getInt32Ty();
-                auto llvm_asm_type = llvm::FunctionType::get(llvm_void_type, {llvm_i32_type, llvm_i32_type}, false);
-                auto llvm_asm = llvm::InlineAsm::get(
-                    llvm_asm_type,
-                    "call (), _optix_hitobject_reorder, ($0,$1);",
-                    "r,r",
-                    true);
+                auto llvm_asm = _get_inline_asm("call (), _optix_hitobject_reorder, ($0,$1);", "r,r", true);
                 auto arg_count = inst->operand_count();
-                auto llvm_hint = arg_count >= 1 ?
-                                     _get_llvm_value(b, func_ctx, inst->operand(0)) :
-                                     llvm::ConstantInt::get(llvm_i32_type, 0);
-                auto llvm_hint_bits = arg_count >= 2 ?
-                                          _get_llvm_value(b, func_ctx, inst->operand(1)) :
-                                          llvm::ConstantInt::get(llvm_i32_type, 0);
+                auto llvm_hint = arg_count >= 1 ? _get_llvm_value(b, func_ctx, inst->operand(0)) : b.getInt32(0);
+                auto llvm_hint_bits = arg_count >= 2 ? _get_llvm_value(b, func_ctx, inst->operand(1)) : b.getInt32(0);
                 LUISA_DEBUG_ASSERT(llvm_hint->getType()->isIntegerTy(32) && llvm_hint_bits->getType()->isIntegerTy(32));
                 return b.CreateCall(llvm_asm, {llvm_hint, llvm_hint_bits});
             }

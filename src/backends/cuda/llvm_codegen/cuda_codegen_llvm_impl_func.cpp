@@ -647,6 +647,48 @@ llvm::Function *CUDACodegenLLVMImpl::_get_texture3d_write_function(llvm::VectorT
     return llvm_func;
 }
 
+llvm::InlineAsm *CUDACodegenLLVMImpl::_get_inline_asm(std::string_view asm_string, std::string_view constraints, bool has_side_effects) noexcept {
+    auto map_type = [this](char type) noexcept -> llvm::Type * {
+        // "h" = .u16 reg
+        // "r" = .u32 reg
+        // "l" = .u64 reg
+        // "q" = .u128 reg
+        // "f" = .f32 reg
+        // "d" = .f64 reg
+        switch (type) {
+            case 'h': return llvm::Type::getInt16Ty(_llvm_context);
+            case 'r': return llvm::Type::getInt32Ty(_llvm_context);
+            case 'l': return llvm::Type::getInt64Ty(_llvm_context);
+            case 'q': return llvm::Type::getInt128Ty(_llvm_context);
+            case 'f': return llvm::Type::getFloatTy(_llvm_context);
+            case 'd': return llvm::Type::getDoubleTy(_llvm_context);
+            default: LUISA_ERROR_WITH_LOCATION("Unsupported inline asm type constraint '{}'.", type);
+        }
+    };
+    llvm::SmallVector<llvm::Type *, 4> param_types;
+    llvm::SmallVector<llvm::Type *, 4> return_types;
+    auto next_is_output = false;
+    for (auto c : constraints) {
+        if (c == '=') {
+            next_is_output = true;
+        } else if (c == ',') {
+            next_is_output = false;
+        } else {
+            auto type = map_type(c);
+            if (next_is_output) {
+                return_types.emplace_back(type);
+            } else {
+                param_types.emplace_back(type);
+            }
+        }
+    }
+    auto return_type = return_types.empty()     ? llvm::Type::getVoidTy(_llvm_context) :
+                       return_types.size() == 1 ? return_types.front() :
+                                                  llvm::StructType::get(_llvm_context, return_types);
+    auto func_type = llvm::FunctionType::get(return_type, param_types, false);
+    return llvm::InlineAsm::get(func_type, asm_string, constraints, has_side_effects);
+}
+
 llvm::Value *CUDACodegenLLVMImpl::_translate_call_inst(IB &b, FunctionContext &func_ctx, const xir::CallInst *inst) noexcept {
     auto llvm_callee = _get_or_declare_llvm_function(inst->callee());
     llvm::SmallVector<llvm::Value *> llvm_args;

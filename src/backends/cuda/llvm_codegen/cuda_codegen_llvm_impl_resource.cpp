@@ -2,9 +2,9 @@
 // Created by mike on 11/1/25.
 //
 
+#include "../optix_api.h"
 #include "cuda_codegen_llvm_impl.h"
-
-#include <llvm/IR/Mangler.h>
+#include "luisa/runtime/rtx/motion_transform.h"
 
 namespace luisa::compute::cuda {
 
@@ -199,15 +199,81 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_resource_query_inst(IB &b, Function
             auto llvm_result_type = _get_llvm_type(inst->type())->reg_type;
             return b.CreatePtrToInt(llvm_buffer_ptr, llvm_result_type);
         }
-        case xir::ResourceQueryOp::RAY_TRACING_INSTANCE_TRANSFORM: break;
-        case xir::ResourceQueryOp::RAY_TRACING_INSTANCE_USER_ID: break;
-        case xir::ResourceQueryOp::RAY_TRACING_INSTANCE_VISIBILITY_MASK: break;
+        case xir::ResourceQueryOp::RAY_TRACING_INSTANCE_TRANSFORM: {
+            LUISA_DEBUG_ASSERT(inst->type() == Type::of<luisa::float4x4>());
+            auto llvm_accel = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto llvm_instance_index = _get_llvm_value(b, func_ctx, inst->operand(1));
+            auto llvm_instance_ptr = _get_accel_instance_pointer(b, llvm_accel, llvm_instance_index);
+            auto llvm_affine_ptr = b.CreateStructGEP(_get_llvm_accel_instance_type(), llvm_instance_ptr, 0);
+            return _load_accel_affine_matrix(b, llvm_affine_ptr);
+        }
+        case xir::ResourceQueryOp::RAY_TRACING_INSTANCE_USER_ID: {
+            auto llvm_accel = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto llvm_instance_index = _get_llvm_value(b, func_ctx, inst->operand(1));
+            auto llvm_instance_ptr = _get_accel_instance_pointer(b, llvm_accel, llvm_instance_index);
+            auto llvm_instance_type = _get_llvm_accel_instance_type();
+            auto llvm_user_id_ptr = b.CreateStructGEP(llvm_instance_type, llvm_instance_ptr, 1);
+            auto llvm_user_id = b.CreateLoad(llvm_instance_type->getStructElementType(1), llvm_user_id_ptr);
+            auto llvm_result_type = _get_llvm_type(inst->type())->reg_type;
+            return b.CreateZExtOrTrunc(llvm_user_id, llvm_result_type);
+        }
+        case xir::ResourceQueryOp::RAY_TRACING_INSTANCE_VISIBILITY_MASK: {
+            auto llvm_accel = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto llvm_instance_index = _get_llvm_value(b, func_ctx, inst->operand(1));
+            auto llvm_instance_ptr = _get_accel_instance_pointer(b, llvm_accel, llvm_instance_index);
+            auto llvm_instance_type = _get_llvm_accel_instance_type();
+            auto llvm_mask_ptr = b.CreateStructGEP(llvm_instance_type, llvm_instance_ptr, 3);
+            auto llvm_mask = b.CreateLoad(llvm_instance_type->getStructElementType(3), llvm_mask_ptr);
+            auto llvm_result_type = _get_llvm_type(inst->type())->reg_type;
+            return b.CreateZExtOrTrunc(llvm_mask, llvm_result_type);
+        }
         case xir::ResourceQueryOp::RAY_TRACING_TRACE_CLOSEST: break;
         case xir::ResourceQueryOp::RAY_TRACING_TRACE_ANY: break;
         case xir::ResourceQueryOp::RAY_TRACING_QUERY_ALL: break;
         case xir::ResourceQueryOp::RAY_TRACING_QUERY_ANY: break;
-        case xir::ResourceQueryOp::RAY_TRACING_INSTANCE_MOTION_MATRIX: break;
-        case xir::ResourceQueryOp::RAY_TRACING_INSTANCE_MOTION_SRT: break;
+        case xir::ResourceQueryOp::RAY_TRACING_INSTANCE_MOTION_MATRIX: {
+            LUISA_DEBUG_ASSERT(inst->type() == Type::of<luisa::float4x4>());
+            auto llvm_accel = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto llvm_instance_index = _get_llvm_value(b, func_ctx, inst->operand(1));
+            auto llvm_key_index = _get_llvm_value(b, func_ctx, inst->operand(2));
+            struct alignas(16) MatrixTransform {
+                float affine[12];
+            };
+            static_assert(sizeof(MatrixTransform) == 48);
+            auto llvm_motion_matrix_ptr = _get_accel_instance_motion_data(b, llvm_accel, llvm_instance_index, llvm_key_index, sizeof(MatrixTransform));
+            return _load_accel_affine_matrix(b, llvm_motion_matrix_ptr);
+        }
+        case xir::ResourceQueryOp::RAY_TRACING_INSTANCE_MOTION_SRT: {
+            LUISA_DEBUG_ASSERT(inst->type() == Type::of<luisa::compute::MotionInstanceTransformSRT>());
+            auto llvm_accel = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto llvm_instance_index = _get_llvm_value(b, func_ctx, inst->operand(1));
+            auto llvm_key_index = _get_llvm_value(b, func_ctx, inst->operand(2));
+            static_assert(sizeof(optix::SRTData) == 64);
+            auto llvm_motion_srt_ptr = _get_accel_instance_motion_data(b, llvm_accel, llvm_instance_index, llvm_key_index, sizeof(optix::SRTData));
+            b.CreateAlignmentAssumption(*_data_layout, llvm_motion_srt_ptr, 16);
+            auto llvm_srt = llvm::PoisonValue::get(_get_llvm_type(inst->type())->reg_type);
+            auto llvm_f32_type = b.getFloatTy();
+#define LUISA_MAKE_SRT_FIELD_LOAD(field, i0, i1) \
+    b.CreateInsertValue(llvm_srt, b.CreateLoad(llvm_f32_type, b.CreateInBoundsPtrAdd(llvm_motion_srt_ptr, b.getInt64(offsetof(optix::SRTData, field)))), {i0, i1});
+            LUISA_MAKE_SRT_FIELD_LOAD(pvx, 0, 0);
+            LUISA_MAKE_SRT_FIELD_LOAD(pvy, 0, 1);
+            LUISA_MAKE_SRT_FIELD_LOAD(pvz, 0, 2);
+            LUISA_MAKE_SRT_FIELD_LOAD(qx, 1, 0);
+            LUISA_MAKE_SRT_FIELD_LOAD(qy, 1, 1);
+            LUISA_MAKE_SRT_FIELD_LOAD(qz, 1, 2);
+            LUISA_MAKE_SRT_FIELD_LOAD(qw, 1, 3);
+            LUISA_MAKE_SRT_FIELD_LOAD(sx, 2, 0);
+            LUISA_MAKE_SRT_FIELD_LOAD(sy, 2, 1);
+            LUISA_MAKE_SRT_FIELD_LOAD(sz, 2, 2);
+            LUISA_MAKE_SRT_FIELD_LOAD(a, 3, 0);
+            LUISA_MAKE_SRT_FIELD_LOAD(b, 3, 1);
+            LUISA_MAKE_SRT_FIELD_LOAD(c, 3, 2);
+            LUISA_MAKE_SRT_FIELD_LOAD(tx, 4, 0);
+            LUISA_MAKE_SRT_FIELD_LOAD(ty, 4, 1);
+            LUISA_MAKE_SRT_FIELD_LOAD(tz, 4, 2);
+#undef LUISA_MAKE_SRT_FIELD_LOAD
+            return llvm_srt;
+        }
         case xir::ResourceQueryOp::RAY_TRACING_TRACE_CLOSEST_MOTION_BLUR: break;
         case xir::ResourceQueryOp::RAY_TRACING_TRACE_ANY_MOTION_BLUR: break;
         case xir::ResourceQueryOp::RAY_TRACING_QUERY_ALL_MOTION_BLUR: break;
@@ -310,17 +376,9 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_resource_read_inst(IB &b, FunctionC
             auto llvm_level = _get_llvm_value(b, func_ctx, inst->operand(3));
             auto llvm_coord_x = b.CreateExtractElement(llvm_coord, b.getInt64(0));
             auto llvm_coord_y = b.CreateExtractElement(llvm_coord, b.getInt64(1));
-            auto llvm_i64_type = b.getInt64Ty();
+            auto llvm_asm = _get_inline_asm("tex.level.2d.v4.f32.s32 {$0, $1, $2, $3}, [$4, {$5, $6}], $7;",
+                                            "=f,=f,=f,=f,l,r,r,r", false);
             auto llvm_i32_type = b.getInt32Ty();
-            auto llvm_f32_type = b.getFloatTy();
-            auto llvm_f32x4_type = llvm::StructType::get(llvm_f32_type, llvm_f32_type, llvm_f32_type, llvm_f32_type);
-            auto llvm_asm_type = llvm::FunctionType::get(llvm_f32x4_type,
-                                                         {llvm_i64_type, llvm_i32_type, llvm_i32_type, llvm_i32_type},
-                                                         false);
-            auto llvm_asm = llvm::InlineAsm::get(llvm_asm_type,
-                                                 "tex.level.2d.v4.f32.s32 {$0, $1, $2, $3}, [$4, {$5, $6}], $7;",
-                                                 "=f,=f,=f,=f,l,r,r,r",
-                                                 false);
             auto llvm_result = b.CreateCall(llvm_asm, {llvm_handle,
                                                        b.CreateZExtOrTrunc(llvm_coord_x, llvm_i32_type),
                                                        b.CreateZExtOrTrunc(llvm_coord_y, llvm_i32_type),
@@ -341,17 +399,9 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_resource_read_inst(IB &b, FunctionC
             auto llvm_coord_x = b.CreateExtractElement(llvm_coord, b.getInt64(0));
             auto llvm_coord_y = b.CreateExtractElement(llvm_coord, b.getInt64(1));
             auto llvm_coord_z = b.CreateExtractElement(llvm_coord, b.getInt64(2));
-            auto llvm_i64_type = b.getInt64Ty();
+            auto llvm_asm = _get_inline_asm("tex.level.3d.v4.f32.s32 {$0, $1, $2, $3}, [$4, {$5, $6, $7, $8}], $9;",
+                                            "=f,=f,=f,=f,l,r,r,r,r,r", false);
             auto llvm_i32_type = b.getInt32Ty();
-            auto llvm_f32_type = b.getFloatTy();
-            auto llvm_f32x4_type = llvm::StructType::get(llvm_f32_type, llvm_f32_type, llvm_f32_type, llvm_f32_type);
-            auto llvm_asm_type = llvm::FunctionType::get(llvm_f32x4_type,
-                                                         {llvm_i64_type, llvm_i32_type, llvm_i32_type, llvm_i32_type, llvm_i32_type, llvm_i32_type},
-                                                         false);
-            auto llvm_asm = llvm::InlineAsm::get(llvm_asm_type,
-                                                 "tex.level.3d.v4.f32.s32 {$0, $1, $2, $3}, [$4, {$5, $6, $7, $8}], $9;",
-                                                 "=f,=f,=f,=f,l,r,r,r,r,r",
-                                                 false);
             auto llvm_result = b.CreateCall(llvm_asm, {llvm_handle,
                                                        b.CreateZExtOrTrunc(llvm_coord_x, llvm_i32_type),
                                                        b.CreateZExtOrTrunc(llvm_coord_y, llvm_i32_type),
@@ -449,12 +499,103 @@ void CUDACodegenLLVMImpl::_translate_resource_write_inst(IB &b, FunctionContext 
             _store_llvm_value(b, llvm_ptr, llvm_value, inst->operand(1)->type());
             return;
         }
-        case xir::ResourceWriteOp::RAY_TRACING_SET_INSTANCE_TRANSFORM: break;
-        case xir::ResourceWriteOp::RAY_TRACING_SET_INSTANCE_VISIBILITY_MASK: break;
-        case xir::ResourceWriteOp::RAY_TRACING_SET_INSTANCE_OPACITY: break;
-        case xir::ResourceWriteOp::RAY_TRACING_SET_INSTANCE_USER_ID: break;
-        case xir::ResourceWriteOp::RAY_TRACING_SET_INSTANCE_MOTION_MATRIX: break;
-        case xir::ResourceWriteOp::RAY_TRACING_SET_INSTANCE_MOTION_SRT: break;
+        case xir::ResourceWriteOp::RAY_TRACING_SET_INSTANCE_TRANSFORM: {
+            auto llvm_accel = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto llvm_instance_index = _get_llvm_value(b, func_ctx, inst->operand(1));
+            auto llvm_transform = _get_llvm_value(b, func_ctx, inst->operand(2));
+            auto llvm_instance_ptr = _get_accel_instance_pointer(b, llvm_accel, llvm_instance_index);
+            auto llvm_affine_ptr = b.CreateStructGEP(_get_llvm_accel_instance_type(), llvm_instance_ptr, 0);
+            _store_accel_affine_matrix(b, llvm_affine_ptr, llvm_transform);
+            return;
+        }
+        case xir::ResourceWriteOp::RAY_TRACING_SET_INSTANCE_VISIBILITY_MASK: {
+            auto llvm_accel = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto llvm_instance_index = _get_llvm_value(b, func_ctx, inst->operand(1));
+            auto llvm_instance_type = _get_llvm_accel_instance_type();
+            auto llvm_mask_type = llvm_instance_type->getStructElementType(3);
+            auto llvm_mask = b.CreateZExtOrTrunc(_get_llvm_value(b, func_ctx, inst->operand(2)), llvm_mask_type);
+            auto llvm_instance_ptr = _get_accel_instance_pointer(b, llvm_accel, llvm_instance_index);
+            auto llvm_mask_ptr = b.CreateStructGEP(llvm_instance_type, llvm_instance_ptr, 3);
+            b.CreateStore(llvm_mask, llvm_mask_ptr);
+            return;
+        }
+        case xir::ResourceWriteOp::RAY_TRACING_SET_INSTANCE_OPACITY: {
+            auto llvm_accel = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto llvm_instance_index = _get_llvm_value(b, func_ctx, inst->operand(1));
+            auto llvm_is_opaque = _get_llvm_value(b, func_ctx, inst->operand(2));
+            _set_accel_instance_opacity(b, llvm_accel, llvm_instance_index, llvm_is_opaque);
+            return;
+        }
+        case xir::ResourceWriteOp::RAY_TRACING_SET_INSTANCE_USER_ID: {
+            auto llvm_accel = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto llvm_instance_index = _get_llvm_value(b, func_ctx, inst->operand(1));
+            auto llvm_instance_type = _get_llvm_accel_instance_type();
+            auto llvm_user_id_type = llvm_instance_type->getStructElementType(1);
+            auto llvm_user_id = b.CreateZExtOrTrunc(_get_llvm_value(b, func_ctx, inst->operand(2)), llvm_user_id_type);
+            auto llvm_instance_ptr = _get_accel_instance_pointer(b, llvm_accel, llvm_instance_index);
+            auto llvm_user_id_ptr = b.CreateStructGEP(llvm_instance_type, llvm_instance_ptr, 1);
+            b.CreateStore(llvm_user_id, llvm_user_id_ptr);
+            return;
+        }
+        case xir::ResourceWriteOp::RAY_TRACING_SET_INSTANCE_MOTION_MATRIX: {
+            auto llvm_accel = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto llvm_instance_index = _get_llvm_value(b, func_ctx, inst->operand(1));
+            auto llvm_key_index = _get_llvm_value(b, func_ctx, inst->operand(2));
+            auto llvm_transform = _get_llvm_value(b, func_ctx, inst->operand(3));
+            struct alignas(16) MatrixTransform {
+                float affine[12];
+            };
+            static_assert(sizeof(MatrixTransform) == 48);
+            auto llvm_motion_matrix_ptr = _get_accel_instance_motion_data(b, llvm_accel, llvm_instance_index, llvm_key_index, sizeof(MatrixTransform));
+            _store_accel_affine_matrix(b, llvm_motion_matrix_ptr, llvm_transform);
+            return;
+        }
+        case xir::ResourceWriteOp::RAY_TRACING_SET_INSTANCE_MOTION_SRT: {
+            auto llvm_accel = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto llvm_instance_index = _get_llvm_value(b, func_ctx, inst->operand(1));
+            auto llvm_key_index = _get_llvm_value(b, func_ctx, inst->operand(2));
+            auto llvm_srt = _get_llvm_value(b, func_ctx, inst->operand(3));
+            static_assert(sizeof(optix::SRTData) == 64);
+            auto llvm_motion_srt_ptr = _get_accel_instance_motion_data(b, llvm_accel, llvm_instance_index, llvm_key_index, sizeof(optix::SRTData));
+            b.CreateAlignmentAssumption(*_data_layout, llvm_motion_srt_ptr, 16);
+            auto llvm_srt_pvx = b.CreateExtractValue(llvm_srt, {0, 0});
+            auto llvm_srt_pvy = b.CreateExtractValue(llvm_srt, {0, 1});
+            auto llvm_srt_pvz = b.CreateExtractValue(llvm_srt, {0, 2});
+            auto llvm_srt_qx = b.CreateExtractValue(llvm_srt, {1, 0});
+            auto llvm_srt_qy = b.CreateExtractValue(llvm_srt, {1, 1});
+            auto llvm_srt_qz = b.CreateExtractValue(llvm_srt, {1, 2});
+            auto llvm_srt_qw = b.CreateExtractValue(llvm_srt, {1, 3});
+            auto llvm_srt_sx = b.CreateExtractValue(llvm_srt, {2, 0});
+            auto llvm_srt_sy = b.CreateExtractValue(llvm_srt, {2, 1});
+            auto llvm_srt_sz = b.CreateExtractValue(llvm_srt, {2, 2});
+            auto llvm_srt_a = b.CreateExtractValue(llvm_srt, {3, 0});
+            auto llvm_srt_b = b.CreateExtractValue(llvm_srt, {3, 1});
+            auto llvm_srt_c = b.CreateExtractValue(llvm_srt, {3, 2});
+            auto llvm_srt_tx = b.CreateExtractValue(llvm_srt, {4, 0});
+            auto llvm_srt_ty = b.CreateExtractValue(llvm_srt, {4, 1});
+            auto llvm_srt_tz = b.CreateExtractValue(llvm_srt, {4, 2});
+            // store
+#define LUISA_MAKE_SRT_FIELD_STORE(field) \
+    b.CreateStore(llvm_srt_##field, b.CreateInBoundsPtrAdd(llvm_motion_srt_ptr, b.getInt64(offsetof(optix::SRTData, field))));
+            LUISA_MAKE_SRT_FIELD_STORE(pvx)
+            LUISA_MAKE_SRT_FIELD_STORE(pvy)
+            LUISA_MAKE_SRT_FIELD_STORE(pvz)
+            LUISA_MAKE_SRT_FIELD_STORE(qx)
+            LUISA_MAKE_SRT_FIELD_STORE(qy)
+            LUISA_MAKE_SRT_FIELD_STORE(qz)
+            LUISA_MAKE_SRT_FIELD_STORE(qw)
+            LUISA_MAKE_SRT_FIELD_STORE(sx)
+            LUISA_MAKE_SRT_FIELD_STORE(sy)
+            LUISA_MAKE_SRT_FIELD_STORE(sz)
+            LUISA_MAKE_SRT_FIELD_STORE(a)
+            LUISA_MAKE_SRT_FIELD_STORE(b)
+            LUISA_MAKE_SRT_FIELD_STORE(c)
+            LUISA_MAKE_SRT_FIELD_STORE(tx)
+            LUISA_MAKE_SRT_FIELD_STORE(ty)
+            LUISA_MAKE_SRT_FIELD_STORE(tz)
+#undef LUISA_MAKE_SRT_FIELD_STORE
+            return;
+        }
         case xir::ResourceWriteOp::INDIRECT_DISPATCH_SET_KERNEL: break;
         case xir::ResourceWriteOp::INDIRECT_DISPATCH_SET_COUNT: break;
     }
@@ -493,6 +634,94 @@ llvm::Value *CUDACodegenLLVMImpl::_get_bindless_array_texture_handle(IB &b, llvm
     auto slot_type = _get_llvm_bindless_array_slot_type();
     auto handle_ptr = b.CreateStructGEP(slot_type, slot_ptr, dim == 2 ? 2 : 3);
     return b.CreateLoad(slot_type->getStructElementType(2), handle_ptr);
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_get_accel_instance_pointer(IB &b, llvm::Value *accel, llvm::Value *instance_index) noexcept {
+    auto instances = b.CreateExtractValue(accel, 1);
+    instance_index = b.CreateZExt(instance_index, b.getInt64Ty(), "", true);
+    return b.CreateInBoundsGEP(_get_llvm_accel_instance_type(), instances, instance_index);
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_get_accel_instance_motion_data(IB &b, llvm::Value *accel, llvm::Value *instance_index, llvm::Value *key_index, size_t stride) noexcept {
+    auto instance_ptr = _get_accel_instance_pointer(b, accel, instance_index);
+    auto instance_type = _get_llvm_accel_instance_type();
+    auto instance_handle_type = instance_type->getStructElementType(5);
+    auto instance_handle_ptr = b.CreateStructGEP(instance_type, instance_ptr, 5);
+    auto instance_handle = b.CreateLoad(instance_handle_type, instance_handle_ptr);
+    auto instance_address = b.CreateAnd(instance_handle, ~0x0full);
+    auto instance_data = b.CreateIntToPtr(instance_address, b.getPtrTy(nvptx_address_space_global));
+    struct alignas(16) MotionDataHeader {
+        uint64_t child;
+        optix::MotionOptions options;
+        uint32_t pad[3];
+    };
+    static_assert(sizeof(MotionDataHeader) == 32);
+    key_index = b.CreateZExt(key_index, b.getInt64Ty(), "", true);
+    auto offset = b.CreateAdd(b.getInt64(sizeof(MotionDataHeader)),
+                              b.CreateMul(key_index, b.getInt64(stride), "", true, true),
+                              "", true, true);
+    return b.CreateInBoundsPtrAdd(instance_data, offset);
+}
+
+void CUDACodegenLLVMImpl::_set_accel_instance_opacity(IB &b, llvm::Value *accel, llvm::Value *instance_index, llvm::Value *is_opaque) noexcept {
+    LUISA_DEBUG_ASSERT(is_opaque->getType()->isIntegerTy(1));
+    auto instance_ptr = _get_accel_instance_pointer(b, accel, instance_index);
+    using namespace std::string_view_literals;
+    auto name = "luisa.accel.set.instance.opacity"sv;
+    auto f = _llvm_module->getFunction(name);
+    if (f == nullptr) {
+        auto void_type = llvm::Type::getVoidTy(_llvm_context);
+        auto f_type = llvm::FunctionType::get(void_type, {instance_ptr->getType(), is_opaque->getType()}, false);
+        f = llvm::Function::Create(f_type, llvm::Function::PrivateLinkage, name, *_llvm_module);
+        f->addFnAttr(llvm::Attribute::AlwaysInline);
+        auto entry = llvm::BasicBlock::Create(_llvm_context, "entry", f);
+        IB fb{entry};
+        auto flags_ptr = fb.CreateStructGEP(_get_llvm_accel_instance_type(), f->getArg(0), 4);
+        auto flags = fb.CreateLoad(fb.getInt32Ty(), flags_ptr);
+        auto is_triangle = fb.CreateAnd(flags, optix::INSTANCE_FLAG_DISABLE_TRIANGLE_FACE_CULLING);
+        is_triangle = fb.CreateICmpNE(is_triangle, fb.getInt32(0));
+        auto body = llvm::BasicBlock::Create(_llvm_context, "body", f);
+        auto exit = llvm::BasicBlock::Create(_llvm_context, "exit", f);
+        fb.CreateCondBr(is_triangle, body, exit);
+        fb.SetInsertPoint(body);
+        auto cleared_flags = fb.CreateAnd(flags, ~(optix::INSTANCE_FLAG_DISABLE_ANYHIT | optix::INSTANCE_FLAG_ENFORCE_ANYHIT));
+        auto new_flag_bit = fb.CreateSelect(f->getArg(1),
+                                            fb.getInt32(optix::INSTANCE_FLAG_DISABLE_ANYHIT),
+                                            b.getInt32(optix::INSTANCE_FLAG_ENFORCE_ANYHIT));
+        fb.CreateStore(fb.CreateOr(cleared_flags, new_flag_bit), flags_ptr);
+        fb.CreateBr(exit);
+        fb.SetInsertPoint(exit);
+        fb.CreateRetVoid();
+    }
+    b.CreateCall(f, {instance_ptr, is_opaque});
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_load_accel_affine_matrix(IB &b, llvm::Value *affine_ptr) noexcept {
+    auto llvm_f32_type = b.getFloatTy();
+    auto llvm_f32x4_type = llvm::VectorType::get(llvm_f32_type, 4, false);
+    auto llvm_align = llvm::Align{alignof(float4)};
+    auto llvm_a0 = b.CreateAlignedLoad(llvm_f32x4_type, b.CreateInBoundsGEP(llvm_f32x4_type, affine_ptr, b.getInt64(0)), llvm_align);
+    auto llvm_a1 = b.CreateAlignedLoad(llvm_f32x4_type, b.CreateInBoundsGEP(llvm_f32x4_type, affine_ptr, b.getInt64(1)), llvm_align);
+    auto llvm_a2 = b.CreateAlignedLoad(llvm_f32x4_type, b.CreateInBoundsGEP(llvm_f32x4_type, affine_ptr, b.getInt64(2)), llvm_align);
+    auto llvm_one = llvm::ConstantFP::get(llvm_f32_type, 1.);
+    auto llvm_a3 = b.CreateInsertElement(llvm::Constant::getNullValue(llvm_f32x4_type), llvm_one, b.getInt64(3));
+    auto llvm_transform = static_cast<llvm::Value *>(llvm::PoisonValue::get(_get_llvm_type(Type::of<float4x4>())->reg_type));
+    llvm_transform = b.CreateInsertValue(llvm_transform, llvm_a0, 0);
+    llvm_transform = b.CreateInsertValue(llvm_transform, llvm_a1, 1);
+    llvm_transform = b.CreateInsertValue(llvm_transform, llvm_a2, 2);
+    llvm_transform = b.CreateInsertValue(llvm_transform, llvm_a3, 3);
+    return _translate_matrix_transpose(b, llvm_transform);
+}
+
+void CUDACodegenLLVMImpl::_store_accel_affine_matrix(IB &b, llvm::Value *affine_ptr, llvm::Value *matrix) noexcept {
+    auto llvm_transform = _translate_matrix_transpose(b, matrix);
+    auto llvm_a0 = b.CreateExtractValue(llvm_transform, 0);
+    auto llvm_a1 = b.CreateExtractValue(llvm_transform, 1);
+    auto llvm_a2 = b.CreateExtractValue(llvm_transform, 2);
+    auto llvm_align = llvm::Align{alignof(float4)};
+    b.CreateAlignedStore(llvm_a0, b.CreateInBoundsGEP(llvm_a0->getType(), affine_ptr, b.getInt64(0)), llvm_align);
+    b.CreateAlignedStore(llvm_a1, b.CreateInBoundsGEP(llvm_a1->getType(), affine_ptr, b.getInt64(1)), llvm_align);
+    b.CreateAlignedStore(llvm_a2, b.CreateInBoundsGEP(llvm_a2->getType(), affine_ptr, b.getInt64(2)), llvm_align);
 }
 
 }// namespace luisa::compute::cuda

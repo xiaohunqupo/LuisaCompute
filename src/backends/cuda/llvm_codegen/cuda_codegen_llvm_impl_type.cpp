@@ -291,7 +291,8 @@ llvm::Type *CUDACodegenLLVMImpl::_get_llvm_accel_type() noexcept {
 
 llvm::Type *CUDACodegenLLVMImpl::_get_llvm_accel_instance_type() noexcept {
     if (_llvm_accel_instance_type == nullptr) {
-        auto llvm_affine_type = llvm::ArrayType::get(llvm::Type::getFloatTy(_llvm_context), 12);
+        auto llvm_f32x4_type = llvm::VectorType::get(llvm::Type::getFloatTy(_llvm_context), 4, false);
+        auto llvm_affine_type = llvm::ArrayType::get(llvm_f32x4_type, 3);
         auto llvm_i32_type = llvm::Type::getInt32Ty(_llvm_context);
         auto llvm_i64_type = llvm::Type::getInt64Ty(_llvm_context);
         auto llvm_padding_type = llvm::ArrayType::get(llvm_i32_type, 2);

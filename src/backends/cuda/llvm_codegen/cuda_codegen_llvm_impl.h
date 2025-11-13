@@ -168,6 +168,7 @@ private:
     [[nodiscard]] llvm::Function *_get_texture2d_write_function(llvm::VectorType *llvm_value_type) noexcept;
     [[nodiscard]] llvm::Function *_get_texture3d_read_function(llvm::VectorType *llvm_value_type) noexcept;
     [[nodiscard]] llvm::Function *_get_texture3d_write_function(llvm::VectorType *llvm_value_type) noexcept;
+    [[nodiscard]] llvm::InlineAsm *_get_inline_asm(std::string_view asm_string, std::string_view constraints, bool has_side_effects) noexcept;
 
     /* the following methods are defined in cuda_codegen_llvm_impl_const.cpp */
     [[nodiscard]] llvm::Value *_get_llvm_literal(IB &b, const Type *type, const void *data) noexcept;
@@ -253,6 +254,11 @@ private:
     [[nodiscard]] llvm::Value *_get_buffer_element_pointer(IB &b, llvm::Value *buffer, llvm::Value *index, size_t index_stride, size_t element_size) noexcept;
     [[nodiscard]] llvm::Value *_get_bindless_array_slot_pointer(IB &b, llvm::Value *bindless_array, llvm::Value *slot_index) noexcept;
     [[nodiscard]] llvm::Value *_get_bindless_array_texture_handle(IB &b, llvm::Value *bindless_array, llvm::Value *slot_index, int dim) noexcept;
+    [[nodiscard]] llvm::Value *_get_accel_instance_pointer(IB &b, llvm::Value *accel, llvm::Value *instance_index) noexcept;
+    [[nodiscard]] llvm::Value *_get_accel_instance_motion_data(IB &b, llvm::Value *accel, llvm::Value *instance_index, llvm::Value *key_index, size_t stride) noexcept;
+    void _set_accel_instance_opacity(IB &b, llvm::Value *accel, llvm::Value *instance_index, llvm::Value *is_opaque) noexcept;
+    [[nodiscard]] llvm::Value *_load_accel_affine_matrix(IB &b, llvm::Value *affine_ptr) noexcept;
+    static void _store_accel_affine_matrix(IB &b, llvm::Value *affine_ptr, llvm::Value *matrix) noexcept;
 
     // ray query instructions: ray_query_loop, ray_query_dispatch, ray_query_object_read, ray_query_object_write, ray_query_pipeline, defined in cuda_codegen_llvm_impl_rtx.cpp
     void _translate_ray_query_loop_inst(IB &b, FunctionContext &func_ctx, const xir::RayQueryLoopInst *inst) noexcept;
