@@ -16,13 +16,13 @@ AllocatedBuffer VkAllocator::allocate_buffer(size_t byte_size, VkBufferUsageFlag
         .usage = static_cast<VkBufferUsageFlags>(usage)};
     VmaAllocationCreateInfo allocInfo = {
         .flags = VMA_ALLOCATION_CREATE_STRATEGY_BEST_FIT_BIT,
-        .usage = VMA_MEMORY_USAGE_AUTO};
+        .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE};
     switch (access) {
         case AccessType::ReadBack:
-            allocInfo.flags |= VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
+            allocInfo.flags |= VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
             break;
         case AccessType::Upload:
-            allocInfo.flags |= VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+            allocInfo.flags |= VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
             break;
     }
     AllocatedBuffer r;
@@ -65,7 +65,7 @@ AllocatedImage VkAllocator::allocate_image(
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
     VmaAllocationCreateInfo allocInfo = {
         .flags = VMA_ALLOCATION_CREATE_STRATEGY_BEST_FIT_BIT,
-        .usage = VMA_MEMORY_USAGE_AUTO};
+        .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE};
     AllocatedImage r;
     VK_CHECK_RESULT(vmaCreateImage(_allocator, &imageInfo, &allocInfo, &r.image, &r.allocation, nullptr));
     return r;
