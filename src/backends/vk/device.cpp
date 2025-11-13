@@ -509,7 +509,6 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
     auto supported_ext = detail::supported_exts(physical_device);
     VkPhysicalDeviceFeatures device_features{};
     vkGetPhysicalDeviceFeatures(physical_device, &device_features);
-
     // Derived examples can override this to set actual features (based on above readings) to enable for logical device creation
 
     // Vulkan device creation
@@ -522,6 +521,20 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
     }
     if (supported_ext.find(VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME) == supported_ext.end()) [[unlikely]] {
         LUISA_ERROR("Necessary extension \"VK_KHR_synchronization2\" is unsupported.");
+    }
+    bool enable_16bit = false;
+    bool enable_atomic64_bit = false;
+    if (supported_ext.find(VK_KHR_SHADER_ATOMIC_INT64_EXTENSION_NAME) != supported_ext.end()) {
+        _enable_device_exts.emplace_back(VK_KHR_SHADER_ATOMIC_INT64_EXTENSION_NAME);
+        enable_atomic64_bit = true;
+    }
+    if (supported_ext.find(VK_KHR_16BIT_STORAGE_EXTENSION_NAME) != supported_ext.end()) {
+        _enable_device_exts.emplace_back(VK_KHR_16BIT_STORAGE_EXTENSION_NAME);
+        enable_16bit = true;
+    }
+    if (supported_ext.find(VK_AMD_GPU_SHADER_HALF_FLOAT_EXTENSION_NAME) != supported_ext.end()) {
+        _enable_device_exts.emplace_back(VK_AMD_GPU_SHADER_HALF_FLOAT_EXTENSION_NAME);
+        enable_16bit = true;
     }
     _enable_device_exts.emplace_back(VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME);
     _enable_device_exts.emplace_back(VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME);
@@ -580,23 +593,14 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
     if (_config_ext) {
         feature_next = _config_ext->device_feature_settings();
     }
-
-    VkPhysicalDeviceDescriptorIndexingFeatures enable_bindless_features{
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES,
+    VkPhysicalDevice16BitStorageFeatures bit16_feature{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES,
         .pNext = feature_next,
-        .shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
-        .shaderStorageImageArrayNonUniformIndexing = VK_TRUE,
-
-        .descriptorBindingSampledImageUpdateAfterBind = VK_TRUE,
-        .descriptorBindingStorageImageUpdateAfterBind = VK_TRUE,
-        .descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE,
-
-        .runtimeDescriptorArray = VK_TRUE,
-    };
-    if (_enable_bindless) {
-        feature_next = &enable_bindless_features;
+        .storageBuffer16BitAccess = VK_TRUE,
+        .uniformAndStorageBuffer16BitAccess = VK_TRUE};
+    if (enable_16bit) {
+        feature_next = &bit16_feature;
     }
-
     VkPhysicalDeviceRayQueryFeaturesKHR enable_rayquery_features{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR,
         .pNext = feature_next,
@@ -608,24 +612,29 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
     if (_enable_raytracing) {
         feature_next = &enabledAccelerationStructureFeatures;
     }
-
-    VkPhysicalDeviceBufferDeviceAddressFeatures device_buffer_feature{
-        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES,
-        feature_next,
-        VK_TRUE};
-    if (_enable_device_address) {
-        feature_next = &device_buffer_feature;
-    }
-
-    VkPhysicalDeviceTimelineSemaphoreFeatures enable_timeline_feature{
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES,
-        .pNext = feature_next,
-        .timelineSemaphore = VK_TRUE};
     VkPhysicalDeviceSynchronization2Features barrier_feature{
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES,
-        &enable_timeline_feature,
+        feature_next,
         true};
-    VK_CHECK_RESULT(_vk_device->createLogicalDevice(device_features, _enable_device_exts, &barrier_feature, _enable_surface));
+    VkPhysicalDeviceVulkan12Features vk12_feature{
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+        &barrier_feature,
+        .shaderBufferInt64Atomics = enable_atomic64_bit ? VK_TRUE : VK_FALSE,
+        .shaderSharedInt64Atomics = enable_atomic64_bit ? VK_TRUE : VK_FALSE,
+        .shaderFloat16 = enable_16bit ? VK_TRUE : VK_FALSE,
+        .descriptorIndexing = _enable_bindless ? VK_TRUE : VK_FALSE,
+        .shaderSampledImageArrayNonUniformIndexing = _enable_bindless ? VK_TRUE : VK_FALSE,
+        .shaderStorageImageArrayNonUniformIndexing = _enable_bindless ? VK_TRUE : VK_FALSE,
+        .descriptorBindingSampledImageUpdateAfterBind = _enable_bindless ? VK_TRUE : VK_FALSE,
+        .descriptorBindingStorageImageUpdateAfterBind = _enable_bindless ? VK_TRUE : VK_FALSE,
+        .descriptorBindingStorageBufferUpdateAfterBind = _enable_bindless ? VK_TRUE : VK_FALSE,
+        .runtimeDescriptorArray = _enable_bindless ? VK_TRUE : VK_FALSE,
+
+        .shaderSubgroupExtendedTypes = (enable_atomic64_bit || enable_16bit) ? VK_TRUE : VK_FALSE,
+
+        .timelineSemaphore = VK_TRUE,
+        .bufferDeviceAddress = _enable_device_address ? VK_TRUE : VK_FALSE};
+    VK_CHECK_RESULT(_vk_device->createLogicalDevice(device_features, _enable_device_exts, &vk12_feature, _enable_surface));
     auto device = _vk_device->logicalDevice;
     volkLoadDevice(device);
 
@@ -1163,7 +1172,7 @@ VkInstance Device::instance() {
     return detail::vk_instance;
 }
 // HACK: for some app need external instance without device
-LUISA_EXPORT_API VkInstance init_vk_instance(bool enable_validation, bool& enable_surface, const luisa::string *extra_instance_exts, size_t extra_instance_ext_count, const char *custom_vk_lib_path, const char *custom_vk_lib_name) {
+LUISA_EXPORT_API VkInstance init_vk_instance(bool enable_validation, bool &enable_surface, const luisa::string *extra_instance_exts, size_t extra_instance_ext_count, const char *custom_vk_lib_path, const char *custom_vk_lib_name) {
     std::lock_guard lck{detail::instance_mtx};
     if (!detail::vk_instance) {
 #ifdef NDEBUG
