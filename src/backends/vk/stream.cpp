@@ -2034,6 +2034,18 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
     if (uniform_buffer_size > 0) {
         static_cast<UploadBuffer const *>(arg_buffer.buffer)->copy_from(uniform_data->data(), arg_buffer.offset, uniform_data->size());
     }
+    for (auto &i : _state->upload_alloc.alloc.allocated_buffer()) {
+        reinterpret_cast<UploadBuffer *>(i.handle)->flush_host();
+    }
+    for (auto &i : _state->readback_alloc.alloc.allocated_buffer()) {
+        reinterpret_cast<ReadbackBuffer *>(i.handle)->flush_host();
+    }
+    for (auto &i : _state->upload_alloc.largeBuffers) {
+        i->flush_host();
+    }
+    for (auto &i : _state->readback_alloc.largeBuffers) {
+        i->flush_host();
+    }
 }
 
 vstd::span<VkDescriptorSet> Shader::allocate_desc_set(VkDescriptorPool pool, vstd::vector<VkDescriptorSet> &descs) const {

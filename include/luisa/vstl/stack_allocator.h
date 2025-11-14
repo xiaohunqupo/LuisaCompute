@@ -7,15 +7,18 @@ public:
     virtual void deallocate(uint64 handle) = 0;
 };
 class LUISA_VSTL_API StackAllocator {
-    StackAllocatorVisitor *visitor;
-    uint64 capacity;
-    uint64 initCapacity;
-    double capaExpanRate;
+public:
     struct Buffer {
         uint64 handle;
         uint64 fullSize;
         uint64 position;
     };
+private:
+    StackAllocatorVisitor *visitor;
+    uint64 capacity;
+    uint64 initCapacity;
+    double capaExpanRate;
+
     vstd::vector<Buffer> allocatedBuffers;
 
 public:
@@ -28,7 +31,11 @@ public:
         uint64 handle;
         uint64 offset;
     };
-    Chunk allocate(
+    luisa::span<Buffer const> allocated_buffer() const {
+        return allocatedBuffers;
+    }
+    Chunk
+    allocate(
         uint64 targetSize);
     Chunk allocate(
         uint64 targetSize,

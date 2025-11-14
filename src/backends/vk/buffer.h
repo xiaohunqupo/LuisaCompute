@@ -6,7 +6,7 @@ class Buffer;
 struct BufferFlusher {
     std::atomic_size_t _begin{std::numeric_limits<size_t>::max()};
     std::atomic_size_t _end{};
-    void flush_range(size_t begin, size_t end);
+    void mark_dirty(size_t begin, size_t end);
     void flush(Device *device, void *alloc);
 };
 class Buffer : public Resource {

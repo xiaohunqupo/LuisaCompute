@@ -49,17 +49,11 @@ ReadbackBuffer::~ReadbackBuffer() {
 }
 void UploadBuffer::copy_from(void const *data, size_t offset, size_t size) const {
     memcpy(reinterpret_cast<std::byte *>(_mapped_ptr) + offset, data, size);
-    VK_CHECK_RESULT(vmaFlushAllocation(
-        device()->allocator().allocator(),
-        static_cast<VmaAllocation>(_res.allocation),
-        offset, size));
+    _flusher.mark_dirty(offset, offset + size);
 }
 void ReadbackBuffer::copy_to(void *data, size_t offset, size_t size) const {
     memcpy(data, reinterpret_cast<std::byte *>(_mapped_ptr) + offset, size);
-    VK_CHECK_RESULT(vmaFlushAllocation(
-        device()->allocator().allocator(),
-        static_cast<VmaAllocation>(_res.allocation),
-        offset, size));
+    _flusher.mark_dirty(offset, offset + size);
 }
 bool UploadBuffer::flush_host() const {
     _flusher.flush(device(), _res.allocation);
@@ -168,7 +162,7 @@ SparseBuffer::~SparseBuffer() {
         vkDestroyBuffer(device()->logic_device(), _buffer, Device::alloc_callbacks());
     }
 }
-void BufferFlusher::flush_range(size_t begin, size_t end) {
+void BufferFlusher::mark_dirty(size_t begin, size_t end) {
     {
         auto t = _begin.load();
         while (true) {

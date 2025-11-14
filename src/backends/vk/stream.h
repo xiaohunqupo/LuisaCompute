@@ -47,11 +47,11 @@ public:
 };
 template<typename T>
 class BufferAllocator : public BufferAllocatorBase {
+public:
     static constexpr size_t kLargeBufferSize = 65536ull;
     vstd::StackAllocator alloc;
     vstd::vector<vstd::unique_ptr<T>> largeBuffers;
 
-public:
     Visitor<T> visitor;
     BufferView allocate(size_t size) override;
     BufferView allocate(size_t size, size_t align) override;
