@@ -66,6 +66,64 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionCont
         // scalar
         return b.CreateIntrinsic(llvm::Intrinsic::nvvm_ex2_approx_f16, {v});
     };
+    auto call_tanh = [&](llvm::Value *v) noexcept -> llvm::Value * {
+#if LLVM_VERSION_MAJOR >= 22// LLVM 22+ can correct handle llvm.nvvm.tanh.approx.f32 in libdevice
+        return _call_libdevice_unary_op(b, "tanh", v);
+#endif
+        // otherwise, we have to use inline asm for f32/f16 tanh if supported when fast-math is enabled
+        if (!_config.enable_fast_math || _config.cuda_arch < nvvm_required_arch_tanh_f16 || v->getType()->getScalarType()->isDoubleTy()) {
+            return _call_libdevice_unary_op(b, "tanh", v);
+        }
+        // start of the dirty part...
+        auto call_asm = [&](llvm::Value *x) noexcept -> llvm::Value * {
+            auto t = x->getType();
+            if (t->isFloatTy()) {
+                auto llvm_asm = _get_inline_asm("tanh.approx.f32 $0, $1;", "=f,f", false);
+                return b.CreateCall(llvm_asm, x);
+            }
+            if (t->isHalfTy()) {
+                auto llvm_asm = _get_inline_asm("tanh.approx.f16 $0, $1;", "=h,h", false);
+                return b.CreateCall(llvm_asm, x);
+            }
+            // must be halfx2
+            LUISA_DEBUG_ASSERT(t->isVectorTy() && t->getScalarType()->isHalfTy() &&
+                               llvm::cast<llvm::VectorType>(t)->getElementCount().getFixedValue() == 2);
+            auto x0 = b.CreateExtractElement(x, b.getInt32(0));
+            auto x1 = b.CreateExtractElement(x, b.getInt32(1));
+            auto llvm_asm = _get_inline_asm("tanh.approx.f16x2 {$0, $1}, {$2, $3};", "=h,=h,h,h", false);
+            auto result = b.CreateCall(llvm_asm, {x0, x1});
+            auto result_x = b.CreateExtractValue(result, 0);
+            auto result_y = b.CreateExtractValue(result, 1);
+            return _create_llvm_vector(b, {result_x, result_y});
+        };
+        if (auto vector_t = llvm::dyn_cast<llvm::VectorType>(v->getType())) {
+            auto dim = vector_t->getElementCount().getFixedValue();
+            auto result = static_cast<llvm::Value *>(llvm::PoisonValue::get(vector_t));
+            if (vector_t->getScalarType()->isHalfTy()) {// we have tanh for f16x2, so use it
+                for (auto i = 0; i < dim; i += 2) {
+                    auto tanh_pair = call_asm(b.CreateShuffleVector(v, {i * 2 + 0, i * 2 + 1}));
+                    auto tanh_x = b.CreateExtractElement(tanh_pair, b.getInt32(0));
+                    auto tanh_y = b.CreateExtractElement(tanh_pair, b.getInt32(1));
+                    result = b.CreateInsertElement(result, tanh_x, i * 2 + 0);
+                    result = b.CreateInsertElement(result, tanh_y, i * 2 + 1);
+                }
+                if (dim % 2 != 0) {// handle the last
+                    auto last = b.CreateExtractElement(v, dim - 1);
+                    auto tanh_last = call_asm(last);
+                    result = b.CreateInsertElement(result, tanh_last, dim - 1);
+                }
+            } else {// for f32 vectors, just call asm per element
+                for (auto i = 0; i < dim; i++) {
+                    auto elem = b.CreateExtractElement(v, b.getInt32(i));
+                    auto tanh_elem = call_asm(elem);
+                    result = b.CreateInsertElement(result, tanh_elem, b.getInt32(i));
+                }
+            }
+            return result;
+        }
+        // for scalars, just call asm directly
+        return call_asm(v);
+    };
     auto dot_product_fp = [&](llvm::Value *u, llvm::Value *v) noexcept {
         LUISA_DEBUG_ASSERT(u->getType()->isVectorTy() && v->getType()->isFPOrFPVectorTy() && u->getType() == v->getType());
         auto zero = llvm::ConstantFP::getNegativeZero(u->getType()->getScalarType());
@@ -365,7 +423,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionCont
         });
         case xir::ArithmeticOp::TANH: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-            return _call_libdevice_unary_op(b, "tanh", v);
+            return call_tanh(v);
         });
         case xir::ArithmeticOp::EXP: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
@@ -588,10 +646,13 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionCont
         });
         case xir::ArithmeticOp::MATRIX_LINALG_MUL: {
             LUISA_DEBUG_ASSERT(inst->operand_count() == 2 &&
-                               inst->operand(0)->type()->is_matrix() &&
-                               (inst->operand(1)->type()->is_matrix() || inst->operand(1)->type()->is_vector()) &&
-                               inst->operand(0)->type()->dimension() == inst->operand(1)->type()->dimension() &&
-                               inst->operand(0)->type() == inst->type());
+                                   inst->operand(0)->type()->is_matrix() &&
+                                   (inst->operand(1)->type()->is_matrix() || inst->operand(1)->type()->is_vector()) &&
+                                   inst->operand(0)->type()->dimension() == inst->operand(1)->type()->dimension() &&
+                                   inst->operand(0)->type()->element() == inst->operand(1)->type()->element(),
+                               "Invalid types in matrix multiply instruction: {} x {}",
+                               inst->operand(0)->type()->description(),
+                               inst->operand(1)->type()->description());
             auto lhs = _get_llvm_value(b, func_ctx, inst->operand(0));
             auto rhs = _get_llvm_value(b, func_ctx, inst->operand(1));
             return _translate_matrix_multiply(b, lhs, rhs);
@@ -635,7 +696,7 @@ namespace detail {
 
 }// namespace detail
 
-llvm::Value *CUDACodegenLLVMImpl::_call_libdevice_unary_op(IB &b, llvm::StringRef op_name, llvm::Value *llvm_value) noexcept {
+llvm::Value *CUDACodegenLLVMImpl::_call_libdevice_unary_op(IB &b, llvm::StringRef op_name, llvm::Value *llvm_value) const noexcept {
     auto llvm_scalar_t = llvm_value->getType()->getScalarType();
     auto op = detail::find_libdevice_function(*_llvm_module, op_name, llvm_scalar_t, _config.enable_fast_math);
     auto should_cast_to_float = !llvm_scalar_t->isFloatTy() && !llvm_scalar_t->isDoubleTy();

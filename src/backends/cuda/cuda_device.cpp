@@ -786,8 +786,6 @@ ShaderCreationInfo CUDADevice::create_shader(const ShaderOption &option, Functio
                 .cuda_arch = _handle.compute_capability(),
                 .enable_fast_math = option.enable_fast_math,
                 .enable_debug_info = option.enable_debug_info,
-                .enable_ray_tracing = kernel.requires_raytracing(),
-                .enable_printing = kernel.requires_printing(),
             };
             ptx_from_llvm = luisa_compute_cuda_codegen_llvm(*xir_module, config);
             return CUDACodegenXIR::PrintFormatVector{};

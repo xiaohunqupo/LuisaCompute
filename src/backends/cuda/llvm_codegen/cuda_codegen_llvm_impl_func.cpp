@@ -33,7 +33,7 @@ llvm::Function *CUDACodegenLLVMImpl::_get_or_declare_llvm_function(const xir::Fu
 llvm::Function *CUDACodegenLLVMImpl::_declare_llvm_kernel_function(const xir::KernelFunction *func) noexcept {
     auto [llvm_func_type, llvm_func_name] = [&]() noexcept -> std::pair<llvm::FunctionType *, llvm::StringRef> {
         auto llvm_void_type = llvm::Type::getVoidTy(_llvm_context);
-        if (_config.enable_ray_tracing) {// ray tracing kernels use constant memory for args
+        if (_rt_analysis.uses_ray_tracing) {// ray tracing kernels use constant memory for args
             return std::make_pair(llvm::FunctionType::get(llvm_void_type, {}, false), "__raygen__main");
         }
         // normal kernels use direct arguments
@@ -91,7 +91,7 @@ llvm::Function *CUDACodegenLLVMImpl::_translate_kernel_function(const xir::Kerne
     IB b{func_ctx.llvm_entry_block};
     auto llvm_arg_struct = [&]() noexcept -> llvm::Value * {
         // ray tracing kernels use constant memory for args
-        if (_config.enable_ray_tracing) {
+        if (_rt_analysis.uses_ray_tracing) {
             auto llvm_global_arg = new ::llvm::GlobalVariable{
                 *_llvm_module, arg_struct_info->llvm_type, true, llvm::GlobalValue::ExternalLinkage,
                 nullptr, "params", nullptr, llvm::GlobalValue::NotThreadLocal,
@@ -135,7 +135,7 @@ llvm::Function *CUDACodegenLLVMImpl::_translate_kernel_function(const xir::Kerne
     // translate body
     auto llvm_body = _translate_function_definition(func_ctx, func);
     // create guard for out-of-bounds threads if not ray tracing (OptiX will do this for us)
-    if (!_config.enable_ray_tracing) {
+    if (!_rt_analysis.uses_ray_tracing) {
         auto llvm_dispatch_id = _read_dispatch_id(b, func_ctx);
         auto llvm_dispatch_id_in_bounds = b.CreateICmpULT(llvm_dispatch_id, func_ctx.llvm_dispatch_size, "dispatch.id.in.bounds");
         // if some axes of the block size is 1, we can assume those axes are always in bounds

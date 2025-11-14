@@ -78,9 +78,36 @@ public:
     };
 
     static constexpr auto nvvm_required_arch_exp2_f16 = 80;
+    static constexpr auto nvvm_required_arch_tanh_f16 = 75;
     static constexpr auto nvvm_required_arch_match_all = 75;
     static constexpr auto nvvm_required_arch_redux_i32 = 80;
     static constexpr auto nvvm_required_arch_redux_f32 = 101;
+
+    struct RayTracingAnalysis {
+        bool uses_ray_tracing = false;
+        bool uses_ray_query = false;
+        bool uses_motion_blur = false;
+        CurveBasisSet curve_basis_set = CurveBasisSet::make_none();
+    };
+
+    static constexpr auto llvm_buffer_type_ptr_index = 0;
+    static constexpr auto llvm_buffer_type_size_index = 1;
+    static constexpr auto llvm_texture_type_handle_index = 0;
+    static constexpr auto llvm_texture_type_storage_index = 1;
+    static constexpr auto llvm_bindless_array_type_slots_index = 0;
+    static constexpr auto llvm_bindless_array_type_size_index = 1;
+    static constexpr auto llvm_bindless_array_slot_type_buffer_ptr_index = 0;
+    static constexpr auto llvm_bindless_array_slot_type_buffer_size_index = 1;
+    static constexpr auto llvm_bindless_array_slot_type_texture2d_handle_index = 2;
+    static constexpr auto llvm_bindless_array_slot_type_texture3d_handle_index = 3;
+    static constexpr auto llvm_accel_type_handle_index = 0;
+    static constexpr auto llvm_accel_type_instances_index = 1;
+    static constexpr auto llvm_accel_instance_type_affine_index = 0;
+    static constexpr auto llvm_accel_instance_type_user_id_index = 1;
+    static constexpr auto llvm_accel_instance_type_sbt_offset_index = 2;
+    static constexpr auto llvm_accel_instance_type_mask_index = 3;
+    static constexpr auto llvm_accel_instance_type_flags_index = 4;
+    static constexpr auto llvm_accel_instance_type_handle_index = 5;
 
 private:
     CUDACodegenLLVMConfig _config;
@@ -89,12 +116,14 @@ private:
     llvm::LLVMContext _llvm_context;
     std::unique_ptr<llvm::Module> _llvm_module;
 
-    llvm::Type *_llvm_buffer_type{nullptr};             // { ptr, i32 offset, i32 size } as defined in cuda_buffer.h
+    RayTracingAnalysis _rt_analysis;
+
+    llvm::Type *_llvm_buffer_type{nullptr};             // { ptr, i64 size } as defined in cuda_buffer.h
     llvm::Type *_llvm_texture_type{nullptr};            // { i64 handle, i64 storage } as defined in cuda_texture.h
     llvm::Type *_llvm_bindless_array_type{nullptr};     // { ptr slots, i64 capacity } as defined in cuda_bindless_array.h
     llvm::Type *_llvm_bindless_array_slot_type{nullptr};// { i64 buffer, i64 size, i64 tex2d, i64 tex3d } as defined in cuda_bindless_array.h
     llvm::Type *_llvm_accel_type{nullptr};              // { i64 handle, ptr instances } as defined in cuda_accel.h
-    llvm::Type *_llvm_accel_instance_type{nullptr};     // { [ 12 x float ] affine, i32 user_id, i32 sbt_offset, i32 mask, i32 flags, i64 handle, i32 padding } as defined in optix_api.h
+    llvm::Type *_llvm_accel_instance_type{nullptr};     // { [ <4 x float> x 3 ] affine, i32 user_id, i32 sbt_offset, i32 mask, i32 flags, i64 handle, i32 padding } as defined in optix_api.h
     llvm::DenseMap<const Type *, luisa::unique_ptr<LLVMTypeInfo>> _xir_to_llvm_type;
     llvm::DenseMap<const xir::Value *, llvm::Constant *> _xir_to_llvm_global;
     llvm::DenseMap<const xir::KernelFunction *, luisa::unique_ptr<KernelArgumentStruct>> _kernel_arg_struct_types;
@@ -138,6 +167,10 @@ private:
     void _run_optimization_passes() noexcept;
     void _dump_module(const std::filesystem::path &path) const noexcept;
     [[nodiscard]] luisa::string _generate_ptx() const noexcept;
+
+    /* the following methods are defined in cuda_codegen_llvm_impl_analysis.cpp */
+    void _analyze_ray_tracing_usage(const xir::Module *module) noexcept;
+    void _analyze_ray_tracing_in_function(const xir::Function *f, llvm::DenseSet<const xir::Function *> &visited) noexcept;
 
     /* the following methods are defined in cuda_codegen_llvm_impl_type.cpp */
     [[nodiscard]] const LLVMTypeInfo *_get_llvm_type(const Type *type) noexcept;
@@ -232,7 +265,7 @@ private:
 
     // arithmetic instructions, defined in cuda_codegen_llvm_impl_arith.cpp
     [[nodiscard]] llvm::Value *_translate_arithmetic_inst(IB &b, FunctionContext &func_ctx, const xir::ArithmeticInst *inst) noexcept;
-    [[nodiscard]] llvm::Value *_call_libdevice_unary_op(IB &b, llvm::StringRef op_name, llvm::Value *llvm_value) noexcept;
+    [[nodiscard]] llvm::Value *_call_libdevice_unary_op(IB &b, llvm::StringRef op_name, llvm::Value *llvm_value) const noexcept;
     [[nodiscard]] llvm::Value *_call_libdevice_binary_op(IB &b, llvm::StringRef op_name, llvm::Value *llvm_lhs, llvm::Value *llvm_rhs) noexcept;
     [[nodiscard]] llvm::Value *_translate_outer_product(IB &b, llvm::Value *lhs, llvm::Value *rhs) noexcept;
     [[nodiscard]] llvm::Value *_translate_matrix_multiply(IB &b, llvm::Value *lhs, llvm::Value *rhs) noexcept;
@@ -259,6 +292,12 @@ private:
     void _set_accel_instance_opacity(IB &b, llvm::Value *accel, llvm::Value *instance_index, llvm::Value *is_opaque) noexcept;
     [[nodiscard]] llvm::Value *_load_accel_affine_matrix(IB &b, llvm::Value *affine_ptr) noexcept;
     static void _store_accel_affine_matrix(IB &b, llvm::Value *affine_ptr, llvm::Value *matrix) noexcept;
+    [[nodiscard]] llvm::Value *_accel_trace_closest(IB &b, uint32_t flags, llvm::Value *accel, llvm::Value *ray, llvm::Value *time, llvm::Value *mask) noexcept;
+    [[nodiscard]] llvm::Value *_accel_trace_any(IB &b, uint32_t flags, llvm::Value *accel, llvm::Value *ray, llvm::Value *time, llvm::Value *mask) noexcept;
+    void _call_optix_trace(IB &b, uint32_t payload_type, uint32_t sbt_offset, uint32_t flags,
+                           llvm::Value *accel, llvm::Value *ray, llvm::Value *time, llvm::Value *mask,
+                           llvm::ArrayRef<llvm::Value *> registers) noexcept;
+    [[nodiscard]] llvm::Value *_get_optix_undef(IB &b) noexcept;
 
     // ray query instructions: ray_query_loop, ray_query_dispatch, ray_query_object_read, ray_query_object_write, ray_query_pipeline, defined in cuda_codegen_llvm_impl_rtx.cpp
     void _translate_ray_query_loop_inst(IB &b, FunctionContext &func_ctx, const xir::RayQueryLoopInst *inst) noexcept;

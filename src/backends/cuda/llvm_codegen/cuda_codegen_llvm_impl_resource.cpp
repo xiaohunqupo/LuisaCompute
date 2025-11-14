@@ -12,7 +12,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_resource_query_inst(IB &b, Function
     switch (auto op = inst->op()) {
         case xir::ResourceQueryOp::BUFFER_SIZE: {
             auto llvm_buffer = _get_llvm_value(b, func_ctx, inst->operand(0));
-            auto llvm_size_bytes = b.CreateExtractValue(llvm_buffer, 1);
+            auto llvm_size_bytes = b.CreateExtractValue(llvm_buffer, llvm_buffer_type_size_index);
             auto elem_type = inst->operand(0)->type()->element();
             auto llvm_size_elements = b.CreateUDiv(llvm_size_bytes, b.getInt64(elem_type->size()));
             auto llvm_result_type = _get_llvm_type(inst->type())->reg_type;
@@ -20,14 +20,14 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_resource_query_inst(IB &b, Function
         }
         case xir::ResourceQueryOp::BYTE_BUFFER_SIZE: {
             auto llvm_buffer = _get_llvm_value(b, func_ctx, inst->operand(0));
-            auto llvm_size = b.CreateExtractValue(llvm_buffer, 1);
+            auto llvm_size = b.CreateExtractValue(llvm_buffer, llvm_buffer_type_size_index);
             auto llvm_result_type = _get_llvm_type(inst->type())->reg_type;
             return b.CreateZExtOrTrunc(llvm_size, llvm_result_type);
         }
         case xir::ResourceQueryOp::TEXTURE2D_SIZE: {
             LUISA_DEBUG_ASSERT(inst->type() == Type::of<luisa::int2>() || inst->type() == Type::of<luisa::uint2>());
             auto llvm_texture = _get_llvm_value(b, func_ctx, inst->operand(0));
-            auto llvm_handle = b.CreateExtractValue(llvm_texture, 0);
+            auto llvm_handle = b.CreateExtractValue(llvm_texture, llvm_texture_type_handle_index);
             auto llvm_width = b.CreateIntrinsic(llvm::Intrinsic::nvvm_suq_width, {llvm_handle});
             auto llvm_height = b.CreateIntrinsic(llvm::Intrinsic::nvvm_suq_height, {llvm_handle});
             return _create_llvm_vector(b, {llvm_width, llvm_height});
@@ -35,7 +35,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_resource_query_inst(IB &b, Function
         case xir::ResourceQueryOp::TEXTURE3D_SIZE: {
             LUISA_DEBUG_ASSERT(inst->type() == Type::of<luisa::int3>() || inst->type() == Type::of<luisa::uint3>());
             auto llvm_texture = _get_llvm_value(b, func_ctx, inst->operand(0));
-            auto llvm_handle = b.CreateExtractValue(llvm_texture, 0);
+            auto llvm_handle = b.CreateExtractValue(llvm_texture, llvm_texture_type_handle_index);
             auto llvm_width = b.CreateIntrinsic(llvm::Intrinsic::nvvm_suq_width, {llvm_handle});
             auto llvm_height = b.CreateIntrinsic(llvm::Intrinsic::nvvm_suq_height, {llvm_handle});
             auto llvm_depth = b.CreateIntrinsic(llvm::Intrinsic::nvvm_suq_depth, {llvm_handle});
@@ -47,8 +47,9 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_resource_query_inst(IB &b, Function
             auto llvm_index = _get_llvm_value(b, func_ctx, inst->operand(1));
             auto llvm_slot_ptr = _get_bindless_array_slot_pointer(b, llvm_bindless_array, llvm_index);
             auto llvm_slot_type = _get_llvm_bindless_array_slot_type();
-            auto llvm_buffer_size_ptr = b.CreateStructGEP(llvm_slot_type, llvm_slot_ptr, 1);
-            auto llvm_buffer_size = static_cast<llvm::Value *>(b.CreateLoad(llvm_slot_type->getStructElementType(1), llvm_buffer_size_ptr));
+            auto llvm_buffer_size_ptr = b.CreateStructGEP(llvm_slot_type, llvm_slot_ptr, llvm_bindless_array_slot_type_buffer_size_index);
+            auto llvm_buffer_size = static_cast<llvm::Value *>(b.CreateLoad(
+                llvm_slot_type->getStructElementType(llvm_bindless_array_slot_type_buffer_size_index), llvm_buffer_size_ptr));
             if (op == xir::ResourceQueryOp::BINDLESS_BUFFER_SIZE) {
                 auto elem_stride = b.CreateZExt(_get_llvm_value(b, func_ctx, inst->operand(2)), llvm_buffer_size->getType());
                 llvm_buffer_size = b.CreateUDiv(llvm_buffer_size, elem_stride);
@@ -188,14 +189,14 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_resource_query_inst(IB &b, Function
         case xir::ResourceQueryOp::BUFFER_DEVICE_ADDRESS: {
             auto llvm_buffer = _get_llvm_value(b, func_ctx, inst->operand(0));
             auto llvm_result_type = _get_llvm_type(inst->type())->reg_type;
-            return b.CreatePtrToInt(b.CreateExtractValue(llvm_buffer, 0), llvm_result_type);
+            return b.CreatePtrToInt(b.CreateExtractValue(llvm_buffer, llvm_buffer_type_ptr_index), llvm_result_type);
         }
         case xir::ResourceQueryOp::BINDLESS_BUFFER_DEVICE_ADDRESS: {
             auto llvm_bindless_array = _get_llvm_value(b, func_ctx, inst->operand(0));
             auto llvm_index = _get_llvm_value(b, func_ctx, inst->operand(1));
             auto llvm_slot_ptr = _get_bindless_array_slot_pointer(b, llvm_bindless_array, llvm_index);
             auto llvm_slot_type = _get_llvm_bindless_array_slot_type();
-            auto llvm_buffer_ptr = b.CreateLoad(llvm_slot_type->getStructElementType(0), llvm_slot_ptr);
+            auto llvm_buffer_ptr = b.CreateLoad(llvm_slot_type->getStructElementType(llvm_bindless_array_slot_type_buffer_ptr_index), llvm_slot_ptr);
             auto llvm_result_type = _get_llvm_type(inst->type())->reg_type;
             return b.CreatePtrToInt(llvm_buffer_ptr, llvm_result_type);
         }
@@ -204,7 +205,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_resource_query_inst(IB &b, Function
             auto llvm_accel = _get_llvm_value(b, func_ctx, inst->operand(0));
             auto llvm_instance_index = _get_llvm_value(b, func_ctx, inst->operand(1));
             auto llvm_instance_ptr = _get_accel_instance_pointer(b, llvm_accel, llvm_instance_index);
-            auto llvm_affine_ptr = b.CreateStructGEP(_get_llvm_accel_instance_type(), llvm_instance_ptr, 0);
+            auto llvm_affine_ptr = b.CreateStructGEP(_get_llvm_accel_instance_type(), llvm_instance_ptr, llvm_accel_instance_type_affine_index);
             return _load_accel_affine_matrix(b, llvm_affine_ptr);
         }
         case xir::ResourceQueryOp::RAY_TRACING_INSTANCE_USER_ID: {
@@ -212,8 +213,8 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_resource_query_inst(IB &b, Function
             auto llvm_instance_index = _get_llvm_value(b, func_ctx, inst->operand(1));
             auto llvm_instance_ptr = _get_accel_instance_pointer(b, llvm_accel, llvm_instance_index);
             auto llvm_instance_type = _get_llvm_accel_instance_type();
-            auto llvm_user_id_ptr = b.CreateStructGEP(llvm_instance_type, llvm_instance_ptr, 1);
-            auto llvm_user_id = b.CreateLoad(llvm_instance_type->getStructElementType(1), llvm_user_id_ptr);
+            auto llvm_user_id_ptr = b.CreateStructGEP(llvm_instance_type, llvm_instance_ptr, llvm_accel_instance_type_user_id_index);
+            auto llvm_user_id = b.CreateLoad(llvm_instance_type->getStructElementType(llvm_accel_instance_type_user_id_index), llvm_user_id_ptr);
             auto llvm_result_type = _get_llvm_type(inst->type())->reg_type;
             return b.CreateZExtOrTrunc(llvm_user_id, llvm_result_type);
         }
@@ -222,13 +223,23 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_resource_query_inst(IB &b, Function
             auto llvm_instance_index = _get_llvm_value(b, func_ctx, inst->operand(1));
             auto llvm_instance_ptr = _get_accel_instance_pointer(b, llvm_accel, llvm_instance_index);
             auto llvm_instance_type = _get_llvm_accel_instance_type();
-            auto llvm_mask_ptr = b.CreateStructGEP(llvm_instance_type, llvm_instance_ptr, 3);
-            auto llvm_mask = b.CreateLoad(llvm_instance_type->getStructElementType(3), llvm_mask_ptr);
+            auto llvm_mask_ptr = b.CreateStructGEP(llvm_instance_type, llvm_instance_ptr, llvm_accel_instance_type_mask_index);
+            auto llvm_mask = b.CreateLoad(llvm_instance_type->getStructElementType(llvm_accel_instance_type_mask_index), llvm_mask_ptr);
             auto llvm_result_type = _get_llvm_type(inst->type())->reg_type;
             return b.CreateZExtOrTrunc(llvm_mask, llvm_result_type);
         }
-        case xir::ResourceQueryOp::RAY_TRACING_TRACE_CLOSEST: break;
-        case xir::ResourceQueryOp::RAY_TRACING_TRACE_ANY: break;
+        case xir::ResourceQueryOp::RAY_TRACING_TRACE_CLOSEST: [[fallthrough]];
+        case xir::ResourceQueryOp::RAY_TRACING_TRACE_ANY: {
+            auto llvm_accel = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto llvm_ray = _get_llvm_value(b, func_ctx, inst->operand(1));
+            auto llvm_mask = _get_llvm_value(b, func_ctx, inst->operand(2));
+            auto llvm_zero = llvm::ConstantFP::getZero(b.getFloatTy());
+            constexpr auto flags_closest = optix::RAY_FLAG_DISABLE_ANYHIT | optix::RAY_FLAG_DISABLE_CLOSESTHIT;
+            constexpr auto flags_any = optix::RAY_FLAG_DISABLE_ANYHIT | optix::RAY_FLAG_DISABLE_CLOSESTHIT | optix::RAY_FLAG_TERMINATE_ON_FIRST_HIT;
+            return op == xir::ResourceQueryOp::RAY_TRACING_TRACE_CLOSEST ?
+                       _accel_trace_closest(b, flags_closest, llvm_accel, llvm_ray, llvm_zero, llvm_mask) :
+                       _accel_trace_any(b, flags_any, llvm_accel, llvm_ray, llvm_zero, llvm_mask);
+        }
         case xir::ResourceQueryOp::RAY_TRACING_QUERY_ALL: break;
         case xir::ResourceQueryOp::RAY_TRACING_QUERY_ANY: break;
         case xir::ResourceQueryOp::RAY_TRACING_INSTANCE_MOTION_MATRIX: {
@@ -274,8 +285,18 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_resource_query_inst(IB &b, Function
 #undef LUISA_MAKE_SRT_FIELD_LOAD
             return llvm_srt;
         }
-        case xir::ResourceQueryOp::RAY_TRACING_TRACE_CLOSEST_MOTION_BLUR: break;
-        case xir::ResourceQueryOp::RAY_TRACING_TRACE_ANY_MOTION_BLUR: break;
+        case xir::ResourceQueryOp::RAY_TRACING_TRACE_CLOSEST_MOTION_BLUR: [[fallthrough]];
+        case xir::ResourceQueryOp::RAY_TRACING_TRACE_ANY_MOTION_BLUR: {
+            auto llvm_accel = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto llvm_ray = _get_llvm_value(b, func_ctx, inst->operand(1));
+            auto llvm_time = _get_llvm_value(b, func_ctx, inst->operand(2));
+            auto llvm_mask = _get_llvm_value(b, func_ctx, inst->operand(3));
+            constexpr auto flags_closest = optix::RAY_FLAG_DISABLE_ANYHIT | optix::RAY_FLAG_DISABLE_CLOSESTHIT;
+            constexpr auto flags_any = optix::RAY_FLAG_DISABLE_ANYHIT | optix::RAY_FLAG_DISABLE_CLOSESTHIT | optix::RAY_FLAG_TERMINATE_ON_FIRST_HIT;
+            return op == xir::ResourceQueryOp::RAY_TRACING_TRACE_CLOSEST_MOTION_BLUR ?
+                       _accel_trace_closest(b, flags_closest, llvm_accel, llvm_ray, llvm_time, llvm_mask) :
+                       _accel_trace_any(b, flags_any, llvm_accel, llvm_ray, llvm_time, llvm_mask);
+        }
         case xir::ResourceQueryOp::RAY_TRACING_QUERY_ALL_MOTION_BLUR: break;
         case xir::ResourceQueryOp::RAY_TRACING_QUERY_ANY_MOTION_BLUR: break;
     }
@@ -310,8 +331,8 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_resource_read_inst(IB &b, FunctionC
         case xir::ResourceReadOp::TEXTURE2D_READ: {
             auto llvm_texture = _get_llvm_value(b, func_ctx, inst->operand(0));
             auto llvm_coord = _get_llvm_value(b, func_ctx, inst->operand(1));
-            auto llvm_texture_handle = b.CreateExtractValue(llvm_texture, 0);
-            auto llvm_texture_storage = b.CreateExtractValue(llvm_texture, 1);
+            auto llvm_texture_handle = b.CreateExtractValue(llvm_texture, llvm_texture_type_handle_index);
+            auto llvm_texture_storage = b.CreateExtractValue(llvm_texture, llvm_texture_type_storage_index);
             auto llvm_result_type = _get_llvm_type(inst->type())->reg_type;
             LUISA_DEBUG_ASSERT(llvm_result_type->isVectorTy());
             auto llvm_func = _get_texture2d_read_function(llvm::cast<llvm::VectorType>(llvm_result_type));
@@ -320,8 +341,8 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_resource_read_inst(IB &b, FunctionC
         case xir::ResourceReadOp::TEXTURE3D_READ: {
             auto llvm_texture = _get_llvm_value(b, func_ctx, inst->operand(0));
             auto llvm_coord = _get_llvm_value(b, func_ctx, inst->operand(1));
-            auto llvm_texture_handle = b.CreateExtractValue(llvm_texture, 0);
-            auto llvm_texture_storage = b.CreateExtractValue(llvm_texture, 1);
+            auto llvm_texture_handle = b.CreateExtractValue(llvm_texture, llvm_texture_type_handle_index);
+            auto llvm_texture_storage = b.CreateExtractValue(llvm_texture, llvm_texture_type_storage_index);
             auto llvm_result_type = _get_llvm_type(inst->type())->reg_type;
             LUISA_DEBUG_ASSERT(llvm_result_type->isVectorTy());
             auto llvm_func = _get_texture3d_read_function(llvm::cast<llvm::VectorType>(llvm_result_type));
@@ -334,8 +355,10 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_resource_read_inst(IB &b, FunctionC
             auto llvm_slot_ptr = _get_bindless_array_slot_pointer(b, llvm_bindless, llvm_slot_index);
             auto llvm_buffer_type = _get_llvm_buffer_type();
             LUISA_DEBUG_ASSERT(llvm_buffer_type->getStructNumElements() == 2 &&
-                               llvm_buffer_type->getStructElementType(0) == _get_llvm_bindless_array_slot_type()->getStructElementType(0) &&
-                               llvm_buffer_type->getStructElementType(1) == _get_llvm_bindless_array_slot_type()->getStructElementType(1));
+                               llvm_buffer_type->getStructElementType(llvm_buffer_type_ptr_index) ==
+                                   _get_llvm_bindless_array_slot_type()->getStructElementType(llvm_buffer_type_ptr_index) &&
+                               llvm_buffer_type->getStructElementType(llvm_buffer_type_size_index) ==
+                                   _get_llvm_bindless_array_slot_type()->getStructElementType(llvm_buffer_type_size_index));
             auto llvm_buffer = b.CreateLoad(llvm_buffer_type, llvm_slot_ptr);
             auto llvm_index_or_offset = _get_llvm_value(b, func_ctx, inst->operand(2));
             auto elem_type = inst->type();
@@ -456,8 +479,8 @@ void CUDACodegenLLVMImpl::_translate_resource_write_inst(IB &b, FunctionContext 
             auto llvm_texture = _get_llvm_value(b, func_ctx, inst->operand(0));
             auto llvm_coord = _get_llvm_value(b, func_ctx, inst->operand(1));
             auto llvm_value = _get_llvm_value(b, func_ctx, inst->operand(2));
-            auto llvm_texture_handle = b.CreateExtractValue(llvm_texture, 0);
-            auto llvm_texture_storage = b.CreateExtractValue(llvm_texture, 1);
+            auto llvm_texture_handle = b.CreateExtractValue(llvm_texture, llvm_texture_type_handle_index);
+            auto llvm_texture_storage = b.CreateExtractValue(llvm_texture, llvm_texture_type_storage_index);
             LUISA_DEBUG_ASSERT(llvm_value->getType()->isVectorTy());
             auto llvm_func = _get_texture2d_write_function(llvm::cast<llvm::VectorType>(llvm_value->getType()));
             b.CreateCall(llvm_func, {llvm_texture_handle, llvm_texture_storage, llvm_coord, llvm_value});
@@ -467,8 +490,8 @@ void CUDACodegenLLVMImpl::_translate_resource_write_inst(IB &b, FunctionContext 
             auto llvm_texture = _get_llvm_value(b, func_ctx, inst->operand(0));
             auto llvm_coord = _get_llvm_value(b, func_ctx, inst->operand(1));
             auto llvm_value = _get_llvm_value(b, func_ctx, inst->operand(2));
-            auto llvm_texture_handle = b.CreateExtractValue(llvm_texture, 0);
-            auto llvm_texture_storage = b.CreateExtractValue(llvm_texture, 1);
+            auto llvm_texture_handle = b.CreateExtractValue(llvm_texture, llvm_texture_type_handle_index);
+            auto llvm_texture_storage = b.CreateExtractValue(llvm_texture, llvm_texture_type_storage_index);
             LUISA_DEBUG_ASSERT(llvm_value->getType()->isVectorTy());
             auto llvm_func = _get_texture3d_write_function(llvm::cast<llvm::VectorType>(llvm_value->getType()));
             b.CreateCall(llvm_func, {llvm_texture_handle, llvm_texture_storage, llvm_coord, llvm_value});
@@ -481,8 +504,10 @@ void CUDACodegenLLVMImpl::_translate_resource_write_inst(IB &b, FunctionContext 
             auto llvm_slot_ptr = _get_bindless_array_slot_pointer(b, llvm_bindless, llvm_slot_index);
             auto llvm_buffer_type = _get_llvm_buffer_type();
             LUISA_DEBUG_ASSERT(llvm_buffer_type->getStructNumElements() == 2 &&
-                               llvm_buffer_type->getStructElementType(0) == _get_llvm_bindless_array_slot_type()->getStructElementType(0) &&
-                               llvm_buffer_type->getStructElementType(1) == _get_llvm_bindless_array_slot_type()->getStructElementType(1));
+                               llvm_buffer_type->getStructElementType(llvm_buffer_type_ptr_index) ==
+                                   _get_llvm_bindless_array_slot_type()->getStructElementType(llvm_buffer_type_ptr_index) &&
+                               llvm_buffer_type->getStructElementType(llvm_buffer_type_size_index) ==
+                                   _get_llvm_bindless_array_slot_type()->getStructElementType(llvm_buffer_type_size_index));
             auto llvm_buffer = b.CreateLoad(llvm_buffer_type, llvm_slot_ptr);
             auto llvm_index_or_offset = _get_llvm_value(b, func_ctx, inst->operand(2));
             auto value = inst->operand(3);
@@ -504,7 +529,7 @@ void CUDACodegenLLVMImpl::_translate_resource_write_inst(IB &b, FunctionContext 
             auto llvm_instance_index = _get_llvm_value(b, func_ctx, inst->operand(1));
             auto llvm_transform = _get_llvm_value(b, func_ctx, inst->operand(2));
             auto llvm_instance_ptr = _get_accel_instance_pointer(b, llvm_accel, llvm_instance_index);
-            auto llvm_affine_ptr = b.CreateStructGEP(_get_llvm_accel_instance_type(), llvm_instance_ptr, 0);
+            auto llvm_affine_ptr = b.CreateStructGEP(_get_llvm_accel_instance_type(), llvm_instance_ptr, llvm_accel_instance_type_affine_index);
             _store_accel_affine_matrix(b, llvm_affine_ptr, llvm_transform);
             return;
         }
@@ -512,10 +537,10 @@ void CUDACodegenLLVMImpl::_translate_resource_write_inst(IB &b, FunctionContext 
             auto llvm_accel = _get_llvm_value(b, func_ctx, inst->operand(0));
             auto llvm_instance_index = _get_llvm_value(b, func_ctx, inst->operand(1));
             auto llvm_instance_type = _get_llvm_accel_instance_type();
-            auto llvm_mask_type = llvm_instance_type->getStructElementType(3);
+            auto llvm_mask_type = llvm_instance_type->getStructElementType(llvm_accel_instance_type_mask_index);
             auto llvm_mask = b.CreateZExtOrTrunc(_get_llvm_value(b, func_ctx, inst->operand(2)), llvm_mask_type);
             auto llvm_instance_ptr = _get_accel_instance_pointer(b, llvm_accel, llvm_instance_index);
-            auto llvm_mask_ptr = b.CreateStructGEP(llvm_instance_type, llvm_instance_ptr, 3);
+            auto llvm_mask_ptr = b.CreateStructGEP(llvm_instance_type, llvm_instance_ptr, llvm_accel_instance_type_mask_index);
             b.CreateStore(llvm_mask, llvm_mask_ptr);
             return;
         }
@@ -530,10 +555,10 @@ void CUDACodegenLLVMImpl::_translate_resource_write_inst(IB &b, FunctionContext 
             auto llvm_accel = _get_llvm_value(b, func_ctx, inst->operand(0));
             auto llvm_instance_index = _get_llvm_value(b, func_ctx, inst->operand(1));
             auto llvm_instance_type = _get_llvm_accel_instance_type();
-            auto llvm_user_id_type = llvm_instance_type->getStructElementType(1);
+            auto llvm_user_id_type = llvm_instance_type->getStructElementType(llvm_accel_instance_type_user_id_index);
             auto llvm_user_id = b.CreateZExtOrTrunc(_get_llvm_value(b, func_ctx, inst->operand(2)), llvm_user_id_type);
             auto llvm_instance_ptr = _get_accel_instance_pointer(b, llvm_accel, llvm_instance_index);
-            auto llvm_user_id_ptr = b.CreateStructGEP(llvm_instance_type, llvm_instance_ptr, 1);
+            auto llvm_user_id_ptr = b.CreateStructGEP(llvm_instance_type, llvm_instance_ptr, llvm_accel_instance_type_user_id_index);
             b.CreateStore(llvm_user_id, llvm_user_id_ptr);
             return;
         }
@@ -603,8 +628,8 @@ void CUDACodegenLLVMImpl::_translate_resource_write_inst(IB &b, FunctionContext 
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_get_buffer_element_pointer(IB &b, llvm::Value *buffer, llvm::Value *index, size_t index_stride, size_t element_size) noexcept {
-    auto buffer_data_ptr = b.CreateExtractValue(buffer, 0);
-    auto buffer_size_bytes = b.CreateExtractValue(buffer, 1);
+    auto buffer_data_ptr = b.CreateExtractValue(buffer, llvm_buffer_type_ptr_index);
+    auto buffer_size_bytes = b.CreateExtractValue(buffer, llvm_buffer_type_size_index);
     auto size_type = buffer_size_bytes->getType();
     LUISA_DEBUG_ASSERT(size_type->isIntegerTy(64));
     index = b.CreateZExt(index, size_type, "", true);
@@ -620,8 +645,8 @@ llvm::Value *CUDACodegenLLVMImpl::_get_buffer_element_pointer(IB &b, llvm::Value
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_get_bindless_array_slot_pointer(IB &b, llvm::Value *bindless_array, llvm::Value *slot_index) noexcept {
-    auto slots = b.CreateExtractValue(bindless_array, 0);
-    auto slot_count = b.CreateExtractValue(bindless_array, 1);
+    auto slots = b.CreateExtractValue(bindless_array, llvm_bindless_array_type_slots_index);
+    auto slot_count = b.CreateExtractValue(bindless_array, llvm_bindless_array_type_size_index);
     slot_index = b.CreateZExt(slot_index, slot_count->getType(), "", true);
     auto slot_index_in_bounds = b.CreateICmpULT(slot_index, slot_count);
     _create_assertion_with_message(b, slot_index_in_bounds, "Bindless array slot index out of bounds.");
@@ -632,12 +657,14 @@ llvm::Value *CUDACodegenLLVMImpl::_get_bindless_array_slot_pointer(IB &b, llvm::
 llvm::Value *CUDACodegenLLVMImpl::_get_bindless_array_texture_handle(IB &b, llvm::Value *bindless_array, llvm::Value *slot_index, int dim) noexcept {
     auto slot_ptr = _get_bindless_array_slot_pointer(b, bindless_array, slot_index);
     auto slot_type = _get_llvm_bindless_array_slot_type();
-    auto handle_ptr = b.CreateStructGEP(slot_type, slot_ptr, dim == 2 ? 2 : 3);
-    return b.CreateLoad(slot_type->getStructElementType(2), handle_ptr);
+    auto i = dim == 2 ? llvm_bindless_array_slot_type_texture2d_handle_index :
+                        llvm_bindless_array_slot_type_texture3d_handle_index;
+    auto handle_ptr = b.CreateStructGEP(slot_type, slot_ptr, i);
+    return b.CreateLoad(slot_type->getStructElementType(i), handle_ptr);
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_get_accel_instance_pointer(IB &b, llvm::Value *accel, llvm::Value *instance_index) noexcept {
-    auto instances = b.CreateExtractValue(accel, 1);
+    auto instances = b.CreateExtractValue(accel, llvm_accel_type_instances_index);
     instance_index = b.CreateZExt(instance_index, b.getInt64Ty(), "", true);
     return b.CreateInBoundsGEP(_get_llvm_accel_instance_type(), instances, instance_index);
 }
@@ -645,10 +672,11 @@ llvm::Value *CUDACodegenLLVMImpl::_get_accel_instance_pointer(IB &b, llvm::Value
 llvm::Value *CUDACodegenLLVMImpl::_get_accel_instance_motion_data(IB &b, llvm::Value *accel, llvm::Value *instance_index, llvm::Value *key_index, size_t stride) noexcept {
     auto instance_ptr = _get_accel_instance_pointer(b, accel, instance_index);
     auto instance_type = _get_llvm_accel_instance_type();
-    auto instance_handle_type = instance_type->getStructElementType(5);
-    auto instance_handle_ptr = b.CreateStructGEP(instance_type, instance_ptr, 5);
+    auto instance_handle_type = instance_type->getStructElementType(llvm_accel_instance_type_handle_index);
+    auto instance_handle_ptr = b.CreateStructGEP(instance_type, instance_ptr, llvm_accel_instance_type_handle_index);
     auto instance_handle = b.CreateLoad(instance_handle_type, instance_handle_ptr);
-    auto instance_address = b.CreateAnd(instance_handle, ~0x0full);
+    constexpr auto optix_instance_address_mask = ~0x0full;
+    auto instance_address = b.CreateAnd(instance_handle, optix_instance_address_mask);
     auto instance_data = b.CreateIntToPtr(instance_address, b.getPtrTy(nvptx_address_space_global));
     struct alignas(16) MotionDataHeader {
         uint64_t child;
@@ -676,7 +704,7 @@ void CUDACodegenLLVMImpl::_set_accel_instance_opacity(IB &b, llvm::Value *accel,
         f->addFnAttr(llvm::Attribute::AlwaysInline);
         auto entry = llvm::BasicBlock::Create(_llvm_context, "entry", f);
         IB fb{entry};
-        auto flags_ptr = fb.CreateStructGEP(_get_llvm_accel_instance_type(), f->getArg(0), 4);
+        auto flags_ptr = fb.CreateStructGEP(_get_llvm_accel_instance_type(), f->getArg(0), llvm_accel_instance_type_flags_index);
         auto flags = fb.CreateLoad(fb.getInt32Ty(), flags_ptr);
         auto is_triangle = fb.CreateAnd(flags, optix::INSTANCE_FLAG_DISABLE_TRIANGLE_FACE_CULLING);
         is_triangle = fb.CreateICmpNE(is_triangle, fb.getInt32(0));
@@ -722,6 +750,71 @@ void CUDACodegenLLVMImpl::_store_accel_affine_matrix(IB &b, llvm::Value *affine_
     b.CreateAlignedStore(llvm_a0, b.CreateInBoundsGEP(llvm_a0->getType(), affine_ptr, b.getInt64(0)), llvm_align);
     b.CreateAlignedStore(llvm_a1, b.CreateInBoundsGEP(llvm_a1->getType(), affine_ptr, b.getInt64(1)), llvm_align);
     b.CreateAlignedStore(llvm_a2, b.CreateInBoundsGEP(llvm_a2->getType(), affine_ptr, b.getInt64(2)), llvm_align);
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_accel_trace_closest(IB &b, uint32_t flags, llvm::Value *accel, llvm::Value *ray, llvm::Value *time, llvm::Value *mask) noexcept {
+    _call_optix_trace(b, optix::PAYLOAD_TYPE_ID_0, 0u, flags, accel, ray, time, mask, {});
+    LUISA_NOT_IMPLEMENTED();
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_accel_trace_any(IB &b, uint32_t flags, llvm::Value *accel, llvm::Value *ray, llvm::Value *time, llvm::Value *mask) noexcept {
+    _call_optix_trace(b, optix::PAYLOAD_TYPE_ID_0, 0u, flags, accel, ray, time, mask, {});
+    LUISA_NOT_IMPLEMENTED();
+}
+
+void CUDACodegenLLVMImpl::_call_optix_trace(IB &b, uint32_t payload_type, uint32_t sbt_offset, uint32_t flags,
+                                            llvm::Value *accel, llvm::Value *ray, llvm::Value *time, llvm::Value *mask,
+                                            llvm::ArrayRef<llvm::Value *> registers) noexcept {
+    LUISA_DEBUG_ASSERT(registers.size() <= 2);
+    auto handle = b.CreateExtractValue(accel, llvm_accel_type_handle_index);
+    auto ox = b.CreateExtractValue(ray, {0, 0});
+    auto oy = b.CreateExtractValue(ray, {0, 1});
+    auto oz = b.CreateExtractValue(ray, {0, 2});
+    auto dx = b.CreateExtractValue(ray, {2, 0});
+    auto dy = b.CreateExtractValue(ray, {2, 1});
+    auto dz = b.CreateExtractValue(ray, {2, 2});
+    auto tmin = b.CreateExtractValue(ray, 1);
+    auto tmax = b.CreateExtractValue(ray, 3);
+    auto undef = _get_optix_undef(b);
+    time = b.CreateFPCast(time, b.getFloatTy());
+    mask = b.CreateAnd(b.CreateZExtOrTrunc(mask, b.getInt32Ty()), 0xffu);
+    auto llvm_asm = _get_inline_asm("call"
+                                    "($0,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31),"
+                                    "_optix_hitobject_traverse,"
+                                    "($32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43,$44,$45,$46,$47,$48,$49,$50,$51,$52,$53,$54,$55,$56,$57,$58,$59,$60,$61,$62,$63,$64,$65,$66,$67,$68,$69,$70,$71,$72,$73,$74,$75,$76,$77,$78,$79,$80);",
+                                    "=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,r,l,f,f,f,f,f,f,f,f,f,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r",
+                                    true);
+    llvm::SmallVector<llvm::Value *, 80 - 31> args;
+    args.emplace_back(b.getInt32(payload_type));
+    args.emplace_back(handle);
+    args.emplace_back(ox);
+    args.emplace_back(oy);
+    args.emplace_back(oz);
+    args.emplace_back(dx);
+    args.emplace_back(dy);
+    args.emplace_back(dz);
+    args.emplace_back(tmin);
+    args.emplace_back(tmax);
+    args.emplace_back(time);
+    args.emplace_back(mask);
+    args.emplace_back(b.getInt32(flags));
+    args.emplace_back(b.getInt32(sbt_offset));
+    args.emplace_back(b.getInt32(0u));
+    args.emplace_back(b.getInt32(0u));
+    args.emplace_back(b.getInt32(static_cast<uint32_t>(registers.size())));
+    for (auto i = 0; i < 32; i++) {
+        if (i < registers.size()) {
+            args.emplace_back(registers[i]);
+        } else {
+            args.emplace_back(undef);
+        }
+    }
+    b.CreateCall(llvm_asm, args);
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_get_optix_undef(IB &b) noexcept {
+    auto llvm_asm = _get_inline_asm("call ($0), _optix_undef_value, ();", "=r", false);
+    return b.CreateCall(llvm_asm, {});
 }
 
 }// namespace luisa::compute::cuda
