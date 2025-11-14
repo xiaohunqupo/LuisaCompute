@@ -22,18 +22,23 @@ BufferCreationInfo VkPinnedMemoryExt::_allocate_pinned_memory(
     auto size_bytes = info.element_stride * elem_count;
     if (option.write_combined) {
         auto ptr = new UploadBuffer(_device, size_bytes);
-        ptr->_flusher.mark_dirty(0, size_bytes);
         info.handle = reinterpret_cast<uint64_t>(ptr);
         info.native_handle = ptr->mapped_ptr();
     } else {
         auto ptr = new ReadbackBuffer(_device, size_bytes);
-        ptr->_flusher.mark_dirty(0, size_bytes);
         info.handle = reinterpret_cast<uint64_t>(ptr);
         info.native_handle = ptr->mapped_ptr();
     }
     info.total_size_bytes = size_bytes;
 
     return info;
+}
+void VkPinnedMemoryExt::flush_range(
+    uint64_t buffer_handle,
+    uint64_t begin,
+    uint64_t end) const noexcept {
+    auto ptr = reinterpret_cast<Buffer *>(buffer_handle);
+    ptr->flush_range(begin, end);
 }
 DeviceInterface *VkPinnedMemoryExt::device() const noexcept {
     return _device;

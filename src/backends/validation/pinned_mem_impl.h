@@ -16,8 +16,12 @@ protected:
         const PinnedMemoryOption &option) noexcept override;
 public:
     explicit PinnedMemoryExtImpl(PinnedMemoryExt *impl) : _impl(impl) {}
-    [[nodiscard]] DeviceInterface *device() const noexcept override{
+    [[nodiscard]] DeviceInterface *device() const noexcept override {
         return _impl->device();
     }
+    void flush_range(
+        uint64_t buffer_handle,
+        uint64_t begin,
+        uint64_t end) const noexcept override;
 };
 }// namespace lc::validation

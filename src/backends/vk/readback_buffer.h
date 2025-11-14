@@ -14,5 +14,6 @@ public:
     VkBuffer vk_buffer() const override { return _res.buffer; }
     void *mapped_ptr() const { return _mapped_ptr; }
     bool flush_host() const override;
+    void flush_range(size_t begin, size_t end)  override;
 };
 }// namespace lc::vk

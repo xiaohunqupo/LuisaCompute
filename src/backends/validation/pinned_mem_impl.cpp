@@ -19,4 +19,10 @@ BufferCreationInfo PinnedMemoryExtImpl::_allocate_pinned_memory(
         new RWResource(res.handle, RWResource::Tag::BUFFER, false);
     return res;
 }
+void PinnedMemoryExtImpl::flush_range(
+    uint64_t buffer_handle,
+    uint64_t begin,
+    uint64_t end) const noexcept {
+    _impl->flush_range(buffer_handle, begin, end);
+}
 }// namespace lc::validation

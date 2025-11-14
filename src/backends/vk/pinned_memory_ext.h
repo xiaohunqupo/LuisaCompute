@@ -18,5 +18,9 @@ public:
 public:
     explicit VkPinnedMemoryExt(Device *device) : _device(device) {}
     [[nodiscard]] DeviceInterface *device() const noexcept override;
+    void flush_range(
+        uint64_t buffer_handle,
+        uint64_t begin,
+        uint64_t end) const noexcept override;
 };
-}// namespace kc::vk
+}// namespace lc::vk

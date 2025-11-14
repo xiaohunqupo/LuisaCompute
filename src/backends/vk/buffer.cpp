@@ -49,17 +49,17 @@ ReadbackBuffer::~ReadbackBuffer() {
 }
 void UploadBuffer::copy_from(void const *data, size_t offset, size_t size) const {
     memcpy(reinterpret_cast<std::byte *>(_mapped_ptr) + offset, data, size);
-    vmaFlushAllocation(
+    VK_CHECK_RESULT(vmaFlushAllocation(
         device()->allocator().allocator(),
         static_cast<VmaAllocation>(_res.allocation),
-        offset, size);
+        offset, size));
 }
 void ReadbackBuffer::copy_to(void *data, size_t offset, size_t size) const {
     memcpy(data, reinterpret_cast<std::byte *>(_mapped_ptr) + offset, size);
-    vmaFlushAllocation(
+    VK_CHECK_RESULT(vmaFlushAllocation(
         device()->allocator().allocator(),
         static_cast<VmaAllocation>(_res.allocation),
-        offset, size);
+        offset, size));
 }
 bool UploadBuffer::flush_host() const {
     _flusher.flush(device(), _res.allocation);
@@ -68,6 +68,18 @@ bool UploadBuffer::flush_host() const {
 bool ReadbackBuffer::flush_host() const {
     _flusher.flush(device(), _res.allocation);
     return true;
+}
+void ReadbackBuffer::flush_range(size_t begin, size_t end) {
+    VK_CHECK_RESULT(vmaFlushAllocation(
+        device()->allocator().allocator(),
+        _res.allocation,
+        begin, end - begin));
+}
+void UploadBuffer::flush_range(size_t begin, size_t end) {
+    VK_CHECK_RESULT(vmaFlushAllocation(
+        device()->allocator().allocator(),
+        _res.allocation,
+        begin, end - begin));
 }
 
 DefaultBuffer::DefaultBuffer(Device *device, VkBuffer vk_buffer, VkDeviceMemory memory, size_t size_bytes)
@@ -156,7 +168,7 @@ SparseBuffer::~SparseBuffer() {
         vkDestroyBuffer(device()->logic_device(), _buffer, Device::alloc_callbacks());
     }
 }
-void BufferFlusher::mark_dirty(size_t begin, size_t end) {
+void BufferFlusher::flush_range(size_t begin, size_t end) {
     {
         auto t = _begin.load();
         while (true) {
@@ -179,10 +191,10 @@ void BufferFlusher::flush(Device *device, void *alloc) {
     begin = _begin.exchange(std::numeric_limits<size_t>::max());
     end = _end.exchange(0);
     if (begin < end) {
-        vmaFlushAllocation(
+        VK_CHECK_RESULT(vmaFlushAllocation(
             device->allocator().allocator(),
             static_cast<VmaAllocation>(alloc),
-            begin, end - begin);
+            begin, end - begin));
     }
 }
 }// namespace lc::vk

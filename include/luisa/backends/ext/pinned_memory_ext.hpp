@@ -66,6 +66,10 @@ public:
         return Buffer<T>{device(), info};
     }
     virtual ~PinnedMemoryExt() = default;
+    virtual void flush_range(
+        uint64_t buffer_handle,
+        uint64_t begin,
+        uint64_t end) const noexcept {}
 };
 
 }// namespace luisa::compute
