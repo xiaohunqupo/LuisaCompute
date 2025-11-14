@@ -95,13 +95,13 @@ llvm::Value *CUDACodegenLLVMImpl::_convert_llvm_mem_value_to_reg(IB &b, llvm::Va
 llvm::Value *CUDACodegenLLVMImpl::_bitwise_cast(IB &b, FunctionContext &func_ctx, llvm::Value *llvm_src, const Type *src_type, const Type *dst_type) noexcept {
     if (src_type == dst_type) { return llvm_src; }
     auto llvm_dst_type = _get_llvm_type(dst_type);
-    auto llvm_src_mem = _convert_llvm_reg_value_to_mem(b, llvm_src, src_type);
     // scalars or vectors, we can use the built-in llvm bitwise cast
-    if ((src_type->is_scalar() || src_type->is_vector()) && (dst_type->is_scalar() || dst_type->is_vector())) {
-        auto llvm_dst_mem = b.CreateBitCast(llvm_src_mem, llvm_dst_type->mem_type);
-        return _convert_llvm_mem_value_to_reg(b, llvm_dst_mem, dst_type);
+    if ((src_type->is_scalar() || src_type->is_vector()) && (dst_type->is_scalar() || dst_type->is_vector()) &&
+        !src_type->is_bool_or_bool_vector() && !dst_type->is_bool_or_bool_vector()) {
+        return b.CreateBitCast(llvm_src, llvm_dst_type->reg_type);
     }
     // generic, we make a temporary alloca, store the src value, and load as the dst type
+    auto llvm_src_mem = _convert_llvm_reg_value_to_mem(b, llvm_src, src_type);
     auto llvm_temp = _create_temp_in_alloca_block(func_ctx, llvm_src_mem->getType(), src_type->alignment());
     b.CreateAlignedStore(llvm_src_mem, llvm_temp, llvm::Align{src_type->alignment()});
     auto llvm_dst_mem = b.CreateAlignedLoad(llvm_dst_type->mem_type, llvm_temp, llvm::Align{dst_type->alignment()});

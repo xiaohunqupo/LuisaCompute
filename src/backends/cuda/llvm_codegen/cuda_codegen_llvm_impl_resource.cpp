@@ -4,6 +4,7 @@
 
 #include "../optix_api.h"
 #include "cuda_codegen_llvm_impl.h"
+#include "luisa/runtime/rtx/hit.h"
 #include "luisa/runtime/rtx/motion_transform.h"
 
 namespace luisa::compute::cuda {
@@ -754,12 +755,32 @@ void CUDACodegenLLVMImpl::_store_accel_affine_matrix(IB &b, llvm::Value *affine_
 
 llvm::Value *CUDACodegenLLVMImpl::_accel_trace_closest(IB &b, uint32_t flags, llvm::Value *accel, llvm::Value *ray, llvm::Value *time, llvm::Value *mask) noexcept {
     _call_optix_trace(b, optix::PAYLOAD_TYPE_ID_0, 0u, flags, accel, ray, time, mask, {});
-    LUISA_NOT_IMPLEMENTED();
+    auto is_hit = _call_optix_hit_object_is_hit(b);
+    auto invalid_id = b.getInt32(~0u);
+    auto inst_id = b.CreateSelect(is_hit, _call_optix_hit_object_instance_index(b), invalid_id);
+    auto prim_id = _call_optix_hit_object_primitive_index(b);
+    auto bary = _call_optix_hit_object_triangle_barycentric(b);
+    if (_rt_analysis.curve_basis_set.any()) {// might be a curve
+        auto hit_kind = _call_optix_hit_object_hit_kind(b);
+        auto is_triangle_front = b.CreateICmpNE(hit_kind, b.getInt32(optix::HIT_KIND_TRIANGLE_FRONT_FACE));
+        auto is_triangle_back = b.CreateICmpNE(hit_kind, b.getInt32(optix::HIT_KIND_TRIANGLE_BACK_FACE));
+        auto is_triangle = b.CreateOr(is_triangle_front, is_triangle_back);
+        auto curve_param = b.CreateInsertElement(bary, llvm::ConstantFP::get(b.getFloatTy(), -1.), b.getInt64(1));
+        bary = b.CreateSelect(is_triangle, bary, curve_param);
+    }
+    auto t = _call_optix_hit_object_ray_t_max(b);
+    auto result_type = _get_llvm_type(Type::of<SurfaceHit>())->reg_type;
+    auto result = static_cast<llvm::Value *>(llvm::PoisonValue::get(result_type));
+    result = b.CreateInsertValue(result, inst_id, 0);
+    result = b.CreateInsertValue(result, prim_id, 1);
+    result = b.CreateInsertValue(result, bary, 2);
+    result = b.CreateInsertValue(result, t, 3);
+    return result;
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_accel_trace_any(IB &b, uint32_t flags, llvm::Value *accel, llvm::Value *ray, llvm::Value *time, llvm::Value *mask) noexcept {
     _call_optix_trace(b, optix::PAYLOAD_TYPE_ID_0, 0u, flags, accel, ray, time, mask, {});
-    LUISA_NOT_IMPLEMENTED();
+    return _call_optix_hit_object_is_hit(b);
 }
 
 void CUDACodegenLLVMImpl::_call_optix_trace(IB &b, uint32_t payload_type, uint32_t sbt_offset, uint32_t flags,
@@ -775,13 +796,31 @@ void CUDACodegenLLVMImpl::_call_optix_trace(IB &b, uint32_t payload_type, uint32
     auto dz = b.CreateExtractValue(ray, {2, 2});
     auto tmin = b.CreateExtractValue(ray, 1);
     auto tmax = b.CreateExtractValue(ray, 3);
-    auto undef = _get_optix_undef(b);
+    auto undef = _call_optix_undef(b);
     time = b.CreateFPCast(time, b.getFloatTy());
     mask = b.CreateAnd(b.CreateZExtOrTrunc(mask, b.getInt32Ty()), 0xffu);
-    auto llvm_asm = _get_inline_asm("call"
-                                    "($0,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31),"
-                                    "_optix_hitobject_traverse,"
-                                    "($32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43,$44,$45,$46,$47,$48,$49,$50,$51,$52,$53,$54,$55,$56,$57,$58,$59,$60,$61,$62,$63,$64,$65,$66,$67,$68,$69,$70,$71,$72,$73,$74,$75,$76,$77,$78,$79,$80);",
+    auto llvm_asm = _get_inline_asm("{\n"// work around OptiX's trash implementation of ptx2llvm, which stupidly complains that b32 registers cannot be used as f32...
+                                    "\t\t.reg .f32 %ray_ox;\n"
+                                    "\t\t.reg .f32 %ray_oy;\n"
+                                    "\t\t.reg .f32 %ray_oz;\n"
+                                    "\t\t.reg .f32 %ray_dx;\n"
+                                    "\t\t.reg .f32 %ray_dy;\n"
+                                    "\t\t.reg .f32 %ray_dz;\n"
+                                    "\t\t.reg .f32 %ray_tmin;\n"
+                                    "\t\t.reg .f32 %ray_tmax;\n"
+                                    "\t\t.reg .f32 %ray_time;\n"
+                                    "\t\tmov.b32 %ray_ox, $34;\n"
+                                    "\t\tmov.b32 %ray_oy, $35;\n"
+                                    "\t\tmov.b32 %ray_oz, $36;\n"
+                                    "\t\tmov.b32 %ray_dx, $37;\n"
+                                    "\t\tmov.b32 %ray_dy, $38;\n"
+                                    "\t\tmov.b32 %ray_dz, $39;\n"
+                                    "\t\tmov.b32 %ray_tmin, $40;\n"
+                                    "\t\tmov.b32 %ray_tmax, $41;\n"
+                                    "\t\tmov.b32 %ray_time, $42;\n"
+                                    "\t\tcall($0,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31),_optix_hitobject_traverse,"
+                                    "($32,$33,%ray_ox,%ray_oy,%ray_oz,%ray_dx,%ray_dy,%ray_dz,%ray_tmin,%ray_tmax,%ray_time,$43,$44,$45,$46,$47,$48,$49,$50,$51,$52,$53,$54,$55,$56,$57,$58,$59,$60,$61,$62,$63,$64,$65,$66,$67,$68,$69,$70,$71,$72,$73,$74,$75,$76,$77,$78,$79,$80);\n"
+                                    "\t}",
                                     "=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,=r,r,l,f,f,f,f,f,f,f,f,f,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r",
                                     true);
     llvm::SmallVector<llvm::Value *, 80 - 31> args;
@@ -812,8 +851,46 @@ void CUDACodegenLLVMImpl::_call_optix_trace(IB &b, uint32_t payload_type, uint32
     b.CreateCall(llvm_asm, args);
 }
 
-llvm::Value *CUDACodegenLLVMImpl::_get_optix_undef(IB &b) noexcept {
+llvm::Value *CUDACodegenLLVMImpl::_call_optix_undef(IB &b) noexcept {
     auto llvm_asm = _get_inline_asm("call ($0), _optix_undef_value, ();", "=r", false);
+    return b.CreateCall(llvm_asm, {});
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_call_optix_hit_object_is_hit(IB &b) noexcept {
+    auto llvm_asm = _get_inline_asm("call ($0), _optix_hitobject_is_hit, ();", "=r", true);
+    auto llvm_result = b.CreateCall(llvm_asm, {});
+    return b.CreateTrunc(llvm_result, b.getInt1Ty());
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_call_optix_hit_object_triangle_barycentric(IB &b) noexcept {
+    auto llvm_asm = _get_inline_asm("call ($0), _optix_hitobject_get_attribute, ($1);", "=r,r", true);
+    auto llvm_u = b.CreateBitCast(b.CreateCall(llvm_asm, {b.getInt32(0)}), b.getFloatTy());
+    auto llvm_v = b.CreateBitCast(b.CreateCall(llvm_asm, {b.getInt32(1)}), b.getFloatTy());
+    return _create_llvm_vector(b, {llvm_u, llvm_v});
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_call_optix_hit_object_curve_parameter(IB &b) noexcept {
+    auto llvm_asm = _get_inline_asm("call ($0), _optix_hitobject_get_attribute, ($1);", "=r,r", true);
+    return b.CreateBitCast(b.CreateCall(llvm_asm, {b.getInt32(0)}), b.getFloatTy());
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_call_optix_hit_object_instance_index(IB &b) noexcept {
+    auto llvm_asm = _get_inline_asm("call ($0), _optix_hitobject_get_instance_idx, ();", "=r", true);
+    return b.CreateCall(llvm_asm, {});
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_call_optix_hit_object_primitive_index(IB &b) noexcept {
+    auto llvm_asm = _get_inline_asm("call ($0), _optix_hitobject_get_primitive_idx, ();", "=r", true);
+    return b.CreateCall(llvm_asm, {});
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_call_optix_hit_object_ray_t_max(IB &b) noexcept {
+    auto llvm_asm = _get_inline_asm("call ($0), _optix_hitobject_get_ray_tmax, ();", "=f", true);
+    return b.CreateCall(llvm_asm, {});
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_call_optix_hit_object_hit_kind(IB &b) noexcept {
+    auto llvm_asm = _get_inline_asm("call ($0), _optix_hitobject_get_hitkind, ();", "=r", true);
     return b.CreateCall(llvm_asm, {});
 }
 

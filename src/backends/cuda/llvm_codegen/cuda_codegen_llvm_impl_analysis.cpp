@@ -7,9 +7,9 @@
 
 namespace luisa::compute::cuda {
 
-void CUDACodegenLLVMImpl::_analyze_ray_tracing_usage(const xir::Module *module) noexcept {
+void CUDACodegenLLVMImpl::_analyze_ray_tracing_usage(const xir::Module &module) noexcept {
     llvm::DenseSet<const xir::Function *> visited;
-    for (auto f : module->function_list()) {
+    for (auto f : module.function_list()) {
         // we only start from kernel functions so that unused functions are not analyzed
         if (f->isa<xir::KernelFunction>()) {
             _analyze_ray_tracing_in_function(f, visited);

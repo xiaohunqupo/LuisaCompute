@@ -23,8 +23,7 @@ static void luisa_check_llvm_type_size_and_alignment(
         type->print(os);
         return str;
     };
-    LUISA_ASSERT(llvm_size.getFixedValue() == expected_size &&
-                     llvm_align.value() <= expected_alignment,
+    LUISA_ASSERT(llvm_size.getFixedValue() == expected_size && llvm_align.value() <= expected_alignment,
                  "Type '{}' size or alignment mismatch: "
                  "expected size {}, alignment {}; "
                  "actual size {}, alignment {}.",
@@ -308,9 +307,11 @@ llvm::Type *CUDACodegenLLVMImpl::_get_llvm_accel_instance_type() noexcept {
                 llvm_padding_type// padding
             },
             false);
+        struct alignas(16) OptiXInstance : optix::Instance {};
+        static_assert(sizeof(OptiXInstance) == sizeof(optix::Instance));
         detail::luisa_check_llvm_type_size_and_alignment(
             *_data_layout, _llvm_accel_instance_type,
-            sizeof(optix::Instance), alignof(optix::Instance));
+            sizeof(OptiXInstance), alignof(OptiXInstance));
     }
     return _llvm_accel_instance_type;
 }

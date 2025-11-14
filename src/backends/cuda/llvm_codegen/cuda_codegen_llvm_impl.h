@@ -169,7 +169,7 @@ private:
     [[nodiscard]] luisa::string _generate_ptx() const noexcept;
 
     /* the following methods are defined in cuda_codegen_llvm_impl_analysis.cpp */
-    void _analyze_ray_tracing_usage(const xir::Module *module) noexcept;
+    void _analyze_ray_tracing_usage(const xir::Module &module) noexcept;
     void _analyze_ray_tracing_in_function(const xir::Function *f, llvm::DenseSet<const xir::Function *> &visited) noexcept;
 
     /* the following methods are defined in cuda_codegen_llvm_impl_type.cpp */
@@ -297,7 +297,14 @@ private:
     void _call_optix_trace(IB &b, uint32_t payload_type, uint32_t sbt_offset, uint32_t flags,
                            llvm::Value *accel, llvm::Value *ray, llvm::Value *time, llvm::Value *mask,
                            llvm::ArrayRef<llvm::Value *> registers) noexcept;
-    [[nodiscard]] llvm::Value *_get_optix_undef(IB &b) noexcept;
+    [[nodiscard]] llvm::Value *_call_optix_undef(IB &b) noexcept;
+    [[nodiscard]] llvm::Value *_call_optix_hit_object_is_hit(IB &b) noexcept;
+    [[nodiscard]] llvm::Value *_call_optix_hit_object_triangle_barycentric(IB &b) noexcept;
+    [[nodiscard]] llvm::Value *_call_optix_hit_object_curve_parameter(IB &b) noexcept;
+    [[nodiscard]] llvm::Value *_call_optix_hit_object_instance_index(IB &b) noexcept;
+    [[nodiscard]] llvm::Value *_call_optix_hit_object_primitive_index(IB &b) noexcept;
+    [[nodiscard]] llvm::Value *_call_optix_hit_object_ray_t_max(IB &b) noexcept;
+    [[nodiscard]] llvm::Value *_call_optix_hit_object_hit_kind(IB &b) noexcept;
 
     // ray query instructions: ray_query_loop, ray_query_dispatch, ray_query_object_read, ray_query_object_write, ray_query_pipeline, defined in cuda_codegen_llvm_impl_rtx.cpp
     void _translate_ray_query_loop_inst(IB &b, FunctionContext &func_ctx, const xir::RayQueryLoopInst *inst) noexcept;
