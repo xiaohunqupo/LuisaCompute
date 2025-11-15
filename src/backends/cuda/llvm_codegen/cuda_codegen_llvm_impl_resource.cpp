@@ -134,50 +134,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_resource_query_inst(IB &b, Function
             auto llvm_result_z = b.CreateExtractValue(llvm_result, 2);
             auto llvm_result_w = b.CreateExtractValue(llvm_result, 3);
             auto llvm_value = _create_llvm_vector(b, {llvm_result_x, llvm_result_y, llvm_result_z, llvm_result_w});
-            return b.CreateFPCast(llvm_value, _get_llvm_type(inst->type())->reg_type);
-        }
-        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SAMPLE: [[fallthrough]];
-        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SAMPLE_LEVEL: [[fallthrough]];
-        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SAMPLE_GRAD: [[fallthrough]];
-        case xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL: {
-            auto llvm_bindless_array = _get_llvm_value(b, func_ctx, inst->operand(0));
-            auto llvm_index = _get_llvm_value(b, func_ctx, inst->operand(1));
-            auto llvm_handle = _get_bindless_array_texture_handle(b, llvm_bindless_array, llvm_index, 3);
-            auto llvm_coord = _get_llvm_value(b, func_ctx, inst->operand(2));
-            auto llvm_coord_x = b.CreateExtractElement(llvm_coord, b.getInt64(0));
-            auto llvm_coord_y = b.CreateExtractElement(llvm_coord, b.getInt64(1));
-            auto llvm_coord_z = b.CreateExtractElement(llvm_coord, b.getInt64(2));
-            auto llvm_result = static_cast<llvm::Value *>(nullptr);
-            if (op == xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SAMPLE) {
-                llvm_result = b.CreateIntrinsic(llvm::Intrinsic::nvvm_tex_unified_3d_v4f32_f32,
-                                                {llvm_handle, llvm_coord_x, llvm_coord_y, llvm_coord_z});
-            } else if (op == xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SAMPLE_LEVEL) {
-                auto llvm_level = _get_llvm_value(b, func_ctx, inst->operand(3));
-                llvm_result = b.CreateIntrinsic(llvm::Intrinsic::nvvm_tex_unified_3d_level_v4f32_f32,
-                                                {llvm_handle, llvm_coord_x, llvm_coord_y, llvm_coord_z, llvm_level});
-            } else {
-                if (op == xir::ResourceQueryOp::BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL) {
-                    LUISA_WARNING_WITH_LOCATION("Level parameter in BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL is ignored in CUDA backend.");
-                }
-                auto llvm_ddx = _get_llvm_value(b, func_ctx, inst->operand(3));
-                auto llvm_ddy = _get_llvm_value(b, func_ctx, inst->operand(4));
-                auto llvm_ddx_x = b.CreateExtractElement(llvm_ddx, b.getInt64(0));
-                auto llvm_ddx_y = b.CreateExtractElement(llvm_ddx, b.getInt64(1));
-                auto llvm_ddx_z = b.CreateExtractElement(llvm_ddx, b.getInt64(2));
-                auto llvm_ddy_x = b.CreateExtractElement(llvm_ddy, b.getInt64(0));
-                auto llvm_ddy_y = b.CreateExtractElement(llvm_ddy, b.getInt64(1));
-                auto llvm_ddy_z = b.CreateExtractElement(llvm_ddy, b.getInt64(2));
-                llvm_result = b.CreateIntrinsic(llvm::Intrinsic::nvvm_tex_unified_3d_grad_v4f32_f32,
-                                                {llvm_handle, llvm_coord_x, llvm_coord_y, llvm_coord_z,
-                                                 llvm_ddx_x, llvm_ddx_y, llvm_ddx_z,
-                                                 llvm_ddy_x, llvm_ddy_y, llvm_ddy_z});
-            }
-            auto llvm_result_x = b.CreateExtractValue(llvm_result, 0);
-            auto llvm_result_y = b.CreateExtractValue(llvm_result, 1);
-            auto llvm_result_z = b.CreateExtractValue(llvm_result, 2);
-            auto llvm_result_w = b.CreateExtractValue(llvm_result, 3);
-            auto llvm_value = _create_llvm_vector(b, {llvm_result_x, llvm_result_y, llvm_result_z, llvm_result_w});
-            return b.CreateFPCast(llvm_value, _get_llvm_type(inst->type())->reg_type);
+            return _safe_fp_cast(b, llvm_value, _get_llvm_type(inst->type())->reg_type);
         }
         case xir::ResourceQueryOp::BINDLESS_TEXTURE2D_SAMPLE_SAMPLER: break;
         case xir::ResourceQueryOp::BINDLESS_TEXTURE2D_SAMPLE_LEVEL_SAMPLER: break;
@@ -377,20 +334,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_resource_read_inst(IB &b, FunctionC
             auto llvm_result = b.CreateIntrinsic(llvm::Intrinsic::nvvm_tex_unified_2d_v4f32_s32,
                                                  {llvm_handle, llvm_coord_x, llvm_coord_y});
             auto llvm_result_type = _get_llvm_type(inst->type())->reg_type;
-            return b.CreateFPCast(llvm_result, llvm_result_type);
-        }
-        case xir::ResourceReadOp::BINDLESS_TEXTURE3D_READ: {
-            auto llvm_bindless_array = _get_llvm_value(b, func_ctx, inst->operand(0));
-            auto llvm_index = _get_llvm_value(b, func_ctx, inst->operand(1));
-            auto llvm_handle = _get_bindless_array_texture_handle(b, llvm_bindless_array, llvm_index, 3);
-            auto llvm_coord = _get_llvm_value(b, func_ctx, inst->operand(2));
-            auto llvm_coord_x = b.CreateExtractElement(llvm_coord, b.getInt64(0));
-            auto llvm_coord_y = b.CreateExtractElement(llvm_coord, b.getInt64(1));
-            auto llvm_coord_z = b.CreateExtractElement(llvm_coord, b.getInt64(2));
-            auto llvm_result = b.CreateIntrinsic(llvm::Intrinsic::nvvm_tex_unified_3d_v4f32_s32,
-                                                 {llvm_handle, llvm_coord_x, llvm_coord_y, llvm_coord_z});
-            auto llvm_result_type = _get_llvm_type(inst->type())->reg_type;
-            return b.CreateFPCast(llvm_result, llvm_result_type);
+            return _safe_fp_cast(b, llvm_result, llvm_result_type);
         }
         case xir::ResourceReadOp::BINDLESS_TEXTURE2D_READ_LEVEL: {
             auto llvm_bindless_array = _get_llvm_value(b, func_ctx, inst->operand(0));
@@ -412,32 +356,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_resource_read_inst(IB &b, FunctionC
             auto llvm_result_z = b.CreateExtractValue(llvm_result, 2);
             auto llvm_result_w = b.CreateExtractValue(llvm_result, 3);
             auto llvm_value = _create_llvm_vector(b, {llvm_result_x, llvm_result_y, llvm_result_z, llvm_result_w});
-            return b.CreateFPCast(llvm_value, _get_llvm_type(inst->type())->reg_type);
-        }
-        case xir::ResourceReadOp::BINDLESS_TEXTURE3D_READ_LEVEL: {
-            auto llvm_bindless_array = _get_llvm_value(b, func_ctx, inst->operand(0));
-            auto llvm_index = _get_llvm_value(b, func_ctx, inst->operand(1));
-            auto llvm_handle = _get_bindless_array_texture_handle(b, llvm_bindless_array, llvm_index, 3);
-            auto llvm_coord = _get_llvm_value(b, func_ctx, inst->operand(2));
-            auto llvm_level = _get_llvm_value(b, func_ctx, inst->operand(3));
-            auto llvm_coord_x = b.CreateExtractElement(llvm_coord, b.getInt64(0));
-            auto llvm_coord_y = b.CreateExtractElement(llvm_coord, b.getInt64(1));
-            auto llvm_coord_z = b.CreateExtractElement(llvm_coord, b.getInt64(2));
-            auto llvm_asm = _get_inline_asm("tex.level.3d.v4.f32.s32 {$0, $1, $2, $3}, [$4, {$5, $6, $7, $8}], $9;",
-                                            "=f,=f,=f,=f,l,r,r,r,r,r", false);
-            auto llvm_i32_type = b.getInt32Ty();
-            auto llvm_result = b.CreateCall(llvm_asm, {llvm_handle,
-                                                       b.CreateZExtOrTrunc(llvm_coord_x, llvm_i32_type),
-                                                       b.CreateZExtOrTrunc(llvm_coord_y, llvm_i32_type),
-                                                       b.CreateZExtOrTrunc(llvm_coord_z, llvm_i32_type),
-                                                       b.getInt32(0),
-                                                       b.CreateZExtOrTrunc(llvm_level, llvm_i32_type)});
-            auto llvm_result_x = b.CreateExtractValue(llvm_result, 0);
-            auto llvm_result_y = b.CreateExtractValue(llvm_result, 1);
-            auto llvm_result_z = b.CreateExtractValue(llvm_result, 2);
-            auto llvm_result_w = b.CreateExtractValue(llvm_result, 3);
-            auto llvm_value = _create_llvm_vector(b, {llvm_result_x, llvm_result_y, llvm_result_z, llvm_result_w});
-            return b.CreateFPCast(llvm_value, _get_llvm_type(inst->type())->reg_type);
+            return _safe_fp_cast(b, llvm_value, _get_llvm_type(inst->type())->reg_type);
         }
         case xir::ResourceReadOp::DEVICE_ADDRESS_READ: {
             auto llvm_address = b.CreateZExt(_get_llvm_value(b, func_ctx, inst->operand(0)), b.getInt64Ty(), "", true);
@@ -797,7 +716,7 @@ void CUDACodegenLLVMImpl::_call_optix_trace(IB &b, uint32_t payload_type, uint32
     auto tmin = b.CreateExtractValue(ray, 1);
     auto tmax = b.CreateExtractValue(ray, 3);
     auto undef = _call_optix_undef(b);
-    time = b.CreateFPCast(time, b.getFloatTy());
+    time = _safe_fp_cast(b, time, b.getFloatTy());
     mask = b.CreateAnd(b.CreateZExtOrTrunc(mask, b.getInt32Ty()), 0xffu);
     auto llvm_asm = _get_inline_asm("{\n"// work around OptiX's trash implementation of ptx2llvm, which stupidly complains that b32 registers cannot be used as f32...
                                     "\t\t.reg .f32 luisa_ray_ox;\n"

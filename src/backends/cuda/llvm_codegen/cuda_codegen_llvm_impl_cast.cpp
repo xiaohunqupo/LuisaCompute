@@ -138,7 +138,24 @@ llvm::Value *CUDACodegenLLVMImpl::_static_cast_scalar_to_vector(IB &b, FunctionC
 
 namespace detail {
 
-[[nodiscard]] inline llvm::Value *cast_llvm_value_based_on_elem_types(CUDACodegenLLVMImpl::IB &b,
+[[nodiscard]] inline llvm::Value *safe_fp_cast_impl(CUDACodegenLLVMImpl::IB &b, bool uses_optix,
+                                                    llvm::Value *llvm_src, llvm::Type *dst_type,
+                                                    const llvm::Twine &name = "") noexcept {
+    if (uses_optix && dst_type->isVectorTy()) {// normal CUDA and scalars are safe
+        auto dst_vt = llvm::cast<llvm::VectorType>(dst_type);
+        auto dim = dst_vt->getElementCount().getFixedValue();
+        auto result = static_cast<llvm::Value *>(llvm::PoisonValue::get(dst_type));
+        for (auto i = 0; i < dim; i++) {
+            auto src_x = b.CreateExtractElement(llvm_src, i);
+            auto dst_x = b.CreateFPCast(src_x, dst_vt->getElementType());
+            result = b.CreateInsertElement(result, dst_x, i);
+        }
+        return result;
+    }
+    return b.CreateFPCast(llvm_src, dst_type);
+}
+
+[[nodiscard]] inline llvm::Value *cast_llvm_value_based_on_elem_types(CUDACodegenLLVMImpl::IB &b, bool uses_optix,
                                                                       llvm::Type *llvm_dst_type, llvm::Value *llvm_src,
                                                                       const Type *src_elem_type, const Type *dst_elem_type) noexcept {
     // other types to bool, implemented as src != 0
@@ -179,7 +196,7 @@ namespace detail {
     auto [dst_is_fp, dst_is_signed] = get_scalar_traits(dst_elem_type);
     // float to other types
     if (src_is_fp) {
-        return dst_is_fp     ? b.CreateFPCast(llvm_src, llvm_dst_type, llvm_src->getName().str() + ".fp.to.fp") :
+        return dst_is_fp     ? safe_fp_cast_impl(b, uses_optix, llvm_src, llvm_dst_type, llvm_src->getName().str() + ".fp.to.fp") :
                dst_is_signed ? b.CreateFPToSI(llvm_src, llvm_dst_type, llvm_src->getName().str() + ".fp.to.sint") :
                                b.CreateFPToUI(llvm_src, llvm_dst_type, llvm_src->getName().str() + ".fp.to.uint");
     }
@@ -197,7 +214,7 @@ namespace detail {
 llvm::Value *CUDACodegenLLVMImpl::_static_cast_scalar_to_scalar(IB &b, FunctionContext &func_ctx, llvm::Value *llvm_src, const Type *src_type, const Type *dst_type) noexcept {
     if (src_type == dst_type) { return llvm_src; }
     auto llvm_dst_type = _get_llvm_type(dst_type)->reg_type;
-    return detail::cast_llvm_value_based_on_elem_types(b, llvm_dst_type, llvm_src, src_type, dst_type);
+    return detail::cast_llvm_value_based_on_elem_types(b, _rt_analysis.uses_ray_tracing, llvm_dst_type, llvm_src, src_type, dst_type);
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_static_cast_vector_to_vector(IB &b, FunctionContext &func_ctx, llvm::Value *llvm_src, const Type *src_type, const Type *dst_type) noexcept {
@@ -206,7 +223,7 @@ llvm::Value *CUDACodegenLLVMImpl::_static_cast_vector_to_vector(IB &b, FunctionC
     auto src_elem_type = src_type->element();
     auto dst_elem_type = dst_type->element();
     auto llvm_dst_type = _get_llvm_type(dst_type)->reg_type;
-    return detail::cast_llvm_value_based_on_elem_types(b, llvm_dst_type, llvm_src, src_elem_type, dst_elem_type);
+    return detail::cast_llvm_value_based_on_elem_types(b, _rt_analysis.uses_ray_tracing, llvm_dst_type, llvm_src, src_elem_type, dst_elem_type);
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_texel_cast(IB &b, llvm::Value *llvm_src, llvm::Type *dst_type) noexcept {
@@ -216,7 +233,7 @@ llvm::Value *CUDACodegenLLVMImpl::_texel_cast(IB &b, llvm::Value *llvm_src, llvm
                        llvm::cast<llvm::VectorType>(dst_type)->getElementCount().getFixedValue() == 4);
     // float to float
     if (src_type->isFPOrFPVectorTy() && dst_type->isFPOrFPVectorTy()) {
-        return b.CreateFPCast(llvm_src, dst_type, llvm_src->getName().str() + ".texel.cast.fp.to.fp");
+        return _safe_fp_cast(b, llvm_src, dst_type, llvm_src->getName().str() + ".texel.cast.fp.to.fp");
     }
     // int to float, normalize the int into [0, 1]
     if (src_type->isIntOrIntVectorTy() && dst_type->isFPOrFPVectorTy()) {
@@ -239,6 +256,10 @@ llvm::Value *CUDACodegenLLVMImpl::_texel_cast(IB &b, llvm::Value *llvm_src, llvm
     // must be int to int
     LUISA_DEBUG_ASSERT(src_type->isIntOrIntVectorTy() && dst_type->isIntOrIntVectorTy());
     return b.CreateIntCast(llvm_src, dst_type, false, llvm_src->getName().str() + ".texel.cast.int.to.int");
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_safe_fp_cast(IB &b, llvm::Value *llvm_src, llvm::Type *dst_type, const llvm::Twine &name) const noexcept {
+    return detail::safe_fp_cast_impl(b, _rt_analysis.uses_ray_tracing, llvm_src, dst_type, name);
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_translate_cast_inst(IB &b, FunctionContext &func_ctx, const xir::CastInst *inst) noexcept {
