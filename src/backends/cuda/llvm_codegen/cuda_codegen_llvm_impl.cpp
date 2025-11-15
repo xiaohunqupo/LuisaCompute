@@ -230,10 +230,27 @@ void CUDACodegenLLVMImpl::_run_optimization_passes() noexcept {
     MPM.run(*_llvm_module, MAM);
 }
 
+namespace detail {
+
+// A stub PassManager to filter out the buggy "NVPTX Replace Image Handles" pass
+class NVPTXPassManagerStub : public llvm::legacy::PassManager {
+public:
+    void add(llvm::Pass *pass) override {
+        constexpr llvm::StringRef replace_image_handles_pass_name = "NVPTX Replace Image Handles";
+        if (pass->getPassName() == replace_image_handles_pass_name) {
+            LUISA_WARNING_WITH_LOCATION("Skipping buggy pass: {}", replace_image_handles_pass_name);
+        } else {
+            PassManager::add(pass);
+        }
+    }
+};
+
+}// namespace detail
+
 luisa::string CUDACodegenLLVMImpl::_generate_ptx() const noexcept {
     llvm::SmallVector<char, 256> ptx;
     llvm::raw_svector_ostream os{ptx};
-    llvm::legacy::PassManager pass_manager;
+    detail::NVPTXPassManagerStub pass_manager;
     if (_target_machine->addPassesToEmitFile(pass_manager, os, nullptr, llvm::CodeGenFileType::AssemblyFile)) {
         LUISA_ERROR_WITH_LOCATION("TargetMachine can't emit PTX.");
     }
