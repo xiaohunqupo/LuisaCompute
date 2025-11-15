@@ -701,9 +701,9 @@ llvm::Value *CUDACodegenLLVMImpl::_call_libdevice_unary_op(IB &b, llvm::StringRe
     auto op = detail::find_libdevice_function(*_llvm_module, op_name, llvm_scalar_t, _config.enable_fast_math);
     auto should_cast_to_float = !llvm_scalar_t->isFloatTy() && !llvm_scalar_t->isDoubleTy();
     auto call_scalar = [&](llvm::Value *llvm_elem) noexcept {
-        if (should_cast_to_float) { llvm_elem = b.CreateFPExt(llvm_elem, llvm::Type::getFloatTy(b.getContext())); }
+        if (should_cast_to_float) { llvm_elem = _safe_fp_cast(b, llvm_elem, llvm::Type::getFloatTy(b.getContext())); }
         auto llvm_res_elem = static_cast<llvm::Value *>(b.CreateCall(op, {llvm_elem}));
-        if (should_cast_to_float) { llvm_res_elem = b.CreateFPTrunc(llvm_res_elem, llvm_scalar_t); }
+        if (should_cast_to_float) { llvm_res_elem = _safe_fp_cast(b, llvm_res_elem, llvm_scalar_t); }
         return llvm_res_elem;
     };
     // if it's a vector, need to call per element
@@ -727,10 +727,10 @@ llvm::Value *CUDACodegenLLVMImpl::_call_libdevice_binary_op(IB &b, llvm::StringR
     auto lhs_should_cast_to_float = llvm_lhs_scalar_t->isFloatingPointTy() && !llvm_lhs_scalar_t->isFloatTy() && !llvm_lhs_scalar_t->isDoubleTy();
     auto rhs_should_cast_to_float = llvm_rhs_scalar_t->isFloatingPointTy() && !llvm_rhs_scalar_t->isFloatTy() && !llvm_rhs_scalar_t->isDoubleTy();
     auto call_scalar = [&](llvm::Value *llvm_lhs_elem, llvm::Value *llvm_rhs_elem) noexcept {
-        if (lhs_should_cast_to_float) { llvm_lhs_elem = b.CreateFPExt(llvm_lhs_elem, llvm::Type::getFloatTy(b.getContext())); }
-        if (rhs_should_cast_to_float) { llvm_rhs_elem = b.CreateFPExt(llvm_rhs_elem, llvm::Type::getFloatTy(b.getContext())); }
+        if (lhs_should_cast_to_float) { llvm_lhs_elem = _safe_fp_cast(b, llvm_lhs_elem, llvm::Type::getFloatTy(b.getContext())); }
+        if (rhs_should_cast_to_float) { llvm_rhs_elem = _safe_fp_cast(b, llvm_rhs_elem, llvm::Type::getFloatTy(b.getContext())); }
         auto llvm_res_elem = static_cast<llvm::Value *>(b.CreateCall(op, {llvm_lhs_elem, llvm_rhs_elem}));
-        if (lhs_should_cast_to_float) { llvm_res_elem = b.CreateFPTrunc(llvm_res_elem, llvm_lhs_scalar_t); }
+        if (lhs_should_cast_to_float) { llvm_res_elem = _safe_fp_cast(b, llvm_res_elem, llvm_lhs_scalar_t); }
         return llvm_res_elem;
     };
     // if it's a vector, need to call per element

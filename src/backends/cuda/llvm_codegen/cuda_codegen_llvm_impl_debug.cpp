@@ -51,7 +51,7 @@ void CUDACodegenLLVMImpl::_translate_print_inst(IB &b, FunctionContext &func_ctx
             case Type::Tag::FLOAT32: [[fallthrough]];
             case Type::Tag::FLOAT64: {// floating points: %f
                 printf_format.append("%f");
-                llvm_args.emplace_back(b.CreateFPExt(llvm_value, b.getDoubleTy()));
+                llvm_args.emplace_back(_safe_fp_cast(b, llvm_value, b.getDoubleTy()));
                 break;
             }
             case Type::Tag::VECTOR: {

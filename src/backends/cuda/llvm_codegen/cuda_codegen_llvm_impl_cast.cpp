@@ -138,21 +138,48 @@ llvm::Value *CUDACodegenLLVMImpl::_static_cast_scalar_to_vector(IB &b, FunctionC
 
 namespace detail {
 
+// OptiX's ptx2llvm module has bugs when casting half vectors, we need to do it element by element
 [[nodiscard]] inline llvm::Value *safe_fp_cast_impl(CUDACodegenLLVMImpl::IB &b, bool uses_optix,
                                                     llvm::Value *llvm_src, llvm::Type *dst_type,
                                                     const llvm::Twine &name = "") noexcept {
-    if (uses_optix && dst_type->isVectorTy()) {// normal CUDA and scalars are safe
-        auto dst_vt = llvm::cast<llvm::VectorType>(dst_type);
-        auto dim = dst_vt->getElementCount().getFixedValue();
+    auto src_type = llvm_src->getType();
+    if (src_type == dst_type) { return llvm_src; }
+    if (!uses_optix || (!src_type->getScalarType()->isHalfTy() && !dst_type->getScalarType()->isHalfTy())) {
+        return b.CreateFPCast(llvm_src, dst_type);
+    }
+    auto inline_asm = [&] {
+        auto src_scalar_t = src_type->getScalarType();
+        auto dst_scalar_t = dst_type->getScalarType();
+        auto get_ptx_type_and_reg = [](llvm::Type *t) noexcept -> std::pair<const char *, const char *> {
+            if (t->isHalfTy()) { return {"f16", "h"}; }
+            if (t->isFloatTy()) { return {"f32", "f"}; }
+            if (t->isDoubleTy()) { return {"f64", "d"}; }
+            LUISA_ERROR_WITH_LOCATION("Invalid floating-point type for safe_fp_cast_impl.");
+        };
+        auto [src_ptx_type, src_asm_reg] = get_ptx_type_and_reg(src_scalar_t);
+        auto [dst_ptx_type, dst_asm_reg] = get_ptx_type_and_reg(dst_scalar_t);
+        auto ptx = src_scalar_t->isHalfTy() ? luisa::format("cvt.{}.{} $0, $1;", dst_ptx_type, src_ptx_type) :
+                                              luisa::format("cvt.rn.{}.{} $0, $1;", dst_ptx_type, src_ptx_type);
+        auto constraints = luisa::format("={},{}", dst_asm_reg, src_asm_reg);
+        auto asm_type = llvm::FunctionType::get(dst_scalar_t, {src_scalar_t}, false);
+        return llvm::InlineAsm::get(asm_type, std::string_view{ptx}, std::string_view{constraints}, false);
+    }();
+    if (dst_type->isVectorTy()) {
+        auto dim = llvm::cast<llvm::VectorType>(dst_type)->getElementCount().getFixedValue();
+        LUISA_DEBUG_ASSERT(src_type->isVectorTy() &&
+                           llvm::cast<llvm::VectorType>(src_type)->getElementCount().getFixedValue() == dim);
         auto result = static_cast<llvm::Value *>(llvm::PoisonValue::get(dst_type));
         for (auto i = 0; i < dim; i++) {
-            auto src_x = b.CreateExtractElement(llvm_src, i);
-            auto dst_x = b.CreateFPCast(src_x, dst_vt->getElementType());
-            result = b.CreateInsertElement(result, dst_x, i);
+            auto llvm_elem = b.CreateExtractElement(llvm_src, i);
+            auto llvm_casted_elem = b.CreateCall(inline_asm, llvm_elem);
+            result = b.CreateInsertElement(result, llvm_casted_elem, i);
         }
+        result->setName(name);
         return result;
     }
-    return b.CreateFPCast(llvm_src, dst_type);
+    auto result = b.CreateCall(inline_asm, llvm_src);
+    result->setName(name);
+    return result;
 }
 
 [[nodiscard]] inline llvm::Value *cast_llvm_value_based_on_elem_types(CUDACodegenLLVMImpl::IB &b, bool uses_optix,

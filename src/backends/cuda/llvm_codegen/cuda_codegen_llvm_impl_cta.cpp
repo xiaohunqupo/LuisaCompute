@@ -325,7 +325,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_thread_group_inst(IB &b, FunctionCo
                 llvm_value_type->getScalarType()->getPrimitiveSizeInBits() <= 32) {
                 auto reduce_scalar = [&](llvm::Value *v) noexcept -> llvm::Value * {
                     auto scalar_t = v->getType();
-                    v = b.CreateFPExt(v, b.getFloatTy());
+                    v = _safe_fp_cast(b, v, b.getFloatTy());
                     if (op == xir::ThreadGroupOp::WARP_ACTIVE_MAX) {
                         v = b.CreateIntrinsic(b.getFloatTy(), llvm::Intrinsic::nvvm_redux_sync_fmax, {v, llvm_active_mask});
                     } else if (op == xir::ThreadGroupOp::WARP_ACTIVE_MIN) {
@@ -333,7 +333,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_thread_group_inst(IB &b, FunctionCo
                     } else {
                         LUISA_ERROR_WITH_LOCATION("Invalid floating-point warp reduction op.");
                     }
-                    return b.CreateFPTrunc(v, scalar_t);
+                    return _safe_fp_cast(b, v, scalar_t);
                 };
                 if (auto vt = llvm::dyn_cast<llvm::VectorType>(llvm_value_type)) {
                     llvm::SmallVector<llvm::Value *, 4> llvm_reduced_elems;
