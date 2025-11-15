@@ -1259,6 +1259,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                     arg_buffer_info,
                     nullptr});
             }
+            offset_ptr++;
             visitor.desc_index = desc_index;
             visitor.img_views = &_state->img_views;
             auto size = shader->saved_arguments().size();
@@ -1593,7 +1594,6 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                                 }
                             });
                     }
-                    offset_ptr++;
                 } break;
                 case Command::Tag::ETextureUploadCommand: {
                     auto c = static_cast<TextureUploadCommand const *>(cmd);
