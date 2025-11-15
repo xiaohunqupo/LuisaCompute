@@ -80,7 +80,7 @@ CUDAShaderOptiX::CUDAShaderOptiX(optix::DeviceContext optix_ctx, luisa::vector<s
         }
         _argument_buffer_size = luisa::align(_argument_buffer_size, 16u);
     }
-    if (metadata.requires_printing) {
+    if (printer()) {
         _argument_buffer_size += sizeof(CUDAShaderPrinter::Binding);
         _argument_buffer_size = luisa::align(_argument_buffer_size, 16u);
     }
@@ -411,7 +411,7 @@ void CUDAShaderOptiX::_launch(CUDACommandEncoder &encoder, ShaderDispatchCommand
         // dispatch size and kernel id
         auto ptr = allocate_argument(sizeof(uint4));
         if (!command->is_indirect()) {
-            auto ds_and_kid = make_uint4(0u);
+            auto ds_and_kid = make_uint4(command->dispatch_size(), 0u);
             std::memcpy(ptr, &ds_and_kid, sizeof(ds_and_kid));
         }
         auto cuda_stream = encoder.stream()->handle();

@@ -123,14 +123,21 @@ llvm::Function *CUDACodegenLLVMImpl::_translate_kernel_function(const xir::Kerne
     }
     // load dispatch_size_and_kernel_id
     auto llvm_dispatch_size_and_kernel_id = b.CreateExtractValue(llvm_arg_struct, arg_struct_info->dispatch_size_and_kernel_id_index);
-    auto llvm_dispatch_size_x = b.CreateExtractValue(llvm_dispatch_size_and_kernel_id, 0);
-    b.CreateAssumption(b.CreateICmpUGT(llvm_dispatch_size_x, b.getInt32(0)));
-    auto llvm_dispatch_size_y = b.CreateExtractValue(llvm_dispatch_size_and_kernel_id, 1);
-    b.CreateAssumption(b.CreateICmpUGT(llvm_dispatch_size_y, b.getInt32(0)));
-    auto llvm_dispatch_size_z = b.CreateExtractValue(llvm_dispatch_size_and_kernel_id, 2);
-    b.CreateAssumption(b.CreateICmpUGT(llvm_dispatch_size_z, b.getInt32(0)));
-    func_ctx.llvm_dispatch_size = _create_llvm_vector(b, {llvm_dispatch_size_x, llvm_dispatch_size_y, llvm_dispatch_size_z});
-    func_ctx.llvm_dispatch_size->setName("sreg.dispatch.size");
+    if (_rt_analysis.uses_ray_tracing) {// for OptiX kernels, we can use the built-in dispatch size
+        auto llvm_dispatch_size_x = b.CreateCall(_get_inline_asm("call ($0), _optix_get_launch_dimension_x, ();", "=r", false), {});
+        auto llvm_dispatch_size_y = b.CreateCall(_get_inline_asm("call ($0), _optix_get_launch_dimension_y, ();", "=r", false), {});
+        auto llvm_dispatch_size_z = b.CreateCall(_get_inline_asm("call ($0), _optix_get_launch_dimension_z, ();", "=r", false), {});
+        func_ctx.llvm_dispatch_size = _create_llvm_vector(b, {llvm_dispatch_size_x, llvm_dispatch_size_y, llvm_dispatch_size_z});
+    } else {// for normal kernels, we read the dispatch size from arguments
+        auto llvm_dispatch_size_x = b.CreateExtractValue(llvm_dispatch_size_and_kernel_id, 0);
+        b.CreateAssumption(b.CreateICmpUGT(llvm_dispatch_size_x, b.getInt32(0)));
+        auto llvm_dispatch_size_y = b.CreateExtractValue(llvm_dispatch_size_and_kernel_id, 1);
+        b.CreateAssumption(b.CreateICmpUGT(llvm_dispatch_size_y, b.getInt32(0)));
+        auto llvm_dispatch_size_z = b.CreateExtractValue(llvm_dispatch_size_and_kernel_id, 2);
+        b.CreateAssumption(b.CreateICmpUGT(llvm_dispatch_size_z, b.getInt32(0)));
+        func_ctx.llvm_dispatch_size = _create_llvm_vector(b, {llvm_dispatch_size_x, llvm_dispatch_size_y, llvm_dispatch_size_z});
+        func_ctx.llvm_dispatch_size->setName("sreg.dispatch.size");
+    }
     func_ctx.llvm_kernel_id = b.CreateExtractValue(llvm_dispatch_size_and_kernel_id, 3, "sreg.kernel.id");
     // translate body
     auto llvm_body = _translate_function_definition(func_ctx, func);
