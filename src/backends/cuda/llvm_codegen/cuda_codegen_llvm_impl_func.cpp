@@ -114,7 +114,7 @@ llvm::Function *CUDACodegenLLVMImpl::_translate_kernel_function(const xir::Kerne
         if (arg_index < _config.bindings.size() && arg->is_resource() && arg->type()->is_texture()) {
             if (auto binding = std::get_if<Function::TextureBinding>(&_config.bindings[arg_index])) {
                 auto storage = reinterpret_cast<CUDATexture *>(binding->handle)->storage();
-                auto llvm_storage = b.CreateExtractValue(llvm_member_reg, 1);
+                auto llvm_storage = b.CreateExtractValue(llvm_member_reg, llvm_texture_type_storage_index);
                 auto llvm_same_storage = b.CreateICmpEQ(llvm_storage, b.getInt64(luisa::to_underlying(storage)));
                 b.CreateAssumption(llvm_same_storage);
             }
