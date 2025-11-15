@@ -312,6 +312,7 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
         use_lmdb = configs->use_lmdb;
         device_idx = configs->device_index;
         _binary_io = configs->binary_io;
+        inqueue_limit = configs->inqueue_buffer_limit;
     }
     VkPhysicalDevice ext_phy_device{};
     VkDevice ext_device{};
