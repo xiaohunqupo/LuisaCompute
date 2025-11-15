@@ -306,6 +306,7 @@ private:
     [[nodiscard]] llvm::Value *_call_optix_hit_object_primitive_index(IB &b) noexcept;
     [[nodiscard]] llvm::Value *_call_optix_hit_object_ray_t_max(IB &b) noexcept;
     [[nodiscard]] llvm::Value *_call_optix_hit_object_hit_kind(IB &b) noexcept;
+    void _call_optix_hit_object_reset(IB &b) noexcept;
 
     // ray query instructions: ray_query_loop, ray_query_dispatch, ray_query_object_read, ray_query_object_write, ray_query_pipeline, defined in cuda_codegen_llvm_impl_rtx.cpp
     void _translate_ray_query_loop_inst(IB &b, FunctionContext &func_ctx, const xir::RayQueryLoopInst *inst) noexcept;

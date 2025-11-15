@@ -152,6 +152,8 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_thread_group_inst(IB &b, FunctionCo
         case xir::ThreadGroupOp::SHADER_EXECUTION_REORDER: {
             // no-op in CUDA, while asm sideeffect "call (), _optix_hitobject_reorder, ($0,$1);", "r,r"(i32 %3, i32 %4) in ray tracing shaders
             if (_rt_analysis.uses_ray_tracing) {
+                // we observe almost constant slowdown with SER, so warn our users...
+                LUISA_WARNING_WITH_LOCATION("Shader execution reordering (SER) is on. This might actually slow down your rendering...");
                 auto llvm_asm = _get_inline_asm("call (), _optix_hitobject_reorder, ($0,$1);", "r,r", true);
                 auto arg_count = inst->operand_count();
                 auto llvm_hint = arg_count >= 1 ? _get_llvm_value(b, func_ctx, inst->operand(0)) : b.getInt32(0);

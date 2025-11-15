@@ -688,6 +688,7 @@ llvm::Value *CUDACodegenLLVMImpl::_accel_trace_closest(IB &b, uint32_t flags, ll
         bary = b.CreateSelect(is_triangle, bary, curve_param);
     }
     auto t = _call_optix_hit_object_ray_t_max(b);
+    _call_optix_hit_object_reset(b);
     auto result_type = _get_llvm_type(Type::of<SurfaceHit>())->reg_type;
     auto result = static_cast<llvm::Value *>(llvm::PoisonValue::get(result_type));
     result = b.CreateInsertValue(result, inst_id, 0);
@@ -699,7 +700,9 @@ llvm::Value *CUDACodegenLLVMImpl::_accel_trace_closest(IB &b, uint32_t flags, ll
 
 llvm::Value *CUDACodegenLLVMImpl::_accel_trace_any(IB &b, uint32_t flags, llvm::Value *accel, llvm::Value *ray, llvm::Value *time, llvm::Value *mask) noexcept {
     _call_optix_trace(b, optix::PAYLOAD_TYPE_ID_0, 0u, flags, accel, ray, time, mask, {});
-    return _call_optix_hit_object_is_hit(b);
+    auto is_hit = _call_optix_hit_object_is_hit(b);
+    _call_optix_hit_object_reset(b);
+    return is_hit;
 }
 
 void CUDACodegenLLVMImpl::_call_optix_trace(IB &b, uint32_t payload_type, uint32_t sbt_offset, uint32_t flags,
@@ -773,6 +776,11 @@ void CUDACodegenLLVMImpl::_call_optix_trace(IB &b, uint32_t payload_type, uint32
 llvm::Value *CUDACodegenLLVMImpl::_call_optix_undef(IB &b) noexcept {
     auto llvm_asm = _get_inline_asm("call ($0), _optix_undef_value, ();", "=r", false);
     return b.CreateCall(llvm_asm, {});
+}
+
+void CUDACodegenLLVMImpl::_call_optix_hit_object_reset(IB &b) noexcept {
+    auto llvm_asm = _get_inline_asm("call (), _optix_hitobject_make_nop, ();", "", true);
+    b.CreateCall(llvm_asm, {});
 }
 
 llvm::Value *CUDACodegenLLVMImpl::_call_optix_hit_object_is_hit(IB &b) noexcept {
