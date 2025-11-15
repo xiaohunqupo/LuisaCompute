@@ -56,9 +56,9 @@ llvm::Value *CUDACodegenLLVMImpl::_read_thread_id(IB &b, const FunctionContext &
         auto llvm_tid = b.CreateURem(llvm_dispatch_id, llvm_block_size, "sreg.thread.id");
         return llvm_tid;
     }
-    auto call = [&, llvm_i32_type = b.getInt32Ty()](auto axis) noexcept -> llvm::Value * {
+    auto call = [&, llvm_i32_type = b.getInt32Ty()](uint32_t axis) noexcept -> llvm::Value * {
         // an axis must be 0 if the block size on that axis is 1
-        if (_config.block_size[axis] == 1u) { return b.getInt32(0); }
+        if (_config.block_size[axis] <= 1u) { return b.getInt32(0); }
         // otherwise, read the thread id from special register
         constexpr std::array intrinsics = {
             llvm::Intrinsic::nvvm_read_ptx_sreg_tid_x,
