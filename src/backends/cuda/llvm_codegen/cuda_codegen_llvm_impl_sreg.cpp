@@ -86,14 +86,16 @@ llvm::Value *CUDACodegenLLVMImpl::_read_dispatch_size(IB &, const FunctionContex
 llvm::Value *CUDACodegenLLVMImpl::_read_dispatch_id(IB &b, const FunctionContext &func_ctx) noexcept {
     if (_rt_analysis.uses_ray_tracing) {
         // asm("call (%0), _optix_get_launch_index_$axis, ();" : "=r"(out) : );
-        auto call = [this, &b](auto axis) noexcept {
-            auto llvm_asm_str = luisa::format("call ($0), _optix_get_launch_index_{}, ();", axis);
+        auto call = [this, &b](uint32_t axis) noexcept -> llvm::Value * {
+            if (_config.block_size[axis] <= 1u) { b.getInt32(0); }
+            constexpr std::array axis_names = {"x", "y", "z"};
+            auto llvm_asm_str = luisa::format("call ($0), _optix_get_launch_index_{}, ();", axis_names[axis]);
             auto llvm_asm = _get_inline_asm(llvm_asm_str, "=r", false);
-            return b.CreateCall(llvm_asm, {}, std::string{"sreg.dispatch.id."}.append(axis));
+            return b.CreateCall(llvm_asm, {}, std::string{"sreg.dispatch.id."}.append(axis_names[axis]));
         };
-        auto llvm_did_x = call("x");
-        auto llvm_did_y = call("y");
-        auto llvm_did_z = call("z");
+        auto llvm_did_x = call(0);
+        auto llvm_did_y = call(1);
+        auto llvm_did_z = call(2);
         auto llvm_dispatch_id = _create_llvm_vector(b, {llvm_did_x, llvm_did_y, llvm_did_z});
         return llvm_dispatch_id;
     }

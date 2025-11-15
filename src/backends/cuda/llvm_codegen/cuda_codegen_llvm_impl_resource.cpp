@@ -681,8 +681,8 @@ llvm::Value *CUDACodegenLLVMImpl::_accel_trace_closest(IB &b, uint32_t flags, ll
     auto bary = _call_optix_hit_object_triangle_barycentric(b);
     if (_rt_analysis.curve_basis_set.any()) {// might be a curve
         auto hit_kind = _call_optix_hit_object_hit_kind(b);
-        auto is_triangle_front = b.CreateICmpNE(hit_kind, b.getInt32(optix::HIT_KIND_TRIANGLE_FRONT_FACE));
-        auto is_triangle_back = b.CreateICmpNE(hit_kind, b.getInt32(optix::HIT_KIND_TRIANGLE_BACK_FACE));
+        auto is_triangle_front = b.CreateICmpEQ(hit_kind, b.getInt32(optix::HIT_KIND_TRIANGLE_FRONT_FACE));
+        auto is_triangle_back = b.CreateICmpEQ(hit_kind, b.getInt32(optix::HIT_KIND_TRIANGLE_BACK_FACE));
         auto is_triangle = b.CreateOr(is_triangle_front, is_triangle_back);
         auto curve_param = b.CreateInsertElement(bary, llvm::ConstantFP::get(b.getFloatTy(), -1.), b.getInt64(1));
         bary = b.CreateSelect(is_triangle, bary, curve_param);
