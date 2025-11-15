@@ -233,11 +233,11 @@ void CUDACodegenLLVMImpl::_run_optimization_passes() noexcept {
 luisa::string CUDACodegenLLVMImpl::_generate_ptx() const noexcept {
     llvm::SmallVector<char, 256> ptx;
     llvm::raw_svector_ostream os{ptx};
-    llvm::legacy::PassManager passManager;
-    if (_target_machine->addPassesToEmitFile(passManager, os, nullptr, llvm::CodeGenFileType::AssemblyFile)) {
+    llvm::legacy::PassManager pass_manager;
+    if (_target_machine->addPassesToEmitFile(pass_manager, os, nullptr, llvm::CodeGenFileType::AssemblyFile)) {
         LUISA_ERROR_WITH_LOCATION("TargetMachine can't emit PTX.");
     }
-    passManager.run(*_llvm_module);
+    pass_manager.run(*_llvm_module);
     return {ptx.begin(), ptx.end()};
 }
 
