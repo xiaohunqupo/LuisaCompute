@@ -64,6 +64,7 @@ add_rules("lc_compile_codegen", {
     remove_slash_r = true,
     var_name_prefix = "luisa_compute_"
 })
+add_rules('lc_llvm')
 add_files("cuda_builtin.lua")
 set_pcxxheader("lc_cuda_pch.h")
 add_headerfiles("*.h")
@@ -87,6 +88,10 @@ on_load(function(target)
         if not exclude_files[file_name] then
             target:add("files", filepath)
         end
+    end
+    if has_config('lc_llvm_path') then
+        target:add("defines", 'LUISA_ENABLE_XIR')
+        target:add("files", path.join(os.scriptdir(), 'llvm_codegen/*.cpp'))
     end
     target:add("defines", "LUISA_BACKEND_ENABLE_VULKAN_SWAPCHAIN")
     target:add("deps", "lc-vulkan-swapchain", "lc-volk")

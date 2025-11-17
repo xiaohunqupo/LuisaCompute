@@ -84,7 +84,7 @@ before_check(function(option)
     local lc_llvm_path = option:dep("lc_llvm_path")
     local lc_embree_path = option:dep("lc_embree_path")
     local lc_enable_xir = option:dep("lc_enable_xir")
-    if lc_fallback_backend:enabled() then
+    if lc_fallback_backend:enabled() or lc_llvm_path:enabled() then
         lc_enable_xir:enable(true, {
             force = true
         })
@@ -475,6 +475,62 @@ on_build_files(function(target, jobgraph, sourcebatch, opt)
 end, {
     jobgraph = true
 })
+rule_end()
+
+rule('lc_llvm')
+on_load(function(target, opt)
+    local libs = {}
+    local lc_llvm_path = get_config("lc_llvm_path")
+    if not lc_llvm_path then
+        return
+    end
+    target:add("linkdirs", path.join(lc_llvm_path, "lib"))
+    target:add("includedirs", path.join(lc_llvm_path, "include"))
+    for __, filepath in ipairs(os.files(path.join(lc_llvm_path, "lib/*.lib"))) do
+        local basename = path.basename(filepath)
+        if basename:match("LLVM") ~= nil and basename ~= "LLVM-C" then
+            table.insert(libs, basename)
+        end
+    end
+    target:add("links", libs)
+    if is_plat("windows") then
+        target:add("syslinks", "Version", "advapi32", "Shcore", "user32", "shell32", "Ole32", 'Ws2_32', 'ntdll')
+    elseif is_plat("linux") then
+        target:add("syslinks", "uuid")
+    elseif is_plat("macosx") then
+        target:add("frameworks", "CoreFoundation")
+    end
+end)
+after_build(function(target)
+    import("async.jobgraph")
+    import("async.runjobs")
+    if not is_plat("windows") then
+        return
+    end
+    local lc_llvm_path = get_config("lc_llvm_path")
+    if not lc_llvm_path then
+        return
+    end
+    local function copy(src_path, dst_path)
+        os.cp(src_path, dst_path, {
+            copy_if_different = true
+        })
+    end
+    local dst_path = target:targetdir()
+    local jobs = jobgraph.new()
+    for __, filepath in ipairs(os.files(path.join(lc_llvm_path, "bin/*.dll"))) do
+        jobs.add(filepath, function()
+            copy(filepath, path.join(dst_path, path.filename(filepath)))
+        end)
+    end
+    runjobs("copy_llvm_job", jobs, {
+        comax = 1000,
+        timeout = -1,
+        timer = function(running_jobs_indices)
+            utils.error("timeout.")
+        end
+    })
+end)
 rule_end()
 
 rule("lc_run_target")
