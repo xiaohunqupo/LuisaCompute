@@ -343,7 +343,7 @@ template<size_t N>
 
 template<size_t N>
 [[nodiscard]] constexpr auto normalize(Vector<double, N> u) noexcept {
-    return u * (1.0f / length(u));
+    return u * (1.0 / length(u));
 }
 
 template<size_t N>
@@ -523,7 +523,7 @@ template<size_t N>
 
 
 [[nodiscard]] constexpr auto inverse(const double2x2 m) noexcept {
-    const auto one_over_determinant = 1.0f / (m[0][0] * m[1][1] - m[1][0] * m[0][1]);
+    const auto one_over_determinant = 1.0 / (m[0][0] * m[1][1] - m[1][0] * m[0][1]);
     return make_double2x2(m[1][1] * one_over_determinant,
                          -m[0][1] * one_over_determinant,
                          -m[1][0] * one_over_determinant,
@@ -531,7 +531,7 @@ template<size_t N>
 }
 
 [[nodiscard]] constexpr auto inverse(const double3x3 m) noexcept {// from GLM
-    const auto one_over_determinant = 1.0f /
+    const auto one_over_determinant = 1.0 /
                                       (m[0].x * (m[1].y * m[2].z - m[2].y * m[1].z) +
                                        m[1].x * (m[2].y * m[0].z - m[0].y * m[2].z) +
                                        m[2].x * (m[0].y * m[1].z - m[1].y * m[0].z));
@@ -580,15 +580,15 @@ template<size_t N>
     const auto inv1 = Vec0 * fac0 - Vec2 * fac3 + Vec3 * fac4;
     const auto inv2 = Vec0 * fac1 - Vec1 * fac3 + Vec3 * fac5;
     const auto inv3 = Vec0 * fac2 - Vec1 * fac4 + Vec2 * fac5;
-    constexpr auto sign_a = double4{+1.0f, -1.0f, +1.0f, -1.0f};
-    constexpr auto sign_b = double4{-1.0f, +1.0f, -1.0f, +1.0f};
+    constexpr auto sign_a = double4{+1.0, -1.0, +1.0, -1.0};
+    constexpr auto sign_b = double4{-1.0, +1.0, -1.0, +1.0};
     const auto inv_0 = inv0 * sign_a;
     const auto inv_1 = inv1 * sign_b;
     const auto inv_2 = inv2 * sign_a;
     const auto inv_3 = inv3 * sign_b;
     const auto dot0 = m[0] * double4{inv_0.x, inv_1.x, inv_2.x, inv_3.x};
     const auto dot1 = dot0.x + dot0.y + dot0.z + dot0.w;
-    const auto one_over_determinant = 1.0f / dot1;
+    const auto one_over_determinant = 1.0 / dot1;
     return double4x4{inv_0 * one_over_determinant,
                     inv_1 * one_over_determinant,
                     inv_2 * one_over_determinant,
@@ -638,8 +638,8 @@ template<size_t N>
     const auto inv1 = Vec0 * fac0 - Vec2 * fac3 + Vec3 * fac4;
     const auto inv2 = Vec0 * fac1 - Vec1 * fac3 + Vec3 * fac5;
     const auto inv3 = Vec0 * fac2 - Vec1 * fac4 + Vec2 * fac5;
-    constexpr auto sign_a = double4{+1.0f, -1.0f, +1.0f, -1.0f};
-    constexpr auto sign_b = double4{-1.0f, +1.0f, -1.0f, +1.0f};
+    constexpr auto sign_a = double4{+1.0, -1.0, +1.0, -1.0};
+    constexpr auto sign_b = double4{-1.0, +1.0, -1.0, +1.0};
     const auto inv_0 = inv0 * sign_a;
     const auto inv_1 = inv1 * sign_b;
     const auto inv_2 = inv2 * sign_a;
@@ -710,10 +710,10 @@ template<size_t N>
 
 [[nodiscard]] constexpr auto translation(const double3 v) noexcept {
     return make_double4x4(
-        1.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 1.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 1.0f, 0.0f,
-        v.x, v.y, v.z, 1.0f);
+        1.0, 0.0, 0.0, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        v.x, v.y, v.z, 1.0);
 }
 
 [[nodiscard]] constexpr auto translation(double x, double y, double z) noexcept {
@@ -722,16 +722,16 @@ template<size_t N>
 
 
 [[nodiscard]] inline auto rotation(const double3 axis, double angle) noexcept {
-    if (angle == 0.0f) { return make_double4x4(1.0f); }
+    if (angle == 0.0) { return make_double4x4(1.0); }
     auto c = cos(angle);
     auto s = sin(angle);
     auto a = normalize(axis);
-    auto t = (1.0f - c) * a;
+    auto t = (1.0 - c) * a;
     return make_double4x4(
-        c + t.x * a.x, t.x * a.y + s * a.z, t.x * a.z - s * a.y, 0.0f,
-        t.y * a.x - s * a.z, c + t.y * a.y, t.y * a.z + s * a.x, 0.0f,
-        t.z * a.x + s * a.y, t.z * a.y - s * a.x, c + t.z * a.z, 0.0f,
-        0.0f, 0.0f, 0.0f, 1.0f);
+        c + t.x * a.x, t.x * a.y + s * a.z, t.x * a.z - s * a.y, 0.0,
+        t.y * a.x - s * a.z, c + t.y * a.y, t.y * a.z + s * a.x, 0.0,
+        t.z * a.x + s * a.y, t.z * a.y - s * a.x, c + t.z * a.z, 0.0,
+        0.0, 0.0, 0.0, 1.0);
 }
 
 [[nodiscard]] inline auto rotation(double ax, double ay, double az, double angle) noexcept {
@@ -740,10 +740,10 @@ template<size_t N>
 
 [[nodiscard]] constexpr auto scaling(const double3 s) noexcept {
     return make_double4x4(
-        s.x, 0.0f, 0.0f, 0.0f,
-        0.0f, s.y, 0.0f, 0.0f,
-        0.0f, 0.0f, s.z, 0.0f,
-        0.0f, 0.0f, 0.0f, 1.0f);
+        s.x, 0.0, 0.0, 0.0,
+        0.0, s.y, 0.0, 0.0,
+        0.0, 0.0, s.z, 0.0,
+        0.0, 0.0, 0.0, 1.0);
 }
 
 [[nodiscard]] constexpr auto scaling(double x, double y, double z) noexcept {
@@ -754,7 +754,7 @@ template<size_t N>
     return scaling(make_double3(s));
 }
 
-[[nodiscard]] constexpr auto sign(double x) noexcept { return x < 0.f ? -1.f : 1.f; }
+[[nodiscard]] constexpr auto sign(double x) noexcept { return x < 0. ? -1. : 1.; }
 
 [[nodiscard]] constexpr auto sign(double2 v) noexcept {
     return make_double2(sign(v.x), sign(v.y));
