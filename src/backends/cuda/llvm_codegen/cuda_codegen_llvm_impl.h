@@ -214,11 +214,11 @@ private:
     [[nodiscard]] llvm::Value *_read_thread_id(IB &b, const FunctionContext &func_ctx) noexcept;
     [[nodiscard]] llvm::Value *_read_dispatch_size(IB &b, const FunctionContext &func_ctx) noexcept;
     [[nodiscard]] llvm::Value *_read_dispatch_id(IB &b, const FunctionContext &func_ctx) noexcept;
-    [[nodiscard]] llvm::Value *_read_warp_size(IB &b, const FunctionContext &func_ctx) noexcept;
-    [[nodiscard]] llvm::Value *_read_warp_lane_id(IB &b, const FunctionContext &func_ctx) noexcept;
-    [[nodiscard]] llvm::Value *_read_kernel_id(IB &b, const FunctionContext &func_ctx) noexcept;
-    [[nodiscard]] llvm::Value *_read_warp_active_lane_mask(IB &b) noexcept;
-    [[nodiscard]] llvm::Value *_read_warp_prefix_lane_mask(IB &b) noexcept;
+    [[nodiscard]] llvm::Value *_read_warp_size(IB &b, const FunctionContext &func_ctx) const noexcept;
+    [[nodiscard]] llvm::Value *_read_warp_lane_id(IB &b, const FunctionContext &func_ctx) const noexcept;
+    [[nodiscard]] static llvm::Value *_read_kernel_id(IB &b, const FunctionContext &func_ctx) noexcept;
+    [[nodiscard]] llvm::Value *_read_warp_active_lane_mask(IB &b) const noexcept;
+    [[nodiscard]] llvm::Value *_read_warp_prefix_lane_mask(IB &b) const noexcept;
 
     /* the following methods are defined in cuda_codegen_llvm_impl_cast.cpp */
     [[nodiscard]] llvm::Value *_convert_llvm_reg_value_to_mem(IB &b, llvm::Value *reg_v, const Type *type) noexcept;
@@ -236,17 +236,17 @@ private:
     void _translate_instruction(IB &b, FunctionContext &func_ctx, const xir::Instruction *inst) noexcept;
 
     // control flow instructions: if, switch, loop, simple_loop, branch, conditional_branch, unreachable, break, continue, return, raster_discard, defined in cuda_codegen_llvm_impl_cflow.cpp
-    void _translate_if_inst(IB &b, FunctionContext &func_ctx, const xir::IfInst *inst) noexcept;
-    void _translate_switch_inst(IB &b, FunctionContext &func_ctx, const xir::SwitchInst *inst) noexcept;
-    void _translate_loop_inst(IB &b, FunctionContext &func_ctx, const xir::LoopInst *inst) noexcept;
-    void _translate_simple_loop_inst(IB &b, FunctionContext &func_ctx, const xir::SimpleLoopInst *inst) noexcept;
-    void _translate_branch_inst(IB &b, FunctionContext &func_ctx, const xir::BranchInst *inst) noexcept;
-    void _translate_conditional_branch_inst(IB &b, FunctionContext &func_ctx, const xir::ConditionalBranchInst *inst) noexcept;
-    void _translate_unreachable_inst(IB &b, FunctionContext &func_ctx, const xir::UnreachableInst *inst) noexcept;
-    void _translate_break_inst(IB &b, FunctionContext &func_ctx, const xir::BreakInst *inst) noexcept;
-    void _translate_continue_inst(IB &b, FunctionContext &func_ctx, const xir::ContinueInst *inst) noexcept;
-    void _translate_return_inst(IB &b, FunctionContext &func_ctx, const xir::ReturnInst *inst) noexcept;
-    void _translate_raster_discard_inst(IB &b, FunctionContext &func_ctx, const xir::RasterDiscardInst *inst) noexcept;
+    void _translate_if_inst(IB &b, const FunctionContext &func_ctx, const xir::IfInst *inst) noexcept;
+    void _translate_switch_inst(IB &b, const FunctionContext &func_ctx, const xir::SwitchInst *inst) noexcept;
+    static void _translate_loop_inst(IB &b, const FunctionContext &func_ctx, const xir::LoopInst *inst) noexcept;
+    static void _translate_simple_loop_inst(IB &b, const FunctionContext &func_ctx, const xir::SimpleLoopInst *inst) noexcept;
+    static void _translate_branch_inst(IB &b, const FunctionContext &func_ctx, const xir::BranchInst *inst) noexcept;
+    void _translate_conditional_branch_inst(IB &b, const FunctionContext &func_ctx, const xir::ConditionalBranchInst *inst) noexcept;
+    static void _translate_unreachable_inst(IB &b, FunctionContext &func_ctx, const xir::UnreachableInst *inst) noexcept;
+    static void _translate_break_inst(IB &b, const FunctionContext &func_ctx, const xir::BreakInst *inst) noexcept;
+    static void _translate_continue_inst(IB &b, const FunctionContext &func_ctx, const xir::ContinueInst *inst) noexcept;
+    void _translate_return_inst(IB &b, const FunctionContext &func_ctx, const xir::ReturnInst *inst) noexcept;
+    static void _translate_raster_discard_inst(IB &b, FunctionContext &func_ctx, const xir::RasterDiscardInst *inst) noexcept;
 
     // PHI nodes, defined in cuda_codegen_llvm_impl_phi.cpp
     [[nodiscard]] llvm::PHINode *_translate_phi_inst(IB &b, FunctionContext &func_ctx, const xir::PhiInst *inst) noexcept;
@@ -254,12 +254,12 @@ private:
 
     // variable instructions: alloca, load, store, gep, defined in cuda_codegen_llvm_impl_var.cpp
     [[nodiscard]] llvm::Value *_translate_alloca_inst(IB &b, FunctionContext &func_ctx, const xir::AllocaInst *inst) noexcept;
-    [[nodiscard]] llvm::Value *_translate_load_inst(IB &b, FunctionContext &func_ctx, const xir::LoadInst *inst) noexcept;
-    void _translate_store_inst(IB &b, FunctionContext &func_ctx, const xir::StoreInst *inst) noexcept;
+    [[nodiscard]] llvm::Value *_translate_load_inst(IB &b, const FunctionContext &func_ctx, const xir::LoadInst *inst) noexcept;
+    void _translate_store_inst(IB &b, const FunctionContext &func_ctx, const xir::StoreInst *inst) noexcept;
     [[nodiscard]] llvm::Value *_translate_gep_inst(IB &b, FunctionContext &func_ctx, const xir::GEPInst *inst) noexcept;
     [[nodiscard]] llvm::Value *_load_llvm_value(IB &b, llvm::Value *llvm_ptr, const Type *type) noexcept;
     void _store_llvm_value(IB &b, llvm::Value *llvm_ptr, llvm::Value *llvm_value, const Type *type) noexcept;
-    [[nodiscard]] static llvm::Value *_create_temp_in_alloca_block(FunctionContext &func_ctx, llvm::Type *t, size_t align = 0) noexcept;
+    [[nodiscard]] static llvm::Value *_create_temp_in_alloca_block(const FunctionContext &func_ctx, llvm::Type *t, size_t align = 0) noexcept;
 
     // atomic instructions, defined in cuda_codegen_llvm_impl_atomic.cpp
     [[nodiscard]] llvm::Value *_translate_atomic_inst(IB &b, FunctionContext &func_ctx, const xir::AtomicInst *inst) noexcept;
@@ -283,7 +283,7 @@ private:
 
     // resource instructions: resource_query, resource_read, resource_write, defined in cuda_codegen_llvm_impl_resource.cpp
     [[nodiscard]] llvm::Value *_translate_resource_query_inst(IB &b, FunctionContext &func_ctx, const xir::ResourceQueryInst *inst) noexcept;
-    [[nodiscard]] llvm::Value *_translate_resource_read_inst(IB &b, FunctionContext &func_ctx, const xir::ResourceReadInst *inst) noexcept;
+    [[nodiscard]] llvm::Value *_translate_resource_read_inst(IB &b, const FunctionContext &func_ctx, const xir::ResourceReadInst *inst) noexcept;
     void _translate_resource_write_inst(IB &b, FunctionContext &func_ctx, const xir::ResourceWriteInst *inst) noexcept;
     [[nodiscard]] llvm::Value *_get_buffer_element_pointer(IB &b, llvm::Value *buffer, llvm::Value *index, size_t index_stride, size_t element_size) noexcept;
     [[nodiscard]] llvm::Value *_get_bindless_array_slot_pointer(IB &b, llvm::Value *bindless_array, llvm::Value *slot_index) noexcept;

@@ -6,7 +6,7 @@
 
 namespace luisa::compute::cuda {
 
-llvm::Value *CUDACodegenLLVMImpl::_translate_alloca_inst(IB &b, FunctionContext &func_ctx, const xir::AllocaInst *inst) noexcept {
+llvm::Value *CUDACodegenLLVMImpl::_translate_alloca_inst(IB &b, FunctionContext &, const xir::AllocaInst *inst) noexcept {
     auto llvm_type = _get_llvm_type(inst->type())->mem_type;
     if (inst->is_local()) {
         auto llvm_alloca = b.CreateAlloca(llvm_type, nullptr, inst->name().value_or(""));
@@ -23,12 +23,12 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_alloca_inst(IB &b, FunctionContext 
     return llvm_global;
 }
 
-llvm::Value *CUDACodegenLLVMImpl::_translate_load_inst(IB &b, FunctionContext &func_ctx, const xir::LoadInst *inst) noexcept {
+llvm::Value *CUDACodegenLLVMImpl::_translate_load_inst(IB &b, const FunctionContext &func_ctx, const xir::LoadInst *inst) noexcept {
     auto llvm_ptr = func_ctx.get_local_value<llvm::Value>(inst->variable());
     return _load_llvm_value(b, llvm_ptr, inst->type());
 }
 
-void CUDACodegenLLVMImpl::_translate_store_inst(IB &b, FunctionContext &func_ctx, const xir::StoreInst *inst) noexcept {
+void CUDACodegenLLVMImpl::_translate_store_inst(IB &b, const FunctionContext &func_ctx, const xir::StoreInst *inst) noexcept {
     auto llvm_ptr = func_ctx.get_local_value<llvm::Value>(inst->variable());
     auto llvm_value = _get_llvm_value(b, func_ctx, inst->value());
     _store_llvm_value(b, llvm_ptr, llvm_value, inst->value()->type());
@@ -52,7 +52,7 @@ void CUDACodegenLLVMImpl::_store_llvm_value(IB &b, llvm::Value *llvm_ptr, llvm::
     b.CreateAlignedStore(llvm_mem_v, llvm_ptr, llvm::Align{type->alignment()});
 }
 
-llvm::Value *CUDACodegenLLVMImpl::_create_temp_in_alloca_block(FunctionContext &func_ctx, llvm::Type *t, size_t align) noexcept {
+llvm::Value *CUDACodegenLLVMImpl::_create_temp_in_alloca_block(const FunctionContext &func_ctx, llvm::Type *t, size_t align) noexcept {
     IB b{func_ctx.llvm_alloca_block->getTerminator()};
     auto llvm_alloca = b.CreateAlloca(t);
     if (align != 0) { llvm_alloca->setAlignment(llvm::Align{align}); }

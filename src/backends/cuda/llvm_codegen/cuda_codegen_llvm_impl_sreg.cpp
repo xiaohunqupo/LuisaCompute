@@ -89,7 +89,7 @@ llvm::Value *CUDACodegenLLVMImpl::_read_dispatch_id(IB &b, const FunctionContext
         auto call = [this, &b](uint32_t axis) noexcept -> llvm::Value * {
             if (_config.block_size[axis] <= 1u) { b.getInt32(0); }
             constexpr std::array axis_names = {"x", "y", "z"};
-            auto llvm_asm_str = luisa::format("call ($0), _optix_get_launch_index_{}, ();", axis_names[axis]);
+            auto llvm_asm_str = fmt::format("call ($0), _optix_get_launch_index_{}, ();", axis_names[axis]);
             auto llvm_asm = _get_inline_asm(llvm_asm_str, "=r", false);
             return b.CreateCall(llvm_asm, {}, std::string{"sreg.dispatch.id."}.append(axis_names[axis]));
         };
@@ -107,12 +107,12 @@ llvm::Value *CUDACodegenLLVMImpl::_read_dispatch_id(IB &b, const FunctionContext
     return llvm_dispatch_id;
 }
 
-llvm::Value *CUDACodegenLLVMImpl::_read_warp_size(IB &b, const FunctionContext &) noexcept {
+llvm::Value *CUDACodegenLLVMImpl::_read_warp_size(IB &b, const FunctionContext &) const noexcept {
     if (_rt_analysis.uses_ray_tracing) { LUISA_NOT_IMPLEMENTED(); }
     return b.getInt32(32);
 }
 
-llvm::Value *CUDACodegenLLVMImpl::_read_warp_lane_id(IB &b, const FunctionContext &) noexcept {
+llvm::Value *CUDACodegenLLVMImpl::_read_warp_lane_id(IB &b, const FunctionContext &) const noexcept {
     if (_rt_analysis.uses_ray_tracing) { LUISA_NOT_IMPLEMENTED(); }
     return b.CreateIntrinsic(b.getInt32Ty(), llvm::Intrinsic::nvvm_read_ptx_sreg_laneid,
                              {}, {}, "sreg.warp.lane.id");
@@ -122,14 +122,14 @@ llvm::Value *CUDACodegenLLVMImpl::_read_kernel_id(IB &, const FunctionContext &f
     return func_ctx.llvm_kernel_id;
 }
 
-llvm::Value *CUDACodegenLLVMImpl::_read_warp_active_lane_mask(IB &b) noexcept {
+llvm::Value *CUDACodegenLLVMImpl::_read_warp_active_lane_mask(IB &b) const noexcept {
     if (_rt_analysis.uses_ray_tracing) { LUISA_NOT_IMPLEMENTED(); }
     auto mask = b.CreateIntrinsic(b.getInt32Ty(), llvm::Intrinsic::nvvm_activemask, {});
     mask->setName("sreg.warp.active.mask");
     return mask;
 }
 
-llvm::Value *CUDACodegenLLVMImpl::_read_warp_prefix_lane_mask(IB &b) noexcept {
+llvm::Value *CUDACodegenLLVMImpl::_read_warp_prefix_lane_mask(IB &b) const noexcept {
     if (_rt_analysis.uses_ray_tracing) { LUISA_NOT_IMPLEMENTED(); }
     return b.CreateIntrinsic(b.getInt32Ty(), llvm::Intrinsic::nvvm_read_ptx_sreg_lanemask_lt,
                              {}, {}, "sreg.warp.prefix.lane.mask");

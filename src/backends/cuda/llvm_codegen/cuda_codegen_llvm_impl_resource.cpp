@@ -2,10 +2,11 @@
 // Created by mike on 11/1/25.
 //
 
+#include <luisa/runtime/rtx/hit.h>
+#include <luisa/runtime/rtx/motion_transform.h>
+
 #include "../optix_api.h"
 #include "cuda_codegen_llvm_impl.h"
-#include "luisa/runtime/rtx/hit.h"
-#include "luisa/runtime/rtx/motion_transform.h"
 
 namespace luisa::compute::cuda {
 
@@ -304,7 +305,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_resource_query_inst(IB &b, Function
     LUISA_NOT_IMPLEMENTED();
 }
 
-llvm::Value *CUDACodegenLLVMImpl::_translate_resource_read_inst(IB &b, FunctionContext &func_ctx, const xir::ResourceReadInst *inst) noexcept {
+llvm::Value *CUDACodegenLLVMImpl::_translate_resource_read_inst(IB &b, const FunctionContext &func_ctx, const xir::ResourceReadInst *inst) noexcept {
     switch (auto op = inst->op()) {
         case xir::ResourceReadOp::BUFFER_READ: [[fallthrough]];
         case xir::ResourceReadOp::BUFFER_VOLATILE_READ: {

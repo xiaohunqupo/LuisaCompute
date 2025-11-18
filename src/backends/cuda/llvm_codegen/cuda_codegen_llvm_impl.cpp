@@ -96,7 +96,7 @@ inline void CUDACodegenLLVMImpl::_initialize() noexcept {
             case CUDACodegenLLVMConfig::OptLevel::LEVEL_DEFAULT: opt_level = llvm::CodeGenOptLevel::Default; break;
             case CUDACodegenLLVMConfig::OptLevel::LEVEL_AGGRESSIVE: opt_level = llvm::CodeGenOptLevel::Aggressive; break;
         }
-        auto cpu_name = luisa::format("sm_{}", _config.cuda_arch);
+        auto cpu_name = fmt::format("sm_{}", _config.cuda_arch);
         return _get_nvptx_target()->createTargetMachine(
             llvm::Triple{nvptx_target_triple}, llvm::StringRef{cpu_name}, {},
             options, llvm::Reloc::Static, llvm::CodeModel::Small, opt_level);

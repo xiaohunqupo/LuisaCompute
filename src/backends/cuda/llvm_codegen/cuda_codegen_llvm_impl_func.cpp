@@ -296,7 +296,7 @@ llvm::Function *CUDACodegenLLVMImpl::_get_vprintf_function() noexcept {
 // %short4 @llvm.nvvm.suld.2d.v4i16.<clamp>(i64 %tex, i32 %x, i32 %y)
 // %int4 @llvm.nvvm.suld.2d.v4i32.<clamp>(i64 %tex, i32 %x, i32 %y)
 llvm::Function *CUDACodegenLLVMImpl::_get_texture2d_read_function(llvm::VectorType *llvm_value_type) noexcept {
-    auto name = luisa::stl_format("luisa.cuda.texture.2d.read.{}", _to_string(llvm_value_type->getElementType()));
+    auto name = fmt::format("luisa.cuda.texture.2d.read.{}", _to_string(llvm_value_type->getElementType()));
     if (auto llvm_func = _llvm_module->getFunction(name)) { return llvm_func; }
     auto llvm_i64_type = llvm::Type::getInt64Ty(_llvm_context);
     auto llvm_i32_type = llvm::Type::getInt32Ty(_llvm_context);
@@ -318,7 +318,7 @@ llvm::Function *CUDACodegenLLVMImpl::_get_texture2d_read_function(llvm::VectorTy
     auto llvm_default_block = llvm::BasicBlock::Create(_llvm_context, "switch.default", llvm_func);
     auto llvm_switch = b.CreateSwitch(llvm_storage, llvm_default_block, 16);
     auto create_case = [&](PixelStorage storage, llvm::Intrinsic::ID intrinsic, llvm::Type *llvm_channel_type) noexcept {
-        auto llvm_case_block = llvm::BasicBlock::Create(_llvm_context, luisa::stl_format("switch.case.{}", luisa::to_string(storage)), llvm_func);
+        auto llvm_case_block = llvm::BasicBlock::Create(_llvm_context, fmt::format("switch.case.{}", luisa::to_string(storage)), llvm_func);
         llvm_switch->addCase(b.getInt64(luisa::to_underlying(storage)), llvm_case_block);
         b.SetInsertPoint(llvm_case_block);
         // call suld intrinsic
@@ -389,7 +389,7 @@ llvm::Function *CUDACodegenLLVMImpl::_get_texture2d_read_function(llvm::VectorTy
 // %short4 @llvm.nvvm.suld.3d.v4i16.<clamp>(i64 %tex, i32 %x, i32 %y, i32 %z)
 // %int4 @llvm.nvvm.suld.3d.v4i32.<clamp>(i64 %tex, i32 %x, i32 %y, i32 %z)
 llvm::Function *CUDACodegenLLVMImpl::_get_texture3d_read_function(llvm::VectorType *llvm_value_type) noexcept {
-    auto name = luisa::stl_format("luisa.cuda.texture.3d.read.{}", _to_string(llvm_value_type->getElementType()));
+    auto name = fmt::format("luisa.cuda.texture.3d.read.{}", _to_string(llvm_value_type->getElementType()));
     if (auto llvm_func = _llvm_module->getFunction(name)) { return llvm_func; }
     auto llvm_i64_type = llvm::Type::getInt64Ty(_llvm_context);
     auto llvm_i32_type = llvm::Type::getInt32Ty(_llvm_context);
@@ -412,7 +412,7 @@ llvm::Function *CUDACodegenLLVMImpl::_get_texture3d_read_function(llvm::VectorTy
     auto llvm_default_block = llvm::BasicBlock::Create(_llvm_context, "switch.default", llvm_func);
     auto llvm_switch = b.CreateSwitch(llvm_storage, llvm_default_block, 16);
     auto create_case = [&](PixelStorage storage, llvm::Intrinsic::ID intrinsic, llvm::Type *llvm_channel_type) noexcept {
-        auto llvm_case_block = llvm::BasicBlock::Create(_llvm_context, luisa::stl_format("switch.case.{}", luisa::to_string(storage)), llvm_func);
+        auto llvm_case_block = llvm::BasicBlock::Create(_llvm_context, fmt::format("switch.case.{}", luisa::to_string(storage)), llvm_func);
         llvm_switch->addCase(b.getInt64(luisa::to_underlying(storage)), llvm_case_block);
         b.SetInsertPoint(llvm_case_block);
         // call suld intrinsic
@@ -490,7 +490,7 @@ llvm::Function *CUDACodegenLLVMImpl::_get_texture3d_read_function(llvm::VectorTy
 // void @llvm.nvvm.sust.b.2d.v4i32.<clamp>(i64 %tex, i32 %x, i32 %y,
 //                                         i32 %r, i32 %g, i32 %b, i32 %a)
 llvm::Function *CUDACodegenLLVMImpl::_get_texture2d_write_function(llvm::VectorType *llvm_value_type) noexcept {
-    auto name = luisa::stl_format("luisa.cuda.texture.2d.write.{}", _to_string(llvm_value_type->getElementType()));
+    auto name = fmt::format("luisa.cuda.texture.2d.write.{}", _to_string(llvm_value_type->getElementType()));
     if (auto llvm_func = _llvm_module->getFunction(name)) { return llvm_func; }
     auto llvm_void_type = llvm::Type::getVoidTy(_llvm_context);
     auto llvm_i64_type = llvm::Type::getInt64Ty(_llvm_context);
@@ -515,7 +515,7 @@ llvm::Function *CUDACodegenLLVMImpl::_get_texture2d_write_function(llvm::VectorT
     auto llvm_default_block = llvm::BasicBlock::Create(_llvm_context, "switch.default", llvm_func);
     auto llvm_switch = b.CreateSwitch(llvm_storage, llvm_default_block, 16);
     auto create_case = [&](PixelStorage storage, llvm::Intrinsic::ID intrinsic, llvm::Type *llvm_channel_type, llvm::Type *llvm_storage_channel_type) noexcept {
-        auto llvm_case_block = llvm::BasicBlock::Create(_llvm_context, luisa::stl_format("switch.case.{}", luisa::to_string(storage)), llvm_func);
+        auto llvm_case_block = llvm::BasicBlock::Create(_llvm_context, fmt::format("switch.case.{}", luisa::to_string(storage)), llvm_func);
         llvm_switch->addCase(b.getInt64(luisa::to_underlying(storage)), llvm_case_block);
         b.SetInsertPoint(llvm_case_block);
         // cast value to pixel format
@@ -579,7 +579,7 @@ llvm::Function *CUDACodegenLLVMImpl::_get_texture2d_write_function(llvm::VectorT
 // void @llvm.nvvm.sust.b.3d.v4i16.<clamp>(i64 %tex, i32 %x, i32 %y, i32 %z, i16 %r, i16 %g, i16 %b, i16 %a)
 // void @llvm.nvvm.sust.b.3d.v4i32.<clamp>(i64 %tex, i32 %x, i32 %y, i32 %z, i32 %r, i32 %g, i32 %b, i32 %a)
 llvm::Function *CUDACodegenLLVMImpl::_get_texture3d_write_function(llvm::VectorType *llvm_value_type) noexcept {
-    auto name = luisa::stl_format("luisa.cuda.texture.3d.write.{}", _to_string(llvm_value_type->getElementType()));
+    auto name = fmt::format("luisa.cuda.texture.3d.write.{}", _to_string(llvm_value_type->getElementType()));
     if (auto llvm_func = _llvm_module->getFunction(name)) { return llvm_func; }
     auto llvm_void_type = llvm::Type::getVoidTy(_llvm_context);
     auto llvm_i64_type = llvm::Type::getInt64Ty(_llvm_context);
@@ -605,7 +605,7 @@ llvm::Function *CUDACodegenLLVMImpl::_get_texture3d_write_function(llvm::VectorT
     auto llvm_default_block = llvm::BasicBlock::Create(_llvm_context, "switch.default", llvm_func);
     auto llvm_switch = b.CreateSwitch(llvm_storage, llvm_default_block, 16);
     auto create_case = [&](PixelStorage storage, llvm::Intrinsic::ID intrinsic, llvm::Type *llvm_channel_type, llvm::Type *llvm_storage_channel_type) noexcept {
-        auto llvm_case_block = llvm::BasicBlock::Create(_llvm_context, luisa::stl_format("switch.case.{}", luisa::to_string(storage)), llvm_func);
+        auto llvm_case_block = llvm::BasicBlock::Create(_llvm_context, fmt::format("switch.case.{}", luisa::to_string(storage)), llvm_func);
         llvm_switch->addCase(b.getInt64(luisa::to_underlying(storage)), llvm_case_block);
         b.SetInsertPoint(llvm_case_block);
         // cast value to pixel format

@@ -2,8 +2,8 @@
 // Created by mike on 11/1/25.
 //
 
-#include "cuda_codegen_llvm_impl.h"
 #include <span>
+#include "cuda_codegen_llvm_impl.h"
 
 namespace luisa::compute::cuda {
 
@@ -186,7 +186,7 @@ void CUDACodegenLLVMImpl::_translate_debug_break_inst(IB &b, FunctionContext &fu
 
 void CUDACodegenLLVMImpl::_translate_assert_inst(IB &b, FunctionContext &func_ctx, const xir::AssertInst *inst) noexcept {
     auto llvm_cond = _get_llvm_value(b, func_ctx, inst->condition());
-    _create_assertion_with_message(b, llvm_cond, luisa::format("Assertion failed: {}\n", inst->message()));
+    _create_assertion_with_message(b, llvm_cond, fmt::format("Assertion failed: {}\n", inst->message()));
 }
 
 void CUDACodegenLLVMImpl::_translate_assume_inst(IB &b, FunctionContext &func_ctx, const xir::AssumeInst *inst) noexcept {

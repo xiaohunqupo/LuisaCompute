@@ -2,10 +2,10 @@
 // Created by mike on 11/1/25.
 //
 
-#include <numbers>
-#include "cuda_codegen_llvm_impl.h"
-#include "luisa/core/constants.h"
 #include <span>
+#include <numbers>
+
+#include "cuda_codegen_llvm_impl.h"
 
 namespace luisa::compute::cuda {
 
@@ -684,12 +684,12 @@ namespace detail {
                                                       llvm::Type *t, bool enable_fast_math) noexcept {
     auto op_suffix = t->isDoubleTy() ? "" : "f";
     if (enable_fast_math) {
-        auto nv_fast_op_name = luisa::stl_format("__nv_fast_{}{}", std::string_view{op_name}, op_suffix);
+        auto nv_fast_op_name = fmt::format("__nv_fast_{}{}", std::string_view{op_name}, op_suffix);
         if (auto op = m.getFunction(nv_fast_op_name)) {
             return op;
         }
     }
-    auto nv_op_name = luisa::stl_format("__nv_{}{}", std::string_view{op_name}, op_suffix);
+    auto nv_op_name = fmt::format("__nv_{}{}", std::string_view{op_name}, op_suffix);
     auto op = m.getFunction(nv_op_name);
     LUISA_ASSERT(op != nullptr, "libdevice function {} not found.", op_name);
     return op;
@@ -1153,7 +1153,7 @@ namespace detail {
 llvm::Value *CUDACodegenLLVMImpl::_translate_matrix_determinant(IB &b, llvm::Value *m) noexcept {
     auto scalar_t = m->getType()->getArrayElementType()->getScalarType();
     auto dim = m->getType()->getArrayNumElements();
-    auto name = luisa::stl_format("luisa.determinant.{}.{}x{}", _to_string(scalar_t), dim, dim);
+    auto name = fmt::format("luisa.determinant.{}.{}x{}", _to_string(scalar_t), dim, dim);
     auto func = _llvm_module->getFunction(name);
     if (func == nullptr) {
         auto func_type = llvm::FunctionType::get(scalar_t, {m->getType()}, false);
@@ -1195,7 +1195,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_matrix_determinant(IB &b, llvm::Val
 llvm::Value *CUDACodegenLLVMImpl::_translate_matrix_inverse(IB &b, llvm::Value *m) noexcept {
     auto scalar_t = m->getType()->getArrayElementType()->getScalarType();
     auto dim = m->getType()->getArrayNumElements();
-    auto name = luisa::stl_format("luisa.inverse.{}.{}x{}", _to_string(scalar_t), dim, dim);
+    auto name = fmt::format("luisa.inverse.{}.{}x{}", _to_string(scalar_t), dim, dim);
     auto func = _llvm_module->getFunction(name);
     if (func == nullptr) {
         auto func_type = llvm::FunctionType::get(m->getType(), {m->getType()}, false);

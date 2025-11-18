@@ -158,9 +158,9 @@ namespace detail {
         };
         auto [src_ptx_type, src_asm_reg] = get_ptx_type_and_reg(src_scalar_t);
         auto [dst_ptx_type, dst_asm_reg] = get_ptx_type_and_reg(dst_scalar_t);
-        auto ptx = src_scalar_t->isHalfTy() ? luisa::format("cvt.{}.{} $0, $1;", dst_ptx_type, src_ptx_type) :
-                                              luisa::format("cvt.rn.{}.{} $0, $1;", dst_ptx_type, src_ptx_type);
-        auto constraints = luisa::format("={},{}", dst_asm_reg, src_asm_reg);
+        auto ptx = src_scalar_t->isHalfTy() ? fmt::format("cvt.{}.{} $0, $1;", dst_ptx_type, src_ptx_type) :
+                                              fmt::format("cvt.rn.{}.{} $0, $1;", dst_ptx_type, src_ptx_type);
+        auto constraints = fmt::format("={},{}", dst_asm_reg, src_asm_reg);
         auto asm_type = llvm::FunctionType::get(dst_scalar_t, {src_scalar_t}, false);
         return llvm::InlineAsm::get(asm_type, std::string_view{ptx}, std::string_view{constraints}, false);
     }();

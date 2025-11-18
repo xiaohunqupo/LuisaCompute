@@ -3,11 +3,9 @@
 //
 
 #include <luisa/core/clock.h>
-
 #include "cuda_codegen_llvm_impl.h"
 #include "cuda_codegen_llvm.h"
 
-#include <llvm/ADT/SparseBitVector.h>
 
 namespace luisa::compute::cuda {
 
