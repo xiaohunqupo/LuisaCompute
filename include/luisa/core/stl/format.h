@@ -42,6 +42,10 @@ template<typename Format, typename... Args>
 [[nodiscard]] inline auto format(Format &&f, Args &&...args) noexcept {
     return format<luisa::string>(std::forward<Format>(f), std::forward<Args>(args)...);
 }
+template<typename Format, typename... Args>
+[[nodiscard]] inline auto stl_format(Format &&f, Args &&...args) noexcept {
+    return format<std::string>(std::forward<Format>(f), std::forward<Args>(args)...);
+}
 #endif
 
 [[nodiscard]] inline auto hash_to_string(uint64_t hash) noexcept {

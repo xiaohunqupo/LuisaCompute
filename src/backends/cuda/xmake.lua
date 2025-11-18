@@ -83,14 +83,18 @@ on_load(function(target)
     exclude_files["cuda_nvrtc_compiler.cpp"] = true
     exclude_files["cuda_builtin_embedded.cpp"] = true
     exclude_files["cuda_devrt_embedded.cpp"] = true
-    for _, filepath in ipairs(os.files(path.join(src_path, "*.cpp"))) do
-        local file_name = path.filename(filepath)
-        if not exclude_files[file_name] then
-            target:add("files", filepath)
+    exclude_files["cuda_texture_compression.cpp"] = true
+    local file_paths = {'*.cpp', 'extensions/*.cpp'}
+    for _, f in ipairs(file_paths) do
+        for _, filepath in ipairs(os.files(path.join(src_path, f))) do
+            local file_name = path.filename(filepath)
+            if not exclude_files[file_name] then
+                target:add("files", filepath)
+            end
         end
     end
     if has_config('lc_llvm_path') then
-        target:add("defines", 'LUISA_ENABLE_XIR')
+        target:add("defines", 'LUISA_ENABLE_XIR', 'LUISA_COMPUTE_ENABLE_LLVM')
         target:add("files", path.join(os.scriptdir(), 'llvm_codegen/*.cpp'))
     end
     target:add("defines", "LUISA_BACKEND_ENABLE_VULKAN_SWAPCHAIN")

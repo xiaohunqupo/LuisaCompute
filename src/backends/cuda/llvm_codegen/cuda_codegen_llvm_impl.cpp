@@ -260,7 +260,7 @@ luisa::string CUDACodegenLLVMImpl::_generate_ptx() const noexcept {
 
 luisa::string CUDACodegenLLVMImpl::generate(const xir::Module &xir_module) noexcept {
     _analyze_ray_tracing_usage(xir_module);
-    _llvm_module->setSourceFileName(_config.source_file);
+    _llvm_module->setSourceFileName(std::string_view{_config.source_file});
     _llvm_module->setModuleIdentifier(xir_module.name().value_or(""));
     for (auto func : xir_module.function_list()) {
         if (auto def = func->definition()) {

@@ -3,6 +3,7 @@
 //
 
 #include "cuda_codegen_llvm_impl.h"
+#include <span>
 
 namespace luisa::compute::cuda {
 
@@ -99,7 +100,7 @@ void CUDACodegenLLVMImpl::_translate_print_inst(IB &b, FunctionContext &func_ctx
             case Type::Tag::STRUCTURE: {
                 auto member_types = type->members();
                 printf_format.push_back('{');
-                for (auto [i, member_type] : llvm::enumerate(member_types)) {
+                for (auto [i, member_type] : llvm::enumerate(std::span{member_types.data(), member_types.size()})) {
                     auto llvm_member = b.CreateExtractValue(llvm_value, i);
                     self(self, member_type, llvm_member);
                     if (i + 1u != member_types.size()) {

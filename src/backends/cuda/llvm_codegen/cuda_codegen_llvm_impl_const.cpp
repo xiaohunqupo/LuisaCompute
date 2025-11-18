@@ -3,6 +3,7 @@
 //
 
 #include "cuda_codegen_llvm_impl.h"
+#include <span>
 
 namespace luisa::compute::cuda {
 
@@ -104,7 +105,7 @@ llvm::Value *CUDACodegenLLVMImpl::_get_llvm_literal(IB &b, const Type *type, con
             llvm::SmallVector<llvm::Constant *> llvm_elems;
             LUISA_DEBUG_ASSERT(llvm::isa<llvm::StructType>(llvm_type_info->reg_type));
             auto llvm_struct_type = llvm::cast<llvm::StructType>(llvm_type_info->reg_type);
-            for (auto [i, member] : llvm::enumerate(type->members())) {
+            for (auto [i, member] : llvm::enumerate(std::span{type->members().data(), type->members().size()})) {
                 auto member_offset = llvm_type_info->member_offsets[i];
                 auto p = static_cast<const std::byte *>(data) + member_offset;
                 auto llvm_member = _get_llvm_literal(b, member, p);

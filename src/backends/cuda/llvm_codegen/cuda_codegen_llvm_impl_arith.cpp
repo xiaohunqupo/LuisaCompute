@@ -5,6 +5,7 @@
 #include <numbers>
 #include "cuda_codegen_llvm_impl.h"
 #include "luisa/core/constants.h"
+#include <span>
 
 namespace luisa::compute::cuda {
 
@@ -683,12 +684,12 @@ namespace detail {
                                                       llvm::Type *t, bool enable_fast_math) noexcept {
     auto op_suffix = t->isDoubleTy() ? "" : "f";
     if (enable_fast_math) {
-        auto nv_fast_op_name = luisa::format("__nv_fast_{}{}", std::string_view{op_name}, op_suffix);
+        auto nv_fast_op_name = luisa::stl_format("__nv_fast_{}{}", std::string_view{op_name}, op_suffix);
         if (auto op = m.getFunction(nv_fast_op_name)) {
             return op;
         }
     }
-    auto nv_op_name = luisa::format("__nv_{}{}", std::string_view{op_name}, op_suffix);
+    auto nv_op_name = luisa::stl_format("__nv_{}{}", std::string_view{op_name}, op_suffix);
     auto op = m.getFunction(nv_op_name);
     LUISA_ASSERT(op != nullptr, "libdevice function {} not found.", op_name);
     return op;
@@ -1152,7 +1153,7 @@ namespace detail {
 llvm::Value *CUDACodegenLLVMImpl::_translate_matrix_determinant(IB &b, llvm::Value *m) noexcept {
     auto scalar_t = m->getType()->getArrayElementType()->getScalarType();
     auto dim = m->getType()->getArrayNumElements();
-    auto name = luisa::format("luisa.determinant.{}.{}x{}", _to_string(scalar_t), dim, dim);
+    auto name = luisa::stl_format("luisa.determinant.{}.{}x{}", _to_string(scalar_t), dim, dim);
     auto func = _llvm_module->getFunction(name);
     if (func == nullptr) {
         auto func_type = llvm::FunctionType::get(scalar_t, {m->getType()}, false);
@@ -1194,7 +1195,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_matrix_determinant(IB &b, llvm::Val
 llvm::Value *CUDACodegenLLVMImpl::_translate_matrix_inverse(IB &b, llvm::Value *m) noexcept {
     auto scalar_t = m->getType()->getArrayElementType()->getScalarType();
     auto dim = m->getType()->getArrayNumElements();
-    auto name = luisa::format("luisa.inverse.{}.{}x{}", _to_string(scalar_t), dim, dim);
+    auto name = luisa::stl_format("luisa.inverse.{}.{}x{}", _to_string(scalar_t), dim, dim);
     auto func = _llvm_module->getFunction(name);
     if (func == nullptr) {
         auto func_type = llvm::FunctionType::get(m->getType(), {m->getType()}, false);
@@ -1328,7 +1329,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_shuffle(IB &b, FunctionContext &fun
     auto llvm_dst_type = _get_llvm_type(inst->type())->reg_type;
     LUISA_DEBUG_ASSERT(llvm_src->getType()->getScalarType() == llvm_dst_type->getScalarType());
     auto llvm_dst = static_cast<llvm::Value *>(llvm::PoisonValue::get(llvm_dst_type));
-    for (auto [i, index_use] : llvm::enumerate(index_uses)) {
+    for (auto [i, index_use] : llvm::enumerate(std::span{index_uses.data(), index_uses.size()})) {
         auto llvm_index = _get_llvm_value(b, func_ctx, index_use->value());
         auto llvm_src_elem = b.CreateExtractElement(llvm_src, llvm_index);
         llvm_dst = b.CreateInsertElement(llvm_dst, llvm_src_elem, i);
