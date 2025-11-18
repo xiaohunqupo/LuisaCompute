@@ -92,22 +92,53 @@ public:
 
     static constexpr auto llvm_buffer_type_ptr_index = 0;
     static constexpr auto llvm_buffer_type_size_index = 1;
+
     static constexpr auto llvm_texture_type_handle_index = 0;
     static constexpr auto llvm_texture_type_storage_index = 1;
+
     static constexpr auto llvm_bindless_array_type_slots_index = 0;
     static constexpr auto llvm_bindless_array_type_size_index = 1;
+
     static constexpr auto llvm_bindless_array_slot_type_buffer_ptr_index = 0;
     static constexpr auto llvm_bindless_array_slot_type_buffer_size_index = 1;
     static constexpr auto llvm_bindless_array_slot_type_texture2d_handle_index = 2;
     static constexpr auto llvm_bindless_array_slot_type_texture3d_handle_index = 3;
+
     static constexpr auto llvm_accel_type_handle_index = 0;
     static constexpr auto llvm_accel_type_instances_index = 1;
+
     static constexpr auto llvm_accel_instance_type_affine_index = 0;
     static constexpr auto llvm_accel_instance_type_user_id_index = 1;
     static constexpr auto llvm_accel_instance_type_sbt_offset_index = 2;
     static constexpr auto llvm_accel_instance_type_mask_index = 3;
     static constexpr auto llvm_accel_instance_type_flags_index = 4;
     static constexpr auto llvm_accel_instance_type_handle_index = 5;
+
+    static constexpr auto llvm_ray_type_origin_index = 0;
+    static constexpr auto llvm_ray_type_t_min_index = 1;
+    static constexpr auto llvm_ray_type_direction_index = 2;
+    static constexpr auto llvm_ray_type_t_max_index = 3;
+
+    static constexpr auto llvm_surface_hit_type_inst_id_index = 0;
+    static constexpr auto llvm_surface_hit_type_prim_id_index = 1;
+    static constexpr auto llvm_surface_hit_type_bary_index = 2;
+    static constexpr auto llvm_surface_hit_type_t_index = 3;
+
+    static constexpr auto llvm_procedural_hit_type_inst_id_index = 0;
+    static constexpr auto llvm_procedural_hit_type_prim_id_index = 1;
+
+    static constexpr auto llvm_committed_hit_type_inst_id_index = 0;
+    static constexpr auto llvm_committed_hit_type_prim_id_index = 1;
+    static constexpr auto llvm_committed_hit_type_bary_index = 2;
+    static constexpr auto llvm_committed_hit_type_hit_kind_index = 3;
+    static constexpr auto llvm_committed_hit_type_t_index = 4;
+
+    static constexpr auto llvm_ray_query_type_accel_index = 0;
+    static constexpr auto llvm_ray_query_type_ray_index = 1;
+    static constexpr auto llvm_ray_query_type_time_index = 2;
+    static constexpr auto llvm_ray_query_type_mask_index = 3;
+    static constexpr auto llvm_ray_query_type_flags_index = 4;
+    static constexpr auto llvm_ray_query_type_committed_hit_index = 5;
 
 private:
     CUDACodegenLLVMConfig _config;
@@ -181,6 +212,11 @@ private:
     [[nodiscard]] llvm::Type *_get_llvm_bindless_array_slot_type() noexcept;
     [[nodiscard]] llvm::Type *_get_llvm_accel_type() noexcept;
     [[nodiscard]] llvm::Type *_get_llvm_accel_instance_type() noexcept;
+    [[nodiscard]] llvm::Type *_get_llvm_ray_type() noexcept;
+    [[nodiscard]] llvm::Type *_get_llvm_surface_hit_type() noexcept;
+    [[nodiscard]] llvm::Type *_get_llvm_procedural_hit_type() noexcept;
+    [[nodiscard]] llvm::Type *_get_llvm_committed_hit_type() noexcept;
+    [[nodiscard]] llvm::Type *_get_llvm_ray_query_type() noexcept;
     [[nodiscard]] std::pair<llvm::Value *, const Type *>
     _lower_access_chain_address(IB &b, FunctionContext &func_ctx, llvm::Value *llvm_ptr,
                                 const Type *type, luisa::span<const xir::Use *const> index_uses) noexcept;
@@ -308,7 +344,7 @@ private:
     [[nodiscard]] llvm::Value *_call_optix_hit_object_hit_kind(IB &b) noexcept;
     void _call_optix_hit_object_reset(IB &b) noexcept;
 
-    // ray query instructions: ray_query_loop, ray_query_dispatch, ray_query_object_read, ray_query_object_write, ray_query_pipeline, defined in cuda_codegen_llvm_impl_rtx.cpp
+    // ray query instructions: ray_query_loop, ray_query_dispatch, ray_query_object_read, ray_query_object_write, ray_query_pipeline, defined in cuda_codegen_llvm_impl_rq.cpp
     void _translate_ray_query_loop_inst(IB &b, FunctionContext &func_ctx, const xir::RayQueryLoopInst *inst) noexcept;
     void _translate_ray_query_dispatch_inst(IB &b, FunctionContext &func_ctx, const xir::RayQueryDispatchInst *inst) noexcept;
     [[nodiscard]] llvm::Value *_translate_ray_query_object_read_inst(IB &b, FunctionContext &func_ctx, const xir::RayQueryObjectReadInst *inst) noexcept;

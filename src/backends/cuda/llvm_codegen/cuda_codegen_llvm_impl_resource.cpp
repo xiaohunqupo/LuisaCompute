@@ -771,12 +771,12 @@ llvm::Value *CUDACodegenLLVMImpl::_accel_trace_closest(IB &b, uint32_t flags, ll
     }
     auto t = _call_optix_hit_object_ray_t_max(b);
     _call_optix_hit_object_reset(b);
-    auto result_type = _get_llvm_type(Type::of<SurfaceHit>())->reg_type;
+    auto result_type = _get_llvm_surface_hit_type();
     auto result = static_cast<llvm::Value *>(llvm::PoisonValue::get(result_type));
-    result = b.CreateInsertValue(result, inst_id, 0);
-    result = b.CreateInsertValue(result, prim_id, 1);
-    result = b.CreateInsertValue(result, bary, 2);
-    result = b.CreateInsertValue(result, t, 3);
+    result = b.CreateInsertValue(result, inst_id, llvm_surface_hit_type_inst_id_index);
+    result = b.CreateInsertValue(result, prim_id, llvm_surface_hit_type_prim_id_index);
+    result = b.CreateInsertValue(result, bary, llvm_surface_hit_type_bary_index);
+    result = b.CreateInsertValue(result, t, llvm_surface_hit_type_t_index);
     return result;
 }
 
@@ -792,14 +792,14 @@ void CUDACodegenLLVMImpl::_call_optix_trace(IB &b, uint32_t payload_type, uint32
                                             llvm::ArrayRef<llvm::Value *> registers) noexcept {
     LUISA_DEBUG_ASSERT(registers.size() <= 2);
     auto handle = b.CreateExtractValue(accel, llvm_accel_type_handle_index);
-    auto ox = b.CreateExtractValue(ray, {0, 0});
-    auto oy = b.CreateExtractValue(ray, {0, 1});
-    auto oz = b.CreateExtractValue(ray, {0, 2});
-    auto dx = b.CreateExtractValue(ray, {2, 0});
-    auto dy = b.CreateExtractValue(ray, {2, 1});
-    auto dz = b.CreateExtractValue(ray, {2, 2});
-    auto tmin = b.CreateExtractValue(ray, 1);
-    auto tmax = b.CreateExtractValue(ray, 3);
+    auto ox = b.CreateExtractValue(ray, {llvm_ray_type_origin_index, 0});
+    auto oy = b.CreateExtractValue(ray, {llvm_ray_type_origin_index, 1});
+    auto oz = b.CreateExtractValue(ray, {llvm_ray_type_origin_index, 2});
+    auto dx = b.CreateExtractValue(ray, {llvm_ray_type_direction_index, 0});
+    auto dy = b.CreateExtractValue(ray, {llvm_ray_type_direction_index, 1});
+    auto dz = b.CreateExtractValue(ray, {llvm_ray_type_direction_index, 2});
+    auto tmin = b.CreateExtractValue(ray, llvm_ray_type_t_min_index);
+    auto tmax = b.CreateExtractValue(ray, llvm_ray_type_t_max_index);
     auto undef = _call_optix_undef(b);
     time = _safe_fp_cast(b, time, b.getFloatTy());
     mask = b.CreateAnd(b.CreateZExtOrTrunc(mask, b.getInt32Ty()), 0xffu);

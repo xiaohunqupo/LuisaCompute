@@ -316,6 +316,56 @@ llvm::Type *CUDACodegenLLVMImpl::_get_llvm_accel_instance_type() noexcept {
     return _llvm_accel_instance_type;
 }
 
+llvm::Type *CUDACodegenLLVMImpl::_get_llvm_ray_type() noexcept {
+    auto llvm_f32_type = llvm::Type::getFloatTy(_llvm_context);
+    auto llvm_f32x3_type = llvm::ArrayType::get(llvm_f32_type, 3);
+    return llvm::StructType::get(llvm_f32x3_type /* origin */,
+                                 llvm_f32_type /* t_min */,
+                                 llvm_f32x3_type /* direction */,
+                                 llvm_f32_type /* t_max */);
+}
+
+llvm::Type *CUDACodegenLLVMImpl::_get_llvm_surface_hit_type() noexcept {
+    auto llvm_i32_type = llvm::Type::getInt32Ty(_llvm_context);
+    auto llvm_f32_type = llvm::Type::getFloatTy(_llvm_context);
+    auto llvm_f32x2_type = llvm::VectorType::get(llvm_f32_type, 2, false);
+    return llvm::StructType::get(llvm_i32_type /* inst_id */,
+                                 llvm_i32_type /* prim_id */,
+                                 llvm_f32x2_type /* bary */,
+                                 llvm_f32_type /* t */);
+}
+
+llvm::Type *CUDACodegenLLVMImpl::_get_llvm_procedural_hit_type() noexcept {
+    auto llvm_i32_type = llvm::Type::getInt32Ty(_llvm_context);
+    return llvm::StructType::get(llvm_i32_type /* inst_id */,
+                                 llvm_i32_type /* prim_id */);
+}
+
+llvm::Type *CUDACodegenLLVMImpl::_get_llvm_committed_hit_type() noexcept {
+    auto llvm_i32_type = llvm::Type::getInt32Ty(_llvm_context);
+    auto llvm_f32_type = llvm::Type::getFloatTy(_llvm_context);
+    auto llvm_f32x2_type = llvm::VectorType::get(llvm_f32_type, 2, false);
+    return llvm::StructType::get(llvm_i32_type /* inst_id */,
+                                 llvm_i32_type /* prim_id */,
+                                 llvm_f32x2_type /* bary */,
+                                 llvm_i32_type /* hit_kind */,
+                                 llvm_f32_type /* t */);
+}
+
+llvm::Type *CUDACodegenLLVMImpl::_get_llvm_ray_query_type() noexcept {
+    auto llvm_accel_type = _get_llvm_accel_type();
+    auto llvm_ray_type = _get_llvm_ray_type();
+    auto llvm_i32_type = llvm::Type::getInt32Ty(_llvm_context);
+    auto llvm_f32_type = llvm::Type::getFloatTy(_llvm_context);
+    auto llvm_committed_hit_type = _get_llvm_committed_hit_type();
+    return llvm::StructType::get(llvm_accel_type /* accel */,
+                                 llvm_ray_type /* ray */,
+                                 llvm_f32_type /* time */,
+                                 llvm_i32_type /* mask */,
+                                 llvm_i32_type /* flags */,
+                                 llvm_committed_hit_type /* committed_hit */);
+}
+
 std::pair<llvm::Value *, const Type *>
 CUDACodegenLLVMImpl::_lower_access_chain_address(IB &b, FunctionContext &func_ctx, llvm::Value *llvm_ptr,
                                                  const Type *type, luisa::span<const xir::Use *const> index_uses) noexcept {

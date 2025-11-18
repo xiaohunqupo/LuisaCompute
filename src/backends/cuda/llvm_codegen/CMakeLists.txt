@@ -41,6 +41,6 @@ if (LUISA_COMPUTE_CUDA_LINKED_LLVM)
             cuda_codegen_llvm_impl_cta.cpp
             cuda_codegen_llvm_impl_debug.cpp
             cuda_codegen_llvm_impl_resource.cpp
-            cuda_codegen_llvm_impl_rtx.cpp
+            cuda_codegen_llvm_impl_rq.cpp
     )
 endif ()
