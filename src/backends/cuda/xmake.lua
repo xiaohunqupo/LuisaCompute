@@ -1,34 +1,10 @@
 if has_config("lc_cuda_ext_lcub") then
     includes("lcub")
 end
-target("lc-cuda-base")
+target("lc-cuda-backend-base")
 set_kind("phony")
+add_deps('_lc_cuda_base')
 on_load(function(target)
-    import("detect.sdks.find_cuda")
-    import("cuda_sdkdir")
-    local cuda = find_cuda(cuda_sdkdir())
-    if cuda then
-        local cuda_linkdirs = cuda["linkdirs"]
-        target:add("linkdirs", cuda_linkdirs, {
-            public = true
-        })
-        if target:is_plat("linux") and type(cuda_linkdirs) == "table" then
-            for _, v in ipairs(cuda_linkdirs) do
-                local stubs_dir = path.join(v, "stubs")
-                if os.exists(stubs_dir) then
-                    target:add("linkdirs", stubs_dir, {
-                        public = true
-                    })
-                end
-            end
-        end
-        target:add("includedirs", cuda["includedirs"], {
-            public = true
-        })
-    else
-        target:set("enabled", false)
-        return
-    end
     if target:is_plat("windows") then
         target:add("defines", "UNICODE", "_CRT_SECURE_NO_WARNINGS", {
             public = true
@@ -53,7 +29,7 @@ _config_project({
     project_kind = "shared",
     batch_size = 4
 })
-add_deps("lc-runtime", "lc-cuda-base")
+add_deps("lc-runtime", "lc-cuda-backend-base")
 
 add_deps("lc_embed_codegen", {
     inherit = false,
@@ -130,7 +106,7 @@ if is_plat("windows") then
     add_syslinks("Ws2_32", "User32")
 end
 set_basename("luisa_nvrtc")
-add_deps("lc-cuda-base")
+add_deps("lc-cuda-backend-base")
 add_links("nvrtc_static", "nvrtc-builtins_static", "nvptxcompiler_static")
 add_files("cuda_nvrtc_compiler.cpp")
 target_end()

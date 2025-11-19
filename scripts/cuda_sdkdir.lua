@@ -31,4 +31,5 @@ function main(version)
 	if nvcc then
 		return path.directory(path.directory(nvcc))
 	end
+	return nil
 end

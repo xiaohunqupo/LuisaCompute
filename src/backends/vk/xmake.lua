@@ -24,35 +24,9 @@ on_load(function(target)
         target:add("files", rela("../common/moltenvk_surface.mm"))
     end
     if has_config("lc_vk_cuda_interop") then
-        import("detect.sdks.find_cuda")
-        import("cuda_sdkdir", {
-            rootdir = path.join(path.directory(os.scriptdir()), "cuda")
-        })
-        local cuda = find_cuda(cuda_sdkdir())
-        if not cuda then
-            utils.error("cuda not found.")
-        else
-            local cuda_linkdirs = cuda["linkdirs"]
-            target:add("linkdirs", cuda_linkdirs, {
-                public = true
-            })
-            target:add("includedirs", cuda["includedirs"], {
-                public = true
-            })
-            if target:is_plat("linux") and type(cuda_linkdirs) == "table" then
-                for _, v in ipairs(cuda_linkdirs) do
-                    local stubs_dir = path.join(v, "stubs")
-                    if os.exists(stubs_dir) then
-                        target:add("linkdirs", stubs_dir, {
-                            public = true
-                        })
-                    end
-                end
-            end
-
-            target:add("links", "nvrtc_static", "cudart_static", "cuda")
-            target:add("defines", "LUISA_VULKAN_ENABLE_CUDA_INTEROP")
-        end
+        target:add("defines", "LUISA_VULKAN_ENABLE_CUDA_INTEROP")
+        target:add("links", "nvrtc_static", "cudart_static", "cuda")
+        target:add('deps', '_lc_cuda_base')
     end
 end)
 target_end()

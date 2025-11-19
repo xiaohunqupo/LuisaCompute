@@ -33,30 +33,10 @@ on_load(function(target)
     end
     if has_config("lc_dx_cuda_interop") then
         import("detect.sdks.find_cuda")
-        import("cuda_sdkdir", {
-            rootdir = path.absolute(path.join(path.directory(os.scriptdir()), "cuda"))
-        })
-        local cuda = find_cuda(cuda_sdkdir())
-        if not cuda then
-            utils.error("cuda not found.")
-        else
-            local cuda_linkdirs = cuda["linkdirs"]
-            target:add("linkdirs", cuda_linkdirs, {public = true})
-            target:add("includedirs", cuda["includedirs"], {public = true})
-            if is_plat("linux") and type(cuda_linkdirs) == "table" then
-                for _, v in ipairs(cuda_linkdirs) do
-                    local stubs_dir = path.join(v, "stubs")
-                    if os.exists(stubs_dir) then
-                        target:add("linkdirs", stubs_dir, {
-                            public = true
-                        })
-                    end
-                end
-            end
-            target:add("links", "nvrtc_static", "cudart_static", "cuda")
-            target:add("defines", "LCDX_ENABLE_CUDA")
-            target:add("syslinks", "Cfgmgr32", "Advapi32")
-        end
+        target:add("links", "nvrtc_static", "cudart_static", "cuda")
+        target:add("defines", "LCDX_ENABLE_CUDA")
+        target:add("syslinks", "Cfgmgr32", "Advapi32")
+        target:add('deps', '_lc_cuda_base')
     end
 end)
 set_pcxxheader("lc_dx_pch.h")
