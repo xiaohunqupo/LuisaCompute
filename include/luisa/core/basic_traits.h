@@ -175,6 +175,16 @@ struct vector_element_impl<Vector<T, N>> {
 };
 
 template<typename T>
+struct matrix_element_impl {
+    using type = T;
+};
+
+template<typename T, size_t N>
+struct matrix_element_impl<Matrix<T, N>> {
+    using type = T;
+};
+
+template<typename T>
 struct vector_dimension_impl {
     static constexpr auto value = static_cast<size_t>(1u);
 };
@@ -231,6 +241,12 @@ using vector_element = detail::vector_element_impl<std::remove_cvref_t<T>>;
 
 template<typename T>
 using vector_element_t = typename vector_element<T>::type;
+
+template<typename T>
+using matrix_element = detail::matrix_element_impl<std::remove_cvref_t<T>>;
+
+template<typename T>
+using matrix_element_t = typename matrix_element<T>::type;
 
 template<typename T, size_t N = 0u>
 using is_vector = detail::is_vector_impl<std::remove_cvref_t<T>, N>;
