@@ -142,13 +142,11 @@ private:
     void RemoveAllocatedObject(T *obj) {
         TypeCollector *col = reinterpret_cast<TypeCollector *>(obj);
         if (col->index != allocatedObjects.size() - 1) {
-            auto &&v = allocatedObjects[col->index];
-            v = allocatedObjects.back();
-            allocatedObjects.pop_back();
+            auto v = allocatedObjects.back();
+            allocatedObjects[col->index] = v;
             v->index = col->index;
-        } else {
-            allocatedObjects.pop_back();
         }
+        allocatedObjects.pop_back();
     }
 
 public:
@@ -221,29 +219,37 @@ public:
     }
 
     void destroy(T *ptr) {
+        RemoveAllocatedObject(ptr);
         if constexpr (!std::is_trivially_destructible_v<T>)
             std::destroy_at(ptr);
-        RemoveAllocatedObject(ptr);
         allPtrs.push_back(ptr);
     }
     void destroy_all() {
-        for (auto &&ptr : allocatedObjects) {
-            allPtrs.push_back(reinterpret_cast<T *>(ptr));
+        if constexpr (!std::is_trivially_destructible_v<T>) {
+            for (auto &&ptr : allocatedObjects) {
+                std::destroy_at(reinterpret_cast<T *>(ptr));
+            }
         }
+        vstd::push_back_all(
+            allPtrs,
+            reinterpret_cast<T **>(allocatedObjects.data()),
+            allocatedObjects.size());
         allocatedObjects.clear();
     }
     template<typename Mutex>
     void destroy_lock(Mutex &mtx, T *ptr) {
-        if constexpr (!std::is_trivially_destructible_v<T>)
-            std::destroy_at(ptr);
         std::lock_guard lck(mtx);
         RemoveAllocatedObject(ptr);
+        if constexpr (!std::is_trivially_destructible_v<T>)
+            std::destroy_at(ptr);
         allPtrs.push_back(ptr);
     }
 
     ~Pool() {
-        for (auto &&i : allocatedObjects) {
-            std::destroy_at(reinterpret_cast<T *>(i));
+        if constexpr (!std::is_trivially_destructible_v<T>) {
+            for (auto &&i : allocatedObjects) {
+                std::destroy_at(reinterpret_cast<T *>(i));
+            }
         }
         for (auto &&i : allocatedPtrs) {
             PoolFree(i);
