@@ -56,5 +56,7 @@ public:
     static void to_base64(span<uint8_t const> binary, char *result);
     static void from_base64(std::string_view str, vector<uint8_t> &result);
     static void from_base64(std::string_view str, uint8_t *size);
+    static void to_hex_string(span<uint8_t const> binary, string &result, bool upper);
+    static void to_hex_string(span<uint8_t const> binary, char *result, bool upper);
 };
 }// namespace vstd

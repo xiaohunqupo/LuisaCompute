@@ -252,5 +252,17 @@ void StringUtil::from_base64(std::string_view str, uint8_t *size) {
     using namespace strutil_detail;
     decode(size, str.data(), str.size());
 }
-
+void StringUtil::to_hex_string(span<uint8_t const> binary, string &result, bool upper) {
+    result.clear();
+    result.resize(binary.size() * 2);
+    to_hex_string(binary, result.data(), upper);
+}
+void StringUtil::to_hex_string(span<uint8_t const> binary, char *result, bool upper) {
+    static char const *const hexUpperStr = upper ? "0123456789ABCDEF" : "0123456789abcdef";
+    for (auto i : binary) {
+        result[0] = hexUpperStr[(i >> 4) & 15];
+        result[1] = hexUpperStr[i & 15];
+        result += 2;
+    }
+}
 }// namespace vstd

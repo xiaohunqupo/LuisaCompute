@@ -1,4 +1,6 @@
 #include <luisa/vstl/md5.h>
+#include <luisa/core/platform.h>
+#include <luisa/vstl/string_utility.h>
 namespace vstd {
 namespace detail {
 
@@ -352,17 +354,6 @@ void MD5_Impl::decode(const uint8_t *input, uint32_t *output, size_t length) {
 #undef II
 #undef ROTATELEFT
 
-void UInt64ToHex(uint64 data, char *&sPtr, bool upper) {
-    char const *hexUpperStr = upper ? "0123456789ABCDEF" : "0123456789abcdef";
-    constexpr size_t hexSize = sizeof(data) * 2;
-    auto ptrEnd = sPtr + hexSize;
-    while (sPtr != ptrEnd) {
-        *sPtr = hexUpperStr[data & 15];
-        data >>= 4;
-        sPtr++;
-    }
-}
-
 }// namespace detail
 std::array<uint8_t, MD5_SIZE> GetMD5FromString(string const &str) {
     using namespace detail;
@@ -371,7 +362,7 @@ std::array<uint8_t, MD5_SIZE> GetMD5FromString(string const &str) {
     md5.GetDigest();
     return arr;
 }
-std::array<uint8_t, MD5_SIZE> GetMD5FromArray(span<uint8_t> data) {
+std::array<uint8_t, MD5_SIZE> GetMD5FromArray(span<uint8_t const> data) {
     using namespace detail;
     std::array<uint8_t, MD5_SIZE> arr;
     MD5_Impl md5(data, arr.data());
@@ -386,9 +377,8 @@ MD5::MD5(std::string_view str)
 }
 MD5::MD5(span<uint8_t const> bin) {
     using namespace detail;
-    using namespace detail;
-    MD5_Impl impl(bin, reinterpret_cast<uint8_t *>(&data));
-    impl.GetDigest();
+    MD5_Impl md5(bin, reinterpret_cast<uint8_t *>(&data));
+    md5.GetDigest();
 }
 MD5::MD5(MD5Data const &data)
     : data(data) {
@@ -402,10 +392,10 @@ bool MD5::operator!=(MD5 const &m) const {
 }
 string MD5::to_string(bool upper) const {
     string str;
-    str.resize(sizeof(uint64) * 2 * 2);
-    char *ptr = str.data();
-    detail::UInt64ToHex(data.data0, ptr, upper);
-    detail::UInt64ToHex(data.data1, ptr, upper);
+    vstd::StringUtil::to_hex_string(
+        {reinterpret_cast<uint8_t const *>(&data),
+         sizeof(data)},
+        str, upper);
     return str;
 }
 #ifdef EXPORT_UNITY_FUNCTION
@@ -426,4 +416,3 @@ VENGINE_UNITY_EXTERN void md5_to_std::string(
 }
 #endif
 }// namespace vstd
-

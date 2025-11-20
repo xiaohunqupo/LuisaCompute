@@ -147,30 +147,19 @@ std::array<uint8_t, sizeof(Guid::GuidData)> Guid::ToArray() const {
     std::memcpy(arr.data(), &data, sizeof(GuidData));
     return arr;
 }
-namespace vguid_detail {
-void toHex(uint64 data, char *&sPtr, bool upper) {
-    char const *hexUpperStr = upper ? "0123456789ABCDEF" : "0123456789abcdef";
-    constexpr size_t hexSize = sizeof(data) * 2;
-    auto ptrEnd = sPtr - hexSize;
-    while (sPtr != ptrEnd) {
-        *sPtr = hexUpperStr[data & 15];
-        data >>= 4;
-        sPtr--;
-    }
-}
-}// namespace vguid_detail
 string Guid::to_string(bool upper) const {
     string s;
-    s.resize(sizeof(GuidData) * 2);
-    auto sPtr = s.data() + sizeof(GuidData) * 2 - 1;
-    vguid_detail::toHex(data.data1, sPtr, upper);
-    vguid_detail::toHex(data.data0, sPtr, upper);
+    vstd::StringUtil::to_hex_string(
+        {reinterpret_cast<uint8_t const *>(&data),
+         sizeof(data)},
+        s, upper);
     return s;
 }
 void Guid::to_string(char *result, bool upper) const {
-    auto sPtr = result + sizeof(GuidData) * 2 - 1;
-    vguid_detail::toHex(data.data1, sPtr, upper);
-    vguid_detail::toHex(data.data0, sPtr, upper);
+    vstd::StringUtil::to_hex_string(
+        {reinterpret_cast<uint8_t const *>(&data),
+         sizeof(data)},
+        result, upper);
 }
 
 #ifdef EXPORT_UNITY_FUNCTION
@@ -192,4 +181,3 @@ VENGINE_UNITY_EXTERN void vguid_to_std::string(
 }
 #endif
 }// namespace vstd
-
