@@ -1266,8 +1266,7 @@ struct compare<variant<T...>> {
     bool operator<(T const &a) const {                \
         return std::memcmp(this, &a, sizeof(T)) < 0;  \
     }
-class IOperatorNewBase {
-public:
+struct IOperatorNewBase {
     static void *operator new(
         size_t size) noexcept {
         return vengine_malloc(size);
