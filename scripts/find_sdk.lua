@@ -28,7 +28,7 @@ function sdks()
     return _sdks
 end
 local lc_project_dir = path.directory(os.scriptdir())
-function sdk_dir(custom_dir)
+local function sdk_dir(custom_dir, plat_spec)
     if custom_dir then
         if not path.is_absolute(custom_dir) then
             custom_dir = path.absolute(custom_dir, os.projectdir())
@@ -36,11 +36,15 @@ function sdk_dir(custom_dir)
     else
         custom_dir = path.join(lc_project_dir, 'SDKs/')
     end
-    return path.join(custom_dir, os.host(), os.arch())
+    if plat_spec then
+        return path.join(custom_dir, os.host(), os.arch())
+    else
+        return custom_dir
+    end
 end
 
-function get_or_create_sdk_dir(custom_dir)
-    local dir = sdk_dir(custom_dir)
+local function get_or_create_sdk_dir(custom_dir, plat_spec)
+    local dir = sdk_dir(custom_dir, plat_spec)
     local lib = import('lib')
     lib.mkdirs(dir)
     return dir
@@ -66,7 +70,7 @@ local function try_download(zip, url, mirror_urls, dst_dir, settings)
     utils.error("Download " .. zip .. " failed, please check your internet.")
 end
 
-function file_from_github(sdk_map, dir)
+local function file_from_github(sdk_map, dir)
     local zip, address, mirror_address
     zip = sdk_map['name']
     address = sdk_address(sdk_map)
@@ -88,7 +92,7 @@ end
 
 -- tool
 
-function find_tool_zip(tool_name, dir)
+local function find_tool_zip(tool_name, dir)
     local zip_dir = find_file(tool_name, {dir})
     return {
         name = tool_name,
@@ -96,7 +100,7 @@ function find_tool_zip(tool_name, dir)
     }
 end
 
-function unzip_sdk(tool_name, in_dir, out_dir)
+local function unzip_sdk(tool_name, in_dir, out_dir)
     local zip_file = find_tool_zip(tool_name, in_dir)
     if (zip_file.dir ~= nil) then
         print("installing: " .. zip_file.name)
@@ -107,8 +111,8 @@ function unzip_sdk(tool_name, in_dir, out_dir)
     end
 end
 
-function install_sdk(sdk_map, custom_dir)
-    local dir = get_or_create_sdk_dir(custom_dir)
+local function install_sdk(sdk_map, custom_dir, plat_spec)
+    local dir = get_or_create_sdk_dir(custom_dir, plat_spec)
     local _sdks = sdks()
     if not sdk_map then
         utils.error("Invalid sdk: " .. sdk_map["name"])
@@ -117,8 +121,8 @@ function install_sdk(sdk_map, custom_dir)
     file_from_github(sdk_map, dir)
 end
 
-function check_file(sdk_name, custom_dir)
-    local dir = sdk_dir(custom_dir)
+local function check_file(sdk_name, custom_dir, plat_spec)
+    local dir = sdk_dir(custom_dir, plat_spec)
     local _sdks = sdks()
     local sdk_map = _sdks[sdk_name]
     local zip = sdk_map['name']
@@ -137,8 +141,8 @@ function clean_install_sdk(target, rule_name)
         libnames = {libnames}
     end
     local sdks = sdks()
-    local sdk_dir = sdk_dir(custom_sdk_dir)
     for _, lib in ipairs(libnames) do
+        local sdk_dir = sdk_dir(custom_sdk_dir, lib['plat_spec'])
         local extract_dir = lib["extract_dir"]
         if not extract_dir or #extract_dir == 0 then
             extract_dir = path.join(sdk_dir, path.basename(sdk_map["name"]))
@@ -158,8 +162,7 @@ function on_install_sdk(target, rule_name)
         libnames = {libnames}
     end
     local sdks = sdks()
-    local sdk_dir = sdk_dir(custom_sdk_dir)
-    os.mkdir(sdk_dir)
+
     import("async.jobgraph")
     import("async.runjobs")
     if #libnames == 0 then
@@ -181,22 +184,23 @@ function on_install_sdk(target, rule_name)
                 os.mkdir(copy_dir)
             end
             local sdk_map
-
+            local plat_spec = true
             local function log_err()
                 utils.error("Library: " .. sdks()[lib]['name'] .. " not installed, should download from " ..
-                                sdk_address(sdks()[lib]) .. ' to ' .. sdk_dir(custom_sdk_dir) .. '.')
+                                sdk_address(sdks()[lib]) .. ' to ' .. sdk_dir(custom_sdk_dir, plat_spec) .. '.')
             end
             local function process_sdk_map(sdk_map)
-                if sdk_map["plat_spec"] then
+                plat_spec = sdk_map["plat_spec"]
+                if plat_spec then
                     local t = sdk_map['name']
                     sdk_map['name'] = path.basename(t) .. '-' .. os.host() .. '-' .. os.arch() .. path.extension(t)
                 end
-                install_sdk(sdk_map, custom_sdk_dir)
+                install_sdk(sdk_map, custom_sdk_dir, plat_spec)
             end
             if type(lib) == "string" then
                 sdk_map = sdks[lib]
                 process_sdk_map(sdk_map)
-                local valid = check_file(lib, custom_sdk_dir)
+                local valid = check_file(lib, custom_sdk_dir, plat_spec)
                 if not valid then
                     log_err();
                     return
@@ -205,6 +209,8 @@ function on_install_sdk(target, rule_name)
                 sdk_map = lib
                 process_sdk_map(sdk_map)
             end
+            local _sdk_dir = sdk_dir(custom_sdk_dir, plat_spec)
+            os.mkdir(_sdk_dir)
             local sdk_name = sdk_map["name"]
 
             if not sdk_name then
@@ -213,10 +219,13 @@ function on_install_sdk(target, rule_name)
             end
             local extract_dir = lib["extract_dir"]
             if not extract_dir or #extract_dir == 0 then
-                extract_dir = path.join(sdk_dir, path.basename(sdk_name))
+                extract_dir = path.join(_sdk_dir, path.basename(sdk_name))
             end
             -- Check cache
-            local target_cache_dir = path.join(os.projectdir(), "build/.lcsdk", os.host(), os.arch())
+            local target_cache_dir = path.join(os.projectdir(), "build/.lcsdk")
+            if plat_spec then
+                target_cache_dir = path.join(target_cache_dir, os.host(), os.arch())
+            end
             local target_cache_file = path.join(target_cache_dir, sdk_name .. ".ini")
 
             local require_extract
@@ -230,7 +239,7 @@ function on_install_sdk(target, rule_name)
                     return true
                 end
             end
-            local file_sha256 = hash.sha256(path.join(sdk_dir, sdk_name))
+            local file_sha256 = hash.sha256(path.join(_sdk_dir, sdk_name))
             local function is_cache_mismatch()
                 if not os.exists(target_cache_file) then
                     return true
@@ -238,7 +247,7 @@ function on_install_sdk(target, rule_name)
                 return io.readfile(target_cache_file) ~= file_sha256
             end
             local function unzip()
-                unzip_sdk(sdk_map['name'], sdk_dir, extract_dir)
+                unzip_sdk(sdk_map['name'], _sdk_dir, extract_dir)
                 os.mkdir(target_cache_dir)
                 io.writefile(target_cache_file, file_sha256)
             end
