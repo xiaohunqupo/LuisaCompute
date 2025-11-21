@@ -369,7 +369,10 @@ ShaderSerializer::DeserResult ShaderSerializer::try_deser_compute(
     {
         PSODataPackage package{
             .header = device->pso_header()};
-        std::memcpy(package.md5, (void const*)&shader_md5, sizeof(vstd::MD5));
+        if (!shader_md5) {
+            shader_md5.create(vstd::MD5{file_name});
+        }
+        std::memcpy(package.md5, shader_md5.ptr(), sizeof(vstd::MD5));
         vstd::MD5 pso_md5{
             {reinterpret_cast<uint8_t const *>(&package), sizeof(PSODataPackage)}};
         pso_name = pso_md5.to_string(false);
