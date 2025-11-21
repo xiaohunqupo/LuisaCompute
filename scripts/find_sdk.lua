@@ -182,10 +182,6 @@ function on_install_sdk(target, rule_name)
             end
             local sdk_map
 
-            local function log_err()
-                utils.error("Library: " .. sdks()[lib]['name'] .. " not installed, should download from " ..
-                                sdk_address(sdks()[lib]) .. ' to ' .. sdk_dir(custom_sdk_dir) .. '.')
-            end
             local function process_sdk_map(sdk_map)
                 if sdk_map["plat_spec"] then
                     local t = sdk_map['name']
@@ -198,7 +194,8 @@ function on_install_sdk(target, rule_name)
                 process_sdk_map(sdk_map)
                 local valid = check_file(lib, custom_sdk_dir)
                 if not valid then
-                    log_err();
+                    utils.error("Library: " .. sdks()[lib]['name'] .. " not installed, should download from " ..
+                                    sdk_address(sdks()[lib]) .. ' to ' .. sdk_dir(custom_sdk_dir) .. '.')
                     return
                 end
             else
@@ -233,7 +230,12 @@ function on_install_sdk(target, rule_name)
                     return true
                 end
             end
-            local file_sha256 = hash.sha256(path.join(_sdk_dir, sdk_name))
+            local downloaded_pack = path.join(_sdk_dir, sdk_name)
+            if not os.exists(downloaded_pack) then
+                utils.error(downloaded_pack .. ' not found.')
+                return
+            end
+            local file_sha256 = hash.sha256(downloaded_pack)
             local function is_cache_mismatch()
                 if not os.exists(target_cache_file) then
                     return true
