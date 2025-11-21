@@ -2332,7 +2332,7 @@ void CodegenUtility::CodegenPixel(Function pixel, vstd::StringBuilder &result, b
     auto set_depth = pixel.propagated_builtin_callables().test(CallOp::RASTER_SET_Z_DEPTH);
     auto set_depth_lequal = pixel.propagated_builtin_callables().test(CallOp::RASTER_SET_Z_DEPTH_LESS_EQUAL);
     auto set_depth_gequal = pixel.propagated_builtin_callables().test(CallOp::RASTER_SET_Z_DEPTH_GREATER_EQUAL);
-    result << retName << " pixel(v2p p,float3 bary,uint primId"sv;
+    result << retName << " pixel(v2p p,uint primId"sv;
     if (opt->pixelUseBarycentric) {
         result << ",float3 bary"sv;
     }

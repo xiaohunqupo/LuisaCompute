@@ -110,7 +110,7 @@ int compile(
 			device, define_iter, src_path, inc_iter, hostgen_path.empty() ? (luisa::clangcxx::ShaderReflection*)nullptr : &refl)) {
 		return 1;
 	}
-	if (!hostgen_path.empty())
+	if (!hostgen_path.empty() && refl.dimension > 0)
 		HostCodegen::write_to(refl.kernel_args, refl.dimension, hostgen_path);
 	return 0;
 }

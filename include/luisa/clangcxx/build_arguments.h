@@ -11,8 +11,8 @@ struct BuildArgument {
     compute::Usage var_usage{compute::Usage::NONE};
 };
 struct ShaderReflection {
-    uint dimension;
-    uint3 block_size;
+    uint dimension{};
+    uint3 block_size{};
     luisa::vector<BuildArgument> kernel_args;
 };
 }// namespace luisa::clangcxx

@@ -16,12 +16,21 @@ if not is_mode("debug") then
         local p = path.join(lc_llvm_path, "lib/*.lib")
         target:add("linkdirs", path.join(lc_llvm_path, "lib"))
         target:add("includedirs", path.join(lc_llvm_path, "include"))
+        local black_list = {
+            "lld",
+        }
         for __, filepath in ipairs(os.files(p)) do
             local basename = path.basename(filepath)
+            for _, v in ipairs(black_list) do
+                if basename:match(v) ~= nil then
+                    goto END_LOOP
+                end
+            end
             table.insert(libs, basename)
+            ::END_LOOP::
         end
         target:add("links", libs)
-        target:add("defines", "LUISA_CLANGCXX_EXPORT_DLL")
+        target:add("defines", "LUISA_CLANGCXX_EXPORT_DLL", 'CLANG_BUILD_STATIC')
         target:add("deps", "lc-core", "lc-runtime", "lc-vstl")
         if is_plat("windows") then
             target:add("syslinks", "Version", "advapi32", "Shcore", "user32", "shell32", "Ole32", 'Ws2_32', 'ntdll', {
