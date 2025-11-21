@@ -560,6 +560,111 @@ LUISA_MAKE_VECTOR_ASSIGN_OPERATOR(^=, std::negation_v<luisa::is_floating_point<T
     return luisa::float4x4{lhs[0] - rhs[0], lhs[1] - rhs[1], lhs[2] - rhs[2], lhs[3] - rhs[3]};
 }
 
+/// double2x2 multiplied by double
+[[nodiscard]] constexpr auto operator*(const luisa::double2x2 m, double s) noexcept {
+    return luisa::double2x2{m[0] * s, m[1] * s};
+}
+
+/// double2x2 multiplied by double
+[[nodiscard]] constexpr auto operator*(double s, const luisa::double2x2 m) noexcept {
+    return m * s;
+}
+
+/// double2x2 divided by double
+[[nodiscard]] constexpr auto operator/(const luisa::double2x2 m, double s) noexcept {
+    return m * (1.0f / s);
+}
+
+/// double2x2 dot double2
+[[nodiscard]] constexpr auto operator*(const luisa::double2x2 m, const luisa::double2 v) noexcept {
+    return v.x * m[0] + v.y * m[1];
+}
+
+/// double2x2 multiply(matmul)
+[[nodiscard]] constexpr auto operator*(const luisa::double2x2 lhs, const luisa::double2x2 rhs) noexcept {
+    return luisa::double2x2{lhs * rhs[0], lhs * rhs[1]};
+}
+
+/// double2x2 plus
+[[nodiscard]] constexpr auto operator+(const luisa::double2x2 lhs, const luisa::double2x2 rhs) noexcept {
+    return luisa::double2x2{lhs[0] + rhs[0], lhs[1] + rhs[1]};
+}
+
+/// double2x2 minus
+[[nodiscard]] constexpr auto operator-(const luisa::double2x2 lhs, const luisa::double2x2 rhs) noexcept {
+    return luisa::double2x2{lhs[0] - rhs[0], lhs[1] - rhs[1]};
+}
+
+/// double3x3 multiplied by double
+[[nodiscard]] constexpr auto operator*(const luisa::double3x3 m, double s) noexcept {
+    return luisa::double3x3{m[0] * s, m[1] * s, m[2] * s};
+}
+
+/// double3x3 multiplied by double
+[[nodiscard]] constexpr auto operator*(double s, const luisa::double3x3 m) noexcept {
+    return m * s;
+}
+
+/// double 3x3 divided by double
+[[nodiscard]] constexpr auto operator/(const luisa::double3x3 m, double s) noexcept {
+    return m * (1.0f / s);
+}
+
+/// double3x3 dot double3
+[[nodiscard]] constexpr auto operator*(const luisa::double3x3 m, const luisa::double3 v) noexcept {
+    return v.x * m[0] + v.y * m[1] + v.z * m[2];
+}
+
+/// double3x3 multiply(matmul)
+[[nodiscard]] constexpr auto operator*(const luisa::double3x3 lhs, const luisa::double3x3 rhs) noexcept {
+    return luisa::double3x3{lhs * rhs[0], lhs * rhs[1], lhs * rhs[2]};
+}
+
+/// double3x3 plus
+[[nodiscard]] constexpr auto operator+(const luisa::double3x3 lhs, const luisa::double3x3 rhs) noexcept {
+    return luisa::double3x3{lhs[0] + rhs[0], lhs[1] + rhs[1], lhs[2] + rhs[2]};
+}
+
+/// double3x3 minus
+[[nodiscard]] constexpr auto operator-(const luisa::double3x3 lhs, const luisa::double3x3 rhs) noexcept {
+    return luisa::double3x3{lhs[0] - rhs[0], lhs[1] - rhs[1], lhs[2] - rhs[2]};
+}
+
+/// double4x4 multiplied by double
+[[nodiscard]] constexpr auto operator*(const luisa::double4x4 m, double s) noexcept {
+    return luisa::double4x4{m[0] * s, m[1] * s, m[2] * s, m[3] * s};
+}
+
+/// double4x4 multiplied by double
+[[nodiscard]] constexpr auto operator*(double s, const luisa::double4x4 m) noexcept {
+    return m * s;
+}
+
+/// double4x4 divided by double
+[[nodiscard]] constexpr auto operator/(const luisa::double4x4 m, double s) noexcept {
+    return m * (1.0f / s);
+}
+
+/// floa4x4 dot double4
+[[nodiscard]] constexpr auto operator*(const luisa::double4x4 m, const luisa::double4 v) noexcept {
+    return v.x * m[0] + v.y * m[1] + v.z * m[2] + v.w * m[3];
+}
+
+/// double4x4 multiply(matmul)
+[[nodiscard]] constexpr auto operator*(const luisa::double4x4 lhs, const luisa::double4x4 rhs) noexcept {
+    return luisa::double4x4{lhs * rhs[0], lhs * rhs[1], lhs * rhs[2], lhs * rhs[3]};
+}
+
+/// double4x4 plus
+[[nodiscard]] constexpr auto operator+(const luisa::double4x4 lhs, const luisa::double4x4 rhs) noexcept {
+    return luisa::double4x4{lhs[0] + rhs[0], lhs[1] + rhs[1], lhs[2] + rhs[2], lhs[3] + rhs[3]};
+}
+
+/// double4x4 minus
+[[nodiscard]] constexpr auto operator-(const luisa::double4x4 lhs, const luisa::double4x4 rhs) noexcept {
+    return luisa::double4x4{lhs[0] - rhs[0], lhs[1] - rhs[1], lhs[2] - rhs[2], lhs[3] - rhs[3]};
+}
+
 namespace luisa {
 
 /// make_typeN definitions

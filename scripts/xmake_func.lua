@@ -399,7 +399,9 @@ rule_end()
 --     }
 -- })
 rule('lc_install_sdk')
-on_prepare(function(target)
+-- if compile depend on installing, use:
+-- set_policy('build.fence', true)
+before_build(function(target)
     import("find_sdk")
     find_sdk.on_install_sdk(target, 'lc_install_sdk')
 end)
