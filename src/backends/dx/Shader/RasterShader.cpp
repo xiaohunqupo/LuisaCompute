@@ -7,7 +7,7 @@
 #include <luisa/core/logging.h>
 namespace lc::dx {
 namespace RasterShaderDetail {
-static const bool PRINT_CODE = ([] {
+static const bool RASTER_PRINT_CODE = ([] {
     // read env LUISA_DUMP_SOURCE
     auto env = std::getenv("LUISA_DUMP_SOURCE");
     if (env == nullptr) {
@@ -286,7 +286,7 @@ RasterShader *RasterShader::CompileRaster(
         if (str.useBufferBindless) bdlsBufferCount++;
         if (str.useTex2DBindless) bdlsBufferCount++;
         if (str.useTex3DBindless) bdlsBufferCount++;
-        if (RasterShaderDetail::PRINT_CODE) {
+        if (RasterShaderDetail::RASTER_PRINT_CODE) {
             auto f = fopen("hlsl_output.hlsl", "wb");
             fwrite(str.result.data(), str.result.size(), 1, f);
             fclose(f);
@@ -358,7 +358,7 @@ void RasterShader::SaveRaster(
     uint shaderModel,
     bool enableUnsafeMath,
     bool debug) {
-    if (RasterShaderDetail::PRINT_CODE) {
+    if (RasterShaderDetail::RASTER_PRINT_CODE) {
         auto f = fopen("hlsl_output.hlsl", "ab");
         fwrite(str.result.data(), str.result.size(), 1, f);
         fclose(f);

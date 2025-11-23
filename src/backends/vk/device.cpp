@@ -1008,6 +1008,17 @@ void Device::present_display_in_stream(uint64_t stream_handle, uint64_t swapchai
     reinterpret_cast<Stream *>(stream_handle)->present(reinterpret_cast<Texture const *>(image_handle), 0, reinterpret_cast<Swapchain *>(swapchain_handle), inqueue_limit);
 }
 
+static const bool COMPUTE_PRINT_CODE = ([] {
+    // read env LUISA_DUMP_SOURCE
+    auto env = std::getenv("LUISA_DUMP_SOURCE");
+    if (env == nullptr) {
+        return false;
+    }
+    return std::string_view{env} == "1";
+})();
+bool Device::print_code() {
+    return COMPUTE_PRINT_CODE;
+}
 // kernel
 ShaderCreationInfo Device::create_shader(const ShaderOption &option, Function kernel) noexcept {
     LUISA_ASSERT(Device::Compiler(), "Shader compiler not loaded.");
@@ -1025,6 +1036,11 @@ ShaderCreationInfo Device::create_shader(const ShaderOption &option, Function ke
     if (option.compile_only) {
         assert(!option.name.empty());
         info.invalidate();
+        if (print_code()) {
+            auto f = fopen("hlsl_output.hlsl", "ab");
+            fwrite(code.result.view().data(), code.result.view().size(), 1, f);
+            fclose(f);
+        }
         auto comp_result = Device::Compiler()->compile_compute(
             code.result.view(),
             !option.enable_debug_info,

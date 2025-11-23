@@ -150,6 +150,7 @@ public:
     auto graphics_queue() const { return _graphics_queue; }
     auto compute_queue() const { return _compute_queue; }
     auto copy_queue() const { return _copy_queue; }
+    static bool print_code();
     // texture
     ResourceCreationInfo create_texture(
         PixelFormat format, uint dimension,
