@@ -515,7 +515,9 @@ after_build(function(target)
     end
     local function copy(src_path, dst_path)
         os.cp(src_path, dst_path, {
-            copy_if_different = true
+            copy_if_different = true,
+            async = true,
+            detach = true
         })
     end
     local dst_path = target:targetdir()

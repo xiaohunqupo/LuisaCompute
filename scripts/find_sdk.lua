@@ -257,7 +257,8 @@ function on_install_sdk(target, rule_name)
             if #copy_dir > 0 then
                 for _, filepath in ipairs(os.filedirs(path.join(extract_dir, "*"))) do
                     os.cp(filepath, path.join(copy_dir, path.filename(filepath)), {
-                        copy_if_different = true
+                        copy_if_different = true,
+                        async = true
                     })
                 end
             end

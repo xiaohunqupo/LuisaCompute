@@ -33,7 +33,9 @@ after_build(function(target)
     end
     for i, v in ipairs(files) do
         os.cp(path.join(target:targetdir(), v), dst_dir, {
-            copy_if_different = true
+            copy_if_different = true,
+            async = true,
+            detach = true
         })
     end
 end)

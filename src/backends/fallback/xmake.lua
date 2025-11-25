@@ -35,7 +35,11 @@ after_build(function(target)
         goto END
     end
     local function copy(src_path, dst_path)
-        os.cp(src_path, dst_path, {copy_if_different = true})
+        os.cp(src_path, dst_path, {
+            copy_if_different = true,
+            async = true,
+            detach = true
+        })
     end
     local lc_llvm_path = get_config("lc_llvm_path")
     local lc_embree_path = get_config("lc_embree_path")

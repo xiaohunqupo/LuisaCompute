@@ -139,7 +139,9 @@ test_proj("test_mnist", true, function()
     set_extension(".pyd")
     after_build(function(target)
         os.cp(path.join(os.scriptdir(), "test_mnist.py"), path.join(target:targetdir(), "test_mnist.py"), {
-            copy_if_different = true
+            copy_if_different = true,
+            async = true,
+            detach = true
         })
     end)
 end, "shared")
@@ -148,7 +150,9 @@ test_proj("test_path_tracing_spectrum", true, function()
     after_build(function(target)
         os.cp(path.join(os.scriptdir(), "SRGBToFourierEvenPacked.dat"),
             path.join(target:targetdir(), "SRGBToFourierEvenPacked.dat"), {
-                copy_if_different = true
+                copy_if_different = true,
+                async = true,
+                detach = true
             })
     end)
 end)
@@ -261,26 +265,21 @@ if has_config("lc_dx_backend") and (enable_fsr2 or enable_xess) then
             local option = target:values("option")
             if option == 1 then
                 local src_dir = path.join(os.scriptdir(), "FidelityFX-FSR2/bin")
+                local async_opt = {
+                    copy_if_different = true,
+                    async = true,
+                    detach = true
+                }
                 if is_mode("debug") then
-                    os.cp(path.join(src_dir, "ffx_fsr2_api_dx12_x64d.dll"), lc_bin_dir, {
-                        copy_if_different = true
-                    })
-                    os.cp(path.join(src_dir, "ffx_fsr2_api_x64d.dll"), lc_bin_dir, {
-                        copy_if_different = true
-                    })
+                    os.cp(path.join(src_dir, "ffx_fsr2_api_dx12_x64d.dll"), lc_bin_dir, async_opt)
+                    os.cp(path.join(src_dir, "ffx_fsr2_api_x64d.dll"), lc_bin_dir, async_opt)
                 else
-                    os.cp(path.join(src_dir, "ffx_fsr2_api_dx12_x64.dll"), lc_bin_dir, {
-                        copy_if_different = true
-                    })
-                    os.cp(path.join(src_dir, "ffx_fsr2_api_x64.dll"), lc_bin_dir, {
-                        copy_if_different = true
-                    })
+                    os.cp(path.join(src_dir, "ffx_fsr2_api_dx12_x64.dll"), lc_bin_dir, async_opt)
+                    os.cp(path.join(src_dir, "ffx_fsr2_api_x64.dll"), lc_bin_dir, async_opt)
                 end
             else
                 local src_dir = path.join(os.scriptdir(), "xess/bin")
-                os.cp(path.join(src_dir, "*.dll"), lc_bin_dir, {
-                    copy_if_different = true
-                })
+                os.cp(path.join(src_dir, "*.dll"), lc_bin_dir, async_opt)
             end
         end)
     end)
@@ -303,7 +302,9 @@ if has_config("lc_dx_backend") and enable_fsr3 then
                 table.insert(tab, "ffx_backend_dx12_x64d")
                 for _, v in ipairs(tab) do
                     os.cp(path.join(src_dir, v .. ".pdb"), lc_bin_dir, {
-                        copy_if_different = true
+                        copy_if_different = true,
+                        async = true,
+                        detach = true
                     })
                 end
             else
@@ -311,7 +312,9 @@ if has_config("lc_dx_backend") and enable_fsr3 then
             end
             for _, v in ipairs(tab) do
                 os.cp(path.join(src_dir, v .. ".dll"), lc_bin_dir, {
-                    copy_if_different = true
+                    copy_if_different = true,
+                    async = true,
+                    detach = true
                 })
             end
         end)
