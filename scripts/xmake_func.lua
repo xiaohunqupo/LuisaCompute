@@ -190,6 +190,9 @@ on_load(function(target)
     local _get_or = function(name, default_value)
         local v = target:extraconf("rules", "lc_basic_settings", name)
         if v == nil then
+            v = target:values('lc_' .. name)
+        end
+        if v == nil then
             return default_value
         end
         return v
