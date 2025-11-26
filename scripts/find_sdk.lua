@@ -126,27 +126,6 @@ local function check_file(sdk_name, custom_dir)
     return zip_dir ~= nil
 end
 
-function clean_install_sdk(target, rule_name)
-    local custom_sdk_dir
-    custom_sdk_dir = target:extraconf("rules", rule_name, "sdk_dir")
-    if not custom_sdk_dir then
-        custom_sdk_dir = get_config("lc_sdk_dir")
-    end
-    local libnames = target:extraconf("rules", rule_name, "libnames")
-    if type(libnames) == "string" or (type(libnames) == "table" and type(libnames["name"]) == "string") then
-        libnames = {libnames}
-    end
-    local sdks = sdks()
-    local sdk_dir = sdk_dir(custom_sdk_dir)
-    for _, lib in ipairs(libnames) do
-        local extract_dir = lib["extract_dir"]
-        if not extract_dir or #extract_dir == 0 then
-            extract_dir = path.join(sdk_dir, path.basename(sdk_map["name"]))
-        end
-        os.tryrm(extract_dir)
-    end
-end
-
 function on_install_sdk(target, rule_name)
     local custom_sdk_dir
     custom_sdk_dir = target:extraconf("rules", rule_name, "sdk_dir")
