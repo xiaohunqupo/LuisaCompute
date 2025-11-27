@@ -39,7 +39,6 @@ struct CodegenStackData : public vstd::IOperatorNewBase {
     CondOptValue cond_opt_value = CondOptValue::None;
     bool isRaster : 1 = false;
     bool isSpirv : 1 = false;
-    bool noRegister : 1 = false;
     bool isPixelShader : 1 = false;
     bool pixelFirstArgIsStruct : 1 = false;
     bool pixelUseBarycentric : 1 = false;

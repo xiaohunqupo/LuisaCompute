@@ -73,8 +73,8 @@ vstd::string_view CodegenUtility::ReadInternalHLSLFile(vstd::string_view name) {
     return {static_cast<char const *>(data.ptr), data.size};
 }
 namespace detail {
-static size_t AddHeader(CallOpSet const &ops, vstd::StringBuilder &builder, bool isRaster, bool is_spirv, bool fallback, bool linalg) {
-    builder << CodegenUtility::ReadInternalHLSLFile(fallback ? "hlsl_header_fallback" : "hlsl_header");
+static size_t AddHeader(CallOpSet const &ops, vstd::StringBuilder &builder, bool isRaster, bool is_spirv, bool linalg) {
+    builder << CodegenUtility::ReadInternalHLSLFile("hlsl_header");
     size_t immutable_size = builder.size();
     if (ops.uses_raytracing()) {
         builder << CodegenUtility::ReadInternalHLSLFile("raytracing_header");
@@ -410,7 +410,7 @@ void CodegenUtility::GetTypeName(Type const &type, vstd::StringBuilder &str, Usa
                 str << "StructuredBuffer<"sv;
                 if (ele->is_matrix()) {
                     auto n = vstd::to_string(ele->dimension());
-                    str << "_WrappedFloat"sv << n << 'x' << n;
+                    str << "float"sv << n << 'x' << n;
                 } else if (opt->atomicFloatToInt && (ele->is_float32() || ele->is_float64())) {
                     str << "int"sv;
                 } else {
@@ -899,8 +899,6 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             auto elem = args[0]->type()->element();
             if (IsNumVec3(*elem)) {
                 str << "Vec3"sv;
-            } else if (elem->is_matrix()) {
-                str << "Mat";
             }
             str << '(';
             PrintArgs();
@@ -925,8 +923,6 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             auto elem = args[0]->type()->element();
             if (IsNumVec3(*elem)) {
                 str << "Vec3"sv;
-            } else if (elem->is_matrix()) {
-                str << "Mat";
             }
             str << '<';
             GetTypeName(*expr->type(), str, Usage::NONE);
@@ -955,8 +951,6 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
                 GetTypeName(*elem->element(), str, Usage::NONE);
                 str << ')';
                 return;
-            } else if (elem->is_matrix()) {
-                str << "Mat";
             }
             str << '(';
             auto last = args.size() - 1;
@@ -1007,27 +1001,6 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
                 args[1]->accept(vis);
                 str << ')';
 
-            } else if (elem->is_matrix()) {
-                str << "Mat"sv;
-                str << '<';
-                switch (elem->dimension()) {
-                    case 2:
-                        str << "_WrappedFloat2x2"sv;
-                        break;
-                    case 3:
-                        str << "_WrappedFloat3x3"sv;
-                        break;
-                    case 4:
-                        str << "_WrappedFloat4x4"sv;
-                        break;
-                }
-                str << ',';
-                GetTypeName(*expr->type(), str, Usage::NONE);
-                str << ">("sv;
-                args[0]->accept(vis);
-                str << ',';
-                args[1]->accept(vis);
-                str << ')';
             } else {
                 str << '<';
                 if (aliasStruct) {
@@ -1063,24 +1036,6 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
                 args[1]->accept(vis);
                 str << ')';
 
-            } else if (elem->is_matrix()) {
-                str << "Mat(";
-                args[0]->accept(vis);
-                str << ',';
-                switch (elem->dimension()) {
-                    case 2:
-                        str << "_WrappedFloat2x2"sv;
-                        break;
-                    case 3:
-                        str << "_WrappedFloat3x3"sv;
-                        break;
-                    case 4:
-                        str << "_WrappedFloat4x4"sv;
-                        break;
-                }
-                str << ',';
-                args[1]->accept(vis);
-                str << ')';
             } else {
                 str << '(';
                 args[0]->accept(vis);
@@ -1117,34 +1072,6 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
                 args[1]->accept(vis);
                 str << ',';
                 args[2]->accept(vis);
-                str << ')';
-                return;
-            } else if (elem->is_matrix()) {
-                str << "Mat(";
-                args[0]->accept(vis);
-                str << ',';
-                switch (elem->dimension()) {
-                    case 2:
-                        str << "_WrappedFloat2x2"sv;
-                        break;
-                    case 3:
-                        str << "_WrappedFloat3x3"sv;
-                        break;
-                    case 4:
-                        str << "_WrappedFloat4x4"sv;
-                        break;
-                }
-                str << ',';
-                args[1]->accept(vis);
-                str << ',';
-                if (aliasStruct) {
-                    OriginToAliased(args.back()->type(), str);
-                    str << '(';
-                    args[2]->accept(vis);
-                    str << ')';
-                } else {
-                    args[2]->accept(vis);
-                }
                 str << ')';
                 return;
             }
@@ -2531,15 +2458,9 @@ void CodegenUtility::GenerateCBuffer(
         }
         size += size_cache;
     }
-    if (opt->noRegister) {
-        result << R"(};
-StructuredBuffer<_Args> _Global;
-)"sv;
-    } else {
-        result << R"(};
+    result << R"(};
 StructuredBuffer<_Args> _Global:register(t0);
 )"sv;
-    }
 }
 void CodegenUtility::GenerateBindless(
     CodegenResult::Properties &properties,
@@ -2556,32 +2477,20 @@ void CodegenUtility::GenerateBindless(
     };
 
     if (opt->useBufferBindless) {
-        if (opt->noRegister) {
-            str << "ByteAddressBuffer bdls[];\n";
-        } else {
-            str << "ByteAddressBuffer bdls[]:register(t0,space"sv << vstd::to_string(table_idx) << ");\n"sv;
-        }
+        str << "ByteAddressBuffer bdls[]:register(t0,space"sv << vstd::to_string(table_idx) << ");\n"sv;
         add_prop(ShaderVariableType::SRVBufferHeap);
         table_idx++;
         bind_count += 1;
     }
     if (opt->useTex2DBindless) {
-        if (opt->noRegister) {
-            str << "Texture2D<float4> _BindlessTex[];\n";
-        } else {
-            str << "Texture2D<float4> _BindlessTex[]:register(t0,space"sv << vstd::to_string(table_idx) << ");"sv;
-        }
+        str << "Texture2D<float4> _BindlessTex[]:register(t0,space"sv << vstd::to_string(table_idx) << ");"sv;
         add_prop(ShaderVariableType::SRVTextureHeap);
         table_idx++;
         str << CodegenUtility::ReadInternalHLSLFile("tex2d_bindless");
         bind_count += 1;
     }
     if (opt->useTex3DBindless) {
-        if (opt->noRegister) {
-            str << "Texture3D<float4> _BindlessTex3D[];\n"sv;
-        } else {
-            str << "Texture3D<float4> _BindlessTex3D[]:register(t0,space"sv << vstd::to_string(table_idx) << ");"sv;
-        }
+        str << "Texture3D<float4> _BindlessTex3D[]:register(t0,space"sv << vstd::to_string(table_idx) << ");"sv;
         add_prop(ShaderVariableType::SRVTextureHeap);
         table_idx++;
         str << CodegenUtility::ReadInternalHLSLFile("tex3d_bindless");
@@ -2771,13 +2680,9 @@ void CodegenUtility::CodegenProperties(
                 print();
                 properties.emplace_back(prop);
             }
-            if (!opt->noRegister) {
-                varData << ":register("sv << v;
-                vstd::to_string(r, varData);
-                varData << ");\n"sv;
-            } else {
-                varData << ";\n"sv;
-            }
+            varData << ":register("sv << v;
+            vstd::to_string(r, varData);
+            varData << ");\n"sv;
             r++;
             switch (sT) {
                 case ShaderVariableType::ConstantBuffer:
@@ -2841,11 +2746,7 @@ void CodegenUtility::CodegenProperties(
                 .register_index = r,
                 .array_size = 1};
             properties.emplace_back(prop);
-            if (opt->noRegister) {
-                varData << "RWStructuredBuffer<uint> _printCounter;\n";
-            } else {
-                varData << "RWStructuredBuffer<uint> _printCounter:register(u"sv;
-            }
+            varData << "RWStructuredBuffer<uint> _printCounter:register(u"sv;
             vstd::to_string(r, varData);
             varData << ");\n"sv;
             r += 1;
@@ -2857,11 +2758,8 @@ void CodegenUtility::CodegenProperties(
                 .register_index = r,
                 .array_size = 1};
             properties.emplace_back(prop);
-            if (opt->noRegister) {
-                varData << "RWByteAddressBuffer _printBuffer;\n";
-            } else {
-                varData << "RWByteAddressBuffer _printBuffer:register(u"sv;
-            }
+            varData << "RWByteAddressBuffer _printBuffer:register(u"sv;
+
             vstd::to_string(r, varData);
             varData << ");\n"sv;
             r += 1;
@@ -2931,10 +2829,9 @@ CodegenUtility::CodegenUtility() {
 CodegenUtility::~CodegenUtility() {}
 
 CodegenResult CodegenUtility::Codegen(
-    Function kernel, luisa::string_view native_code, uint custom_mask, bool isSpirV, bool noRegister) {
+    Function kernel, luisa::string_view native_code, uint custom_mask, bool isSpirV) {
     opt = CodegenStackData::Allocate(this);
     opt->isSpirv = isSpirV;
-    opt->noRegister = noRegister;
     opt->atomicFloatToInt = isSpirV && kernel.propagated_builtin_callables().uses_atomic();
     auto disposeOpt = vstd::scope_exit([&] {
         CodegenStackData::DeAllocate(std::move(opt));
@@ -2949,7 +2846,7 @@ CodegenResult CodegenUtility::Codegen(
     vstd::StringBuilder finalResult;
     opt->incrementalFunc = &incrementalFunc;
     finalResult.reserve(65500);
-    uint64 immutableHeaderSize = detail::AddHeader(kernel.propagated_builtin_callables(), finalResult, false, isSpirV, noRegister, kernel.use_cooperative_operations());
+    uint64 immutableHeaderSize = detail::AddHeader(kernel.propagated_builtin_callables(), finalResult, false, isSpirV, kernel.use_cooperative_operations());
     finalResult << native_code << "\n//"sv;
     static_cast<void>(vstd::to_string(custom_mask));
     finalResult << '\n';
@@ -2962,28 +2859,15 @@ CodegenResult CodegenUtility::Codegen(
         GenerateCBuffer({&argRange}, varData);
     }
     if (isSpirV) {
-        if (opt->noRegister) {
-            varData << R"(
-struct _CBType{
-uint4 v;
-};
-[[vk::push_constant]] ConstantBuffer<_CBType> dsp_c;
-)"sv;
-        } else {
-            varData << R"(
+        varData << R"(
 struct _CBType{
 uint4 v;
 };
 [[vk::push_constant]] ConstantBuffer<_CBType> dsp_c:register(b0);
 )"sv;
-        }
         bind_count += 2;
     } else {
-        if (opt->noRegister) {
-            varData << "uint4 dsp_c;\n"sv;
-        } else {
-            varData << "uint4 dsp_c:register(b0);\n"sv;
-        }
+        varData << "uint4 dsp_c:register(b0);\n"sv;
         bind_count += 2;
     }
     CodegenResult::Properties properties;
@@ -3015,13 +2899,11 @@ CodegenResult CodegenUtility::RasterCodegen(
     Function pixelFunc,
     luisa::string_view native_code,
     uint custom_mask,
-    bool isSpirV,
-    bool noRegister) {
+    bool isSpirV) {
     opt = CodegenStackData::Allocate(this);
     opt->isSpirv = isSpirV;
     // CodegenStackData::ThreadLocalSpirv() = false;
     opt->kernel = vertFunc;
-    opt->noRegister = noRegister;
     opt->isRaster = true;
     opt->atomicFloatToInt = isSpirV && (vertFunc.propagated_builtin_callables().uses_atomic() || pixelFunc.propagated_builtin_callables().uses_atomic());
     auto disposeOpt = vstd::scope_exit([&] {
@@ -3036,7 +2918,7 @@ CodegenResult CodegenUtility::RasterCodegen(
     finalResult.reserve(65500);
     auto opSet = vertFunc.propagated_builtin_callables();
     opSet.propagate(pixelFunc.propagated_builtin_callables());
-    uint64 immutableHeaderSize = detail::AddHeader(opSet, finalResult, true, isSpirV, noRegister, vertFunc.use_cooperative_operations() || pixelFunc.use_cooperative_operations());
+    uint64 immutableHeaderSize = detail::AddHeader(opSet, finalResult, true, isSpirV, vertFunc.use_cooperative_operations() || pixelFunc.use_cooperative_operations());
     finalResult << native_code << "\n//"sv;
     static_cast<void>(vstd::to_string(custom_mask));
     finalResult << '\n';
@@ -3087,15 +2969,9 @@ uint v;
 )"sv;
         bind_count += 2;
     } else {
-        if (opt->noRegister) {
-            codegenData << R"(};
-uint obj_id;
-)"sv;
-        } else {
-            codegenData << R"(};
+        codegenData << R"(};
 uint obj_id:register(b0);
 )"sv;
-        }
         bind_count += 2;
     }
     codegenData << "#ifdef VS\n";

@@ -49,16 +49,8 @@ struct _wuint64_t3 {uint64_t3 v; uint64_t a;};
 struct _wint3 {int3 v; int a;};
 struct _wint16_t3 {int16_t3 v; int16_t a;};
 struct _wint64_t3 {int64_t3 v; int64_t a;};
-struct _WrappedFloat2x2 {row_major float2x2 m;};
-struct _WrappedFloat3x3 {
-row_major float3x4 m;
-};
-struct _WrappedFloat4x4 {
-row_major float4x4 m;
-};
 #define _bfread(bf,idx) bf[idx]
 #define _bfreadVec3(bf,idx) bf[idx].xyz
-#define _bfreadMat(bf,idx) bf[idx].m
 template<typename T,typename BufferType>
 T _volatile_bfread(BufferType b,uint idx){
 DeviceMemoryBarrier();
@@ -70,11 +62,6 @@ DeviceMemoryBarrier();
 return b[idx].xyz;
 }
 template<typename T,typename BufferType>
-T _volatile_bfreadMat(BufferType b,uint idx){
-DeviceMemoryBarrier();
-return b[idx].m;
-}
-template<typename T,typename BufferType>
 T _volatile_bytebfread(BufferType b,uint idx){
 DeviceMemoryBarrier();
 return b.template Load<T>(idx);
@@ -84,26 +71,16 @@ T _volatile_bytebfreadVec3(BufferType b,uint idx){
 DeviceMemoryBarrier();
 return b.template Load<BufferElem>(idx).xyz;
 }
-template<typename BufferElem,typename T,typename BufferType>
-T _volatile_bytebfreadMat(BufferType b,uint idx){
-DeviceMemoryBarrier();
-return b.template Load<BufferElem>(idx).m;
-}
 #define _bfwrite(bf,idx,value) bf[idx]=value
 #define _bfwriteVec3(bf,idx,value,type) bf[idx]=type##4(value,0)
-#define _bfwriteMat(bf,idx,value) bf[idx].m=value
 #define _volatile_bfwrite(bf,idx,value) {bf[idx]=value; DeviceMemoryBarrier();}
 #define _volatile_bfwriteVec3(bf,idx,value,type) {bf[idx]=type##4(value,0); DeviceMemoryBarrier();}
-#define _volatile_bfwriteMat(bf,idx,value) {bf[idx].m=value; DeviceMemoryBarrier();}
 #define _bytebfread(bf,type,idx) bf.template Load<type>(idx)
 #define _bytebfreadVec3(bf,type,idx) bf.template Load<type##4>(idx).xyz
-#define _bytebfreadMat(bf,type,idx) bf.template Load<type>(idx).m
 #define _bytebfwrite(bf,idx,value) bf.Store(idx,value)
 #define _bytebfwriteVec3(bf,type,idx,value) bf.template Store<type##4>(idx,type##4(value,0))
-#define _bytebfwriteMat(bf,type,idx,value) {type _tempm;_tempm.m=value;bf.template Store<type>(idx,_tempm);}
 #define _volatile_bytebfwrite(bf,idx,value) {bf.Store(idx,value); DeviceMemoryBarrier();}
 #define _volatile_bytebfwriteVec3(bf,type,idx,value) {bf.template Store<type##4>(idx,type##4(value,0)); DeviceMemoryBarrier();}
-#define _volatile_bytebfwriteMat(bf,type,idx,value) {type _tempm;_tempm.m=value;bf.template Store<type>(idx,_tempm);DeviceMemoryBarrier();}
 #define _Readtx(tex,uv) tex[uv]
 #define _Writetx(tex,uv,value) tex[uv]=value
 #define _Smptx(tex,uv,filter,address) (tex.SampleLevel(_GETSMP((address)*4+(filter)),(uv),0))

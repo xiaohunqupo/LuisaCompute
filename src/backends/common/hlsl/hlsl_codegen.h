@@ -93,14 +93,13 @@ public:
         uint offset,
         RegisterIndexer &registerCount,
         uint &bind_count);
-    CodegenResult Codegen(Function kernel, luisa::string_view native_code, uint custom_mask, bool isSpirV, bool noRegister = false);
+    CodegenResult Codegen(Function kernel, luisa::string_view native_code, uint custom_mask, bool isSpirV);
     CodegenResult RasterCodegen(
         Function vertFunc,
         Function pixelFunc,
         luisa::string_view native_code,
         uint custom_mask,
-        bool isSpirV,
-        bool noRegister = false);
+        bool isSpirV);
     static vstd::string_view ReadInternalHLSLFile(vstd::string_view name);
     uint AddPrinter(vstd::string_view name, Type const *structType);
     vstd::StringBuilder GetNewTempVarName();

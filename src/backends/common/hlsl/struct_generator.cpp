@@ -141,9 +141,21 @@ void StructGenerator::InitAsStruct(
     auto Align = [&](size_t tarAlign) {
         ProvideAlignVariable(last_type, tarAlign, alignCount, structSize, structDesc);
     };
+    auto get_scale_type = [&](auto &get_scale_type, Type const *t) -> Type const * {
+        if (t && (t->is_vector() || t->is_array())) {
+            return get_scale_type(get_scale_type, t->element());
+        }
+        return t;
+    };
     size_t varIdx = 0;
     for (auto &&i : vars) {
         Align(i->alignment());
+        auto last_elem = get_scale_type(get_scale_type, last_type);
+        auto curr_elem = get_scale_type(get_scale_type, i);
+        if ((curr_elem == Type::of<bool>() && last_elem == Type::of<half>()) || (curr_elem == Type::of<half>() && last_elem == Type::of<bool>()))
+            [[unlikely]] {
+            LUISA_ERROR("DXC do not support half-type adjacent to bool-type");
+        }
         last_type = i;
         switch (i->tag()) {
             case Type::Tag::STRUCTURE:

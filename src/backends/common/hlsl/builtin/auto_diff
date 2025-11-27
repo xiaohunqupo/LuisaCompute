@@ -16,9 +16,9 @@ void _accum_grad(inout float3x3 x_grad,float3x3 dx){x_grad+=select(isnan(dx),0,d
 void _accum_grad(inout float3x4 x_grad,float3x4 dx){x_grad+=select(isnan(dx),0,dx);}
 void _accum_grad(inout float4x4 x_grad,float4x4 dx){x_grad+=select(isnan(dx),0,dx);}
 void _accum_grad(inout float4x3 x_grad,float4x3 dx){x_grad+=select(isnan(dx),0,dx);}
-void _accum_grad(inout _WrappedFloat2x2 x_grad,_WrappedFloat2x2 dx){x_grad.m+=select(isnan(dx.m),0,dx.m);}
-void _accum_grad(inout _WrappedFloat3x3 x_grad,_WrappedFloat3x3 dx){x_grad.m+=select(isnan(dx.m),0,dx.m);}
-void _accum_grad(inout _WrappedFloat4x4 x_grad,_WrappedFloat4x4 dx){x_grad.m+=select(isnan(dx.m),0,dx.m);}
+void _accum_grad(inout float2x2 x_grad,float2x2 dx){x_grad.m+=select(isnan(dx.m),0,dx.m);}
+void _accum_grad(inout float3x3 x_grad,float3x3 dx){x_grad.m+=select(isnan(dx.m),0,dx.m);}
+void _accum_grad(inout float4x4 x_grad,float4x4 dx){x_grad.m+=select(isnan(dx.m),0,dx.m);}
 #define _REQUIRES_GRAD(x,type) x##_grad=_zero(type)
 template<typename T>
 T _detach(T x) { return x; }

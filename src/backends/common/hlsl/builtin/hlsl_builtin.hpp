@@ -9,7 +9,6 @@
 extern "C" {
 LC_HLSL_DECL_VARNAME(hlsl_header)
 LC_HLSL_DECL_VARNAME(dx_linalg)
-LC_HLSL_DECL_VARNAME(hlsl_header_fallback)
 LC_HLSL_DECL_VARNAME(raytracing_header)
 LC_HLSL_DECL_VARNAME(tex2d_bindless)
 LC_HLSL_DECL_VARNAME(tex3d_bindless)
@@ -49,7 +48,6 @@ static HLSLCompressedHeader get_hlsl_builtin(luisa::string_view ss) {
             LC_HLSL_INSERT_VARNAME(hlsl_header, "hlsl_header")
             LC_HLSL_INSERT_VARNAME(spv_alias, "spv_alias")
             LC_HLSL_INSERT_VARNAME(dx_linalg, "dx_linalg")
-            LC_HLSL_INSERT_VARNAME(hlsl_header_fallback, "hlsl_header_fallback")
             LC_HLSL_INSERT_VARNAME(raytracing_header, "raytracing_header")
             LC_HLSL_INSERT_VARNAME(tex2d_bindless, "tex2d_bindless")
             LC_HLSL_INSERT_VARNAME(tex3d_bindless, "tex3d_bindless")
