@@ -902,7 +902,7 @@ Device::~Device() {
 }
 void *Device::native_handle() const noexcept { return _vk_device->logicalDevice; }
 BufferCreationInfo Device::create_buffer(const Type *element, size_t elem_count, void *external_ptr) noexcept {
-    if (element->is_custom()) [[unlikely]] {
+    if (element && element->is_custom()) [[unlikely]] {
         LUISA_ERROR("Indirect buffer not supported.");
     }
     BufferCreationInfo info{};

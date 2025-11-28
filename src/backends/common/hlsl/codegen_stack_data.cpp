@@ -54,6 +54,16 @@ std::pair<vstd::string_view, bool> CodegenStackData::CreateAliasedStruct(Type co
     if (!util->TypeIsAliased(t)) {
         return {CreateStruct(t), false};
     }
+    // if (isSpirv && t->is_matrix()) {
+    //     switch (t->dimension()) {
+    //         case 2:
+    //             return {"_Alsfloat2x2"sv, true};
+    //         case 3:
+    //             return {"_Alsfloat3x4"sv, true};
+    //         case 4:
+    //             return {"_Alsfloat4x4"sv, true};
+    //     }
+    // }
     auto ite = customStructAliased.try_emplace(
         t,
         vstd::lazy_eval([&] {

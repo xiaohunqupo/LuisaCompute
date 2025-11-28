@@ -3209,10 +3209,14 @@ bool CodegenUtility::TypeIsAliased(Type const *t) const {
             }
         }
     }
+    //  else if(opt->isSpirv && t->is_matrix()) {
+    //     return true;
+    // }
     return false;
 }
 bool CodegenUtility::VectorShouldBeAliased(Type const *i) const {
-    return i->is_vector() && ((opt->isSpirv && i->element()->size() > 4 && i->dimension() >= 3) || i->element()->is_bool());
+    return (i->is_vector() && ((opt->isSpirv && i->element()->size() > 4 && i->dimension() >= 3) || i->element()->is_bool())) ||
+           (i->is_matrix() && opt->isSpirv);
 }
 void CodegenUtility::OriginToAliased(Type const *t, vstd::StringBuilder &sb) {
     auto aliasedType = opt->CreateAliasedStruct(t);
