@@ -110,7 +110,7 @@ v.v[2]=vv[2];
 v.v[3]=vv[3];
 return v;
 }
-#define _bfreadMat(bf,idx) bf[idx]
+#define _bfreadMat(bf,idx) to_matrix(bf[idx])
 template<typename T,typename BufferType>
 T _volatile_bfreadMat(BufferType b,uint idx){
 DeviceMemoryBarrier();

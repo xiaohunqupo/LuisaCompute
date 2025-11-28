@@ -526,7 +526,41 @@ void CodegenUtility::GetFunctionDecl(Function func, vstd::StringBuilder &funcDec
 void CodegenUtility::GetFunctionName(Function callable, vstd::StringBuilder &result) {
     result << "custom_"sv << vstd::to_string((opt->GetFuncCount(callable)));
 }
+struct SpirvMatrixPack {
+    vstd::StringBuilder *_result;
+    luisa::string matrix_name;
+    SpirvMatrixPack(
+        CodegenUtility *util,
+        vstd::StringBuilder *result,
+        CallExpr const *call_expr)
+        : _result(result) {
+        if (!(util->opt->isSpirv && call_expr->type()->is_matrix())) {
+            _result = nullptr;
+            return;
+        }
+        switch (call_expr->type()->dimension()) {
+            case 2:
+                matrix_name = "_Alsfloat2x2";
+                *result << "to_float2x2(";
+                break;
+            case 3:
+                matrix_name = "_Alsfloat3x4";
+                *result << "to_float3x4(";
+                break;
+            case 4:
+                matrix_name = "_Alsfloat4x4";
+                *result << "to_float4x4(";
+                break;
+        }
+    }
+    ~SpirvMatrixPack() {
+        if (_result) {
+            *_result << ')';
+        }
+    }
+};
 void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &str, StringStateVisitor &vis) {
+
     auto args = expr->arguments();
     auto IsNumVec3 = [&](Type const &t) {
         if (t.tag() != Type::Tag::VECTOR || t.dimension() != 3) return false;
@@ -1181,6 +1215,10 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             return;
         }
         case CallOp::BINDLESS_BUFFER_READ: {
+            SpirvMatrixPack matrix_pack{
+                this,
+                &str,
+                expr};
             bool aliasStruct = TypeIsAliased(expr->type());
             if (aliasStruct) {
                 AliasedToOrigin(expr->type(), str);
@@ -1197,6 +1235,8 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             str << ',';
             if (aliasStruct) {
                 str << opt->CreateAliasedStruct(expr->type()).first;
+            } else if (matrix_pack._result) {
+                str << matrix_pack.matrix_name;
             } else {
                 GetTypeName(*expr->type(), str, Usage::READ, true);
             }
@@ -1207,6 +1247,10 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             return;
         }
         case CallOp::BINDLESS_BYTE_BUFFER_READ: {
+            SpirvMatrixPack matrix_pack{
+                this,
+                &str,
+                expr};
             bool aliasStruct = TypeIsAliased(expr->type());
             if (aliasStruct) {
                 AliasedToOrigin(expr->type(), str);
@@ -1221,6 +1265,8 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             }
             if (aliasStruct) {
                 str << opt->CreateAliasedStruct(expr->type()).first;
+            } else if (matrix_pack._result) {
+                str << matrix_pack.matrix_name;
             } else {
                 GetTypeName(*expr->type(), str, Usage::READ, true);
             }
@@ -1242,6 +1288,10 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             return;
         }
         case CallOp::TYPED_BINDLESS_BUFFER_READ: {
+            SpirvMatrixPack matrix_pack{
+                this,
+                &str,
+                expr};
             bool aliasStruct = TypeIsAliased(expr->type());
             if (aliasStruct) {
                 AliasedToOrigin(expr->type(), str);
@@ -1258,6 +1308,8 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             str << ',';
             if (aliasStruct) {
                 str << opt->CreateAliasedStruct(expr->type()).first;
+            } else if (matrix_pack._result) {
+                str << matrix_pack.matrix_name;
             } else {
                 GetTypeName(*expr->type(), str, Usage::READ, true);
             }
@@ -1268,6 +1320,10 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             return;
         }
         case CallOp::TYPED_BINDLESS_BYTE_BUFFER_READ: {
+            SpirvMatrixPack matrix_pack{
+                this,
+                &str,
+                expr};
             bool aliasStruct = TypeIsAliased(expr->type());
             if (aliasStruct) {
                 AliasedToOrigin(expr->type(), str);
@@ -1282,6 +1338,8 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             }
             if (aliasStruct) {
                 str << opt->CreateAliasedStruct(expr->type()).first;
+            } else if (matrix_pack._result) {
+                str << matrix_pack.matrix_name;
             } else {
                 GetTypeName(*expr->type(), str, Usage::READ, true);
             }
@@ -1303,6 +1361,10 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             return;
         }
         case CallOp::TYPED_UNIFORM_BINDLESS_BUFFER_READ: {
+            SpirvMatrixPack matrix_pack{
+                this,
+                &str,
+                expr};
             bool aliasStruct = TypeIsAliased(expr->type());
             if (aliasStruct) {
                 AliasedToOrigin(expr->type(), str);
@@ -1319,6 +1381,8 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             str << ',';
             if (aliasStruct) {
                 str << opt->CreateAliasedStruct(expr->type()).first;
+            } else if (matrix_pack._result) {
+                str << matrix_pack.matrix_name;
             } else {
                 GetTypeName(*expr->type(), str, Usage::READ, true);
             }
@@ -1329,6 +1393,10 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             return;
         }
         case CallOp::TYPED_UNIFORM_BINDLESS_BYTE_BUFFER_READ: {
+            SpirvMatrixPack matrix_pack{
+                this,
+                &str,
+                expr};
             bool aliasStruct = TypeIsAliased(expr->type());
             if (aliasStruct) {
                 AliasedToOrigin(expr->type(), str);
@@ -1343,6 +1411,8 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             }
             if (aliasStruct) {
                 str << opt->CreateAliasedStruct(expr->type()).first;
+            } else if (matrix_pack._result) {
+                str << matrix_pack.matrix_name;
             } else {
                 GetTypeName(*expr->type(), str, Usage::READ, true);
             }
