@@ -2577,6 +2577,10 @@ void CodegenUtility::GenerateCBuffer(
             if (!detail::IsCBuffer(i.tag())) continue;
             size_cache++;
             StructGenerator::ProvideAlignVariable(last_type, i.type()->alignment(), align, struct_size, result);
+            if (last_type && (StructGenerator::half_type_adajcent_with_bool(last_type, i.type()) ||
+                              StructGenerator::half_type_adajcent_with_bool(i.type(), last_type))) [[unlikely]] {
+                LUISA_ERROR("HLSL do not support 16-bit variables adjacent with bool");
+            }
             last_type = i.type();
             if (opt->isSpirv && i.type()->tag() == Type::Tag::BOOL) {
                 result << "int";

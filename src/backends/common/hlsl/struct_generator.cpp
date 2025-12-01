@@ -38,7 +38,13 @@ void StructGenerator::ProvideAlignVariable(Type const *type, size_t tarAlign, si
     if (bit_padding > 0) {
         if (type && (type->is_float16() || type->is_float16_vector())) {
             LUISA_ASSERT(bit_padding == 2, "Invalid struct alignment.");
-            structDesc << "half _a"sv << vstd::to_string(alignCount++) << ";\n"sv;
+            structDesc << "float16_t _a"sv << vstd::to_string(alignCount++) << ";\n"sv;
+        } else if (type && (type->is_int16() || type->is_int16_vector())) {
+            LUISA_ASSERT(bit_padding == 2, "Invalid struct alignment.");
+            structDesc << "int16_t _a"sv << vstd::to_string(alignCount++) << ";\n"sv;
+        } else if (type && (type->is_uint16() || type->is_uint16_vector())) {
+            LUISA_ASSERT(bit_padding == 2, "Invalid struct alignment.");
+            structDesc << "uint16_t _a"sv << vstd::to_string(alignCount++) << ";\n"sv;
         } else {
             structDesc << "int _a"sv << vstd::to_string(alignCount++) << ":" << vstd::to_string(bit_padding * 8) << ";\n"sv;
         }
@@ -54,6 +60,23 @@ void StructGenerator::ProvideAlignVariable(Type const *type, size_t tarAlign, si
         }
     }
     structSize = alignedSize;
+}
+
+bool StructGenerator::half_type_adajcent_with_bool(Type const *a, Type const *b) {
+    switch (a->tag() == Type::Tag::VECTOR ? a->element()->tag() : a->tag()) {
+        case Type::Tag::FLOAT16:
+        case Type::Tag::INT16:
+        case Type::Tag::UINT16:
+            break;
+        default:
+            return false;
+    }
+    switch (b->tag() == Type::Tag::VECTOR ? b->element()->tag() : b->tag()) {
+        case Type::Tag::BOOL:
+            return true;
+        default:
+            return false;
+    }
 }
 
 void StructGenerator::InitAsStructAlised(
@@ -73,6 +96,9 @@ void StructGenerator::InitAsStructAlised(
     size_t varIdx = 0;
     for (auto &&i : vars) {
         Align(i->alignment());
+        if (last_type && (half_type_adajcent_with_bool(last_type, i) || half_type_adajcent_with_bool(i, last_type))) [[unlikely]] {
+            LUISA_ERROR("HLSL do not support 16-bit variables adjacent with bool");
+        }
         last_type = i;
         switch (i->tag()) {
             case Type::Tag::STRUCTURE:
@@ -150,6 +176,9 @@ void StructGenerator::InitAsStruct(
     size_t varIdx = 0;
     for (auto &&i : vars) {
         Align(i->alignment());
+        if (last_type && (half_type_adajcent_with_bool(last_type, i) || half_type_adajcent_with_bool(i, last_type))) [[unlikely]] {
+            LUISA_ERROR("HLSL do not support 16-bit variables adjacent with bool");
+        }
         last_type = i;
         switch (i->tag()) {
             case Type::Tag::STRUCTURE:
