@@ -78,11 +78,3 @@ target("lc-backends-dummy")
 set_kind("phony")
 add_rules("lc-backend-deps")
 target_end()
-
-function lc_make_dummy_backend(name, group_name)
-    target("lc-backends-dummy-" .. name)
-    set_kind("phony")
-    set_group(group_name)
-    add_rules("lc-backend-deps")
-    target_end()
-end
