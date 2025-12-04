@@ -40,7 +40,8 @@ end
 rule("lc-backend-deps")
 on_load(function(target)
     target:add("deps", "lc-validation-layer", {
-        inherit = false
+        inherit = false,
+        links = false
     })
     -- target:add("deps", "lc-backend-toy-c", {
     --     inherit = false
@@ -48,27 +49,32 @@ on_load(function(target)
     target:add("deps", "lc_backend_sdk");
     if has_config("lc_dx_backend") then
         target:add("deps", "lc-backend-dx", {
-            inherit = false
+            inherit = false,
+            links = false
         })
     end
     if has_config("lc_cuda_backend") then
         target:add("deps", "lc-backend-cuda", {
-            inherit = false
+            inherit = false,
+            links = false
         })
     end
     if has_config("lc_metal_backend") then
         target:add("deps", "lc-backend-metal", {
-            inherit = false
+            inherit = false,
+            links = false
         })
     end
     if has_config("lc_vk_backend") then
         target:add("deps", "lc-backend-vk", {
-            inherit = false
+            inherit = false,
+            links = false
         })
     end
     if has_config("lc_fallback_backend") then
         target:add("deps", "lc-backend-fallback", {
-            inherit = false
+            inherit = false,
+            links = false
         })
     end
 end)
