@@ -15,7 +15,6 @@ if not has_config("lc_glfw_use_xrepo") then
             public = true
         })
 
-        target:add("defines", "_GLFW_BUILD_DLL")
         if target:is_plat("linux") then
             target:add("defines", "_GLFW_X11", "_DEFAULT_SOURCE")
         elseif target:is_plat("windows") then
@@ -84,6 +83,6 @@ on_load(function(target)
     end
 end)
 add_files("*.cpp")
-add_defines("LUISA_GUI_EXPORT_DLL", "GLFW_DLL")
+add_defines("LUISA_GUI_EXPORT_DLL")
 add_deps("lc-runtime", "lc-dsl")
 target_end()

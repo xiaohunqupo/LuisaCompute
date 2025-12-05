@@ -24,13 +24,6 @@ on_load(function(target)
     if has_config("lc_enable_dxagsdk") then
         target:add("defines", "LCDX_ENABLE_AGILITY_SDK")
     end
-    if has_config("lc_backend_lto") then
-        target:set("policy", "build.optimization.lto", true)
-        if is_config("lc_toolchain", "llvm") then
-            target:add("ldflags", "-fuse-ld=lld-link")
-            target:add("shflags", "-fuse-ld=lld-link")
-        end
-    end
     if has_config("lc_dx_cuda_interop") then
         import("detect.sdks.find_cuda")
         target:add("links", "nvrtc_static", "cudart_static", "cuda")

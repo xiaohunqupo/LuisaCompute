@@ -228,7 +228,6 @@ void CodegenUtility::GetVariableName(Function f, Variable::Tag type, uint id, vs
         case Variable::Tag::RASTER_BARYCENTRICS:
             LUISA_ASSERT(opt->isRaster, "barycentrics only allowed in raster shader");
             str << "bary"sv;
-            opt->pixelUseBarycentric = true;
             break;
         case Variable::Tag::WARP_LANE_COUNT:
             LUISA_ASSERT(!opt->isRaster, "warp ops only allowed in compute shader");
@@ -2394,6 +2393,7 @@ void CodegenUtility::CodegenVertex(Function vert, vstd::StringBuilder &result, b
 }
 void CodegenUtility::CodegenPixel(Function pixel, vstd::StringBuilder &result, bool cBufferNonEmpty) {
     opt->isPixelShader = true;
+    opt->pixelUseBarycentric = false;
     auto resetPixelShaderKey = vstd::scope_exit([&] { opt->isPixelShader = false; });
     CodegenFunction(pixel, result, cBufferNonEmpty, false);
     vstd::StringBuilder retName;
@@ -2402,10 +2402,7 @@ void CodegenUtility::CodegenPixel(Function pixel, vstd::StringBuilder &result, b
     auto set_depth = pixel.propagated_builtin_callables().test(CallOp::RASTER_SET_Z_DEPTH);
     auto set_depth_lequal = pixel.propagated_builtin_callables().test(CallOp::RASTER_SET_Z_DEPTH_LESS_EQUAL);
     auto set_depth_gequal = pixel.propagated_builtin_callables().test(CallOp::RASTER_SET_Z_DEPTH_GREATER_EQUAL);
-    result << retName << " pixel(v2p p,uint primId"sv;
-    if (opt->pixelUseBarycentric) {
-        result << ",float3 bary"sv;
-    }
+    result << retName << " pixel(v2p p,uint primId,float3 bary"sv;
     if (set_depth) {
         result << ",out float _z_depth"sv;
     }
@@ -2458,6 +2455,8 @@ void CodegenUtility::CodegenPixel(Function pixel, vstd::StringBuilder &result, b
     auto write_arg = [&]() {
         if (opt->pixelUseBarycentric) {
             result << ",bary"sv;
+        } else {
+            result << ",float3(0,0,0)"sv;
         }
         if (set_depth) {
             result << ",_z_depth"sv;

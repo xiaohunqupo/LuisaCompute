@@ -2,7 +2,6 @@ set_xmakever("3.0.5")
 add_rules("mode.release", "mode.debug", "mode.releasedbg")
 set_policy("build.ccache", not is_plat("windows"))
 set_policy("check.auto_ignore_flags", false)
-
 -- pre-defined options
 -- enable mimalloc as default allocator: https://github.com/LuisaGroup/mimalloc
 option("lc_enable_mimalloc", {default = true})
@@ -18,6 +17,7 @@ option("lc_enable_xir", {default = false})
 option("lc_external_marl", {default = false})
 option("lc_dx_cuda_interop", {default = false})
 option("lc_vk_cuda_interop", {default = false})
+option("lc_use_lto", {default=false})
 -- enable Vulkan backend
 option("lc_vk_backend", {default = true})
 option("lc_toy_c_backend", {default = false})

@@ -39,13 +39,6 @@ on_load(function(target)
     else
         add_rs_link("release")
     end
-    if has_config("lc_backend_lto") then
-        target:set("policy", "build.optimization.lto", true)
-        if is_config("lc_toolchain", "llvm") then
-            target:add("ldflags", "-fuse-ld=lld-link")
-            target:add("shflags", "-fuse-ld=lld-link")
-        end
-    end
 end)
 before_build(function(target)
     local profile = nil

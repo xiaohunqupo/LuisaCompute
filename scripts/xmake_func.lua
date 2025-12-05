@@ -159,6 +159,7 @@ on_config(function(target)
         end
     end
     -- disable LTO
+
     -- if cc == "cl" then
     --     target:add("cxflags", "-GL")
     -- elseif cc == "clang" or cc == "clangxx" then
@@ -179,7 +180,7 @@ on_config(function(target)
     -- end
 end)
 on_load(function(target)
-    local _get_or = function(name, default_value)
+    local function _get_or(name, default_value)
         local v = target:extraconf("rules", "lc_basic_settings", name)
         if v == nil then
             v = target:values('lc_' .. name)
@@ -282,6 +283,19 @@ on_load(function(target)
             })
         end
     end
+    -- LTO
+    local use_lto = _get_or("lto", get_config("lc_use_lto"))
+    target:set("policy", "build.optimization.lto", use_lto)
+    if use_lto then
+        if not toolchain then
+            toolchain = get_config("toolchain")
+        end
+        if toolchain:find("clang") or toolchain:find("llvm") then
+            target:set("toolset", "ld", "lld-link")
+            target:set("toolset", "ar", "llvm-ar")
+        end
+    end
+    -- rtti
     local use_rtti = _get_or("rtti", false)
     if _get_or("no_rtti", not (use_rtti or has_config("lc_use_rtti") or has_config("_lc_enable_py"))) then
         target:add("cxflags", "/GR-", {
