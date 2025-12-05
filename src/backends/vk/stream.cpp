@@ -14,6 +14,7 @@
 #include "raster_shader.h"
 namespace lc::vk {
 struct PresentCommand {
+    luisa::fixed_vector<VkFence, 1> submit_fences;
     luisa::fixed_vector<VkSemaphore, 1> submit_wait_semaphores;
     luisa::fixed_vector<VkSemaphore, 1> signal_semaphores;
     luisa::fixed_vector<VkPipelineStageFlags, 1> wait_stages;
@@ -605,6 +606,7 @@ void Stream::present(
         present_cmd.wait_stages.emplace_back();
         present_cmd.present_wait_semaphores.emplace_back();
         present_cmd.image_indices.emplace_back();
+        VkFence vk_fence{};
         swapchain->present(
             cmdbuffer,
             present_cmd.submit_wait_semaphores.back(), present_cmd.signal_semaphores.back(),
@@ -612,6 +614,7 @@ void Stream::present(
             present_cmd.present_wait_semaphores.back(),
             present_cmd.image_indices.back(),
             tex,
+            vk_fence,
             mip);
 
         resource_barrier.restore_states(cmdbuffer.cmdbuffer());
@@ -629,7 +632,7 @@ void Stream::present(
             auto _cmdbuffer = cmdbuffer.cmdbuffer();
             submit_info.pCommandBuffers = &_cmdbuffer;
             _queue_mtx->lock();
-            VK_CHECK_RESULT(vkQueueSubmit(_queue, 1u, &submit_info, nullptr));
+            VK_CHECK_RESULT(vkQueueSubmit(_queue, 1u, &submit_info, vk_fence));
             _queue_mtx->unlock();
         }
         {
@@ -720,6 +723,7 @@ void Stream::dispatch(
             auto tex = reinterpret_cast<Texture *>(i.frame.handle());
             auto mip = i.frame.level();
 
+            present_cmd.submit_fences.emplace_back();
             present_cmd.submit_wait_semaphores.emplace_back();
             present_cmd.signal_semaphores.emplace_back();
             present_cmd.wait_stages.emplace_back();
@@ -734,6 +738,7 @@ void Stream::dispatch(
                 present_cmd.present_wait_semaphores.back(),
                 present_cmd.image_indices.back(),
                 tex,
+                present_cmd.submit_fences.back(),
                 mip);
         }
         resource_barrier.restore_states(cmdbuffer.cmdbuffer());
@@ -752,8 +757,11 @@ void Stream::dispatch(
             }
             submit_info.pCommandBuffers = cb_ptr;
             _queue_mtx->lock();
-            VK_CHECK_RESULT(vkQueueSubmit(_queue, 1u, &submit_info, nullptr));
+            VK_CHECK_RESULT(vkQueueSubmit(_queue, 1u, &submit_info, present_cmd.submit_fences.back()));
             _queue_mtx->unlock();
+            for (auto i : vstd::range(1, present_cmd.submit_fences.size())) {
+                VK_CHECK_RESULT(vkQueueSubmit(_queue, 0, nullptr, present_cmd.submit_fences[i]));
+            }
 
             VkPresentInfoKHR present_info{};
             present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;

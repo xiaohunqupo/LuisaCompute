@@ -18,7 +18,7 @@ class Swapchain : public Resource {
     luisa::vector<VkFramebuffer> _swapchain_framebuffers;
     luisa::vector<VkSemaphore> _image_available_semaphores;
     luisa::vector<VkSemaphore> _render_finished_semaphores;
-    // luisa::vector<VkFence> _in_flight_fences;
+    luisa::vector<VkFence> _in_flight_fences;
 
 
     size_t _current_frame{0u};
@@ -50,6 +50,7 @@ public:
         VkSemaphore &present_wait,
         uint& image_index,
         Texture const* tex,
+        VkFence& fence,
         uint mip);
 };
 }// namespace lc::vk

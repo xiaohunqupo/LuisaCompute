@@ -764,14 +764,14 @@ void Swapchain::create_swapchain(
         _swapchain_extent);
     _image_available_semaphores.resize(_swapchain_images.size());
     _render_finished_semaphores.resize(_swapchain_images.size());
-    // _in_flight_fences.resize(_swapchain_images.size());
+    _in_flight_fences.resize(_swapchain_images.size());
     VkSemaphoreCreateInfo semaphore_info{};
     semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
     VkFenceCreateInfo fence_info{};
     fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fence_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
     for (auto i : vstd::range((int64_t)_swapchain_images.size())) {
-        // VK_CHECK_RESULT(vkCreateFence(device()->logic_device(), &fence_info, Device::alloc_callbacks(), &_in_flight_fences[i]))
+        VK_CHECK_RESULT(vkCreateFence(device()->logic_device(), &fence_info, Device::alloc_callbacks(), &_in_flight_fences[i]));
         VK_CHECK_RESULT(vkCreateSemaphore(device()->logic_device(), &semaphore_info, Device::alloc_callbacks(), &_image_available_semaphores[i]));
         VK_CHECK_RESULT(vkCreateSemaphore(device()->logic_device(), &semaphore_info, Device::alloc_callbacks(), &_render_finished_semaphores[i]));
     }
@@ -832,9 +832,9 @@ Swapchain::~Swapchain() {
     for (auto &i : _render_finished_semaphores) {
         vkDestroySemaphore(device, i, Device::alloc_callbacks());
     }
-    // for (auto &i : _in_flight_fences) {
-    //     vkDestroyFence(device, i, Device::alloc_callbacks());
-    // }
+    for (auto &i : _in_flight_fences) {
+        vkDestroyFence(device, i, Device::alloc_callbacks());
+    }
 
     vkDestroyPipeline(device, _graphics_pipeline, Device::alloc_callbacks());
     vkDestroyPipelineLayout(device, _pipeline_layout, Device::alloc_callbacks());
@@ -852,13 +852,12 @@ void Swapchain::present(
     VkSemaphore &present_wait,
     uint &image_index,
     Texture const *tex,
+    VkFence &fence,
     uint mip) {
+    fence = nullptr;
     if (!_vertex_buffer) {
         _create_vertex_buffer(cmdbuffer, cmdbuffer.states()->_callbacks, device()->physical_device(), device()->logic_device(), _vertex_buffer, _vertex_buffer_memory);
     }
-    // VK_CHECK_RESULT(vkWaitForFences(
-    //     device()->logic_device(), 1, &_in_flight_fences[_current_frame],
-    //     VK_TRUE, UINT64_MAX));
     VkDescriptorSet descriptor_set;
     _create_descriptor_sets(
         device()->logic_device(),
@@ -868,6 +867,9 @@ void Swapchain::present(
         cmdbuffer.states()->_desc_pool);
 
     image_index = 0u;
+    VK_CHECK_RESULT(vkWaitForFences(
+        device()->logic_device(), 1, &_in_flight_fences[_current_frame],
+        VK_TRUE, UINT64_MAX));
     if (auto ret = vkAcquireNextImageKHR(
             device()->logic_device(), _swapchain, UINT64_MAX,
             _image_available_semaphores[_current_frame],
@@ -880,7 +882,7 @@ void Swapchain::present(
             "Failed to acquire swapchain image: {}.",
             luisa::to_string(ret));
     }
-    // VK_CHECK_RESULT(vkResetFences(device()->logic_device(), 1, &_in_flight_fences[_current_frame]));
+    VK_CHECK_RESULT(vkResetFences(device()->logic_device(), 1, &_in_flight_fences[_current_frame]));
     auto image = tex->vk_image();
     auto image_format = Texture::to_vk_format(tex->format());
     cmdbuffer.resource_barrier->record(
@@ -936,8 +938,8 @@ void Swapchain::present(
         image_index);
     // submit command buffer
     wait = _image_available_semaphores[_current_frame];
+    fence = _in_flight_fences[_current_frame];
     signal = _render_finished_semaphores[image_index];
-    // fence = _in_flight_fences[_current_frame];
     wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     present_wait = _render_finished_semaphores[image_index];
     _current_frame = (_current_frame + 1u) % _swapchain_images.size();
