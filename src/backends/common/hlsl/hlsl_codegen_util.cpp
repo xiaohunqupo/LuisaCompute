@@ -228,6 +228,7 @@ void CodegenUtility::GetVariableName(Function f, Variable::Tag type, uint id, vs
         case Variable::Tag::RASTER_BARYCENTRICS:
             LUISA_ASSERT(opt->isRaster, "barycentrics only allowed in raster shader");
             str << "bary"sv;
+            opt->pixelUseBarycentric = true;
             break;
         case Variable::Tag::WARP_LANE_COUNT:
             LUISA_ASSERT(!opt->isRaster, "warp ops only allowed in compute shader");
