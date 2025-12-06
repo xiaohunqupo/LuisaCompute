@@ -130,7 +130,7 @@ auto RasterShader::create_pipeline(
         .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
         .depthClampEnable = state.depth_clip,
         .rasterizerDiscardEnable = false,
-        .polygonMode = VK_POLYGON_MODE_FILL,
+        .polygonMode = state.fill_mode == FillMode::Solid ? VK_POLYGON_MODE_FILL : VK_POLYGON_MODE_LINE, // TO
         .cullMode = cull_mode,
         .frontFace = state.front_counter_clockwise ? VK_FRONT_FACE_COUNTER_CLOCKWISE : VK_FRONT_FACE_CLOCKWISE,
         .depthBiasEnable = VK_FALSE,
