@@ -11,13 +11,12 @@ namespace luisa::clangcxx {
 struct LUISA_CLANGCXX_API Compiler {
     static bool create_shader(
         const compute::ShaderOption &option,
-        compute::Device &device,
+        compute::Device *device,
         vstd::IRange<luisa::string_view> &defines,
         const std::filesystem::path &shader_path,
         vstd::IRange<luisa::string> &include_paths,
         ShaderReflection* kernel_arg_reflect = nullptr) LUISA_NOEXCEPT;
     static compute::CallableLibrary export_callables(
-        compute::Device &device,
         vstd::IRange<luisa::string_view> &defines,
         const std::filesystem::path &shader_path,
         vstd::IRange<luisa::string> &include_paths) LUISA_NOEXCEPT;

@@ -96,7 +96,7 @@ luisa::vector<luisa::string> Compiler::compile_args(
 
 bool Compiler::create_shader(
     const compute::ShaderOption &option,
-    luisa::compute::Device &device,
+    compute::Device *device,
     vstd::IRange<luisa::string_view> &defines,
     const std::filesystem::path &shader_path,
     vstd::IRange<luisa::string> &include_paths,
@@ -117,7 +117,7 @@ bool Compiler::create_shader(
     }
     OptionsParser &OptionsParser = ExpectedParser.get();
     tooling::ClangTool Tool(OptionsParser.getCompilations(), OptionsParser.getSourcePathList());
-    auto factory = newFrontendActionFactory2<luisa::clangcxx::FrontendAction>(&device, kernel_arg_reflect, option);
+    auto factory = newFrontendActionFactory2<luisa::clangcxx::FrontendAction>(device, kernel_arg_reflect, option);
     // Callable export
     // auto factory = newFrontendActionFactory3<luisa::clangcxx::CallLibFrontendAction>(option.name);
     auto rc = Tool.run(factory.get());
@@ -127,7 +127,6 @@ bool Compiler::create_shader(
     return true;
 }
 compute::CallableLibrary Compiler::export_callables(
-    compute::Device &device,
     vstd::IRange<luisa::string_view> &defines,
     const std::filesystem::path &shader_path,
     vstd::IRange<luisa::string> &include_paths) LUISA_NOEXCEPT {

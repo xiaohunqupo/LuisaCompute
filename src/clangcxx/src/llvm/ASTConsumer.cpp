@@ -1721,8 +1721,11 @@ ASTConsumerBase::~ASTConsumerBase() {
 ASTConsumer::~ASTConsumer() {
     if (db.kernel_builder == nullptr) [[unlikely]] {
         if (db.vertex_builder && db.pixel_builder) {
-            auto raster_ext = device->extension<RasterExt>();
-            raster_ext->create_raster_shader(luisa::compute::Function{db.vertex_builder.get()}, luisa::compute::Function{db.pixel_builder.get()}, option);
+            if (device) {
+                auto raster_ext = device->extension<RasterExt>();
+                if (raster_ext)
+                    raster_ext->create_raster_shader(luisa::compute::Function{db.vertex_builder.get()}, luisa::compute::Function{db.pixel_builder.get()}, option);
+            }
         } else {
             clangcxx_log_error("Kernel not defined.");
         }
@@ -1734,7 +1737,8 @@ ASTConsumer::~ASTConsumer() {
                 i.var_usage = db.kernel_builder->variable_usage(i.resource_var_id);
             }
         }
-        device->impl()->create_shader(option, luisa::compute::Function{db.kernel_builder.get()});
+        if (device)
+            device->impl()->create_shader(option, luisa::compute::Function{db.kernel_builder.get()});
     }
 }
 
