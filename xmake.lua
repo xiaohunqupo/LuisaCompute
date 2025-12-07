@@ -43,6 +43,7 @@ option("lc_enable_dsl", {default = true})
 option("lc_enable_clangcxx", {default = false})
 -- enable GUI module
 option("lc_enable_gui", {default = true})
+option("lc_enable_imgui", {default = true})
 -- custom bin dir
 option("lc_bin_dir", {default = "bin"})
 -- custom sdk dir

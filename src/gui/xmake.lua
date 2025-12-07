@@ -29,7 +29,7 @@ if not has_config("lc_glfw_use_xrepo") then
     end)
     target_end()
 end
-if not has_config("lc_imgui_use_xrepo") then
+if has_config("lc_enable_imgui") and not has_config("lc_imgui_use_xrepo") then
     target("imgui")
     set_basename("luisa-ext-imgui")
     _config_project({
@@ -76,13 +76,27 @@ on_load(function(target)
         return path.normalize(path.join(os.scriptdir(), p))
     end
     target:add("headerfiles", rela("../../include/luisa/gui/**.h"))
-    if has_config("lc_imgui_use_xrepo") then
-        target:add("packages", "imgui")
+    if has_config("lc_glfw_use_xrepo") then
+        target:add("packages", "glfw")
     else
-        target:add("deps", "imgui")
+        target:add("deps", "glfw")
+    end
+    if has_config("lc_enable_imgui") then
+        if has_config("lc_imgui_use_xrepo") then
+            target:add("packages", "imgui")
+        else
+            target:add("deps", "imgui")
+        end
+        target:add("files", path.join(os.scriptdir(), "*.cpp"))
+    else
+        for _, filepath in ipairs(os.files(path.join(os.scriptdir(), "*.cpp"))) do
+            if filepath:match("imgui") == nil then
+                target:add("files", filepath)
+            end
+        end
+        target:add("files", path.join(os.scriptdir(), "*.cpp|imgui_window.cpp"))
     end
 end)
-add_files("*.cpp")
 add_defines("LUISA_GUI_EXPORT_DLL")
 add_deps("lc-runtime", "lc-dsl")
 target_end()

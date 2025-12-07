@@ -162,7 +162,7 @@ template<class F>
 }
 template<class F>
     requires(std::is_invocable_v<F, uint32_t>)
-[[nodiscard]] void async_parallel(luisa::fiber::counter &evt, uint32_t job_count, F &&lambda, uint32_t internal_jobs = 1) noexcept {
+void async_parallel(luisa::fiber::counter &evt, uint32_t job_count, F &&lambda, uint32_t internal_jobs = 1) noexcept {
     auto thread_count = std::clamp<uint32_t>(job_count / internal_jobs, 1u, worker_thread_count());
     evt.add(thread_count);
     luisa::SharedFunction<void()> func{[counter = detail::NonMovableAtomic<uint32_t>(0), job_count, internal_jobs, evt, lambda = std::forward<F>(lambda)]() mutable noexcept {

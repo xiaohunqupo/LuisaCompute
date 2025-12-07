@@ -155,7 +155,7 @@ template<typename T>
     auto inv_s = 1.f / s;
     auto c_min = texture_coord_point(address, uv - .5f * inv_s, s);
     auto c_max = texture_coord_point(address, uv + .5f * inv_s, s);
-    return std::make_pair(luisa::min(c_min, c_max), luisa::max(c_min, c_max));
+    return std::make_pair<luisa::float2, luisa::float2>(luisa::min(c_min, c_max), luisa::max(c_min, c_max));
 }
 
 [[nodiscard]] inline auto texture_sample_linear(FallbackTextureView view, Sampler::Address address, luisa::float2 uv) noexcept {

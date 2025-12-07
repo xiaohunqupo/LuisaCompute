@@ -24,6 +24,7 @@ AllocatedBuffer VkAllocator::allocate_buffer(size_t byte_size, VkBufferUsageFlag
         case AccessType::Upload:
             allocInfo.flags |= VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
             break;
+        default: break;
     }
     AllocatedBuffer r;
     VK_CHECK_RESULT(vmaCreateBuffer(_allocator, &bufferInfo, &allocInfo, &r.buffer, &r.allocation, nullptr));

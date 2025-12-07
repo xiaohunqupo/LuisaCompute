@@ -291,6 +291,7 @@ private:
                 }
                 break;
             }
+            default: break;
         }
         LUISA_ERROR_WITH_LOCATION("Invalid type: {}.", t->description());
     }
