@@ -144,6 +144,7 @@ enum KeyModifierBits : unsigned int {
 using KeyModifiers = unsigned int;
 
 enum MouseButton {
+    MOUSE_BUTTON_UNKNOWN = -1,
     MOUSE_BUTTON_1 = 0,
     MOUSE_BUTTON_2 = 1,
     MOUSE_BUTTON_3 = 2,
@@ -158,10 +159,10 @@ enum MouseButton {
 };
 
 enum Action {
+    ACTION_UNKNOWN = -1,
     ACTION_RELEASED = 0,
     ACTION_PRESSED = 1,
     ACTION_REPEATED = 2
 };
 
 }// namespace luisa::compute
-
