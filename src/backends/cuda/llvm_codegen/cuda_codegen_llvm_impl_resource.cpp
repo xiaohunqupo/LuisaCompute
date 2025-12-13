@@ -469,7 +469,6 @@ void CUDACodegenLLVMImpl::_translate_resource_write_inst(IB &b, FunctionContext 
             auto llvm_buffer = _get_llvm_value(b, func_ctx, inst->operand(0));
             auto llvm_byte_offset = _get_llvm_value(b, func_ctx, inst->operand(1));
             auto llvm_value = _get_llvm_value(b, func_ctx, inst->operand(2));
-            LUISA_DEBUG_ASSERT(inst->operand(2)->type() == inst->operand(0)->type()->element());
             auto elem_type = inst->operand(2)->type();
             auto llvm_elem_ptr = _get_buffer_element_pointer(b, llvm_buffer, llvm_byte_offset, 1, elem_type->size());
             _store_llvm_value(b, llvm_elem_ptr, llvm_value, elem_type);

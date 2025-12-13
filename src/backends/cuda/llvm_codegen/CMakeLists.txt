@@ -4,11 +4,15 @@ luisa_compute_link_llvm_into_backend(cuda
 if (LUISA_COMPUTE_CUDA_LINKED_LLVM)
     message(STATUS "Linking LLVM into the CUDA backend")
     # find CUDA libdevice
-    find_file(CUDA_LIBDEVICE_FILE NAMES libdevice.10.bc HINTS ${CUDAToolkit_LIBRARY_DIR}/../nvvm/libdevice NO_DEFAULT_PATH REQUIRED)
+    set(CUDA_LIBDEVICE_SEARCH_PATHS
+            ${CUDAToolkit_LIBRARY_DIR}/../nvvm/libdevice
+            ${CUDAToolkit_BIN_DIR}/../nvvm/libdevice
+    )
+    find_file(CUDA_LIBDEVICE_FILE NAMES libdevice.10.bc HINTS ${CUDA_LIBDEVICE_SEARCH_PATHS} NO_DEFAULT_PATH)
     if (CUDA_LIBDEVICE_FILE)
         message(STATUS "Found CUDA libdevice: ${CUDA_LIBDEVICE_FILE}")
     else ()
-        message(FATAL_ERROR "Could not find CUDA libdevice in ${CUDAToolkit_LIBRARY_DIR}/../nvvm/libdevice")
+        message(FATAL_ERROR "Could not find CUDA libdevice in ${CUDA_LIBDEVICE_SEARCH_PATHS}")
     endif ()
     # use luisa-embed-device-lib to embed libdevice
     set(LUISA_COMPUTE_CUDA_DEVICE_LIB_SOURCES ${CUDA_LIBDEVICE_FILE})
