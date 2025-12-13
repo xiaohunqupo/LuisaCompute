@@ -2,6 +2,8 @@
 // Created by mike on 9/21/25.
 //
 
+#include <luisa/dsl/rtx/ray_query.h>
+
 #include "../cuda_buffer.h"
 #include "../cuda_texture.h"
 #include "../cuda_bindless_array.h"
@@ -12,6 +14,7 @@
 namespace luisa::compute::cuda {
 
 namespace detail {
+
 static void luisa_check_llvm_type_size_and_alignment(
     const llvm::DataLayout &data_layout, llvm::Type *type,
     size_t expected_size, size_t expected_alignment) noexcept {
@@ -30,7 +33,15 @@ static void luisa_check_llvm_type_size_and_alignment(
                  type_str(), expected_size, expected_alignment,
                  llvm_size.getFixedValue(), llvm_align.value());
 }
+
 }// namespace detail
+
+size_t CUDACodegenLLVMImpl::_get_type_alignment(const Type *type) noexcept {
+    if (type->is_basic() || type->is_array() || type->is_structure()) {
+        return type->alignment();
+    }
+    return 16;
+}
 
 const CUDACodegenLLVMImpl::LLVMTypeInfo *
 CUDACodegenLLVMImpl::_get_llvm_type(const Type *type) noexcept {
@@ -168,7 +179,15 @@ CUDACodegenLLVMImpl::_get_llvm_type(const Type *type) noexcept {
             case Type::Tag::COOPERATIVE_VECTOR: LUISA_NOT_IMPLEMENTED("Cooperative vector type");
             case Type::Tag::COOPERATIVE_VECTOR_REF: LUISA_NOT_IMPLEMENTED("Cooperative vector ref type");
             case Type::Tag::COOPERATIVE_MATRIX_REF: LUISA_NOT_IMPLEMENTED("Cooperative matrix ref type");
-            case Type::Tag::CUSTOM: LUISA_NOT_IMPLEMENTED("Custom type: {}.", type->description());
+            case Type::Tag::CUSTOM: {
+                if (type == Type::of<RayQueryAll>() || type == Type::of<RayQueryAny>()) {
+                    auto llvm_type = _get_llvm_ray_query_type();
+                    auto llvm_size = _data_layout->getTypeAllocSize(llvm_type);
+                    auto llvm_align = _data_layout->getABITypeAlign(llvm_type);
+                    return make_llvm_type_info(llvm_type, llvm_type, llvm_size, llvm_align.value());
+                }
+                LUISA_NOT_IMPLEMENTED("Custom type: {}.", type->description());
+            }
         }
         LUISA_ERROR_WITH_LOCATION("Invalid type: {}.", type->description());
     }();

@@ -209,6 +209,7 @@ private:
     void _analyze_ray_tracing_in_function(const xir::Function *f, llvm::DenseSet<const xir::Function *> &visited) noexcept;
 
     /* the following methods are defined in cuda_codegen_llvm_impl_type.cpp */
+    [[nodiscard]] static size_t _get_type_alignment(const Type *type) noexcept;
     [[nodiscard]] const LLVMTypeInfo *_get_llvm_type(const Type *type) noexcept;
     [[nodiscard]] const KernelArgumentStruct *_get_kernel_argument_struct(const xir::KernelFunction *func) noexcept;
     [[nodiscard]] llvm::Type *_get_llvm_buffer_type() noexcept;

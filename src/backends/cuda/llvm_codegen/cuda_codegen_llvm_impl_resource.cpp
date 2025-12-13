@@ -4,6 +4,7 @@
 
 #include <luisa/runtime/rtx/hit.h>
 #include <luisa/runtime/rtx/motion_transform.h>
+#include <luisa/dsl/rtx/ray_query.h>
 
 #include "../optix_api.h"
 #include "cuda_codegen_llvm_impl.h"
@@ -297,10 +298,35 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_resource_query_inst(IB &b, Function
                        _accel_trace_closest(b, flags_closest, llvm_accel, llvm_ray, llvm_time, llvm_mask) :
                        _accel_trace_any(b, flags_any, llvm_accel, llvm_ray, llvm_time, llvm_mask);
         }
-        case xir::ResourceQueryOp::RAY_TRACING_QUERY_ALL: break;
-        case xir::ResourceQueryOp::RAY_TRACING_QUERY_ANY: break;
-        case xir::ResourceQueryOp::RAY_TRACING_QUERY_ALL_MOTION_BLUR: break;
-        case xir::ResourceQueryOp::RAY_TRACING_QUERY_ANY_MOTION_BLUR: break;
+        case xir::ResourceQueryOp::RAY_TRACING_QUERY_ALL: [[fallthrough]];
+        case xir::ResourceQueryOp::RAY_TRACING_QUERY_ANY: [[fallthrough]];
+        case xir::ResourceQueryOp::RAY_TRACING_QUERY_ALL_MOTION_BLUR: [[fallthrough]];
+        case xir::ResourceQueryOp::RAY_TRACING_QUERY_ANY_MOTION_BLUR: {
+            auto is_any = (op == xir::ResourceQueryOp::RAY_TRACING_QUERY_ANY ||
+                           op == xir::ResourceQueryOp::RAY_TRACING_QUERY_ANY_MOTION_BLUR);
+            LUISA_DEBUG_ASSERT(is_any ? inst->type() == Type::of<RayQueryAny>() : inst->type() == Type::of<RayQueryAll>());
+            auto uses_motion_blur = (op == xir::ResourceQueryOp::RAY_TRACING_QUERY_ALL_MOTION_BLUR ||
+                                     op == xir::ResourceQueryOp::RAY_TRACING_QUERY_ANY_MOTION_BLUR);
+            auto llvm_accel = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto llvm_ray = _get_llvm_value(b, func_ctx, inst->operand(1));
+            auto llvm_time = uses_motion_blur ? _get_llvm_value(b, func_ctx, inst->operand(2)) :
+                                                llvm::ConstantFP::getZero(b.getFloatTy());
+            auto llvm_mask = uses_motion_blur ? _get_llvm_value(b, func_ctx, inst->operand(3)) :
+                                                _get_llvm_value(b, func_ctx, inst->operand(2));
+            auto llvm_flags = is_any ? (optix::RAY_FLAG_DISABLE_CLOSESTHIT | optix::RAY_FLAG_TERMINATE_ON_FIRST_HIT) :
+                                       optix::RAY_FLAG_DISABLE_CLOSESTHIT;
+            auto llvm_query = static_cast<llvm::Value *>(llvm::Constant::getNullValue(_get_llvm_ray_query_type()));
+            llvm_query = b.CreateInsertValue(llvm_query, llvm_accel, llvm_ray_query_type_accel_index);
+            llvm_query = b.CreateInsertValue(llvm_query, llvm_ray, llvm_ray_query_type_ray_index);
+            llvm_query = b.CreateInsertValue(llvm_query, llvm_time, llvm_ray_query_type_time_index);
+            llvm_query = b.CreateInsertValue(llvm_query, llvm_mask, llvm_ray_query_type_mask_index);
+            llvm_query = b.CreateInsertValue(llvm_query, b.getInt32(llvm_flags), llvm_ray_query_type_flags_index);
+            llvm_query = b.CreateInsertValue(llvm_query, b.getInt32(-1),
+                                             {llvm_ray_query_type_committed_hit_index, llvm_committed_hit_type_inst_id_index});
+            llvm_query = b.CreateInsertValue(llvm_query, b.getInt32(luisa::to_underlying(HitType::Miss)),
+                                             {llvm_ray_query_type_committed_hit_index, llvm_committed_hit_type_hit_kind_index});
+            return llvm_query;
+        }
     }
     LUISA_NOT_IMPLEMENTED();
 }
