@@ -377,8 +377,12 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_resource_read_inst(IB &b, const Fun
             auto llvm_coord_y = b.CreateExtractElement(llvm_coord, b.getInt64(1));
             auto llvm_result = b.CreateIntrinsic(llvm::Intrinsic::nvvm_tex_unified_2d_v4f32_s32,
                                                  {llvm_handle, llvm_coord_x, llvm_coord_y});
-            auto llvm_result_type = _get_llvm_type(inst->type())->reg_type;
-            return _safe_fp_cast(b, llvm_result, llvm_result_type);
+            auto llvm_result_x = b.CreateExtractValue(llvm_result, 0);
+            auto llvm_result_y = b.CreateExtractValue(llvm_result, 1);
+            auto llvm_result_z = b.CreateExtractValue(llvm_result, 2);
+            auto llvm_result_w = b.CreateExtractValue(llvm_result, 3);
+            auto llvm_value = _create_llvm_vector(b, {llvm_result_x, llvm_result_y, llvm_result_z, llvm_result_w});
+            return _safe_fp_cast(b, llvm_value, _get_llvm_type(inst->type())->reg_type);
         }
         case xir::ResourceReadOp::BINDLESS_TEXTURE3D_READ: {
             auto llvm_bindless_array = _get_llvm_value(b, func_ctx, inst->operand(0));
@@ -390,8 +394,12 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_resource_read_inst(IB &b, const Fun
             auto llvm_coord_z = b.CreateExtractElement(llvm_coord, b.getInt64(2));
             auto llvm_result = b.CreateIntrinsic(llvm::Intrinsic::nvvm_tex_unified_3d_v4f32_s32,
                                                  {llvm_handle, llvm_coord_x, llvm_coord_y, llvm_coord_z});
-            auto llvm_result_type = _get_llvm_type(inst->type())->reg_type;
-            return _safe_fp_cast(b, llvm_result, llvm_result_type);
+            auto llvm_result_x = b.CreateExtractValue(llvm_result, 0);
+            auto llvm_result_y = b.CreateExtractValue(llvm_result, 1);
+            auto llvm_result_z = b.CreateExtractValue(llvm_result, 2);
+            auto llvm_result_w = b.CreateExtractValue(llvm_result, 3);
+            auto llvm_value = _create_llvm_vector(b, {llvm_result_x, llvm_result_y, llvm_result_z, llvm_result_w});
+            return _safe_fp_cast(b, llvm_value, _get_llvm_type(inst->type())->reg_type);
         }
         case xir::ResourceReadOp::BINDLESS_TEXTURE2D_READ_LEVEL: {
             auto llvm_bindless_array = _get_llvm_value(b, func_ctx, inst->operand(0));

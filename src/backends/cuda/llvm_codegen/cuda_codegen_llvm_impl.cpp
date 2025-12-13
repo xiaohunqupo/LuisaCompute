@@ -192,42 +192,62 @@ void CUDACodegenLLVMImpl::_run_optimization_passes() noexcept {
         }
     }
 
-    // run optimization passes
-    llvm::LoopAnalysisManager LAM;
-    llvm::FunctionAnalysisManager FAM;
-    llvm::CGSCCAnalysisManager CGAM;
-    llvm::ModuleAnalysisManager MAM;
+    auto do_optimize = [&] {
+        // run optimization passes
+        llvm::LoopAnalysisManager LAM;
+        llvm::FunctionAnalysisManager FAM;
+        llvm::CGSCCAnalysisManager CGAM;
+        llvm::ModuleAnalysisManager MAM;
 
-    llvm::PipelineTuningOptions PTO;
-    PTO.LoopInterleaving = true;
+        llvm::PipelineTuningOptions PTO;
+        PTO.LoopInterleaving = true;
 #if LLVM_VERSION_MAJOR >= 21
-    PTO.LoopInterchange = true;
+        PTO.LoopInterchange = true;
 #endif
-    PTO.LoopVectorization = true;
-    PTO.SLPVectorization = true;
-    PTO.LoopUnrolling = true;
-    PTO.MergeFunctions = true;
-    llvm::PassBuilder PB{_target_machine, PTO};
-    PB.registerModuleAnalyses(MAM);
-    PB.registerCGSCCAnalyses(CGAM);
-    PB.registerFunctionAnalyses(FAM);
-    PB.registerLoopAnalyses(LAM);
-    PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+        PTO.LoopVectorization = true;
+        PTO.SLPVectorization = true;
+        PTO.LoopUnrolling = true;
+        PTO.MergeFunctions = true;
+        llvm::PassBuilder PB{_target_machine, PTO};
+        PB.registerModuleAnalyses(MAM);
+        PB.registerCGSCCAnalyses(CGAM);
+        PB.registerFunctionAnalyses(FAM);
+        PB.registerLoopAnalyses(LAM);
+        PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
 #if LLVM_VERSION_MAJOR >= 19
-    _target_machine->registerPassBuilderCallbacks(PB);
+        _target_machine->registerPassBuilderCallbacks(PB);
 #else
-    _target_machine->registerPassBuilderCallbacks(PB, true);
+        _target_machine->registerPassBuilderCallbacks(PB, true);
 #endif
 
-    auto opt_level = llvm::OptimizationLevel::O2;
-    switch (_config.opt_level) {
-        case CUDACodegenLLVMConfig::OptLevel::LEVEL_NONE: opt_level = llvm::OptimizationLevel::O0; break;
-        case CUDACodegenLLVMConfig::OptLevel::LEVEL_LESS: opt_level = llvm::OptimizationLevel::O1; break;
-        case CUDACodegenLLVMConfig::OptLevel::LEVEL_DEFAULT: opt_level = llvm::OptimizationLevel::O2; break;
-        case CUDACodegenLLVMConfig::OptLevel::LEVEL_AGGRESSIVE: opt_level = llvm::OptimizationLevel::O3; break;
+        auto opt_level = llvm::OptimizationLevel::O2;
+        switch (_config.opt_level) {
+            case CUDACodegenLLVMConfig::OptLevel::LEVEL_NONE: opt_level = llvm::OptimizationLevel::O0; break;
+            case CUDACodegenLLVMConfig::OptLevel::LEVEL_LESS: opt_level = llvm::OptimizationLevel::O1; break;
+            case CUDACodegenLLVMConfig::OptLevel::LEVEL_DEFAULT: opt_level = llvm::OptimizationLevel::O2; break;
+            case CUDACodegenLLVMConfig::OptLevel::LEVEL_AGGRESSIVE: opt_level = llvm::OptimizationLevel::O3; break;
+        }
+        llvm::ModulePassManager MPM = PB.buildPerModuleDefaultPipeline(opt_level);
+        MPM.run(*_llvm_module, MAM);
+    };
+
+    // primary optimization pass
+    do_optimize();
+
+    // run a second pass if any device function is not inlined
+    {
+        auto any_not_inlined = false;
+        for (auto &f : *_llvm_module) {
+            if (!f.isDeclaration() && f.getCallingConv() == llvm::CallingConv::PTX_Device) {
+                f.addFnAttr(llvm::Attribute::AlwaysInline);
+                any_not_inlined = true;
+            }
+        }
+        if (any_not_inlined) {
+            LUISA_VERBOSE("Running secondary optimization passes to inline device functions...");
+            do_optimize();
+        }
     }
-    llvm::ModulePassManager MPM = PB.buildPerModuleDefaultPipeline(opt_level);
-    MPM.run(*_llvm_module, MAM);
 }
 
 namespace detail {
