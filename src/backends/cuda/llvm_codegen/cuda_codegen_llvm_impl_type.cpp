@@ -389,13 +389,13 @@ llvm::Type *CUDACodegenLLVMImpl::_get_llvm_ray_query_type() noexcept {
         auto llvm_ray_type = _get_llvm_ray_type();
         auto llvm_i32_type = llvm::Type::getInt32Ty(_llvm_context);
         auto llvm_f32_type = llvm::Type::getFloatTy(_llvm_context);
-        auto llvm_committed_hit_type = _get_llvm_committed_hit_type();
+        auto llvm_ptr_type = llvm::PointerType::get(_llvm_context, 0);
         _llvm_ray_query_type = llvm::StructType::get(llvm_accel_type /* accel */,
                                                      llvm_ray_type /* ray */,
                                                      llvm_f32_type /* time */,
                                                      llvm_i32_type /* mask */,
                                                      llvm_i32_type /* flags */,
-                                                     llvm_committed_hit_type /* committed_hit */);
+                                                     llvm_ptr_type /* ptr to state */);
     }
     return _llvm_ray_query_type;
 }
