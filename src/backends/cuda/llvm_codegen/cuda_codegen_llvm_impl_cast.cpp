@@ -43,7 +43,7 @@ llvm::Value *CUDACodegenLLVMImpl::_convert_llvm_reg_value_to_mem(IB &b, llvm::Va
     for (auto i = 0u; i < member_count; i++) {
         auto llvm_reg_member = b.CreateExtractValue(reg_v, i);
         auto llvm_mem_member = _convert_llvm_reg_value_to_mem(b, llvm_reg_member, type->members()[i]);
-        llvm_dst = b.CreateInsertValue(llvm_dst, llvm_mem_member, i);
+        llvm_dst = b.CreateInsertValue(llvm_dst, llvm_mem_member, type_info->member_indices[i]);
     }
     llvm_dst->setName(reg_v->getName().str() + ".to.mem");
     return llvm_dst;
@@ -84,7 +84,7 @@ llvm::Value *CUDACodegenLLVMImpl::_convert_llvm_mem_value_to_reg(IB &b, llvm::Va
     auto reg_v = static_cast<llvm::Value *>(llvm::PoisonValue::get(type_info->reg_type));
     auto member_count = type->members().size();
     for (auto i = 0u; i < member_count; i++) {
-        auto llvm_mem_member = b.CreateExtractValue(mem_v, i);
+        auto llvm_mem_member = b.CreateExtractValue(mem_v, type_info->member_indices[i]);
         auto llvm_reg_member = _convert_llvm_mem_value_to_reg(b, llvm_mem_member, type->members()[i]);
         reg_v = b.CreateInsertValue(reg_v, llvm_reg_member, i);
     }
