@@ -185,7 +185,14 @@ void CUDACodegenLLVMImpl::_run_optimization_passes() noexcept {
             for (auto &bb : f) {
                 for (auto &inst : bb) {
                     if (llvm::isa<llvm::FPMathOperator>(inst)) {
-                        inst.setFast(true);
+                        if (inst.getOpcode() == llvm::Instruction::FAdd) {
+                            // for some mysterious reason, `fadd` with `no inf` causes bad precision in some cases
+                            auto flags = llvm::FastMathFlags::getFast();
+                            flags.setNoInfs(false);
+                            inst.setFastMathFlags(flags);
+                        } else {
+                            inst.setFast(true);
+                        }
                     }
                 }
             }
