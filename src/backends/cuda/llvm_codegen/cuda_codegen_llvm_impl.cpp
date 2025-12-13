@@ -14,6 +14,9 @@
 #include <llvm/Analysis/CGSCCPassManager.h>
 #include <llvm/Analysis/LoopAnalysisManager.h>
 #include <llvm/Passes/PassBuilder.h>
+#include <llvm/IR/Dominators.h>
+#include <llvm/Analysis/AssumptionCache.h>
+#include <llvm/Transforms/Utils/CodeExtractor.h>
 
 #include <luisa/core/clock.h>
 
@@ -177,7 +180,7 @@ void CUDACodegenLLVMImpl::_dump_module(const std::filesystem::path &path) const 
     }
 }
 
-void CUDACodegenLLVMImpl::_run_optimization_passes() noexcept {
+void CUDACodegenLLVMImpl::_run_optimization_passes(LLVMModulePassManagerCallback callback) noexcept {
 
     // add fast-math flags to FPMathOperators
     if (_config.enable_fast_math) {
@@ -227,6 +230,7 @@ void CUDACodegenLLVMImpl::_run_optimization_passes() noexcept {
         case CUDACodegenLLVMConfig::OptLevel::LEVEL_AGGRESSIVE: opt_level = llvm::OptimizationLevel::O3; break;
     }
     llvm::ModulePassManager MPM = PB.buildPerModuleDefaultPipeline(opt_level);
+    if (callback) { callback(MPM); }
     MPM.run(*_llvm_module, MAM);
 }
 
@@ -242,6 +246,89 @@ public:
         } else {
             PassManager::add(pass);
         }
+    }
+};
+
+struct RayQueryLoopExtraction : llvm::PassInfoMixin<RayQueryLoopExtraction> {
+
+    llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM) {
+        auto Init = M.getFunction(CUDACodegenLLVMImpl::llvm_ray_query_intrinsic_name_initialize);
+        auto Proceed = M.getFunction(CUDACodegenLLVMImpl::llvm_ray_query_intrinsic_name_proceed);
+        if (Init == nullptr || Proceed == nullptr) { return llvm::PreservedAnalyses::all(); }
+        while (!Proceed->user_empty()) {
+            if (auto Call = llvm::dyn_cast<llvm::CallInst>(*Proceed->user_begin())) {
+                auto &FAM = MAM.getResult<llvm::FunctionAnalysisManagerModuleProxy>(M).getManager();
+                auto F = Call->getFunction();
+                auto &DT = FAM.getResult<llvm::DominatorTreeAnalysis>(*F);
+                auto &LI = FAM.getResult<llvm::LoopAnalysis>(*F);
+                auto L = LI.getLoopFor(Call->getParent());
+                LUISA_ASSERT(L != nullptr && Init != nullptr,
+                             "Ray query 'proceed' call not inside a loop or missing 'initialize' intrinsic.");
+                // find the `initialize` call that dominates this `proceed` call
+                auto InitCall = [&]() noexcept -> llvm::CallInst * {
+                    auto IDom = [&DT](auto B) noexcept {
+                        auto IDomNode = DT.getNode(B)->getIDom();
+                        return IDomNode ? IDomNode->getBlock() : nullptr;
+                    };
+                    for (auto BB = IDom(Call->getParent()); BB != nullptr; BB = IDom(BB)) {
+                        for (auto &I : llvm::reverse(*BB)) {
+                            if (auto C = llvm::dyn_cast<llvm::CallInst>(&I);
+                                C != nullptr && C->getCalledFunction() == Init) {
+                                return C;
+                            }
+                        }
+                    }
+                    return nullptr;
+                }();
+                LUISA_ASSERT(InitCall != nullptr,
+                             "No dominating ray query 'initialize' call found for 'proceed' call.");
+                // find the outermost loop that is dominated by this `initialize` call
+                auto DominatesLoop = [&DT, InitCall](llvm::Loop *loop) noexcept {
+                    return DT.dominates(InitCall->getParent(), loop->getHeader());
+                };
+                while (auto ParentL = L->getParentLoop()) {
+                    if (DominatesLoop(ParentL)) {
+                        L = ParentL;
+                    } else {
+                        break;
+                    }
+                }
+                LUISA_ASSERT(L != nullptr && DominatesLoop(L),
+                             "Failed to find the outermost ray query loop for 'proceed' call.");
+                auto AC = FAM.getCachedResult<llvm::AssumptionAnalysis>(*F);
+                llvm::CodeExtractor Extractor{L->getBlocks(), &DT, false, nullptr, nullptr, AC};
+                llvm::CodeExtractorAnalysisCache CEAC{*F};
+                if (auto NewF = Extractor.extractCodeRegion(CEAC)) {
+                    NewF->addFnAttr(llvm::Attribute::NoInline);
+                    NewF->setName("ray.query.loop.extracted");
+                } else {
+                    LUISA_ERROR_WITH_LOCATION("Failed to extract ray query loop into a separate function.");
+                }
+                // turn the `proceed` call into a `traverse` call so that we know it's processed
+                auto I = M.getFunction(CUDACodegenLLVMImpl::llvm_ray_query_intrinsic_name_traverse);
+                if (I == nullptr) {
+                    I = llvm::Function::Create(Call->getFunctionType(), llvm::Function::ExternalLinkage,
+                                               CUDACodegenLLVMImpl::llvm_ray_query_intrinsic_name_traverse, &M);
+                }
+                Call->setCalledFunction(I);
+                // InitCall->eraseFromParent();
+            } else {
+                LUISA_ERROR_WITH_LOCATION("Invalid user of ray query 'proceed' intrinsic.");
+            }
+        }
+        // remove these functions
+        Proceed->eraseFromParent();
+        // if (!Init->user_empty()) {
+        //     LUISA_WARNING_WITH_LOCATION("Unused ray query 'initialize' intrinsic remaining.");
+        //     while (!Init->user_empty()) {
+        //         if (auto Call = llvm::dyn_cast<llvm::CallInst>(*Init->user_begin())) {
+        //             Call->eraseFromParent();
+        //         } else {
+        //             LUISA_ERROR_WITH_LOCATION("Invalid user of ray query 'initialize' intrinsic.");
+        //         }
+        //     }
+        // }
+        return llvm::PreservedAnalyses::none();
     }
 };
 
@@ -267,14 +354,24 @@ luisa::string CUDACodegenLLVMImpl::generate(const xir::Module &xir_module) noexc
             [[maybe_unused]] auto llvm_f = _translate_function(def);
         }
     }
-    if (llvm::verifyModule(*_llvm_module, &llvm::errs())) {
-        std::error_code ec;
-        if (llvm::raw_fd_ostream os{"debug.ll", ec}; ec) {
-            LUISA_WARNING_WITH_LOCATION("Failed to create debug.ll: {}", ec.message());
-        } else {
-            _llvm_module->print(os, nullptr, true, true);
+    auto verify = [&] {
+        if (llvm::verifyModule(*_llvm_module, &llvm::errs())) {
+            std::error_code ec;
+            if (llvm::raw_fd_ostream os{"debug.ll", ec}; ec) {
+                LUISA_WARNING_WITH_LOCATION("Failed to create debug.ll: {}", ec.message());
+            } else {
+                _llvm_module->print(os, nullptr, true, true);
+            }
+            LUISA_ERROR_WITH_LOCATION("LLVM module verification failed. IR dumped to debug.ll");
         }
-        LUISA_ERROR_WITH_LOCATION("LLVM module verification failed. IR dumped to debug.ll");
+    };
+    verify();
+    if (_rt_analysis.uses_ray_query) {
+        _run_optimization_passes([](auto &MPM) noexcept {
+            MPM.addPass(detail::RayQueryLoopExtraction{});
+        });
+        _materialize_ray_query_loops();
+        verify();
     }
     _run_optimization_passes();
     static auto dump_llvm_ir = [] {
@@ -283,7 +380,7 @@ luisa::string CUDACodegenLLVMImpl::generate(const xir::Module &xir_module) noexc
         return env != nullptr && env == "1"sv;
     }();
     if (dump_llvm_ir) {
-        _llvm_module->print(llvm::errs(), nullptr, true, true);
+        _llvm_module->print(llvm::errs(), nullptr, false, true);
     }
     return _generate_ptx();
 }

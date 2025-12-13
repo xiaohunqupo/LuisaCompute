@@ -321,9 +321,12 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_resource_query_inst(IB &b, Function
             llvm_query = b.CreateInsertValue(llvm_query, llvm_time, llvm_ray_query_type_time_index);
             llvm_query = b.CreateInsertValue(llvm_query, llvm_mask, llvm_ray_query_type_mask_index);
             llvm_query = b.CreateInsertValue(llvm_query, b.getInt32(llvm_flags), llvm_ray_query_type_flags_index);
-            auto llvm_state_ptr = b.CreateAlloca(b.getInt8Ty(), nullptr, "ray.query.state.ptr");
+            auto llvm_state_ptr = _create_temp_in_alloca_block(func_ctx, b.getInt8Ty());
+            llvm_state_ptr->setName("ray.query.state.ptr");
             b.CreateStore(b.getInt8(llvm_ray_query_state_initial), llvm_state_ptr);
             llvm_query = b.CreateInsertValue(llvm_query, llvm_state_ptr, llvm_ray_query_type_state_ptr_index);
+            // mark the initialization of this ray query loop
+            _call_ray_query_intrinsic(b, llvm_ray_query_intrinsic_name_initialize, b.getVoidTy(), llvm_query);
             return llvm_query;
         }
     }

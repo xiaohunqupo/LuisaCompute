@@ -2,12 +2,17 @@
 // Created by mike on 11/1/25.
 //
 
+#include <llvm/IR/Dominators.h>
+#include <llvm/Analysis/LoopInfo.h>
+
 #include "cuda_codegen_llvm_impl.h"
 
 namespace luisa::compute::cuda {
 
 void CUDACodegenLLVMImpl::_translate_ray_query_loop_inst(IB &b, FunctionContext &func_ctx, const xir::RayQueryLoopInst *inst) noexcept {
+    b.GetInsertBlock()->setName("ray.query.loop");
     auto llvm_dispatch_block = func_ctx.get_local_value<llvm::BasicBlock>(inst->dispatch_block());
+    llvm_dispatch_block->setName("ray.query.dispatch");
     b.CreateBr(llvm_dispatch_block);
 }
 
@@ -23,8 +28,11 @@ void CUDACodegenLLVMImpl::_translate_ray_query_dispatch_inst(IB &b, FunctionCont
     auto llvm_state_ptr = b.CreateExtractValue(llvm_query, llvm_ray_query_type_state_ptr_index);
     auto llvm_state = b.CreateLoad(b.getInt8Ty(), llvm_state_ptr);
     auto llvm_exit_block = func_ctx.get_local_value<llvm::BasicBlock>(inst->exit_block());
+    llvm_exit_block->setName("ray.query.exit");
     auto llvm_surface_block = func_ctx.get_local_value<llvm::BasicBlock>(inst->on_surface_candidate_block());
+    llvm_surface_block->setName("ray.query.on.surface.candidate");
     auto llvm_procedural_block = func_ctx.get_local_value<llvm::BasicBlock>(inst->on_procedural_candidate_block());
+    llvm_procedural_block->setName("ray.query.on.procedural.candidate");
     auto llvm_dispatch = b.CreateSwitch(llvm_state, llvm_exit_block, 2);
     llvm_dispatch->addCase(b.getInt8(llvm_ray_query_state_surface_candidate), llvm_surface_block);
     llvm_dispatch->addCase(b.getInt8(llvm_ray_query_state_procedural_candidate), llvm_procedural_block);
@@ -84,6 +92,10 @@ llvm::Value *CUDACodegenLLVMImpl::_call_ray_query_intrinsic(IB &b, llvm::StringR
         func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, name, _llvm_module.get());
     }
     return b.CreateCall(func, args);
+}
+
+void CUDACodegenLLVMImpl::_materialize_ray_query_loops() noexcept {
+    // TODO
 }
 
 }// namespace luisa::compute::cuda

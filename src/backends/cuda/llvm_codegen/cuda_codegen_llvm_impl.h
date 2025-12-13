@@ -154,8 +154,10 @@ public:
     static constexpr std::string_view llvm_ray_query_intrinsic_name_is_terminated = "luisa.ray.query.is.terminated";
     static constexpr std::string_view llvm_ray_query_intrinsic_name_commit_surface_hit = "luisa.ray.query.commit.surface.hit";
     static constexpr std::string_view llvm_ray_query_intrinsic_name_commit_procedural_hit = "luisa.ray.query.commit.procedural.hit";
-    static constexpr std::string_view llvm_ray_query_intrinsic_name_terminate = "luisa.ray.query.terminate";
+    static constexpr std::string_view llvm_ray_query_intrinsic_name_initialize = "luisa.ray.query.initialize";
     static constexpr std::string_view llvm_ray_query_intrinsic_name_proceed = "luisa.ray.query.proceed";
+    static constexpr std::string_view llvm_ray_query_intrinsic_name_traverse = "luisa.ray.query.traverse";
+    static constexpr std::string_view llvm_ray_query_intrinsic_name_terminate = "luisa.ray.query.terminate";
 
 private:
     CUDACodegenLLVMConfig _config;
@@ -176,7 +178,6 @@ private:
     llvm::Type *_llvm_surface_hit_type{nullptr};        // { i32 inst_id, i32 prim_id, <2 x float> bary, float t }
     llvm::Type *_llvm_procedural_hit_type{nullptr};     // { i32 inst_id, i32 prim_id }
     llvm::Type *_llvm_committed_hit_type{nullptr};      // { i32 inst_id, i32 prim_id, <2 x float> bary, i32 hit_kind, float t }
-    llvm::Type *_llvm_ray_query_state_type{nullptr};    // { float t, i1 is_committed, i1 is_terminated, i1 is_surface, i1 is_procedural }
     llvm::Type *_llvm_ray_query_type{nullptr};          // { accel_type, ray_type, float time, i32 mask, i32 flags, ptr to i8 state }
     llvm::DenseMap<const Type *, luisa::unique_ptr<LLVMTypeInfo>> _xir_to_llvm_type;
     llvm::DenseMap<const xir::Value *, llvm::Constant *> _xir_to_llvm_global;
@@ -218,7 +219,8 @@ private:
 private:
     [[nodiscard]] static const llvm::Target *_get_nvptx_target() noexcept;
     void _initialize() noexcept;
-    void _run_optimization_passes() noexcept;
+    using LLVMModulePassManagerCallback = llvm::function_ref<void(llvm::ModulePassManager &)>;
+    void _run_optimization_passes(LLVMModulePassManagerCallback callback = {}) noexcept;
     void _dump_module(const std::filesystem::path &path) const noexcept;
     [[nodiscard]] luisa::string _generate_ptx() const noexcept;
 
@@ -375,6 +377,7 @@ private:
     void _translate_ray_query_object_write_inst(IB &b, FunctionContext &func_ctx, const xir::RayQueryObjectWriteInst *inst) noexcept;
     void _translate_ray_query_pipeline_inst(IB &b, FunctionContext &func_ctx, const xir::RayQueryPipelineInst *inst) noexcept;
     llvm::Value *_call_ray_query_intrinsic(IB &b, llvm::StringRef name, llvm::Type *ret, llvm::ArrayRef<llvm::Value *> args) noexcept;
+    void _materialize_ray_query_loops() noexcept;
 
     // autodiff instructions: autodiff_scope, autodiff_intrinsic, defined in cuda_codegen_llvm_impl_autodiff.cpp
     void _translate_autodiff_scope_inst(IB &b, FunctionContext &func_ctx, const xir::AutodiffScopeInst *inst) noexcept;
