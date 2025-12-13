@@ -155,6 +155,11 @@ private:
     llvm::Type *_llvm_bindless_array_slot_type{nullptr};// { i64 buffer, i64 size, i64 tex2d, i64 tex3d } as defined in cuda_bindless_array.h
     llvm::Type *_llvm_accel_type{nullptr};              // { i64 handle, ptr instances } as defined in cuda_accel.h
     llvm::Type *_llvm_accel_instance_type{nullptr};     // { [ <4 x float> x 3 ] affine, i32 user_id, i32 sbt_offset, i32 mask, i32 flags, i64 handle, i32 padding } as defined in optix_api.h
+    llvm::Type *_llvm_ray_type{nullptr};                // { [3 x float] origin, float t_min, [3 x float] direction, float t_max }
+    llvm::Type *_llvm_surface_hit_type{nullptr};        // { i32 inst_id, i32 prim_id, <2 x float> bary, float t }
+    llvm::Type *_llvm_procedural_hit_type{nullptr};     // { i32 inst_id, i32 prim_id }
+    llvm::Type *_llvm_committed_hit_type{nullptr};      // { i32 inst_id, i32 prim_id, <2 x float> bary, i32 hit_kind, float t }
+    llvm::Type *_llvm_ray_query_type{nullptr};          // { accel_type, ray_type, float time, i32 mask, i32 flags, committed_hit_type }
     llvm::DenseMap<const Type *, luisa::unique_ptr<LLVMTypeInfo>> _xir_to_llvm_type;
     llvm::DenseMap<const xir::Value *, llvm::Constant *> _xir_to_llvm_global;
     llvm::DenseMap<const xir::KernelFunction *, luisa::unique_ptr<KernelArgumentStruct>> _kernel_arg_struct_types;

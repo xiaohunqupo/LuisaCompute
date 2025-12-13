@@ -242,8 +242,6 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_resource_query_inst(IB &b, Function
                        _accel_trace_closest(b, flags_closest, llvm_accel, llvm_ray, llvm_zero, llvm_mask) :
                        _accel_trace_any(b, flags_any, llvm_accel, llvm_ray, llvm_zero, llvm_mask);
         }
-        case xir::ResourceQueryOp::RAY_TRACING_QUERY_ALL: break;
-        case xir::ResourceQueryOp::RAY_TRACING_QUERY_ANY: break;
         case xir::ResourceQueryOp::RAY_TRACING_INSTANCE_MOTION_MATRIX: {
             LUISA_DEBUG_ASSERT(inst->type() == Type::of<luisa::float4x4>());
             auto llvm_accel = _get_llvm_value(b, func_ctx, inst->operand(0));
@@ -299,6 +297,8 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_resource_query_inst(IB &b, Function
                        _accel_trace_closest(b, flags_closest, llvm_accel, llvm_ray, llvm_time, llvm_mask) :
                        _accel_trace_any(b, flags_any, llvm_accel, llvm_ray, llvm_time, llvm_mask);
         }
+        case xir::ResourceQueryOp::RAY_TRACING_QUERY_ALL: break;
+        case xir::ResourceQueryOp::RAY_TRACING_QUERY_ANY: break;
         case xir::ResourceQueryOp::RAY_TRACING_QUERY_ALL_MOTION_BLUR: break;
         case xir::ResourceQueryOp::RAY_TRACING_QUERY_ANY_MOTION_BLUR: break;
     }
