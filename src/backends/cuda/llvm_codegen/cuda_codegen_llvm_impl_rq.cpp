@@ -17,16 +17,14 @@ void CUDACodegenLLVMImpl::_translate_ray_query_loop_inst(IB &b, FunctionContext 
 }
 
 void CUDACodegenLLVMImpl::_translate_ray_query_dispatch_inst(IB &b, FunctionContext &func_ctx, const xir::RayQueryDispatchInst *inst) noexcept {
-    // luisa.ray.query.proceed(q);
-    // switch (q.state) {
+    // luisa.ray.query.proceed();
+    // switch (luisa.ray.query.state()) {
     //    case surface: br surface_block
     //    case procedural: br procedural_block
     //    default: br exit_block
     // }
-    auto llvm_query = b.CreateLoad(_get_llvm_ray_query_type(), _get_llvm_value(b, func_ctx, inst->query_object()));
-    _call_ray_query_intrinsic(b, llvm_ray_query_intrinsic_name_proceed, b.getVoidTy(), llvm_query);
-    auto llvm_state_ptr = b.CreateExtractValue(llvm_query, llvm_ray_query_type_state_ptr_index);
-    auto llvm_state = b.CreateLoad(b.getInt8Ty(), llvm_state_ptr);
+    _call_ray_query_intrinsic(b, llvm_ray_query_intrinsic_name_proceed, b.getVoidTy(), {});
+    auto llvm_state = _call_ray_query_intrinsic(b, llvm_ray_query_intrinsic_name_state, b.getInt8Ty(), {});
     auto llvm_exit_block = func_ctx.get_local_value<llvm::BasicBlock>(inst->exit_block());
     llvm_exit_block->setName("ray.query.exit");
     auto llvm_surface_block = func_ctx.get_local_value<llvm::BasicBlock>(inst->on_surface_candidate_block());
@@ -54,8 +52,7 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_ray_query_object_read_inst(IB &b, F
     }();
     LUISA_DEBUG_ASSERT(inst->operand_count() == 1);
     auto llvm_ret_type = _get_llvm_type(inst->type())->reg_type;
-    auto llvm_query = b.CreateLoad(_get_llvm_ray_query_type(), _get_llvm_value(b, func_ctx, inst->operand(0)));
-    return _call_ray_query_intrinsic(b, intrinsic, llvm_ret_type, llvm_query);
+    return _call_ray_query_intrinsic(b, intrinsic, llvm_ret_type, {});
 }
 
 void CUDACodegenLLVMImpl::_translate_ray_query_object_write_inst(IB &b, FunctionContext &func_ctx, const xir::RayQueryObjectWriteInst *inst) noexcept {
@@ -72,10 +69,9 @@ void CUDACodegenLLVMImpl::_translate_ray_query_object_write_inst(IB &b, Function
     LUISA_DEBUG_ASSERT(inst->type() == nullptr);
     LUISA_DEBUG_ASSERT(inst->operand_count() == 1 || inst->operand_count() == 2);
     llvm::SmallVector<llvm::Value *, 2> llvm_args;
-    for (auto &&op_use : inst->operand_uses()) {
-        llvm_args.push_back(_get_llvm_value(b, func_ctx, op_use->value()));
+    for (auto &&op_use : inst->operand_uses().subspan(1)/* skip the query object */) {
+        llvm_args.emplace_back(_get_llvm_value(b, func_ctx, op_use->value()));
     }
-    llvm_args[0] = b.CreateLoad(_get_llvm_ray_query_type(), llvm_args[0]);
     _call_ray_query_intrinsic(b, intrinsic, b.getVoidTy(), llvm_args);
 }
 

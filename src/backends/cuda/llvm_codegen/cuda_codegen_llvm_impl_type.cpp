@@ -182,9 +182,7 @@ CUDACodegenLLVMImpl::_get_llvm_type(const Type *type) noexcept {
             case Type::Tag::CUSTOM: {
                 if (type == Type::of<RayQueryAll>() || type == Type::of<RayQueryAny>()) {
                     auto llvm_type = _get_llvm_ray_query_type();
-                    auto llvm_size = _data_layout->getTypeAllocSize(llvm_type);
-                    auto llvm_align = _data_layout->getABITypeAlign(llvm_type);
-                    return make_llvm_type_info(llvm_type, llvm_type, llvm_size, llvm_align.value());
+                    return make_llvm_type_info(llvm_type, llvm_type, sizeof(uint8_t), alignof(uint8_t));
                 }
                 LUISA_NOT_IMPLEMENTED("Custom type: {}.", type->description());
             }
@@ -384,20 +382,7 @@ llvm::Type *CUDACodegenLLVMImpl::_get_llvm_committed_hit_type() noexcept {
 }
 
 llvm::Type *CUDACodegenLLVMImpl::_get_llvm_ray_query_type() noexcept {
-    if (_llvm_ray_query_type == nullptr) {
-        auto llvm_accel_type = _get_llvm_accel_type();
-        auto llvm_ray_type = _get_llvm_ray_type();
-        auto llvm_i32_type = llvm::Type::getInt32Ty(_llvm_context);
-        auto llvm_f32_type = llvm::Type::getFloatTy(_llvm_context);
-        auto llvm_ptr_type = llvm::PointerType::get(_llvm_context, 0);
-        _llvm_ray_query_type = llvm::StructType::get(llvm_accel_type /* accel */,
-                                                     llvm_ray_type /* ray */,
-                                                     llvm_f32_type /* time */,
-                                                     llvm_i32_type /* mask */,
-                                                     llvm_i32_type /* flags */,
-                                                     llvm_ptr_type /* ptr to state */);
-    }
-    return _llvm_ray_query_type;
+    return llvm::Type::getInt8Ty(_llvm_context);
 }
 
 std::pair<llvm::Value *, const Type *>

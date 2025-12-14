@@ -313,21 +313,11 @@ llvm::Value *CUDACodegenLLVMImpl::_translate_resource_query_inst(IB &b, Function
                                                 llvm::ConstantFP::getZero(b.getFloatTy());
             auto llvm_mask = uses_motion_blur ? _get_llvm_value(b, func_ctx, inst->operand(3)) :
                                                 _get_llvm_value(b, func_ctx, inst->operand(2));
-            auto llvm_flags = is_any ? (optix::RAY_FLAG_DISABLE_CLOSESTHIT | optix::RAY_FLAG_TERMINATE_ON_FIRST_HIT) :
-                                       optix::RAY_FLAG_DISABLE_CLOSESTHIT;
-            auto llvm_query = static_cast<llvm::Value *>(llvm::Constant::getNullValue(_get_llvm_ray_query_type()));
-            llvm_query = b.CreateInsertValue(llvm_query, llvm_accel, llvm_ray_query_type_accel_index);
-            llvm_query = b.CreateInsertValue(llvm_query, llvm_ray, llvm_ray_query_type_ray_index);
-            llvm_query = b.CreateInsertValue(llvm_query, llvm_time, llvm_ray_query_type_time_index);
-            llvm_query = b.CreateInsertValue(llvm_query, llvm_mask, llvm_ray_query_type_mask_index);
-            llvm_query = b.CreateInsertValue(llvm_query, b.getInt32(llvm_flags), llvm_ray_query_type_flags_index);
-            auto llvm_state_ptr = _create_temp_in_alloca_block(func_ctx, b.getInt8Ty());
-            llvm_state_ptr->setName("ray.query.state.ptr");
-            b.CreateStore(b.getInt8(llvm_ray_query_state_initial), llvm_state_ptr);
-            llvm_query = b.CreateInsertValue(llvm_query, llvm_state_ptr, llvm_ray_query_type_state_ptr_index);
-            // mark the initialization of this ray query loop
-            _call_ray_query_intrinsic(b, llvm_ray_query_intrinsic_name_initialize, b.getVoidTy(), llvm_query);
-            return llvm_query;
+            auto llvm_flags = is_any ? b.getInt32(optix::RAY_FLAG_DISABLE_CLOSESTHIT | optix::RAY_FLAG_TERMINATE_ON_FIRST_HIT) :
+                                       b.getInt32(optix::RAY_FLAG_DISABLE_CLOSESTHIT);
+            _call_ray_query_intrinsic(b, llvm_ray_query_intrinsic_name_initialize, b.getVoidTy(),
+                                      {llvm_accel, llvm_ray, llvm_time, llvm_mask, llvm_flags});
+            return llvm::Constant::getNullValue(_get_llvm_ray_query_type());
         }
     }
     LUISA_NOT_IMPLEMENTED();
@@ -795,7 +785,7 @@ llvm::Value *CUDACodegenLLVMImpl::_accel_trace_closest(IB &b, uint32_t flags, ll
     auto invalid_id = b.getInt32(~0u);
     auto inst_id = b.CreateSelect(is_hit, _call_optix_hit_object_instance_index(b), invalid_id);
     auto prim_id = _call_optix_hit_object_primitive_index(b);
-    auto bary = _call_optix_hit_object_triangle_barycentric(b);
+    auto bary = _call_optix_hit_object_triangle_barycentrics(b);
     if (_rt_analysis.curve_basis_set.any()) {// might be a curve
         auto hit_kind = _call_optix_hit_object_hit_kind(b);
         auto is_triangle_front = b.CreateICmpEQ(hit_kind, b.getInt32(optix::HIT_KIND_TRIANGLE_FRONT_FACE));
@@ -906,7 +896,7 @@ llvm::Value *CUDACodegenLLVMImpl::_call_optix_hit_object_is_hit(IB &b) noexcept 
     return b.CreateTrunc(llvm_result, b.getInt1Ty());
 }
 
-llvm::Value *CUDACodegenLLVMImpl::_call_optix_hit_object_triangle_barycentric(IB &b) noexcept {
+llvm::Value *CUDACodegenLLVMImpl::_call_optix_hit_object_triangle_barycentrics(IB &b) noexcept {
     auto llvm_asm = _get_inline_asm("call ($0), _optix_hitobject_get_attribute, ($1);", "=r,r", true);
     auto llvm_u = b.CreateBitCast(b.CreateCall(llvm_asm, {b.getInt32(0)}), b.getFloatTy());
     auto llvm_v = b.CreateBitCast(b.CreateCall(llvm_asm, {b.getInt32(1)}), b.getFloatTy());
@@ -936,6 +926,80 @@ llvm::Value *CUDACodegenLLVMImpl::_call_optix_hit_object_ray_t_max(IB &b) noexce
 llvm::Value *CUDACodegenLLVMImpl::_call_optix_hit_object_hit_kind(IB &b) noexcept {
     auto llvm_asm = _get_inline_asm("call ($0), _optix_hitobject_get_hitkind, ();", "=r", true);
     return b.CreateCall(llvm_asm, {});
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_call_optix_read_instance_index(IB &b) noexcept {
+    auto llvm_asm = _get_inline_asm("call ($0), _optix_read_instance_idx, ();", "=r", false);
+    return b.CreateCall(llvm_asm, {});
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_call_optix_read_primitive_index(IB &b) noexcept {
+    auto llvm_asm = _get_inline_asm("call ($0), _optix_read_primitive_idx, ();", "=r", false);
+    return b.CreateCall(llvm_asm, {});
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_call_optix_get_triangle_barycentrics(IB &b) noexcept {
+    auto llvm_asm = _get_inline_asm("call ($0, $1), _optix_get_triangle_barycentrics, ();", "=f,=f", false);
+    auto llvm_uv = b.CreateCall(llvm_asm, {});
+    auto llvm_u = b.CreateExtractValue(llvm_uv, 0);
+    auto llvm_v = b.CreateExtractValue(llvm_uv, 1);
+    return _create_llvm_vector(b, {llvm_u, llvm_v});
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_call_optix_get_curve_parameter(IB &b) noexcept {
+    auto llvm_asm = _get_inline_asm("call ($0), _optix_get_curve_parameter, ();", "=f", false);
+    return b.CreateCall(llvm_asm, {});
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_call_optix_get_hit_distance(IB &b) noexcept {
+    auto llvm_asm = _get_inline_asm("call ($0), _optix_get_ray_tmax, ();", "=f", false);
+    return b.CreateCall(llvm_asm, {});
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_call_optix_get_hit_kind(IB &b) noexcept {
+    auto llvm_asm = _get_inline_asm("call ($0), _optix_get_hit_kind, ();", "=r", false);
+    return b.CreateCall(llvm_asm, {});
+}
+
+llvm::Value *CUDACodegenLLVMImpl::_call_optix_get_world_space_ray(IB &b) noexcept {
+    auto f = [&](std::string_view component) {
+        auto asm_str = fmt::format("call ($0), _optix_get_{}, ();", component);
+        auto llvm_asm = _get_inline_asm(asm_str, "=f", false);
+        return b.CreateCall(llvm_asm, {});
+    };
+    auto ox = f("world_ray_origin_x");
+    auto oy = f("world_ray_origin_y");
+    auto oz = f("world_ray_origin_z");
+    auto dx = f("world_ray_direction_x");
+    auto dy = f("world_ray_direction_y");
+    auto dz = f("world_ray_direction_z");
+    auto tmin = f("ray_tmin");
+    auto tmax = f("ray_tmax");
+    auto result = static_cast<llvm::Value *>(llvm::PoisonValue::get(_get_llvm_ray_type()));
+    result = b.CreateInsertValue(result, ox, {llvm_ray_type_origin_index, 0});
+    result = b.CreateInsertValue(result, oy, {llvm_ray_type_origin_index, 1});
+    result = b.CreateInsertValue(result, oz, {llvm_ray_type_origin_index, 2});
+    result = b.CreateInsertValue(result, dx, {llvm_ray_type_direction_index, 0});
+    result = b.CreateInsertValue(result, dy, {llvm_ray_type_direction_index, 1});
+    result = b.CreateInsertValue(result, dz, {llvm_ray_type_direction_index, 2});
+    result = b.CreateInsertValue(result, tmin, llvm_ray_type_t_min_index);
+    result = b.CreateInsertValue(result, tmax, llvm_ray_type_t_max_index);
+    return result;
+}
+
+void CUDACodegenLLVMImpl::_call_optix_report_intersection(IB &b, llvm::Value *hit_kind, llvm::Value *t) noexcept {
+    auto llvm_asm = _get_inline_asm("call ($0), _optix_report_intersection_0, ($1, $2);", "=r,f,r", true);
+    b.CreateCall(llvm_asm, {t, hit_kind});
+}
+
+void CUDACodegenLLVMImpl::_call_optix_ignore_intersection(IB &b) noexcept {
+    auto llvm_asm = _get_inline_asm("call (), _optix_ignore_intersection, ();", "", true);
+    b.CreateCall(llvm_asm, {});
+}
+
+void CUDACodegenLLVMImpl::_call_optix_terminate_ray(IB &b) noexcept {
+    auto llvm_asm = _get_inline_asm("call (), _optix_terminate_ray, ();", "", true);
+    b.CreateCall(llvm_asm, {});
 }
 
 }// namespace luisa::compute::cuda

@@ -138,12 +138,10 @@ public:
     static constexpr auto llvm_ray_query_type_time_index = 2;
     static constexpr auto llvm_ray_query_type_mask_index = 3;
     static constexpr auto llvm_ray_query_type_flags_index = 4;
-    static constexpr auto llvm_ray_query_type_state_ptr_index = 5;
 
-    static constexpr auto llvm_ray_query_state_initial = 0;
+    static constexpr auto llvm_ray_query_state_surface_terminated = 0;
     static constexpr auto llvm_ray_query_state_surface_candidate = 1;
     static constexpr auto llvm_ray_query_state_procedural_candidate = 2;
-    static constexpr auto llvm_ray_query_state_exited = 3;
 
     static constexpr std::string_view llvm_ray_query_intrinsic_name_world_space_ray = "luisa.ray.query.world.space.ray";
     static constexpr std::string_view llvm_ray_query_intrinsic_name_procedural_candidate_hit = "luisa.ray.query.procedural.candidate.hit";
@@ -154,9 +152,11 @@ public:
     static constexpr std::string_view llvm_ray_query_intrinsic_name_is_terminated = "luisa.ray.query.is.terminated";
     static constexpr std::string_view llvm_ray_query_intrinsic_name_commit_surface_hit = "luisa.ray.query.commit.surface.hit";
     static constexpr std::string_view llvm_ray_query_intrinsic_name_commit_procedural_hit = "luisa.ray.query.commit.procedural.hit";
+    static constexpr std::string_view llvm_ray_query_intrinsic_name_state = "luisa.ray.query.state";
     static constexpr std::string_view llvm_ray_query_intrinsic_name_initialize = "luisa.ray.query.initialize";
+    static constexpr std::string_view llvm_ray_query_intrinsic_name_spawn = "luisa.ray.query.spawn";
     static constexpr std::string_view llvm_ray_query_intrinsic_name_proceed = "luisa.ray.query.proceed";
-    static constexpr std::string_view llvm_ray_query_intrinsic_name_traverse = "luisa.ray.query.traverse";
+    static constexpr std::string_view llvm_ray_query_intrinsic_name_dispatch = "luisa.ray.query.dispatch";
     static constexpr std::string_view llvm_ray_query_intrinsic_name_terminate = "luisa.ray.query.terminate";
 
 private:
@@ -178,7 +178,6 @@ private:
     llvm::Type *_llvm_surface_hit_type{nullptr};        // { i32 inst_id, i32 prim_id, <2 x float> bary, float t }
     llvm::Type *_llvm_procedural_hit_type{nullptr};     // { i32 inst_id, i32 prim_id }
     llvm::Type *_llvm_committed_hit_type{nullptr};      // { i32 inst_id, i32 prim_id, <2 x float> bary, i32 hit_kind, float t }
-    llvm::Type *_llvm_ray_query_type{nullptr};          // { accel_type, ray_type, float time, i32 mask, i32 flags, ptr to i8 state }
     llvm::DenseMap<const Type *, luisa::unique_ptr<LLVMTypeInfo>> _xir_to_llvm_type;
     llvm::DenseMap<const xir::Value *, llvm::Constant *> _xir_to_llvm_global;
     llvm::DenseMap<const xir::KernelFunction *, luisa::unique_ptr<KernelArgumentStruct>> _kernel_arg_struct_types;
@@ -362,13 +361,23 @@ private:
                            llvm::ArrayRef<llvm::Value *> registers) noexcept;
     [[nodiscard]] llvm::Value *_call_optix_undef(IB &b) noexcept;
     [[nodiscard]] llvm::Value *_call_optix_hit_object_is_hit(IB &b) noexcept;
-    [[nodiscard]] llvm::Value *_call_optix_hit_object_triangle_barycentric(IB &b) noexcept;
+    [[nodiscard]] llvm::Value *_call_optix_hit_object_triangle_barycentrics(IB &b) noexcept;
     [[nodiscard]] llvm::Value *_call_optix_hit_object_curve_parameter(IB &b) noexcept;
     [[nodiscard]] llvm::Value *_call_optix_hit_object_instance_index(IB &b) noexcept;
     [[nodiscard]] llvm::Value *_call_optix_hit_object_primitive_index(IB &b) noexcept;
     [[nodiscard]] llvm::Value *_call_optix_hit_object_ray_t_max(IB &b) noexcept;
     [[nodiscard]] llvm::Value *_call_optix_hit_object_hit_kind(IB &b) noexcept;
+    [[nodiscard]] llvm::Value *_call_optix_read_instance_index(IB &b) noexcept;
+    [[nodiscard]] llvm::Value *_call_optix_read_primitive_index(IB &b) noexcept;
     void _call_optix_hit_object_reset(IB &b) noexcept;
+    [[nodiscard]] llvm::Value *_call_optix_get_triangle_barycentrics(IB &b) noexcept;
+    [[nodiscard]] llvm::Value *_call_optix_get_curve_parameter(IB &b) noexcept;
+    [[nodiscard]] llvm::Value *_call_optix_get_hit_distance(IB &b) noexcept;
+    [[nodiscard]] llvm::Value *_call_optix_get_hit_kind(IB &b) noexcept;
+    [[nodiscard]] llvm::Value *_call_optix_get_world_space_ray(IB &b) noexcept;
+    void _call_optix_report_intersection(IB &b, llvm::Value *hit_kind, llvm::Value *t) noexcept;
+    void _call_optix_ignore_intersection(IB &b) noexcept;
+    void _call_optix_terminate_ray(IB &b) noexcept;
 
     // ray query instructions: ray_query_loop, ray_query_dispatch, ray_query_object_read, ray_query_object_write, ray_query_pipeline, defined in cuda_codegen_llvm_impl_rq.cpp
     void _translate_ray_query_loop_inst(IB &b, FunctionContext &func_ctx, const xir::RayQueryLoopInst *inst) noexcept;
