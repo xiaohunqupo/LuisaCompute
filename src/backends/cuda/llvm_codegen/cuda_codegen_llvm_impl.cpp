@@ -277,15 +277,33 @@ public:
 };
 
 struct RayQueryLoopExtraction : llvm::PassInfoMixin<RayQueryLoopExtraction> {
-
-    llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM) {
+    llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM) noexcept {
         auto Init = M.getFunction(CUDACodegenLLVMImpl::llvm_ray_query_intrinsic_name_initialize);
+        auto RemoveUnusedInit = [&]() noexcept {
+            if (Init == nullptr) { return false; }
+            if (!Init->user_empty()) {
+                LUISA_WARNING_WITH_LOCATION("Unused ray query 'initialize' intrinsic remaining.");
+                while (!Init->user_empty()) {
+                    if (auto Call = llvm::dyn_cast<llvm::CallInst>(*Init->user_begin())) {
+                        Call->eraseFromParent();
+                    } else {
+                        LUISA_ERROR_WITH_LOCATION("Invalid user of ray query 'initialize' intrinsic.");
+                    }
+                }
+            }
+            Init->eraseFromParent();
+            return true;
+        };
         auto Proceed = M.getFunction(CUDACodegenLLVMImpl::llvm_ray_query_intrinsic_name_proceed);
-        if (Init == nullptr || Proceed == nullptr) { return llvm::PreservedAnalyses::all(); }
+        if (Proceed == nullptr) {
+            return RemoveUnusedInit() ? llvm::PreservedAnalyses::none() :
+                                        llvm::PreservedAnalyses::all();
+        }
         while (!Proceed->user_empty()) {
             if (auto Call = llvm::dyn_cast<llvm::CallInst>(*Proceed->user_begin())) {
                 auto &FAM = MAM.getResult<llvm::FunctionAnalysisManagerModuleProxy>(M).getManager();
                 auto F = Call->getFunction();
+                FAM.invalidate(*F, llvm::PreservedAnalyses::none());
                 auto &DT = FAM.getResult<llvm::DominatorTreeAnalysis>(*F);
                 auto &LI = FAM.getResult<llvm::LoopAnalysis>(*F);
                 auto L = LI.getLoopFor(Call->getParent());
@@ -345,16 +363,7 @@ struct RayQueryLoopExtraction : llvm::PassInfoMixin<RayQueryLoopExtraction> {
         }
         // remove these functions
         Proceed->eraseFromParent();
-        if (!Init->user_empty()) {
-            LUISA_WARNING_WITH_LOCATION("Unused ray query 'initialize' intrinsic remaining.");
-            while (!Init->user_empty()) {
-                if (auto Call = llvm::dyn_cast<llvm::CallInst>(*Init->user_begin())) {
-                    Call->eraseFromParent();
-                } else {
-                    LUISA_ERROR_WITH_LOCATION("Invalid user of ray query 'initialize' intrinsic.");
-                }
-            }
-        }
+        RemoveUnusedInit();
         return llvm::PreservedAnalyses::none();
     }
 };
