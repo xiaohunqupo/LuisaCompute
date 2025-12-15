@@ -1341,3 +1341,5 @@ void Device::set_stream_log_callback(uint64_t stream_handle,
     reinterpret_cast<Stream *>(stream_handle)->logger = callback;
 }
 }// namespace lc::vk
+
+#include <luisa/backends/common/backend_symbol.inl>

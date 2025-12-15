@@ -7,6 +7,7 @@
 #include <luisa/core/stl/algorithm.h>
 #include <luisa/core/stl/filesystem.h>
 #include <luisa/core/stl/unordered_map.h>
+#include <luisa/runtime/rhi/backend_version.inl>
 
 // Hack to make LLVM happy. The following code is not used but *must* be included in the shared library!!!!
 
@@ -93,6 +94,10 @@ public:
                 runtime_directory,
                 luisa::format("luisa-backend-{}", backend_name))};
         LUISA_ASSERT(m.module, "Failed to load backend '{}'.", backend_name);
+        auto version_func = m.module.function<const char *()>("luisa_get_backend_version_symbol");
+        if (!version_func || luisa::string_view{version_func()} != luisa::string_view{luisa_version_symbol}) [[unlikely]] {
+            LUISA_ERROR("Trying to load backend {} with mismatched version.", backend_name);
+        }
         m.creator = m.module.function<Device::Creator>("create");
         m.deleter = m.module.function<Device::Deleter>("destroy");
         m.backend_device_names = m.module.function<BackendModule::BackendDeviceNames>("backend_device_names");

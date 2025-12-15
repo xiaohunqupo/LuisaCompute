@@ -1493,3 +1493,5 @@ LUISA_EXPORT_API void backend_device_names(luisa::vector<luisa::string> &names) 
         }
     }
 }
+
+#include <luisa/backends/common/backend_symbol.inl>
