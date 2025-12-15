@@ -1,1 +1,1 @@
-constexpr const char luisa_version_symbol[] = "717125bdd749334a36407d01646df7f80d94c12b449cf4bf62ddff35a37126bf";
+constexpr const char luisa_version_symbol[] = "753ebafdc70acd3d18e238241a570ed3a91d992c";
