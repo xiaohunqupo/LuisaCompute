@@ -189,6 +189,7 @@ public:
         return {node, true};
     }
     template<typename POOL, typename Key, typename... Value>
+        requires(std::is_same_v<V, void> || std::is_move_constructible_v<V>)
     std::pair<Node *, bool> insert_or_assign(POOL &pool, Key &&key, Value &&...value) {
         // Ordinary Binary Search Insertion
         Node *y = nullptr;
@@ -203,12 +204,8 @@ public:
                 x = x->left;
             } else if (compResult == 0) {
                 if constexpr (!std::is_same_v<V, void>) {
-                    if constexpr (std::is_move_constructible_v<V>) {
-                        x->data.second.~V();
-                        new (&x->data.second) V(std::forward<Value>(value)...);
-                    } else {
-                        static_assert(AlwaysFalse<Key>, "map value not move constructible!");
-                    }
+                    x->data.second.~V();
+                    new (&x->data.second) V(std::forward<Value>(value)...);
                 }
                 return {x, false};
 
@@ -594,7 +591,7 @@ public:
     HashMap() noexcept : HashMap(4) {}
     ///////////////////////
     template<typename Key, typename... ARGS>
-        requires(luisa::is_constructible_v<K, Key &&> && detail::MapConstructible<V, ARGS && ...>::value)
+        requires(luisa::is_constructible_v<K, Key &&> && detail::MapConstructible<V, ARGS && ...>::value && (std::is_same_v<V, void> || std::is_move_constructible_v<V>))
     Index force_emplace(Key &&key, ARGS &&...args) {
         TryResize();
 
