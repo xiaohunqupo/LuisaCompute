@@ -22,7 +22,7 @@ Guid::Guid(GuidData const &d) {
     std::memcpy(&data, &d, sizeof(GuidData));
 }
 namespace VGuid_Detail {
-int32 GetNumber(char c) {
+uint8_t GetNumber(char c) {
     switch (c) {
         case '0': return 0;
         case '1': return 1;
@@ -51,19 +51,12 @@ int32 GetNumber(char c) {
 };
 void ParseHex(std::string_view strv, Guid::GuidData &data) {
     char const *ptr = strv.data();
-    auto toHex = [&]() {
-        uint64 v = 0;
-        auto endPtr = ptr + sizeof(uint64) * 2;
-        while (ptr != endPtr) {
-            v <<= 4;
-            v |= GetNumber(*ptr);
-            ++ptr;
-        }
-        ptr = endPtr;
-        return v;
-    };
-    data.data0 = toHex();
-    data.data1 = toHex();
+    luisa::span<uint8_t> dst{reinterpret_cast<uint8_t *>(&data), sizeof(Guid::GuidData)};
+    for (auto &i : dst) {
+        i = GetNumber(ptr[0]) << 4;
+        i |= GetNumber(ptr[1]);
+        ptr += 2;
+    }
 }
 }// namespace VGuid_Detail
 optional<Guid> Guid::TryParseGuid(std::string_view strv) {
