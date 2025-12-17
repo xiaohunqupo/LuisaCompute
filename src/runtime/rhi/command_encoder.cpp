@@ -1,10 +1,12 @@
+#include <numeric>
+
 #include <luisa/core/logging.h>
 #include <luisa/ast/function_builder.h>
 #include <luisa/runtime/rhi/command.h>
 #include <luisa/runtime/rhi/command_encoder.h>
 #include <luisa/runtime/raster/raster_scene.h>
 #include <luisa/backends/ext/raster_cmd.h>
-#include <numeric>
+
 namespace luisa::compute {
 
 std::byte *ShaderDispatchCmdEncoder::_make_space(size_t size) noexcept {
