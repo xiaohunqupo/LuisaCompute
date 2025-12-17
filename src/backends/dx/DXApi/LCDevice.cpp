@@ -859,4 +859,4 @@ luisa::string LCDevice::query(luisa::string_view property) noexcept {
 
 }// namespace lc::dx
 
-#include <luisa/backends/common/backend_symbol.inl>
+#include "../common/export_version.inl.h"

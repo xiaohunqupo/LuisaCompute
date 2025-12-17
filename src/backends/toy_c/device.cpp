@@ -348,3 +348,5 @@ VSTL_EXPORT_C void backend_device_names(luisa::vector<luisa::string> &r) {
     r.clear();
 }
 }// namespace lc::toy_c
+
+#include "../common/export_version.inl.h"

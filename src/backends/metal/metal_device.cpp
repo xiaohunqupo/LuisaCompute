@@ -840,4 +840,5 @@ LUISA_EXPORT_API void backend_device_names(luisa::vector<luisa::string> &names) 
         all_devices->release();
     });
 }
-#include <luisa/backends/common/backend_symbol.inl>
+
+#include "../common/export_version.inl.h"

@@ -1342,4 +1342,4 @@ void Device::set_stream_log_callback(uint64_t stream_handle,
 }
 }// namespace lc::vk
 
-#include <luisa/backends/common/backend_symbol.inl>
+#include "../common/export_version.inl.h"

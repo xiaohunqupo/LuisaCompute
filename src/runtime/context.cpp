@@ -1,3 +1,4 @@
+#include <luisa/version.h>
 #include <luisa/core/dynamic_module.h>
 #include <luisa/core/logging.h>
 #include <luisa/core/platform.h>
@@ -7,7 +8,6 @@
 #include <luisa/core/stl/algorithm.h>
 #include <luisa/core/stl/filesystem.h>
 #include <luisa/core/stl/unordered_map.h>
-#include <luisa/runtime/rhi/backend_version.inl>
 
 // Hack to make LLVM happy. The following code is not used but *must* be included in the shared library!!!!
 
@@ -94,10 +94,11 @@ public:
                 runtime_directory,
                 luisa::format("luisa-backend-{}", backend_name))};
         LUISA_ASSERT(m.module, "Failed to load backend '{}'.", backend_name);
-        auto version_func = m.module.function<const char *()>("luisa_get_backend_version_symbol");
-        if (!version_func || luisa::string_view{version_func()} != luisa::string_view{luisa_version_symbol}) [[unlikely]] {
-            LUISA_ERROR("Trying to load backend {} with mismatched version.", backend_name);
-        }
+        auto backend_version = m.module.function<int()>("backend_version");
+        LUISA_ASSERT(backend_version != nullptr, "Backend '{}' does not export version info.", backend_name);
+        LUISA_ASSERT(backend_version() == LUISA_COMPUTE_VERSION,
+                     "Backend '{}' version mismatch: compiled with {}, loaded {}.",
+                     backend_name, LUISA_COMPUTE_VERSION, backend_version());
         m.creator = m.module.function<Device::Creator>("create");
         m.deleter = m.module.function<Device::Deleter>("destroy");
         m.backend_device_names = m.module.function<BackendModule::BackendDeviceNames>("backend_device_names");
@@ -105,7 +106,6 @@ public:
                                      backend_name,
                                      luisa::make_unique<BackendModule>(std::move(m)))
                       .first->second.get();
-
         return *pm;
     }
 

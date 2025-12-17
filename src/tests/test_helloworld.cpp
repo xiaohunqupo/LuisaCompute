@@ -1,4 +1,3 @@
-#define LUISA_ENABLE_DSL
 #include <luisa/luisa-compute.h>
 
 using namespace luisa;

@@ -15,3 +15,4 @@ LUISA_EXPORT_API void backend_device_names(luisa::vector<luisa::string> &names) 
     names.emplace_back("Unknown");// TODO
 }
 
+#include "../common/export_version.inl.h"

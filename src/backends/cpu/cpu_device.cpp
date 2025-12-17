@@ -5,8 +5,6 @@
 
 #ifdef LUISA_ARCH_ARM64
 #include <arm_neon.h>
-#else
-
 #endif
 
 LUISA_EXPORT_API luisa::compute::DeviceInterface *create(luisa::compute::Context &&ctx,
@@ -23,3 +21,4 @@ LUISA_EXPORT_API void backend_device_names(luisa::vector<luisa::string> &names) 
     names.emplace_back(luisa::cpu_name());
 }
 
+#include "../common/export_version.inl.h"
