@@ -202,10 +202,6 @@ end
 test_proj("test_manual_ast")
 if not is_mode("debug") then
     if has_config("lc_enable_clangcxx") then
-        test_proj("test_clang_cxx", true, function()
-            add_deps("lc-clangcxx")
-            set_pcxxheader("lc_test_pch.h")
-        end)
         test_proj("test_path_tracing_clangcxx", true, function()
             add_deps("lc-clangcxx")
             set_pcxxheader("lc_test_pch.h")

@@ -151,7 +151,7 @@ float4 _uniform_ReadTex2D(StructuredBuffer<uint> arr,const T index,const uint2 c
 return _uniform_ReadTex2DLevel(arr,index,coord,0);
 }
 template<typename T>
-uint2 _Tex2DSize(StructuredBuffer<uint> arr,const T index){
+uint2 _uniform_Tex2DSize(StructuredBuffer<uint> arr,const T index){
 uint num=_ReadBdlsTex2DNum(arr,index);
 uint2 s;
 uint mip;

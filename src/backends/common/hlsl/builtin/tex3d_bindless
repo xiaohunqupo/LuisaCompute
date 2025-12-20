@@ -123,7 +123,7 @@ float4 _uniform_ReadTex3D(StructuredBuffer<uint> arr,const T index,const uint3 c
 return _uniform_ReadTex3DLevel(arr,index,coord,0);
 }
 template<typename T>
-uint3 _Tex3DSize(StructuredBuffer<uint> arr,const T index){
+uint3 _uniform_Tex3DSize(StructuredBuffer<uint> arr,const T index){
 uint num=_ReadBdlsTex3DNum(arr,index);
 uint3 s;
 uint mip;
