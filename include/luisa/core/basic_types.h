@@ -1088,6 +1088,114 @@ LUISA_MAKE_TYPE_N(double)
 [[nodiscard]] constexpr auto make_double4x4(double4x4 m) noexcept {
     return m;
 }
+/// make half2x2
+[[nodiscard]] constexpr auto make_half2x2(const float2x2 &matrix) noexcept {
+    return half2x2{make_half2(matrix[0]),
+                   make_half2(matrix[1])};
+}
+/// make half3x3
+[[nodiscard]] constexpr auto make_half3x3(const float3x3 &matrix) noexcept {
+    return half3x3{make_half3(matrix[0]),
+                   make_half3(matrix[1]),
+                   make_half3(matrix[2])};
+}
+/// make half4x4
+[[nodiscard]] constexpr auto make_half4x4(const float4x4 &matrix) noexcept {
+    return half4x4{make_half4(matrix[0]),
+                   make_half4(matrix[1]),
+                   make_half4(matrix[2]),
+                   make_half4(matrix[3])};
+}
+/// make half2x2
+[[nodiscard]] constexpr auto make_half2x2(const double2x2 &matrix) noexcept {
+    return half2x2{make_half2(matrix[0]),
+                   make_half2(matrix[1])};
+}
+/// make half3x3
+[[nodiscard]] constexpr auto make_half3x3(const double3x3 &matrix) noexcept {
+    return half3x3{make_half3(matrix[0]),
+                   make_half3(matrix[1]),
+                   make_half3(matrix[2])};
+}
+/// make half4x4
+[[nodiscard]] constexpr auto make_half4x4(const double4x4 &matrix) noexcept {
+    return half4x4{make_half4(matrix[0]),
+                   make_half4(matrix[1]),
+                   make_half4(matrix[2]),
+                   make_half4(matrix[3])};
+}
+/// make float2x2
+[[nodiscard]] constexpr auto make_float2x2(const half2x2 &matrix) noexcept {
+    return float2x2{make_float2(matrix[0]),
+                   make_float2(matrix[1])};
+}
+/// make float3x3
+[[nodiscard]] constexpr auto make_float3x3(const half3x3 &matrix) noexcept {
+    return float3x3{make_float3(matrix[0]),
+                   make_float3(matrix[1]),
+                   make_float3(matrix[2])};
+}
+/// make float4x4
+[[nodiscard]] constexpr auto make_float4x4(const half4x4 &matrix) noexcept {
+    return float4x4{make_float4(matrix[0]),
+                   make_float4(matrix[1]),
+                   make_float4(matrix[2]),
+                   make_float4(matrix[3])};
+}
+/// make float2x2
+[[nodiscard]] constexpr auto make_float2x2(const double2x2 &matrix) noexcept {
+    return float2x2{make_float2(matrix[0]),
+                   make_float2(matrix[1])};
+}
+/// make float3x3
+[[nodiscard]] constexpr auto make_float3x3(const double3x3 &matrix) noexcept {
+    return float3x3{make_float3(matrix[0]),
+                   make_float3(matrix[1]),
+                   make_float3(matrix[2])};
+}
+/// make float4x4
+[[nodiscard]] constexpr auto make_float4x4(const double4x4 &matrix) noexcept {
+    return float4x4{make_float4(matrix[0]),
+                   make_float4(matrix[1]),
+                   make_float4(matrix[2]),
+                   make_float4(matrix[3])};
+}
+/// make double2x2
+[[nodiscard]] constexpr auto make_double2x2(const float2x2 &matrix) noexcept {
+    return double2x2{make_double2(matrix[0]),
+                   make_double2(matrix[1])};
+}
+/// make double3x3
+[[nodiscard]] constexpr auto make_double3x3(const float3x3 &matrix) noexcept {
+    return double3x3{make_double3(matrix[0]),
+                   make_double3(matrix[1]),
+                   make_double3(matrix[2])};
+}
+/// make double4x4
+[[nodiscard]] constexpr auto make_double4x4(const float4x4 &matrix) noexcept {
+    return double4x4{make_double4(matrix[0]),
+                   make_double4(matrix[1]),
+                   make_double4(matrix[2]),
+                   make_double4(matrix[3])};
+}
+/// make double2x2
+[[nodiscard]] constexpr auto make_double2x2(const half2x2 &matrix) noexcept {
+    return double2x2{make_double2(matrix[0]),
+                   make_double2(matrix[1])};
+}
+/// make double3x3
+[[nodiscard]] constexpr auto make_double3x3(const half3x3 &matrix) noexcept {
+    return double3x3{make_double3(matrix[0]),
+                   make_double3(matrix[1]),
+                   make_double3(matrix[2])};
+}
+/// make double4x4
+[[nodiscard]] constexpr auto make_double4x4(const half4x4 &matrix) noexcept {
+    return double4x4{make_double4(matrix[0]),
+                   make_double4(matrix[1]),
+                   make_double4(matrix[2]),
+                   make_double4(matrix[3])};
+}
 }// namespace luisa
 
 //template<size_t N>
