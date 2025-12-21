@@ -349,7 +349,7 @@ public:
         auto f = detail::FunctionBuilder::current();
         return def<T>(
             f->call(
-                Type::of<T>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_BUFFER_READ : CallOp::TYPED_BINDLESS_BUFFER_READ) : CallOp::BINDLESS_BUFFER_READ,
+                Type::of<T>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_BUFFER_READ : CallOp::TYPED_BINDLESS_BUFFER_READ) : (_is_uniform ? CallOp::UNIFORM_BINDLESS_BUFFER_READ : CallOp::BINDLESS_BUFFER_READ),
                 {_array, _index, detail::extract_expression(std::forward<I>(i))}));
     }
 
@@ -358,7 +358,7 @@ public:
         requires is_integral_expr_v<I>
     void write(I &&i, V &&value) const noexcept {
         detail::FunctionBuilder::current()->call(
-            _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_BUFFER_WRITE : CallOp::TYPED_BINDLESS_BUFFER_WRITE) : CallOp::BINDLESS_BUFFER_WRITE,
+            _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_BUFFER_WRITE : CallOp::TYPED_BINDLESS_BUFFER_WRITE) : (_is_uniform ? CallOp::UNIFORM_BINDLESS_BUFFER_WRITE : CallOp::BINDLESS_BUFFER_WRITE),
             {_array, _index,
              detail::extract_expression(std::forward<I>(i)),
              detail::extract_expression(std::forward<V>(value))});
@@ -386,7 +386,7 @@ public:
         auto f = detail::FunctionBuilder::current();
         return def<T>(
             f->call(
-                Type::of<T>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_BYTE_BUFFER_READ : CallOp::TYPED_BINDLESS_BYTE_BUFFER_READ) : CallOp::BINDLESS_BYTE_BUFFER_READ,
+                Type::of<T>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_BYTE_BUFFER_READ : CallOp::TYPED_BINDLESS_BYTE_BUFFER_READ) : (_is_uniform ? CallOp::UNIFORM_BINDLESS_BYTE_BUFFER_READ : CallOp::BINDLESS_BYTE_BUFFER_READ),
                 {_array, _index, detail::extract_expression(std::forward<I>(offset))}));
     }
 
@@ -439,7 +439,7 @@ public:
         auto f = detail::FunctionBuilder::current();
         return def<float4>(f->call(
             Type::of<float4>(),
-            _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_READ_LEVEL : CallOp::TYPED_BINDLESS_TEXTURE2D_READ_LEVEL) : CallOp::BINDLESS_TEXTURE2D_READ_LEVEL,
+            _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_READ_LEVEL : CallOp::TYPED_BINDLESS_TEXTURE2D_READ_LEVEL) : (_is_uniform ? CallOp::UNIFORM_BINDLESS_TEXTURE2D_READ_LEVEL : CallOp::BINDLESS_TEXTURE2D_READ_LEVEL),
             {_array, _index, coord.expression(),
              detail::extract_expression(std::forward<I>(level))}));
     }
@@ -493,7 +493,7 @@ public:
         auto f = detail::FunctionBuilder::current();
         return def<float4>(f->call(
             Type::of<float4>(),
-            _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_READ_LEVEL : CallOp::TYPED_BINDLESS_TEXTURE3D_READ_LEVEL) : CallOp::BINDLESS_TEXTURE3D_READ_LEVEL,
+            _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_READ_LEVEL : CallOp::TYPED_BINDLESS_TEXTURE3D_READ_LEVEL) : (_is_uniform ? CallOp::UNIFORM_BINDLESS_TEXTURE3D_READ_LEVEL : CallOp::BINDLESS_TEXTURE3D_READ_LEVEL),
             {_array, _index, coord.expression(),
              detail::extract_expression(std::forward<I>(level))}));
     }
@@ -714,26 +714,26 @@ public:
 public:
     template<typename I>
         requires is_integral_expr_v<I>
-    [[nodiscard]] auto tex2d(I &&index, bool is_typed = false) const noexcept {
-        return Expr<BindlessArray>{_array}.tex2d(std::forward<I>(index), is_typed);
+    [[nodiscard]] auto tex2d(I &&index, bool is_typed = false, bool is_uniform_index = false) const noexcept {
+        return Expr<BindlessArray>{_array}.tex2d(std::forward<I>(index), is_typed, is_uniform_index);
     }
 
     template<typename I>
         requires is_integral_expr_v<I>
-    [[nodiscard]] auto tex3d(I &&index, bool is_typed = false) const noexcept {
-        return Expr<BindlessArray>{_array}.tex3d(std::forward<I>(index), is_typed);
+    [[nodiscard]] auto tex3d(I &&index, bool is_typed = false, bool is_uniform_index = false) const noexcept {
+        return Expr<BindlessArray>{_array}.tex3d(std::forward<I>(index), is_typed, is_uniform_index);
     }
 
     template<typename T, typename I>
         requires is_integral_expr_v<I>
-    [[nodiscard]] auto buffer(I &&index, bool is_typed = false) const noexcept {
-        return Expr<BindlessArray>{_array}.buffer<T>(std::forward<I>(index), is_typed);
+    [[nodiscard]] auto buffer(I &&index, bool is_typed = false, bool is_uniform_index = false) const noexcept {
+        return Expr<BindlessArray>{_array}.buffer<T>(std::forward<I>(index), is_typed, is_uniform_index);
     }
 
     template<typename I>
         requires is_integral_expr_v<I>
-    [[nodiscard]] auto byte_buffer(I &&index, bool is_typed = false) const noexcept {
-        return Expr<BindlessArray>{_array}.byte_buffer(std::forward<I>(index), is_typed);
+    [[nodiscard]] auto byte_buffer(I &&index, bool is_typed = false, bool is_uniform_index = false) const noexcept {
+        return Expr<BindlessArray>{_array}.byte_buffer(std::forward<I>(index), is_typed, is_uniform_index);
     }
 };
 

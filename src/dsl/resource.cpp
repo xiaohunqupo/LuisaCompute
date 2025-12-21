@@ -7,34 +7,34 @@ namespace luisa::compute::detail {
 Var<float4> BindlessTexture2D::sample(Expr<float2> uv) const noexcept {
     auto f = detail::FunctionBuilder::current();
     return def<float4>(f->call(
-        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_SAMPLE : CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE) : CallOp::BINDLESS_TEXTURE2D_SAMPLE,
+        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_SAMPLE : CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE) : (_is_uniform ? CallOp::UNIFORM_BINDLESS_TEXTURE2D_SAMPLE : CallOp::BINDLESS_TEXTURE2D_SAMPLE),
         {_array, _index, uv.expression()}));
 }
 
 Var<float4> BindlessTexture2D::sample(Expr<float2> uv, Expr<float> mip) const noexcept {
     auto f = detail::FunctionBuilder::current();
     return def<float4>(f->call(
-        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_SAMPLE_LEVEL : CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE_LEVEL) : CallOp::BINDLESS_TEXTURE2D_SAMPLE_LEVEL,
+        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_SAMPLE_LEVEL : CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE_LEVEL) : (_is_uniform ? CallOp::UNIFORM_BINDLESS_TEXTURE2D_SAMPLE_LEVEL : CallOp::BINDLESS_TEXTURE2D_SAMPLE_LEVEL),
         {_array, _index, uv.expression(), mip.expression()}));
 }
 
 Var<float4> BindlessTexture2D::sample(Expr<float2> uv, Expr<float2> dpdx, Expr<float2> dpdy) const noexcept {
     auto f = detail::FunctionBuilder::current();
     return def<float4>(f->call(
-        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_SAMPLE_GRAD : CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE_GRAD) : CallOp::BINDLESS_TEXTURE2D_SAMPLE_GRAD,
+        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_SAMPLE_GRAD : CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE_GRAD) : (_is_uniform ? CallOp::UNIFORM_BINDLESS_TEXTURE2D_SAMPLE_GRAD : CallOp::BINDLESS_TEXTURE2D_SAMPLE_GRAD),
         {_array, _index, uv.expression(), dpdx.expression(), dpdy.expression()}));
 }
 
 Var<float4> BindlessTexture2D::sample(Expr<float2> uv, Expr<float2> dpdx, Expr<float2> dpdy, Expr<float> min_mip) const noexcept {
     auto f = detail::FunctionBuilder::current();
     return def<float4>(f->call(
-        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL : CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL) : CallOp::BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL,
+        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL : CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL) : (_is_uniform ? CallOp::UNIFORM_BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL : CallOp::BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL),
         {_array, _index, uv.expression(), dpdx.expression(), dpdy.expression(), min_mip.expression()}));
 }
 Var<float4> BindlessTexture2D::sample(Expr<float2> uv, SamplerFilter filter, SamplerAddress address) const noexcept {
     auto f = detail::FunctionBuilder::current();
     return def<float4>(f->call(
-        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_SAMPLE_SAMPLER : CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE_SAMPLER) : CallOp::BINDLESS_TEXTURE2D_SAMPLE_SAMPLER,
+        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_SAMPLE_SAMPLER : CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE_SAMPLER) : (_is_uniform ? CallOp::UNIFORM_BINDLESS_TEXTURE2D_SAMPLE_SAMPLER : CallOp::BINDLESS_TEXTURE2D_SAMPLE_SAMPLER),
         {_array, _index, uv.expression(),
          f->literal(Type::of<uint>(), (uint)filter),
          f->literal(Type::of<uint>(), (uint)address)}));
@@ -43,7 +43,7 @@ Var<float4> BindlessTexture2D::sample(Expr<float2> uv, SamplerFilter filter, Sam
 Var<float4> BindlessTexture2D::sample(Expr<float2> uv, Expr<float> mip, SamplerFilter filter, SamplerAddress address) const noexcept {
     auto f = detail::FunctionBuilder::current();
     return def<float4>(f->call(
-        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_SAMPLE_LEVEL_SAMPLER : CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE_LEVEL_SAMPLER) : CallOp::BINDLESS_TEXTURE2D_SAMPLE_LEVEL_SAMPLER,
+        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_SAMPLE_LEVEL_SAMPLER : CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE_LEVEL_SAMPLER) : (_is_uniform ? CallOp::UNIFORM_BINDLESS_TEXTURE2D_SAMPLE_LEVEL_SAMPLER : CallOp::BINDLESS_TEXTURE2D_SAMPLE_LEVEL_SAMPLER),
         {_array, _index, uv.expression(), mip.expression(), f->literal(Type::of<uint>(), (uint)filter),
          f->literal(Type::of<uint>(), (uint)address)}));
 }
@@ -51,7 +51,7 @@ Var<float4> BindlessTexture2D::sample(Expr<float2> uv, Expr<float> mip, SamplerF
 Var<float4> BindlessTexture2D::sample(Expr<float2> uv, Expr<float2> dpdx, Expr<float2> dpdy, SamplerFilter filter, SamplerAddress address) const noexcept {
     auto f = detail::FunctionBuilder::current();
     return def<float4>(f->call(
-        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_SAMPLE_GRAD_SAMPLER : CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE_GRAD_SAMPLER) : CallOp::BINDLESS_TEXTURE2D_SAMPLE_GRAD_SAMPLER,
+        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_SAMPLE_GRAD_SAMPLER : CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE_GRAD_SAMPLER) : (_is_uniform ? CallOp::UNIFORM_BINDLESS_TEXTURE2D_SAMPLE_GRAD_SAMPLER : CallOp::BINDLESS_TEXTURE2D_SAMPLE_GRAD_SAMPLER),
         {_array, _index, uv.expression(), dpdx.expression(), dpdy.expression(), f->literal(Type::of<uint>(), (uint)filter),
          f->literal(Type::of<uint>(), (uint)address)}));
 }
@@ -59,7 +59,7 @@ Var<float4> BindlessTexture2D::sample(Expr<float2> uv, Expr<float2> dpdx, Expr<f
 Var<float4> BindlessTexture2D::sample(Expr<float2> uv, Expr<float2> dpdx, Expr<float2> dpdy, Expr<float> min_mip, SamplerFilter filter, SamplerAddress address) const noexcept {
     auto f = detail::FunctionBuilder::current();
     return def<float4>(f->call(
-        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL_SAMPLER : CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL_SAMPLER) : CallOp::BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL_SAMPLER,
+        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL_SAMPLER : CallOp::TYPED_BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL_SAMPLER) : (_is_uniform ? CallOp::UNIFORM_BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL_SAMPLER : CallOp::BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL_SAMPLER),
         {_array, _index, uv.expression(), dpdx.expression(), dpdy.expression(), min_mip.expression(), f->literal(Type::of<uint>(), (uint)filter),
          f->literal(Type::of<uint>(), (uint)address)}));
 }
@@ -67,62 +67,62 @@ Var<float4> BindlessTexture2D::sample(Expr<float2> uv, Expr<float2> dpdx, Expr<f
 Var<uint2> BindlessTexture2D::size() const noexcept {
     auto f = detail::FunctionBuilder::current();
     return def<uint2>(f->call(
-        Type::of<uint2>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_SIZE : CallOp::TYPED_BINDLESS_TEXTURE2D_SIZE) : CallOp::BINDLESS_TEXTURE2D_SIZE,
+        Type::of<uint2>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_SIZE : CallOp::TYPED_BINDLESS_TEXTURE2D_SIZE) : (_is_uniform ? CallOp::UNIFORM_BINDLESS_TEXTURE2D_SIZE : CallOp::BINDLESS_TEXTURE2D_SIZE),
         {_array, _index}));
 }
 
 Var<uint2> BindlessTexture2D::size(Expr<int> level) const noexcept {
     auto f = detail::FunctionBuilder::current();
     return def<uint2>(f->call(
-        Type::of<uint2>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_SIZE_LEVEL : CallOp::TYPED_BINDLESS_TEXTURE2D_SIZE_LEVEL) : CallOp::BINDLESS_TEXTURE2D_SIZE_LEVEL,
+        Type::of<uint2>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_SIZE_LEVEL : CallOp::TYPED_BINDLESS_TEXTURE2D_SIZE_LEVEL) : (_is_uniform ? CallOp::UNIFORM_BINDLESS_TEXTURE2D_SIZE_LEVEL : CallOp::BINDLESS_TEXTURE2D_SIZE_LEVEL),
         {_array, _index, level.expression()}));
 }
 
 Var<uint2> BindlessTexture2D::size(Expr<uint> level) const noexcept {
     auto f = detail::FunctionBuilder::current();
     return def<uint2>(f->call(
-        Type::of<uint2>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_SIZE_LEVEL : CallOp::TYPED_BINDLESS_TEXTURE2D_SIZE_LEVEL) : CallOp::BINDLESS_TEXTURE2D_SIZE_LEVEL,
+        Type::of<uint2>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_SIZE_LEVEL : CallOp::TYPED_BINDLESS_TEXTURE2D_SIZE_LEVEL) : (_is_uniform ? CallOp::UNIFORM_BINDLESS_TEXTURE2D_SIZE_LEVEL : CallOp::BINDLESS_TEXTURE2D_SIZE_LEVEL),
         {_array, _index, level.expression()}));
 }
 
 Var<float4> BindlessTexture2D::read(Expr<uint2> coord) const noexcept {
     auto f = detail::FunctionBuilder::current();
     return def<float4>(f->call(
-        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_READ : CallOp::TYPED_BINDLESS_TEXTURE2D_READ) : CallOp::BINDLESS_TEXTURE2D_READ,
+        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE2D_READ : CallOp::TYPED_BINDLESS_TEXTURE2D_READ) : (_is_uniform ? CallOp::UNIFORM_BINDLESS_TEXTURE2D_READ : CallOp::BINDLESS_TEXTURE2D_READ),
         {_array, _index, coord.expression()}));
 }
 
 Var<float4> BindlessTexture3D::sample(Expr<float3> uvw) const noexcept {
     auto f = detail::FunctionBuilder::current();
     return def<float4>(f->call(
-        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_SAMPLE : CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE) : CallOp::BINDLESS_TEXTURE3D_SAMPLE,
+        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_SAMPLE : CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE) : (_is_uniform ? CallOp::UNIFORM_BINDLESS_TEXTURE3D_SAMPLE : CallOp::BINDLESS_TEXTURE3D_SAMPLE),
         {_array, _index, uvw.expression()}));
 }
 
 Var<float4> BindlessTexture3D::sample(Expr<float3> uvw, Expr<float> mip) const noexcept {
     auto f = detail::FunctionBuilder::current();
     return def<float4>(f->call(
-        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_SAMPLE_LEVEL : CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE_LEVEL) : CallOp::BINDLESS_TEXTURE3D_SAMPLE_LEVEL,
+        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_SAMPLE_LEVEL : CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE_LEVEL) : (_is_uniform ? CallOp::UNIFORM_BINDLESS_TEXTURE3D_SAMPLE_LEVEL : CallOp::BINDLESS_TEXTURE3D_SAMPLE_LEVEL),
         {_array, _index, uvw.expression(), mip.expression()}));
 }
 
 Var<float4> BindlessTexture3D::sample(Expr<float3> uvw, Expr<float3> dpdx, Expr<float3> dpdy) const noexcept {
     auto f = detail::FunctionBuilder::current();
     return def<float4>(f->call(
-        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_SAMPLE_GRAD : CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE_GRAD) : CallOp::BINDLESS_TEXTURE3D_SAMPLE_GRAD,
+        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_SAMPLE_GRAD : CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE_GRAD) : (_is_uniform ? CallOp::UNIFORM_BINDLESS_TEXTURE3D_SAMPLE_GRAD : CallOp::BINDLESS_TEXTURE3D_SAMPLE_GRAD),
         {_array, _index, uvw.expression(), dpdx.expression(), dpdy.expression()}));
 }
 
 Var<float4> BindlessTexture3D::sample(Expr<float3> uvw, Expr<float3> dpdx, Expr<float3> dpdy, Expr<float> min_mip) const noexcept {
     auto f = detail::FunctionBuilder::current();
     return def<float4>(f->call(
-        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL : CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL) : CallOp::BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL,
+        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL : CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL) : (_is_uniform ? CallOp::UNIFORM_BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL : CallOp::BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL),
         {_array, _index, uvw.expression(), dpdx.expression(), dpdy.expression(), min_mip.expression()}));
 }
 Var<float4> BindlessTexture3D::sample(Expr<float3> uvw, SamplerFilter filter, SamplerAddress address) const noexcept {
     auto f = detail::FunctionBuilder::current();
     return def<float4>(f->call(
-        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_SAMPLE_SAMPLER : CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE_SAMPLER) : CallOp::BINDLESS_TEXTURE3D_SAMPLE_SAMPLER,
+        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_SAMPLE_SAMPLER : CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE_SAMPLER) : (_is_uniform ? CallOp::UNIFORM_BINDLESS_TEXTURE3D_SAMPLE_SAMPLER : CallOp::BINDLESS_TEXTURE3D_SAMPLE_SAMPLER),
         {_array, _index, uvw.expression(),
          f->literal(Type::of<uint>(), (uint)filter),
          f->literal(Type::of<uint>(), (uint)address)}));
@@ -131,7 +131,7 @@ Var<float4> BindlessTexture3D::sample(Expr<float3> uvw, SamplerFilter filter, Sa
 Var<float4> BindlessTexture3D::sample(Expr<float3> uvw, Expr<float> mip, SamplerFilter filter, SamplerAddress address) const noexcept {
     auto f = detail::FunctionBuilder::current();
     return def<float4>(f->call(
-        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_SAMPLE_LEVEL_SAMPLER : CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE_LEVEL_SAMPLER) : CallOp::BINDLESS_TEXTURE3D_SAMPLE_LEVEL_SAMPLER,
+        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_SAMPLE_LEVEL_SAMPLER : CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE_LEVEL_SAMPLER) : (_is_uniform ? CallOp::UNIFORM_BINDLESS_TEXTURE3D_SAMPLE_LEVEL_SAMPLER : CallOp::BINDLESS_TEXTURE3D_SAMPLE_LEVEL_SAMPLER),
         {_array, _index, uvw.expression(), mip.expression(),
          f->literal(Type::of<uint>(), (uint)filter),
          f->literal(Type::of<uint>(), (uint)address)}));
@@ -140,7 +140,7 @@ Var<float4> BindlessTexture3D::sample(Expr<float3> uvw, Expr<float> mip, Sampler
 Var<float4> BindlessTexture3D::sample(Expr<float3> uvw, Expr<float3> dpdx, Expr<float3> dpdy, SamplerFilter filter, SamplerAddress address) const noexcept {
     auto f = detail::FunctionBuilder::current();
     return def<float4>(f->call(
-        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_SAMPLE_GRAD_SAMPLER : CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE_GRAD_SAMPLER) : CallOp::BINDLESS_TEXTURE3D_SAMPLE_GRAD_SAMPLER,
+        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_SAMPLE_GRAD_SAMPLER : CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE_GRAD_SAMPLER) : (_is_uniform ? CallOp::UNIFORM_BINDLESS_TEXTURE3D_SAMPLE_GRAD_SAMPLER : CallOp::BINDLESS_TEXTURE3D_SAMPLE_GRAD_SAMPLER),
         {_array, _index, uvw.expression(), dpdx.expression(), dpdy.expression(),
          f->literal(Type::of<uint>(), (uint)filter),
          f->literal(Type::of<uint>(), (uint)address)}));
@@ -149,7 +149,7 @@ Var<float4> BindlessTexture3D::sample(Expr<float3> uvw, Expr<float3> dpdx, Expr<
 Var<float4> BindlessTexture3D::sample(Expr<float3> uvw, Expr<float3> dpdx, Expr<float3> dpdy, Expr<float> min_mip, SamplerFilter filter, SamplerAddress address) const noexcept {
     auto f = detail::FunctionBuilder::current();
     return def<float4>(f->call(
-        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL_SAMPLER : CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL_SAMPLER) : CallOp::BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL_SAMPLER,
+        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL_SAMPLER : CallOp::TYPED_BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL_SAMPLER) : (_is_uniform ? CallOp::UNIFORM_BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL_SAMPLER : CallOp::BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL_SAMPLER),
         {_array, _index, uvw.expression(), dpdx.expression(), dpdy.expression(), min_mip.expression(),
          f->literal(Type::of<uint>(), (uint)filter),
          f->literal(Type::of<uint>(), (uint)address)}));
@@ -158,28 +158,28 @@ Var<float4> BindlessTexture3D::sample(Expr<float3> uvw, Expr<float3> dpdx, Expr<
 Var<uint3> BindlessTexture3D::size() const noexcept {
     auto f = detail::FunctionBuilder::current();
     return def<uint3>(f->call(
-        Type::of<uint3>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_SIZE : CallOp::TYPED_BINDLESS_TEXTURE3D_SIZE) : CallOp::BINDLESS_TEXTURE3D_SIZE,
+        Type::of<uint3>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_SIZE : CallOp::TYPED_BINDLESS_TEXTURE3D_SIZE) : (_is_uniform ? CallOp::UNIFORM_BINDLESS_TEXTURE3D_SIZE : CallOp::BINDLESS_TEXTURE3D_SIZE),
         {_array, _index}));
 }
 
 Var<uint3> BindlessTexture3D::size(Expr<int> level) const noexcept {
     auto f = detail::FunctionBuilder::current();
     return def<uint3>(f->call(
-        Type::of<uint3>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_SIZE_LEVEL : CallOp::TYPED_BINDLESS_TEXTURE3D_SIZE_LEVEL) : CallOp::BINDLESS_TEXTURE3D_SIZE_LEVEL,
+        Type::of<uint3>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_SIZE_LEVEL : CallOp::TYPED_BINDLESS_TEXTURE3D_SIZE_LEVEL) : (_is_uniform ? CallOp::UNIFORM_BINDLESS_TEXTURE3D_SIZE_LEVEL : CallOp::BINDLESS_TEXTURE3D_SIZE_LEVEL),
         {_array, _index, level.expression()}));
 }
 
 Var<uint3> BindlessTexture3D::size(Expr<uint> level) const noexcept {
     auto f = detail::FunctionBuilder::current();
     return def<uint3>(f->call(
-        Type::of<uint3>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_SIZE_LEVEL : CallOp::TYPED_BINDLESS_TEXTURE3D_SIZE_LEVEL) : CallOp::BINDLESS_TEXTURE3D_SIZE_LEVEL,
+        Type::of<uint3>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_SIZE_LEVEL : CallOp::TYPED_BINDLESS_TEXTURE3D_SIZE_LEVEL) : (_is_uniform ? CallOp::UNIFORM_BINDLESS_TEXTURE3D_SIZE_LEVEL : CallOp::BINDLESS_TEXTURE3D_SIZE_LEVEL),
         {_array, _index, level.expression()}));
 }
 
 Var<float4> BindlessTexture3D::read(Expr<uint3> coord) const noexcept {
     auto f = detail::FunctionBuilder::current();
     return def<float4>(f->call(
-        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_READ : CallOp::TYPED_BINDLESS_TEXTURE3D_READ) : CallOp::BINDLESS_TEXTURE3D_READ,
+        Type::of<float4>(), _is_typed ? (_is_uniform ? CallOp::TYPED_UNIFORM_BINDLESS_TEXTURE3D_READ : CallOp::TYPED_BINDLESS_TEXTURE3D_READ) : (_is_uniform ? CallOp::UNIFORM_BINDLESS_TEXTURE3D_READ : CallOp::BINDLESS_TEXTURE3D_READ),
         {_array, _index, coord.expression()}));
 }
 
