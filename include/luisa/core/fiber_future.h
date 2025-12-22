@@ -41,6 +41,22 @@ public:
     // Note: No lock is held after bool() returns, so the event state may
     // immediately change after returning. Use with caution.
     [[nodiscard]] bool isSignalled() const;
+    Future(Future const &) = default;
+    Future(Future &&) = default;
+    Future &operator=(Future &&rhs) {
+        if (std::addressof(rhs) == this) [[unlikely]]
+            return *this;
+        std::destroy_at(this);
+        std::construct_at(this, std::move(rhs));
+        return *this;
+    }
+    Future &operator=(Future const &rhs) {
+        if (std::addressof(rhs) == this) [[unlikely]]
+            return *this;
+        std::destroy_at(this);
+        std::construct_at(this, rhs);
+        return *this;
+    }
 
 private:
     struct Shared {
@@ -53,7 +69,7 @@ private:
         marl::ConditionVariable cv;
         luisa::optional<T> result;
     };
-    using SharedPtr = decltype(std::declval<marl::Allocator>().make_shared<Shared>(std::declval<marl::Allocator*>()));
+    using SharedPtr = decltype(std::declval<marl::Allocator>().make_shared<Shared>(std::declval<marl::Allocator *>()));
     const SharedPtr shared;
 };
 template<typename T>
