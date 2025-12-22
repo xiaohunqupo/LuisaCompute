@@ -1523,12 +1523,28 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
                 str << "_SampleTex2D"sv;
             }
             break;
+        case CallOp::UNIFORM_BINDLESS_TEXTURE2D_SAMPLE:
+            opt->useTex2DBindless = true;
+            if (opt->isPixelShader) {
+                str << "_uniform_SampleTex2DPixel"sv;
+            } else {
+                str << "_uniform_SampleTex2D"sv;
+            }
+            break;
         case CallOp::BINDLESS_TEXTURE2D_SAMPLE_SAMPLER:
             opt->useTex2DBindless = true;
             if (opt->isPixelShader) {
                 str << "_SampleTex2DPixelSmp"sv;
             } else {
                 str << "_SampleTex2DSmp"sv;
+            }
+            break;
+        case CallOp::UNIFORM_BINDLESS_TEXTURE2D_SAMPLE_SAMPLER:
+            opt->useTex2DBindless = true;
+            if (opt->isPixelShader) {
+                str << "_uniform_SampleTex2DPixelSmp"sv;
+            } else {
+                str << "_uniform_SampleTex2DSmp"sv;
             }
             break;
 
@@ -1815,6 +1831,34 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
         case CallOp::UNIFORM_BINDLESS_TEXTURE3D_SIZE_LEVEL:
             opt->useTex3DBindless = true;
             str << "_uniform_Tex3DSizeLevel"sv;
+            break;
+        case CallOp::UNIFORM_BINDLESS_TEXTURE2D_SAMPLE_LEVEL:
+            opt->useTex2DBindless = true;
+            str << "_uniform_SampleTex2DLevel"sv;
+            break;
+        case CallOp::UNIFORM_BINDLESS_TEXTURE2D_SAMPLE_GRAD:
+            opt->useTex2DBindless = true;
+            str << "_uniform_SampleTex2DGrad"sv;
+            break;
+        case CallOp::UNIFORM_BINDLESS_TEXTURE2D_SAMPLE_GRAD_LEVEL:
+            opt->useTex2DBindless = true;
+            str << "_uniform_SampleTex2DGradLevel"sv;
+            break;
+        case CallOp::UNIFORM_BINDLESS_TEXTURE3D_SAMPLE:
+            opt->useTex3DBindless = true;
+            str << "_uniform_SampleTex3D"sv;
+            break;
+        case CallOp::UNIFORM_BINDLESS_TEXTURE3D_SAMPLE_LEVEL:
+            opt->useTex3DBindless = true;
+            str << "_uniform_SampleTex3DLevel"sv;
+            break;
+        case CallOp::UNIFORM_BINDLESS_TEXTURE3D_SAMPLE_GRAD:
+            opt->useTex3DBindless = true;
+            str << "_uniform_SampleTex3DGrad"sv;
+            break;
+        case CallOp::UNIFORM_BINDLESS_TEXTURE3D_SAMPLE_GRAD_LEVEL:
+            opt->useTex3DBindless = true;
+            str << "_uniform_SampleTex3DGradLevel"sv;
             break;
         case CallOp::SYNCHRONIZE_BLOCK:
             str << "GroupMemoryBarrierWithGroupSync()"sv;
