@@ -271,7 +271,7 @@ void ClientInterface::dispatch(uint64_t stream_handle, CommandList &&list) noexc
                 break;
         }
     }
-    _unfinished_stream.try_emplace(stream_handle).first->second.push(std::move(feedback));
+    _unfinished_stream.try_emplace(stream_handle).first->second.enqueue(std::move(feedback));
     _callback->async_send(std::move(_send_bytes));
 }
 
