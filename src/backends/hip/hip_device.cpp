@@ -5,6 +5,7 @@
 #include <luisa/core/dll_export.h>
 
 #include "hip_check.h"
+#include "hip_buffer.h"
 #include "hip_device.h"
 
 namespace luisa::compute::hip {
@@ -148,22 +149,37 @@ uint64_t HIPDevice::memory_granularity() const noexcept {
     LUISA_NOT_IMPLEMENTED();
 }
 
-compute::BufferCreationInfo HIPDevice::create_buffer(const compute::Type *element, size_t elem_count, void *external_memory) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+BufferCreationInfo HIPDevice::create_buffer(const Type *element, size_t elem_count, void *external_memory) noexcept {
+    LUISA_ASSERT(element == nullptr || element->is_basic() || element->is_structure() || element->is_array(),
+                 "Invalid buffer element type {}.", element->description());
+    auto elem_stride = element == nullptr ? 1u : element->size();
+    auto size_bytes = elem_stride * elem_count;
+    auto buffer = with_device([&] {
+        return external_memory == nullptr ?
+                   HIPBuffer::create_device_buffer(size_bytes) :
+                   HIPBuffer::import_external_device_buffer(external_memory, size_bytes);
+    });
+    BufferCreationInfo info{};
+    info.handle = reinterpret_cast<uint64_t>(buffer);
+    info.native_handle = buffer->handle();
+    info.element_stride = elem_stride;
+    info.total_size_bytes = size_bytes;
+    return info;
 }
 
-compute::BufferCreationInfo HIPDevice::create_buffer(const compute::ir::CArc<compute::ir::Type> *element, size_t elem_count, void *external_memory) noexcept {
+BufferCreationInfo HIPDevice::create_buffer(const ir::CArc<ir::Type> *element, size_t elem_count, void *external_memory) noexcept {
     LUISA_NOT_IMPLEMENTED();
 }
 
 void HIPDevice::destroy_buffer(uint64_t handle) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    auto buffer = reinterpret_cast<HIPBuffer *>(handle);
+    with_device([&] { HIPBuffer::destroy(buffer); });
 }
 
-compute::ResourceCreationInfo HIPDevice::create_texture(compute::PixelFormat format, uint dimension,
-                                                        uint width, uint height, uint depth,
-                                                        uint mipmap_levels, void *external_native_handle,
-                                                        bool simultaneous_access, bool allow_raster_target) noexcept {
+ResourceCreationInfo HIPDevice::create_texture(PixelFormat format, uint dimension,
+                                               uint width, uint height, uint depth,
+                                               uint mipmap_levels, void *external_native_handle,
+                                               bool simultaneous_access, bool allow_raster_target) noexcept {
     LUISA_NOT_IMPLEMENTED();
 }
 
@@ -171,7 +187,7 @@ void HIPDevice::destroy_texture(uint64_t handle) noexcept {
     LUISA_NOT_IMPLEMENTED();
 }
 
-compute::ResourceCreationInfo HIPDevice::create_bindless_array(size_t size, compute::BindlessSlotType type) noexcept {
+ResourceCreationInfo HIPDevice::create_bindless_array(size_t size, BindlessSlotType type) noexcept {
     LUISA_NOT_IMPLEMENTED();
 }
 
@@ -179,7 +195,7 @@ void HIPDevice::destroy_bindless_array(uint64_t handle) noexcept {
     LUISA_NOT_IMPLEMENTED();
 }
 
-compute::ResourceCreationInfo HIPDevice::create_stream(compute::StreamTag stream_tag) noexcept {
+ResourceCreationInfo HIPDevice::create_stream(StreamTag stream_tag) noexcept {
     LUISA_NOT_IMPLEMENTED();
 }
 
@@ -191,11 +207,11 @@ void HIPDevice::synchronize_stream(uint64_t stream_handle) noexcept {
     LUISA_NOT_IMPLEMENTED();
 }
 
-void HIPDevice::dispatch(uint64_t stream_handle, compute::CommandList &&list) noexcept {
+void HIPDevice::dispatch(uint64_t stream_handle, CommandList &&list) noexcept {
     LUISA_NOT_IMPLEMENTED();
 }
 
-compute::SwapchainCreationInfo HIPDevice::create_swapchain(const compute::SwapchainOption &option, uint64_t stream_handle) noexcept {
+SwapchainCreationInfo HIPDevice::create_swapchain(const SwapchainOption &option, uint64_t stream_handle) noexcept {
     LUISA_NOT_IMPLEMENTED();
 }
 
@@ -207,19 +223,19 @@ void HIPDevice::present_display_in_stream(uint64_t stream_handle, uint64_t swapc
     LUISA_NOT_IMPLEMENTED();
 }
 
-compute::ShaderCreationInfo HIPDevice::create_shader(const compute::ShaderOption &option, compute::Function kernel) noexcept {
+ShaderCreationInfo HIPDevice::create_shader(const ShaderOption &option, Function kernel) noexcept {
     LUISA_NOT_IMPLEMENTED();
 }
 
-compute::ShaderCreationInfo HIPDevice::create_shader(const compute::ShaderOption &option, const compute::ir::KernelModule *kernel) noexcept {
+ShaderCreationInfo HIPDevice::create_shader(const ShaderOption &option, const ir::KernelModule *kernel) noexcept {
     LUISA_NOT_IMPLEMENTED();
 }
 
-compute::ShaderCreationInfo HIPDevice::load_shader(luisa::string_view name, luisa::span<compute::Type const *const> arg_types) noexcept {
+ShaderCreationInfo HIPDevice::load_shader(luisa::string_view name, luisa::span<Type const *const> arg_types) noexcept {
     LUISA_NOT_IMPLEMENTED();
 }
 
-compute::Usage HIPDevice::shader_argument_usage(uint64_t handle, size_t index) noexcept {
+Usage HIPDevice::shader_argument_usage(uint64_t handle, size_t index) noexcept {
     LUISA_NOT_IMPLEMENTED();
 }
 
@@ -227,7 +243,7 @@ void HIPDevice::destroy_shader(uint64_t handle) noexcept {
     LUISA_NOT_IMPLEMENTED();
 }
 
-compute::ResourceCreationInfo HIPDevice::create_event() noexcept {
+ResourceCreationInfo HIPDevice::create_event() noexcept {
     LUISA_NOT_IMPLEMENTED();
 }
 
@@ -251,7 +267,7 @@ void HIPDevice::synchronize_event(uint64_t handle, uint64_t fence_value) noexcep
     LUISA_NOT_IMPLEMENTED();
 }
 
-compute::ResourceCreationInfo HIPDevice::create_mesh(const compute::AccelOption &option) noexcept {
+ResourceCreationInfo HIPDevice::create_mesh(const AccelOption &option) noexcept {
     LUISA_NOT_IMPLEMENTED();
 }
 
@@ -259,7 +275,7 @@ void HIPDevice::destroy_mesh(uint64_t handle) noexcept {
     LUISA_NOT_IMPLEMENTED();
 }
 
-compute::ResourceCreationInfo HIPDevice::create_procedural_primitive(const compute::AccelOption &option) noexcept {
+ResourceCreationInfo HIPDevice::create_procedural_primitive(const AccelOption &option) noexcept {
     LUISA_NOT_IMPLEMENTED();
 }
 
@@ -267,7 +283,7 @@ void HIPDevice::destroy_procedural_primitive(uint64_t handle) noexcept {
     LUISA_NOT_IMPLEMENTED();
 }
 
-compute::ResourceCreationInfo HIPDevice::create_accel(const compute::AccelOption &option) noexcept {
+ResourceCreationInfo HIPDevice::create_accel(const AccelOption &option) noexcept {
     LUISA_NOT_IMPLEMENTED();
 }
 
