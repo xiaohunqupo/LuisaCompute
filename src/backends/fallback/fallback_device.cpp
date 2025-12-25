@@ -403,7 +403,8 @@ ResourceCreationInfo FallbackDevice::create_event() noexcept {
 
 }// namespace luisa::compute::fallback
 
-LUISA_EXPORT_API luisa::compute::DeviceInterface *create(luisa::compute::Context &&ctx, std::string_view) noexcept {
+LUISA_EXPORT_API luisa::compute::DeviceInterface *create(luisa::compute::Context &&ctx,
+                                                         const luisa::compute::DeviceConfig *) noexcept {
     return luisa::new_with_allocator<luisa::compute::fallback::FallbackDevice>(std::move(ctx));
 }
 

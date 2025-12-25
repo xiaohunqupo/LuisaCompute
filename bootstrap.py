@@ -6,7 +6,7 @@ import shutil
 from subprocess import Popen, call, DEVNULL, check_output
 from typing import List
 
-ALL_FEATURES = ['dsl', 'python', 'gui', 'cuda', 'cpu', 'remote', 'dx', 'metal', 'vulkan', 'tests', 'clangcxx']
+ALL_FEATURES = ['dsl', 'python', 'gui', 'cuda', 'hip', 'cpu', 'remote', 'dx', 'metal', 'vulkan', 'tests', 'clangcxx']
 ALL_DEPENDENCIES = ['rust', 'ninja', 'xmake', 'cmake']
 ALL_CMAKE_DEPENDENCIES = ['ninja', 'cmake', 'rust']
 ALL_XMAKE_DEPENDENCIES = ['xmake', 'rust']
@@ -57,6 +57,13 @@ def check_xmake(xmake_exe):
 def check_nvcc():
     try:
         ret = call(['nvcc', '--version'], stdout=DEVNULL, stderr=DEVNULL)
+        return ret == 0
+    except FileNotFoundError:
+        return False
+
+def check_hipcc():
+    try:
+        ret = call(['hipcc', '--version'], stdout=DEVNULL, stderr=DEVNULL)
         return ret == 0
     except FileNotFoundError:
         return False
@@ -116,6 +123,12 @@ def get_available_features():
     try:
         if 'CUDA_PATH' in os.environ or check_nvcc():
             features.append('cuda')
+    except FileNotFoundError:
+        pass
+    # enable HIP if available
+    try:
+        if 'HIP_PATH' in os.environ or check_hipcc():
+            features.append('hip')
     except FileNotFoundError:
         pass
     try:
@@ -355,6 +368,7 @@ def print_help():
     print('          [no-]python        Enable (disable) Python support')
     print('          [no-]gui           Enable (disable) GUI support')
     print('          [no-]cuda          Enable (disable) CUDA backend')
+    print('          [no-]hip          Enable (disable) HIP backend')
     print('          [no-]cpu           Enable (disable) CPU backend')
     print('          [no-]remote        Enable (disable) remote backend')
     print('          [no-]dx            Enable (disable) DirectX backend')
@@ -413,6 +427,7 @@ def dump_xmake_options(config: dict):
         cmd += add_feature("enable_gui", "gui")
         cmd += add_feature("dx_backend", "dx")
         cmd += add_feature("cuda_backend", "cuda")
+        cmd += add_feature("hip_backend", "hip")
         cmd += add_feature("metal_backend", "metal")
         # cmd += add_feature("remote_backend", "remote")
         cmd += add_feature("cpu_backend", "cpu")

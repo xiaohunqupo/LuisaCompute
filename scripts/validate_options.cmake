@@ -99,6 +99,13 @@ if (LUISA_COMPUTE_ENABLE_CUDA)
     endif ()
 endif ()
 
+if (LUISA_COMPUTE_ENABLE_HIP)
+    find_package(hip CONFIG QUIET)
+    if (NOT hip_FOUND)
+        report_feature_not_available(HIP "HIP backend")
+    endif ()
+endif ()
+
 if (LUISA_COMPUTE_ENABLE_FALLBACK)
     find_package(LLVM CONFIG)
     find_package(embree CONFIG)

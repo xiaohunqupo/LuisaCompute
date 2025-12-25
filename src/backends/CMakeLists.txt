@@ -48,6 +48,10 @@ if (LUISA_COMPUTE_ENABLE_CUDA)
     add_subdirectory(cuda)
 endif ()
 
+if (LUISA_COMPUTE_ENABLE_HIP)
+    add_subdirectory(hip)
+endif ()
+
 if (LUISA_COMPUTE_ENABLE_VULKAN)
     add_subdirectory(vk)
 endif ()
@@ -56,7 +60,6 @@ if (LUISA_COMPUTE_ENABLE_RUST)
     if (LUISA_COMPUTE_ENABLE_CPU)
         add_subdirectory(cpu)
     endif ()
-
     if (LUISA_COMPUTE_ENABLE_REMOTE)
         add_subdirectory(remote)
     endif ()

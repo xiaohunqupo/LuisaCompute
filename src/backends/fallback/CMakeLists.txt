@@ -13,7 +13,6 @@ if (LLVM_FOUND AND embree_FOUND)
 
     message(STATUS "Build with fallback backend (LLVM ${LLVM_VERSION}, Embree ${embree_VERSION})")
 
-    set(LUISA_COMPUTE_ENABLE_FALLBACK ON)
     set(LUISA_FALLBACK_BACKEND_SOURCES
             fallback_device.cpp
             fallback_device_api.cpp
