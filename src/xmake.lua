@@ -28,6 +28,9 @@ if not has_config("lc_yyjson_use_xrepo") then
         target:add("includedirs", src_path, {
             public = true
         })
+        target:add("cxflags", "/utf-8", {
+            tools = "cl"
+        })
     end)
     target_end()
 end

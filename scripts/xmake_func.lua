@@ -267,8 +267,7 @@ on_load(function(target)
     target:set("runtimes", _get_or("runtime", win_runtime), {
         public = true
     })
-    target:set("fpmodels", _get_or("fpmodels", "fast"))
-    target:add("cxflags", "/Zc:preprocessor", {
+    target:add("cxflags", "/Zc:preprocessor", "/wd4244", {
         tools = "cl",
         public = true
     });
