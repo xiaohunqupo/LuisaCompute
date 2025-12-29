@@ -1,5 +1,6 @@
 #pragma once
 #include <luisa/runtime/rhi/device_interface.h>
+#include <luisa/runtime/byte_buffer.h>
 #include <luisa/runtime/buffer.h>
 #include <luisa/runtime/image.h>
 #include <luisa/runtime/device.h>
@@ -75,6 +76,9 @@ public:
     template<typename T>
     Buffer<T> create_buffer(size_t elem_count) noexcept {
         return Buffer<T>{device(), create_interop_buffer(Type::of<T>(), elem_count)};
+    }
+    ByteBuffer create_byte_buffer(size_t size_bytes) noexcept {
+        return ByteBuffer{device(), create_interop_buffer(Type::of<void>(), size_bytes)};
     }
     template<typename T>
     Image<T> create_image(PixelStorage pixel, uint width, uint height, uint mip_levels = 1u, bool simultaneous_access = false, bool allow_raster_target = false) noexcept {

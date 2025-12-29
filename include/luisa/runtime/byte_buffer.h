@@ -18,6 +18,8 @@ private:
 private:
     friend class Device;
     friend class ResourceGenerator;
+    friend class DxCudaInterop;
+    friend class VkCudaInterop;
     ByteBuffer(DeviceInterface *device, const BufferCreationInfo &info) noexcept;
     ByteBuffer(DeviceInterface *device, size_t size_bytes) noexcept;
 
