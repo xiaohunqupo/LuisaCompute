@@ -26,7 +26,6 @@ struct Wait {
 }// namespace vk_cuda_interop
 
 class VkCudaInterop : public DeviceExtension {
-    friend class VkCudaTimelineEvent;
 public:
     static constexpr luisa::string_view name = "VkCudaInterop";
 
