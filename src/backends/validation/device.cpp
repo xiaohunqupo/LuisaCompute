@@ -17,6 +17,8 @@
 #include "dstorage_ext_impl.h"
 #include "pinned_mem_impl.h"
 #include "dx_hdr_ext_impl.h"
+#include "dx_cuda_interop_impl.h"
+#include "vk_cuda_interop_impl.h"
 #include "native_res_ext_impl.h"
 #include <luisa/core/logging.h>
 #include <luisa/runtime/rhi/command.h>
@@ -86,6 +88,33 @@ Device::Device(Context &&ctx, luisa::shared_ptr<DeviceInterface> &&native) noexc
     auto pinned_ext = static_cast<PinnedMemoryExt *>(_native->extension(PinnedMemoryExt::name));
     auto native_res_ext = static_cast<NativeResourceExt *>(_native->extension(NativeResourceExt::name));
     auto dx_hdr_ext = static_cast<DXHDRExt *>(_native->extension(DXHDRExt::name));
+    auto dx_cuda_interop = static_cast<DxCudaInterop *>(_native->extension(DxCudaInterop::name));
+    auto vk_cuda_interop = static_cast<VkCudaInterop *>(_native->extension(VkCudaInterop::name));
+    if (dx_cuda_interop) {
+        auto impl = new DxCudaInteropImpl();
+        impl->device_stats = device_stats;
+        impl->impl = dx_cuda_interop;
+        exts.try_emplace(
+            unordered_map_key(DxCudaInterop::name),
+            ExtPtr{
+                impl,
+                detail::ext_deleter<DeviceExtension>{
+                    [](DeviceExtension *ptr) {
+                        delete static_cast<DxCudaInteropImpl *>(ptr);
+                    }}});
+    }
+    if (vk_cuda_interop) {
+        auto impl = new VkCudaInteropImpl();
+        impl->impl = vk_cuda_interop;
+        exts.try_emplace(
+            unordered_map_key(VkCudaInterop::name),
+            ExtPtr{
+                impl,
+                detail::ext_deleter<DeviceExtension>{
+                    [](DeviceExtension *ptr) {
+                        delete static_cast<VkCudaInteropImpl *>(ptr);
+                    }}});
+    }
     if (dx_hdr_ext) {
         auto impl = new DXHDRExtImpl(dx_hdr_ext);
         exts.try_emplace(

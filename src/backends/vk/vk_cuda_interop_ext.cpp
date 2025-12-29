@@ -382,12 +382,13 @@ void VkCudaInteropImpl::_vk_wait(uint64_t cuda_event_handle, uint64_t vk_stream,
     if (_device->config_ext() && _device->config_ext()->wait_semaphore(stream->queue(), semaphore, fence_index))
         return;
     VkTimelineSemaphoreSubmitInfo timelineInfo1{};
+    VkPipelineStageFlags stage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
     timelineInfo1.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
     timelineInfo1.pNext = nullptr;
-    timelineInfo1.waitSemaphoreValueCount = 0;
-    timelineInfo1.pWaitSemaphoreValues = nullptr;
-    timelineInfo1.signalSemaphoreValueCount = 1;
-    timelineInfo1.pSignalSemaphoreValues = &fence_index;
+    timelineInfo1.waitSemaphoreValueCount = 1;
+    timelineInfo1.pWaitSemaphoreValues = &fence_index;
+    timelineInfo1.signalSemaphoreValueCount = 0;
+    timelineInfo1.pSignalSemaphoreValues = nullptr;
     VkSubmitInfo info1{};
     info1.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     info1.pNext = &timelineInfo1;
@@ -395,6 +396,7 @@ void VkCudaInteropImpl::_vk_wait(uint64_t cuda_event_handle, uint64_t vk_stream,
     info1.pWaitSemaphores = &semaphore;
     info1.signalSemaphoreCount = 0;
     info1.pSignalSemaphores = nullptr;
+    info1.pWaitDstStageMask = &stage;
     // ... Enqueue initial device work here.
     info1.commandBufferCount = 0;
     info1.pCommandBuffers = nullptr;
