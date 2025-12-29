@@ -65,14 +65,14 @@ class Accel:
     def empty():
         return Accel()
 
-    def add(self, vertex_buffer, triangle_buffer, transform=float4x4(1), allow_compact: bool = True,
+    def add(self, vertex_buffer, triangle_buffer, transform=float4x4(1), allow_compact: bool = False,
             allow_update: bool = False, visibility_mask: int = -1, opaque: bool = True, user_id: int = 0):
         self._accel.emplace_back(vertex_buffer.handle, 0, vertex_buffer.bytesize, to_lctype(vertex_buffer.dtype).size(),
                                  triangle_buffer.handle, 0, triangle_buffer.bytesize, transform, allow_compact,
                                  allow_update, visibility_mask, opaque, user_id)
 
     def add_procedural(self, aabb_buffer, aabb_start_index: int = 0, aabb_count=None, transform=float4x4(1),
-                       allow_compact: bool = True, allow_update: bool = False, visibility_mask: int = -1,
+                       allow_compact: bool = False, allow_update: bool = False, visibility_mask: int = -1,
                        opaque: bool = True, user_id: int = 0):
         assert (aabb_buffer.stride == 24)
         var_aabb_count = None
@@ -83,14 +83,14 @@ class Accel:
         self._accel.emplace_procedural(aabb_buffer.handle, aabb_start_index, var_aabb_count, transform, allow_compact,
                                        allow_update, visibility_mask, opaque, user_id)
 
-    def set(self, index, vertex_buffer, triangle_buffer, transform=float4x4(1), allow_compact: bool = True,
+    def set(self, index, vertex_buffer, triangle_buffer, transform=float4x4(1), allow_compact: bool = False,
             allow_update: bool = False, visibility_mask: int = -1, opaque: bool = True, user_id: int = 0):
         self._accel.set(index, vertex_buffer.handle, 0, vertex_buffer.bytesize, to_lctype(vertex_buffer.dtype).size(),
                         triangle_buffer.handle, 0, triangle_buffer.bytesize, transform, allow_compact, allow_update,
                         visibility_mask, opaque, user_id)
 
     def set_procedural(self, index: int, aabb_buffer, aabb_start_index: int = 0, aabb_count=None, transform=float4x4(1),
-                       allow_compact: bool = True, allow_update: bool = False, visibility_mask: int = -1,
+                       allow_compact: bool = False, allow_update: bool = False, visibility_mask: int = -1,
                        opaque: bool = True, user_id: int = 0):
         assert (aabb_buffer.stride == 24)
         var_aabb_count = None
@@ -102,7 +102,7 @@ class Accel:
                                    allow_compact, allow_update, visibility_mask, opaque, user_id)
 
     def add_buffer_view(self, vertex_buffer, vertex_byteoffset, vertex_bytesize, vertex_stride, triangle_buffer,
-                        triangle_byteoffset, triangle_bytesize, transform=float4x4(1), allow_compact: bool = True,
+                        triangle_byteoffset, triangle_bytesize, transform=float4x4(1), allow_compact: bool = False,
                         allow_update: bool = False, visibility_mask: int = -1, opaque: bool = True, user_id:int = 0):
         assert (triangle_byteoffset & 15) == 0 and (vertex_byteoffset & 15) == 0
         assert vertex_byteoffset + vertex_bytesize <= vertex_buffer.bytesize
@@ -112,7 +112,7 @@ class Accel:
                                  allow_compact, allow_update, visibility_mask, opaque, user_id)
 
     def set_buffer_view(self, index, vertex_buffer, vertex_byteoffset, vertex_bytesize, vertex_stride, triangle_buffer,
-                        triangle_byteoffset, triangle_bytesize, transform=float4x4(1), allow_compact: bool = True,
+                        triangle_byteoffset, triangle_bytesize, transform=float4x4(1), allow_compact: bool = False,
                         allow_update: bool = False, visibility_mask: int = -1, opaque: bool = True, user_id:int = 0):
         assert vertex_byteoffset + vertex_bytesize <= vertex_buffer.bytesize
         assert triangle_byteoffset + triangle_bytesize <= triangle_buffer.bytesize

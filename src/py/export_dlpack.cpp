@@ -252,7 +252,7 @@ auto from_py_dlpack(const py::capsule &o) {
 
 
 void export_dlpack(py::module &m) {
-    py::enum_<DLDeviceType>(m, "DLDeviceType");
+    // py::enum_<DLDeviceType>(m, "DLDeviceType");
     m.def("to_dlpack", to_py_dlpack);
     m.def("to_dlpack_device", get_pydldevice);
     m.def("from_dlpack", from_py_dlpack);
