@@ -10,6 +10,15 @@ LCEvent::LCEvent(Device *device, bool shared)
         IID_PPV_ARGS(&fence)));
 }
 LCEvent::~LCEvent() {
+    if (!fence) return;
+    HANDLE eventHandle = CreateEventEx(nullptr, nullptr, false, EVENT_ALL_ACCESS);
+    auto d = vstd::scope_exit([&] {
+        CloseHandle(eventHandle);
+    });
+    if (fence->GetCompletedValue() < lastFence) {
+        ThrowIfFailed(fence->SetEventOnCompletion(lastFence, eventHandle));
+        WaitForSingleObject(eventHandle, INFINITE);
+    }
 }
 
 void LCEvent::Sync(uint64_t fenceIdx) const {

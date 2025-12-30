@@ -12,9 +12,7 @@ class Event : public Resource {
 
     friend class Stream;
     VkSemaphore _semaphore{};
-#ifndef NDEBUG
     mutable std::atomic_uint64_t signaledEvent = 0;
-#endif
     mutable std::atomic_uint64_t finishedEvent = 0;
     mutable luisa::spin_mutex eventMtx;
     mutable uint64_t lastFence = 0;

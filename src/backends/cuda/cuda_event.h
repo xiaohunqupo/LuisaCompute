@@ -19,10 +19,7 @@ private:
     VkDevice _device;
     VkSemaphore _vk_semaphore;
     CUexternalSemaphore _cuda_semaphore;
-#ifndef NDEBUG
     std::atomic_uint64_t _signaled_fence{};
-    void _mark_signal_fence(uint64_t fence) noexcept;
-#endif
 
 public:
     CUDAEvent(VkDevice device,
@@ -36,6 +33,18 @@ public:
     void synchronize(uint64_t value) noexcept;
     [[nodiscard]] uint64_t signaled_value() noexcept;
     [[nodiscard]] bool is_completed(uint64_t value) noexcept;
+
+    // make this public, called by extensions
+    void _mark_signal_fence(uint64_t fence) noexcept {
+        uint64_t old_val = _signaled_fence.load(std::memory_order_relaxed);
+        while (fence > old_val &&
+               !_signaled_fence.compare_exchange_weak(
+                   old_val, fence,
+                   std::memory_order_release,
+                   std::memory_order_relaxed)) {
+            LUISA_INTRIN_PAUSE();
+        }
+    }
 };
 
 class CUDAEventManager {

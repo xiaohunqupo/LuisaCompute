@@ -350,6 +350,7 @@ ResourceCreationInfo VkCudaInteropImpl::create_interop_texture(
 }
 void VkCudaInteropImpl::_vk_signal(uint64_t cuda_event_handle, uint64_t vk_stream, uint64_t fence_index) noexcept {
     auto evt = reinterpret_cast<cuda::CUDAEvent *>(cuda_event_handle);
+    evt->_mark_signal_fence(fence_index);
     auto stream = reinterpret_cast<lc::vk::Stream *>(vk_stream);
     auto semaphore = evt->vk_semaphore();
     if (_device->config_ext() && _device->config_ext()->signal_semaphore(stream->queue(), semaphore, fence_index))
