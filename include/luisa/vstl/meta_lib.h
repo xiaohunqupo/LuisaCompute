@@ -763,6 +763,7 @@ public:
             std::is_assignable,
             std::remove_cvref_t<TarT>, AA...>();
     template<size_t i>
+        requires(i < argSize)
     using TypeOf = typename decltype(detail::TypeOfFunc<i, AA...>())::Type;
 
 private:
@@ -793,6 +794,7 @@ public:
 
     template<typename... Args>
     void reset_as(size_t typeIndex, Args &&...args) {
+        LUISA_ASSUME(typeIndex < argSize);
         this->~variant();
         if (typeIndex >= argSize) {
             switcher = argSize;
@@ -820,6 +822,7 @@ public:
     void const *place_holder() const { return &placeHolder; }
     size_t index() const { return switcher; }
     template<typename T>
+        requires(IndexOf<T> < argSize)
     bool is_type_of() const {
         return switcher == (IndexOf<T>);
     }
