@@ -511,6 +511,17 @@ private:
     static size_t GetHash(size_t hash, size_t size) noexcept {
         return hash & (size - 1);
     }
+    void TryInit() {
+        if (nodeArray) [[likely]]
+            return;
+        auto capacity = mCapacity;
+        if (capacity < 16) capacity = 16;
+        capacity = GetPow2Size(capacity);
+        nodeArray = reinterpret_cast<LinkNode **>(Allocator().Malloc(sizeof(LinkNode *) * capacity * 2));
+        std::memset(nodeArray + capacity, 0, capacity * sizeof(LinkNode *));
+        mCapacity = capacity;
+        mSize = 0;
+    }
     void Resize(size_t newCapacity) noexcept {
         if (mCapacity >= newCapacity) return;
         LinkNode **newNode = reinterpret_cast<LinkNode **>(Allocator().Malloc(sizeof(LinkNode *) * newCapacity * 2));
@@ -538,6 +549,7 @@ private:
         DeleteLinkNode(arrayIndex);
     }
     void TryResize() {
+        TryInit();
         size_t targetCapacity = (size_t)((mSize + 1));
         if (targetCapacity < 16) targetCapacity = 16;
         if (targetCapacity > mCapacity) {
@@ -560,7 +572,7 @@ public:
     }
     //////////////////Construct & Destruct
     HashMap(size_t capacity) noexcept : pool(capacity) {
-        if (capacity < 2) capacity = 2;
+        if (capacity < 16) capacity = 16;
         capacity = GetPow2Size(capacity);
         nodeArray = reinterpret_cast<LinkNode **>(Allocator().Malloc(sizeof(LinkNode *) * capacity * 2));
         std::memset(nodeArray + capacity, 0, capacity * sizeof(LinkNode *));
@@ -588,7 +600,11 @@ public:
         }
         Allocator().Free(nodeArray);
     }
-    HashMap() noexcept : HashMap(4) {}
+    HashMap() noexcept : pool(16, false) {
+        nodeArray = nullptr;
+        mSize = 0;
+        mCapacity = 0;
+    }
     ///////////////////////
     template<typename Key, typename... ARGS>
         requires(luisa::is_constructible_v<K, Key &&> && detail::MapConstructible<V, ARGS && ...>::value && (std::is_same_v<V, void> || std::is_move_constructible_v<V>))
@@ -633,11 +649,14 @@ public:
     }
 
     void reserve(size_t capacity) noexcept {
+        TryInit();
         size_t newCapacity = GetPow2Size(capacity);
         Resize(newCapacity);
     }
     template<typename Key>
     Index find(Key &&key) const noexcept {
+        if (!nodeArray) [[unlikely]]
+            return EmptyIndex();
         size_t hashOriginValue = hsFunc(std::forward<Key>(key));
         size_t hashValue = GetHash(hashOriginValue, mCapacity);
         Map *map = reinterpret_cast<Map *>(nodeArray + mCapacity + hashValue);
@@ -652,6 +671,8 @@ public:
                  !std::is_same_v<std::remove_cvref_t<Key>, Iterator> &&
                  !std::is_same_v<std::remove_cvref_t<Key>, MoveIterator>)
     void remove(Key &&key) noexcept {
+        if (!nodeArray) [[unlikely]]
+            return;
         size_t hashOriginValue = hsFunc(key);
         size_t hashValue = GetHash(hashOriginValue, mCapacity);
         Map *map = reinterpret_cast<Map *>(nodeArray + mCapacity + hashValue);

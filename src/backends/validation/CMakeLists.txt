@@ -23,6 +23,8 @@ set(LUISA_COMPUTE_VALIDATION_SOURCES
         stream_func.h
         stats.cpp        stats.h
         swap_chain.h
+        vk_cuda_interop_impl.cpp vk_cuda_interop_impl.h
+        dx_cuda_interop_impl.cpp dx_cuda_interop_impl.h
         texture.h)
 
 add_library(luisa-compute-validation-layer MODULE ${LUISA_COMPUTE_VALIDATION_SOURCES})
