@@ -50,7 +50,7 @@ else ()
     option(LUISA_COMPUTE_ENABLE_TENSOR "Enable C++ DSL tensor extension" OFF)
     option(LUISA_COMPUTE_ENABLE_DX "Enable DirectX backend" ON)
     option(LUISA_COMPUTE_ENABLE_METAL "Enable Metal backend" ON)
-    option(LUISA_COMPUTE_ENABLE_HIP "Enable HIP backend" ON)
+    option(LUISA_COMPUTE_ENABLE_HIP "Enable HIP backend" OFF) # still WIP
     option(LUISA_COMPUTE_ENABLE_CUDA "Enable CUDA backend" ON)
     option(LUISA_COMPUTE_ENABLE_CUDA_EXT_LCUB "Enable CUDA extension: LCUB" OFF)
     option(LUISA_COMPUTE_ENABLE_VULKAN "Enable Vulkan backend" ON)
@@ -81,6 +81,14 @@ option(LUISA_COMPUTE_CHECK_BACKEND_DEPENDENCIES "Check dependencies of backends 
 
 if (UNIX AND NOT APPLE)
     option(LUISA_COMPUTE_ENABLE_WAYLAND "Enable Wayland support in GUI and Vulkan swapchains" OFF)
+endif ()
+
+if (LUISA_COMPUTE_ENABLE_HIP)
+    option(LUISA_COMPUTE_HIP_PLATFORM_NVIDIA "Use HIP with NVIDIA backend (requires HIP SDK with CUDA support)" OFF)
+    if (LUISA_COMPUTE_HIP_PLATFORM_NVIDIA)
+        set(CMAKE_HIP_PLATFORM "nvidia")
+        set(HIP_PLATFORM "nvidia")
+    endif ()
 endif ()
 
 # validate the options
