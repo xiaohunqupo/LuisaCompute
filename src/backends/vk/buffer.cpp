@@ -107,8 +107,10 @@ DefaultBuffer::DefaultBuffer(Device *device, size_t size_bytes, bool used_as_acc
 DefaultBuffer::~DefaultBuffer() {
     if (!_buffer) return;
     if (_external_allocation) {
-        vkDestroyBuffer(device()->logic_device(), _buffer, Device::alloc_callbacks());
-        vkFreeMemory(device()->logic_device(), _allocated_memory, Device::alloc_callbacks());
+        if (_allocated_memory) {// owned
+            vkDestroyBuffer(device()->logic_device(), _buffer, Device::alloc_callbacks());
+            vkFreeMemory(device()->logic_device(), _allocated_memory, Device::alloc_callbacks());
+        }
     } else if (_allocation) {
         device()->allocator().destroy_buffer({_buffer, _allocation});
     }

@@ -907,7 +907,11 @@ BufferCreationInfo Device::create_buffer(const Type *element, size_t elem_count,
     }
     BufferCreationInfo info{};
     info.element_stride = (element == Type::of<void>()) ? 1 : element->size();
-    auto ptr = new DefaultBuffer(this, info.element_stride * elem_count, true);
+    DefaultBuffer *ptr;
+    if (external_ptr)
+        ptr = new DefaultBuffer(this, static_cast<VkBuffer>(external_ptr), nullptr, info.element_stride * elem_count);
+    else
+        ptr = new DefaultBuffer(this, info.element_stride * elem_count, true);
     info.handle = reinterpret_cast<uint64_t>(ptr);
     info.native_handle = ptr->vk_buffer();
     info.total_size_bytes = ptr->byte_size();
