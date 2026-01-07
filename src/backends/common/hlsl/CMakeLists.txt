@@ -1,23 +1,23 @@
 if (LUISA_COMPUTE_ENABLE_DX OR LUISA_COMPUTE_ENABLE_VULKAN)
 
     set(LUISA_COMPUTE_HLSL_DEVICE_LIB_SOURCES
-            hlsl_header
-            spv_alias
-            dx_linalg
-            hlsl_header_fallback
-            raytracing_header
-            tex2d_bindless
-            tex3d_bindless
-            compute_quad
-            determinant
-            inverse
-            indirect
-            resource_size
-            accel_header
-            copy_sign
-            bindless_common
-            auto_diff
-            reduce
+            hlsl_header.bytes
+            spv_alias.bytes
+            dx_linalg.bytes
+            hlsl_header_fallback.bytes
+            raytracing_header.bytes
+            tex2d_bindless.bytes
+            tex3d_bindless.bytes
+            compute_quad.bytes
+            determinant.bytes
+            inverse.bytes
+            indirect.bytes
+            resource_size.bytes
+            accel_header.bytes
+            copy_sign.bytes
+            bindless_common.bytes
+            auto_diff.bytes
+            reduce.bytes
             accel_process_vk.dxil
             load_bdls.dxil
             load_bdls_vk.dxil

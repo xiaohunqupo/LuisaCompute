@@ -4,7 +4,7 @@
 #include "cuda_error.h"
 #include "cuda_device.h"
 #include "optix_api.h"
-#include "cuda_builtin_embedded.h"
+#include "cuda_builtin_embedded.hpp"
 #include "cuda_compiler.h"
 
 namespace luisa::compute::cuda {

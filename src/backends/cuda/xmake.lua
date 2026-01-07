@@ -16,26 +16,26 @@ on_load(function(target)
 end)
 target_end()
 
+target('lc-cuda-backend-builtin')
+set_kind('static')
+add_rules("utils.bin2obj", {
+    extensions = {".cu", ".h"}
+})
+add_files('cuda_builtin/*.cu', 'cuda_builtin/*.h')
+target_end()
+
 target("lc-backend-cuda")
 set_basename("luisa-backend-cuda")
 _config_project({
     project_kind = "shared",
     batch_size = 4
 })
-add_deps("lc-runtime", "lc-cuda-backend-base")
+add_deps("lc-runtime", "lc-cuda-backend-base", 'lc-cuda-backend-builtin')
 
-add_deps("lc_embed_codegen", {
-    inherit = false
-})
-add_rules("lc_compile_codegen", {
-    remove_ext = true,
-    remove_slash_r = true,
-    var_name_prefix = "luisa_compute_"
-})
 add_rules('lc_llvm')
-add_files("cuda_builtin.lua")
 set_pcxxheader("lc_cuda_pch.h")
 add_headerfiles("*.h")
+add_defines('LUISA_BIN_2_OBJ')
 on_load(function(target)
     if has_config("lc_reproc_use_xrepo") then
         target:add("packages", "reproc")

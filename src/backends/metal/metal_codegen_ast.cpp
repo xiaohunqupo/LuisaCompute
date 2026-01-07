@@ -4,7 +4,7 @@
 #include <luisa/runtime/rtx/hit.h>
 #include <luisa/dsl/rtx/ray_query.h>
 #include <luisa/runtime/dispatch_buffer.h>
-#include "metal_builtin_embedded.h"
+#include "metal_builtin_embedded.hpp"
 #include "metal_codegen_ast.h"
 
 namespace luisa::compute::metal {

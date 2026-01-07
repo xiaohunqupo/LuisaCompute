@@ -96,11 +96,3 @@ if has_config('_lc_check_env') then
     end
     includes("src")
 end
-
-target("lc_embed_codegen")
-    add_rules("lc_basic_settings", {
-        project_kind = "binary"
-    })
-    add_files("utils/embed_codegen.cpp")
-    set_policy("build.fence", true)
-target_end()

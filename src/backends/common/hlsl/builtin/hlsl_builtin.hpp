@@ -1,28 +1,43 @@
 #pragma once
 #include <luisa/core/stl/string.h>
+#include <cstdint>
+
+#ifdef LUISA_BIN_2_OBJ
+#define LC_HLSL_DECL_VARNAME(VAR_NAME) \
+    extern const uint8_t _binary_##VAR_NAME##_start[];   \
+    extern const uint8_t _binary_##VAR_NAME##_end[];
+
+#define LC_HLSL_INSERT_VARNAME(VAR_NAME, KEY_NAME) \
+    dict.try_emplace(KEY_NAME, HLSLCompressedHeader{_binary_##VAR_NAME##_start, (size_t)(_binary_##VAR_NAME##_end - _binary_##VAR_NAME##_start)});
+
+#else
+
 #define LC_HLSL_DECL_VARNAME(VAR_NAME) \
     extern const unsigned char VAR_NAME[];   \
     extern const unsigned long long VAR_NAME##_size;
 
 #define LC_HLSL_INSERT_VARNAME(VAR_NAME, KEY_NAME) \
     dict.try_emplace(KEY_NAME, HLSLCompressedHeader{VAR_NAME, VAR_NAME##_size});
+
+#endif
+
 extern "C" {
-LC_HLSL_DECL_VARNAME(hlsl_header)
-LC_HLSL_DECL_VARNAME(dx_linalg)
-LC_HLSL_DECL_VARNAME(hlsl_header_fallback)
-LC_HLSL_DECL_VARNAME(raytracing_header)
-LC_HLSL_DECL_VARNAME(tex2d_bindless)
-LC_HLSL_DECL_VARNAME(tex3d_bindless)
-LC_HLSL_DECL_VARNAME(compute_quad)
-LC_HLSL_DECL_VARNAME(determinant)
-LC_HLSL_DECL_VARNAME(inverse)
-LC_HLSL_DECL_VARNAME(indirect)
-LC_HLSL_DECL_VARNAME(resource_size)
-LC_HLSL_DECL_VARNAME(accel_header)
-LC_HLSL_DECL_VARNAME(copy_sign)
-LC_HLSL_DECL_VARNAME(bindless_common)
-LC_HLSL_DECL_VARNAME(auto_diff)
-LC_HLSL_DECL_VARNAME(reduce)
+LC_HLSL_DECL_VARNAME(hlsl_header_bytes)
+LC_HLSL_DECL_VARNAME(dx_linalg_bytes)
+LC_HLSL_DECL_VARNAME(hlsl_header_fallback_bytes)
+LC_HLSL_DECL_VARNAME(raytracing_header_bytes)
+LC_HLSL_DECL_VARNAME(tex2d_bindless_bytes)
+LC_HLSL_DECL_VARNAME(tex3d_bindless_bytes)
+LC_HLSL_DECL_VARNAME(compute_quad_bytes)
+LC_HLSL_DECL_VARNAME(determinant_bytes)
+LC_HLSL_DECL_VARNAME(inverse_bytes)
+LC_HLSL_DECL_VARNAME(indirect_bytes)
+LC_HLSL_DECL_VARNAME(resource_size_bytes)
+LC_HLSL_DECL_VARNAME(accel_header_bytes)
+LC_HLSL_DECL_VARNAME(copy_sign_bytes)
+LC_HLSL_DECL_VARNAME(bindless_common_bytes)
+LC_HLSL_DECL_VARNAME(auto_diff_bytes)
+LC_HLSL_DECL_VARNAME(reduce_bytes)
 LC_HLSL_DECL_VARNAME(accel_process_vk_dxil)
 LC_HLSL_DECL_VARNAME(load_bdls_dxil)
 LC_HLSL_DECL_VARNAME(load_bdls_vk_dxil)
@@ -34,7 +49,7 @@ LC_HLSL_DECL_VARNAME(bc7_encodeblock_dxil)
 LC_HLSL_DECL_VARNAME(bc7_trymode02_dxil)
 LC_HLSL_DECL_VARNAME(bc7_trymode137_dxil)
 LC_HLSL_DECL_VARNAME(bc7_trymode456_dxil)
-LC_HLSL_DECL_VARNAME(spv_alias)
+LC_HLSL_DECL_VARNAME(spv_alias_bytes)
 }
 
 namespace lc_hlsl {
@@ -46,23 +61,23 @@ static HLSLCompressedHeader get_hlsl_builtin(luisa::string_view ss) {
     struct Dict {
         luisa::unordered_map<luisa::string_view, HLSLCompressedHeader> dict;
         Dict() {
-            LC_HLSL_INSERT_VARNAME(hlsl_header, "hlsl_header")
-            LC_HLSL_INSERT_VARNAME(spv_alias, "spv_alias")
-            LC_HLSL_INSERT_VARNAME(dx_linalg, "dx_linalg")
-            LC_HLSL_INSERT_VARNAME(hlsl_header_fallback, "hlsl_header_fallback")
-            LC_HLSL_INSERT_VARNAME(raytracing_header, "raytracing_header")
-            LC_HLSL_INSERT_VARNAME(tex2d_bindless, "tex2d_bindless")
-            LC_HLSL_INSERT_VARNAME(tex3d_bindless, "tex3d_bindless")
-            LC_HLSL_INSERT_VARNAME(compute_quad, "compute_quad")
-            LC_HLSL_INSERT_VARNAME(determinant, "determinant")
-            LC_HLSL_INSERT_VARNAME(inverse, "inverse")
-            LC_HLSL_INSERT_VARNAME(indirect, "indirect")
-            LC_HLSL_INSERT_VARNAME(resource_size, "resource_size")
-            LC_HLSL_INSERT_VARNAME(accel_header, "accel_header")
-            LC_HLSL_INSERT_VARNAME(copy_sign, "copy_sign")
-            LC_HLSL_INSERT_VARNAME(bindless_common, "bindless_common")
-            LC_HLSL_INSERT_VARNAME(auto_diff, "auto_diff")
-            LC_HLSL_INSERT_VARNAME(reduce, "reduce")
+            LC_HLSL_INSERT_VARNAME(hlsl_header_bytes, "hlsl_header")
+            LC_HLSL_INSERT_VARNAME(spv_alias_bytes, "spv_alias")
+            LC_HLSL_INSERT_VARNAME(dx_linalg_bytes, "dx_linalg")
+            LC_HLSL_INSERT_VARNAME(hlsl_header_fallback_bytes, "hlsl_header_fallback")
+            LC_HLSL_INSERT_VARNAME(raytracing_header_bytes, "raytracing_header")
+            LC_HLSL_INSERT_VARNAME(tex2d_bindless_bytes, "tex2d_bindless")
+            LC_HLSL_INSERT_VARNAME(tex3d_bindless_bytes, "tex3d_bindless")
+            LC_HLSL_INSERT_VARNAME(compute_quad_bytes, "compute_quad")
+            LC_HLSL_INSERT_VARNAME(determinant_bytes, "determinant")
+            LC_HLSL_INSERT_VARNAME(inverse_bytes, "inverse")
+            LC_HLSL_INSERT_VARNAME(indirect_bytes, "indirect")
+            LC_HLSL_INSERT_VARNAME(resource_size_bytes, "resource_size")
+            LC_HLSL_INSERT_VARNAME(accel_header_bytes, "accel_header")
+            LC_HLSL_INSERT_VARNAME(copy_sign_bytes, "copy_sign")
+            LC_HLSL_INSERT_VARNAME(bindless_common_bytes, "bindless_common")
+            LC_HLSL_INSERT_VARNAME(auto_diff_bytes, "auto_diff")
+            LC_HLSL_INSERT_VARNAME(reduce_bytes, "reduce")
             LC_HLSL_INSERT_VARNAME(accel_process_vk_dxil, "accel_process_vk.dxil")
             LC_HLSL_INSERT_VARNAME(load_bdls_dxil, "load_bdls.dxil")
             LC_HLSL_INSERT_VARNAME(load_bdls_vk_dxil, "load_bdls_vk.dxil")

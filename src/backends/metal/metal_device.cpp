@@ -8,7 +8,7 @@
 #include "metal_codegen_ir.h"
 #endif
 
-#include "metal_builtin_embedded.h"
+#include "metal_builtin_embedded.hpp"
 #include "metal_codegen_ast.h"
 #include "metal_compiler.h"
 #include "metal_buffer.h"

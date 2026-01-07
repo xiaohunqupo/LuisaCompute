@@ -156,7 +156,7 @@ const bool LUISA_USE_EXPERIMENTAL_XIR_CODEGEN = [] {
 #include "cuda_swapchain.h"
 #include "cuda_sparse_heap.h"
 
-#include "cuda_builtin_embedded.h"
+#include "cuda_builtin_embedded.hpp"
 #ifdef LUISA_COMPUTE_ENABLE_CUDADEVRT
 #include "cuda_devrt_embedded.h"
 #endif
