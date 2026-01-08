@@ -29,7 +29,7 @@ jobs:
           wget https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
           sudo ./llvm.sh 20 all
-          sudo apt-get -y install build-essential wget cmake ninja-build uuid-dev libxinerama-dev libxcursor-dev libxi-dev libembree-dev
+          sudo apt-get -y install build-essential wget cmake ninja-build uuid-dev libxinerama-dev libxcursor-dev libxi-dev libembree-dev libvulkan-dev libembree-dev
       - name: "Install CUDA Keyring"
         run: |
           wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/${{ matrix.platform.cuda-keyring }}/cuda-keyring_1.1-1_all.deb
@@ -40,6 +40,12 @@ jobs:
           sudo apt-get update
           sudo apt-get -y install cuda
           sudo apt-get -y clean # save some space
+      - name: "Setup Vulkan"
+        uses: johnnynunez/setup-vulkan-sdk@v1
+        with:
+          vulkan-query-version: 1.4.304.1
+          vulkan-components: Vulkan-Headers, Vulkan-Loader
+          vulkan-use-cache: true
       - name: "Configure and Build"
         run: |
           if [ "${{ matrix.compiler }}" = "gcc" ]; then
@@ -74,7 +80,7 @@ jobs:
       - name: "Install Dependencies"
         run: |
           brew reinstall cmake
-          brew install llvm molten-vk ninja embree
+          brew install llvm molten-vk ninja embree vulkan-headers vulkan-loader
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
       - name: "Configure and Build"
         run: |
@@ -119,6 +125,12 @@ jobs:
           sub-packages: '[ "cudart", "nvrtc", "nvrtc_dev", "nvjitlink", "nvcc", "nvtx" ]'
       - name: "Setup Rust"
         uses: actions-rust-lang/setup-rust-toolchain@v1.10.1
+      - name: "Setup Vulkan"
+        uses: johnnynunez/setup-vulkan-sdk@v1
+        with:
+          vulkan-query-version: 1.4.304.1
+          vulkan-components: Vulkan-Headers, Vulkan-Loader
+          vulkan-use-cache: true
       - name: "Configure and Build"
         shell: cmd
         run: |
