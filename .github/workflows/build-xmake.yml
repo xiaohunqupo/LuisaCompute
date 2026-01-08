@@ -20,7 +20,7 @@ jobs:
           sudo apt-get update
           wget https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
-          sudo ./llvm.sh 18 all
+          sudo ./llvm.sh 20 all
           sudo apt-get -y install build-essential wget uuid-dev libxinerama-dev libxcursor-dev libxi-dev libvulkan-dev
           sudo add-apt-repository ppa:xmake-io/xmake
           sudo apt update
@@ -32,12 +32,6 @@ jobs:
           sudo dpkg -i cuda-keyring_1.1-1_all.deb
           sudo apt-get update
           sudo apt-get -y install cuda-toolkit
-      - name: "Setup Vulkan"
-        uses: johnnynunez/setup-vulkan-sdk@v1
-        with:
-          vulkan-query-version: 1.4.304.1
-          vulkan-components: Vulkan-Headers, Vulkan-Loader
-          vulkan-use-cache: true
       - name: "Configure and Build"
         run: |
           xmake f -p linux -a x86_64 --toolchain=${{ matrix.toolchain }} -m ${{ matrix.config }} --lc_cuda_backend=true --lc_enable_dsl=true --lc_enable_gui=true --lc_enable_unity_build=false --lc_enable_tests=true --lc_enable_mimalloc=false --check -c -y
@@ -69,16 +63,10 @@ jobs:
           sub-packages: '[ "cudart", "nvrtc", "nvrtc_dev", "nvjitlink", "nvcc", "nvtx" ]'
       - name: "Setup Rust"
         uses: actions-rust-lang/setup-rust-toolchain@v1.10.1
-      - name: "Setup Vulkan"
-        uses: johnnynunez/setup-vulkan-sdk@v1
-        with:
-          vulkan-query-version: 1.4.304.1
-          vulkan-components: Vulkan-Headers, Vulkan-Loader
-          vulkan-use-cache: true
       - name: "Setup LLVM"
         uses: ZhongRuoyu/setup-llvm@v0
         with:
-          llvm-version: 18
+          llvm-version: 20
       - name: "Setup XMake"
         uses: xmake-io/github-action-setup-xmake@v1
       - name: "Configure and Build"
