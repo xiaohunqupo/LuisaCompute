@@ -494,7 +494,7 @@ public:
         copy.dstMemoryType = CU_MEMORYTYPE_ARRAY;
         copy.dstArray = _cuda_ext_image_array;
         copy.WidthInBytes = pixel_storage_size(pixel_storage(), make_uint3(_size.x, 1u, 1u));
-        copy.Height = _size.y;
+        copy.Height = pixel_storage_size(pixel_storage(), make_uint3(_size.xy(), 1u)) / copy.WidthInBytes;
         copy.Depth = 1u;
         LUISA_CHECK_CUDA(cuMemcpy3DAsync(&copy, stream));
         if (!name.empty()) { nvtxRangePop(); }
