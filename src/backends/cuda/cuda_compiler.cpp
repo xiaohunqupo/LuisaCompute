@@ -190,9 +190,11 @@ CUDACompiler::CUDACompiler(const CUDADevice *device) noexcept
 }
 
 void CUDACompiler::process_builtin(luisa::string &result, char const *data, size_t size) noexcept {
+    if (size > 0u && data[size - 1] == '\0') { size--; }
     auto n = size - std::count(data, data + size, '\r');
+    auto old_size = result.size();
     result.resize(result.size() + n);
-    std::copy_if(data, data + size, result.end() - n,
+    std::copy_if(data, data + size, result.begin() + old_size,
                  [](char c) noexcept { return c != '\r'; });
 }
 
