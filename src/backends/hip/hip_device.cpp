@@ -6,6 +6,7 @@
 
 #include "hip_check.h"
 #include "hip_buffer.h"
+#include "hip_texture.h"
 #include "hip_stream.h"
 #include "hip_event.h"
 #include "hip_device.h"
@@ -200,11 +201,26 @@ ResourceCreationInfo HIPDevice::create_texture(PixelFormat format, uint dimensio
                                                uint width, uint height, uint depth,
                                                uint mipmap_levels, void *external_native_handle,
                                                bool simultaneous_access, bool allow_raster_target) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    auto p = with_device([&] {
+        return external_native_handle == nullptr ?
+                   HIPTexture::create_device_texture(format, dimension,
+                                                     make_uint3(width, height, depth),
+                                                     mipmap_levels) :
+                   HIPTexture::import_external_texture(
+                       reinterpret_cast<uint64_t>(external_native_handle),
+                       format, dimension,
+                       make_uint3(width, height, depth),
+                       mipmap_levels);
+    });
+    return {.handle = reinterpret_cast<uint64_t>(p),
+            .native_handle = p->handle()};
 }
 
 void HIPDevice::destroy_texture(uint64_t handle) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    auto texture = reinterpret_cast<HIPTexture *>(handle);
+    with_device([&] {
+        luisa::delete_with_allocator(texture);
+    });
 }
 
 ResourceCreationInfo HIPDevice::create_bindless_array(size_t size, BindlessSlotType type) noexcept {

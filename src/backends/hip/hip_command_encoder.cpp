@@ -6,8 +6,10 @@
 
 #include "hip_check.h"
 #include "hip_buffer.h"
+#include "hip_texture.h"
 #include "hip_command_encoder.h"
 
+#include "hip_buffer.h"
 #include "luisa/core/logging.h"
 
 namespace luisa::compute::hip {
@@ -53,13 +55,13 @@ void HIPCommandEncoder::commit(CommandList::CallbackContainer &&user_callbacks) 
 void HIPCommandEncoder::visit(BufferUploadCommand *command) noexcept {
     LUISA_DEBUG_ASSERT(command->handle() != invalid_resource_handle);
     auto buffer = reinterpret_cast<const HIPBuffer *>(command->handle());
-    auto address = static_cast<std::byte *>(buffer->handle()) + command->offset();
+    auto binding = buffer->binding(command->offset(), command->size());
     auto data = command->data();
     auto size = command->size();
     with_upload_buffer(size, [&](auto upload_buffer) noexcept {
         std::memcpy(upload_buffer->address(), data, size);
         LUISA_CHECK_HIP(hipMemcpyHtoDAsync(
-            address, upload_buffer->address(),
+            binding.ptr, upload_buffer->address(),
             size, _stream->handle()));
     });
 }
@@ -67,20 +69,20 @@ void HIPCommandEncoder::visit(BufferUploadCommand *command) noexcept {
 void HIPCommandEncoder::visit(BufferDownloadCommand *command) noexcept {
     LUISA_DEBUG_ASSERT(command->handle() != invalid_resource_handle);
     auto buffer = reinterpret_cast<const HIPBuffer *>(command->handle());
-    auto address = static_cast<std::byte *>(buffer->handle()) + command->offset();
+    auto binding = buffer->binding(command->offset(), command->size());
     auto data = command->data();
     auto size = command->size();
     with_download_pool_no_fallback(size, [&](auto download_buffer) noexcept {
         if (download_buffer) {
             LUISA_CHECK_HIP(hipMemcpyDtoHAsync(
-                download_buffer->address(), address,
+                download_buffer->address(), binding.ptr,
                 size, _stream->handle()));
             LUISA_CHECK_HIP(hipMemcpyAsync(
                 data, download_buffer->address(),
                 size, hipMemcpyHostToHost, _stream->handle()));
         } else {
             LUISA_CHECK_HIP(hipMemcpyDtoHAsync(
-                data, address, size, _stream->handle()));
+                data, binding.ptr, size, _stream->handle()));
         }
     });
 }
@@ -90,28 +92,142 @@ void HIPCommandEncoder::visit(BufferCopyCommand *command) noexcept {
     LUISA_DEBUG_ASSERT(command->dst_handle() != invalid_resource_handle);
     auto src_buffer = reinterpret_cast<const HIPBuffer *>(command->src_handle());
     auto dst_buffer = reinterpret_cast<const HIPBuffer *>(command->dst_handle());
-    auto src_address = static_cast<std::byte *>(src_buffer->handle()) + command->src_offset();
-    auto dst_address = static_cast<std::byte *>(dst_buffer->handle()) + command->dst_offset();
     auto size = command->size();
-    LUISA_CHECK_HIP(hipMemcpyDtoDAsync(dst_address, src_address, size, _stream->handle()));
+    auto src_binding = src_buffer->binding(command->src_offset(), size);
+    auto dst_binding = dst_buffer->binding(command->dst_offset(), size);
+    LUISA_CHECK_HIP(hipMemcpyDtoDAsync(dst_binding.ptr, src_binding.ptr, size, _stream->handle()));
 }
 
-void HIPCommandEncoder::visit(BufferToTextureCopyCommand *) noexcept {
+namespace {
+
+void memcpy_buffer_to_texture(HIPBuffer::Binding buffer,
+                              hipArray_t array, PixelStorage array_storage,
+                              uint3 array_size, hipStream_t stream) noexcept {
+    HIP_MEMCPY3D copy{};
+    auto pitch = pixel_storage_size(array_storage, make_uint3(array_size.x, 1u, 1u));
+    auto height = pixel_storage_size(array_storage, make_uint3(array_size.xy(), 1u)) / pitch;
+    copy.srcMemoryType = hipMemoryTypeDevice;
+    copy.srcDevice = buffer.ptr;
+    copy.srcPitch = pitch;
+    copy.srcHeight = height;
+    copy.dstMemoryType = hipMemoryTypeArray;
+    copy.dstArray = array;
+    copy.WidthInBytes = pitch;
+    copy.Height = height;
+    copy.Depth = array_size.z;
+    LUISA_CHECK_HIP(hipDrvMemcpy3DAsync(&copy, stream));
 }
 
-void HIPCommandEncoder::visit(ShaderDispatchCommand *) noexcept {
+}// namespace
+
+void HIPCommandEncoder::visit(BufferToTextureCopyCommand *command) noexcept {
+    LUISA_ASSERT(command->texture() != invalid_resource_handle);
+    LUISA_ASSERT(command->buffer() != invalid_resource_handle);
+    auto texture = reinterpret_cast<HIPTexture *>(command->texture());
+    auto buffer = reinterpret_cast<const HIPBuffer *>(command->buffer());
+    auto buffer_binding = buffer->binding(command->buffer_offset(), buffer->size_bytes());
+    auto array = texture->level(command->level());
+    memcpy_buffer_to_texture(buffer_binding, array, command->storage(),
+                             command->size(), _stream->handle());
 }
 
-void HIPCommandEncoder::visit(TextureUploadCommand *) noexcept {
+void HIPCommandEncoder::visit(ShaderDispatchCommand *command) noexcept {
 }
 
-void HIPCommandEncoder::visit(TextureDownloadCommand *) noexcept {
+void HIPCommandEncoder::visit(TextureUploadCommand *command) noexcept {
+    LUISA_ASSERT(command->handle() != invalid_resource_handle);
+    auto texture = reinterpret_cast<HIPTexture *>(command->handle());
+    auto array = texture->level(command->level());
+    HIP_MEMCPY3D copy{};
+    auto pitch = pixel_storage_size(command->storage(), make_uint3(command->size().x, 1u, 1u));
+    auto height = pixel_storage_size(command->storage(), make_uint3(command->size().xy(), 1u)) / pitch;
+    auto size_bytes = pixel_storage_size(command->storage(), command->size());
+    auto data = command->data();
+    with_upload_buffer(size_bytes, [&](auto upload_buffer) noexcept {
+        std::memcpy(upload_buffer->address(), data, size_bytes);
+        copy.srcMemoryType = hipMemoryTypeHost;
+        copy.srcHost = upload_buffer->address();
+        copy.srcPitch = pitch;
+        copy.srcHeight = height;
+        copy.dstMemoryType = hipMemoryTypeArray;
+        copy.dstArray = array;
+        copy.WidthInBytes = pitch;
+        copy.Height = height;
+        copy.Depth = command->size().z;
+        LUISA_CHECK_HIP(hipDrvMemcpy3DAsync(&copy, _stream->handle()));
+    });
 }
 
-void HIPCommandEncoder::visit(TextureCopyCommand *) noexcept {
+void HIPCommandEncoder::visit(TextureDownloadCommand *command) noexcept {
+    LUISA_ASSERT(command->handle() != invalid_resource_handle);
+    auto texture = reinterpret_cast<HIPTexture *>(command->handle());
+    auto array = texture->level(command->level());
+    HIP_MEMCPY3D copy{};
+    auto pitch = pixel_storage_size(command->storage(), make_uint3(command->size().x, 1u, 1u));
+    auto height = pixel_storage_size(command->storage(), make_uint3(command->size().xy(), 1u)) / pitch;
+    auto size_bytes = pixel_storage_size(command->storage(), command->size());
+    copy.srcMemoryType = hipMemoryTypeArray;
+    copy.srcArray = array;
+    copy.WidthInBytes = pitch;
+    copy.Height = height;
+    copy.Depth = command->size().z;
+    copy.dstMemoryType = hipMemoryTypeHost;
+    copy.dstPitch = pitch;
+    copy.dstHeight = height;
+    with_download_pool_no_fallback(size_bytes, [&](auto download_buffer) noexcept {
+        if (download_buffer) {
+            copy.dstHost = download_buffer->address();
+            LUISA_CHECK_HIP(hipDrvMemcpy3DAsync(&copy, _stream->handle()));
+            LUISA_CHECK_HIP(hipMemcpyAsync(
+                command->data(), download_buffer->address(),
+                size_bytes, hipMemcpyHostToHost, _stream->handle()));
+        } else {
+            copy.dstHost = command->data();
+            LUISA_CHECK_HIP(hipDrvMemcpy3DAsync(&copy, _stream->handle()));
+        }
+    });
 }
 
-void HIPCommandEncoder::visit(TextureToBufferCopyCommand *) noexcept {
+void HIPCommandEncoder::visit(TextureCopyCommand *command) noexcept {
+    LUISA_ASSERT(command->src_handle() != invalid_resource_handle);
+    LUISA_ASSERT(command->dst_handle() != invalid_resource_handle);
+    auto src_texture = reinterpret_cast<HIPTexture *>(command->src_handle());
+    auto dst_texture = reinterpret_cast<HIPTexture *>(command->dst_handle());
+    auto src_array = src_texture->level(command->src_level());
+    auto dst_array = dst_texture->level(command->dst_level());
+    HIP_MEMCPY3D copy{};
+    auto pitch = pixel_storage_size(command->storage(), make_uint3(command->size().x, 1u, 1u));
+    auto height = pixel_storage_size(command->storage(), make_uint3(command->size().xy(), 1u)) / pitch;
+    copy.srcMemoryType = hipMemoryTypeArray;
+    copy.srcArray = src_array;
+    copy.dstMemoryType = hipMemoryTypeArray;
+    copy.dstArray = dst_array;
+    copy.WidthInBytes = pitch;
+    copy.Height = height;
+    copy.Depth = command->size().z;
+    LUISA_CHECK_HIP(hipDrvMemcpy3DAsync(&copy, _stream->handle()));
+}
+
+void HIPCommandEncoder::visit(TextureToBufferCopyCommand *command) noexcept {
+    LUISA_ASSERT(command->texture() != invalid_resource_handle);
+    LUISA_ASSERT(command->buffer() != invalid_resource_handle);
+    auto texture = reinterpret_cast<HIPTexture *>(command->texture());
+    auto buffer = reinterpret_cast<const HIPBuffer *>(command->buffer());
+    auto buffer_binding = buffer->binding(command->buffer_offset(), buffer->size_bytes());
+    auto array = texture->level(command->level());
+    HIP_MEMCPY3D copy{};
+    auto pitch = pixel_storage_size(command->storage(), make_uint3(command->size().x, 1u, 1u));
+    auto height = pixel_storage_size(command->storage(), make_uint3(command->size().xy(), 1u)) / pitch;
+    copy.srcMemoryType = hipMemoryTypeArray;
+    copy.srcArray = array;
+    copy.dstMemoryType = hipMemoryTypeDevice;
+    copy.dstDevice = buffer_binding.ptr;
+    copy.dstPitch = pitch;
+    copy.dstHeight = height;
+    copy.WidthInBytes = pitch;
+    copy.Height = height;
+    copy.Depth = command->size().z;
+    LUISA_CHECK_HIP(hipDrvMemcpy3DAsync(&copy, _stream->handle()));
 }
 
 void HIPCommandEncoder::visit(AccelBuildCommand *) noexcept {

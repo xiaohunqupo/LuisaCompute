@@ -62,4 +62,9 @@ void HIPBuffer::destroy(HIPBuffer *buffer) noexcept {
     luisa::delete_with_allocator(buffer);
 }
 
+HIPBuffer::Binding HIPBuffer::binding(size_t offset, size_t size) const noexcept {
+    LUISA_ASSERT(offset + size <= size_bytes(), "HIPBuffer::binding() out of range.");
+    return Binding{static_cast<std::byte *>(_device_ptr) + offset, size};
+}
+
 }// namespace luisa::compute::hip

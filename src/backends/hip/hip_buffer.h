@@ -17,6 +17,12 @@ private:
     uint64_t _is_external : 1;
 
 public:
+    struct Binding {
+        hipDeviceptr_t ptr;
+        uint64_t size_bytes;
+    };
+
+public:
     HIPBuffer() noexcept;
     ~HIPBuffer() noexcept;
     [[nodiscard]] static HIPBuffer *create_device_buffer(size_t size_bytes) noexcept;
@@ -26,6 +32,7 @@ public:
     static void destroy(HIPBuffer *buffer) noexcept;
     [[nodiscard]] auto handle() const noexcept { return _device_ptr; }
     [[nodiscard]] auto size_bytes() const noexcept { return _size_bytes; }
+    [[nodiscard]] Binding binding(size_t offset, size_t size) const noexcept;
 };
 
 }// namespace luisa::compute::hip

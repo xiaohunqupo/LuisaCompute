@@ -195,4 +195,12 @@ int main(int argc, char *argv[]) {
     test_texture<uint>(device, PixelStorage::INT1, make_uint3(233u, 666u, 45u), rand);
     test_texture<uint>(device, PixelStorage::INT2, make_uint3(233u, 666u, 45u), rand);
     test_texture<uint>(device, PixelStorage::INT4, make_uint3(233u, 666u, 45u), rand);
+
+    test_texture<float>(device, PixelStorage::BC1, make_uint3(233u, 666u, 45u), rand);
+    test_texture<float>(device, PixelStorage::BC2, make_uint3(233u, 666u, 45u), rand);
+    test_texture<float>(device, PixelStorage::BC3, make_uint3(233u, 666u, 45u), rand);
+    test_texture<float>(device, PixelStorage::BC4, make_uint3(233u, 666u, 45u), rand);
+    test_texture<float>(device, PixelStorage::BC5, make_uint3(233u, 666u, 45u), rand);
+    test_texture<float>(device, PixelStorage::BC6, make_uint3(233u, 666u, 45u), rand);
+    test_texture<float>(device, PixelStorage::BC7, make_uint3(233u, 666u, 45u), rand);
 }
