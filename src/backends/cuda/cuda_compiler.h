@@ -46,6 +46,7 @@ public:
     [[nodiscard]] static uint64_t compute_hash(const luisa::string &src, luisa::span<const char *const> options) noexcept;
     [[nodiscard]] static size_t type_size(const Type *type) noexcept;
     [[nodiscard]] auto device() const noexcept { return _device; }
+    [[nodiscard]] static void process_builtin(luisa::string &result, char const *data, size_t size);
 };
 
 }// namespace luisa::compute::cuda

@@ -183,11 +183,34 @@ CUDACompiler::CUDACompiler(const CUDADevice *device) noexcept
       _nvrtc_path{luisa::to_string(find_standalone_nvrtc(device->context().runtime_directory()))},
       _nvrtc_version{query_nvrtc_version(_nvrtc_path.c_str())} {
     LUISA_VERBOSE("CUDA NVRTC compiler version = {}.", _nvrtc_version);
-    _device_library
-        .append(luisa::string_view{reinterpret_cast<const char *>(luisa_compute_cuda_device_half), luisa_compute_cuda_device_half_size})
-        .append(luisa::string_view{reinterpret_cast<const char *>(luisa_compute_cuda_device_math), luisa_compute_cuda_device_math_size})
-        .append(luisa::string_view{reinterpret_cast<const char *>(luisa_compute_cuda_device_resource), luisa_compute_cuda_device_resource_size})
-        .append(luisa::string_view{reinterpret_cast<const char *>(luisa_compute_cuda_device_coop), luisa_compute_cuda_device_coop_size});
+    _device_library;
+    process_builtin(_device_library, reinterpret_cast<const char *>(luisa_compute_cuda_device_half), luisa_compute_cuda_device_half_size);
+    process_builtin(_device_library, reinterpret_cast<const char *>(luisa_compute_cuda_device_math), luisa_compute_cuda_device_math_size);
+    process_builtin(_device_library, reinterpret_cast<const char *>(luisa_compute_cuda_device_resource), luisa_compute_cuda_device_resource_size);
+    process_builtin(_device_library, reinterpret_cast<const char *>(luisa_compute_cuda_device_coop), luisa_compute_cuda_device_coop_size);
+}
+
+void CUDACompiler::process_builtin(luisa::string &result, char const *data, size_t size) {
+    auto end = data + size;
+    luisa::vector<size_t> removed;
+    for (auto i = data; i != end; ++i) {
+        if (*i == '\r') {
+            removed.emplace_back(i - data);
+        }
+    }
+    auto str_size = result.size();
+    result.resize(str_size + size - removed.size());
+    auto dst_data = result.data() + str_size;
+    size_t last = 0;
+    for (auto i : removed) {
+        if (i > last) {
+            std::memcpy(dst_data, data + last, i - last);
+            dst_data += (i - last);
+        }
+        last = i + 1;
+    }
+    if (size > last)
+        std::memcpy(dst_data, data + last, size - last);
 }
 
 uint64_t CUDACompiler::compute_hash(const string &src, luisa::span<const char *const> options) noexcept {
