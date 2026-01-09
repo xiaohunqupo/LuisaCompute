@@ -10,6 +10,13 @@
 
 namespace luisa::compute::hip {
 
+void luisa_initialize_hip() noexcept {
+    static std::once_flag flag;
+    std::call_once(flag, [] {
+        LUISA_CHECK_HIP(hipInit(0));
+    });
+}
+
 struct HIPDeviceGuard {
     int current_device_id = 0;
     int previous_device_id = 0;
@@ -48,10 +55,21 @@ HIPDevice::HIPDevice(Context &&ctx, const DeviceConfig *config) noexcept
     LUISA_ASSERT(_device_id < device_count,
                  "HIP device index out of range (required = {}, count = {}).",
                  _device_id, device_count);
-    // log device name
+    // log device name and version
     hipDeviceProp_t prop;
     LUISA_CHECK_HIP(hipGetDeviceProperties(&prop, _device_id));
-    LUISA_INFO("Created HIP device {}: {}.", _device_id, prop.name);
+    auto driver_version = 0;
+    auto runtime_version = 0;
+    LUISA_CHECK_HIP(hipDriverGetVersion(&driver_version));
+    LUISA_CHECK_HIP(hipRuntimeGetVersion(&runtime_version));
+    auto version_major = [](auto x) noexcept { return x / 10000000; };
+    auto version_minor = [](auto x) noexcept { return x % 10000000 / 100000; };
+    auto version_patch = [](auto x) noexcept { return x % 100000; };
+    LUISA_INFO("Created HIP device {}: {} (cc = {}.{}, driver = {}.{}.{}, runtime = {}.{}.{}, build = {}.{}.{}).",
+               _device_id, prop.name, prop.major, prop.minor,
+               version_major(driver_version), version_minor(driver_version), version_patch(driver_version),
+               version_major(runtime_version), version_minor(runtime_version), version_patch(runtime_version),
+               HIP_VERSION_MAJOR, HIP_VERSION_MINOR, HIP_VERSION_PATCH);
 }
 
 HIPDevice::~HIPDevice() noexcept = default;
@@ -301,6 +319,7 @@ void HIPDevice::set_name(luisa::compute::Resource::Tag resource_tag,
 
 LUISA_EXPORT_API luisa::compute::DeviceInterface *create(luisa::compute::Context &&ctx,
                                                          const luisa::compute::DeviceConfig *config) noexcept {
+    luisa::compute::hip::luisa_initialize_hip();
     return luisa::new_with_allocator<luisa::compute::hip::HIPDevice>(std::move(ctx), config);
 }
 
@@ -311,6 +330,7 @@ LUISA_EXPORT_API void destroy(luisa::compute::DeviceInterface *device) noexcept 
 LUISA_EXPORT_API void backend_device_names(luisa::vector<luisa::string> &names) noexcept {
     names.clear();
     auto count = 0;
+    luisa::compute::hip::luisa_initialize_hip();
     LUISA_CHECK_HIP(hipGetDeviceCount(&count));
     names.reserve(count);
     for (int i = 0; i < count; i++) {
