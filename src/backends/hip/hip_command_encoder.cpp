@@ -85,7 +85,15 @@ void HIPCommandEncoder::visit(BufferDownloadCommand *command) noexcept {
     });
 }
 
-void HIPCommandEncoder::visit(BufferCopyCommand *) noexcept {
+void HIPCommandEncoder::visit(BufferCopyCommand *command) noexcept {
+    LUISA_DEBUG_ASSERT(command->src_handle() != invalid_resource_handle);
+    LUISA_DEBUG_ASSERT(command->dst_handle() != invalid_resource_handle);
+    auto src_buffer = reinterpret_cast<const HIPBuffer *>(command->src_handle());
+    auto dst_buffer = reinterpret_cast<const HIPBuffer *>(command->dst_handle());
+    auto src_address = static_cast<std::byte *>(src_buffer->handle()) + command->src_offset();
+    auto dst_address = static_cast<std::byte *>(dst_buffer->handle()) + command->dst_offset();
+    auto size = command->size();
+    LUISA_CHECK_HIP(hipMemcpyDtoDAsync(dst_address, src_address, size, _stream->handle()));
 }
 
 void HIPCommandEncoder::visit(BufferToTextureCopyCommand *) noexcept {
