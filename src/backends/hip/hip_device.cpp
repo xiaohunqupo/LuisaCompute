@@ -6,6 +6,7 @@
 
 #include "hip_check.h"
 #include "hip_buffer.h"
+#include "hip_stream.h"
 #include "hip_device.h"
 
 namespace luisa::compute::hip {
@@ -214,19 +215,34 @@ void HIPDevice::destroy_bindless_array(uint64_t handle) noexcept {
 }
 
 ResourceCreationInfo HIPDevice::create_stream(StreamTag stream_tag) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    auto p = with_device([&] {
+        return luisa::new_with_allocator<HIPStream>(this);
+    });
+    return {.handle = reinterpret_cast<uint64_t>(p),
+            .native_handle = p->handle()};
 }
 
 void HIPDevice::destroy_stream(uint64_t handle) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    with_device([&] {
+        auto stream = reinterpret_cast<HIPStream *>(handle);
+        delete_with_allocator(stream);
+    });
 }
 
 void HIPDevice::synchronize_stream(uint64_t stream_handle) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    with_device([&] {
+        auto stream = reinterpret_cast<HIPStream *>(stream_handle);
+        stream->synchronize();
+    });
 }
 
 void HIPDevice::dispatch(uint64_t stream_handle, CommandList &&list) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    if (!list.empty()) {
+        with_device([&] {
+            auto stream = reinterpret_cast<HIPStream *>(stream_handle);
+            stream->dispatch(std::move(list));
+        });
+    }
 }
 
 SwapchainCreationInfo HIPDevice::create_swapchain(const SwapchainOption &option, uint64_t stream_handle) noexcept {
@@ -309,7 +325,7 @@ void HIPDevice::destroy_accel(uint64_t handle) noexcept {
     LUISA_NOT_IMPLEMENTED();
 }
 
-void HIPDevice::set_name(luisa::compute::Resource::Tag resource_tag,
+void HIPDevice::set_name(Resource::Tag resource_tag,
                          uint64_t resource_handle,
                          luisa::string_view name) noexcept {
     // ignored

@@ -6,6 +6,10 @@ if (hip_FOUND)
             ../common/default_binary_io.cpp ../common/default_binary_io.h
             hip_device.cpp hip_device.h
             hip_buffer.cpp hip_buffer.h
+            hip_callback_context.h
+            hip_command_encoder.cpp hip_command_encoder.h
+            hip_stage_buffer_pool.cpp hip_stage_buffer_pool.h
+            hip_stream.cpp hip_stream.h
     )
     luisa_compute_add_backend(hip SOURCES ${LUISA_HIP_SOURCES})
     target_link_libraries(luisa-compute-backend-hip PRIVATE

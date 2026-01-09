@@ -44,6 +44,9 @@ CUDAStream::CUDAStream(CUDADevice *device) noexcept
       _upload_pool{64_M, true},
       _download_pool{32_M, false} {
 
+    // create the stream
+    LUISA_CHECK_CUDA(cuStreamCreate(&_stream, CU_STREAM_DEFAULT));
+
     // initialize the callback semaphore
     {
         // check if the device supports stream-ordered memory operations
@@ -68,8 +71,7 @@ CUDAStream::CUDAStream(CUDADevice *device) noexcept
         }
         *_callback_semaphore = 0u;
     }
-    // create the stream
-    LUISA_CHECK_CUDA(cuStreamCreate(&_stream, CU_STREAM_DEFAULT));
+
     // create the callback thread
     _callback_thread = std::thread{[this] {
         for (;;) {
