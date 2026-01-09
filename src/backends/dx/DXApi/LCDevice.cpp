@@ -535,7 +535,7 @@ SwapchainCreationInfo LCDevice::create_swapchain(const SwapchainOption &option, 
     info.storage = option.wants_hdr ? PixelStorage::HALF4 : PixelStorage::BYTE4;
     return info;
 }
-void LCDevice::destroy_swap_chain(uint64 handle) noexcept {
+void LCDevice::destroy_swapchain(uint64 handle) noexcept {
     delete reinterpret_cast<LCSwapChain *>(handle);
 }
 void LCDevice::present_display_in_stream(uint64 stream_handle, uint64 swapchain_handle, uint64 image_handle) noexcept {

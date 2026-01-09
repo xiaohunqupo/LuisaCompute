@@ -154,7 +154,7 @@ public:
 
     // swap chain
     [[nodiscard]] virtual SwapchainCreationInfo create_swapchain(const SwapchainOption &option, uint64_t stream_handle) noexcept = 0;
-    virtual void destroy_swap_chain(uint64_t handle) noexcept = 0;
+    virtual void destroy_swapchain(uint64_t handle) noexcept = 0;
     virtual void present_display_in_stream(uint64_t stream_handle, uint64_t swapchain_handle, uint64_t image_handle) noexcept = 0;
 
     // kernel

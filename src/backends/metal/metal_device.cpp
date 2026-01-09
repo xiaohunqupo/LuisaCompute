@@ -400,7 +400,7 @@ SwapchainCreationInfo MetalDevice::create_swapchain(const SwapchainOption &optio
     });
 }
 
-void MetalDevice::destroy_swap_chain(uint64_t handle) noexcept {
+void MetalDevice::destroy_swapchain(uint64_t handle) noexcept {
     with_autorelease_pool([=] {
         auto swpachain = reinterpret_cast<MetalSwapchain *>(handle);
         delete_with_allocator(swpachain);

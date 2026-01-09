@@ -286,7 +286,7 @@ SwapchainCreationInfo ClientInterface::create_swapchain(const SwapchainOption &o
     LUISA_ERROR("Swapchain not supported");
     return {};
 }
-void ClientInterface::destroy_swap_chain(uint64_t handle) noexcept {
+void ClientInterface::destroy_swapchain(uint64_t handle) noexcept {
     LUISA_ERROR("Swapchain not supported");
 }
 void ClientInterface::present_display_in_stream(uint64_t stream_handle, uint64_t swapchain_handle, uint64_t image_handle) noexcept {

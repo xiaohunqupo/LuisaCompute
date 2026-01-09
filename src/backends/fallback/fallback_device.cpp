@@ -120,7 +120,7 @@ void FallbackDevice::destroy_accel(uint64_t handle) noexcept {
     luisa::delete_with_allocator(reinterpret_cast<FallbackAccel *>(handle));
 }
 
-void FallbackDevice::destroy_swap_chain(uint64_t handle) noexcept {
+void FallbackDevice::destroy_swapchain(uint64_t handle) noexcept {
     luisa::delete_with_allocator(reinterpret_cast<FallbackSwapchain *>(handle));
 }
 

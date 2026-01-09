@@ -325,9 +325,9 @@ SwapchainCreationInfo Device::create_swapchain(
     new SwapChain(chain.handle);
     return chain;
 }
-void Device::destroy_swap_chain(uint64_t handle) noexcept {
+void Device::destroy_swapchain(uint64_t handle) noexcept {
     RWResource::dispose(handle);
-    _native->destroy_swap_chain(handle);
+    _native->destroy_swapchain(handle);
 }
 void Device::present_display_in_stream(uint64_t stream_handle, uint64_t swapchain_handle, uint64_t image_handle) noexcept {
     check_stream(stream_handle, StreamFunc::Swapchain);

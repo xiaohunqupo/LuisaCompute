@@ -186,7 +186,7 @@ public:
         LUISA_ERROR("Not supported.");
         return {};
     }
-    void destroy_swap_chain(uint64_t handle) noexcept override {
+    void destroy_swapchain(uint64_t handle) noexcept override {
         LUISA_ERROR("Not supported.");
     }
     void present_display_in_stream(uint64_t stream_handle, uint64_t swapchain_handle, uint64_t image_handle) noexcept override {

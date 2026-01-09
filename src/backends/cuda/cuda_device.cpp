@@ -531,7 +531,7 @@ SwapchainCreationInfo CUDADevice::create_swapchain(const SwapchainOption &option
 #endif
 }
 
-void CUDADevice::destroy_swap_chain(uint64_t handle) noexcept {
+void CUDADevice::destroy_swapchain(uint64_t handle) noexcept {
 #ifdef LUISA_BACKEND_ENABLE_VULKAN_SWAPCHAIN
     with_handle([chain = reinterpret_cast<CUDASwapchain *>(handle)] {
         delete_with_allocator(chain);

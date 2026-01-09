@@ -597,7 +597,7 @@ public:
         return info;
     }
 
-    void destroy_swap_chain(uint64_t handle) noexcept override {
+    void destroy_swapchain(uint64_t handle) noexcept override {
         device.destroy_swapchain(device.device, api::Swapchain{handle});
     }
 

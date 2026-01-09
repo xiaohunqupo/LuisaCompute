@@ -665,7 +665,7 @@ LCCreatedSwapchainInfo luisa_compute_swapchain_create(LCDevice device, ConstSwap
 
 void luisa_compute_swapchain_destroy(LCDevice device, LCSwapchain swapchain) LUISA_NOEXCEPT {
     auto d = reinterpret_cast<DeviceInterface *>(device._0);
-    d->destroy_swap_chain(swapchain._0);
+    d->destroy_swapchain(swapchain._0);
 }
 
 void luisa_compute_swapchain_present(LCDevice device, LCStream stream, LCSwapchain swapchain,

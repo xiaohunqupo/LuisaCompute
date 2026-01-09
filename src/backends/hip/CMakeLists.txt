@@ -8,6 +8,7 @@ if (hip_FOUND)
             hip_buffer.cpp hip_buffer.h
             hip_callback_context.h
             hip_command_encoder.cpp hip_command_encoder.h
+            hip_event.cpp hip_event.h
             hip_stage_buffer_pool.cpp hip_stage_buffer_pool.h
             hip_stream.cpp hip_stream.h
     )

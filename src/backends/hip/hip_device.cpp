@@ -7,6 +7,7 @@
 #include "hip_check.h"
 #include "hip_buffer.h"
 #include "hip_stream.h"
+#include "hip_event.h"
 #include "hip_device.h"
 
 namespace luisa::compute::hip {
@@ -249,7 +250,7 @@ SwapchainCreationInfo HIPDevice::create_swapchain(const SwapchainOption &option,
     LUISA_NOT_IMPLEMENTED();
 }
 
-void HIPDevice::destroy_swap_chain(uint64_t handle) noexcept {
+void HIPDevice::destroy_swapchain(uint64_t handle) noexcept {
     LUISA_NOT_IMPLEMENTED();
 }
 
@@ -278,27 +279,44 @@ void HIPDevice::destroy_shader(uint64_t handle) noexcept {
 }
 
 ResourceCreationInfo HIPDevice::create_event() noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    auto event = with_device([&] {
+        return luisa::new_with_allocator<HIPEvent>(this);
+    });
+    return {.handle = reinterpret_cast<uint64_t>(event),
+            .native_handle = event->handle()};
 }
 
 void HIPDevice::destroy_event(uint64_t handle) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    auto event = reinterpret_cast<HIPEvent *>(handle);
+    with_device([&] {
+        luisa::delete_with_allocator(event);
+    });
 }
 
 void HIPDevice::signal_event(uint64_t handle, uint64_t stream_handle, uint64_t fence_value) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    auto event = reinterpret_cast<HIPEvent *>(handle);
+    auto stream = reinterpret_cast<HIPStream *>(stream_handle);
+    with_device([&] {
+        event->signal(stream->handle(), fence_value);
+    });
 }
 
 void HIPDevice::wait_event(uint64_t handle, uint64_t stream_handle, uint64_t fence_value) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    auto event = reinterpret_cast<HIPEvent *>(handle);
+    auto stream = reinterpret_cast<HIPStream *>(stream_handle);
+    with_device([&] {
+        event->wait(stream->handle(), fence_value);
+    });
 }
 
 bool HIPDevice::is_event_completed(uint64_t handle, uint64_t fence_value) const noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    auto event = reinterpret_cast<HIPEvent *>(handle);
+    return event->has_signaled(fence_value);
 }
 
 void HIPDevice::synchronize_event(uint64_t handle, uint64_t fence_value) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    auto event = reinterpret_cast<HIPEvent *>(handle);
+    event->synchronize(fence_value);
 }
 
 ResourceCreationInfo HIPDevice::create_mesh(const AccelOption &option) noexcept {

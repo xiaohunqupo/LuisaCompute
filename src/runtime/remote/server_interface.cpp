@@ -162,7 +162,7 @@ void ServerInterface::create_swapchain(std::byte const *&ptr, luisa::vector<std:
 void ServerInterface::destroy_swapchain(std::byte const *&ptr, luisa::vector<std::byte> &result) noexcept {
     auto frontend_handle = SerDe::deser_value<uint64_t>(ptr);
     auto handle = remove_handle(frontend_handle);
-    _impl->destroy_swap_chain(handle);
+    _impl->destroy_swapchain(handle);
 }
 void ServerInterface::create_mesh(std::byte const *&ptr, luisa::vector<std::byte> &result) noexcept {}
 void ServerInterface::destroy_mesh(std::byte const *&ptr, luisa::vector<std::byte> &result) noexcept {

@@ -558,7 +558,7 @@ void TransientResourceDevice::set_stream_log_callback(uint64_t stream_handle, co
 SwapchainCreationInfo TransientResourceDevice::create_swapchain(const SwapchainOption &option, uint64_t stream_handle) noexcept {
     LUISA_NOT_IMPL_RET;
 }
-void TransientResourceDevice::destroy_swap_chain(uint64_t handle) noexcept {
+void TransientResourceDevice::destroy_swapchain(uint64_t handle) noexcept {
     LUISA_NOT_IMPLEMENTED();
 }
 void TransientResourceDevice::present_display_in_stream(uint64_t stream_handle, uint64_t swapchain_handle, uint64_t image_handle) noexcept {
