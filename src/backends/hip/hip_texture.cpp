@@ -70,7 +70,7 @@ namespace {
         case PixelFormat::RG32F: [[fallthrough]];
         case PixelFormat::RGBA32F: return HIP_AD_FORMAT_FLOAT;
         case PixelFormat::BC1UNorm: [[fallthrough]];
-        case PixelFormat::BC4UNorm: return HIP_AD_FORMAT_UNSIGNED_INT16;
+        case PixelFormat::BC4UNorm: [[fallthrough]];
         case PixelFormat::BC2UNorm: [[fallthrough]];
         case PixelFormat::BC3UNorm: [[fallthrough]];
         case PixelFormat::BC5UNorm: [[fallthrough]];
@@ -86,9 +86,9 @@ namespace {
 [[nodiscard]] auto hip_array_channel_count(PixelFormat format) noexcept {
     switch (format) {
         case PixelFormat::BC1UNorm: [[fallthrough]];
+        case PixelFormat::BC4UNorm: return 2u;
         case PixelFormat::BC2UNorm: [[fallthrough]];
         case PixelFormat::BC3UNorm: [[fallthrough]];
-        case PixelFormat::BC4UNorm: [[fallthrough]];
         case PixelFormat::BC5UNorm: [[fallthrough]];
         case PixelFormat::BC6HUF16: [[fallthrough]];
         case PixelFormat::BC7UNorm: [[fallthrough]];
