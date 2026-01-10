@@ -31,7 +31,6 @@ if (LUISA_COMPUTE_ENABLE_DSL)
             UNITY_BUILD ${LUISA_COMPUTE_ENABLE_UNITY_BUILD}
             OUTPUT_NAME luisa-dsl)
     luisa_compute_install(dsl SOURCES ${LUISA_COMPUTE_DSL_SOURCES})
-    target_precompile_headers(luisa-compute-dsl PRIVATE lc_dsl_pch.h)
 else ()
     add_library(luisa-compute-dsl INTERFACE)
     luisa_compute_install(dsl)

@@ -24,6 +24,8 @@ public:
     HIPDevice(Context &&ctx, const DeviceConfig *config) noexcept;
     ~HIPDevice() noexcept override;
     [[nodiscard]] auto device_id() const noexcept { return _device_id; }
+    [[nodiscard]] hipUUID_t device_uuid() const noexcept;
+    [[nodiscard]] hipUUID_t device_uuid_for_vulkan() const noexcept;
     [[nodiscard]] void *native_handle() const noexcept override;
     [[nodiscard]] uint compute_warp_size() const noexcept override;
     [[nodiscard]] uint64_t memory_granularity() const noexcept override;

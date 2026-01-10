@@ -40,7 +40,8 @@ static VkBool32 vulkan_validation_callback(VkDebugUtilsMessageSeverityFlagBitsEX
 VulkanInstance::VulkanInstance() noexcept {
     _volk_initializer.init();
     luisa::vector<const char *> extensions;
-    extensions.reserve(4u);
+    extensions.reserve(5u);
+    extensions.emplace_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
     extensions.emplace_back(VK_KHR_SURFACE_EXTENSION_NAME);
 #if defined(LUISA_PLATFORM_WINDOWS)
     extensions.emplace_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);

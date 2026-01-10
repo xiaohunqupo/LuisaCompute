@@ -9,7 +9,6 @@ set(LUISA_COMPUTE_VSTL_SOURCES
         vstl.cpp)
 
 add_library(luisa-compute-vstl OBJECT ${LUISA_COMPUTE_VSTL_SOURCES})
-target_precompile_headers(luisa-compute-vstl PRIVATE lc_vstl_pch.h)
 
 target_link_libraries(luisa-compute-vstl PUBLIC luisa-compute-core)
 

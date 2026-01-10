@@ -1,11 +1,10 @@
+//
+// Created by mike on 1/11/26.
+//
+
 #ifdef LUISA_BACKEND_ENABLE_VULKAN_SWAPCHAIN
 
 #include <volk.h>
-
-#include <cstdlib>
-#include <nvtx3/nvToolsExtCuda.h>
-
-#include <luisa/core/platform.h>
 
 #if defined(LUISA_PLATFORM_WINDOWS)
 #include "../common/windows_security_attributes.h"
@@ -19,14 +18,16 @@
 
 #include "../common/vulkan_instance.h"
 #include <luisa/backends/common/vulkan_swapchain.h>
-#include "cuda_device.h"
-#include "cuda_stream.h"
-#include "cuda_texture.h"
-#include "cuda_swapchain.h"
 
-namespace luisa::compute::cuda {
+#include "hip_check.h"
+#include "hip_device.h"
+#include "hip_stream.h"
+#include "hip_texture.h"
+#include "hip_swapchain.h"
 
-class CUDASwapchain::Impl {
+namespace luisa::compute::hip {
+
+class HIPSwapchain::Impl {
 
 private:
     static constexpr std::array required_extensions{
@@ -49,7 +50,6 @@ private:
     spin_mutex _name_mutex;
     luisa::string _name;
 
-private:
     // vulkan objects
     VkImage _image{nullptr};
     VkDeviceMemory _image_memory{nullptr};
@@ -57,7 +57,12 @@ private:
     VkImageView _image_view{nullptr};
     luisa::vector<VkSemaphore> _semaphores{};
 
-private:
+    // HIP objectsCUexternalMemory _cuda_ext_image_memory{};
+    hipExternalMemory_t _hip_ext_image_memory{};
+    hipMipmappedArray_t _hip_ext_image_mipmapped_array{};
+    hipArray_t _hip_ext_image_array{};
+    luisa::vector<hipExternalSemaphore_t> _hip_ext_semaphores;
+
     [[nodiscard]] auto _find_memory_type(uint32_t type_filter, VkMemoryPropertyFlags properties) noexcept {
         VkPhysicalDeviceMemoryProperties memory_properties;
         vkGetPhysicalDeviceMemoryProperties(_base.physical_device(), &memory_properties);
@@ -241,15 +246,7 @@ private:
         }
     }
 
-private:
-    // cuda objects
-    CUexternalMemory _cuda_ext_image_memory{};
-    CUmipmappedArray _cuda_ext_image_mipmapped_array{};
-    CUarray _cuda_ext_image_array{};
-    luisa::vector<CUexternalSemaphore> _cuda_ext_semaphores;
-
-private:
-    void _cuda_import_image() noexcept {
+    void _hip_import_image() noexcept {
 
         auto vulkan_image_memory_handle = [this](auto type) noexcept {
             auto device = _base.device();
@@ -282,42 +279,39 @@ private:
 #endif
         };
 
-        CUDA_EXTERNAL_MEMORY_HANDLE_DESC cuda_ext_memory_handle{};
+        hipExternalMemoryHandleDesc hip_ext_memory_handle{};
 #ifdef LUISA_PLATFORM_WINDOWS
-        cuda_ext_memory_handle.type = IsWindows8OrGreater() ?
-                                          CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32 :
-                                          CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT;
-        cuda_ext_memory_handle.handle.win32.handle = vulkan_image_memory_handle(
+        hip_ext_memory_handle.type = IsWindows8OrGreater() ?
+                                         hipExternalMemoryHandleTypeOpaqueWin32 :
+                                         hipExternalMemoryHandleTypeOpaqueWin32Kmt;
+        hip_ext_memory_handle.handle.win32.handle = vulkan_image_memory_handle(
             IsWindows8OrGreater() ?
                 VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT :
                 VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT);
 #else
-        cuda_ext_memory_handle.type = CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD;
-        cuda_ext_memory_handle.handle.fd = vulkan_image_memory_handle(
+        hip_ext_memory_handle.type = hipExternalMemoryHandleTypeOpaqueFd;
+        hip_ext_memory_handle.handle.fd = vulkan_image_memory_handle(
             VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT_KHR);
 #endif
-        cuda_ext_memory_handle.size = _image_memory_size;
-        LUISA_CHECK_CUDA(cuImportExternalMemory(&_cuda_ext_image_memory, &cuda_ext_memory_handle));
+        hip_ext_memory_handle.size = _image_memory_size;
+        LUISA_CHECK_HIP(hipImportExternalMemory(&_hip_ext_image_memory, &hip_ext_memory_handle));
 
-        CUDA_EXTERNAL_MEMORY_MIPMAPPED_ARRAY_DESC cuda_ext_mipmapped_array_desc{};
-        cuda_ext_mipmapped_array_desc.offset = 0;
-        cuda_ext_mipmapped_array_desc.arrayDesc.Width = _size.x;
-        cuda_ext_mipmapped_array_desc.arrayDesc.Height = _size.y;
-        cuda_ext_mipmapped_array_desc.arrayDesc.Depth = 0;
-        cuda_ext_mipmapped_array_desc.arrayDesc.Format = _base.is_hdr() ?
-                                                             CU_AD_FORMAT_HALF :
-                                                             CU_AD_FORMAT_UNSIGNED_INT8;
-        cuda_ext_mipmapped_array_desc.arrayDesc.NumChannels = 4;
-        cuda_ext_mipmapped_array_desc.numLevels = 1;
-        LUISA_CHECK_CUDA(cuExternalMemoryGetMappedMipmappedArray(
-            &_cuda_ext_image_mipmapped_array, _cuda_ext_image_memory,
-            &cuda_ext_mipmapped_array_desc));
-        LUISA_CHECK_CUDA(cuMipmappedArrayGetLevel(
-            &_cuda_ext_image_array, _cuda_ext_image_mipmapped_array, 0));
+        hipExternalMemoryMipmappedArrayDesc hip_ext_mipmapped_array_desc{};
+        hip_ext_mipmapped_array_desc.offset = 0;
+        hip_ext_mipmapped_array_desc.formatDesc = _base.is_hdr() ?
+                                                      hipCreateChannelDescHalf4() :
+                                                      hipCreateChannelDesc<uchar4>();
+        hip_ext_mipmapped_array_desc.extent = {_size.x, _size.y, 0};
+        hip_ext_mipmapped_array_desc.numLevels = 1;
+        LUISA_CHECK_HIP(hipExternalMemoryGetMappedMipmappedArray(
+            &_hip_ext_image_mipmapped_array, _hip_ext_image_memory,
+            &hip_ext_mipmapped_array_desc));
+        LUISA_CHECK_HIP(hipMipmappedArrayGetLevel(
+            &_hip_ext_image_array, _hip_ext_image_mipmapped_array, 0));
     }
 
-    void _cuda_import_semaphore(VkSemaphore vk_semaphore,
-                                CUexternalSemaphore &ext_semaphore) noexcept {
+    void _hip_import_semaphore(VkSemaphore vk_semaphore,
+                               hipExternalSemaphore_t &ext_semaphore) noexcept {
 
         auto vulkan_semaphore_handle = [this, vk_semaphore](auto type) noexcept {
             auto device = _base.device();
@@ -350,22 +344,23 @@ private:
 #endif
         };
 
-        CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC cuda_ext_semaphore_handle_desc{};
+        hipExternalSemaphoreHandleDesc hip_ext_semaphore_handle_desc{};
+
 #ifdef LUISA_PLATFORM_WINDOWS
-        cuda_ext_semaphore_handle_desc.type =
+        hip_ext_semaphore_handle_desc.type =
             IsWindows8OrGreater() ?
-                CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32 :
-                CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_KMT;
-        cuda_ext_semaphore_handle_desc.handle.win32.handle = vulkan_semaphore_handle(
+                hipExternalMemoryHandleTypeOpaqueWin32 :
+                hipExternalMemoryHandleTypeOpaqueWin32Kmt;
+        hip_ext_semaphore_handle_desc.handle.win32.handle = vulkan_semaphore_handle(
             IsWindows8OrGreater() ? VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_BIT :
                                     VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT);
 #else
-        cuda_ext_semaphore_handle_desc.type = CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD;
-        cuda_ext_semaphore_handle_desc.handle.fd = vulkan_semaphore_handle(
+        hip_ext_semaphore_handle_desc.type = hipExternalSemaphoreHandleTypeOpaqueFd;
+        hip_ext_semaphore_handle_desc.handle.fd = vulkan_semaphore_handle(
             VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT);
 #endif
 
-        LUISA_CHECK_CUDA(cuImportExternalSemaphore(&ext_semaphore, &cuda_ext_semaphore_handle_desc));
+        LUISA_CHECK_HIP(hipImportExternalSemaphore(&ext_semaphore, &hip_ext_semaphore_handle_desc));
         LUISA_ASSERT(ext_semaphore != nullptr, "Failed to import external semaphore.");
     }
 
@@ -378,11 +373,11 @@ private:
         _create_image_view();
         _create_semaphores();
         // cuda objects
-        _cuda_import_image();
+        _hip_import_image();
         auto n = _base.back_buffer_count();
-        _cuda_ext_semaphores.resize(n);
+        _hip_ext_semaphores.resize(n);
         for (auto i = 0u; i < n; i++) {
-            _cuda_import_semaphore(_semaphores[i], _cuda_ext_semaphores[i]);
+            _hip_import_semaphore(_semaphores[i], _hip_ext_semaphores[i]);
         }
     }
 
@@ -390,11 +385,11 @@ private:
         auto device = _base.device();
         auto n = _base.back_buffer_count();
         // cuda objects
-        LUISA_CHECK_CUDA(cuCtxSynchronize());
-        LUISA_CHECK_CUDA(cuDestroyExternalMemory(_cuda_ext_image_memory));
-        LUISA_CHECK_CUDA(cuMipmappedArrayDestroy(_cuda_ext_image_mipmapped_array));
+        LUISA_CHECK_HIP(hipDeviceSynchronize());
+        LUISA_CHECK_HIP(hipDestroyExternalMemory(_hip_ext_image_memory));
+        LUISA_CHECK_HIP(hipMipmappedArrayDestroy(_hip_ext_image_mipmapped_array));
         for (auto i = 0u; i < n; i++) {
-            LUISA_CHECK_CUDA(cuDestroyExternalSemaphore(_cuda_ext_semaphores[i]));
+            LUISA_CHECK_HIP(hipDestroyExternalSemaphore(_hip_ext_semaphores[i]));
         }
         // vulkan objects
         LUISA_CHECK_VULKAN(vkDeviceWaitIdle(device));
@@ -407,7 +402,7 @@ private:
     }
 
 public:
-    Impl(CUuuid device_uuid,
+    Impl(hipUUID_t device_uuid,
          uint64_t display_handle, uint64_t window_handle,
          uint width, uint height, bool allow_hdr,
          bool vsync, uint back_buffer_size) noexcept
@@ -415,15 +410,24 @@ public:
                 display_handle, window_handle, width, height,
                 allow_hdr, vsync, back_buffer_size, required_extensions},
           _size{make_uint2(width, height)} { _initialize(); }
+
     ~Impl() noexcept { _cleanup(); }
-    [[nodiscard]] auto native_handle() noexcept { return &_base; }
-    [[nodiscard]] auto native_handle() const noexcept { return &_base; }
+
+    [[nodiscard]] VulkanSwapchain *native_handle() noexcept { return &_base; }
+
     [[nodiscard]] auto pixel_storage() const noexcept {
         return _base.is_hdr() ? PixelStorage::HALF4 : PixelStorage::BYTE4;
     }
+
     [[nodiscard]] auto size() const noexcept { return _size; }
 
-    void present(CUstream stream, CUarray image) noexcept {
+    void set_name(luisa::string name) noexcept {
+        std::scoped_lock lock{_name_mutex};
+        _name = std::move(name);
+    }
+
+    void present(hipStream_t stream, hipArray_t image) noexcept {
+
         LUISA_ASSERT(_current_frame < _semaphores.size(), "Invalid frame index.");
         auto name = [this] {
             std::scoped_lock lock{_name_mutex};
@@ -432,66 +436,46 @@ public:
 
         std::scoped_lock lock{_present_mutex};
 
-        if (!name.empty()) { nvtxRangePushA(luisa::format("{}::present", name).c_str()); }
-
         // wait for the frame to be ready
         _base.wait_for_fence();
 
         // copy image to swapchain image
-        if (!name.empty()) { nvtxRangePushA("copy"); }
-        CUDA_MEMCPY3D copy{};
-        copy.srcMemoryType = CU_MEMORYTYPE_ARRAY;
+        HIP_MEMCPY3D copy{};
+        copy.srcMemoryType = hipMemoryTypeArray;
         copy.srcArray = image;
-        copy.dstMemoryType = CU_MEMORYTYPE_ARRAY;
-        copy.dstArray = _cuda_ext_image_array;
+        copy.dstMemoryType = hipMemoryTypeArray;
+        copy.dstArray = _hip_ext_image_array;
         copy.WidthInBytes = pixel_storage_size(pixel_storage(), make_uint3(_size.x, 1u, 1u));
         copy.Height = pixel_storage_size(pixel_storage(), make_uint3(_size.xy(), 1u)) / copy.WidthInBytes;
         copy.Depth = 1u;
-        LUISA_CHECK_CUDA(cuMemcpy3DAsync(&copy, stream));
-        if (!name.empty()) { nvtxRangePop(); }
+        LUISA_CHECK_HIP(hipDrvMemcpy3DAsync(&copy, stream));
 
         // signal that the frame is ready
-        if (!name.empty()) { nvtxRangePushA(luisa::format("signal", name).c_str()); }
-        CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS signal_params{};
-        LUISA_ASSERT(_current_frame < _cuda_ext_semaphores.size(), "Invalid frame index.");
-        auto current_semaphore = _cuda_ext_semaphores[_current_frame];
-        LUISA_CHECK_CUDA(cuSignalExternalSemaphoresAsync(&current_semaphore, &signal_params, 1, stream));
-        if (!name.empty()) { nvtxRangePop(); }
+        hipExternalSemaphoreSignalParams signal_params{};
+        LUISA_ASSERT(_current_frame < _hip_ext_semaphores.size(), "Invalid frame index.");
+        auto current_semaphore = _hip_ext_semaphores[_current_frame];
+        LUISA_CHECK_HIP(hipSignalExternalSemaphoresAsync(&current_semaphore, &signal_params, 1, stream));
 
         // present
-        if (!name.empty()) { nvtxRangePushA(luisa::format("present", name).c_str()); }
         _base.present(_semaphores[_current_frame], nullptr, _image_view,
                       VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-        if (!name.empty()) { nvtxRangePop(); }
 
         // update current frame index
         _current_frame = (_current_frame + 1u) % _base.back_buffer_count();
-
-        if (!name.empty()) { nvtxRangePop(); }
-    }
-
-    void set_name(luisa::string &&name) noexcept {
-        std::scoped_lock lock{_name_mutex};
-        _name = std::move(name);
     }
 };
 
-CUDASwapchain::CUDASwapchain(CUDADevice *device, SwapchainOption o) noexcept
-    : _impl{luisa::make_unique<Impl>(device->handle().handle_uuid(),
+HIPSwapchain::HIPSwapchain(HIPDevice *device, SwapchainOption o) noexcept
+    : _impl{luisa::make_unique<Impl>(device->device_uuid_for_vulkan(),
                                      o.display, o.window, o.size.x, o.size.y,
                                      o.wants_hdr, o.wants_vsync, o.back_buffer_count)} {}
 
-CUDASwapchain::~CUDASwapchain() noexcept = default;
+HIPSwapchain::~HIPSwapchain() noexcept = default;
 
-PixelStorage CUDASwapchain::pixel_storage() const noexcept {
-    return _impl->pixel_storage();
-}
+VulkanSwapchain *HIPSwapchain::native_handle() const noexcept { return _impl->native_handle(); }
+PixelStorage HIPSwapchain::pixel_storage() const noexcept { return _impl->pixel_storage(); }
 
-VulkanSwapchain *CUDASwapchain::native_handle() noexcept {
-    return _impl->native_handle();
-}
-
-void CUDASwapchain::present(CUDAStream *stream, CUDATexture *image) noexcept {
+void HIPSwapchain::present(HIPStream *stream, HIPTexture *image) noexcept {
     LUISA_ASSERT(image->storage() == _impl->pixel_storage(),
                  "Image pixel format must match the swapchain.");
     LUISA_ASSERT(all(image->size() == make_uint3(_impl->size(), 1u)),
@@ -499,10 +483,10 @@ void CUDASwapchain::present(CUDAStream *stream, CUDATexture *image) noexcept {
     _impl->present(stream->handle(), image->level(0u));
 }
 
-void CUDASwapchain::set_name(luisa::string &&name) noexcept {
+void HIPSwapchain::set_name(luisa::string name) noexcept {
     _impl->set_name(std::move(name));
 }
 
-}// namespace luisa::compute::cuda
+}// namespace luisa::compute::hip
 
 #endif

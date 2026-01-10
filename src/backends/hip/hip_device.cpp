@@ -9,6 +9,7 @@
 #include "hip_texture.h"
 #include "hip_stream.h"
 #include "hip_event.h"
+#include "hip_swapchain.h"
 #include "hip_device.h"
 
 namespace luisa::compute::hip {
@@ -153,6 +154,28 @@ void HIPDevice::destroy_sparse_texture(uint64_t handle) noexcept {
     LUISA_NOT_IMPLEMENTED();
 }
 
+hipUUID_t HIPDevice::device_uuid() const noexcept {
+    hipUUID_t uuid{};
+    LUISA_CHECK_HIP(hipDeviceGetUuid(&uuid, _device_id));
+    return uuid;
+}
+
+hipUUID_t HIPDevice::device_uuid_for_vulkan() const noexcept {
+    // The value that hipDeviceGetUuid returns does not correspond with those returned
+    // by mesa (see https://gitlab.freedesktop.org/mesa/mesa/-/blob/5cd3e395037250946ba2519600836341df02c8ca/src/amd/common/ac_gpu_info.c#L1366-1382)
+    // and by xgl (see https://github.com/GPUOpen-Drivers/xgl/blob/4118707939c2f4783d28ce2a383184a3794ca477/icd/api/vk_physical_device.cpp#L4363-L4421)
+    // Those drivers _do_ align with each other, so we can create our own UUID here.
+    // \see https://github.com/ROCm-Developer-Tools/hipamd/issues/50.
+    hipDeviceProp_t props;
+    LUISA_CHECK_HIP(hipGetDeviceProperties(&props, device_id()));
+    hipUUID_t result = {};
+    auto uuid_ints = reinterpret_cast<uint32_t *>(result.bytes);
+    uuid_ints[0] = props.pciDomainID;
+    uuid_ints[1] = props.pciBusID;
+    uuid_ints[2] = props.pciDeviceID;
+    return result;
+}
+
 void *HIPDevice::native_handle() const noexcept {
     return reinterpret_cast<void *>(static_cast<uintptr_t>(_device_id));
 }
@@ -262,16 +285,53 @@ void HIPDevice::dispatch(uint64_t stream_handle, CommandList &&list) noexcept {
     }
 }
 
+namespace {
+
+#ifndef LUISA_BACKEND_ENABLE_VULKAN_SWAPCHAIN
+void report_swapchain_not_enabled() noexcept {
+    LUISA_ERROR_WITH_LOCATION("Swapchains are not enabled on the HIP backend. "
+                              "You need to enable the GUI module and install "
+                              "the Vulkan SDK (>= 1.1) to enable it.");
+}
+#endif
+
+}// namespace
+
 SwapchainCreationInfo HIPDevice::create_swapchain(const SwapchainOption &option, uint64_t stream_handle) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+#ifdef LUISA_BACKEND_ENABLE_VULKAN_SWAPCHAIN
+    auto chain = with_device([&] {
+        return new_with_allocator<HIPSwapchain>(this, option);
+    });
+    SwapchainCreationInfo info{};
+    info.handle = reinterpret_cast<uint64_t>(chain);
+    info.native_handle = chain->native_handle();
+    info.storage = chain->pixel_storage();
+    return info;
+#else
+    report_swapchain_not_enabled();
+#endif
 }
 
 void HIPDevice::destroy_swapchain(uint64_t handle) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+#ifdef LUISA_BACKEND_ENABLE_VULKAN_SWAPCHAIN
+    with_device([chain = reinterpret_cast<HIPSwapchain *>(handle)] {
+        delete_with_allocator(chain);
+    });
+#else
+    report_swapchain_not_enabled();
+#endif
 }
 
 void HIPDevice::present_display_in_stream(uint64_t stream_handle, uint64_t swapchain_handle, uint64_t image_handle) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+#ifdef LUISA_BACKEND_ENABLE_VULKAN_SWAPCHAIN
+    with_device([stream = reinterpret_cast<HIPStream *>(stream_handle),
+                 chain = reinterpret_cast<HIPSwapchain *>(swapchain_handle),
+                 image = reinterpret_cast<HIPTexture *>(image_handle)] {
+        chain->present(stream, image);
+    });
+#else
+    report_swapchain_not_enabled();
+#endif
 }
 
 ShaderCreationInfo HIPDevice::create_shader(const ShaderOption &option, Function kernel) noexcept {

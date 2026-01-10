@@ -1,6 +1,6 @@
 #pragma once
 
-#include <algorithm>//
+#include <algorithm>
 
 #include <luisa/core/dll_export.h>
 #include <luisa/core/basic_types.h>

@@ -11,12 +11,14 @@ if (hip_FOUND)
             hip_event.cpp hip_event.h
             hip_stage_buffer_pool.cpp hip_stage_buffer_pool.h
             hip_stream.cpp hip_stream.h
+            hip_swapchain.cpp hip_swapchain.h
             hip_texture.cpp hip_texture.h
     )
     luisa_compute_add_backend(hip SOURCES ${LUISA_HIP_SOURCES})
     target_link_libraries(luisa-compute-backend-hip PRIVATE
             luisa-compute-ast
             luisa-compute-runtime
+            luisa-compute-vulkan-swapchain
             hip::host)
     if (LUISA_COMPUTE_HIP_PLATFORM_NVIDIA)
         find_package(CUDAToolkit REQUIRED)

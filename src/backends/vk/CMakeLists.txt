@@ -13,7 +13,6 @@ if (LUISA_COMPUTE_ENABLE_VULKAN)
                 "-framework QuartzCore"
                 "-framework AppKit")
     endif ()
-    target_precompile_headers(luisa-compute-backend-vk PRIVATE lc_vk_pch.h)
     if (WIN32)
         target_compile_definitions(luisa-compute-backend-vk PRIVATE VK_USE_PLATFORM_WIN32_KHR)
     elseif (UNIX AND NOT APPLE)

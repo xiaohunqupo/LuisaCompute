@@ -4,7 +4,7 @@
 
 #include <luisa/core/basic_types.h>
 #include <luisa/core/stl/memory.h>
-#include <luisa/runtime/rhi/pixel.h>
+#include <luisa/runtime/rhi/resource.h>
 
 namespace luisa::compute {
 class VulkanSwapchain;
