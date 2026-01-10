@@ -27,7 +27,8 @@ private:
     hipSurfaceObject_t _mip_surfaces[max_level_count]{};
     uint16_t _size[3] = {};
     uint8_t _format = {};
-    uint8_t _levels = {};
+    uint8_t _levels : 4 = {};
+    uint8_t _dimension : 4 = {};
 
 public:
     HIPTexture() noexcept;
@@ -39,6 +40,7 @@ public:
     [[nodiscard]] hipArray_t level(uint32_t i) const noexcept;
     [[nodiscard]] HIPSurface surface(uint32_t level) const noexcept;
     [[nodiscard]] auto size() const noexcept { return make_uint3(_size[0], _size[1], _size[2]); }
+    [[nodiscard]] auto dimension() const noexcept { return static_cast<uint>(_dimension); }
     [[nodiscard]] auto is_mipmapped() const noexcept { return _levels > 1u; }
     [[nodiscard]] auto binding(uint32_t level) const noexcept { return surface(level); }
     [[nodiscard]] hipTextureObject_t create_texture_object(Sampler s) const noexcept;

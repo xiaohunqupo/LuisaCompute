@@ -12,10 +12,10 @@ HIPTexture::HIPTexture() noexcept = default;
 HIPTexture::~HIPTexture() noexcept {
     for (auto i = 0u; i < _levels; i++) {
         if (_mip_surfaces[i]) { LUISA_CHECK_HIP(hipDestroySurfaceObject(_mip_surfaces[i])); }
-        LUISA_CHECK_HIP(hipFreeArray(_mip_arrays[i]));
+        LUISA_CHECK_HIP(hipArrayDestroy(_mip_arrays[i]));
     }
-    if (_levels > 1u) {
-        LUISA_CHECK_HIP(hipFreeMipmappedArray(static_cast<hipMipmappedArray_t>(_base_array)));
+    if (is_mipmapped()) {
+        LUISA_CHECK_HIP(hipMipmappedArrayDestroy(static_cast<hipMipmappedArray_t>(_base_array)));
     }
 }
 
@@ -172,23 +172,23 @@ namespace {
                               luisa::to_underlying(filter));
 }
 
-[[nodiscard]] auto hip_texture_mipmap_filter_mode(Sampler::Filter filter) noexcept {
+[[nodiscard]] auto hip_texture_mipmap_filter_mode(Sampler::Filter filter, bool is_mipmapped) noexcept {
     switch (filter) {
         case Sampler::Filter::POINT: return HIP_TR_FILTER_MODE_POINT;
         case Sampler::Filter::LINEAR_POINT: return HIP_TR_FILTER_MODE_POINT;
-        case Sampler::Filter::LINEAR_LINEAR: return HIP_TR_FILTER_MODE_LINEAR;
-        case Sampler::Filter::ANISOTROPIC: return HIP_TR_FILTER_MODE_LINEAR;
+        case Sampler::Filter::LINEAR_LINEAR: return is_mipmapped ? HIP_TR_FILTER_MODE_LINEAR : HIP_TR_FILTER_MODE_POINT;
+        case Sampler::Filter::ANISOTROPIC: return is_mipmapped ? HIP_TR_FILTER_MODE_LINEAR : HIP_TR_FILTER_MODE_POINT;
     }
     LUISA_ERROR_WITH_LOCATION("Unsupported sampler filter mode {}.",
                               luisa::to_underlying(filter));
 }
 
-[[nodiscard]] auto hip_texture_max_anisotropy(Sampler::Filter filter) noexcept {
+[[nodiscard]] auto hip_texture_max_anisotropy(Sampler::Filter filter, bool is_mipmapped) noexcept {
     switch (filter) {
         case Sampler::Filter::POINT: return 0u;
         case Sampler::Filter::LINEAR_POINT: return 0u;
         case Sampler::Filter::LINEAR_LINEAR: return 0u;
-        case Sampler::Filter::ANISOTROPIC: return 16u;
+        case Sampler::Filter::ANISOTROPIC: return is_mipmapped ? 16u : 0u;
     }
     LUISA_ERROR_WITH_LOCATION("Unsupported sampler filter mode {}.",
                               luisa::to_underlying(filter));
@@ -205,9 +205,28 @@ namespace {
                               luisa::to_underlying(filter));
 }
 
+[[nodiscard]] auto hip_texture_is_samplable(PixelFormat format) noexcept {
+    return format == PixelFormat::R8UNorm ||
+           format == PixelFormat::RG8UNorm ||
+           format == PixelFormat::RGBA8UNorm ||
+           format == PixelFormat::R16UNorm ||
+           format == PixelFormat::RG16UNorm ||
+           format == PixelFormat::RGBA16UNorm ||
+           format == PixelFormat::R32F ||
+           format == PixelFormat::RG32F ||
+           format == PixelFormat::RGBA32F ||
+           format == PixelFormat::R16F ||
+           format == PixelFormat::RG16F ||
+           format == PixelFormat::RGBA16F ||
+           is_block_compressed(format);
+}
+
 }// namespace
 
 hipTextureObject_t HIPTexture::create_texture_object(Sampler s) const noexcept {
+    LUISA_ASSERT(hip_texture_is_samplable(format()),
+                 "Pixel format {} cannot be used for texture sampling.",
+                 luisa::to_underlying(format()));
     HIP_RESOURCE_DESC res_desc{};
     if (is_mipmapped()) {
         res_desc.resType = HIP_RESOURCE_TYPE_MIPMAPPED_ARRAY;
@@ -222,8 +241,8 @@ hipTextureObject_t HIPTexture::create_texture_object(Sampler s) const noexcept {
     tex_desc.addressMode[1] = address_mode;
     tex_desc.addressMode[2] = address_mode;
     tex_desc.filterMode = hip_texture_filter_mode(s.filter());
-    tex_desc.mipmapFilterMode = hip_texture_mipmap_filter_mode(s.filter());
-    tex_desc.maxAnisotropy = hip_texture_max_anisotropy(s.filter());
+    tex_desc.mipmapFilterMode = hip_texture_mipmap_filter_mode(s.filter(), is_mipmapped());
+    tex_desc.maxAnisotropy = hip_texture_max_anisotropy(s.filter(), is_mipmapped());
     tex_desc.maxMipmapLevelClamp = hip_texture_mip_level_clamp(s.filter(), is_mipmapped());
     tex_desc.flags = HIP_TRSF_NORMALIZED_COORDINATES;
     if (is_srgb(format())) { tex_desc.flags |= HIP_TRSF_SRGB; }
@@ -233,7 +252,7 @@ hipTextureObject_t HIPTexture::create_texture_object(Sampler s) const noexcept {
         view_desc.format = hip_resource_view_format(format());
         view_desc.width = _size[0];
         view_desc.height = _size[1];
-        view_desc.depth = _size[2];
+        view_desc.depth = _dimension == 2u ? 0u : _size[2];
         view_desc.firstMipmapLevel = 0u;
         view_desc.lastMipmapLevel = _levels - 1u;
         view_desc.firstLayer = 0u;
@@ -257,6 +276,7 @@ HIPTexture *HIPTexture::create_device_texture(PixelFormat format, uint dim, uint
     t->_size[2] = static_cast<uint16_t>(size.z);
     t->_format = static_cast<uint8_t>(format);
     t->_levels = static_cast<uint8_t>(mip_levels);
+    t->_dimension = static_cast<uint8_t>(dim);
     auto is_bc = is_block_compressed(format);
     HIP_ARRAY3D_DESCRIPTOR array_desc{};
     array_desc.Width = is_bc ? (size.x + 3u) / 4u : size.x;
