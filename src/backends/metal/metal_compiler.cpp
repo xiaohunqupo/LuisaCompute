@@ -378,6 +378,9 @@ MetalShaderHandle MetalCompiler::compile(luisa::string_view src,
         auto options = MTL::CompileOptions::alloc()->init();
         options->setFastMathEnabled(option.enable_fast_math);
         options->setLibraryType(MTL::LibraryTypeExecutable);
+        if (options->languageVersion() < MTL::LanguageVersion3_0) {
+            options->setLanguageVersion(MTL::LanguageVersion3_0);
+        }
 
         // this requires iOS 16.4+, iPadOS 16.4+, macOS 13.3+, Mac Catalyst 16.4+, tvOS 16.4+
         if (__builtin_available(iOS 16.4, macOS 13.3, tvOS 16.4, macCatalyst 16.4, *)) {
