@@ -1,7 +1,13 @@
 #pragma once
+
+#include <luisa/core/basic_types.h>
 #include <luisa/backends/ext/native_resource_ext_interface.h>
+
 namespace lc::validation {
+
+using luisa::uint;
 using namespace luisa::compute;
+
 class NativeResourceExtImpl : public NativeResourceExt {
 public:
     NativeResourceExt *_native;
@@ -38,4 +44,5 @@ public:
     uint64_t get_native_resource_device_address(
         void *native_handle) noexcept override;
 };
+
 }// namespace lc::validation

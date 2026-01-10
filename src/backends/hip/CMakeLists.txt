@@ -18,8 +18,11 @@ if (hip_FOUND)
     target_link_libraries(luisa-compute-backend-hip PRIVATE
             luisa-compute-ast
             luisa-compute-runtime
-            luisa-compute-vulkan-swapchain
-            hip::host)
+            hip::host
+    )
+    if (TARGET luisa-compute-vulkan-swapchain)
+        target_link_libraries(luisa-compute-backend-hip PRIVATE luisa-compute-vulkan-swapchain)
+    endif ()
     if (LUISA_COMPUTE_HIP_PLATFORM_NVIDIA)
         find_package(CUDAToolkit REQUIRED)
         target_compile_definitions(luisa-compute-backend-hip PRIVATE __HIP_PLATFORM_NVIDIA__=1)

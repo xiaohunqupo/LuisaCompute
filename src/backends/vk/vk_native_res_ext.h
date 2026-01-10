@@ -2,6 +2,7 @@
 #include <luisa/backends/ext/native_resource_ext_interface.h>
 namespace lc::vk {
 class Device;
+using luisa::uint;
 using namespace luisa::compute;
 class VkNativeResourceExt : public NativeResourceExt {
 public:

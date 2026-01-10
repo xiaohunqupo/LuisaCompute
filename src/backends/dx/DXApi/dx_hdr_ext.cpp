@@ -4,6 +4,7 @@
 #include <dxgi1_5.h>
 #include <DXApi/LCSwapChain.h>
 #include <Resource/TextureBase.h>
+#include <dxgi1_6.h>
 namespace lc::dx {
 using namespace luisa::compute;
 namespace dx_hdr_ext_detail {

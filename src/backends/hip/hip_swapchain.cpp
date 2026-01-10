@@ -349,8 +349,8 @@ private:
 #ifdef LUISA_PLATFORM_WINDOWS
         hip_ext_semaphore_handle_desc.type =
             IsWindows8OrGreater() ?
-                hipExternalMemoryHandleTypeOpaqueWin32 :
-                hipExternalMemoryHandleTypeOpaqueWin32Kmt;
+                hipExternalSemaphoreHandleTypeOpaqueWin32 :
+                hipExternalSemaphoreHandleTypeOpaqueWin32Kmt;
         hip_ext_semaphore_handle_desc.handle.win32.handle = vulkan_semaphore_handle(
             IsWindows8OrGreater() ? VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_BIT :
                                     VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT);

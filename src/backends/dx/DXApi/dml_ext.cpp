@@ -1,5 +1,6 @@
 #include "dml_ext.h"
 #include "LCCmdBuffer.h"
+#include <luisa/core/dynamic_module.h>
 #include <luisa/runtime/stream.h>
 #define _D3D12MA_IUNKNOWN_IMPL_FUNCTIONS
 #include "DirectMLX.h"
