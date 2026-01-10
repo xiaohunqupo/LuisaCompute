@@ -75,8 +75,8 @@ CUDABindlessArray::~CUDABindlessArray() noexcept {
 
 [[nodiscard]] inline auto create_cuda_texture_object(uint64_t handle, Sampler sampler) noexcept {
     CUDA_RESOURCE_DESC res_desc{};
-    if (auto array = reinterpret_cast<const CUDATexture *>(handle);
-        array->levels() == 1u) {
+    auto array = reinterpret_cast<const CUDATexture *>(handle);
+    if (array->levels() == 1u) {
         res_desc.resType = CU_RESOURCE_TYPE_ARRAY;
         res_desc.res.array.hArray = reinterpret_cast<CUarray>(array->handle());
     } else {
@@ -84,6 +84,7 @@ CUDABindlessArray::~CUDABindlessArray() noexcept {
         res_desc.res.mipmap.hMipmappedArray = reinterpret_cast<CUmipmappedArray>(array->handle());
     }
     auto tex_desc = cuda_texture_descriptor(sampler);
+    if (is_srgb(array->format())) { tex_desc.flags |= CU_TRSF_SRGB; }
     CUtexObject texture;
     LUISA_CHECK_CUDA(cuTexObjectCreate(&texture, &res_desc, &tex_desc, nullptr));
     return texture;
@@ -171,4 +172,3 @@ void CUDABindlessArray::set_name(luisa::string &&name) noexcept {
 }
 
 }// namespace luisa::compute::cuda
-

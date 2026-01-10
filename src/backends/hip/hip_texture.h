@@ -6,6 +6,7 @@
 
 #include <hip/hip_runtime.h>
 #include <luisa/runtime/rhi/pixel.h>
+#include <luisa/runtime/rhi/sampler.h>
 
 namespace luisa::compute::hip {
 
@@ -37,8 +38,10 @@ public:
     [[nodiscard]] auto levels() const noexcept { return static_cast<size_t>(_levels); }
     [[nodiscard]] hipArray_t level(uint32_t i) const noexcept;
     [[nodiscard]] HIPSurface surface(uint32_t level) const noexcept;
-    [[nodiscard]] uint3 size() const noexcept { return make_uint3(_size[0], _size[1], _size[2]); }
+    [[nodiscard]] auto size() const noexcept { return make_uint3(_size[0], _size[1], _size[2]); }
+    [[nodiscard]] auto is_mipmapped() const noexcept { return _levels > 1u; }
     [[nodiscard]] auto binding(uint32_t level) const noexcept { return surface(level); }
+    [[nodiscard]] hipTextureObject_t create_texture_object(Sampler s) const noexcept;
 
 public:
     [[nodiscard]] static HIPTexture *create_device_texture(PixelFormat format, uint dim, uint3 size, uint32_t mip_levels) noexcept;

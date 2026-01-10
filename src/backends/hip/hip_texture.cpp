@@ -15,7 +15,7 @@ HIPTexture::~HIPTexture() noexcept {
         LUISA_CHECK_HIP(hipFreeArray(_mip_arrays[i]));
     }
     if (_levels > 1u) {
-        LUISA_CHECK_HIP(hipFreeMipmappedArray(reinterpret_cast<hipMipmappedArray_t>(_base_array)));
+        LUISA_CHECK_HIP(hipFreeMipmappedArray(static_cast<hipMipmappedArray_t>(_base_array)));
     }
 }
 
@@ -77,12 +77,9 @@ namespace {
         case PixelFormat::BC6HUF16: [[fallthrough]];
         case PixelFormat::BC7UNorm: [[fallthrough]];
         case PixelFormat::BC7SRGB: return HIP_AD_FORMAT_UNSIGNED_INT32;
-        case PixelFormat::R10G10B10A2UInt: [[fallthrough]];
-        case PixelFormat::R10G10B10A2UNorm: [[fallthrough]];
-        case PixelFormat::R11G11B10F: [[fallthrough]];
-        case PixelFormat::RGBA8SRGB: return HIP_AD_FORMAT_UNSIGNED_INT8;
+        default: break;
     }
-    LUISA_ERROR_WITH_LOCATION("Invalid pixel format 0x{:02x}.",
+    LUISA_ERROR_WITH_LOCATION("Unsupported pixel format 0x{:02x}.",
                               luisa::to_underlying(format));
 }
 
@@ -95,19 +92,161 @@ namespace {
         case PixelFormat::BC5UNorm: [[fallthrough]];
         case PixelFormat::BC6HUF16: [[fallthrough]];
         case PixelFormat::BC7UNorm: [[fallthrough]];
-        case PixelFormat::BC7SRGB: [[fallthrough]];
+        case PixelFormat::BC7SRGB: return 4u;
         case PixelFormat::R10G10B10A2UInt: [[fallthrough]];
         case PixelFormat::R10G10B10A2UNorm: [[fallthrough]];
         case PixelFormat::R11G11B10F: [[fallthrough]];
-        case PixelFormat::RGBA8SRGB: return 4u;
+        case PixelFormat::RGBA8SRGB: LUISA_ERROR_WITH_LOCATION(
+            "HIPTexture does not support special formats "
+            "R10G10B10A2, R11G11B10F, and sRGB RGBA8 as array formats.");
         default: break;
     }
     return pixel_format_channel_count(format);
 }
 
+[[nodiscard]] auto hip_resource_view_format(PixelFormat format) noexcept {
+    switch (format) {
+        case PixelFormat::R8SInt: return HIP_RES_VIEW_FORMAT_SINT_1X8;
+        case PixelFormat::R8UInt: return HIP_RES_VIEW_FORMAT_UINT_1X8;
+        case PixelFormat::R8UNorm: return HIP_RES_VIEW_FORMAT_UINT_1X8;
+        case PixelFormat::RG8SInt: return HIP_RES_VIEW_FORMAT_SINT_2X8;
+        case PixelFormat::RG8UInt: return HIP_RES_VIEW_FORMAT_UINT_2X8;
+        case PixelFormat::RG8UNorm: return HIP_RES_VIEW_FORMAT_UINT_2X8;
+        case PixelFormat::RGBA8SInt: return HIP_RES_VIEW_FORMAT_SINT_4X8;
+        case PixelFormat::RGBA8UInt: return HIP_RES_VIEW_FORMAT_UINT_4X8;
+        case PixelFormat::RGBA8UNorm: return HIP_RES_VIEW_FORMAT_UINT_4X8;
+        case PixelFormat::R16SInt: return HIP_RES_VIEW_FORMAT_SINT_1X16;
+        case PixelFormat::R16UInt: return HIP_RES_VIEW_FORMAT_UINT_1X16;
+        case PixelFormat::R16UNorm: return HIP_RES_VIEW_FORMAT_UINT_1X16;
+        case PixelFormat::RG16SInt: return HIP_RES_VIEW_FORMAT_SINT_2X16;
+        case PixelFormat::RG16UInt: return HIP_RES_VIEW_FORMAT_UINT_2X16;
+        case PixelFormat::RG16UNorm: return HIP_RES_VIEW_FORMAT_UINT_2X16;
+        case PixelFormat::RGBA16SInt: return HIP_RES_VIEW_FORMAT_SINT_4X16;
+        case PixelFormat::RGBA16UInt: return HIP_RES_VIEW_FORMAT_UINT_4X16;
+        case PixelFormat::RGBA16UNorm: return HIP_RES_VIEW_FORMAT_UINT_4X16;
+        case PixelFormat::R32SInt: return HIP_RES_VIEW_FORMAT_SINT_1X32;
+        case PixelFormat::R32UInt: return HIP_RES_VIEW_FORMAT_UINT_1X32;
+        case PixelFormat::RG32SInt: return HIP_RES_VIEW_FORMAT_SINT_2X32;
+        case PixelFormat::RG32UInt: return HIP_RES_VIEW_FORMAT_UINT_2X32;
+        case PixelFormat::RGBA32SInt: return HIP_RES_VIEW_FORMAT_SINT_4X32;
+        case PixelFormat::RGBA32UInt: return HIP_RES_VIEW_FORMAT_UINT_4X32;
+        case PixelFormat::R16F: return HIP_RES_VIEW_FORMAT_FLOAT_1X16;
+        case PixelFormat::RG16F: return HIP_RES_VIEW_FORMAT_FLOAT_2X16;
+        case PixelFormat::RGBA16F: return HIP_RES_VIEW_FORMAT_FLOAT_4X16;
+        case PixelFormat::R32F: return HIP_RES_VIEW_FORMAT_FLOAT_1X32;
+        case PixelFormat::RG32F: return HIP_RES_VIEW_FORMAT_FLOAT_2X32;
+        case PixelFormat::RGBA32F: return HIP_RES_VIEW_FORMAT_FLOAT_4X32;
+        case PixelFormat::BC1UNorm: return HIP_RES_VIEW_FORMAT_UNSIGNED_BC1;
+        case PixelFormat::BC2UNorm: return HIP_RES_VIEW_FORMAT_UNSIGNED_BC2;
+        case PixelFormat::BC3UNorm: return HIP_RES_VIEW_FORMAT_UNSIGNED_BC3;
+        case PixelFormat::BC4UNorm: return HIP_RES_VIEW_FORMAT_UNSIGNED_BC4;
+        case PixelFormat::BC5UNorm: return HIP_RES_VIEW_FORMAT_UNSIGNED_BC5;
+        case PixelFormat::BC6HUF16: return HIP_RES_VIEW_FORMAT_UNSIGNED_BC6H;
+        case PixelFormat::BC7UNorm: return HIP_RES_VIEW_FORMAT_UNSIGNED_BC7;
+        case PixelFormat::BC7SRGB: return HIP_RES_VIEW_FORMAT_UNSIGNED_BC7;
+        default: break;
+    }
+    LUISA_ERROR_WITH_LOCATION("Unsupported pixel format 0x{:02x} for resource view.",
+                              luisa::to_underlying(format));
+}
+
+[[nodiscard]] auto hip_texture_address_mode(Sampler::Address mode) noexcept {
+    switch (mode) {
+        case Sampler::Address::EDGE: return HIP_TR_ADDRESS_MODE_CLAMP;
+        case Sampler::Address::REPEAT: return HIP_TR_ADDRESS_MODE_WRAP;
+        case Sampler::Address::MIRROR: return HIP_TR_ADDRESS_MODE_MIRROR;
+        case Sampler::Address::ZERO: return HIP_TR_ADDRESS_MODE_BORDER;
+    }
+    LUISA_ERROR_WITH_LOCATION("Unsupported sampler address mode {}.",
+                              luisa::to_underlying(mode));
+}
+
+[[nodiscard]] auto hip_texture_filter_mode(Sampler::Filter filter) noexcept {
+    switch (filter) {
+        case Sampler::Filter::POINT: return HIP_TR_FILTER_MODE_POINT;
+        case Sampler::Filter::LINEAR_POINT: return HIP_TR_FILTER_MODE_LINEAR;
+        case Sampler::Filter::LINEAR_LINEAR: return HIP_TR_FILTER_MODE_LINEAR;
+        case Sampler::Filter::ANISOTROPIC: return HIP_TR_FILTER_MODE_LINEAR;
+    }
+    LUISA_ERROR_WITH_LOCATION("Unsupported sampler filter mode {}.",
+                              luisa::to_underlying(filter));
+}
+
+[[nodiscard]] auto hip_texture_mipmap_filter_mode(Sampler::Filter filter) noexcept {
+    switch (filter) {
+        case Sampler::Filter::POINT: return HIP_TR_FILTER_MODE_POINT;
+        case Sampler::Filter::LINEAR_POINT: return HIP_TR_FILTER_MODE_POINT;
+        case Sampler::Filter::LINEAR_LINEAR: return HIP_TR_FILTER_MODE_LINEAR;
+        case Sampler::Filter::ANISOTROPIC: return HIP_TR_FILTER_MODE_LINEAR;
+    }
+    LUISA_ERROR_WITH_LOCATION("Unsupported sampler filter mode {}.",
+                              luisa::to_underlying(filter));
+}
+
+[[nodiscard]] auto hip_texture_max_anisotropy(Sampler::Filter filter) noexcept {
+    switch (filter) {
+        case Sampler::Filter::POINT: return 0u;
+        case Sampler::Filter::LINEAR_POINT: return 0u;
+        case Sampler::Filter::LINEAR_LINEAR: return 0u;
+        case Sampler::Filter::ANISOTROPIC: return 16u;
+    }
+    LUISA_ERROR_WITH_LOCATION("Unsupported sampler filter mode {}.",
+                              luisa::to_underlying(filter));
+}
+
+[[nodiscard]] auto hip_texture_mip_level_clamp(Sampler::Filter filter, bool is_mipmapped) noexcept {
+    switch (filter) {
+        case Sampler::Filter::POINT: return 0.0f;
+        case Sampler::Filter::LINEAR_POINT: return 0.0f;
+        case Sampler::Filter::LINEAR_LINEAR: return is_mipmapped ? 999.0f : 0.0f;
+        case Sampler::Filter::ANISOTROPIC: return is_mipmapped ? 999.0f : 0.0f;
+    }
+    LUISA_ERROR_WITH_LOCATION("Unsupported sampler filter mode {}.",
+                              luisa::to_underlying(filter));
+}
+
 }// namespace
 
+hipTextureObject_t HIPTexture::create_texture_object(Sampler s) const noexcept {
+    HIP_RESOURCE_DESC res_desc{};
+    if (is_mipmapped()) {
+        res_desc.resType = HIP_RESOURCE_TYPE_MIPMAPPED_ARRAY;
+        res_desc.res.mipmap.hMipmappedArray = static_cast<hipMipmappedArray_t>(_base_array);
+    } else {
+        res_desc.resType = HIP_RESOURCE_TYPE_ARRAY;
+        res_desc.res.array.hArray = static_cast<hipArray_t>(_base_array);
+    }
+    HIP_TEXTURE_DESC tex_desc{};
+    auto address_mode = hip_texture_address_mode(s.address());
+    tex_desc.addressMode[0] = address_mode;
+    tex_desc.addressMode[1] = address_mode;
+    tex_desc.addressMode[2] = address_mode;
+    tex_desc.filterMode = hip_texture_filter_mode(s.filter());
+    tex_desc.mipmapFilterMode = hip_texture_mipmap_filter_mode(s.filter());
+    tex_desc.maxAnisotropy = hip_texture_max_anisotropy(s.filter());
+    tex_desc.maxMipmapLevelClamp = hip_texture_mip_level_clamp(s.filter(), is_mipmapped());
+    tex_desc.flags = HIP_TRSF_NORMALIZED_COORDINATES;
+    if (is_srgb(format())) { tex_desc.flags |= HIP_TRSF_SRGB; }
+    HIP_RESOURCE_VIEW_DESC view_desc{};
+    view_desc.format = hip_resource_view_format(format());
+    view_desc.width = _size[0];
+    view_desc.height = _size[1];
+    view_desc.depth = _size[2];
+    view_desc.firstMipmapLevel = 0u;
+    view_desc.lastMipmapLevel = _levels - 1u;
+    view_desc.firstLayer = 0u;
+    view_desc.lastLayer = 0u;
+    hipTextureObject_t texture_object{nullptr};
+    LUISA_CHECK_HIP(hipTexObjectCreate(&texture_object, &res_desc, &tex_desc, &view_desc));
+    return texture_object;
+}
+
 HIPTexture *HIPTexture::create_device_texture(PixelFormat format, uint dim, uint3 size, uint32_t mip_levels) noexcept {
+    LUISA_ASSERT(dim == 2u || dim == 3u,
+                 "HIPTexture::create_device_texture() only supports 2D and 3D textures.");
+    LUISA_ASSERT(mip_levels >= 1u && mip_levels <= max_level_count,
+                 "HIPTexture::create_device_texture() mip levels {} out of range [1, {}].",
+                 mip_levels, max_level_count);
     auto t = luisa::new_with_allocator<HIPTexture>();
     t->_size[0] = static_cast<uint16_t>(size.x);
     t->_size[1] = static_cast<uint16_t>(size.y);
@@ -133,7 +272,7 @@ HIPTexture *HIPTexture::create_device_texture(PixelFormat format, uint dim, uint
         t->_base_array = mipmapped_array_handle;
         for (auto i = 0u; i < mip_levels; i++) {
             hipArray_t level_array{nullptr};
-            LUISA_CHECK_HIP(hipGetMipmappedArrayLevel(&level_array, mipmapped_array_handle, i));
+            LUISA_CHECK_HIP(hipMipmappedArrayGetLevel(&level_array, mipmapped_array_handle, i));
             t->_mip_arrays[i] = level_array;
         }
     }
