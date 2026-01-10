@@ -227,17 +227,21 @@ hipTextureObject_t HIPTexture::create_texture_object(Sampler s) const noexcept {
     tex_desc.maxMipmapLevelClamp = hip_texture_mip_level_clamp(s.filter(), is_mipmapped());
     tex_desc.flags = HIP_TRSF_NORMALIZED_COORDINATES;
     if (is_srgb(format())) { tex_desc.flags |= HIP_TRSF_SRGB; }
-    HIP_RESOURCE_VIEW_DESC view_desc{};
-    view_desc.format = hip_resource_view_format(format());
-    view_desc.width = _size[0];
-    view_desc.height = _size[1];
-    view_desc.depth = _size[2];
-    view_desc.firstMipmapLevel = 0u;
-    view_desc.lastMipmapLevel = _levels - 1u;
-    view_desc.firstLayer = 0u;
-    view_desc.lastLayer = 0u;
     hipTextureObject_t texture_object{nullptr};
-    LUISA_CHECK_HIP(hipTexObjectCreate(&texture_object, &res_desc, &tex_desc, &view_desc));
+    if (is_block_compressed(format())) {
+        HIP_RESOURCE_VIEW_DESC view_desc{};
+        view_desc.format = hip_resource_view_format(format());
+        view_desc.width = _size[0];
+        view_desc.height = _size[1];
+        view_desc.depth = _size[2];
+        view_desc.firstMipmapLevel = 0u;
+        view_desc.lastMipmapLevel = _levels - 1u;
+        view_desc.firstLayer = 0u;
+        view_desc.lastLayer = 0u;
+        LUISA_CHECK_HIP(hipTexObjectCreate(&texture_object, &res_desc, &tex_desc, &view_desc));
+    } else {
+        LUISA_CHECK_HIP(hipTexObjectCreate(&texture_object, &res_desc, &tex_desc, nullptr));
+    }
     return texture_object;
 }
 
