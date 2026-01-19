@@ -10,6 +10,7 @@
 #include "cuda_compiler.h"
 #include "optix_api.h"
 #include "cuda_shader_metadata.h"
+#include "extensions/cuda_external_ext.h"
 
 namespace luisa::compute::cuda {
 
@@ -106,6 +107,7 @@ private:
     std::mutex _ext_mutex;
     luisa::unique_ptr<CUDADStorageExt> _dstorage_ext;
     luisa::unique_ptr<CUDAPinnedMemoryExt> _pinned_memory_ext;
+    luisa::unique_ptr<CUDAExternalExt> _external_ext;
     luisa::unique_ptr<DeviceConfigExt> _device_ext;
 #if LUISA_BACKEND_ENABLE_OIDN
     luisa::unique_ptr<CUDADenoiserExt> _denoiser_ext;

@@ -18,8 +18,16 @@ public:
     void cuda_signal(DeviceInterface *device, uint64_t stream_handle, uint64_t event_handle, uint64_t fence) noexcept override {
         impl->cuda_signal(device, stream_handle, event_handle, fence);
     }
+    void cuda_signal(DeviceInterface *device, void *cu_stream_ptr, uint64_t event_handle, uint64_t fence) noexcept override {
+        impl->cuda_signal(device, cu_stream_ptr, event_handle, fence);
+    }
+
     void cuda_wait(DeviceInterface *device, uint64_t stream_handle, uint64_t event_handle, uint64_t fence) noexcept override {
         impl->cuda_wait(device, stream_handle, event_handle, fence);
+    }
+
+    void cuda_wait(DeviceInterface *device, void *cu_stream_ptr, uint64_t event_handle, uint64_t fence) noexcept override {
+        impl->cuda_wait(device, cu_stream_ptr, event_handle, fence);
     }
 
     void cuda_buffer(uint64_t dx_buffer_handle, uint64_t *cuda_ptr, uint64_t *cuda_handle /*CUexternalMemory* */) noexcept override {

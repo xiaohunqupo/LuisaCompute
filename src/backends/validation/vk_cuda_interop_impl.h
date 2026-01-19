@@ -12,11 +12,11 @@ public:
         PixelFormat format, uint dimension,
         uint width, uint height, uint depth,
         uint mipmap_levels, bool simultaneous_access, bool allow_raster_target) noexcept;
-    void _vk_signal(uint64_t cuda_event_handle, uint64_t vk_stream, uint64_t fence_index) noexcept override {
-        impl->_vk_signal(cuda_event_handle, vk_stream, fence_index);
+    void vk_signal(uint64_t cuda_event_handle, uint64_t vk_stream, uint64_t fence_index) noexcept override {
+        impl->vk_signal(cuda_event_handle, vk_stream, fence_index);
     }
-    void _vk_wait(uint64_t cuda_event_handle, uint64_t vk_stream, uint64_t fence_index) noexcept override {
-        impl->_vk_wait(cuda_event_handle, vk_stream, fence_index);
+    void vk_wait(uint64_t cuda_event_handle, uint64_t vk_stream, uint64_t fence_index) noexcept override {
+        impl->vk_wait(cuda_event_handle, vk_stream, fence_index);
     }
     CudaDeviceConfigExt::ExternalVkDevice get_external_vk_device() const noexcept override {
         return impl->get_external_vk_device();

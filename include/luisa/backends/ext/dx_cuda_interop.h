@@ -89,7 +89,9 @@ public:// Don't protect it. The oidn ext is using these interfaces.
         uint mipmap_levels, bool simultaneous_access, bool allow_raster_target) noexcept = 0;
     [[nodiscard]] virtual ResourceCreationInfo create_interop_event() noexcept = 0;
     virtual void cuda_signal(DeviceInterface *device, uint64_t stream_handle, uint64_t event_handle, uint64_t fence) noexcept = 0;
+    virtual void cuda_signal(DeviceInterface *device, /*CUStream*/ void *cu_stream_ptr, uint64_t event_handle, uint64_t fence) noexcept = 0;
     virtual void cuda_wait(DeviceInterface *device, uint64_t stream_handle, uint64_t event_handle, uint64_t fence) noexcept = 0;
+    virtual void cuda_wait(DeviceInterface *device, /*CUStream*/ void *cu_stream_ptr, uint64_t event_handle, uint64_t fence) noexcept = 0;
 
 public:
     virtual void cuda_buffer(uint64_t dx_buffer_handle, uint64_t *cuda_ptr, uint64_t *cuda_handle /*CUexternalMemory* */) noexcept = 0;

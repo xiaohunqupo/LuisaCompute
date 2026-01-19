@@ -36,8 +36,8 @@ public:
         PixelFormat format, uint dimension,
         uint width, uint height, uint depth,
         uint mipmap_levels, bool simultaneous_access, bool allow_raster_target) noexcept = 0;
-    virtual void _vk_signal(uint64_t cuda_event_handle, uint64_t vk_stream, uint64_t fence_index) noexcept = 0;
-    virtual void _vk_wait(uint64_t cuda_event_handle, uint64_t vk_stream, uint64_t fence_index) noexcept = 0;
+    virtual void vk_signal(uint64_t cuda_event_handle, uint64_t vk_stream, uint64_t fence_index) noexcept = 0;
+    virtual void vk_wait(uint64_t cuda_event_handle, uint64_t vk_stream, uint64_t fence_index) noexcept = 0;
 
 public:
     [[nodiscard]] virtual CudaDeviceConfigExt::ExternalVkDevice get_external_vk_device() const noexcept = 0;
@@ -123,10 +123,10 @@ LUISA_MARK_STREAM_EVENT_TYPE(vk_cuda_interop::Signal)
 LUISA_MARK_STREAM_EVENT_TYPE(vk_cuda_interop::Wait)
 namespace vk_cuda_interop {
 inline void Signal::operator()(DeviceInterface *device, uint64_t stream_handle) const && noexcept {
-    ext->_vk_signal(handle, stream_handle, fence);
+    ext->vk_signal(handle, stream_handle, fence);
 }
 inline void Wait::operator()(DeviceInterface *device, uint64_t stream_handle) const && noexcept {
-    ext->_vk_wait(handle, stream_handle, fence);
+    ext->vk_wait(handle, stream_handle, fence);
 }
 }// namespace vk_cuda_interop
 }// namespace luisa::compute

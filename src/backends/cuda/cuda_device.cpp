@@ -1192,6 +1192,11 @@ DeviceExtension *CUDADevice::extension(luisa::string_view name) noexcept {
 #endif
     LUISA_COMPUTE_CREATE_CUDA_EXTENSION(DStorage, _dstorage_ext)
     LUISA_COMPUTE_CREATE_CUDA_EXTENSION(PinnedMemory, _pinned_memory_ext)
+    if (name == CUDAExternalExt::name) {
+        std::scoped_lock lock{_ext_mutex};
+        if (_external_ext == nullptr) { _external_ext = luisa::make_unique<CUDAExternalExtImpl>(this); }
+        return _external_ext.get();
+    }
 #ifdef LUISA_COMPUTE_ENABLE_NVTT
     LUISA_COMPUTE_CREATE_CUDA_EXTENSION(TexCompress, _tex_comp_ext)
 #endif

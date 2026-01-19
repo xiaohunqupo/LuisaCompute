@@ -348,7 +348,7 @@ ResourceCreationInfo VkCudaInteropImpl::create_interop_texture(
         .handle = reinterpret_cast<uint64_t>(tex),
         .native_handle = tex->vk_image()};
 }
-void VkCudaInteropImpl::_vk_signal(uint64_t cuda_event_handle, uint64_t vk_stream, uint64_t fence_index) noexcept {
+void VkCudaInteropImpl::vk_signal(uint64_t cuda_event_handle, uint64_t vk_stream, uint64_t fence_index) noexcept {
     auto evt = reinterpret_cast<cuda::CUDAEvent *>(cuda_event_handle);
     evt->_mark_signal_fence(fence_index);
     auto stream = reinterpret_cast<lc::vk::Stream *>(vk_stream);
@@ -376,7 +376,7 @@ void VkCudaInteropImpl::_vk_signal(uint64_t cuda_event_handle, uint64_t vk_strea
     LUISA_CHECK_VULKAN(vkQueueSubmit(stream->queue(), 1, &info1, VK_NULL_HANDLE));
     stream->queue_mtx().unlock();
 }
-void VkCudaInteropImpl::_vk_wait(uint64_t cuda_event_handle, uint64_t vk_stream, uint64_t fence_index) noexcept {
+void VkCudaInteropImpl::vk_wait(uint64_t cuda_event_handle, uint64_t vk_stream, uint64_t fence_index) noexcept {
     auto evt = reinterpret_cast<cuda::CUDAEvent *>(cuda_event_handle);
     auto stream = reinterpret_cast<lc::vk::Stream *>(vk_stream);
     auto semaphore = evt->vk_semaphore();

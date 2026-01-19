@@ -185,7 +185,9 @@ public:
     uint64_t cuda_event(uint64_t dx_event_handle) noexcept override;
     void destroy_cuda_event(uint64_t cuda_event_handle) noexcept override;
     void cuda_signal(DeviceInterface *device, uint64_t stream_handle, uint64_t event_handle, uint64_t fence) noexcept override;
+    void cuda_signal(DeviceInterface *device, /*CUStream*/ void *cu_stream_ptr, uint64_t event_handle, uint64_t fence) noexcept override;
     void cuda_wait(DeviceInterface *device, uint64_t stream_handle, uint64_t event_handle, uint64_t fence) noexcept override;
+    void cuda_wait(DeviceInterface *device, /*CUStream*/ void *cu_stream_ptr, uint64_t event_handle, uint64_t fence) noexcept override;
     ResourceCreationInfo create_interop_event() noexcept override;
     DeviceInterface *device() noexcept override;
     void unmap(void *cuda_ptr, void *cuda_handle) noexcept override;
