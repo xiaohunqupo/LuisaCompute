@@ -15,13 +15,13 @@ class DxCudaInterop;
 namespace dx_cuda_interop {
 struct Signal {
     DxCudaInterop *ext;
-    uint64_t handle;
+    void *native_handle;
     uint64_t fence;
     void operator()(DeviceInterface *device, uint64_t stream_handle) const && noexcept;
 };
 struct Wait {
     DxCudaInterop *ext;
-    uint64_t handle;
+    void *native_handle;
     uint64_t fence;
     void operator()(DeviceInterface *device, uint64_t stream_handle) const && noexcept;
 };
@@ -33,22 +33,22 @@ public:
     TimelineEvent dx_event;
 
 private:
-    uint64_t _cuda_event;
+    void *_cuda_event;
 
 public:
     [[nodiscard]] auto cuda_event() const noexcept { return _cuda_event; }
-    DxCudaTimelineEvent() noexcept : _cuda_event{invalid_resource_handle} {}
+    DxCudaTimelineEvent() noexcept : _cuda_event{nullptr} {}
     DxCudaTimelineEvent(DxCudaInterop *ext) noexcept;
     ~DxCudaTimelineEvent() noexcept;
     operator bool() const noexcept {
-        return _cuda_event != invalid_resource_handle;
+        return _cuda_event != nullptr;
     }
     DxCudaTimelineEvent(DxCudaTimelineEvent const &) = delete;
     DxCudaTimelineEvent(DxCudaTimelineEvent &&rhs) noexcept
         : _ext{rhs._ext},
           dx_event{std::move(rhs.dx_event)},
           _cuda_event{rhs._cuda_event} {
-        rhs._cuda_event = invalid_resource_handle;
+        rhs._cuda_event = nullptr;
         rhs._ext = nullptr;
     }
     DxCudaTimelineEvent &operator=(DxCudaTimelineEvent const &) = delete;
@@ -60,15 +60,19 @@ public:
     [[nodiscard]] auto cuda_signal(uint64_t fence) const noexcept {
         return dx_cuda_interop::Signal{
             .ext = _ext,
-            .handle = _cuda_event,
+            .native_handle = _cuda_event,
             .fence = fence};
     }
     [[nodiscard]] auto cuda_wait(uint64_t fence) const noexcept {
         return dx_cuda_interop::Wait{
             .ext = _ext,
-            .handle = _cuda_event,
+            .native_handle = _cuda_event,
             .fence = fence};
     }
+
+    [[nodiscard]] void cuda_signal_external(DxCudaInterop *interop_ext, void *cu_stream_ptr, uint64_t fence) const noexcept;
+    [[nodiscard]] void cuda_wait_external(DxCudaInterop *interop_ext, void *cu_stream_ptr, uint64_t fence) const noexcept;
+
     [[nodiscard]] auto dx_signal(uint64_t fence) const noexcept {
         return dx_event.signal(fence);
     }
@@ -88,16 +92,16 @@ public:// Don't protect it. The oidn ext is using these interfaces.
         uint width, uint height, uint depth,
         uint mipmap_levels, bool simultaneous_access, bool allow_raster_target) noexcept = 0;
     [[nodiscard]] virtual ResourceCreationInfo create_interop_event() noexcept = 0;
-    virtual void cuda_signal(DeviceInterface *device, uint64_t stream_handle, uint64_t event_handle, uint64_t fence) noexcept = 0;
-    virtual void cuda_signal(DeviceInterface *device, /*CUStream*/ void *cu_stream_ptr, uint64_t event_handle, uint64_t fence) noexcept = 0;
-    virtual void cuda_wait(DeviceInterface *device, uint64_t stream_handle, uint64_t event_handle, uint64_t fence) noexcept = 0;
-    virtual void cuda_wait(DeviceInterface *device, /*CUStream*/ void *cu_stream_ptr, uint64_t event_handle, uint64_t fence) noexcept = 0;
+    virtual void cuda_signal(uint64_t stream_handle, void *event_handle, uint64_t fence) noexcept = 0;
+    virtual void cuda_signal(/*CUStream*/ void *cu_stream_ptr, void *event_handle, uint64_t fence) noexcept = 0;
+    virtual void cuda_wait(uint64_t stream_handle, void *event_handle, uint64_t fence) noexcept = 0;
+    virtual void cuda_wait(/*CUStream*/ void *cu_stream_ptr, void *event_handle, uint64_t fence) noexcept = 0;
 
 public:
     virtual void cuda_buffer(uint64_t dx_buffer_handle, uint64_t *cuda_ptr, uint64_t *cuda_handle /*CUexternalMemory* */) noexcept = 0;
     [[nodiscard]] virtual /*CUexternalMemory* */ uint64_t cuda_texture(uint64_t dx_texture_handle) noexcept = 0;
-    [[nodiscard]] virtual /*CUexternalSemaphore* */ uint64_t cuda_event(uint64_t dx_event_handle) noexcept = 0;
-    virtual void destroy_cuda_event(uint64_t cuda_event_handle /*CUexternalSemaphore* */) noexcept = 0;
+    [[nodiscard]] virtual /*CUexternalSemaphore* */ void *cuda_event(uint64_t dx_event_handle) noexcept = 0;
+    virtual void destroy_cuda_event(void *cuda_event_handle /*CUexternalSemaphore* */) noexcept = 0;
     virtual void unmap(void *cuda_ptr, void *cuda_handle) noexcept = 0;
     virtual DeviceInterface *device() noexcept = 0;
     [[nodiscard]] virtual int cuda_device_index() const noexcept = 0;
@@ -158,10 +162,10 @@ private:
     }
 };
 inline void dx_cuda_interop::Signal::operator()(DeviceInterface *device, uint64_t stream_handle) const && noexcept {
-    ext->cuda_signal(device, stream_handle, handle, fence);
+    ext->cuda_signal(stream_handle, native_handle, fence);
 }
 inline void dx_cuda_interop::Wait::operator()(DeviceInterface *device, uint64_t stream_handle) const && noexcept {
-    ext->cuda_wait(device, stream_handle, handle, fence);
+    ext->cuda_wait(stream_handle, native_handle, fence);
 }
 LUISA_MARK_STREAM_EVENT_TYPE(dx_cuda_interop::Signal)
 LUISA_MARK_STREAM_EVENT_TYPE(dx_cuda_interop::Wait)
@@ -175,5 +179,11 @@ inline DxCudaTimelineEvent::~DxCudaTimelineEvent() noexcept {
     if (*this) {
         _ext->destroy_cuda_event(_cuda_event);
     }
+}
+inline void DxCudaTimelineEvent::cuda_signal_external(DxCudaInterop *interop_ext, void *cu_stream_ptr, uint64_t fence) const noexcept {
+    interop_ext->cuda_signal(cu_stream_ptr, _cuda_event, fence);
+}
+inline void DxCudaTimelineEvent::cuda_wait_external(DxCudaInterop *interop_ext, void *cu_stream_ptr, uint64_t fence) const noexcept {
+    interop_ext->cuda_wait(cu_stream_ptr, _cuda_event, fence);
 }
 }// namespace luisa::compute

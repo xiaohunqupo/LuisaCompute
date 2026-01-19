@@ -166,13 +166,13 @@ ResourceCreationInfo DxCudaInteropImpl::create_interop_event() noexcept {
     info.native_handle = res->Fence();
     return info;
 }
-void DxCudaInteropImpl::destroy_cuda_event(uint64_t cuda_event_handle) noexcept {
+void DxCudaInteropImpl::destroy_cuda_event(void *cuda_event_handle) noexcept {
     with_cuda(cuContext, [&] {
-        auto evt = reinterpret_cast<CUexternalSemaphore>(cuda_event_handle);
+        auto evt = static_cast<CUexternalSemaphore>(cuda_event_handle);
         LUISA_CHECK_CUDA(cuDestroyExternalSemaphore(evt));
     });
 }
-uint64_t DxCudaInteropImpl::cuda_event(uint64_t dx_event_handle) noexcept {
+void *DxCudaInteropImpl::cuda_event(uint64_t dx_event_handle) noexcept {
     return with_cuda(cuContext, [&] {
         CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC externalSemaphoreHandleDesc{};
         auto dxEvent = reinterpret_cast<LCEvent *>(dx_event_handle);
@@ -188,14 +188,14 @@ uint64_t DxCudaInteropImpl::cuda_event(uint64_t dx_event_handle) noexcept {
         externalSemaphoreHandleDesc.flags = 0;
         CUexternalSemaphore externalSemaphre{};
         LUISA_CHECK_CUDA(cuImportExternalSemaphore(&externalSemaphre, &externalSemaphoreHandleDesc));
-        return reinterpret_cast<uint64_t>(externalSemaphre);
+        return externalSemaphre;
     });
 }
-void DxCudaInteropImpl::cuda_signal(DeviceInterface *device, uint64_t stream_handle, uint64_t event_handle, uint64_t fence) noexcept {
+void DxCudaInteropImpl::cuda_signal(uint64_t stream_handle, void *event_handle, uint64_t fence) noexcept {
     with_cuda(cuContext, [&] {
         CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS params{};
         params.params.fence.value = fence;
-        auto cuda_evt = reinterpret_cast<CUexternalSemaphore>(event_handle);
+        auto cuda_evt = static_cast<CUexternalSemaphore>(event_handle);
         auto stream = reinterpret_cast<luisa::compute::cuda::CUDAStream *>(stream_handle);
         auto handle = stream->handle();
         LUISA_CHECK_CUDA(cuSignalExternalSemaphoresAsync(
@@ -203,22 +203,22 @@ void DxCudaInteropImpl::cuda_signal(DeviceInterface *device, uint64_t stream_han
             handle));
     });
 }
-void DxCudaInteropImpl::cuda_signal(DeviceInterface *device, /*CUStream*/ void *cu_stream_ptr, uint64_t event_handle, uint64_t fence) noexcept {
+void DxCudaInteropImpl::cuda_signal(/*CUStream*/ void *cu_stream_ptr, void *event_handle, uint64_t fence) noexcept {
     with_cuda(cuContext, [&] {
         CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS params{};
         params.params.fence.value = fence;
-        auto cuda_evt = reinterpret_cast<CUexternalSemaphore>(event_handle);
+        auto cuda_evt = static_cast<CUexternalSemaphore>(event_handle);
         LUISA_CHECK_CUDA(cuSignalExternalSemaphoresAsync(
             &cuda_evt, &params, 1,
             static_cast<CUstream>(cu_stream_ptr)));
     });
 }
 
-void DxCudaInteropImpl::cuda_wait(DeviceInterface *device, uint64_t stream_handle, uint64_t event_handle, uint64_t fence) noexcept {
+void DxCudaInteropImpl::cuda_wait(uint64_t stream_handle, void *event_handle, uint64_t fence) noexcept {
     with_cuda(cuContext, [&] {
         CUDA_EXTERNAL_SEMAPHORE_WAIT_PARAMS params{};
         params.params.fence.value = fence;
-        auto cuda_evt = reinterpret_cast<CUexternalSemaphore>(event_handle);
+        auto cuda_evt = static_cast<CUexternalSemaphore>(event_handle);
         auto stream = reinterpret_cast<luisa::compute::cuda::CUDAStream *>(stream_handle);
         auto handle = stream->handle();
         LUISA_CHECK_CUDA(cuWaitExternalSemaphoresAsync(
@@ -226,11 +226,11 @@ void DxCudaInteropImpl::cuda_wait(DeviceInterface *device, uint64_t stream_handl
             handle));
     });
 }
-void DxCudaInteropImpl::cuda_wait(DeviceInterface *device, /*CUStream*/ void *cu_stream_ptr, uint64_t event_handle, uint64_t fence) noexcept {
+void DxCudaInteropImpl::cuda_wait(/*CUStream*/ void *cu_stream_ptr, void *event_handle, uint64_t fence) noexcept {
     with_cuda(cuContext, [&] {
         CUDA_EXTERNAL_SEMAPHORE_WAIT_PARAMS params{};
         params.params.fence.value = fence;
-        auto cuda_evt = reinterpret_cast<CUexternalSemaphore>(event_handle);
+        auto cuda_evt = static_cast<CUexternalSemaphore>(event_handle);
         LUISA_CHECK_CUDA(cuWaitExternalSemaphoresAsync(
             &cuda_evt, &params, 1,
             static_cast<CUstream>(cu_stream_ptr)));

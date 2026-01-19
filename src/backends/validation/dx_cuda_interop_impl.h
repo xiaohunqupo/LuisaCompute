@@ -15,19 +15,19 @@ public:
         uint width, uint height, uint depth,
         uint mipmap_levels, bool simultaneous_access, bool allow_raster_target) noexcept override;
     ResourceCreationInfo create_interop_event() noexcept override;
-    void cuda_signal(DeviceInterface *device, uint64_t stream_handle, uint64_t event_handle, uint64_t fence) noexcept override {
-        impl->cuda_signal(device, stream_handle, event_handle, fence);
+    void cuda_signal(uint64_t stream_handle, void *event_handle, uint64_t fence) noexcept override {
+        impl->cuda_signal(stream_handle, event_handle, fence);
     }
-    void cuda_signal(DeviceInterface *device, void *cu_stream_ptr, uint64_t event_handle, uint64_t fence) noexcept override {
-        impl->cuda_signal(device, cu_stream_ptr, event_handle, fence);
-    }
-
-    void cuda_wait(DeviceInterface *device, uint64_t stream_handle, uint64_t event_handle, uint64_t fence) noexcept override {
-        impl->cuda_wait(device, stream_handle, event_handle, fence);
+    void cuda_signal(void *cu_stream_ptr, void *event_handle, uint64_t fence) noexcept override {
+        impl->cuda_signal(cu_stream_ptr, event_handle, fence);
     }
 
-    void cuda_wait(DeviceInterface *device, void *cu_stream_ptr, uint64_t event_handle, uint64_t fence) noexcept override {
-        impl->cuda_wait(device, cu_stream_ptr, event_handle, fence);
+    void cuda_wait(uint64_t stream_handle, void *event_handle, uint64_t fence) noexcept override {
+        impl->cuda_wait(stream_handle, event_handle, fence);
+    }
+
+    void cuda_wait(void *cu_stream_ptr, void *event_handle, uint64_t fence) noexcept override {
+        impl->cuda_wait(cu_stream_ptr, event_handle, fence);
     }
 
     void cuda_buffer(uint64_t dx_buffer_handle, uint64_t *cuda_ptr, uint64_t *cuda_handle /*CUexternalMemory* */) noexcept override {
@@ -36,10 +36,10 @@ public:
     /*CUexternalMemory* */ uint64_t cuda_texture(uint64_t dx_texture_handle) noexcept override {
         return impl->cuda_texture(dx_texture_handle);
     }
-    /*CUexternalSemaphore* */ uint64_t cuda_event(uint64_t dx_event_handle) noexcept override {
+    /*CUexternalSemaphore* */ void *cuda_event(uint64_t dx_event_handle) noexcept override {
         return impl->cuda_event(dx_event_handle);
     }
-    void destroy_cuda_event(uint64_t cuda_event_handle /*CUexternalSemaphore* */) noexcept override {
+    void destroy_cuda_event(void *cuda_event_handle /*CUexternalSemaphore* */) noexcept override {
         impl->destroy_cuda_event(cuda_event_handle);
     }
     void unmap(void *cuda_ptr, void *cuda_handle) noexcept override {
