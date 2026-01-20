@@ -170,7 +170,7 @@ class DxCudaInteropImpl : public luisa::compute::DxCudaInterop {
     CUcontext cuContext{};
     CUdevice cuDevice{};
     LCDevice &_device;
-    int _cuda_device;
+    int _cuda_device{-1};
 
 public:
     DxCudaInteropImpl(LCDevice &device) noexcept;

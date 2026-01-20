@@ -9,8 +9,8 @@ using namespace luisa::compute;
 class VkCudaInteropImpl : public VkCudaInterop {
     CUcontext _cu_context{};
     CUdevice _cu_device{};
-    int _cuda_device;
-    Device *_device;
+    int _cuda_device{-1};
+    Device *_device{};
 public:
     VkCudaInteropImpl(Device *device) noexcept;
     VkCudaInteropImpl(VkCudaInteropImpl const &) = delete;

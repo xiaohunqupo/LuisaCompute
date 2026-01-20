@@ -302,40 +302,46 @@ DeviceInterface *DxCudaInteropImpl::device() noexcept {
     return &_device;
 }
 
-static void initialize_cuda() noexcept {
+static bool initialize_cuda() noexcept {
     static std::once_flag flag;
+    static bool success{};
     std::call_once(flag, [] {
-        LUISA_CHECK_CUDA(cuInit(0));
+        success = cuInit(0) == CUDA_SUCCESS;
     });
+    return success;
 }
 
 [[nodiscard]] int getCudaDeviceForD3D12Device(ID3D12Device *d3d12Device) noexcept {
-    initialize_cuda();
+    if (!initialize_cuda()) return -1;
     LUID d3d12Luid = d3d12Device->GetAdapterLuid();
     int cudaDeviceCount = 0;
-    LUISA_CHECK_CUDA(cuDeviceGetCount(&cudaDeviceCount));
+    if (cuDeviceGetCount(&cudaDeviceCount) != CUDA_SUCCESS) {
+        return -1;
+    }
     for (auto i = 0; i < cudaDeviceCount; i++) {
         char cudaLuid[sizeof(d3d12Luid.LowPart) + sizeof(d3d12Luid.HighPart)] = {};
         unsigned int cudaNodeMask = 0;
-        LUISA_CHECK_CUDA(cuDeviceGetLuid(cudaLuid, &cudaNodeMask, i));
+        if (cuDeviceGetLuid(cudaLuid, &cudaNodeMask, i) != CUDA_SUCCESS) continue;
         if (!std::memcmp(&d3d12Luid.LowPart, cudaLuid, sizeof(d3d12Luid.LowPart)) &&
             !std::memcmp(&d3d12Luid.HighPart, cudaLuid + sizeof(d3d12Luid.LowPart), sizeof(d3d12Luid.HighPart))) {
             LUISA_VERBOSE_WITH_LOCATION("Found cuda device at {} for d3d12 device.", i);
             return i;
         }
     }
-    LUISA_ERROR("Failed to get cuda device for d3d12 device.");
+    return -1;
 }
 
 DxCudaInteropImpl::DxCudaInteropImpl(LCDevice &device) noexcept : _device{device} {
     auto d3d12_device = device.nativeDevice.device.Get();
     _cuda_device = getCudaDeviceForD3D12Device(d3d12_device);
+    if (_cuda_device == -1) return;
     LUISA_CHECK_CUDA(cuDeviceGet(&cuDevice, _cuda_device));
     LUISA_CHECK_CUDA(cuDevicePrimaryCtxRetain(&cuContext, cuDevice));
 }
 
 DxCudaInteropImpl::~DxCudaInteropImpl() noexcept {
-    LUISA_CHECK_CUDA(cuDevicePrimaryCtxRelease(cuDevice));
+    if (cuDevice)
+        LUISA_CHECK_CUDA(cuDevicePrimaryCtxRelease(cuDevice));
 }
 
 }// namespace lc::dx

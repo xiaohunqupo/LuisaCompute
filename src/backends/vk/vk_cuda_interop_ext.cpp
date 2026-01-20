@@ -36,6 +36,7 @@
         }                                                \
     } while (false)
 #endif
+
 namespace lc::vk {
 
 #ifdef LUISA_PLATFORM_WINDOWS
@@ -103,15 +104,17 @@ decltype(auto) with_cuda(CUcontext ctx, F &&f) {
     return std::invoke(std::forward<F>(f));
 }
 
-static void initialize_cuda() noexcept {
+static bool initialize_cuda() noexcept {
     static std::once_flag flag;
+    static bool success{};
     std::call_once(flag, [] {
-        LUISA_CHECK_CUDA(cuInit(0));
+        success = cuInit(0) == CUDA_SUCCESS;
     });
+    return success;
 }
 
 [[nodiscard]] int getCudaDeviceForVulkanDevice(VkPhysicalDevice device) noexcept {
-    initialize_cuda();
+    if (!initialize_cuda()) return -1;
     VkPhysicalDeviceIDProperties id_properties{};
     id_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES;
     VkPhysicalDeviceProperties2 properties2{};
@@ -119,17 +122,19 @@ static void initialize_cuda() noexcept {
     properties2.pNext = &id_properties;
     vkGetPhysicalDeviceProperties2(device, &properties2);
     int cudaDeviceCount = 0;
-    LUISA_CHECK_CUDA(cuDeviceGetCount(&cudaDeviceCount));
+    if (cuDeviceGetCount(&cudaDeviceCount) != CUDA_SUCCESS) {
+        return -1;
+    }
     for (auto i = 0; i < cudaDeviceCount; i++) {
         char cudaLuid[sizeof(id_properties.deviceLUID)] = {};
         unsigned int cudaNodeMask = 0;
-        LUISA_CHECK_CUDA(cuDeviceGetLuid(cudaLuid, &cudaNodeMask, i));
+        if (cuDeviceGetLuid(cudaLuid, &cudaNodeMask, i) != CUDA_SUCCESS) continue;
         if (!std::memcmp(&id_properties.deviceLUID, cudaLuid, sizeof(cudaLuid))) {
             LUISA_VERBOSE_WITH_LOCATION("Found cuda device at {} for vulkan device.", i);
             return i;
         }
     }
-    LUISA_ERROR("Failed to get cuda device for d3d12 device.");
+    return -1;
 }
 
 [[nodiscard]] auto _find_memory_type(uint32_t type_filter, VkPhysicalDevice physical_device, VkMemoryPropertyFlags properties) noexcept {
@@ -145,10 +150,14 @@ static void initialize_cuda() noexcept {
 }
 VkCudaInteropImpl::VkCudaInteropImpl(Device *device) noexcept : _device(device) {
     _cuda_device = getCudaDeviceForVulkanDevice(device->physical_device());
+    if (_cuda_device == -1) return;
     LUISA_CHECK_CUDA(cuDeviceGet(&_cu_device, _cuda_device));
     LUISA_CHECK_CUDA(cuDevicePrimaryCtxRetain(&_cu_context, _cu_device));
 }
-VkCudaInteropImpl::~VkCudaInteropImpl() {}
+VkCudaInteropImpl::~VkCudaInteropImpl() {
+    if (_cu_device)
+        LUISA_CHECK_CUDA(cuDevicePrimaryCtxRelease(_cu_device));
+}
 auto vulkan_device_memory_handle(VkDevice device, VkDeviceMemory memory, auto type) {
 #ifdef LUISA_PLATFORM_WINDOWS
     auto fp_vkGetMemoryWin32HandleKHR = reinterpret_cast<PFN_vkGetMemoryWin32HandleKHR>(
