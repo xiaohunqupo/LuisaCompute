@@ -425,26 +425,14 @@ class ASTVisitor:
         build(node.test)
         if node.test.dtype != bool:
             raise TypeError(f"If condition must be bool, got {node.test.dtype}")
-        eval = lcapi.analyze_condition(node.test.expr)
-        if eval == 0:
+        ifstmt = lcapi.builder().if_(node.test.expr)
+        # branches
+        with ifstmt.true_branch():
             for x in node.body:
                 build(x)
-        elif eval == 1:
+        with ifstmt.false_branch():
             for x in node.orelse:
                 build(x)
-        else:
-            ifstmt = lcapi.builder().if_(node.test.expr)
-            # branches
-            with ifstmt.true_branch():
-                lcapi.begin_branch(False)
-                for x in node.body:
-                    build(x)
-                lcapi.end_branch()
-            with ifstmt.false_branch():
-                lcapi.begin_branch(False)
-                for x in node.orelse:
-                    build(x)
-                lcapi.end_branch()
 
     @staticmethod
     def build_Match(node):
@@ -462,46 +450,16 @@ class ASTVisitor:
                     raise SyntaxError("Case value can only have one.")
                 case_map[c.pattern] = True
                 if (c.pattern.cls.id) == "is_triangle":
-                    lcapi.begin_branch(True)
                     with query_stmt.on_triangle_candidate():
                         for x in c.body:
                             build(x)
-                    lcapi.end_branch()
                 else:
-                    lcapi.begin_branch(True)
                     with query_stmt.on_procedural_candidate():
                         for x in c.body:
                             build(x)
-                    lcapi.end_branch()
             return
         if not node.subject.dtype in {int, uint, short, ushort, long, ulong}:
             raise TypeError(f"Match condition must be int or uint, got {node.subject.dtype}")
-        eval_value = lcapi.builder().try_eval_int(node.subject.expr)
-        if eval_value.exist():
-            matched = False
-            default_value = None
-            for c in node.cases:
-                if type(c.pattern) == ast.MatchValue:
-                    if type(c.pattern.value.value) != int:
-                        raise TypeError(f"Match case condition must be int or uint, got {type(c.pattern.value.value)}")
-                    if case_map.get(c.pattern.value.value) == True:
-                        raise SyntaxError("Case value can only have one.")
-                    case_map[c.pattern.value.value] = True
-                    # constant switch
-                    if eval_value.value() == c.pattern.value.value:
-                        matched = True
-                        for x in c.body:
-                            build(x)
-                        break
-                else:
-                    if case_map.get("default") == True:
-                        raise SyntaxError("Case value can only have one.")
-                    case_map["default"] = True
-                    default_value = c
-            if not matched and default_value is not None:
-                for x in default_value.body:
-                    build(x)
-            return
         switch_stmt = lcapi.builder().switch_(node.subject.expr)
         with switch_stmt.body():
             for c in node.cases:
@@ -513,23 +471,19 @@ class ASTVisitor:
                     case_map[c.pattern.value.value] = True
                     build(c.pattern.value)
                     case_stmt = lcapi.builder().case_(c.pattern.value.expr)
-                    lcapi.begin_branch(False)
                     with case_stmt.body():
                         for x in c.body:
                             build(x)
                         lcapi.builder().break_()
-                    lcapi.end_branch()
                 else:
                     if case_map.get("default") == True:
                         raise SyntaxError("Case value can only have one.")
                     case_map["default"] = True
                     default_stmt = lcapi.builder().default_()
-                    lcapi.begin_branch(False)
                     with default_stmt.body():
                         for x in c.body:
                             build(x)
                         lcapi.builder().break_()
-                    lcapi.end_branch()
 
     @staticmethod
     def build_IfExp(node):
@@ -572,12 +526,10 @@ class ASTVisitor:
         ctx().local_variable[node.target.id] = VariableInfo(int, varexpr)
         # build for statement
         condition = lcapi.builder().binary(to_lctype(bool), lcapi.BinaryOp.LESS, varexpr, range_stop)
-        lcapi.begin_branch(True)
         forstmt = lcapi.builder().for_(varexpr, condition, range_step)
         with forstmt.body():
             for x in node.body:
                 build(x)
-        lcapi.end_branch()
 
     @staticmethod
     def build_container_for(node):
@@ -593,55 +545,40 @@ class ASTVisitor:
         ctx().local_variable[node.target.id] = VariableInfo(eltype, varexpr)
         # build for statement
         condition = lcapi.builder().binary(to_lctype(bool), lcapi.BinaryOp.LESS, idxexpr, range_stop)
-        lcapi.begin_branch(True)
         forstmt = lcapi.builder().for_(idxexpr, condition, range_step)
         with forstmt.body():
             for x in node.body:
                 build(x)
-        lcapi.end_branch()
 
     @staticmethod
     def build_For(node):
         # currently only supports for x in range(...)
-        lcapi.begin_branch(True)
         assert type(node.target) is ast.Name
         if type(node.iter) is ast.Call and type(node.iter.func) is ast.Name and node.iter.func.id == "range":
             v = build.build_range_for(node)
-            lcapi.end_branch()
             return v
         build(node.iter)
         if type(node.iter.dtype).__name__ == "ArrayType" or node.iter.dtype in {*vector_dtypes, *matrix_dtypes}:
             v = build.build_container_for(node)
-            lcapi.end_branch()
             return v
         else:
-            lcapi.end_branch()
             raise TypeError(f"{node.iter.dtype} object is not iterable")
 
     @staticmethod
     def build_While(node):
         loopstmt = lcapi.builder().loop_()
-        lcapi.begin_branch(True)
         with loopstmt.body():
             # condition
             build(node.test)
             if node.test.dtype != bool:
                 raise TypeError(f"While condition must be bool, got {node.test.dtype}")
-            eval = lcapi.analyze_condition(node.test.expr)
-            if eval == 0:
+            ifstmt = lcapi.builder().if_(node.test.expr)
+            with ifstmt.true_branch():
                 for x in node.body:
                     build(x)
-            elif eval == 1:
+            with ifstmt.false_branch():
                 lcapi.builder().break_()
-            else:
-                ifstmt = lcapi.builder().if_(node.test.expr)
-                with ifstmt.true_branch():
-                    for x in node.body:
-                        build(x)
-                with ifstmt.false_branch():
-                    lcapi.builder().break_()
                 # body
-        lcapi.end_branch()
 
     @staticmethod
     def build_Break(node):

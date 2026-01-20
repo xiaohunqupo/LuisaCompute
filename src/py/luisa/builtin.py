@@ -351,15 +351,7 @@ def _builtin_call(*args):
 def set_block_size(x, y, z):
     values = []
     for a in [x, y, z]:
-        if type(a).__name__ != "Constant":
-            eval = lcapi.builder().try_eval_int(a.expr)
-            if eval.exist():
-                values.append(eval.value())
-            else:
-                raise TypeError(
-                    "Because set_block_size is a compile-time instruction, arguments of set_block_size must be literal (constant).")
-        else:
-            values.append(a.value)
+        values.append(a.value)
     for i in range(3):
         if not type(values[i]) in {int, uint}:
             raise TypeError(f"set_block_size argument {i} must be int or uint")

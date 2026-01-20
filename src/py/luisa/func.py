@@ -158,10 +158,8 @@ class func:
             top = globalvars.current_context
             globalvars.current_context = f
             try:
-                lcapi.begin_analyzer(not uses_autodiff)
                 astbuilder.build(self.tree.body[0])
             finally:
-                lcapi.end_analyzer()
                 globalvars.current_context = top
 
         # build function
@@ -327,10 +325,8 @@ class func:
             top = globalvars.current_context
             globalvars.current_context = f
             try:
-                lcapi.begin_analyzer(not uses_autodiff)
                 astbuilder.build(self.tree.body[0])
             finally:
-                lcapi.end_analyzer()
                 globalvars.current_context = top
 
         # build function
