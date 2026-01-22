@@ -26,10 +26,12 @@ class PyStream : public vstd::IOperatorNewBase {
 public:
     struct Data {
         Stream stream;
+        luisa::unordered_map<void*, luisa::move_only_function<void(void*, Stream&)>> before_commit_tasks;
         CommandList buffer;
         vstd::vector<Disposer> uploadDisposer;
         // vstd::vector<Disposer> readbackDisposer;
         Data(Device &device, bool support_window) noexcept;
+        void execute() noexcept;
         void sync() noexcept;
     };
 private:

@@ -10,6 +10,7 @@ set(LUISA_PYTHON_SOURCES
         export_vector3.cpp
         export_vector4.cpp
         image_util.cpp
+        interop.cpp interop.h
         lcapi.cpp
         managed_accel.cpp managed_accel.h
         managed_bindless.cpp managed_bindless.h

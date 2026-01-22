@@ -13,5 +13,12 @@ public:
         /*CUstream*/ void *cu_stream_ptr,
         uint64_t cuda_event_handle,
         uint64_t fence_index) = 0;
+
+    virtual void buffer_copy_async(
+        /*CUdeviceptr*/ void *dst_buffer,
+        /*CUdeviceptr*/ void *src_buffer,
+        size_t size,
+        /*CUstream*/ void *stream) = 0;
+    virtual void sync_stream(void *cu_stream_ptr) = 0;
 };
-}// namespace luisa::computes
+}// namespace luisa::compute

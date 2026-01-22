@@ -7,9 +7,20 @@
 #include "managed_device.h"
 #include "managed_accel.h"
 #include "managed_bindless.h"
+#include "interop.h"
 
-#include <luisa/luisa-compute.h>
+#include <luisa/backends/ext/cuda_external_ext.h>
+#include <luisa/ast/function.h>
+#include <luisa/core/binary_file_stream.h>
+#include <luisa/core/fiber.h>
+#include <luisa/runtime/raster/raster_scene.h>
+#include <luisa/runtime/context.h>
+#include <luisa/runtime/device.h>
+#include <luisa/runtime/rtx/aabb.h>
+#include <luisa/ast/callable_library.h>
+#include <luisa/ast/atomic_ref_node.h>
 
+// clang-format off
 namespace py = pybind11;
 using namespace luisa;
 using namespace luisa::compute;
@@ -39,6 +50,8 @@ struct halfN<luisa::Vector<half, n>> {
 };
 static vstd::vector<luisa::fiber::event> futures;
 static vstd::optional<luisa::fiber::scheduler> thread_pool;
+static vstd::optional<PyInterop> interop;
+
 PYBIND11_DECLARE_HOLDER_TYPE(T, luisa::shared_ptr<T>)
 ManagedDevice::ManagedDevice(Device &&device) noexcept : device(std::move(device)) {
     valid = true;
@@ -48,7 +61,7 @@ ManagedDevice::ManagedDevice(Device &&device) noexcept : device(std::move(device
     }
     device_count++;
 }
-ManagedDevice::ManagedDevice(ManagedDevice &&v) noexcept : device(std::move(v.device)), valid(v.valid) {
+ManagedDevice::ManagedDevice(ManagedDevice &&v) noexcept : device(std::move(v.device)), compute_device(std::move(v.compute_device)), valid(v.valid) {
     v.valid = false;
 }
 ManagedDevice::~ManagedDevice() noexcept {
@@ -61,12 +74,45 @@ ManagedDevice::~ManagedDevice() noexcept {
 
         if (device_count == 0) {
             RefCounter::current = nullptr;
+            interop.destroy();
             thread_pool.destroy();
         }
     }
 }
 static std::filesystem::path output_path;
-
+void interop_copy(DeviceInterface &d, uint64_t interop_buffer, uint64_t interop_buffer_offset_bytes, void *cu_stream_ptr, void *cu_buffer, size_t size_bytes, bool interop_to_compute) {
+    interop.create(&d);
+    auto gs = default_stream_data.lock();
+    if (gs) {
+        gs->execute();
+        interop->render_to_compute_fence(gs->stream, cu_stream_ptr);
+    }
+    if (!interop->compute_device) [[unlikely]] {
+        LUISA_ERROR("Cuda device invalid.");
+    }
+    uint64_t cuda_ptr;
+    uint64_t cuda_handle;
+    interop->cuda_buffer(interop_buffer, &cuda_ptr, &cuda_handle);
+    interop->compute_device.extension<CUDAExternalExt>()->buffer_copy_async(
+        interop_to_compute ? cu_buffer : reinterpret_cast<void *>(cuda_ptr),
+        interop_to_compute ? reinterpret_cast<void *>(cuda_ptr) : cu_buffer,
+        size_bytes,
+        cu_stream_ptr);
+    if (gs) {
+        gs->before_commit_tasks.try_emplace(cu_stream_ptr, vstd::lazy_eval([&]()->luisa::move_only_function<void(void*, Stream&)>{
+            return [](void* cu_stream_ptr, Stream& stream){
+                if(interop)
+                    interop->compute_to_render_fence(cu_stream_ptr, stream);
+            };
+        }));
+        gs->buffer.add_callback([cuda_ptr, cuda_handle]() {
+            interop->unmap(reinterpret_cast<void *>(cuda_ptr), reinterpret_cast<void *>(cuda_handle));
+        });
+    } else {
+        interop->_cu_ext->sync_stream(cu_stream_ptr);
+        interop->unmap(reinterpret_cast<void *>(cuda_ptr), reinterpret_cast<void *>(cuda_handle));
+    };
+};
 struct VertexData {
     float3 position;
     float3 normal;
@@ -300,9 +346,9 @@ void export_runtime(py::module &m) {
             })
         .def("impl", [](ManagedDevice &s) { return s.device.impl(); }, pyref)
         .def("create_accel", [](ManagedDevice &device, AccelOption::UsageHint hint, bool allow_compact, bool allow_update) { return ManagedAccel(device.device.create_accel(AccelOption{
-                                                                                                                                 .hint = hint,
-                                                                                                                                 .allow_compaction = allow_compact,
-                                                                                                                                 .allow_update = allow_update})); });
+            .hint = hint,
+            .allow_compaction = allow_compact,
+            .allow_update = allow_update})); });
     m.def(
         "get_bindless_handle", [](uint64 handle) {
             return reinterpret_cast<ManagedBindless *>(handle)->GetHandle();
@@ -315,7 +361,6 @@ void export_runtime(py::module &m) {
     //     .def("size", [](DeviceInterface::BuiltinBuffer &buffer) {
     //         return buffer.size;
     //     });
-
     py::class_<DeviceInterface, luisa::shared_ptr<DeviceInterface>>(m, "DeviceInterface")
         .def("backend_name", [](DeviceInterface &self) {
             return self.backend_name();
@@ -449,8 +494,23 @@ void export_runtime(py::module &m) {
                      },
                      &d});
                 return info; }, pyref)
+        .def("create_interop_buffer", [](DeviceInterface &d, const Type *type, size_t size) {
+            interop.create(&d);
+            auto info = interop->create_interop_buffer(type, size);
+            RefCounter::current->AddObject(
+                info.handle,
+                {[](DeviceInterface *d, uint64 handle) {
+                    if (auto gs = default_stream_data.lock()) {
+                        gs->sync();
+                    } else {
+                        default_stream_data.reset();
+                    }
+                    d->destroy_buffer(handle);
+                },
+                &d});
+            return info; }, pyref)
         .def("import_external_buffer", [](DeviceInterface &d, const Type *type, uint64_t native_address, size_t elem_count) noexcept {
-            auto info = d.create_buffer(type, elem_count, reinterpret_cast<void *>(native_address));
+             auto info = d.create_buffer(type, elem_count, reinterpret_cast<void *>(native_address));
             RefCounter::current->AddObject(info.handle, {[](DeviceInterface *d, uint64 handle) {
                 if (auto gs = default_stream_data.lock()) {
                     gs->sync();
@@ -459,6 +519,12 @@ void export_runtime(py::module &m) {
                 }
                  d->destroy_buffer(handle); }, &d});
             return info; })
+        .def("interop_buffer_copy_from", [](DeviceInterface &d, uint64_t interop_buffer, uint64_t interop_buffer_offset_bytes, uint64_t cu_stream_ptr, uint64_t cu_buffer, size_t size_bytes) { 
+            interop_copy(d, interop_buffer, interop_buffer_offset_bytes, reinterpret_cast<void*>(cu_stream_ptr), reinterpret_cast<void*>(cu_buffer), size_bytes, false); 
+        })
+        .def("interop_buffer_copy_to", [](DeviceInterface &d, uint64_t interop_buffer, uint64_t interop_buffer_offset_bytes, uint64_t cu_stream_ptr, uint64_t cu_buffer, size_t size_bytes) { 
+            interop_copy(d, interop_buffer, interop_buffer_offset_bytes,  reinterpret_cast<void*>(cu_stream_ptr), reinterpret_cast<void*>(cu_buffer), size_bytes, true); 
+        })
         .def("create_dispatch_buffer", [](DeviceInterface &d, size_t size) {
             auto ptr = d.create_buffer(Type::of<IndirectKernelDispatch>(), size, nullptr);
             RefCounter::current->AddObject(ptr.handle, {[](DeviceInterface *d, uint64 handle) {

@@ -6,6 +6,7 @@ using namespace luisa::compute;
 class ManagedDevice {
 public:
     Device device;
+    Device compute_device;
     bool valid;
     ManagedDevice(Device &&device) noexcept;
     ManagedDevice(ManagedDevice &&v) noexcept;

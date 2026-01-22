@@ -12,7 +12,7 @@ from .atomic import int_atomic_functions, float_atomic_functions
 
 
 class Buffer:
-    def __init__(self, size, dtype, external_memory=None, borrowed_deleter=None):
+    def __init__(self, size, dtype, external_memory=None, borrowed_deleter=None, enable_interop=False):
         if dtype not in basic_dtypes and type(dtype).__name__ not in {'StructType', 'ArrayType'}:
             raise TypeError('Invalid buffer element type')
         self.bufferType = BufferType(dtype)
@@ -25,10 +25,15 @@ class Buffer:
         self.size = size
         self.bytesize = size * self.stride
         # instantiate buffer on device
-        if external_memory is None:  # owned memory
+        self._interop = enable_interop
+        if enable_interop:
+            assert (external_memory is None)
+            info = get_global_device().impl().create_interop_buffer(lc_type, size)
+        elif external_memory is None:  # owned memory
             info = get_global_device().impl().create_buffer(lc_type, size)
         else:  # unowned external memory
-            info = get_global_device().impl().import_external_buffer(lc_type, external_memory, size)
+            info = get_global_device().impl().import_external_buffer(
+                lc_type, external_memory, size)
         self.handle = info.handle()
         self.native_handle = info.native_handle()
         self.borrowed_deleter = borrowed_deleter
@@ -71,6 +76,36 @@ class Buffer:
         buf = Buffer(len(arr), dtype_of(arr[0].item()))
         buf.copy_from_array(arr)
         return buf
+
+    def interop_copy_from(self, cu_data_ptr:int, cu_stream_ptr:int, offset_bytes=0, size_bytes=None):
+        assert (offset_bytes < self.bytesize)
+        assert (self._interop)
+        if size_bytes is None:
+            size_bytes = self.bytesize - offset_bytes
+        else:
+            size_bytes = min(size_bytes, self.bytesize - offset_bytes)
+        get_global_device().impl().interop_buffer_copy_from(
+            self.handle,
+            offset_bytes,
+            cu_stream_ptr,
+            cu_data_ptr,
+            size_bytes
+        )
+
+    def interop_copy_to(self, cu_data_ptr, cu_stream_ptr, offset_bytes=0, size_bytes=None):
+        assert (offset_bytes < self.bytesize)
+        assert (self._interop)
+        if size_bytes is None:
+            size_bytes = self.bytesize - offset_bytes
+        else:
+            size_bytes = min(size_bytes, self.bytesize - offset_bytes)
+        get_global_device().impl().interop_buffer_copy_to(
+            self.handle,
+            offset_bytes,
+            cu_stream_ptr,
+            cu_data_ptr,
+            size_bytes
+        )
 
     def copy_from_list(self, arr, sync=False, stream=None):
         if stream is None:
@@ -401,6 +436,7 @@ class IndirectDispatchBuffer:
 
     @BuiltinFuncBuilder
     def set_kernel(self, offset, block_size, size, kernel_id):
-        check_exact_signature([uint, uint3, uint3, uint], [offset, block_size, size, kernel_id], "set_kernel")
+        check_exact_signature([uint, uint3, uint3, uint], [
+                              offset, block_size, size, kernel_id], "set_kernel")
         return None, lcapi.builder().call(lcapi.CallOp.INDIRECT_SET_DISPATCH_KERNEL,
                                           [self.expr, offset.expr, block_size.expr, size.expr, kernel_id.expr])

@@ -23,7 +23,21 @@ void PyStream::add(luisa::unique_ptr<Command> &&cmd) noexcept {
     _data->buffer << std::move(cmd);
 }
 void PyStream::Data::sync() noexcept {
-    stream << buffer.commit() << synchronize();
+    execute();
+    stream << synchronize();
+    uploadDisposer.clear();
+}
+
+void PyStream::Data::execute() noexcept {
+    if (!buffer.commands().empty()) {
+        for (auto &i : before_commit_tasks) {
+            i.second(i.first, stream);
+        }
+    }
+    before_commit_tasks.clear();
+    if (!buffer.empty()) {
+        stream << buffer.commit();
+    }
     uploadDisposer.clear();
 }
 
@@ -33,8 +47,7 @@ void PyStream::execute() noexcept {
             for (auto &&i : delegates) { i(); }
         });
     }
-    _data->stream << _data->buffer.commit();
-    _data->uploadDisposer.clear();
+    _data->execute();
 }
 
 void PyStream::sync() noexcept {

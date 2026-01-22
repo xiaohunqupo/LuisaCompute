@@ -14,5 +14,13 @@ public:
         /*CUstream*/ void *cu_stream_ptr,
         uint64_t cuda_event_handle,
         uint64_t fence_index) override;
+
+    // buffer
+    void buffer_copy_async(
+        /*CUdeviceptr*/ void *dst_buffer,
+        /*CUdeviceptr*/ void *src_buffer,
+        size_t size,
+        /*CUstream*/ void *stream) override;
+    void sync_stream(void *cu_stream_ptr) override;
 };
 }// namespace luisa::compute::cuda

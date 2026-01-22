@@ -23,9 +23,6 @@ _config_project({
 	enable_exception = true
 })
 set_pcxxheader("lcpy_pch.h")
-add_cxflags("/bigobj", {
-	tools = "cl"
-})
 add_headerfiles("*.h")
 add_files("*.cpp")
 add_deps("lc-runtime", "lc-gui")
