@@ -105,13 +105,10 @@ void interop_copy(DeviceInterface &d, uint64_t interop_buffer, uint64_t interop_
                     interop->compute_to_render_fence(cu_stream_ptr, stream);
             };
         }));
-        gs->buffer.add_callback([cuda_ptr, cuda_handle]() {
-            interop->unmap(reinterpret_cast<void *>(cuda_ptr), reinterpret_cast<void *>(cuda_handle));
-        });
     } else {
         interop->_cu_ext->sync_stream(cu_stream_ptr);
-        interop->unmap(reinterpret_cast<void *>(cuda_ptr), reinterpret_cast<void *>(cuda_handle));
     };
+    interop->unmap(reinterpret_cast<void *>(cuda_ptr), reinterpret_cast<void *>(cuda_handle));
 };
 struct VertexData {
     float3 position;
