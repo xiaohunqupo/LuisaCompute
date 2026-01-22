@@ -19,7 +19,19 @@
 #include <luisa/runtime/rtx/aabb.h>
 #include <luisa/ast/callable_library.h>
 #include <luisa/ast/atomic_ref_node.h>
+#include <variant>
+namespace luisa::compute {
+template<typename T>
+struct std_make_literal_value {
+    static_assert(always_false_v<T>);
+};
 
+template<typename... T>
+struct std_make_literal_value<std::tuple<T...>> {
+    using type = std::variant<T...>;
+};
+
+}// namespace luisa::compute
 // clang-format off
 namespace py = pybind11;
 using namespace luisa;
@@ -252,7 +264,7 @@ void export_runtime(py::module &m) {
         .def("handle", [](BufferCreationInfo &self) { return self.handle; })
         .def("native_handle", [](BufferCreationInfo &self) { return reinterpret_cast<uint64_t>(self.native_handle); });
     py::class_<Context>(m, "Context")
-        .def(py::init<luisa::string>())
+        .def(py::init<std::string>())
         .def("create_device", [](Context &self, luisa::string_view backend_name) {
             static UserBinaryIO io;
             DeviceConfig config{.binary_io = &io};
@@ -271,7 +283,7 @@ void export_runtime(py::module &m) {
             return ManagedDevice(self.create_device(backend_name, &settings));
         })// TODO: support properties
         .def("installed_backends", [](Context &self) {
-            luisa::vector<luisa::string> strs;
+            std::vector<luisa::string> strs;
             for (auto s : self.installed_backends()) strs.emplace_back(luisa::string_view(s.data(), s.size()));
             return strs;
         });
@@ -358,6 +370,14 @@ void export_runtime(py::module &m) {
     //     .def("size", [](DeviceInterface::BuiltinBuffer &buffer) {
     //         return buffer.size;
     //     });
+    using StdLiteralType = typename std_make_literal_value<basic_types>::type;
+    m.def("to_bytes", [](const StdLiteralType &value) {
+        return std::visit(
+            [](auto x) noexcept {
+                return py::bytes(reinterpret_cast<const char *>(&x), sizeof(x));
+            },
+            value);
+    });
     py::class_<DeviceInterface, luisa::shared_ptr<DeviceInterface>>(m, "DeviceInterface")
         .def("backend_name", [](DeviceInterface &self) {
             return self.backend_name();
@@ -646,17 +666,17 @@ void export_runtime(py::module &m) {
         })
         .def("load", [](CallableLibrary &self, luisa::string_view path) {
             BinaryFileStream file_stream{luisa::string{path}};
-            luisa::vector<std::byte> vec;
+            std::vector<std::byte> vec;
             if (file_stream.valid()) {
-                luisa::enlarge_by(vec, file_stream.length());
+                vec.resize(vec.size() + file_stream.length());
                 file_stream.read(vec);
             }
             self.load(vec);
         });
     py::class_<FunctionBuilder, luisa::shared_ptr<FunctionBuilder>>(m, "FunctionBuilder")
-        .def("define_kernel", &FunctionBuilder::define_kernel<const luisa::function<void()> &>)
-        .def("define_callable", &FunctionBuilder::define_callable<const luisa::function<void()> &>)
-        .def("define_raster_stage", &FunctionBuilder::define_raster_stage<const luisa::function<void()> &>)
+        .def("define_kernel", &FunctionBuilder::define_kernel<const std::function<void()> &>)
+        .def("define_callable", &FunctionBuilder::define_callable<const std::function<void()> &>)
+        .def("define_raster_stage", &FunctionBuilder::define_raster_stage<const std::function<void()> &>)
         .def("set_block_size", [](FunctionBuilder &self, uint32_t sx, uint32_t sy, uint32_t sz) { self.set_block_size(uint3(sx, sy, sz)); })
         .def("dimension", [](FunctionBuilder &self) {
             if (self.block_size().z > 1) {
@@ -706,9 +726,17 @@ void export_runtime(py::module &m) {
         .def("bindless_array", &FunctionBuilder::bindless_array, pyref)
         .def("accel", &FunctionBuilder::accel, pyref)
 
-        .def("literal", [](FunctionBuilder &self, const Type *type, const LiteralExpr::Value::variant_type &value)
+        .def("literal", [](FunctionBuilder &self, const Type *type, const StdLiteralType &value)
 
-             { return luisa::visit(
+             {
+                LiteralExpr::Value::variant_type value_ptr;
+                std::visit(
+                    [&](auto&& t){
+                        value_ptr = t;
+                    },
+                    value
+                );
+                 return luisa::visit(
                    [&self, type]<typename T>(T v) {
                        // we do not allow conversion between vector/matrix/bool types
                        if (type->is_vector() || type->is_matrix() ||
@@ -760,7 +788,7 @@ void export_runtime(py::module &m) {
                            "Cannot convert literal value {} to type {}.",
                            print_v(), type->description());
                    },
-                   LiteralExpr::Value{value}); },
+                   LiteralExpr::Value{value_ptr}); },
              pyref)
         .def("unary", &FunctionBuilder::unary, pyref)
         .def("binary", &FunctionBuilder::binary, pyref)
@@ -769,10 +797,10 @@ void export_runtime(py::module &m) {
         .def("swizzle", &FunctionBuilder::swizzle, pyref)
         .def("cast", &FunctionBuilder::cast, pyref)
 
-        .def("call", [](FunctionBuilder &self, const Type *type, CallOp call_op, const luisa::vector<const Expression *> &args) { return self.call(type, call_op, std::move(args)); }, pyref)
-        .def("call", [](FunctionBuilder &self, const Type *type, Function custom, const luisa::vector<const Expression *> &args) { return self.call(type, custom, std::move(args)); }, pyref)
-        .def("call", [](FunctionBuilder &self, CallOp call_op, const luisa::vector<const Expression *> &args) { self.call(call_op, std::move(args)); })
-        .def("call", [](FunctionBuilder &self, Function custom, const luisa::vector<const Expression *> &args) { self.call(custom, std::move(args)); })
+        .def("call", [](FunctionBuilder &self, const Type *type, CallOp call_op, const std::vector<const Expression *> &args) { return self.call(type, call_op, std::move(args)); }, pyref)
+        .def("call", [](FunctionBuilder &self, const Type *type, Function custom, const std::vector<const Expression *> &args) { return self.call(type, custom, std::move(args)); }, pyref)
+        .def("call", [](FunctionBuilder &self, CallOp call_op, const std::vector<const Expression *> &args) { self.call(call_op, std::move(args)); })
+        .def("call", [](FunctionBuilder &self, Function custom, const std::vector<const Expression *> &args) { self.call(custom, std::move(args)); })
 
         .def("break_", &FunctionBuilder::break_)
         .def("continue_", &FunctionBuilder::continue_)
@@ -791,7 +819,7 @@ void export_runtime(py::module &m) {
                 auto ptr = self.for_(var, condition, update);
                 return ptr; }, pyref)
         .def("autodiff_", &FunctionBuilder::autodiff_, pyref)
-        .def("print_", [](FunctionBuilder &self, luisa::string_view format, const luisa::vector<const Expression *> &args) { self.print_(luisa::string{format}, args); }, pyref)
+        .def("print_", [](FunctionBuilder &self, luisa::string_view format, const std::vector<const Expression *> &args) { self.print_(luisa::string{format}, args); }, pyref)
         // .def("meta") // unused
         .def("function", &FunctionBuilder::function);// returning object
 
@@ -805,5 +833,5 @@ void export_runtime(py::module &m) {
             pyref)
         .def("access", [&](AtomicAccessChain &self, Expression const *expr) { self.node = self.node->access(expr); }, pyref)
         .def("member", [&](AtomicAccessChain &self, size_t member_index) { self.node = self.node->access(member_index); }, pyref)
-        .def("operate", [&](AtomicAccessChain &self, CallOp op, const luisa::vector<const Expression *> &args) -> Expression const * { return self.node->operate(op, luisa::span<Expression const *const>{args}); }, pyref);
+        .def("operate", [&](AtomicAccessChain &self, CallOp op, const std::vector<const Expression *> &args) -> Expression const * { return self.node->operate(op, luisa::span<Expression const *const>{args}); }, pyref);
 }
