@@ -29,6 +29,12 @@ void PyStream::Data::sync() noexcept {
 }
 
 void PyStream::Data::execute() noexcept {
+    if (!buffer.commands().empty()) {
+        for (auto &i : before_commit_tasks) {
+            i.second(i.first, stream);
+        }
+        before_commit_tasks.clear();
+    }
     if (!buffer.empty()) {
         stream << buffer.commit();
     }
