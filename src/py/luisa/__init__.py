@@ -75,7 +75,7 @@ def _select_backend(backends):
     if platform_str.find("windows") >= 0:
         backend_name = "dx" if "dx" in backends else backends[0]
     elif platform_str.find("linux") >= 0:
-        backend_name = "cuda" if "cuda" in backends else backends[0]
+        backend_name = "vk" if "vk" in backends else backends[0]
     elif platform_str.find("macos") >= 0:
         backend_name = "metal" if "metal" in backends else backends[0]
     else:

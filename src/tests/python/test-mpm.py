@@ -6,6 +6,8 @@ import numpy as np
 import random as rand
 import math
 
+import sys
+backend_name = None
 if len(sys.argv) >= 2:
     backend_name = sys.argv[1]
 init(backend_name=backend_name)

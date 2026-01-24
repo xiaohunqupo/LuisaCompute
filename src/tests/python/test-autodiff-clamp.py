@@ -29,6 +29,8 @@ def test_autodiff(x):
     print("x =", x, "| ad =", ad_grad, "| fd =", fd_grad, "| match =", abs(ad_grad - fd_grad) < 1e-2)
 
 
+import sys
+backend_name = None
 if len(sys.argv) >= 2:
     backend_name = sys.argv[1]
 init(backend_name=backend_name)

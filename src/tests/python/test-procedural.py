@@ -3,6 +3,8 @@ from luisa.types import *
 from luisa.builtin import *
 import numpy as np
 import math
+import sys
+backend_name = None
 if len(sys.argv) >= 2:
     backend_name = sys.argv[1]
 init(backend_name=backend_name)
