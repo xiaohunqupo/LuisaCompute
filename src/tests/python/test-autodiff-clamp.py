@@ -29,7 +29,9 @@ def test_autodiff(x):
     print("x =", x, "| ad =", ad_grad, "| fd =", fd_grad, "| match =", abs(ad_grad - fd_grad) < 1e-2)
 
 
-init()
+if len(sys.argv) >= 2:
+    backend_name = sys.argv[1]
+init(backend_name=backend_name)
 # Test case 1: x > upper bound (gradient should be 0)
 test_autodiff(1.5, dispatch_size=1)
 

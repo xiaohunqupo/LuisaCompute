@@ -8,7 +8,9 @@ import time
 import cornell_box
 import numpy as np
 
-init()
+if len(sys.argv) >= 2:
+    backend_name = sys.argv[1]
+init(backend_name=backend_name)
 
 Material = StructType(albedo=float3, emission=float3)
 Onb = StructType(tangent=float3, binormal=float3, normal=float3)

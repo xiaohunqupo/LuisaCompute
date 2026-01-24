@@ -5,7 +5,9 @@ from luisa.util import *
 import math
 import numpy as np
 import random
-init()
+if len(sys.argv) >= 2:
+    backend_name = sys.argv[1]
+init(backend_name=backend_name)
 
 
 class ImagePair:

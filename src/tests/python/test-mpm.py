@@ -6,7 +6,9 @@ import numpy as np
 import random as rand
 import math
 
-init()
+if len(sys.argv) >= 2:
+    backend_name = sys.argv[1]
+init(backend_name=backend_name)
 n_grid = 32
 n_steps = 25
 

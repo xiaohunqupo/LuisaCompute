@@ -4,7 +4,9 @@ from luisa.types import *
 from sys import argv
 import numpy as np
 import math
-init()
+if len(sys.argv) >= 2:
+    backend_name = sys.argv[1]
+init(backend_name=backend_name)
 
 res = 1024, 1024
 image = Image2D(*res, 4, float, storage="BYTE")

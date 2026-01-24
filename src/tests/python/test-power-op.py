@@ -11,7 +11,9 @@ from luisa import *
 from luisa.types import *
 import numpy as np
 
-init()
+if len(sys.argv) >= 2:
+    backend_name = sys.argv[1]
+init(backend_name=backend_name)
 
 # Create a simple test for power operations
 buffer_in = Buffer(4, float)

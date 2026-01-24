@@ -1,6 +1,8 @@
 from luisa import *
 from luisa.types import *
-init()
+if len(sys.argv) >= 2:
+    backend_name = sys.argv[1]
+init(backend_name=backend_name)
 
 res = 1024, 1024
 img = Image2D(*res, 4, float, storage="BYTE")

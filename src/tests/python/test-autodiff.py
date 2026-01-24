@@ -2,7 +2,9 @@ from luisa import *
 from luisa.autodiff import *
 from luisa.types import *
 import numpy as np
-init()
+if len(sys.argv) >= 2:
+    backend_name = sys.argv[1]
+init(backend_name=backend_name)
 
 N = 1024
 x_buffer = Buffer(N, float)

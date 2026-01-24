@@ -3,7 +3,9 @@ from luisa.builtin import *
 from luisa.types import *
 from luisa.util import *
 import math
-init()
+if len(sys.argv) >= 2:
+    backend_name = sys.argv[1]
+init(backend_name=backend_name)
 max_ray_depth = 6
 eps = 1e-4
 inf = 1e10

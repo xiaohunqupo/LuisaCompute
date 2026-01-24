@@ -4,7 +4,9 @@ from luisa.builtin import *
 from luisa.util import *
 import math
 import numpy as np
-init()
+if len(sys.argv) >= 2:
+    backend_name = sys.argv[1]
+init(backend_name=backend_name)
 
 
 @func

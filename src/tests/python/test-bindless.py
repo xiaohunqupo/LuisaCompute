@@ -1,7 +1,9 @@
 from luisa import *
 from luisa.builtin import *
 from luisa.types import *
-init()
+if len(sys.argv) >= 2:
+    backend_name = sys.argv[1]
+init(backend_name=backend_name)
 
 
 @func

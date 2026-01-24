@@ -2,7 +2,9 @@ from luisa import *
 from luisa.builtin import *
 from luisa.types import *
 import numpy as np
-init()
+if len(sys.argv) >= 2:
+    backend_name = sys.argv[1]
+init(backend_name=backend_name)
 MyStructType = StructType(my_v0=float3, my_v1=float4)
 buffer = Buffer(32, MyStructType)
 print("buffer byte size(should be 32 * 32 = 1024): " + str(buffer.bytesize))
