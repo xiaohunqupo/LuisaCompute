@@ -128,7 +128,7 @@ private:
 
 public:
     CUDADevice(Context &&ctx, size_t device_id, const BinaryIO *io, bool use_lmdb,
-               luisa::unique_ptr<DeviceConfigExt> device_ext) noexcept;
+               luisa::unique_ptr<DeviceConfigExt> device_ext, bool headless) noexcept;
     ~CUDADevice() noexcept override;
     [[nodiscard]] const auto &handle() const noexcept { return _handle; }
     template<typename F>

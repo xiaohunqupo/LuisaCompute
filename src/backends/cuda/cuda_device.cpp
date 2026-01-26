@@ -235,7 +235,8 @@ namespace luisa::compute::cuda {
 
 CUDADevice::CUDADevice(Context &&ctx, size_t device_id,
                        const BinaryIO *io, bool use_lmdb,
-                       luisa::unique_ptr<DeviceConfigExt> device_ext) noexcept
+                       luisa::unique_ptr<DeviceConfigExt> device_ext,
+                       bool headless) noexcept
     : DeviceInterface{std::move(ctx)},
       _handle{device_id}, _io{io},
       _device_ext{std::move(device_ext)} {
@@ -244,6 +245,7 @@ CUDADevice::CUDADevice(Context &&ctx, size_t device_id,
         _default_io = luisa::make_unique<DefaultBinaryIO>(context(), false, use_lmdb);
         _io = _default_io.get();
     }
+    if (headless) return;
     _compiler = luisa::make_unique<CUDACompiler>(this);
     auto sm_option = luisa::format("-arch=compute_{}", handle().compute_capability());
     std::array options{sm_option.c_str(),
@@ -348,7 +350,8 @@ CUDADevice::CUDADevice(Context &&ctx, size_t device_id,
 CUDADevice::~CUDADevice() noexcept {
     with_handle([this] {
         LUISA_CHECK_CUDA(cuCtxSynchronize());
-        LUISA_CHECK_CUDA(cuModuleUnload(_builtin_kernel_module));
+        if (_builtin_kernel_module)
+            LUISA_CHECK_CUDA(cuModuleUnload(_builtin_kernel_module));
     });
 }
 
@@ -1463,17 +1466,17 @@ LUISA_EXPORT_API luisa::compute::DeviceInterface *create(luisa::compute::Context
     auto device_id = 0ull;
     auto binary_io = static_cast<const luisa::BinaryIO *>(nullptr);
     auto use_lmdb = false;
+    auto headless = false;
     luisa::unique_ptr<luisa::compute::DeviceConfigExt> ext;
     if (config != nullptr) {
         device_id = config->device_index;
         binary_io = config->binary_io;
-        LUISA_ASSERT(!config->headless,
-                     "Headless mode is not implemented yet for CUDA backend.");
         use_lmdb = config->use_lmdb;
+        headless = config->headless;
         ext = std::move(config->extension);
     }
     return luisa::new_with_allocator<luisa::compute::cuda::CUDADevice>(
-        std::move(ctx), device_id, binary_io, use_lmdb, std::move(ext));
+        std::move(ctx), device_id, binary_io, use_lmdb, std::move(ext), headless);
 }
 
 LUISA_EXPORT_API void destroy(luisa::compute::DeviceInterface *device) noexcept {

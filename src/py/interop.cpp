@@ -27,6 +27,7 @@ PyInterop::PyInterop(DeviceInterface *device) : _render_device_idx(~0u) {
         config.extension = luisa::make_unique<CudaDeviceConfigExtImpl>(
             (*vk)->get_external_vk_device());
     }
+    config.headless = true;
     compute_device = device->context().create_device("cuda", &config);
     _cu_ext = compute_device.extension<CUDAExternalExt>();
 }
