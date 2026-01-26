@@ -91,7 +91,7 @@ class LUISA_TENSOR_API Tensor {
 
     TensorData *_data;
     bool _contained;
-    [[nodiscard]] void _create(TensorElementType element_type, luisa::span<const uint64_t> sizes, Argument::Buffer buffer) noexcept;
+    void _create(TensorElementType element_type, luisa::span<const uint64_t> sizes, Argument::Buffer buffer) noexcept;
 
 public:
     explicit Tensor(TensorData *data,

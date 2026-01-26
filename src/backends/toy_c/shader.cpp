@@ -99,7 +99,7 @@ void LCShader::dispatch(LCDevice* device, LCStream *stream, MemoryManager &manag
 namespace detail {
 template<class F>
     requires(std::is_invocable_v<F, uint32_t>)
-[[nodiscard]] void async_parallel(luisa::fiber::counter &evt, uint32_t job_count, F &&lambda, uint32_t internal_jobs = 1) noexcept {
+void async_parallel(luisa::fiber::counter &evt, uint32_t job_count, F &&lambda, uint32_t internal_jobs = 1) noexcept {
     using namespace luisa::fiber;
     auto thread_count = std::clamp<uint32_t>(job_count / internal_jobs, 1u, worker_thread_count());
     evt.add(thread_count);

@@ -63,8 +63,8 @@ public:
             .fence = fence};
     }
 
-    [[nodiscard]] void cuda_signal_external(DxCudaInterop *interop_ext, void *cu_stream_ptr, uint64_t fence) const noexcept;
-    [[nodiscard]] void cuda_wait_external(DxCudaInterop *interop_ext, void *cu_stream_ptr, uint64_t fence) const noexcept;
+    void cuda_signal_external(DxCudaInterop *interop_ext, void *cu_stream_ptr, uint64_t fence) const noexcept;
+    void cuda_wait_external(DxCudaInterop *interop_ext, void *cu_stream_ptr, uint64_t fence) const noexcept;
 
     [[nodiscard]] auto dx_signal(uint64_t fence) const noexcept {
         return dx_event.signal(fence);
