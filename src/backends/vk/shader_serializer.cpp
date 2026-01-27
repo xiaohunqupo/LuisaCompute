@@ -229,7 +229,7 @@ void ShaderSerializer::serialize_pso(
     memcpy(package.md5, &shader_md5, sizeof(vstd::MD5));
     vstd::MD5 pso_md5{
         {reinterpret_cast<uint8_t const *>(&package), sizeof(PSODataPackage)}};
-    auto file_name = pso_md5.to_string(false);
+    auto file_name = pso_md5.to_string(false) + ".vk";
 
     bin_io->write_shader_cache(file_name, pso_data);
 }
@@ -375,7 +375,7 @@ ShaderSerializer::DeserResult ShaderSerializer::try_deser_compute(
         std::memcpy(package.md5, shader_md5.ptr(), sizeof(vstd::MD5));
         vstd::MD5 pso_md5{
             {reinterpret_cast<uint8_t const *>(&package), sizeof(PSODataPackage)}};
-        pso_name = pso_md5.to_string(false);
+        pso_name = pso_md5.to_string(false) + ".vk";
         auto read_stream = bin_io->read_shader_cache(pso_name);
         if (read_stream) {
             auto stream_len = read_stream->length();

@@ -199,7 +199,7 @@ vstd::string Shader::PSOName(Device const *device, vstd::string_view fileName) {
     std::memcpy(data.data(), &device->adapterID, 16);
     std::memcpy(data.data() + 16, fileName.data(), fileName.size());
     vstd::MD5 hash{data};
-    return hash.to_string(false);
+    return hash.to_string(false) + ".dx";
 }
 
 }// namespace lc::dx
