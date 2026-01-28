@@ -8,10 +8,12 @@ function main()
         copy_if_different = true,
         detach = true
     }
+    os.cp(path.join(dylib_src_path, 'luisa_nvrtc.*'), dylib_dst_path, copy_option)
     os.cp(path.join(dylib_src_path, '**.dll'), dylib_dst_path, copy_option)
     os.cp(path.join(dylib_src_path, '**.so'), dylib_dst_path, copy_option)
     os.cp(path.join(dylib_src_path, 'lcapi.pyd'), dylib_dst_path, copy_option)
     os.cp(path.join(py_src_path, '*.py'), path.directory(dylib_dst_path), copy_option)
+    os.cp(path.join(py_src_path, '*.pyi'), path.directory(dylib_dst_path), copy_option)
     print("Copy test cases? (y/n)")
     local option = io.read()
     if option == 'y' or option == 'Y' then
