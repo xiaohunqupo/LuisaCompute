@@ -592,24 +592,24 @@ public:
 public:
     template<typename I>
         requires is_integral_expr_v<I>
-    [[nodiscard]] auto read(I &&byte_offset) const noexcept {
-        return Expr<T>{_buffer}.read(std::forward<I>(byte_offset));
+    [[nodiscard]] auto read(I &&index) const noexcept {
+        return Expr<T>{_buffer}.read(std::forward<I>(index));
     }
     template<typename I, typename V>
         requires is_integral_expr_v<I>
-    void write(I &&byte_offset, V &&value) const noexcept {
-        Expr<T>{_buffer}.write(std::forward<I>(byte_offset),
+    void write(I &&index, V &&value) const noexcept {
+        Expr<T>{_buffer}.write(std::forward<I>(index),
                                std::forward<V>(value));
     }
     template<typename I>
         requires is_integral_expr_v<I>
-    [[nodiscard]] auto volatile_read(I &&byte_offset) const noexcept {
-        return Expr<T>{_buffer}.volatile_read(std::forward<I>(byte_offset));
+    [[nodiscard]] auto volatile_read(I &&index) const noexcept {
+        return Expr<T>{_buffer}.volatile_read(std::forward<I>(index));
     }
     template<typename I, typename V>
         requires is_integral_expr_v<I>
-    void volatile_write(I &&byte_offset, V &&value) const noexcept {
-        Expr<T>{_buffer}.volatile_write(std::forward<I>(byte_offset),
+    void volatile_write(I &&index, V &&value) const noexcept {
+        Expr<T>{_buffer}.volatile_write(std::forward<I>(index),
                                         std::forward<V>(value));
     }
     template<typename I>
