@@ -23,6 +23,7 @@
 #include "util.h"
 #include "common/test_math_util.h"
 #include "common/tiny_obj_loader.h"
+#include <luisa/runtime/rtx/mesh.h>
 #include "common/cornell_box.h"
 
 #include <array>

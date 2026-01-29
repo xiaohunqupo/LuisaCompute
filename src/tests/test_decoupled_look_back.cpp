@@ -1,3 +1,6 @@
+// Decoupled look-back parallel primitive test demonstrating
+// efficient parallel prefix sum (scan) algorithms using GPU warp operations.
+
 #include <cmath>
 #include <luisa/luisa-compute.h>
 #include "luisa/core/basic_traits.h"
@@ -12,6 +15,7 @@
 
 namespace luisa::parallel_primitive {
 
+// Shuffle down operation for warp-level communication
 template<typename Type4Byte>
 luisa::compute::Var<Type4Byte> ShuffleDown(luisa::compute::Var<Type4Byte> &input,
                                            luisa::compute::UInt curr_lane_id,
@@ -25,6 +29,7 @@ luisa::compute::Var<Type4Byte> ShuffleDown(luisa::compute::Var<Type4Byte> &input
     return result;
 };
 
+// Get lane mask for threads with lane_id >= given value
 inline luisa::compute::UInt get_lane_mask_ge(luisa::compute::UInt lane_id,
                                              luisa::compute::UInt wave_size) {
     luisa::compute::ULong mask64 = ~((1ull << lane_id) - 1ull);
@@ -35,6 +40,7 @@ inline luisa::compute::UInt get_lane_mask_ge(luisa::compute::UInt lane_id,
 namespace details {
 using namespace luisa::compute;
 
+// Warp-level reduction using shuffle operations
 template<typename Type4Byte, size_t LOGIC_WARP_SIZE = 32>
 struct WarpReduceShfl {
     constexpr static bool IS_ARCH_WARP = (LOGIC_WARP_SIZE == 32);
@@ -56,7 +62,8 @@ struct WarpReduceShfl {
         return result;
     }
 
-    template<bool HEAD_SEGMENT, typename FlagT, typename ReduceOp>
+    // Segmented reduction for handling boundaries
+template<bool HEAD_SEGMENT, typename FlagT, typename ReduceOp>
     Var<Type4Byte> SegmentReduce(const Var<Type4Byte> &input,
                                  const Var<FlagT> &flag,
                                  ReduceOp redecu_op,
@@ -85,8 +92,8 @@ struct WarpReduceShfl {
     }
 };
 }// namespace details
-
 template<typename ScanOp>
+// Swizzle scan operator for reversing operand ordertemplate<typename ScanOp>
 struct SwizzleScanOp {
     ScanOp scan_op;
 
@@ -108,6 +115,7 @@ using SmemType = luisa::compute::Shared<T>;
 template<typename T>
 using SmemTypePtr = luisa::compute::Shared<T> *;
 
+// Tile status for decoupled look-back scan
 enum class ScanTileStatus : uint {
     SCAN_TILE_OBB,         // out-of-bounds
     SCAN_TILE_INVALID = 99,// not yet valid
@@ -115,6 +123,7 @@ enum class ScanTileStatus : uint {
     SCAN_TILE_INCLUSIVE,   // inclusive tile prefix is available
 };
 
+// Tile descriptor containing status and value
 template<typename StatusWord, typename T>
 struct TileDescriptor {
     StatusWord status;
@@ -127,7 +136,7 @@ struct TileDescriptor {
     TileDescriptor &operator=(const TileDescriptor &) = default;
 };
 
-// device and host
+// Device and host tile state for scan
 template<typename T>
 struct ScanTileState {
 
@@ -135,6 +144,7 @@ struct ScanTileState {
     T value;
 };
 
+// Tile state viewer for managing scan state
 template<typename T, bool SINGLE_WORD = std::is_integral_v<T>>
 struct ScanTileStateViewer;
 template<typename T>
@@ -144,6 +154,7 @@ struct ScanTileStateViewer<T, true> {
 
     constexpr static size_t TILE_STATUS_PADDING = 32;
 
+    // Initialize ward status for all tiles
     static void InitializeWardStatus(compute::BufferVar<ScanTileState<T>> &tile_state,
                                      compute::UInt num_tile) noexcept {
 
@@ -164,6 +175,7 @@ struct ScanTileStateViewer<T, true> {
         };
     };
 
+    // Set tile status to inclusive
     static void SetInclusive(compute::BufferVar<ScanTileState<T>> &tile_state,
                              compute::UInt tile_index,
                              const compute::Var<T> &tile_prefix) noexcept {
@@ -173,6 +185,7 @@ struct ScanTileStateViewer<T, true> {
         tile_state.write(compute::UInt(TILE_STATUS_PADDING) + tile_index, state);
     };
 
+    // Set tile status to partial
     static void SetPartial(compute::BufferVar<ScanTileState<T>> &tile_state,
                            compute::UInt tile_index,
                            const compute::Var<T> &tile_partial) noexcept {
@@ -182,6 +195,7 @@ struct ScanTileStateViewer<T, true> {
         tile_state.write(compute::UInt(TILE_STATUS_PADDING) + tile_index, state);
     };
 
+    // Wait for tile to become valid (decoupled look-back)
     static void WaitForValid(compute::BufferVar<ScanTileState<T>> &tile_state,
                              compute::Int tile_index,
                              compute::Var<StatusWordT> &out_status,
@@ -203,7 +217,7 @@ struct ScanTileStateViewer<T, true> {
     };
 };
 
-// Decoupled look-back(warp)
+// Decoupled look-back (warp) callback operator
 // only device
 template<typename T, typename ScanOpT, typename ScanTileStateT>
 class TilePrefixCallbackOp {
@@ -227,6 +241,7 @@ public:
         : TilePrefixCallbackOp(tile_state, scan_op, compute::block_x()) {};
 
 public:
+    // Compute tile prefix using decoupled look-back
     compute::Var<T> operator()(const compute::Var<T> &block_aggregate) {
         $if (compute::thread_x() == 0) {
             ScanTileStateViewer<T>::SetPartial(tile_status, tile_index, block_aggregate);
@@ -257,6 +272,7 @@ public:
     compute::UInt GetTileIndex() const noexcept { return tile_index; }
 
 private:
+    // Process a window of predecessor tiles
     void process_windows(compute::Int predecessor_idx,
                          compute::Var<StatusWordT> &predecessor_status,
                          compute::Var<T> &windows_aggregate) {
@@ -297,6 +313,7 @@ int main(int argc, char **argv) {
     CommandList cmdlist;
     Stream stream = device.create_stream();
 
+    // Configuration for decoupled look-back scan
     constexpr size_t WARP_SIZE = 32;
     constexpr size_t BLOCK_SIZE = 256;
     constexpr size_t NUM_TILES = 10000;
@@ -306,7 +323,7 @@ int main(int argc, char **argv) {
     auto exclusive_buffer = device.create_buffer<int>(NUM_TILES);
     auto inclusive_buffer = device.create_buffer<int>(NUM_TILES);
 
-    // init status to invalid and obb
+    // Initialize tile status to invalid and out-of-bounds
     Kernel1D init_kernel = [&](BufferVar<ScanTileState<int>> tile_state) noexcept {
         luisa::compute::set_block_size(BLOCK_SIZE);
         luisa::parallel_primitive::ScanTileStateViewer<int, true>::InitializeWardStatus(tile_state, NUM_TILES);
@@ -315,8 +332,10 @@ int main(int argc, char **argv) {
     cmdlist << init_shader(scan_tile_buffer.view()).dispatch(num_blocks * BLOCK_SIZE);
     stream << cmdlist.commit() << synchronize();
 
+    // Define scan operator (addition)
     auto scan_op = [](const Var<int> &a, const Var<int> &b) noexcept { return a + b; };
 
+    // Decoupled look-back kernel
     Kernel1D decoupled_look_back_kernel = [&](BufferVar<ScanTileState<int>> tile_state,
                                               BufferVar<int> exclusive_output,
                                               BufferVar<int> inclusive_output) noexcept {
@@ -355,11 +374,13 @@ int main(int argc, char **argv) {
         << decoupled_look_back_kernel_shader(scan_tile_buffer.view(), exclusive_buffer.view(), inclusive_buffer.view()).dispatch(NUM_TILES * BLOCK_SIZE);
     stream << cmdlist.commit() << synchronize();
 
+    // Copy results back to host
     luisa::vector<int> exclusive_result(NUM_TILES);
     luisa::vector<int> inclusive_result(NUM_TILES);
     stream << exclusive_buffer.copy_to(exclusive_result.data())
            << inclusive_buffer.copy_to(inclusive_result.data()) << synchronize();
 
+    // Print results
     for (size_t i = 0; i < NUM_TILES; i++) {
         LUISA_INFO("Tile {}: exclusive_result = {}, inclusive_result = {}",
                    i,

@@ -1,13 +1,30 @@
+// Physically-based hair rendering using PBRT's hair BSDF.
+//
+// This test implements a path tracer for hair/fur rendering using the
+// Marschner hair model as described in "Light Scattering from Human Hair Fibers"
+// by Marschner et al., 2003, with improvements from d'Eon et al. (2011).
+//
+// Features:
+// - Parse PBRT curve files
+// - Hair BSDF with R, TT, TRT, and higher-order scattering lobes
+// - Path tracing with multiple scattering
+// - Shadow rays for direct lighting
+// - Interactive camera control
+
 #include <fstream>
 #include <stb/stb_image_write.h>
 #include <luisa/luisa-compute.h>
 
 using namespace luisa;
 using namespace luisa::compute;
+
 constexpr static float PI = 3.14159265358979323846f;
+
 auto sqr(auto x) noexcept {
     return x * x;
 }
+
+// Integer power function
 auto powi(Float x, uint32_t i) noexcept {
     Float y = x;
     Float z = 1.0f;
@@ -18,15 +35,20 @@ auto powi(Float x, uint32_t i) noexcept {
     }
     return z;
 }
+
+// Absolute value of cosine theta
 auto abs_cos_theta(Float3 w) noexcept {
     return abs(w.z);
 }
+
+// Modified Bessel function of the first kind (approximation)
+// Used in the Marschner model for longitudinal scattering
 Float I0(Float x) noexcept {
     Float val = 0;
     Float x2i = 1;
     int64_t ifact = 1;
     int i4 = 1;
-    // I0(x) \approx Sum_i x^(2i) / (4^i (i!)^2)
+    // I0(x) ≈ Sum_i x^(2i) / (4^i (i!)^2)
     for (int i = 0; i < 10; ++i) {
         if (i > 1)
             ifact *= i;
@@ -36,19 +58,24 @@ Float I0(Float x) noexcept {
     }
     return val;
 }
+
+// Logistic distribution function
 inline Float Logistic(Float x, Float s) noexcept {
     x = abs(x);
     return exp(-x / s) / (s * sqr(1.f + exp(-x / s)));
 }
 
+// Logistic cumulative distribution function
 inline Float LogisticCDF(Float x, Float s) noexcept {
     return 1.f / (1.f + exp(-x / s));
 }
 
+// Trimmed logistic distribution for azimuthal scattering
 inline Float TrimmedLogistic(Float x, Float s, Float a, Float b) noexcept {
     return Logistic(x, s) / (LogisticCDF(b, s) - LogisticCDF(a, s));
 }
 
+// Fresnel equations for dielectric materials
 inline Float FrDielectric(Float cosTheta_i, Float eta) noexcept {
     cosTheta_i = clamp(cosTheta_i, -1.0f, 1.0f);
     // Potentially flip interface orientation for Fresnel equations
@@ -57,16 +84,18 @@ inline Float FrDielectric(Float cosTheta_i, Float eta) noexcept {
         cosTheta_i = -cosTheta_i;
     };
 
-    // Compute $\cos\,\theta_\roman{t}$ for Fresnel equations using Snell's law
+    // Compute cos theta_t using Snell's law
     Float sin2Theta_i = 1.0f - sqr(cosTheta_i);
     Float sin2Theta_t = sin2Theta_i / sqr(eta);
     Float ret;
     $if (sin2Theta_t >= 1.f) {
+        // Total internal reflection
         ret = 1.f;
     }
     $else {
         Float cosTheta_t = sqrt(1.f - sin2Theta_t);
 
+        // Fresnel equations for parallel and perpendicular polarization
         Float r_parl = (eta * cosTheta_i - cosTheta_t) / (eta * cosTheta_i + cosTheta_t);
         Float r_perp = (cosTheta_i - eta * cosTheta_t) / (cosTheta_i + eta * cosTheta_t);
         ret = (sqr(r_parl) + sqr(r_perp)) * .5f;
@@ -74,6 +103,7 @@ inline Float FrDielectric(Float cosTheta_i, Float eta) noexcept {
     return ret;
 }
 
+// Orthonormal basis for local shading frame
 struct Onb {
     float3 tangent;
     float3 binormal;
@@ -81,38 +111,44 @@ struct Onb {
 };
 
 LUISA_STRUCT(Onb, tangent, binormal, normal) {
+    // Transform from local to world space
     [[nodiscard]] Float3 to_world(Expr<float3> v) const noexcept {
         return v.x * tangent + v.y * binormal + v.z * normal;
     }
+    // Transform from world to local space
     [[nodiscard]] Float3 to_local(Expr<float3> v) const noexcept {
         return make_float3(dot(v, tangent), dot(v, binormal), dot(v, normal));
     }
 };
 
-// From PBRT-v4
+// Hair BSDF based on PBRT-v4 implementation
+// Implements the Marschner model with R, TT, TRT, and higher-order lobes
 class HairBsdf {
-    static constexpr int pMax = 3;
-    Float h;
-    Float eta;
-    Float3 sigma_a;
-    Float beta_m;
-    Float beta_n;
-    Float alpha;
-    Float s;
-    std::array<Float, pMax> sin2kAlpha{}, cos2kAlpha{};
-    std::array<Float, pMax + 1> v{};
+    static constexpr int pMax = 3;  // Maximum scattering order to explicitly compute
+    Float h;    // Offset from hair center (-1 to 1)
+    Float eta;  // Index of refraction
+    Float3 sigma_a;  // Absorption coefficient
+    Float beta_m;    // Longitudinal roughness
+    Float beta_n;    // Azimuthal roughness
+    Float alpha;     // Scale tilt angle
+    Float s;         // Azimuthal logistic scale
+    std::array<Float, pMax> sin2kAlpha{}, cos2kAlpha{};  // Precomputed tilt angles
+    std::array<Float, pMax + 1> v{};  // Longitudinal variance for each lobe
 public:
     HairBsdf(Float h, Float eta, Float3 sigma_a, Float beta_m, Float beta_n, Float alpha)
         : h{h}, eta{eta}, sigma_a{sigma_a}, beta_m{beta_m}, beta_n{beta_n}, alpha{alpha} {
+        // Compute longitudinal variance for each lobe
         v[0] = sqr(0.726f * beta_m + 0.812f * sqr(beta_m) + 3.7f * powi(beta_m, 20));
         v[1] = .25f * v[0];
         v[2] = 4.f * v[0];
         for (int p = 3; p <= pMax; ++p)
             v[p] = v[2];
 
+        // Azimuthal scale factor
         static const Float SqrtPiOver8 = 0.626657069f;
         s = SqrtPiOver8 * (0.265f * beta_n + 1.194f * sqr(beta_n) + 5.372f * powi(beta_n, 22));
 
+        // Precompute tilt angles
         sin2kAlpha[0] = sin(radians(alpha));
         cos2kAlpha[0] = sqrt(1.0f - sqr(sin2kAlpha[0]));
         for (int i = 1; i < pMax; ++i) {
@@ -120,29 +156,33 @@ public:
             cos2kAlpha[i] = sqr(cos2kAlpha[i - 1]) - sqr(sin2kAlpha[i - 1]);
         }
     }
+    
+    // Longitudinal scattering function (M_p in Marschner paper)
     static Float Mp(Float cosTheta_i, Float cosTheta_o, Float sinTheta_i,
                     Float sinTheta_o, Float v) {
         Float a = cosTheta_i * cosTheta_o / v, b = sinTheta_i * sinTheta_o / v;
+        // Use log-space computation for numerical stability with small v
         Float mp = ite(v <= .1f,
                        (exp(log10(a) - b - 1.f / v + 0.6931f + log(1.f / (2.f * v)))),
                        (exp(-b) * I0(a)) / (sinh(1.f / v) * 2.f * v));
         return mp;
     }
 
+    // Compute attenuation terms A_p for each scattering order
     static std::array<Float3, pMax + 1> Ap(Float cosTheta_o,
                                            Float eta, Float h,
                                            Float3 T) {
         std::array<Float3, pMax + 1> ap{};
-        // Compute $p=0$ attenuation at initial cylinder intersection
+        // Compute p=0 attenuation at initial cylinder intersection
         Float cosGamma_o = sqrt(1.f - sqr(h));
         Float cosTheta = cosTheta_o * cosGamma_o;
         Float f = FrDielectric(cosTheta, eta);
         ap[0] = make_float3(f);
 
-        // Compute $p=1$ attenuation term
+        // Compute p=1 attenuation term (transmission)
         ap[1] = sqr(1.0f - f) * T;
 
-        // Compute attenuation terms up to $p=_pMax_$
+        // Compute attenuation terms up to p=pMax
         for (int p = 2; p < pMax; ++p)
             ap[p] = ap[p - 1] * T * f;
 
@@ -154,29 +194,28 @@ public:
         return ap;
     }
 
+    // Evaluate BSDF: f(wo, wi)
     Float3 f(Float3 wo, Float3 wi) const {
-        // Compute hair coordinate system terms related to _wo_
+        // Convert to hair coordinate system
         Float sinTheta_o = wo.x;
         Float cosTheta_o = sqrt(1.f - sqr(sinTheta_o));
         Float phi_o = atan2(wo.z, wo.y);
         Float gamma_o = asin(h);
 
-        // Compute hair coordinate system terms related to _wi_
         Float sinTheta_i = wi.x;
         Float cosTheta_i = sqrt(1.f - sqr(sinTheta_i));
         Float phi_i = atan2(wi.z, wi.y);
 
-        // Compute $\cos\,\thetat$ for refracted ray
+        // Compute refracted ray parameters
         Float sinTheta_t = sinTheta_o / eta;
         Float cosTheta_t = sqrt(1.f - sqr(sinTheta_t));
 
-        // Compute $\gammat$ for refracted ray
         Float etap = sqrt(sqr(eta) - sqr(sinTheta_o)) / cosTheta_o;
         Float sinGamma_t = h / etap;
         Float cosGamma_t = sqrt(1.f - sqr(sinGamma_t));
         Float gamma_t = asin(sinGamma_t);
 
-        // Compute the transmittance _T_ of a single path through the cylinder
+        // Compute transmittance for a single path through the cylinder
         Float3 T = exp(-sigma_a * (2.f * cosGamma_t / cosTheta_t));
 
         // Evaluate hair BSDF
@@ -184,14 +223,14 @@ public:
         std::array<Float3, pMax + 1> ap = Ap(cosTheta_o, eta, h, T);
         Float3 fsum = make_float3(0.f);
 
+        // Sum contributions from each scattering order
         for (int p = 0; p < pMax; ++p) {
-            // Compute $\sin\,\thetao$ and $\cos\,\thetao$ terms accounting for scales
+            // Account for scale tilt
             Float sinThetap_o, cosThetap_o;
             if (p == 0) {
                 sinThetap_o = sinTheta_o * cos2kAlpha[1] - cosTheta_o * sin2kAlpha[1];
                 cosThetap_o = cosTheta_o * cos2kAlpha[1] + sinTheta_o * sin2kAlpha[1];
             }
-            // Handle remainder of $p$ values for hair scale tilt
             else if (p == 1) {
                 sinThetap_o = sinTheta_o * cos2kAlpha[0] + cosTheta_o * sin2kAlpha[0];
                 cosThetap_o = cosTheta_o * cos2kAlpha[0] - sinTheta_o * sin2kAlpha[0];
@@ -203,30 +242,34 @@ public:
                 cosThetap_o = cosTheta_o;
             }
 
-            // Handle out-of-range $\cos\,\thetao$ from scale adjustment
             cosThetap_o = abs(cosThetap_o);
 
+            // Accumulate contribution from this lobe
             fsum += Mp(cosTheta_i, cosThetap_o, sinTheta_i, sinThetap_o, v[p]) * ap[p] *
                     Np(phi, p, s, gamma_o, gamma_t);
         }
-        // Compute contribution of remaining terms after _pMax_
+        // Add contribution from higher-order scattering
         fsum +=
             Mp(cosTheta_i, cosTheta_o, sinTheta_i, sinTheta_o, v[pMax]) * ap[pMax] / (2 * PI);
 
+        // Normalize by cosine of incident angle
         $if (abs_cos_theta(wi) > 0.0f) {
             fsum /= abs_cos_theta(wi);
         };
 
         return fsum;
     }
+    
+    // Azimuthal scattering phase function
     static inline Float Phi(int p, Float gamma_o, Float gamma_t) noexcept {
         return static_cast<float>(2 * p) * gamma_t - 2.f * gamma_o + static_cast<float>(p) * PI;
     }
 
+    // Azimuthal logistic distribution
     static inline Float Np(Float phi, int p, Float s, Float gamma_o,
                            Float gamma_t) noexcept {
         Float dphi = phi - Phi(p, gamma_o, gamma_t);
-        // Remap _dphi_ to $[-\pi,\pi]$
+        // Remap dphi to [-π, π]
         $while (dphi > PI) {
             dphi -= 2 * PI;
         };
@@ -237,6 +280,7 @@ public:
     }
 };
 
+// Parse PBRT curve file format
 [[nodiscard]] auto parse_pbrt_curve_file(const std::filesystem::path &path) noexcept {
     std::ifstream file{path};
     if (!file.is_open()) {
@@ -250,6 +294,7 @@ public:
     auto aabb_min = make_float3(inf);
     auto aabb_max = make_float3(-inf);
 
+    // Parser helper functions
     auto eof = [&] { return file.peek() == EOF; };
     auto peek = [&] {
         LUISA_ASSERT(!eof(), "Unexpected EOF.");
@@ -298,6 +343,7 @@ public:
         return x;
     };
 
+    // Parse individual curve
     auto parse_curve = [&]() noexcept -> bool {
         skip_whitespaces();
         if (eof()) { return false; }
@@ -366,6 +412,7 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
+    // Create device and parse curve file
     auto device = context.create_device(argv[1]);
     auto [control_points, segments, aabb_min, aabb_max] = parse_pbrt_curve_file(argv[2]);
     auto control_point_count = static_cast<uint>(control_points.size());
@@ -376,11 +423,13 @@ int main(int argc, char *argv[]) {
     LUISA_INFO("Control Points: {}, Segments: {}, AABB: {} -> {}, Extent = {}, Scaling Factor = {}",
                control_point_count, segment_count, aabb_min, aabb_max, extent, scaling_factor);
 
+    // Compute normalization transform
     auto M = scaling(1.f / scaling_factor) * translation(-center);
     auto invM = inverse(M);
     auto invN = transpose(make_float3x3(M));
     auto N = inverse(invN);
 
+    // Setup curve geometry
     static constexpr auto curve_basis = CurveBasis::CATMULL_ROM;
     auto control_point_buffer = device.create_buffer<float4>(control_point_count);
     auto segment_buffer = device.create_buffer<uint>(segment_count);
@@ -400,6 +449,7 @@ int main(int argc, char *argv[]) {
            << accel.build()
            << synchronize();
 
+    // Random number generation
     Callable tea = [](UInt v0, UInt v1) noexcept {
         UInt s0 = def(0u);
         for (uint n = 0u; n < 4u; n++) {
@@ -426,6 +476,7 @@ int main(int argc, char *argv[]) {
 
     static constexpr auto resolution = make_uint2(512u);
 
+    // Camera with rotatable view
     Callable generate_ray = [](Float2 p, Float angle) noexcept {
         auto origin = make_float3(sin(angle) * 2.f, 0.f, cos(angle) * 2.f);
         auto target = make_float3(0.f, 0.f, 0.f);
@@ -446,6 +497,7 @@ int main(int argc, char *argv[]) {
         return make_ray(ray_origin, ray_direction);
     };
 
+    // Path tracing render kernel
     auto render = device.compile<2u>(
         [&](AccelVar accel, ImageFloat image, ImageUInt seed_image, Float view_angle) noexcept {
             set_block_size(16u, 16u, 1u);
@@ -453,27 +505,38 @@ int main(int argc, char *argv[]) {
             auto state = seed_image.read(coord).x;
             auto ux = lcg(state);
             auto uy = lcg(state);
+            seed_image.write(coord, make_uint4(state));
             auto pixel = make_float2(coord) + make_float2(ux, uy);
             auto ray = generate_ray(pixel, view_angle);
             auto color = def(make_float3());
             auto beta = def(make_float3(1.f));
+            
+            // Path tracing loop
             $for (depth, 10u) {
                 auto hit = accel.intersect(ray, {.curve_bases = {curve_basis}});
                 $if (!hit->is_curve()) { $break; };
                 auto light_color = make_float3(100.f);
                 auto u = hit->curve_parameter();
                 auto i0 = hit->prim;
+                
+                // Read curve control points
                 auto p0 = control_point_buffer->read(i0 + 0u);
                 auto p1 = control_point_buffer->read(i0 + 1u);
                 auto p2 = control_point_buffer->read(i0 + 2u);
                 auto p3 = control_point_buffer->read(i0 + 3u);
                 auto c = CurveEvaluator::create(curve_basis, p0, p1, p2, p3);
+                
+                // Compute intersection point and surface properties
                 auto ps_local = ray->origin() + hit->distance() * ray->direction();
                 auto ps = make_float3(invM * make_float4(ps_local, 1.f));
                 auto eval = c->evaluate(u, ps_local);
                 auto t_local = c->tangent(u);
+                
+                // Transform to world space
                 auto n = normalize(N * eval.normal);
                 auto t = normalize(N * t_local);
+                
+                // Build orthonormal basis
                 Callable make_onb = [](Float3 normal, Float3 tangent) noexcept {
                     auto binormal = normalize(cross(normal, tangent));
                     return def<Onb>(tangent, binormal, normal);
@@ -481,11 +544,17 @@ int main(int argc, char *argv[]) {
                 auto onb = make_onb(n, t);
                 auto wo = -ray->direction();
                 auto wo_local = onb->to_local(wo);
+                
+                // Compute hair offset parameter
                 Float h = eval.h(wo_local);
+                
+                // Hair BSDF parameters
                 Float eta = 1.55f;
                 Float beta_m = 0.3f;
                 Float beta_n = 0.3f;
                 Float alpha = 2.0f;
+                
+                // Melanin absorption coefficients
                 Float3 sigma_a = ([&] {
                     auto eumelaninSigma_a = make_float3(0.419f, 0.697f, 1.37f);
                     auto pheomelaninSigma_a = make_float3(0.187f, 0.4f, 1.05f);
@@ -493,9 +562,11 @@ int main(int argc, char *argv[]) {
                     auto cp = 0.2f;
                     return ce * eumelaninSigma_a + cp * pheomelaninSigma_a;
                 })();
+                
                 auto bsdf = HairBsdf(h, eta, sigma_a, beta_m, beta_n, alpha);
                 auto p_curve = c->position(u);
-                // Eval light
+                
+                // Direct lighting with shadow rays
                 {
                     auto light_dir = make_float3(-0.376047f, 0.758426f, 0.532333f);
                     auto wi_local = normalize(onb->to_local(light_dir));
@@ -508,7 +579,8 @@ int main(int argc, char *argv[]) {
                     color += beta * ite(dsl::isnan(reduce_sum(direct)), 0.f, direct) *
                              ite(occluded, 0.f, 1.f);
                 }
-                // Sample BSDF. For simplicity, we uniformly sample the sphere.
+                
+                // Indirect lighting: sample BSDF uniformly
                 {
                     auto wi_local = [&]() noexcept {
                         auto u = make_float2(lcg(state), lcg(state));
@@ -531,6 +603,7 @@ int main(int argc, char *argv[]) {
             image.write(coord, old + make_float4(color, 1.f));
         });
 
+    // Setup display
     auto seed_image = device.create_image<uint>(PixelStorage::INT1, resolution);
     auto hdr_image = device.create_image<float>(PixelStorage::FLOAT4, resolution);
     auto ldr_image = device.create_image<float>(PixelStorage::BYTE4, resolution);
@@ -567,6 +640,7 @@ int main(int argc, char *argv[]) {
             .back_buffer_count = 2,
         });
 
+    // Interactive render loop
     Clock clock;
     auto viewing_angle = PI;
     auto dirty = true;
@@ -600,6 +674,7 @@ int main(int argc, char *argv[]) {
         LUISA_INFO("FPS: {}", framerate.report());
     }
 
+    // Save final image
     luisa::vector<std::byte> pixels(ldr_image.view().size_bytes());
     stream << hdr2ldr(hdr_image, ldr_image, false).dispatch(resolution)
            << ldr_image.copy_to(pixels.data())

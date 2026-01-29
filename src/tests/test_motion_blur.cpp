@@ -1,3 +1,13 @@
+// Motion Blur Ray Tracing Test
+// Demonstrates motion blur rendering using RTX acceleration structures with
+// motion keyframes. Shows both mesh vertex motion and instance transform motion.
+//
+// Features demonstrated:
+// - Motion blur with mesh keyframes (vertex animation)
+// - Motion blur with curve keyframes (Catmull-Rom curves)
+// - Motion instance transforms with SRT (Scale-Rotate-Translate)
+// - RTX intersection with motion intervals
+
 //
 // Created by Mike Smith on 2024/9/20.
 //
@@ -23,15 +33,17 @@ int main(int argc, char *argv[]) {
     static constexpr uint width = 512u;
     static constexpr uint height = 512u;
 
+    // Motion blur configuration for mesh and curves
     static constexpr auto mesh_keyframe_count = 3u;
     static constexpr auto curve_keyframe_count = 2u;
 
-    // curve
+    // Create animated curve with Catmull-Rom basis
     static constexpr auto control_point_count = 50u;
     static constexpr auto curve_basis = CurveBasis::CATMULL_ROM;
     static constexpr auto control_points_per_segment = segment_control_point_count(curve_basis);
     static constexpr auto segment_count = control_point_count - control_points_per_segment + 1u;
 
+    // Generate control points with animation keyframes
     luisa::vector<float4> control_points;
     control_points.reserve(control_point_count * curve_keyframe_count);
     for (auto k = 0u; k < curve_keyframe_count; k++) {
@@ -57,11 +69,12 @@ int main(int argc, char *argv[]) {
     stream << control_point_buffer.copy_from(control_points.data())
            << segment_buffer.copy_from(segments.data());
 
+    // Create curve with motion blur support
     AccelOption curve_option;
     curve_option.motion.keyframe_count = curve_keyframe_count;
     auto curve = device.create_curve(curve_basis, control_point_buffer, segment_buffer, curve_option);
 
-    // mesh
+    // Create mesh with vertex motion blur (3 keyframes)
     std::array vertices{
         // keyframe 0
         float3(-0.5f, -0.5f, 0.0f),
@@ -83,12 +96,14 @@ int main(int argc, char *argv[]) {
     stream << vertex_buffer.copy_from(vertices.data())
            << triangle_buffer.copy_from(indices.data());
 
+    // Mesh with motion blur configuration
     AccelOption mesh_option;
     mesh_option.motion.keyframe_count = mesh_keyframe_count;
     mesh_option.motion.time_start = 0.f;
     mesh_option.motion.time_end = 1.f;
     auto mesh = device.create_mesh(vertex_buffer, triangle_buffer, mesh_option);
 
+    // Create motion instance with SRT animation
     AccelMotionOption motion_option;
     motion_option.mode = AccelMotionMode::SRT;
     motion_option.keyframe_count = 3u;
@@ -106,12 +121,14 @@ int main(int argc, char *argv[]) {
     }
     motion_instance.set_keyframes(motion_transforms);
 
+    // Color space conversion
     Callable linear_to_srgb = [](Var<float3> x) noexcept {
         return select(1.055f * pow(x, 1.0f / 2.4f) - 0.055f,
                       12.92f * x,
                       x <= 0.00031308f);
     };
 
+    // Halton sequence for sampling
     Callable halton = [](UInt i, UInt b) noexcept {
         Float f = def(1.0f);
         Float invB = 1.0f / b;
@@ -124,6 +141,7 @@ int main(int argc, char *argv[]) {
         return r;
     };
 
+    // TEA random number generator
     Callable tea = [](UInt v0, UInt v1) noexcept {
         UInt s0 = def(0u);
         for (uint n = 0u; n < 4u; n++) {
@@ -134,6 +152,7 @@ int main(int argc, char *argv[]) {
         return v0;
     };
 
+    // Generate 3D random numbers (including time for motion blur)
     Callable rand = [&](UInt f, UInt2 p) noexcept {
         UInt i = tea(p.x, p.y) + f;
         Float rx = halton(i, 2u);
@@ -142,6 +161,7 @@ int main(int argc, char *argv[]) {
         return make_float3(rx, ry, rz);
     };
 
+    // Camera ray generation
     Callable generate_ray = [](Float2 p) noexcept {
         constexpr auto origin = make_float3(0.f, 1.5f, 2.5f);
         constexpr auto target = make_float3(0.f, 0.f, 0.f);
@@ -162,26 +182,34 @@ int main(int argc, char *argv[]) {
         return make_ray(ray_origin, ray_direction);
     };
 
+    // Motion blur ray tracing kernel
+    // Samples random time within shutter interval for motion blur
     Kernel2D raytracing_kernel = [&](BufferFloat4 image, AccelVar accel, UInt frame_index) noexcept {
         auto coord = dispatch_id().xy();
         auto color = def<float3>(0.3f, 0.5f, 0.7f);
         auto u = rand(frame_index, coord);
         auto ray = generate_ray(make_float2(coord) + u.xy());
+        // Random time for motion blur sampling
         auto time = u.z * 1.f;
+        // Trace with motion blur support
         auto hit = accel.intersect_motion(ray, time, {.curve_bases = {curve_basis}});
         $if (hit->is_triangle()) {
+            // Mesh hit - color by barycentric coordinates
             constexpr auto red = make_float3(1.0f, 0.0f, 0.0f);
             constexpr auto green = make_float3(0.0f, 1.0f, 0.0f);
             constexpr auto blue = make_float3(0.0f, 0.0f, 1.0f);
             color = triangle_interpolate(hit.bary, red, green, blue);
         } $elif (hit->is_curve()) {
+            // Curve hit - color by parameter
             color = lerp(make_float3(0.f), make_float3(1.f), hit->curve_parameter());
         };
+        // Progressive accumulation
         auto old = image.read(coord.y * dispatch_size_x() + coord.x).xyz();
         auto t = 1.0f / (frame_index + 1.0f);
         image.write(coord.y * dispatch_size_x() + coord.x, make_float4(lerp(old, color, t), 1.0f));
     };
 
+    // HDR to LDR conversion
     Kernel2D colorspace_kernel = [&](BufferFloat4 hdr_image, BufferUInt ldr_image) noexcept {
         UInt i = dispatch_y() * dispatch_size_x() + dispatch_x();
         Float3 hdr = hdr_image.read(i).xyz();
@@ -189,15 +217,16 @@ int main(int argc, char *argv[]) {
         ldr_image.write(i, ldr.x | (ldr.y << 8u) | (ldr.z << 16u) | (255u << 24u));
     };
 
+    // Build acceleration structure
     auto accel = device.create_accel();
     accel.emplace_back(mesh, translation(-.3f, 0.f, 0.f) * scaling(2.f));
-    // accel.emplace_back(curve);
     accel.emplace_back(motion_instance);
     stream << curve.build()
            << mesh.build()
            << motion_instance.build()
            << accel.build();
 
+    // Compile shaders
     auto colorspace_shader = device.compile(colorspace_kernel);
     auto raytracing_shader = device.compile(raytracing_kernel);
 
@@ -205,6 +234,7 @@ int main(int argc, char *argv[]) {
     Buffer<uint> ldr_image = device.create_buffer<uint>(width * height);
     std::vector<uint8_t> pixels(width * height * 4u);
 
+    // Render with motion blur
     Clock clock;
     clock.tic();
     static constexpr uint spp = 1024u;

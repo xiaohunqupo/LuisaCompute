@@ -1,3 +1,7 @@
+// MNIST digit recognition demo with interactive drawing.
+// Demonstrates CUDA/Vulkan interop, GPU-GPU communication,
+// and real-time machine learning inference integration.
+
 #include <luisa/backends/ext/dx_hdr_ext.hpp>
 #include <luisa/core/logging.h>
 #include <luisa/runtime/device.h>
@@ -12,19 +16,27 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+
+// Interop event type for synchronization between CUDA and graphics devices
 using InteropEvent = luisa::variant<
     DxCudaTimelineEvent,
     TimelineEvent>;
+
+// Function declarations for interop operations
 InteropEvent create_interop_event(Device &cuda_device, Device &render_device);
 Buffer<float> create_interop_buffer(Device &render_device, uint64_t size);
 Buffer<float> get_cuda_buffer(Device &torch_device, Device &render_device, Buffer<float> &render_buffer, uint64_t &cuda_ptr, uint64_t &cuda_handle);
 void unmap_interop_handle(Device &render_device, uint64_t cuda_ptr, uint64_t handle);
+
+// CUDA device configuration extension for Vulkan interop
 struct CudaDeviceConfigExtImpl : public CudaDeviceConfigExt {
     ExternalVkDevice external_device;
     [[nodiscard]] ExternalVkDevice get_external_vk_device() const noexcept override {
         return external_device;
     }
 };
+
+// Convert wide string to regular string
 luisa::string from_wstr(const wchar_t *arg) {
     auto start = arg;
     while (*arg != 0) {
@@ -38,12 +50,14 @@ luisa::string from_wstr(const wchar_t *arg) {
     }
     return str;
 }
+
+// Main MNIST interpreter class handling rendering and ML interop
 struct MnistInterpreter {
     Context context;
-    Device torch_device;
-    Device render_device;
-    Stream stream;
-    Stream cuda_stream;
+    Device torch_device;      // CUDA device for ML inference
+    Device render_device;     // Graphics device for rendering
+    Stream stream;            // Graphics stream
+    Stream cuda_stream;       // CUDA stream
     Window window;
     Shader2D<Buffer<float>, float2, float2, bool> capsule_sdf_shader;
     Shader2D<Buffer<float>, Image<float>, float> hdr2ldr_shader;
@@ -57,6 +71,7 @@ struct MnistInterpreter {
     CommandList cmdlist;
     static constexpr uint2 display_resolution = make_uint2(1024u);
     static constexpr uint2 mnist_resolution = make_uint2(28u);
+    
     MnistInterpreter(luisa::string_view context_dir, luisa::string_view backend_name)
         : context(context_dir),
           render_device(context.create_device(backend_name)),
@@ -64,6 +79,7 @@ struct MnistInterpreter {
           window{"mnist", display_resolution}
 
     {
+        // Configure CUDA device for interop
         DeviceConfig cuda_settings;
         {
             auto interop_ext = render_device.extension<VkCudaInterop>();
@@ -79,6 +95,8 @@ struct MnistInterpreter {
         torch_device = context.create_device("cuda", &cuda_settings);
         cuda_stream = torch_device.create_stream();
         interop_event = create_interop_event(torch_device, render_device);
+        
+        // Cubic Hermite interpolation callable
         Callable cubic_hermite{[](Float A, Float B, Float C, Float D, Float t) {
             Float t2 = t * t;
             Float t3 = t * t * t;
@@ -90,11 +108,13 @@ struct MnistInterpreter {
             return a * t3 + b * t2 + c * t + d;
         }};
 
+        // Point sampling callable for texture lookup
         Callable point_sample = [](BufferVar<float> img, UInt2 tex_size, Float2 uv) {
             auto coord = make_uint2(clamp(uv * make_float2(tex_size.x.cast<float>(), tex_size.y.cast<float>()), float2(0.f), make_float2(tex_size) - 0.5f));
             return saturate(img.read(coord.x + tex_size.x * coord.y));
         };
-        // https://www.shadertoy.com/view/MllSzX
+        
+        // Bicubic Hermite texture sampling - https://www.shadertoy.com/view/MllSzX
         Callable bicubic_hermite_texture_sample([&](BufferVar<float> img, Float2 P) {
             auto c_textureSize = (float)mnist_resolution.x;
             auto c_onePixel = 1.f / c_textureSize;
@@ -132,17 +152,22 @@ struct MnistInterpreter {
             return cubic_hermite(CP0X, CP1X, CP2X, CP3X, frac.y);
         });
 
+        // Signed distance function for capsule (drawing strokes)
         Callable sd_capsule{[&](Float2 p, Float2 a, Float2 b, Float r) {
             Float2 pa = p - a;
             Float2 ba = b - a;
             Float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0f, 1.0f);
             return length(pa - ba * h) - r;
         }};
+        
+        // Linear to sRGB color space conversion
         Callable linear_to_srgb = [&](Var<float3> x) noexcept {
             return saturate(select(1.055f * pow(x, 1.0f / 2.4f) - 0.055f,
                                    12.92f * x,
                                    x <= 0.00031308f));
         };
+        
+        // Kernel for drawing capsule SDF (drawing strokes)
         Kernel2D capsule_sdf = [&](BufferVar<float> hdr_img, Float2 last_pos, Float2 pos, Bool clear) {
             UInt2 coord = dispatch_id().xy();
             auto idx = coord.x + coord.y * mnist_resolution.x;
@@ -155,6 +180,8 @@ struct MnistInterpreter {
                 hdr_img.write(idx, max(hdr_img.read(idx), dist));
             };
         };
+        
+        // Kernel for HDR to LDR conversion
         Kernel2D hdr2ldr_kernel = [&](BufferVar<float> hdr_image, ImageFloat ldr_image, Float scale) noexcept {
             set_name("hdr2ldr_kernel");
             UInt2 coord = dispatch_id().xy();
@@ -162,8 +189,11 @@ struct MnistInterpreter {
             Float3 ldr = linear_to_srgb(clamp(hdr.xyz() / hdr.w * scale, 0.f, 1.f));
             ldr_image.write(coord, make_float4(ldr, 1.f));
         };
+        
         capsule_sdf_shader = render_device.compile(capsule_sdf);
         hdr2ldr_shader = render_device.compile(hdr2ldr_kernel);
+        
+        // Mouse interaction callbacks
         window.set_mouse_callback([&](MouseButton button, Action action, float2 xy) {
             if (button != MouseButton::MOUSE_BUTTON_1 && button != MouseButton::MOUSE_BUTTON_2) return;
             if (action == Action::ACTION_PRESSED) {
@@ -180,6 +210,8 @@ struct MnistInterpreter {
                 curr_mouse_pos = xy;
             }
         });
+        
+        // Create swapchain and resources
         swap_chain = render_device.create_swapchain(
             stream,
             SwapchainOption{
@@ -193,16 +225,23 @@ struct MnistInterpreter {
         draw_buffer = create_interop_buffer(render_device, mnist_resolution.x * mnist_resolution.y);
         display_img = render_device.create_image<float>(swap_chain.backend_storage(), display_resolution);
     }
+    
     uint64_t _evt_fence{1};
     bool clear_next_frame{true};
     bool enter_pressed{false};
+    
+    // Update frame, handle input, and manage GPU-GPU communication
     bool update(uint64_t cuda_data_buffer_ptr, uint64_t input_ptr) {
         window.poll_events();
         bool update = false;
+        
+        // Clear buffer if requested
         if (clear_next_frame) {
             clear_next_frame = false;
             cmdlist << capsule_sdf_shader(draw_buffer, float2(100), float2(100), true).dispatch(mnist_resolution);
         }
+        
+        // Handle keyboard input
         if (window.is_key_down(Key::KEY_SPACE)) {
             clear_next_frame = true;
         }
@@ -214,24 +253,30 @@ struct MnistInterpreter {
         } else {
             enter_pressed = false;
         }
+        
+        // Draw stroke if mouse is pressed
         if (pressed) {
             cmdlist << capsule_sdf_shader(draw_buffer, last_mouse_pos / make_float2(display_resolution), curr_mouse_pos / make_float2(display_resolution), false).dispatch(mnist_resolution);
         }
+        
+        // Render to display
         cmdlist << hdr2ldr_shader(draw_buffer, display_img, 2.f).dispatch(display_resolution);
         stream << cmdlist.commit() << swap_chain.present(display_img);
+        
         uint64_t cuda_ptr, cuda_handle;
-        // Copy torch-tensor to display-buffer
+        
+        // Copy torch tensor to display buffer
         if (input_ptr != 0) {
             auto cuda_buffer = get_cuda_buffer(torch_device, render_device, draw_buffer, cuda_ptr, cuda_handle);
             auto torch_tensor_buffer = torch_device.import_external_buffer<float>((void *)input_ptr, draw_buffer.size());
             cmdlist << cuda_buffer.copy_from(torch_tensor_buffer);
-            // deferred deallocate external-buffer
-            // unmap memory-range after execute
+            // Deferred deallocate external buffer and unmap memory after execution
             cmdlist.add_callback([this, cuda_buffer = std::move(cuda_buffer), cuda_ptr, cuda_handle]() {
                 unmap_interop_handle(render_device, cuda_ptr, cuda_handle);
             });
             cuda_stream << cmdlist.commit();
-            // Let render-stream wait cuda-inference-stream
+            
+            // Let render stream wait for CUDA inference stream
             luisa::visit(
                 [&]<typename T>(T const &t) {
                     // Vulkan device
@@ -248,9 +293,10 @@ struct MnistInterpreter {
             cuda_ptr = 0;
             cuda_handle = 0;
         }
-        // Copy display-buffer to torch-tensor
+        
+        // Copy display buffer to torch tensor
         if (update) {
-            // Let cuda-inference-stream wait render-stream
+            // Let CUDA inference stream wait for render stream
             luisa::visit(
                 [&]<typename T>(T const &t) {
                     // Vulkan device
@@ -264,13 +310,14 @@ struct MnistInterpreter {
                     ++_evt_fence;
                 },
                 interop_event);
-            // import tensor's data pointer to buffer
+            
+            // Import tensor's data pointer to buffer
             auto torch_tensor_buffer = torch_device.import_external_buffer<float>((void *)cuda_data_buffer_ptr, draw_buffer.size());
-            // make interop-buffer's cuda-view
+            // Make interop buffer's CUDA view
             auto cuda_buffer = get_cuda_buffer(torch_device, render_device, draw_buffer, cuda_ptr, cuda_handle);
-            // copy interop-buffer to tensor
+            // Copy interop buffer to tensor
             cmdlist << torch_tensor_buffer.copy_from(cuda_buffer);
-            // unmap memory-range after execute
+            // Unmap memory range after execution
             cmdlist.add_callback([this, cuda_buffer = std::move(cuda_buffer), cuda_ptr, cuda_handle]() {
                 unmap_interop_handle(render_device, cuda_ptr, cuda_handle);
             });
@@ -278,25 +325,34 @@ struct MnistInterpreter {
         }
         return update;
     }
+    
     ~MnistInterpreter() {
         stream.synchronize();
     }
 };
+
+// Global interpreter instance for C API
 luisa::optional<MnistInterpreter> interpreter{};
+
+// C API for external integration (e.g., Python/PyTorch)
 LUISA_EXPORT_API void init(wchar_t const *runtime_dir, wchar_t const *backend_name) {
     interpreter.emplace(from_wstr(runtime_dir), from_wstr(backend_name));
 }
+
 LUISA_EXPORT_API bool should_close() {
     return !interpreter || interpreter->window.should_close();
 }
+
 LUISA_EXPORT_API bool update_frame(uint64_t cuda_ptr, uint64_t input_cuda_ptr) {
     if (!interpreter) return false;
     return interpreter->update(cuda_ptr, input_cuda_ptr);
 }
+
 LUISA_EXPORT_API void dispose() {
     interpreter.reset();
 }
 
+// Create interop buffer based on backend
 Buffer<float> create_interop_buffer(Device &render_device, uint64_t size) {
     if (render_device.backend_name() == "vk") {
         auto vk_interop = render_device.extension<VkCudaInterop>();
@@ -309,6 +365,8 @@ Buffer<float> create_interop_buffer(Device &render_device, uint64_t size) {
         return {};
     }
 }
+
+// Get CUDA-accessible buffer view for interop
 Buffer<float> get_cuda_buffer(Device &torch_device, Device &render_device, Buffer<float> &render_buffer, uint64_t &cuda_ptr, uint64_t &cuda_handle) {
     cuda_handle = 0;
     cuda_ptr = 0;
@@ -326,6 +384,7 @@ Buffer<float> get_cuda_buffer(Device &torch_device, Device &render_device, Buffe
     }
 }
 
+// Unmap interop memory handle
 void unmap_interop_handle(Device &render_device, uint64_t cuda_ptr, uint64_t handle) {
     if (handle == 0) return;
     if (render_device.backend_name() == "vk") {
@@ -336,6 +395,8 @@ void unmap_interop_handle(Device &render_device, uint64_t cuda_ptr, uint64_t han
         dx_interop->unmap(reinterpret_cast<void *>(cuda_ptr), reinterpret_cast<void *>(handle));
     }
 }
+
+// Create synchronization event for interop
 InteropEvent create_interop_event(Device &cuda_device, Device &render_device) {
     if (render_device.backend_name() == "vk") {
         auto vk_interop = render_device.extension<VkCudaInterop>();

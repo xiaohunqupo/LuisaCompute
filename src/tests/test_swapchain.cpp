@@ -1,3 +1,13 @@
+// Multi-Window Swapchain Test
+// Demonstrates creating multiple windows and swapchains from a single
+// device and rendering to all of them simultaneously.
+//
+// Features demonstrated:
+// - Multiple window creation
+// - Multiple swapchain management
+// - Synchronized rendering to multiple outputs
+// - Framerate measurement
+
 #include <luisa/core/clock.h>
 #include <luisa/core/logging.h>
 #include <luisa/runtime/context.h>
@@ -25,6 +35,7 @@ int main(int argc, char *argv[]) {
     static constexpr auto height = 1024u;
     static constexpr auto resolution = make_uint2(width, height);
 
+    // Animated background shader
     auto draw = device.compile<2>([](ImageFloat image, Float time) noexcept {
         auto p = dispatch_id().xy();
         auto uv = make_float2(p) / make_float2(resolution) * 2.0f - 1.0f;
@@ -43,11 +54,13 @@ int main(int argc, char *argv[]) {
     Stream stream = device.create_stream(StreamTag::GRAPHICS);
     auto image = device.create_image<float>(PixelStorage::BYTE4, resolution);
 
+    // Package for window + swapchain
     struct PackagedWindow {
         Window window;
         Swapchain swapchain;
     };
 
+    // Create multiple windows
     static constexpr auto window_count = 4u;
     luisa::vector<PackagedWindow> windows;
     windows.reserve(window_count);
@@ -67,6 +80,7 @@ int main(int argc, char *argv[]) {
             std::move(swpachain)});
     }
 
+    // Render to all windows
     Clock clk;
     Framerate framerate;
     while (std::all_of(windows.cbegin(), windows.cend(), [](auto &&w) noexcept {
@@ -80,4 +94,3 @@ int main(int argc, char *argv[]) {
         for (auto &&w : windows) { w.window.poll_events(); }
     }
 }
-

@@ -1,3 +1,18 @@
+// Conway's Game of Life Cellular Automaton
+// Implements the classic cellular automaton on the GPU with compute shaders.
+// Each pixel represents a cell that evolves based on its neighbors.
+//
+// Rules:
+// - Any live cell with 2-3 live neighbors survives
+// - Any dead cell with exactly 3 live neighbors becomes alive
+// - All other cells die or stay dead
+//
+// Features demonstrated:
+// - Compute shaders for cellular automata simulation
+// - Ping-pong buffer technique for double buffering
+// - Window system integration for real-time display
+// - Random initial state generation
+
 #include <iostream>
 #include <random>
 
@@ -13,6 +28,8 @@
 using namespace luisa;
 using namespace luisa::compute;
 
+// Image pair for ping-pong buffering
+// Swaps between two images to avoid read-write conflicts
 struct ImagePair {
     Image<uint> prev;
     Image<uint> curr;
@@ -32,10 +49,13 @@ int main(int argc, char *argv[]) {
     Device device = context.create_device(argv[1]);
     LUISA_INFO("Keys: SPACE - Run/Pause, R - Reset, ESC - Quit");
 
+    // Helper to read cell state from image
     Callable read_state = [](ImageUInt prev, UInt2 uv) noexcept {
         return prev.read(uv).x == 255u;
     };
 
+    // Game of Life update kernel
+    // Counts live neighbors and applies Conway's rules
     Kernel2D kernel = [&](ImageUInt prev, ImageUInt curr) noexcept {
         set_block_size(16, 16, 1);
         UInt count = def(0u);
@@ -43,6 +63,7 @@ int main(int argc, char *argv[]) {
         UInt2 size = dispatch_size().xy();
         Bool state = read_state(prev, uv);
         Int2 p = make_int2(uv);
+        // Check all 8 neighbors
         for (int dy = -1; dy <= 1; dy++) {
             for (int dx = -1; dx <= 1; dx++) {
                 if (dx != 0 || dy != 0) {
@@ -52,11 +73,14 @@ int main(int argc, char *argv[]) {
                 }
             }
         }
+        // Apply Conway's rules
         Bool c0 = count == 2u;
         Bool c1 = count == 3u;
         curr.write(uv, make_uint4(make_uint3(ite((state & c0) | c1, 255u, 0u)), 255u));
     };
     auto shader = device.compile(kernel);
+
+    // Display kernel: scales up the low-res simulation for display
     Kernel2D display_kernel = [&](ImageUInt in_tex, ImageFloat out_tex) noexcept {
         set_block_size(16, 16, 1);
         UInt2 uv = dispatch_id().xy();
@@ -65,6 +89,8 @@ int main(int argc, char *argv[]) {
         out_tex.write(uv, make_float4(value) / 255.0f);
     };
     auto display_shader = device.compile(display_kernel);
+
+    // Grid dimensions
     static constexpr uint width = 128u;
     static constexpr uint height = 128u;
     ImagePair image_pair{device, PixelStorage::BYTE4, width, height};
@@ -81,13 +107,15 @@ int main(int argc, char *argv[]) {
         });
     Image<float> display = device.create_image<float>(swap_chain.backend_storage(), window.size());
 
-    // reset
+    // Initialize with random state (25% chance of being alive)
     luisa::vector<uint> host_image(width * height);
     for (auto &v : host_image) {
         auto x = (rng() % 4u == 0u) * 255u;
         v = x * 0x00010101u | 0xff000000u;
     }
     stream << image_pair.prev.copy_from(host_image.data()) << synchronize();
+    
+    // Main simulation loop
     while (!window.should_close()) {
         stream << shader(image_pair.prev, image_pair.curr).dispatch(width, height)
                << display_shader(image_pair.curr, display).dispatch(width * 4u, height * 4u)

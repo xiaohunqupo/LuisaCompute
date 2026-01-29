@@ -1,3 +1,11 @@
+// Test for the type system and core utility classes.
+// This comprehensive test covers:
+// - Type introspection (scalars, vectors, matrices, arrays, structures)
+// - Vector and matrix operations
+// - Managed pointer system with reference counting
+// - Intrusive linked list containers
+// - Serialization support
+
 #include <string>
 #include <fstream>
 #include <memory>
@@ -7,6 +15,7 @@
 
 #include <luisa/luisa-compute.h>
 
+// Simple struct types for testing
 struct S1 {
     float x;
 };
@@ -29,8 +38,8 @@ struct S4 {
     float w;
 };
 
+// Test struct with serialization support
 struct Test {
-
     std::string s;
     int a;
 
@@ -43,12 +52,14 @@ struct Test {
 using namespace luisa;
 using namespace luisa::compute;
 
+// Test struct with 16-byte alignment for layout testing
 struct alignas(16) AA {
     float4 x;
     float ba[16];
     float a;
 };
 
+// Nested test struct with matrix member
 struct BB {
     AA a;
     float b;
@@ -58,6 +69,7 @@ struct BB {
 LUISA_STRUCT_REFLECT(AA, x, ba, a)
 LUISA_STRUCT_REFLECT(BB, a, b, m)
 
+// Non-copyable interface base class
 struct Interface : public concepts::Noncopyable {
     Interface() noexcept = default;
     Interface(Interface &&) noexcept = default;
@@ -65,28 +77,35 @@ struct Interface : public concepts::Noncopyable {
     ~Interface() noexcept = default;
 };
 
+// Concept-constrained function for container types
 template<typename T>
     requires concepts::container<T>
 void foo(T &&) noexcept {}
 
+// Implementation of interface
 struct Impl : public Interface {};
 
+// Managed object for reference counting tests
 class Something : public luisa::Managed<Something> {};
 
+// Value type for intrusive list nodes
 struct SomeValue : Something {
     int value;
     explicit SomeValue(int v = -1) noexcept : value{v} {}
     ~SomeValue() noexcept override { LUISA_INFO("SomeValue destroyed with value: {}", value); }
 };
 
+// Doubly-linked intrusive list node
 struct SomeNode : public luisa::ManagedIntrusiveNode<SomeNode, SomeValue> {
     using Super::Super;
 };
 
+// Singly-linked intrusive list node
 struct SomeForwardNode : public luisa::ManagedIntrusiveForwardNode<SomeForwardNode, SomeValue> {
     using Super::Super;
 };
 
+// Convert type tag to human-readable string
 std::string_view tag_name(Type::Tag tag) noexcept {
     using namespace std::string_view_literals;
     if (tag == Type::Tag::BOOL) { return "bool"sv; }
@@ -100,9 +119,9 @@ std::string_view tag_name(Type::Tag tag) noexcept {
     return "unknown"sv;
 }
 
+// Print type information recursively
 template<int max_level = -1>
 void print(const Type *info, int level = 0) {
-
     std::string indent_string;
     for (auto i = 0; i < level; i++) { indent_string.append("  "); }
     if (max_level >= 0 && level > max_level) {
@@ -128,10 +147,10 @@ void print(const Type *info, int level = 0) {
 }
 
 int main() {
-
     using namespace luisa;
     log_level_verbose();
 
+    // Test logging macros
     LUISA_VERBOSE("verbose...");
     LUISA_VERBOSE_WITH_LOCATION("verbose with {}...", "location");
     LUISA_INFO("info...");
@@ -139,21 +158,28 @@ int main() {
     LUISA_WARNING("warning...");
     LUISA_WARNING_WITH_LOCATION("warning with location...");
 
+    // Test struct sizes and alignments
     LUISA_INFO("size = {}, alignment = {}", sizeof(AA), alignof(AA));
     LUISA_INFO("size = {}, alignment = {}", sizeof(BB), alignof(BB));
     LUISA_INFO("trivially destructible: {}", std::is_trivially_destructible_v<Impl>);
+    
+    // Test type parsing from string
     print(Type::from("array<array<vector<float,3>,5>,9>"));
 
     LUISA_INFO("{}", Type::of<std::array<float, 5>>()->description());
 
+    // Test array type deduction
     int aa[1024];
     print(Type::of(aa));
 
+    // Test struct type introspection
     BB bb;
     print(Type::of(bb));
 
+    // Verify vector alignment
     static_assert(alignof(float3) == 16);
 
+    // Test vector construction and operations
     auto u = make_float2(1.0f, 2.0f);
     auto v = make_float3(1.0f, 2.0f, 3.0f);
     auto w = make_float3(u, 1.0f);
@@ -169,12 +195,16 @@ int main() {
     ff = 1.0f;
     auto tt = make_float2(v);
 
+    // Test matrix type
     print(Type::of<float3x3>());
 
+    // Test container concept
     foo<std::initializer_list<int>>({1, 2, 3, 4});
 
+    // Test structured bindings
     auto [m, n] = std::array{1, 2};
 
+    // Test managed pointer system
     auto sth = luisa::make_managed<Something>();
     sth = sth;
     sth = std::move(sth);
@@ -201,6 +231,7 @@ int main() {
 
     luisa::unordered_set<luisa::ManagedPtr<Something>> set;
 
+    // Test doubly-linked intrusive list
     LUISA_INFO("Begin managed intrusive list test...");
     {
         luisa::ManagedIntrusiveList<SomeNode> list;
@@ -229,6 +260,7 @@ int main() {
     }
     LUISA_INFO("End managed intrusive list test...");
 
+    // Test singly-linked intrusive list
     LUISA_INFO("Begin managed intrusive forward list test...");
     {
         luisa::ManagedIntrusiveForwardList<SomeForwardNode> list;

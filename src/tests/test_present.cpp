@@ -1,3 +1,12 @@
+// Swapchain Presentation Timing Test
+// Measures the timing of swapchain present operations.
+// Useful for analyzing display latency and VSync behavior.
+//
+// Features demonstrated:
+// - Swapchain present timing measurement
+// - Statistical analysis of frame times
+// - Empty frame presentation
+
 #include <iostream>
 
 #include <luisa/core/clock.h>
@@ -27,6 +36,7 @@ int main(int argc, char *argv[]) {
     Device device = context.create_device(argv[1]);
     Stream stream = device.create_stream(StreamTag::GRAPHICS);
 
+    // Create window and swapchain
     Window window{"path tracing", resolution};
     Swapchain swap_chain = device.create_swapchain(
         stream,
@@ -43,6 +53,7 @@ int main(int argc, char *argv[]) {
     uint frame_count = 0u;
     Clock clock;
 
+    // Statistics for timing analysis
     double mean_dt = 0;
     double mean_dt2 = 0;
     size_t cnt = 0;
@@ -56,10 +67,6 @@ int main(int argc, char *argv[]) {
         mean_dt += dt;
         mean_dt2 += dt * dt;
         cnt++;
-        // double dt = clock.toc() - last_time;
-        // last_time = clock.toc();
-        // LUISA_INFO("spp: {}, time: {} ms, spp/s: {}",
-        //            frame_count, dt, spp_per_dispatch / dt * 1000);
         LUISA_INFO("mean: {}, var:{}", mean_dt / cnt, -(mean_dt * mean_dt / cnt - mean_dt2));
     }
 }

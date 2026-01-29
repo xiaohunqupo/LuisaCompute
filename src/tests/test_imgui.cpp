@@ -1,3 +1,14 @@
+// ImGui Integration Test
+// Demonstrates integration of Dear ImGui with Luisa Compute for
+// building interactive GPU applications with immediate mode GUI.
+//
+// Features demonstrated:
+// - ImGui window creation and management
+// - Rendering ImGui with compute shaders
+// - Multi-window support
+// - Interactive widgets (buttons, sliders, color picker)
+// - Texture display in ImGui
+
 #include "GLFW/glfw3.h"
 
 #include <imgui.h>
@@ -19,10 +30,12 @@ int main(int argc, char *argv[]) {
     static constexpr auto height = 1024u;
     static constexpr auto resolution = make_uint2(width, height);
 
+    // Background shader with animated colors
     auto draw = device.compile<2>([](ImageFloat image, Float time) noexcept {
         auto p = dispatch_id().xy();
         auto uv = make_float2(p) / make_float2(resolution) * 2.0f - 1.0f;
         auto color = def(make_float4());
+        // Animated color waves using different frequencies
         Constant scales{pi, luisa::exp(1.f), luisa::sqrt(2.f)};
         for (auto i = 0u; i < 3u; i++) {
             color[i] = cos(time * scales[i] + uv.y * 11.f +
@@ -36,14 +49,17 @@ int main(int argc, char *argv[]) {
 
     auto stream = device.create_stream(StreamTag::GRAPHICS);
 
+    // Create demo texture
     auto demo_image = device.create_image<float>(PixelStorage::FLOAT4, resolution);
     stream << draw(demo_image, 10.0f).dispatch(resolution);
 
+    // ImGui state
     bool show_demo_window = true;
     bool show_another_window = false;
     float clear_color[4] = {0.45f, 0.55f, 0.60f, 1.00f};
 
     Clock clk;
+    // Create ImGui window with integrated rendering
     ImGuiWindow window{device, stream, "Display", {.vsync = false}};
 
     // We support multiple ImGui contexts, so if you would like to tweak ImGui settings for
@@ -58,7 +74,7 @@ int main(int argc, char *argv[]) {
 
         window.prepare_frame();
 
-        // draw the background
+        // Draw the background
         // ***** Note: the framebuffer might become invalid, e.g., when the window is minimized, so check before use it! *****
         if (window.framebuffer()) {
             stream << draw(window.framebuffer(), static_cast<float>(clk.toc() * 1e-3))

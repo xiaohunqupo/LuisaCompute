@@ -1,3 +1,11 @@
+// Path Tracing with Interactive Camera Control
+// Demonstrates a path tracer with an interactive First-Person View (FPV) camera.
+// Features include:
+// - Interactive camera with WASD movement and mouse look
+// - Real-time path tracing with progressive accumulation
+// - Camera controller supporting pitch, yaw, roll, and zoom
+// - HDR output with tone mapping
+
 #include <iostream>
 
 #include <stb/stb_image_write.h>
@@ -13,12 +21,14 @@
 using namespace luisa;
 using namespace luisa::compute;
 
+// Orthonormal Basis for shading coordinate system
 struct Onb {
     float3 tangent;
     float3 binormal;
     float3 normal;
 };
 
+// Camera structure with position, orientation, and FOV
 struct Camera {
     float3 position;
     float3 front;
@@ -29,12 +39,15 @@ struct Camera {
 
 // clang-format off
 LUISA_STRUCT(Onb, tangent, binormal, normal){
+    // Transform vector from local shading space to world space
     [[nodiscard]] Float3 to_world(Expr<float3> v) const noexcept {
         return v.x * tangent + v.y * binormal + v.z * normal;
     }
 };
 
+// Camera ray generation
 LUISA_STRUCT(Camera, position, front, up, right, fov) {
+    // Generate ray from camera through normalized pixel coordinate
     [[nodiscard]] auto generate_ray(Expr<float2> p/* normalized pixel coordinate */) const noexcept {
         auto fov_radians = radians(fov);
         auto wi_local = make_float3(p * tan(0.5f * fov_radians), -1.0f);
@@ -44,6 +57,8 @@ LUISA_STRUCT(Camera, position, front, up, right, fov) {
 };
 // clang-format on
 
+// First-Person View camera controller
+// Handles camera movement and rotation based on user input
 class FPVCameraController {
 
 private:
@@ -61,7 +76,7 @@ public:
           _move_speed{move_speed},
           _rotate_speed{rotate_speed},
           _zoom_speed{zoom_speed} {
-        // make sure the camera is valid
+        // Initialize camera basis vectors
         _camera.front = normalize(_camera.front);
         _camera.right = normalize(cross(_camera.front, _camera.up));
         _camera.up = normalize(cross(_camera.right, _camera.front));
@@ -105,7 +120,7 @@ int main(int argc, char *argv[]) {
     }
     Device device = context.create_device(argv[1]);
 
-    // load the Cornell Box scene
+    // Load Cornell Box scene
     tinyobj::ObjReaderConfig obj_reader_config;
     obj_reader_config.triangulate = true;
     obj_reader_config.vertex_color = false;
@@ -119,6 +134,7 @@ int main(int argc, char *argv[]) {
         LUISA_WARNING_WITH_LOCATION("{}", e);
     }
 
+    // Extract vertices from OBJ
     auto &&p = obj_reader.GetAttrib().vertices;
     luisa::vector<float3> vertices;
     vertices.reserve(p.size() / 3u);
@@ -132,6 +148,7 @@ int main(int argc, char *argv[]) {
         "Loaded mesh with {} shape(s) and {} vertices.",
         obj_reader.GetShapes().size(), vertices.size());
 
+    // Setup bindless array and build meshes
     BindlessArray heap = device.create_bindless_array();
     Stream stream = device.create_stream(StreamTag::GRAPHICS);
     Buffer<float3> vertex_buffer = device.create_buffer<float3>(vertices.size());
@@ -155,6 +172,7 @@ int main(int argc, char *argv[]) {
                << mesh.build();
     }
 
+    // Build acceleration structure
     Accel accel = device.create_accel({});
     for (Mesh &m : meshes) {
         accel.emplace_back(m, make_float4x4(1.0f));
@@ -163,6 +181,7 @@ int main(int argc, char *argv[]) {
            << accel.build()
            << synchronize();
 
+    // Material definitions
     Constant materials{
         make_float3(0.725f, 0.710f, 0.680f),// floor
         make_float3(0.725f, 0.710f, 0.680f),// ceiling
@@ -174,6 +193,7 @@ int main(int argc, char *argv[]) {
         make_float3(0.000f, 0.000f, 0.000f),// light
     };
 
+    // Color space conversion
     Callable linear_to_srgb = [](Var<float3> x) noexcept {
         return clamp(select(1.055f * pow(x, 1.0f / 2.4f) - 0.055f,
                             12.92f * x,
@@ -181,6 +201,7 @@ int main(int argc, char *argv[]) {
                      0.0f, 1.0f);
     };
 
+    // Random number generation
     Callable tea = [](UInt v0, UInt v1) noexcept {
         UInt s0 = def(0u);
         for (uint n = 0u; n < 4u; n++) {
@@ -191,12 +212,14 @@ int main(int argc, char *argv[]) {
         return v0;
     };
 
+    // Initialize random seeds
     Kernel2D make_sampler_kernel = [&](ImageUInt seed_image) noexcept {
         UInt2 p = dispatch_id().xy();
         UInt state = tea(p.x, p.y);
         seed_image.write(p, make_uint4(state));
     };
 
+    // LCG random number generator
     Callable lcg = [](UInt &state) noexcept {
         constexpr uint lcg_a = 1664525u;
         constexpr uint lcg_c = 1013904223u;
@@ -205,6 +228,7 @@ int main(int argc, char *argv[]) {
                (1.0f / static_cast<float>(0x01000000u));
     };
 
+    // Build ONB from normal
     Callable make_onb = [](const Float3 &normal) noexcept {
         Float3 binormal = normalize(ite(
             abs(normal.x) > abs(normal.z),
@@ -214,16 +238,19 @@ int main(int argc, char *argv[]) {
         return def<Onb>(tangent, binormal, normal);
     };
 
+    // Cosine-weighted hemisphere sampling for diffuse BSDF
     Callable cosine_sample_hemisphere = [](Float2 u) noexcept {
         Float r = sqrt(u.x);
         Float phi = 2.0f * constants::pi * u.y;
         return make_float3(r * cos(phi), r * sin(phi), sqrt(1.0f - u.x));
     };
 
+    // MIS balanced heuristic
     Callable balanced_heuristic = [](Float pdf_a, Float pdf_b) noexcept {
         return pdf_a / max(pdf_a + pdf_b, 1e-4f);
     };
 
+    // Main path tracing kernel with camera support
     Kernel2D raytracing_kernel = [&](ImageFloat image, ImageUInt seed_image,
                                      Var<Camera> camera, AccelVar accel, UInt2 resolution) noexcept {
         set_block_size(16u, 16u, 1u);
@@ -234,17 +261,21 @@ int main(int argc, char *argv[]) {
         Float ry = lcg(state);
         Float2 pixel = (make_float2(coord) + make_float2(rx, ry)) / frame_size * 2.0f - 1.0f;
         Float3 radiance = def(make_float3(0.0f));
+        // Generate ray from camera
         Var<Ray> ray = camera->generate_ray(pixel * make_float2(1.0f, -1.0f));
         Float3 beta = def(make_float3(1.0f));
         Float pdf_bsdf = def(0.0f);
+        // Light source parameters
         constexpr float3 light_position = make_float3(-0.24f, 1.98f, 0.16f);
         constexpr float3 light_u = make_float3(-0.24f, 1.98f, -0.22f) - light_position;
         constexpr float3 light_v = make_float3(0.23f, 1.98f, 0.16f) - light_position;
         constexpr float3 light_emission = make_float3(17.0f, 12.0f, 4.0f);
         Float light_area = length(cross(light_u, light_v));
         Float3 light_normal = normalize(cross(light_u, light_v));
+        
+        // Path tracing loop
         $for (depth, 10u) {
-            // trace
+            // Trace ray
             Var<TriangleHit> hit = accel.intersect(ray, {});
             $if (hit->miss()) { $break; };
             Var<Triangle> triangle = heap->buffer<Triangle>(hit.inst).read(hit.prim);
@@ -256,7 +287,7 @@ int main(int argc, char *argv[]) {
             Float cos_wo = dot(-ray->direction(), n);
             $if (cos_wo < 1e-4f) { $break; };
 
-            // hit light
+            // Hit light source
             $if (hit.inst == static_cast<uint>(meshes.size() - 1u)) {
                 $if (depth == 0u) {
                     radiance += light_emission;
@@ -269,7 +300,7 @@ int main(int argc, char *argv[]) {
                 $break;
             };
 
-            // sample light
+            // Next Event Estimation - sample light directly
             Float ux_light = lcg(state);
             Float uy_light = lcg(state);
             Float3 p_light = light_position + ux_light * light_u + uy_light * light_v;
@@ -290,7 +321,7 @@ int main(int argc, char *argv[]) {
                 radiance += beta * bsdf * mis_weight * light_emission / max(pdf_light, 1e-4f);
             };
 
-            // sample BSDF
+            // Sample BSDF for next path segment
             Var<Onb> onb = make_onb(n);
             Float ux = lcg(state);
             Float uy = lcg(state);
@@ -299,9 +330,9 @@ int main(int argc, char *argv[]) {
             Float3 new_direction = onb->to_world(wi_local);
             ray = make_ray(pp, new_direction);
             pdf_bsdf = cos_wi * inv_pi;
-            beta *= albedo;// * cos_wi * inv_pi / pdf_bsdf => * 1.f
+            beta *= albedo;
 
-            // rr
+            // Russian Roulette
             Float l = dot(make_float3(0.212671f, 0.715160f, 0.072169f), beta);
             $if (l == 0.0f) { $break; };
             Float q = max(l, 0.05f);
@@ -314,6 +345,7 @@ int main(int argc, char *argv[]) {
         image.write(dispatch_id().xy(), make_float4(clamp(radiance, 0.0f, 30.0f), 1.0f));
     };
 
+    // Accumulation and display kernels
     Kernel2D accumulate_kernel = [&](ImageFloat accum_image, ImageFloat curr_image) noexcept {
         UInt2 p = dispatch_id().xy();
         Float4 accum = accum_image.read(p);
@@ -321,6 +353,7 @@ int main(int argc, char *argv[]) {
         accum_image.write(p, accum + make_float4(curr, 1.f));
     };
 
+    // ACES tone mapping for HDR to LDR conversion
     Callable aces_tonemapping = [](Float3 x) noexcept {
         static constexpr float a = 2.51f;
         static constexpr float b = 0.03f;
@@ -344,18 +377,21 @@ int main(int argc, char *argv[]) {
         ldr_image.write(coord, make_float4(ldr, 1.0f));
     };
 
+    // Compile shaders
     auto clear_shader = device.compile(clear_kernel);
     auto hdr2ldr_shader = device.compile(hdr2ldr_kernel);
     auto accumulate_shader = device.compile(accumulate_kernel);
     auto raytracing_shader = device.compile(raytracing_kernel);
     auto make_sampler_shader = device.compile(make_sampler_kernel);
 
+    // Setup images and camera
     static constexpr uint2 resolution = make_uint2(1024u);
     Image<float> framebuffer = device.create_image<float>(PixelStorage::HALF4, resolution);
     Image<float> accum_image = device.create_image<float>(PixelStorage::FLOAT4, resolution);
     luisa::vector<std::array<uint8_t, 4u>> host_image(resolution.x * resolution.y);
     Image<uint> seed_image = device.create_image<uint>(PixelStorage::INT1, resolution);
 
+    // Initialize camera
     Camera camera{
         .position = make_float3(-0.01f, 0.995f, 5.0f),
         .front = make_float3(0.f, 0.f, -1.f),
@@ -365,6 +401,7 @@ int main(int argc, char *argv[]) {
     FPVCameraController camera_controller{camera, 1.f, 20.f, .5f};
     Window window{"path tracing", resolution};
 
+    // Setup swapchain
     Swapchain swap_chain = device.create_swapchain(
         stream,
         SwapchainOption{
@@ -385,7 +422,10 @@ int main(int argc, char *argv[]) {
     auto delta_time = 0.;
     CommandList cmd_list;
     cmd_list << make_sampler_shader(seed_image).dispatch(resolution);
+    
+    // Main loop with camera controls
     while (!window.should_close()) {
+        // Clear accumulation when camera moves
         if (is_dirty) {
             cmd_list << clear_shader(accum_image).dispatch(resolution);
             is_dirty = false;
@@ -402,6 +442,8 @@ int main(int argc, char *argv[]) {
         last_time = clock.toc();
         frame_count++;
         auto dt = static_cast<float>(delta_time / 1000.0);
+        
+        // Handle camera input
         if (window.is_key_down(KEY_W)) {
             camera_controller.rotate_pitch(dt);
             is_dirty = true;

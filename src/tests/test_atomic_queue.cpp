@@ -1,3 +1,15 @@
+// Test for atomic queue implementation using GPU atomic operations.
+//
+// This test implements a thread-safe queue using atomic operations for
+// concurrent producer-consumer scenarios. The queue uses:
+// - Two-level counting: block-level then global
+// - Shared memory for intra-block coordination
+// - Atomic operations for thread-safe index allocation
+//
+// The implementation minimizes atomic contention by first counting
+// items within a block using shared memory, then performing a single
+// global atomic allocation per block.
+
 #include <random>
 #include <iostream>
 
@@ -7,6 +19,7 @@
 using namespace luisa;
 using namespace luisa::compute;
 
+// Placeholder class for queue counter (not fully implemented)
 class AtomicQueueCounter {
 
 private:
@@ -15,42 +28,60 @@ private:
 public:
 };
 
+// Thread-safe atomic queue using GPU atomics
 template<typename T>
 class AtomicQueue {
 
 private:
-    Buffer<T> _buffer;
-    Buffer<uint> _counter;
-    Shader1D<> _reset;
+    Buffer<T> _buffer;       // Storage buffer
+    Buffer<uint> _counter;   // Global item counter
+    Shader1D<> _reset;       // Reset kernel
 
 public:
     AtomicQueue(Device &device, size_t capacity) noexcept
         : _buffer{device.create_buffer<T>(capacity)},
           _counter{device.create_buffer<uint>(1u)} {
+        // Compile reset kernel to zero the counter
         _reset = device.compile<1>([this] { _counter->write(0u, 0u); });
     }
 
+    // Push item to queue if predicate is true
+    // Uses two-level counting for efficiency:
+    // 1. Count qualifying items within block using shared memory
+    // 2. Allocate global space with single atomic per block
+    // 3. Write items to allocated positions
     void push_if(Expr<bool> pred, Expr<T> value) noexcept {
+        // Shared counter for block-local counting
         Shared<uint> index{1};
+        
+        // Initialize shared counter
         $if (thread_x() == 0u) { index.write(0u, 0u); };
         sync_block();
+        
+        // Each thread that satisfies predicate gets local index
         auto local_index = def(0u);
         $if (pred) { local_index = index.atomic(0).fetch_add(1u); };
         sync_block();
+        
+        // Thread 0 allocates global space for entire block
         $if (thread_x() == 0u) {
             auto local_count = index.read(0u);
             auto global_offset = _counter->atomic(0u).fetch_add(local_count);
             index.write(0u, global_offset);
         };
         sync_block();
+        
+        // Write items to their allocated positions
         $if (pred) {
             auto global_index = index.read(0u) + local_index;
             _buffer->write(global_index, value);
         };
     }
 
+    // Unconditional push
     void push(Expr<T> value) noexcept { push_if(true, value); }
 
+    // Reset queue counter
     void reset(CommandList &list) noexcept {
         list << _reset().dispatch(1u);
     }
@@ -67,10 +98,12 @@ int main(int argc, char *argv[]) {
     }
     Device device = context.create_device(argv[1]);
 
+    // Queue capacity: 16 million elements
     static constexpr auto queue_size = 16_M;
     AtomicQueue<float> q1{device, queue_size};
     AtomicQueue<float> q2{device, queue_size};
 
+    // Linear Congruential Generator for random numbers
     Callable lcg = [](UInt &state) noexcept {
         constexpr uint lcg_a = 1664525u;
         constexpr uint lcg_c = 1013904223u;
@@ -79,6 +112,7 @@ int main(int argc, char *argv[]) {
                (1.0f / static_cast<float>(0x01000000u));
     };
 
+    // Test 1: Push to single queue
     auto test_single = device.compile<1>([&](BufferUInt seed_buffer) noexcept {
         auto x = dispatch_x();
         auto seed = seed_buffer.read(x);
@@ -87,6 +121,7 @@ int main(int argc, char *argv[]) {
         q1.push(r);
     });
 
+    // Test 2: Push to two queues (duplicates data)
     auto test_double = device.compile<1>([&](BufferUInt seed_buffer) noexcept {
         auto x = dispatch_x();
         auto seed = seed_buffer.read(x);
@@ -96,6 +131,8 @@ int main(int argc, char *argv[]) {
         q2.push(r);
     });
 
+    // Test 3: Conditional push based on random value
+    // Distributes items between two queues
     auto test_select = device.compile<1>([&](BufferUInt seed_buffer) noexcept {
         auto x = dispatch_x();
         auto seed = seed_buffer.read(x);
@@ -109,10 +146,12 @@ int main(int argc, char *argv[]) {
     auto stream = device.create_stream();
     auto sampler_state_buffer = device.create_buffer<uint>(queue_size);
 
+    // Initialize random seeds
     luisa::vector<uint> sampler_seeds(queue_size);
     std::generate(sampler_seeds.begin(), sampler_seeds.end(),
                   std::mt19937{std::random_device{}()});
 
+    // Benchmark helper
     auto do_test = [&](auto &&shader, auto name_in, auto iterations) noexcept {
         auto name = luisa::string_view{name_in};
 
@@ -135,12 +174,12 @@ int main(int argc, char *argv[]) {
         }
     };
 
-    // warm up
+    // Warm up runs
     do_test(test_single, "", 64u);
     do_test(test_double, "", 64u);
     do_test(test_select, "", 64u);
 
-    // test
+    // Benchmark runs
     do_test(test_single, "single", 1024u);
     do_test(test_double, "double", 1024u);
     do_test(test_select, "select", 1024u);

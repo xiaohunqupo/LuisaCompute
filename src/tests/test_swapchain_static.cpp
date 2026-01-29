@@ -1,3 +1,13 @@
+// Static Image Swapchain Test
+// Demonstrates displaying a static image using the swapchain.
+// Loads an image from file and presents it continuously.
+//
+// Features demonstrated:
+// - Loading images with stb_image
+// - Creating swapchains for image display
+// - Framerate measurement
+// - Static content presentation
+
 #include <stb/stb_image.h>
 
 #include <luisa/core/clock.h>
@@ -23,6 +33,7 @@ int main(int argc, char *argv[]) {
     auto device = context.create_device(argv[1]);
     auto stream = device.create_stream(StreamTag::GRAPHICS);
 
+    // Load image from file using stb_image
     auto width = 0;
     auto height = 0;
     auto channels = 0;
@@ -32,6 +43,7 @@ int main(int argc, char *argv[]) {
     stream << image.copy_from(pixels) << synchronize();
     stbi_image_free(pixels);
 
+    // Create window and swapchain
     Window window{"Display", resolution};
     SwapchainOption sc_options{
         .display = window.native_display(),
@@ -43,6 +55,7 @@ int main(int argc, char *argv[]) {
     };
     auto swapchain = device.create_swapchain(stream, sc_options);
 
+    // Display loop with FPS measurement
     Clock clk;
     Framerate framerate;
     while (!window.should_close()) {

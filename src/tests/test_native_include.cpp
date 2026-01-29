@@ -1,3 +1,6 @@
+// Native include test demonstrating how to embed backend-specific
+// code (HLSL, CUDA, Metal) directly in kernels.
+
 #include <luisa/runtime/context.h>
 #include <luisa/runtime/stream.h>
 #include <luisa/runtime/image.h>
@@ -11,29 +14,38 @@ using namespace luisa::compute;
 int main(int argc, char *argv[]) {
     Context context{argv[0]};
     if (argc <= 1) { exit(1); }
+    
     luisa::string device_name = argv[1];
     Device device = context.create_device(device_name);
     Stream stream = device.create_stream();
+    
+    // Set image resolution
     constexpr uint2 resolution = make_uint2(1024, 1024);
     Image<float> image{device.create_image<float>(PixelStorage::BYTE4, resolution)};
     luisa::vector<std::byte> host_image(image.view().size_bytes());
+    
+    // Define external callable for UV calculation
     ExternalCallable<float2(float2, float2)> get_uv{"get_uv"};
+    
+    // Kernel that writes UV coordinates to image
     Kernel2D kernel = [&]() {
         Var coord = dispatch_id().xy();
         Var size = dispatch_size().xy();
         Var uv = get_uv(make_float2(coord), make_float2(size));
         image->write(coord, make_float4(uv, 0.5f, 1.0f));
     };
+    
+    // Set native include code based on backend
     ShaderOption option;
     if (device_name == "dx" || device_name == "vk") {
-        // native HLSL code
+        // Native HLSL code
         option.native_include = R"(
 float2 get_uv(float2 coord, float2 size){
     return (coord + 0.5) / size;
 }
     )";
     } else if (device_name == "cuda") {
-        // native CUDA code
+        // Native CUDA code
         option.native_include = R"(
 [[nodiscard]] __device__ inline auto get_uv(lc_float2 coord, lc_float2 size) noexcept {
     return (coord + .5f) / size;
@@ -46,6 +58,8 @@ float2 get_uv(float2 coord, float2 size){
 }
     )";
     }
+    
+    // Compile and execute
     auto shader = device.compile(kernel, option);
     stream << shader().dispatch(resolution)
            << image.copy_to(host_image.data())

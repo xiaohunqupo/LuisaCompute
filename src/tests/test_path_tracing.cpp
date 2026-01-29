@@ -1,3 +1,12 @@
+// Path Tracing Renderer for Cornell Box Scene
+// Implements a physically-based path tracer with Multiple Importance Sampling (MIS)
+// for direct lighting. Features include:
+// - Unidirectional path tracing with BSDF sampling
+// - Next Event Estimation (NEE) for direct light sampling
+// - Russian Roulette for path termination
+// - Cosine-weighted hemisphere sampling for diffuse BSDF
+// - Progressive rendering with real-time display
+
 #include <iostream>
 #include <luisa/backends/ext/dx_hdr_ext.hpp>
 #include <stb/stb_image_write.h>
@@ -13,6 +22,8 @@
 using namespace luisa;
 using namespace luisa::compute;
 
+// Orthonormal Basis (ONB) for shading coordinate system
+// Used to transform vectors between local shading space and world space
 struct Onb {
     float3 tangent;
     float3 binormal;
@@ -20,6 +31,7 @@ struct Onb {
 };
 
 LUISA_STRUCT(Onb, tangent, binormal, normal) {
+    // Transform vector from local shading space to world space
     [[nodiscard]] Float3 to_world(Expr<float3> v) const noexcept {
         return v.x * tangent + v.y * binormal + v.z * normal;
     }
@@ -36,7 +48,7 @@ int main(int argc, char *argv[]) {
     }
     Device device = context.create_device(argv[1]);
 
-    // load the Cornell Box scene
+    // Load the Cornell Box scene from embedded OBJ string
     tinyobj::ObjReaderConfig obj_reader_config;
     obj_reader_config.triangulate = true;
     obj_reader_config.vertex_color = false;
@@ -50,6 +62,7 @@ int main(int argc, char *argv[]) {
         LUISA_WARNING_WITH_LOCATION("{}", e);
     }
 
+    // Extract vertex positions from OBJ data
     auto &&p = obj_reader.GetAttrib().vertices;
     luisa::vector<float3> vertices;
     vertices.reserve(p.size() / 3u);
@@ -61,10 +74,13 @@ int main(int argc, char *argv[]) {
         "Loaded mesh with {} shape(s) and {} vertices.",
         obj_reader.GetShapes().size(), vertices.size());
 
+    // Create bindless array for accessing triangle data in shaders
     BindlessArray heap = device.create_bindless_array(65535);
     Stream stream = device.create_stream(StreamTag::GRAPHICS);
     Buffer<float3> vertex_buffer = device.create_buffer<float3>(vertices.size());
     stream << vertex_buffer.copy_from(vertices.data());
+    
+    // Build meshes for each shape in the scene
     luisa::vector<Mesh> meshes;
     luisa::vector<Buffer<Triangle>> triangle_buffers;
     for (auto &&shape : obj_reader.GetShapes()) {
@@ -84,6 +100,7 @@ int main(int argc, char *argv[]) {
                << mesh.build();
     }
 
+    // Build RTX acceleration structure
     Accel accel = device.create_accel({});
     for (Mesh &m : meshes) {
         accel.emplace_back(m, make_float4x4(1.0f));
@@ -92,23 +109,26 @@ int main(int argc, char *argv[]) {
            << accel.build()
            << synchronize();
 
+    // Material definitions for Cornell Box (diffuse albedos)
     Constant materials{
         make_float3(0.725f, 0.710f, 0.680f),// floor
         make_float3(0.725f, 0.710f, 0.680f),// ceiling
         make_float3(0.725f, 0.710f, 0.680f),// back wall
-        make_float3(0.140f, 0.450f, 0.091f),// right wall
-        make_float3(0.630f, 0.065f, 0.050f),// left wall
+        make_float3(0.140f, 0.450f, 0.091f),// right wall (green)
+        make_float3(0.630f, 0.065f, 0.050f),// left wall (red)
         make_float3(0.725f, 0.710f, 0.680f),// short box
         make_float3(0.725f, 0.710f, 0.680f),// tall box
-        make_float3(0.000f, 0.000f, 0.000f),// light
+        make_float3(0.000f, 0.000f, 0.000f),// light (emissive, not used directly)
     };
 
+    // Convert linear RGB to sRGB with proper gamma correction
     Callable linear_to_srgb = [&](Var<float3> x) noexcept {
         return saturate(select(1.055f * pow(x, 1.0f / 2.4f) - 0.055f,
                                12.92f * x,
                                x <= 0.00031308f));
     };
 
+    // TEA (Tiny Encryption Algorithm) for random number generation
     Callable tea = [](UInt v0, UInt v1) noexcept {
         set_name("tea");
         UInt s0 = def(0u);
@@ -120,6 +140,7 @@ int main(int argc, char *argv[]) {
         return v0;
     };
 
+    // Initialize random seed for each pixel using TEA
     Kernel2D make_sampler_kernel = [&](ImageUInt seed_image) noexcept {
         set_name("make_sampler_kernel");
         UInt2 p = dispatch_id().xy();
@@ -127,6 +148,7 @@ int main(int argc, char *argv[]) {
         seed_image.write(p, make_uint4(state));
     };
 
+    // Linear Congruential Generator (LCG) for pseudo-random numbers
     Callable lcg = [](UInt &state) noexcept {
         set_name("lcg");
         constexpr uint lcg_a = 1664525u;
@@ -136,8 +158,11 @@ int main(int argc, char *argv[]) {
                (1.0f / static_cast<float>(0x01000000u));
     };
 
+    // Construct Orthonormal Basis (ONB) from surface normal
+    // Uses the standard method for building a tangent frame
     Callable make_onb = [](const Float3 &normal) noexcept {
         set_name("make_onb");
+        // Choose binormal direction based on normal's dominant axis
         Float3 binormal = normalize(ite(
             abs(normal.x) > abs(normal.z),
             make_float3(-normal.y, normal.x, 0.0f),
@@ -146,6 +171,8 @@ int main(int argc, char *argv[]) {
         return def<Onb>(tangent, binormal, normal);
     };
 
+    // Generate primary ray from camera through pixel
+    // Uses pinhole camera model with specified FOV
     Callable generate_ray = [](Float2 p) noexcept {
         set_name("generate_ray");
         static constexpr float fov = radians(27.8f);
@@ -155,6 +182,8 @@ int main(int argc, char *argv[]) {
         return make_ray(origin, direction);
     };
 
+    // Cosine-weighted hemisphere sampling for diffuse BSDF
+    // Produces samples proportional to cos(theta) for importance sampling
     Callable cosine_sample_hemisphere = [](Float2 u) noexcept {
         set_name("cosine_sample_hemisphere");
         Float r = sqrt(u.x);
@@ -162,13 +191,18 @@ int main(int argc, char *argv[]) {
         return make_float3(r * cos(phi), r * sin(phi), sqrt(1.0f - u.x));
     };
 
+    // Balanced heuristic for Multiple Importance Sampling (MIS)
+    // Combines PDFs from different sampling strategies optimally
     Callable balanced_heuristic = [](Float pdf_a, Float pdf_b) noexcept {
         set_name("balanced_heuristic");
         return pdf_a / max(pdf_a + pdf_b, 1e-4f);
     };
 
+    // Adjust samples per dispatch based on backend capabilities
     auto spp_per_dispatch = device.backend_name() == "metal" || device.backend_name() == "cpu" || device.backend_name() == "fallback" ? 1u : 64u;
 
+    // Main path tracing kernel
+    // Implements unidirectional path tracing with NEE and MIS
     Kernel2D raytracing_kernel = [&](ImageFloat image, ImageUInt seed_image, AccelVar accel, UInt2 resolution) noexcept {
         set_name("raytracing_kernel");
         set_block_size(16u, 16u, 1u);
@@ -179,18 +213,22 @@ int main(int argc, char *argv[]) {
         Float ry = lcg(state);
         Float2 pixel = (make_float2(coord) + make_float2(rx, ry)) / frame_size * 2.0f - 1.0f;
         Float3 radiance = def(make_float3(0.0f));
+        
+        // Light source definition (area light at ceiling)
         $for (i, spp_per_dispatch) {
             Var<Ray> ray = generate_ray(pixel * make_float2(1.0f, -1.0f));
-            Float3 beta = def(make_float3(1.0f));
-            Float pdf_bsdf = def(0.0f);
+            Float3 beta = def(make_float3(1.0f));  // Path throughput
+            Float pdf_bsdf = def(0.0f);            // BSDF PDF for MIS
             constexpr float3 light_position = make_float3(-0.24f, 1.98f, 0.16f);
             constexpr float3 light_u = make_float3(-0.24f, 1.98f, -0.22f) - light_position;
             constexpr float3 light_v = make_float3(0.23f, 1.98f, 0.16f) - light_position;
             constexpr float3 light_emission = make_float3(17.0f, 12.0f, 4.0f);
             Float light_area = length(cross(light_u, light_v));
             Float3 light_normal = normalize(cross(light_u, light_v));
+            
+            // Path tracing loop with maximum depth of 10
             $for (depth, 10u) {
-                // trace
+                // Trace ray against scene
                 Var<TriangleHit> hit = accel.intersect(ray, {});
                 reorder_shader_execution();
                 $if (hit->miss()) { $break; };
@@ -203,12 +241,14 @@ int main(int argc, char *argv[]) {
                 Float cos_wo = dot(-ray->direction(), n);
                 $if (cos_wo < 1e-4f) { $break; };
 
-                // hit light
+                // Direct hit on light source
                 $if (hit.inst == static_cast<uint>(meshes.size() - 1u)) {
                     $if (depth == 0u) {
+                        // Direct view of light - add full emission
                         radiance += light_emission;
                     }
                     $else {
+                        // Indirect hit - use MIS weight
                         Float pdf_light = length_squared(p - ray->origin()) / (light_area * cos_wo);
                         Float mis_weight = balanced_heuristic(pdf_bsdf, pdf_light);
                         radiance += mis_weight * beta * light_emission;
@@ -216,7 +256,7 @@ int main(int argc, char *argv[]) {
                     $break;
                 };
 
-                // sample light
+                // Next Event Estimation (NEE): sample light directly
                 Float ux_light = lcg(state);
                 Float uy_light = lcg(state);
                 Float3 p_light = light_position + ux_light * light_u + uy_light * light_v;
@@ -229,6 +269,7 @@ int main(int argc, char *argv[]) {
                 Float cos_wi_light = dot(wi_light, n);
                 Float cos_light = -dot(light_normal, wi_light);
                 Float3 albedo = materials.read(hit.inst);
+                // Add direct lighting contribution if not occluded
                 $if (!occluded & cos_wi_light > 1e-4f & cos_light > 1e-4f) {
                     Float pdf_light = (d_light * d_light) / (light_area * cos_light);
                     Float pdf_bsdf = cos_wi_light * inv_pi;
@@ -237,7 +278,7 @@ int main(int argc, char *argv[]) {
                     radiance += beta * bsdf * mis_weight * light_emission / max(pdf_light, 1e-4f);
                 };
 
-                // sample BSDF
+                // Sample BSDF for next path segment
                 Var<Onb> onb = make_onb(n);
                 Float ux = lcg(state);
                 Float uy = lcg(state);
@@ -248,7 +289,7 @@ int main(int argc, char *argv[]) {
                 pdf_bsdf = cos_wi * inv_pi;
                 beta *= albedo;// * cos_wi * inv_pi / pdf_bsdf => * 1.f
 
-                // rr
+                // Russian Roulette path termination
                 Float l = dot(make_float3(0.212671f, 0.715160f, 0.072169f), beta);
                 $if (l == 0.0f) { $break; };
                 Float q = max(l, 0.05f);
@@ -263,6 +304,7 @@ int main(int argc, char *argv[]) {
         image.write(dispatch_id().xy(), make_float4(clamp(radiance, 0.0f, 30.0f), 1.0f));
     };
 
+    // Accumulation kernel for progressive rendering
     Kernel2D accumulate_kernel = [&](ImageFloat accum_image, ImageFloat curr_image) noexcept {
         set_name("accumulate_kernel");
         UInt2 p = dispatch_id().xy();
@@ -271,11 +313,13 @@ int main(int argc, char *argv[]) {
         accum_image.write(p, accum + make_float4(curr, 1.f));
     };
 
+    // Clear image kernel
     Kernel2D clear_kernel = [](ImageFloat image) noexcept {
         set_name("clear_kernel");
         image.write(dispatch_id().xy(), make_float4(0.f));
     };
 
+    // HDR to LDR conversion with tone mapping
     Kernel2D hdr2ldr_kernel = [&](ImageFloat hdr_image, ImageFloat ldr_image, Float scale) noexcept {
         set_name("hdr2ldr_kernel");
         UInt2 coord = dispatch_id().xy();
@@ -284,6 +328,7 @@ int main(int argc, char *argv[]) {
         ldr_image.write(coord, make_float4(ldr, 1.f));
     };
 
+    // Compile shaders
     ShaderOption o{.enable_debug_info = false};
     auto raytracing_shader = device.compile(raytracing_kernel, ShaderOption{.name = "path_tracing"});
     auto clear_shader = device.compile(clear_kernel, o);
@@ -291,6 +336,7 @@ int main(int argc, char *argv[]) {
     auto accumulate_shader = device.compile(accumulate_kernel, o);
     auto make_sampler_shader = device.compile(make_sampler_kernel, o);
 
+    // Create images and window
     static constexpr uint2 resolution = make_uint2(1024u);
     Image<float> framebuffer = device.create_image<float>(PixelStorage::HALF4, resolution);
     Image<float> accum_image = device.create_image<float>(PixelStorage::FLOAT4, resolution);
@@ -300,6 +346,7 @@ int main(int argc, char *argv[]) {
     stream << clear_shader(accum_image).dispatch(resolution)
            << make_sampler_shader(seed_image).dispatch(resolution);
 
+    // Setup window and swapchain for real-time display
     Window window{"path tracing", resolution};
     Swapchain swap_chain = device.create_swapchain(
         stream,
@@ -317,6 +364,7 @@ int main(int argc, char *argv[]) {
     uint frame_count = 0u;
     Clock clock;
 
+    // Main render loop
     while (!window.should_close()) {
         stream << raytracing_shader(framebuffer, seed_image, accel, resolution)
                       .dispatch(resolution)

@@ -1,3 +1,14 @@
+// Diffuse shading test for curve rendering.
+//
+// This test renders curves with simple diffuse (Lambertian) shading
+// for comparison with the more complex hair BSDF in test_curve_pbrt.cpp.
+// Features:
+// - PBRT curve file parsing
+// - Simple diffuse BSDF
+// - Direct lighting with shadow rays
+// - Cosine-weighted hemisphere sampling
+// - Interactive camera control
+
 #include <fstream>
 #include <stb/stb_image_write.h>
 #include <luisa/luisa-compute.h>
@@ -5,6 +16,7 @@
 using namespace luisa;
 using namespace luisa::compute;
 
+// Orthonormal basis for shading frame
 struct Onb {
     float3 tangent;
     float3 binormal;
@@ -12,14 +24,17 @@ struct Onb {
 };
 
 LUISA_STRUCT(Onb, tangent, binormal, normal) {
+    // Transform vector from local to world space
     [[nodiscard]] Float3 to_world(Expr<float3> v) const noexcept {
         return v.x * tangent + v.y * binormal + v.z * normal;
     }
+    // Transform vector from world to local space
     [[nodiscard]] Float3 to_local(Expr<float3> v) const noexcept {
         return make_float3(dot(v, tangent), dot(v, binormal), dot(v, normal));
     }
 };
 
+// Parse PBRT curve file format
 [[nodiscard]] auto parse_pbrt_curve_file(const std::filesystem::path &path) noexcept {
     std::ifstream file{path};
     if (!file.is_open()) {
@@ -33,6 +48,7 @@ LUISA_STRUCT(Onb, tangent, binormal, normal) {
     auto aabb_min = make_float3(inf);
     auto aabb_max = make_float3(-inf);
 
+    // Parser helper functions
     auto eof = [&] { return file.peek() == EOF; };
     auto peek = [&] {
         LUISA_ASSERT(!eof(), "Unexpected EOF.");
@@ -81,6 +97,7 @@ LUISA_STRUCT(Onb, tangent, binormal, normal) {
         return x;
     };
 
+    // Parse individual curve
     auto parse_curve = [&]() noexcept -> bool {
         skip_whitespaces();
         if (eof()) { return false; }
@@ -149,6 +166,7 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
+    // Create device and parse curve file
     auto device = context.create_device(argv[1]);
     auto [control_points, segments, aabb_min, aabb_max] = parse_pbrt_curve_file(argv[2]);
     auto control_point_count = static_cast<uint>(control_points.size());
@@ -159,11 +177,13 @@ int main(int argc, char *argv[]) {
     LUISA_INFO("Control Points: {}, Segments: {}, AABB: {} -> {}, Extent = {}, Scaling Factor = {}",
                control_point_count, segment_count, aabb_min, aabb_max, extent, scaling_factor);
 
+    // Compute normalization transform
     auto M = scaling(1.f / scaling_factor) * translation(-center);
     auto invM = inverse(M);
     auto N = transpose(inverse(make_float3x3(M)));
     auto invN = inverse(N);
 
+    // Setup curve geometry
     static constexpr auto curve_basis = CurveBasis::CATMULL_ROM;
     auto control_point_buffer = device.create_buffer<float4>(control_point_count);
     auto segment_buffer = device.create_buffer<uint>(segment_count);
@@ -183,6 +203,7 @@ int main(int argc, char *argv[]) {
            << accel.build()
            << synchronize();
 
+    // Random number generation
     Callable tea = [](UInt v0, UInt v1) noexcept {
         UInt s0 = def(0u);
         for (uint n = 0u; n < 4u; n++) {
@@ -207,6 +228,7 @@ int main(int argc, char *argv[]) {
                (1.0f / static_cast<float>(0x01000000u));
     };
 
+    // Cosine-weighted hemisphere sampling for diffuse BSDF
     Callable cosine_sample_hemisphere = [](Float2 u) noexcept {
         Float r = sqrt(u.x);
         Float phi = 2.0f * constants::pi * u.y;
@@ -215,6 +237,7 @@ int main(int argc, char *argv[]) {
 
     static constexpr auto resolution = make_uint2(512u);
 
+    // Camera with rotatable view
     Callable generate_ray = [](Float2 p, Float angle) noexcept {
         auto origin = make_float3(sin(angle) * 2.f, 0.f, cos(angle) * 2.f);
         auto target = make_float3(0.f, 0.f, 0.f);
@@ -235,6 +258,7 @@ int main(int argc, char *argv[]) {
         return make_ray(ray_origin, ray_direction);
     };
 
+    // Build orthonormal basis from normal vector
     Callable make_onb = [](const Float3 &normal) noexcept {
         Float3 binormal = normalize(ite(
             abs(normal.x) > abs(normal.z),
@@ -244,6 +268,7 @@ int main(int argc, char *argv[]) {
         return def<Onb>(tangent, binormal, normal);
     };
 
+    // Path tracing render kernel with diffuse shading
     auto render = device.compile<2u>(
         [&](AccelVar accel, ImageFloat image, ImageUInt seed_image, Float view_angle) noexcept {
             set_block_size(16u, 16u, 1u);
@@ -251,44 +276,56 @@ int main(int argc, char *argv[]) {
             auto state = seed_image.read(coord).x;
             auto ux = lcg(state);
             auto uy = lcg(state);
+            seed_image.write(coord, make_uint4(state));
             auto pixel = make_float2(coord) + make_float2(ux, uy);
             auto ray = generate_ray(pixel, view_angle);
             auto color = def(make_float3());
             auto beta = def(make_float3(1.f));
+            
+            // Path tracing loop
             $for (depth, 10u) {
                 auto hit = accel.intersect(ray, {.curve_bases = {curve_basis}});
                 $if (!hit->is_curve()) { $break; };
                 auto light_color = make_float3(100.f);
                 auto u = hit->curve_parameter();
                 auto i0 = hit->prim;
+                
+                // Read curve control points
                 auto p0 = control_point_buffer->read(i0 + 0u);
                 auto p1 = control_point_buffer->read(i0 + 1u);
                 auto p2 = control_point_buffer->read(i0 + 2u);
                 auto p3 = control_point_buffer->read(i0 + 3u);
                 auto c = CurveEvaluator::create(curve_basis, p0, p1, p2, p3);
+                
+                // Compute intersection point and normal
                 auto ps_local = ray->origin() + hit->distance() * ray->direction();
                 auto ps = make_float3(invM * make_float4(ps_local, 1.f));
                 auto eval = c->evaluate(u, ps_local);
                 auto p = make_float3(M * make_float4(eval.position, 1.f));
+                
+                // Transform normal to world space
                 auto n = normalize(N * eval.normal);
                 auto onb = make_onb(n);
                 auto wo = -ray->direction();
                 auto wo_local = onb->to_local(wo);
                 auto albedo = .8f;
-                // Eval light
+                
+                // Direct lighting with shadow rays
                 {
                     auto light_dir = make_float3(-0.376047f, 0.758426f, 0.532333f);
                     auto wi_local = normalize(onb->to_local(light_dir));
+                    // Lambertian BRDF: albedo / π
                     auto direct = light_color * max(wi_local.z, 0.f) * albedo * inv_pi;
                     auto shadow_ray = make_ray(p + n * 1e-4f, light_dir);
                     auto occluded = accel->intersect_any(shadow_ray, {.curve_bases = {curve_basis}});
                     color += beta * ite(dsl::isnan(reduce_sum(direct)), 0.f, direct) *
                              ite(occluded, 0.f, 1.f);
                 }
-                // Sample BSDF. For simplicity, we uniformly sample the sphere.
+                
+                // Indirect lighting: cosine-weighted sampling
                 {
                     auto wi_local = cosine_sample_hemisphere(make_float2(lcg(state), lcg(state)));
-                    beta = beta * albedo;
+                    beta = beta * albedo;  // Multiply by albedo
                     $if (all(beta <= 1e-3f) | dsl::isnan(reduce_sum(beta))) { $break; };
                     auto wi = onb->to_world(wi_local);
                     ray = make_ray(p + n * 1e-4f, wi);
@@ -299,6 +336,7 @@ int main(int argc, char *argv[]) {
             image.write(coord, old + make_float4(color, 1.f));
         });
 
+    // Setup display
     auto seed_image = device.create_image<uint>(PixelStorage::INT1, resolution);
     auto hdr_image = device.create_image<float>(PixelStorage::FLOAT4, resolution);
     auto ldr_image = device.create_image<float>(PixelStorage::BYTE4, resolution);
@@ -335,6 +373,7 @@ int main(int argc, char *argv[]) {
             .back_buffer_count = 2,
         });
 
+    // Interactive render loop
     Clock clock;
     auto viewing_angle = pi;
     auto dirty = true;
@@ -368,6 +407,7 @@ int main(int argc, char *argv[]) {
         LUISA_INFO("FPS: {}", framerate.report());
     }
 
+    // Save final image
     luisa::vector<std::byte> pixels(ldr_image.view().size_bytes());
     stream << hdr2ldr(hdr_image, ldr_image, false).dispatch(resolution)
            << ldr_image.copy_to(pixels.data())

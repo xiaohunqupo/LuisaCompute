@@ -1,3 +1,6 @@
+// OSL (Open Shading Language) parser test demonstrating parsing
+// of .oso shader bytecode files.
+
 #include <cstdio>
 
 #include <luisa/osl/shader.h>
@@ -6,6 +9,8 @@
 int main(int argc, char *argv[]) {
 
     luisa::unique_ptr<luisa::compute::osl::Shader> shader;
+    
+    // Use embedded shader code if no file argument provided
     if (argc < 2) {
         static constexpr auto code = R"oso(
 OpenShadingLanguage 1.00
@@ -66,7 +71,7 @@ param	point	center	0 0 0		%meta{string,help,"Center point where uv=(0.5,0.5)"}  
         temp	int	$tmp26	%read{40,40} %write{39,39}
         temp	float	$tmp27	%read{45,45} %write{43,43}
         temp	float	$tmp28	%read{43,43} %write{42,42}
-        temp	float	$tmp29	%read{50,50} %write{45,45}
+        temp	float	$tmp29	%read{45,45} %write{45,45}
         temp	float	$tmp30	%read{45,45} %write{44,44}
         temp	float	$tmp31	%read{49,49} %write{48,48}
         temp	float	$tmp32	%read{48,48} %write{47,47}
@@ -157,12 +162,14 @@ param	point	center	0 0 0		%meta{string,help,"Center point where uv=(0.5,0.5)"}  
 # /Users/mike/ClionProjects/OpenShadingLanguage/src/shaders/mandelbrot.osl:59
 #         Cout = 0;
 	assign		Cout $const6 	%line{59} %argrw{"wr"}
-	end
+end
 )oso";
         shader = luisa::compute::osl::OSOParser::parse(code);
     } else {
+        // Parse shader from file
         shader = luisa::compute::osl::OSOParser::parse_file(argv[1]);
     }
 
+    // Dump parsed shader information
     puts(shader->dump().c_str());
 }

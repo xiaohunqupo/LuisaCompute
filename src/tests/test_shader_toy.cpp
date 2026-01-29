@@ -1,3 +1,13 @@
+// ShaderToy-style Ray Marching Demo
+// A real-time ray marching shader inspired by ShaderToy examples.
+// Renders an animated 3D scene using signed distance functions (SDF).
+//
+// Features demonstrated:
+// - Ray marching with SDFs
+// - Domain repetition and transformations
+// - Real-time animation
+// - Interactive window display
+
 #include <luisa/core/clock.h>
 #include <luisa/core/logging.h>
 #include <luisa/runtime/context.h>
@@ -21,16 +31,20 @@ int main(int argc, char *argv[]) {
     }
     Device device = context.create_device(argv[1]);
 
+    // Color palette for gradient effects
     Callable palette = [](Float d) noexcept {
         return lerp(make_float3(0.2f, 0.7f, 0.9f), make_float3(1.0f, 0.0f, 1.0f), d);
     };
 
+    // 2D rotation matrix
     Callable rotate = [](Float2 p, Float a) noexcept {
         Var c = cos(a);
         Var s = sin(a);
         return make_float2(dot(p, make_float2(c, s)), dot(p, make_float2(-s, c)));
     };
 
+    // Signed distance function for the scene
+    // Uses domain repetition and rotation for complex patterns
     Callable map = [&rotate](Float3 p, Float time) noexcept {
         for (uint i = 0u; i < 8u; i++) {
             Var t = time * 0.2f;
@@ -41,6 +55,8 @@ int main(int argc, char *argv[]) {
         return dot(copysign(1.0f, p), p) * 0.2f;
     };
 
+    // Ray marching function
+    // Marches along ray until hitting surface or max distance
     Callable rm = [&map, &palette](Float3 ro, Float3 rd, Float time) noexcept {
         Var t = 0.0f;
         Var col = make_float3(0.0f);
@@ -55,21 +71,25 @@ int main(int argc, char *argv[]) {
         return make_float4(col, 1.0f / (d * 100.0f));
     };
 
+    // Clear kernel
     Kernel2D clear_kernel = [](ImageVar<float> image) noexcept {
         Var coord = dispatch_id().xy();
         image.write(coord, make_float4(make_float2(0.3f, 0.4f), 0.5f, 1.0f));
     };
 
+    // Main rendering kernel
     Kernel2D main_kernel = [&rm, &rotate](ImageFloat image, Float time) noexcept {
         Var xy = dispatch_id().xy();
         Var resolution = make_float2(dispatch_size().xy());
         Var uv = (make_float2(xy) - resolution * 0.5f) / resolution.x;
+        // Camera setup
         Var ro = make_float3(rotate(make_float2(0.0f, -50.0f), time), 0.0f).xzy();
         Var cf = normalize(-ro);
         Var cs = normalize(cross(cf, make_float3(0.0f, 1.0f, 0.0f)));
         Var cu = normalize(cross(cf, cs));
         Var uuv = ro + cf * 3.0f + uv.x * cs + uv.y * cu;
         Var rd = normalize(uuv - ro);
+        // Ray march
         Var col = rm(ro, rd, time);
         Var color = col.xyz();
         Var alpha = col.w;
@@ -99,6 +119,7 @@ int main(int argc, char *argv[]) {
 
     stream << clear(device_image).dispatch(width, height);
 
+    // Animation loop
     Clock clock;
     while (!window.should_close()) {
         window.poll_events();

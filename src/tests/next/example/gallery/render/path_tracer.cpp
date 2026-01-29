@@ -23,6 +23,7 @@
 #include <luisa/gui/window.h>
 
 #include "common/tiny_obj_loader.h"
+#include <luisa/runtime/rtx/mesh.h>
 #include "common/test_math_util.h"
 #include "util.h"
 
