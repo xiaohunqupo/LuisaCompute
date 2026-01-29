@@ -3,6 +3,7 @@
 #include <luisa/runtime/image.h>
 #include <luisa/runtime/shader.h>
 #include <luisa/ast/function_builder.h>
+#include <luisa/dsl/func.h>
 #include <stb/stb_image_write.h>
 
 using namespace luisa;
@@ -38,10 +39,9 @@ int main(int argc, char *argv[]) {
              value});
     });
     // kernel(tex: tex2d)
-    shared_ptr<FuncBuilder const> kernel = FuncBuilder::define_kernel([&]() {
+    auto generate_ast = [&](Expression const *arg0) {
         auto &cur = *FuncBuilder::current();
         cur.set_block_size(uint3(16, 16, 1));
-        auto arg0 = cur.texture(Type::of<Image<float>>());
         auto coord_uint3 = cur.dispatch_id();
         // uint2 coord;
         auto coord = cur.local(Type::of<uint2>());
@@ -74,22 +74,25 @@ int main(int argc, char *argv[]) {
         cur.call(Function(callable_builder.get()), {arg0,
                                                     coord,
                                                     color});
-    });
-    // save shader to test_manual_ast.bytes
-    auto invalid_shader = device.impl()->create_shader(
-        {.compile_only = true,
-         .name = "test_manual_ast.bytes"},
-        Function(kernel.get()));
-    // load shader from disk
-    auto shader = device.load_shader<2, Image<float>>("test_manual_ast.bytes");
+    };
+    Kernel2D<Image<float>> kernel{[&](ImageVar<float> img) {
+        auto arg0 = img.expression();
+        generate_ast(arg0);
+    }};
+    auto shader = device.compile(kernel);
+    //////// You can also do this:
+    // shared_ptr<FuncBuilder const> kernel = FuncBuilder::define_kernel([&]() {
+    //     // manually define arguments
+    //     auto &cur = *FuncBuilder::current();
+    //     auto arg0 = cur.texture(Type::of<Image<float>>());
+    //     generate_ast(arg0);
+    // });
+    // auto shader = Shader2D<Image<float>>(
+    //     device.impl(),
+    //     Function(kernel.get()),
+    //     ShaderOption{});
 
-    // Kernel2D kernel = [&]() {
-    //     Var coord = dispatch_id().xy();
-    //     Var size = dispatch_size().xy();
-    //     Var uv = (make_float2(coord) + 0.5f) / make_float2(size);
-    //     image->write(coord, make_float4(uv, 0.5f, 1.0f));
-    // };
-    // auto shader = device.compile(Function(kernel.get()));
+    // save shader to test_manual_ast.bytes
     stream << shader(image).dispatch(resolution)
            << image.copy_to(host_image.data())
            << synchronize();

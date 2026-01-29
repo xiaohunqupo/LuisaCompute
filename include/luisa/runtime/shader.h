@@ -294,7 +294,7 @@ private:
            size_t uniform_size) noexcept
         : ShaderBase{device, info, uniform_size} {}
 
-private:
+public:
     // JIT shader
     Shader(DeviceInterface *device,
            Function kernel,
@@ -316,7 +316,6 @@ private:
                      device->load_shader(file_path, detail::shader_argument_types<Args...>()),
                      ShaderDispatchCmdEncoder::compute_uniform_size(detail::shader_argument_types<Args...>())} {}
 
-public:
     using ShaderBase::release;
     Shader() noexcept = default;
     ~Shader() noexcept = default;
