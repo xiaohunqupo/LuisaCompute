@@ -1,15 +1,25 @@
 #pragma once
+
 #include <luisa/backends/ext/cuda_external_ext.h>
+
 namespace luisa::compute::cuda {
+
 class CUDADevice;
-class CUDAExternalExtImpl : public luisa::compute::CUDAExternalExt {
+
+class CUDAExternalExtImpl : public CUDAExternalExt {
+
+protected:
+    ~CUDAExternalExtImpl() noexcept = default;
+
 public:
     CUDADevice *device;
-    CUDAExternalExtImpl(CUDADevice *device) : device{device} {}
+    explicit CUDAExternalExtImpl(CUDADevice *device) : device{device} {}
+
     void cuda_stream_signal(
         /*CUstream*/ void *cu_stream_ptr,
         uint64_t cuda_event_handle,
         uint64_t fence_index) override;
+
     void cuda_stream_wait(
         /*CUstream*/ void *cu_stream_ptr,
         uint64_t cuda_event_handle,
@@ -21,6 +31,8 @@ public:
         /*CUdeviceptr*/ void *src_buffer,
         size_t size,
         /*CUstream*/ void *stream) override;
+
     void sync_stream(void *cu_stream_ptr) override;
 };
+
 }// namespace luisa::compute::cuda

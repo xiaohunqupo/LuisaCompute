@@ -1,7 +1,14 @@
 #pragma once
+
 #include <luisa/runtime/rhi/device_interface.h>
+
 namespace luisa::compute {
+
 class CUDAExternalExt : public DeviceExtension {
+
+protected:
+    ~CUDAExternalExt() noexcept = default;
+
 public:
     static constexpr luisa::string_view name = "CUDAExternalExt";
 
@@ -21,4 +28,5 @@ public:
         /*CUstream*/ void *stream) = 0;
     virtual void sync_stream(void *cu_stream_ptr) = 0;
 };
+
 }// namespace luisa::compute
