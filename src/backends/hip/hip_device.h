@@ -5,6 +5,7 @@
 #pragma once
 
 #include <hip/hip_runtime.h>
+#include <hiprt/hiprt.h>
 #include <luisa/runtime/rhi/device_interface.h>
 #include "../common/default_binary_io.h"
 
@@ -16,6 +17,7 @@ private:
     luisa::unique_ptr<DefaultBinaryIO> _default_io;
     const BinaryIO *_io;
     int _device_id;
+    hiprtContext _hiprt_context{nullptr};
 
     template<typename F>
     decltype(auto) with_device(F &&f) const noexcept;

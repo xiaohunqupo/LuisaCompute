@@ -74,9 +74,20 @@ HIPDevice::HIPDevice(Context &&ctx, const DeviceConfig *config) noexcept
                version_major(driver_version), version_minor(driver_version), version_patch(driver_version),
                version_major(runtime_version), version_minor(runtime_version), version_patch(runtime_version),
                HIP_VERSION_MAJOR, HIP_VERSION_MINOR, HIP_VERSION_PATCH);
+
+    // create hiprt context
+    hiprtContextCreationInput hiprt_ctx_input{};
+    hiprt_ctx_input.deviceType = std::string_view{prop.name}.find("NVIDIA") != std::string::npos ?
+                                     hiprtDeviceNVIDIA :
+                                     hiprtDeviceAMD;
+    hiprt_ctx_input.device = device_id();
+    LUISA_CHECK_HIP(hipCtxGetCurrent(reinterpret_cast<hipCtx_t *>(&hiprt_ctx_input.ctxt)));
+    LUISA_CHECK_HIPRT(hiprtCreateContext(HIPRT_API_VERSION, hiprt_ctx_input, _hiprt_context));
 }
 
-HIPDevice::~HIPDevice() noexcept = default;
+HIPDevice::~HIPDevice() noexcept {
+    LUISA_CHECK_HIPRT(hiprtDestroyContext(_hiprt_context));
+}
 
 void HIPDevice::set_stream_log_callback(uint64_t stream_handle, const StreamLogCallback &callback) noexcept {
     DeviceInterface::set_stream_log_callback(stream_handle, callback);
