@@ -17,7 +17,7 @@ public:
     VkCudaInteropImpl(VkCudaInteropImpl &&) = delete;
     ~VkCudaInteropImpl() override;
     BufferCreationInfo create_interop_buffer(const Type *element, size_t elem_count) noexcept override;
-    [[nodiscard]] CudaDeviceConfigExt::ExternalVkDevice get_external_vk_device() const noexcept override;
+    [[nodiscard]] CUDADeviceConfigExt::ExternalVkDevice get_external_vk_device() const noexcept override;
     ResourceCreationInfo create_interop_texture(
         PixelFormat format, uint dimension,
         uint width, uint height, uint depth,

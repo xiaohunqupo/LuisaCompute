@@ -40,7 +40,7 @@ public:
     virtual void vk_wait(uint64_t cuda_event_handle, uint64_t vk_stream, uint64_t fence_index) noexcept = 0;
 
 public:
-    [[nodiscard]] virtual CudaDeviceConfigExt::ExternalVkDevice get_external_vk_device() const noexcept = 0;
+    [[nodiscard]] virtual CUDADeviceConfigExt::ExternalVkDevice get_external_vk_device() const noexcept = 0;
     virtual void cuda_buffer(uint64_t vk_buffer_handle, uint64_t *cuda_ptr, uint64_t *cuda_handle /*CUexternalMemory* */) noexcept = 0;
     [[nodiscard]] virtual /*CUexternalMemory* */ uint64_t cuda_texture(uint64_t vk_texture_handle) noexcept = 0;
     virtual void unmap(void *cuda_ptr, void *cuda_handle) noexcept = 0;

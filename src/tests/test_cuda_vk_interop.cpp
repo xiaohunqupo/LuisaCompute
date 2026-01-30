@@ -7,7 +7,7 @@
 
 using namespace luisa;
 using namespace luisa::compute;
-struct CudaDeviceConfigExtImpl : public CudaDeviceConfigExt {
+struct CUDADeviceConfigExtImpl : public CUDADeviceConfigExt {
     ExternalVkDevice external_device;
     [[nodiscard]] ExternalVkDevice get_external_vk_device() const noexcept override {
         return external_device;
@@ -17,7 +17,7 @@ int main(int argc, char *argv[]) {
     Context context{argv[0]};
     Device vk_device = context.create_device("vk");
     auto interop_ext = vk_device.extension<VkCudaInterop>();
-    auto ext_device = luisa::make_unique<CudaDeviceConfigExtImpl>();
+    auto ext_device = luisa::make_unique<CUDADeviceConfigExtImpl>();
     ext_device->external_device = interop_ext->get_external_vk_device();
     DeviceConfig cuda_settings{
         .extension = std::move(ext_device),

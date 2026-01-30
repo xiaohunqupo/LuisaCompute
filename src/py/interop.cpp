@@ -1,13 +1,16 @@
 #include "interop.h"
 #include <luisa/backends/ext/cuda_external_ext.h>
+
 namespace luisa::compute {
-struct CudaDeviceConfigExtImpl : public CudaDeviceConfigExt {
+
+struct CUDADeviceConfigExtImpl : public CUDADeviceConfigExt {
     ExternalVkDevice external_device;
-    CudaDeviceConfigExtImpl(ExternalVkDevice external_device) : external_device(external_device) {}
+    CUDADeviceConfigExtImpl(ExternalVkDevice external_device) : external_device(external_device) {}
     [[nodiscard]] ExternalVkDevice get_external_vk_device() const noexcept override {
         return external_device;
     }
 };
+
 PyInterop::PyInterop(DeviceInterface *device) : _render_device_idx(~0u) {
     if (auto dx = device->extension("DxCudaInterop"))
         _ext = static_cast<DxCudaInterop *>(dx);
@@ -24,13 +27,14 @@ PyInterop::PyInterop(DeviceInterface *device) : _render_device_idx(~0u) {
     DeviceConfig config{.device_index = _render_device_idx};
     auto vk = _ext.try_get<VkCudaInterop *>();
     if (vk) {
-        config.extension = luisa::make_unique<CudaDeviceConfigExtImpl>(
+        config.extension = luisa::make_unique<CUDADeviceConfigExtImpl>(
             (*vk)->get_external_vk_device());
     }
     config.headless = true;
     compute_device = device->context().create_device("cuda", &config);
     _cu_ext = compute_device.extension<CUDAExternalExt>();
 }
+
 void PyInterop::_init_event() {
     if (_event.valid()) return;
     if (_render_device_idx == ~0u) [[unlikely]] {
@@ -46,6 +50,7 @@ void PyInterop::_init_event() {
         }
     });
 }
+
 void PyInterop::compute_to_render_fence(
     void *signalled_cu_stream_ptr,
     Stream &wait_render_stream) {
@@ -74,6 +79,7 @@ void PyInterop::compute_to_render_fence(
         }
     });
 }
+
 void PyInterop::render_to_compute_fence(
     Stream &signalled_render_stream,
     void *wait_cu_stream_ptr) {
@@ -102,8 +108,8 @@ void PyInterop::render_to_compute_fence(
         }
     });
 }
-PyInterop::~PyInterop() {
-}
+
+PyInterop::~PyInterop() = default;
 
 BufferCreationInfo PyInterop::create_interop_buffer(const Type *element, size_t elem_count) {
     if (_render_device_idx == ~0u) [[unlikely]] {
@@ -116,6 +122,7 @@ BufferCreationInfo PyInterop::create_interop_buffer(const Type *element, size_t 
     });
     return r;
 }
+
 ResourceCreationInfo PyInterop::create_interop_texture(
     PixelFormat format, uint dimension,
     uint width, uint height, uint depth,
@@ -133,6 +140,7 @@ ResourceCreationInfo PyInterop::create_interop_texture(
     });
     return r;
 }
+
 void PyInterop::cuda_buffer(uint64_t buffer_handle, uint64_t *cuda_ptr, uint64_t *cuda_handle /*CUexternalMemory* */) {
     if (_render_device_idx == ~0u) [[unlikely]] {
         LUISA_ERROR("Cuda device invalid.");
@@ -141,6 +149,7 @@ void PyInterop::cuda_buffer(uint64_t buffer_handle, uint64_t *cuda_ptr, uint64_t
         t->cuda_buffer(buffer_handle, cuda_ptr, cuda_handle);
     });
 }
+
 void PyInterop::unmap(void *cuda_ptr, void *cuda_handle) {
     if (_render_device_idx == ~0u) [[unlikely]] {
         LUISA_ERROR("Cuda device invalid.");

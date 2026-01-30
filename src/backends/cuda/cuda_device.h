@@ -105,10 +105,10 @@ private:
 private:
     // extensions
     std::mutex _ext_mutex;
+    luisa::unique_ptr<DeviceConfigExt> _device_config_ext;
     luisa::unique_ptr<CUDADStorageExt> _dstorage_ext;
     luisa::unique_ptr<CUDAPinnedMemoryExt> _pinned_memory_ext;
     luisa::unique_ptr<CUDAExternalExt> _external_ext;
-    luisa::unique_ptr<DeviceConfigExt> _device_ext;
 #if LUISA_BACKEND_ENABLE_OIDN
     luisa::unique_ptr<CUDADenoiserExt> _denoiser_ext;
 #endif
@@ -128,7 +128,7 @@ private:
 
 public:
     CUDADevice(Context &&ctx, size_t device_id, const BinaryIO *io, bool use_lmdb,
-               luisa::unique_ptr<DeviceConfigExt> device_ext, bool headless) noexcept;
+               luisa::unique_ptr<DeviceConfigExt> device_config_ext, bool headless) noexcept;
     ~CUDADevice() noexcept override;
     [[nodiscard]] const auto &handle() const noexcept { return _handle; }
     template<typename F>

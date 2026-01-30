@@ -235,17 +235,17 @@ namespace luisa::compute::cuda {
 
 CUDADevice::CUDADevice(Context &&ctx, size_t device_id,
                        const BinaryIO *io, bool use_lmdb,
-                       luisa::unique_ptr<DeviceConfigExt> device_ext,
+                       luisa::unique_ptr<DeviceConfigExt> device_config_ext,
                        bool headless) noexcept
     : DeviceInterface{std::move(ctx)},
       _handle{device_id}, _io{io},
-      _device_ext{std::move(device_ext)} {
+      _device_config_ext{std::move(device_config_ext)} {
     // provide a default binary IO
     if (_io == nullptr) {
         _default_io = luisa::make_unique<DefaultBinaryIO>(context(), false, use_lmdb);
         _io = _default_io.get();
     }
-    if (headless) return;
+    if (headless) { return; }
     _compiler = luisa::make_unique<CUDACompiler>(this);
     auto sm_option = luisa::format("-arch=compute_{}", handle().compute_capability());
     std::array options{sm_option.c_str(),
@@ -361,8 +361,8 @@ CUDAEventManager *CUDADevice::event_manager() const noexcept {
     if (_event_manager == nullptr) [[unlikely]] {
         VkDevice device{};
         VkPhysicalDevice physical_device{};
-        if (_device_ext) {
-            auto ext_device = static_cast<CudaDeviceConfigExt *>(_device_ext.get())->get_external_vk_device();
+        if (_device_config_ext) {
+            auto ext_device = static_cast<CUDADeviceConfigExt *>(_device_config_ext.get())->get_external_vk_device();
             device = ext_device.device;
             physical_device = ext_device.physical_device;
         }
@@ -429,7 +429,10 @@ void CUDADevice::destroy_buffer(uint64_t handle) noexcept {
     });
 }
 
-ResourceCreationInfo CUDADevice::create_texture(PixelFormat format, uint dimension, uint width, uint height, uint depth, uint mipmap_levels, void *external_native_handle, bool simultaneous_access, bool allow_raster_target) noexcept {
+ResourceCreationInfo CUDADevice::create_texture(PixelFormat format, uint dimension,
+                                                uint width, uint height, uint depth, uint mipmap_levels,
+                                                void *external_native_handle, bool simultaneous_access,
+                                                bool allow_raster_target) noexcept {
     LUISA_ASSERT(external_native_handle == nullptr, "Not implemented.");
     auto p = with_handle([=] {
         auto array_format = cuda_array_format(format);

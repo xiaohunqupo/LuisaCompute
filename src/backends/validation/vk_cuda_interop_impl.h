@@ -18,7 +18,7 @@ public:
     void vk_wait(uint64_t cuda_event_handle, uint64_t vk_stream, uint64_t fence_index) noexcept override {
         impl->vk_wait(cuda_event_handle, vk_stream, fence_index);
     }
-    CudaDeviceConfigExt::ExternalVkDevice get_external_vk_device() const noexcept override {
+    CUDADeviceConfigExt::ExternalVkDevice get_external_vk_device() const noexcept override {
         return impl->get_external_vk_device();
     }
     void cuda_buffer(uint64_t vk_buffer_handle, uint64_t *cuda_ptr, uint64_t *cuda_handle /*CUexternalMemory* */) noexcept override {

@@ -494,7 +494,7 @@ void VkCudaInteropImpl::unmap(void *cuda_ptr, void *cuda_handle) noexcept {
 DeviceInterface *VkCudaInteropImpl::device() noexcept {
     return _device;
 }
-CudaDeviceConfigExt::ExternalVkDevice VkCudaInteropImpl::get_external_vk_device() const noexcept {
+CUDADeviceConfigExt::ExternalVkDevice VkCudaInteropImpl::get_external_vk_device() const noexcept {
     return {_device->physical_device(), _device->logic_device()};
 }
 }// namespace lc::vk

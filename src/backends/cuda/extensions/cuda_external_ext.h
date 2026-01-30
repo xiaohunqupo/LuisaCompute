@@ -6,14 +6,14 @@ namespace luisa::compute::cuda {
 
 class CUDADevice;
 
-class CUDAExternalExtImpl : public CUDAExternalExt {
+class CUDAExternalExtImpl final : public CUDAExternalExt {
 
 protected:
-    ~CUDAExternalExtImpl() noexcept = default;
+    CUDADevice *device;
 
 public:
-    CUDADevice *device;
     explicit CUDAExternalExtImpl(CUDADevice *device) : device{device} {}
+    ~CUDAExternalExtImpl() noexcept override = default;
 
     void cuda_stream_signal(
         /*CUstream*/ void *cu_stream_ptr,
