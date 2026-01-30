@@ -257,12 +257,6 @@ void export_runtime(py::module &m) {
         .def(py::init<>())
         .def("handle", [](ResourceCreationInfo &self) { return self.handle; })
         .def("native_handle", [](ResourceCreationInfo &self) { return reinterpret_cast<uint64_t>(self.native_handle); });
-    py::class_<BufferCreationInfo>(m, "BufferCreationInfo")
-        .def(py::init<>())
-        .def("element_stride", [](BufferCreationInfo &self) { return self.element_stride; })
-        .def("size_bytes", [](BufferCreationInfo &self) { return self.total_size_bytes; })
-        .def("handle", [](BufferCreationInfo &self) { return self.handle; })
-        .def("native_handle", [](BufferCreationInfo &self) { return reinterpret_cast<uint64_t>(self.native_handle); });
     py::class_<Context>(m, "Context")
         .def(py::init<std::string>())
         .def("create_device", [](Context &self, luisa::string_view backend_name) {
@@ -497,7 +491,7 @@ void export_runtime(py::module &m) {
                                       ->create_raster_shader(vertex->function(), pixel->function(), option));
             })); })
         .def("destroy_shader", [](DeviceInterface &self, uint64_t handle) { RefCounter::current->DeRef(handle); })
-        .def("create_buffer", [](DeviceInterface &d, const Type *type, size_t size) {
+        .def("create_buffer", [](DeviceInterface &d, const Type *type, size_t size) -> ResourceCreationInfo{
                 auto info = d.create_buffer(type, size, nullptr);
                 RefCounter::current->AddObject(
                     info.handle,
@@ -511,7 +505,7 @@ void export_runtime(py::module &m) {
                      },
                      &d});
                 return info; }, pyref)
-        .def("create_interop_buffer", [](DeviceInterface &d, const Type *type, size_t size) {
+        .def("create_interop_buffer", [](DeviceInterface &d, const Type *type, size_t size)-> ResourceCreationInfo {
             interop.create(&d);
             auto info = interop->create_interop_buffer(type, size);
             RefCounter::current->AddObject(
@@ -526,7 +520,7 @@ void export_runtime(py::module &m) {
                 },
                 &d});
             return info; }, pyref)
-        .def("import_external_buffer", [](DeviceInterface &d, const Type *type, uint64_t native_address, size_t elem_count) noexcept {
+        .def("import_external_buffer", [](DeviceInterface &d, const Type *type, uint64_t native_address, size_t elem_count) noexcept -> ResourceCreationInfo {
              auto info = d.create_buffer(type, elem_count, reinterpret_cast<void *>(native_address));
             RefCounter::current->AddObject(info.handle, {[](DeviceInterface *d, uint64 handle) {
                 if (auto gs = default_stream_data.lock()) {
@@ -542,7 +536,7 @@ void export_runtime(py::module &m) {
         .def("interop_buffer_copy_to", [](DeviceInterface &d, uint64_t interop_buffer, uint64_t interop_buffer_offset_bytes, uint64_t cu_stream_ptr, uint64_t cu_buffer, size_t size_bytes) { 
             interop_copy(d, interop_buffer, interop_buffer_offset_bytes,  reinterpret_cast<void*>(cu_stream_ptr), reinterpret_cast<void*>(cu_buffer), size_bytes, true); 
         })
-        .def("create_dispatch_buffer", [](DeviceInterface &d, size_t size) {
+        .def("create_dispatch_buffer", [](DeviceInterface &d, size_t size) -> ResourceCreationInfo{
             auto ptr = d.create_buffer(Type::of<IndirectKernelDispatch>(), size, nullptr);
             RefCounter::current->AddObject(ptr.handle, {[](DeviceInterface *d, uint64 handle) {
                 if (auto gs = default_stream_data.lock()) {

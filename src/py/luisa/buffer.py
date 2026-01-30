@@ -32,8 +32,11 @@ class Buffer:
         elif external_memory is None:  # owned memory
             info = get_global_device().impl().create_buffer(lc_type, size)
         else:  # unowned external memory
-            info = get_global_device().impl().import_external_buffer(
-                lc_type, external_memory, size)
+            if type(external_memory) is lcapi.ResourceCreationInfo:
+                info = external_memory
+            else:
+                info = get_global_device().impl().import_external_buffer(
+                    lc_type, external_memory, size)
         self.handle = info.handle()
         self.native_handle = info.native_handle()
         self.borrowed_deleter = borrowed_deleter

@@ -17,7 +17,7 @@ def _check_storage(storage_name, dtype):
 
 
 class Image2D:
-    def __init__(self, width, height, channel, dtype, mip=1, storage=None):
+    def __init__(self, width, height, channel, dtype, mip=1, storage=None, external_memory=None):
         if width == 0 or height == 0:
             raise Exception("Image2D size must be non-zero")
         if not dtype in {int, uint, float}:
@@ -42,7 +42,10 @@ class Image2D:
         self.texture_size = self.texture2DType.texture_size
         self.write = self.texture2DType.write
         # instantiate texture on device
-        info = get_global_device().impl().create_texture(self.format, 2, width, height, 1, mip)
+        if external_memory is not None:
+            info = external_memory
+        else:
+            info = get_global_device().impl().create_texture(self.format, 2, width, height, 1, mip)
         self.handle = info.handle()
         self.native_handle = info.native_handle()
 
