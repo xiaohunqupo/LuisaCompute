@@ -1,8 +1,11 @@
 #pragma once
+
+#include <mutex>
 #include <luisa/runtime/command_list.h>
 #include <luisa/runtime/stream.h>
 #include <luisa/core/clock.h>
 #include <luisa/backends/ext/stats_ext.h>
+
 namespace luisa::compute {
 
 struct DeviceStats {
