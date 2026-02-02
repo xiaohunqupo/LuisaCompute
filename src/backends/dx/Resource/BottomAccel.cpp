@@ -60,6 +60,9 @@ BottomAccel::BottomAccel(
     Device *device,
     AccelOption const &option)
     : Resource(device) {
+    if (!device->support_raytracing) [[unlikely]] {
+        LUISA_ERROR("RayTracing not supported on this device.");
+    }
     auto GetPreset = [&] {
         switch (option.hint) {
             case AccelOption::UsageHint::FAST_TRACE:
