@@ -236,5 +236,28 @@ bool4 to_bool4(int v){return bool4((v&255)!=0,((v>>8)&255)!=0,((v>>16)&255)!=0,(
 int to_Alsbool2(bool2 v){return (v.x?1:0)|(v.y?256:0);}
 int to_Alsbool3(bool3 v){return (v.x?1:0)|(v.y?256:0)|(v.z?65536:0);}
 int to_Alsbool4(bool4 v){return (v.x?1:0)|(v.y?256:0)|(v.z?65536:0)|(v.w?16777216:0);}
+template<typename Src,typename Dst>
+Dst Vec2AsInt(Src v){return (((Dst)v.y)<<((Dst)16))|v.x;}
+template<typename Src,typename Dst>
+Dst IntAsVec2(Src v){
+Dst d;
+d.x=v&((Src)65535);
+d.y=(v>>((Src)16))&((Src)65535);
+return d;
+}
+template<typename Dst>
+Dst Bool4AsInt(bool4 v){
+int4 d=select(v,int4(1,256,65536,16777216),int4(0,0,0,0));
+return ((Dst)d.x)|((Dst)d.y)|((Dst)d.z)|((Dst)d.w);
+}
+template<typename Src>
+bool4 IntAsBool4(Src v){
+bool4 d;
+d.x=(v&((Src)255))!=0;
+d.y=((v>>((Src)8))&((Src)255))!=0;
+d.z=((v>>((Src)16))&((Src)255))!=0;
+d.w=((v>>((Src)24))&((Src)255))!=0;
+return d;
+}
 #define _zero(type) ((type)0)
 #define _one(type) ((type)1)

@@ -255,25 +255,65 @@ void StringStateVisitor::visit(const CastExpr *expr) {
             while (type->is_vector()) {
                 type = type->element();
             }
-            switch (type->tag()) {
-                case Type::Tag::FLOAT16:
-                case Type::Tag::FLOAT32:
-                    str << "asfloat"sv;
-                    break;
-                case Type::Tag::INT16:
-                case Type::Tag::INT32:
-                case Type::Tag::INT64:
-                    str << "asint"sv;
-                    break;
-                case Type::Tag::UINT16:
-                case Type::Tag::UINT32:
-                case Type::Tag::UINT64:
-                    str << "asuint"sv;
-                    break;
-                default:
-                    LUISA_ERROR_WITH_LOCATION(
-                        "Bitwise cast not implemented for type '{}'.",
-                        expr->type()->description());
+            auto arg_type = expr->expression()->type();
+            auto bit_cast_vec_to_int = [&]() {
+                if (arg_type->dimension() == 2 && arg_type->element()->size() == 2) {
+                    str << "Vec2AsInt<"sv;
+                    util->GetTypeName(*arg_type, str, Usage::READ, true);
+                    str << ',';
+                    util->GetTypeName(*expr->type(), str, Usage::READ, true);
+                    str << '>';
+                } else if (arg_type->dimension() == 4 && arg_type->element()->is_bool()) {
+                    str << "Bool4AsInt<"sv;
+                    util->GetTypeName(*expr->type(), str, Usage::READ, true);
+                    str << '>';
+                } else {
+                    LUISA_ERROR("Vector to int unsupported.");
+                }
+            };
+            auto bit_cast_int_to_vec = [&]() {
+                if (expr->type()->dimension() == 2 && expr->type()->element()->size() == 2) {
+                    str << "IntAsVec2<"sv;
+                    util->GetTypeName(*arg_type, str, Usage::READ, true);
+                    str << ',';
+                    util->GetTypeName(*expr->type(), str, Usage::READ, true);
+                    str << '>';
+                } else if (expr->type()->dimension() == 4 && expr->type()->element()->is_bool()) {
+                    str << "IntAsBool4"sv;
+                } else {
+                    LUISA_ERROR("Int to vector unsupported.");
+                }
+            };
+            // Vector to int
+            if (expr->type()->dimension() < arg_type->dimension()) {
+                LUISA_ASSERT(expr->type()->is_int() || expr->type()->is_uint(), "Only support vector to scalar");
+                bit_cast_vec_to_int();
+            }
+            // Int to vector
+            else if (expr->type()->dimension() > arg_type->dimension()) {
+                LUISA_ASSERT(arg_type->is_int() || arg_type->is_uint(), "Only support vector to scalar");
+                bit_cast_int_to_vec();
+            } else {
+                switch (type->tag()) {
+                    case Type::Tag::FLOAT16:
+                    case Type::Tag::FLOAT32:
+                        str << "asfloat"sv;
+                        break;
+                    case Type::Tag::INT16:
+                    case Type::Tag::INT32:
+                    case Type::Tag::INT64:
+                        str << "asint"sv;
+                        break;
+                    case Type::Tag::UINT16:
+                    case Type::Tag::UINT32:
+                    case Type::Tag::UINT64:
+                        str << "asuint"sv;
+                        break;
+                    default:
+                        LUISA_ERROR_WITH_LOCATION(
+                            "Bitwise cast not implemented for type '{}'.",
+                            type->description());
+                }
             }
             str << '(';
             expr->expression()->accept(*this);
