@@ -2,7 +2,7 @@ if not has_config("lc_glfw_use_xrepo") then
     target("glfw")
     set_basename("luisa-ext-glfw")
     _config_project({
-        project_kind = "static"
+        project_kind = "shared"
     })
 
     on_load(function(target)
@@ -20,6 +20,10 @@ if not has_config("lc_glfw_use_xrepo") then
         elseif target:is_plat("windows") then
             target:add("defines", "_GLFW_WIN32")
             target:add("syslinks", "User32", "Gdi32", "Shell32")
+            target:add('defines', '_GLFW_BUILD_DLL')
+            target:add('defines', 'GLFW_DLL', {
+                interface = true
+            })
         elseif target:is_plat("macosx") then
             target:add("files", path.normalize(path.join(os.scriptdir(), "../ext/glfw/src/*.m")))
             target:add("mflags", "-fno-objc-arc")
