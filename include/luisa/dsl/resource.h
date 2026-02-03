@@ -806,6 +806,7 @@ struct Var<BindlessArray> : public Expr<BindlessArray> {
 
 template<typename T>
 using BufferVar = Var<Buffer<T>>;
+using ByteBufferVar = Var<ByteBuffer>;
 
 template<typename T>
 using ImageVar = Var<Image<T>>;
