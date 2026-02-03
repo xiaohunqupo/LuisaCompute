@@ -111,6 +111,7 @@ if has_config("lc_enable_ir") then
 end
 
 test_proj("test_helloworld")
+test_proj("test_byte_buffer")
 test_proj("test_ast")
 test_proj("test_atomic")
 test_proj("test_bindless", true)
