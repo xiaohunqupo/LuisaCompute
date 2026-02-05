@@ -189,14 +189,14 @@ struct Matrix<T, 3> {
     constexpr Matrix(const VectorType c0, const VectorType c1, const VectorType c2) noexcept
         : cols{c0, c1, c2} {}
 
-    static constexpr Matrix eye(const float c) noexcept {
+    static constexpr Matrix eye(const T c) noexcept {
         return Matrix{
             VectorType{c, T{0.0}, T{0.0}},
             VectorType{T{0.0}, c, T{0.0}},
             VectorType{T{0.0}, T{0.0}, c}};
     }
 
-    static constexpr Matrix fill(const float c) noexcept {
+    static constexpr Matrix fill(const T c) noexcept {
         return Matrix{
             VectorType{c, c, c},
             VectorType{c, c, c},
@@ -223,7 +223,7 @@ struct Matrix<T, 4> {
     constexpr Matrix(const VectorType c0, const VectorType c1, const VectorType c2, const VectorType c3) noexcept
         : cols{c0, c1, c2, c3} {}
 
-    static constexpr Matrix eye(const float c) noexcept {
+    static constexpr Matrix eye(const T c) noexcept {
         return Matrix{
             VectorType{c, T{0.0}, T{0.0}, T{0.0}},
             VectorType{T{0.0}, c, T{0.0}, T{0.0}},
@@ -231,7 +231,7 @@ struct Matrix<T, 4> {
             VectorType{T{0.0}, T{0.0}, T{0.0}, c}};
     }
 
-    static constexpr Matrix fill(const float c) noexcept {
+    static constexpr Matrix fill(const T c) noexcept {
         return Matrix{
             VectorType{c, c, c, c},
             VectorType{c, c, c, c},
