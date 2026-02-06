@@ -215,10 +215,10 @@ on_load(function(target)
         if v == nil then
             v = get_config(name)
         end
-        if v == nil then
-            return default_value
+        if v then
+            return v
         end
-        return v
+        return default_value or false
     end
 
     local function empty_str(value)
@@ -360,6 +360,11 @@ on_load(function(target)
     local use_rtti = _get_or("rtti", false)
     if not empty_str(use_rtti) then
         if use_rtti or has_config("_lc_enable_py") then
+            -- Enable RTTI
+            target:add("cxflags", "/GR", {
+                tools = {"clang_cl", "cl"}
+            })
+        else
             -- Disable RTTI
             target:add("cxflags", "/GR-", {
                 tools = {"clang_cl", "cl"}
@@ -369,11 +374,6 @@ on_load(function(target)
             })
             target:add("cxflags", "-fno-rtti", {
                 tools = {"gcc"}
-            })
-        else
-            -- Enable RTTI
-            target:add("cxflags", "/GR", {
-                tools = {"clang_cl", "cl"}
             })
         end
     end
