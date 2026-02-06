@@ -29,6 +29,11 @@ option("lc_cuda_ext_lcub", {default = false})
 option("lc_metal_backend", {default = true})
 -- enable tests module
 option("lc_enable_tests", {default = true})
+-- settings
+option("lc_cxx_standard", {default = 'cxx20'})
+option("lc_c_standard", {default = 'clatest'})
+option("lc_rtti", {default = false})
+
 -- python include path
 option("lc_py_include", {default = false})
 -- python include path
@@ -51,6 +56,7 @@ option("lc_enable_py", {default = true})
 option("lc_sdk_dir", {default = false})
 option("lc_toolchain", {default = false})
 option("lc_win_runtime", {default = false})
+option("lc_optimize", {default = false})
 option("lc_llvm_path", {default = false})
 option("lc_embree_path", {default = false})
 option("lc_use_system_stl", {default = false})
