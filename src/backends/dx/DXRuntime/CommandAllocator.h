@@ -70,7 +70,7 @@ public:
     template<typename Func>
         requires(luisa::is_constructible_v<vstd::function<void()>, Func &&>)
     void ExecuteAfterComplete(Func &&func) {
-        executeAfterComplete.push(std::forward<Func>(func));
+        executeAfterComplete.enqueue(std::forward<Func>(func));
     }
     void DisposeAfterComplete(vstd::unique_ptr<Resource> &&res) {
         std::lock_guard lck{resDisposeListMtx};

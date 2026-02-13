@@ -113,7 +113,7 @@ void CommandAllocator::Complete(
     ID3D12Fence *fence,
     uint64 fenceIndex) {
     device->WaitFence(fence, fenceIndex);
-    while (auto evt = executeAfterComplete.pop()) {
+    while (auto evt = executeAfterComplete.dequeue()) {
         (*evt)();
     }
     resDisposeListMtx.lock();

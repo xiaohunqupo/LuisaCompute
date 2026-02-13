@@ -47,7 +47,7 @@ void DStorageCommandQueue::ExecuteThread() {
             vstd::optional<CallbackEvent> b;
             {
                 std::lock_guard lck{mtx};
-                b = executedAllocators.pop();
+                b = executedAllocators.dequeue();
             }
             if (!b) break;
             fence = b->fence;
@@ -65,7 +65,7 @@ void DStorageCommandQueue::ExecuteThread() {
 void DStorageCommandQueue::AddEvent(LCEvent const *evt, uint64 fenceIdx) {
     ++lastFrame;
     mtx.lock();
-    executedAllocators.push(evt, fenceIdx, true);
+    executedAllocators.enqueue(evt, fenceIdx, true);
     mtx.unlock();
 }
 uint64 DStorageCommandQueue::Execute(
@@ -247,9 +247,9 @@ uint64 DStorageCommandQueue::Execute(
     curFrame = ++lastFrame;
     {
         std::unique_lock lck(mtx);
-        executedAllocators.push(waitQueueHandle, curFrame, callbackEmpty);
+        executedAllocators.enqueue(waitQueueHandle, curFrame, callbackEmpty);
         if (!callbackEmpty) {
-            executedAllocators.push(std::move(funcs), curFrame, true);
+            executedAllocators.enqueue(std::move(funcs), curFrame, true);
         }
     }
     return curFrame;

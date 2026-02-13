@@ -45,7 +45,7 @@ CommandQueue::AllocatorPtr CommandQueue::CreateAllocator(size_t maxAllocCount) {
         if (lastFrame > maxAllocCount)
             Complete(lastFrame - maxAllocCount);
     }
-    auto newPtr = allocatorPool.pop();
+    auto newPtr = allocatorPool.dequeue();
     if (newPtr) {
         (*newPtr)->GetBuffer()->UpdateCommandBuffer(device);
         return std::move(*newPtr);
@@ -56,7 +56,7 @@ CommandQueue::AllocatorPtr CommandQueue::CreateAllocator(size_t maxAllocCount) {
 void CommandQueue::AddEvent(LCEvent const *evt, uint64 fenceIdx) {
     ++lastFrame;
     mtx.lock();
-    executedAllocators.push(evt, fenceIdx, true);
+    executedAllocators.enqueue(evt, fenceIdx, true);
     mtx.unlock();
 }
 
@@ -75,7 +75,7 @@ void CommandQueue::ExecuteThread() {
         auto ExecuteAllocator = [&](AllocatorPtr &b) {
             b->Complete(this, cmdFence.Get(), fence);
             b->Reset(this);
-            allocatorPool.push(std::move(b));
+            allocatorPool.enqueue(std::move(b));
             Weakup();
         };
         auto ExecuteCallbacks = [&](vstd::vector<vstd::function<void()>> &vec) {
@@ -103,7 +103,7 @@ void CommandQueue::ExecuteThread() {
             vstd::optional<CallbackEvent> b;
             {
                 std::lock_guard lck{mtx};
-                b = executedAllocators.pop();
+                b = executedAllocators.dequeue();
             }
             if (!b) break;
             fence = b->fence;
@@ -147,21 +147,21 @@ void CommandQueue::Signal() {
     auto curFrame = ++lastFrame;
     ThrowIfFailed(queue->Signal(cmdFence.Get(), curFrame));
     mtx.lock();
-    executedAllocators.push(WaitFence{}, curFrame, true);
+    executedAllocators.enqueue(WaitFence{}, curFrame, true);
     mtx.unlock();
 }
 void CommandQueue::Execute(AllocatorPtr &&alloc, vstd::vector<vstd::function<void()>> &&callbacks, luisa::span<std::pair<IDXGISwapChain *, bool>> swapChains, bool cmdlist_is_empty) {
     auto curFrame = ++lastFrame;
     alloc->Execute(this, cmdFence.Get(), curFrame, swapChains, cmdlist_is_empty);
     if (cmdlist_is_empty) {
-        allocatorPool.push(std::move(alloc));
+        allocatorPool.enqueue(std::move(alloc));
     }
     if ((!cmdlist_is_empty) || (!callbacks.empty())) {
         mtx.lock();
         if (!cmdlist_is_empty)
-            executedAllocators.push(std::move(alloc), curFrame, callbacks.empty());
+            executedAllocators.enqueue(std::move(alloc), curFrame, callbacks.empty());
         if (!callbacks.empty())
-            executedAllocators.push(std::move(callbacks), curFrame, true);
+            executedAllocators.enqueue(std::move(callbacks), curFrame, true);
         mtx.unlock();
     }
 }

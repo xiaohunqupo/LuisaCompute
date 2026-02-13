@@ -498,7 +498,7 @@ Stream::Stream(Device *device, StreamTag tag)
           auto loop_cmd = [&]() {
               while (true) {
                   _mtx.lock();
-                  auto p = _exec.pop();
+                  auto p = _exec.dequeue();
                   _mtx.unlock();
                   if (!p) {
                       break;
@@ -515,7 +515,7 @@ Stream::Stream(Device *device, StreamTag tag)
                               t.evt->notify(t.value);
                           } else if constexpr (std::is_same_v<T, CommandBuffer>) {
                               t.reset();
-                              _cmdbuffers.push(std::move(t));
+                              _cmdbuffers.enqueue(std::move(t));
                           }
                       });
               }
@@ -562,7 +562,7 @@ Stream::~Stream() {
     }
     _thd.join();
     scratch_buffer_alloc_visitor._buffers.clear();
-    while (auto p = _cmdbuffers.pop()) {
+    while (auto p = _cmdbuffers.dequeue()) {
     }
 }
 
@@ -581,7 +581,7 @@ void Stream::present(
     auto fence = _evt.last_fence() + 1;
     {
         CommandBuffer cmdbuffer = [&]() {
-            auto p = _cmdbuffers.pop();
+            auto p = _cmdbuffers.dequeue();
             if (p) return std::move(*p);
             return CommandBuffer{*this};
         }();
@@ -650,11 +650,11 @@ void Stream::present(
         }
         _evt.signal(*this, fence);
         _mtx.lock();
-        _exec.push(SyncExt{
+        _exec.enqueue(SyncExt{
             .evt = &_evt,
             .value = fence});
-        _exec.push(std::move(cmdbuffer));
-        _exec.push(NotifyEvt{
+        _exec.enqueue(std::move(cmdbuffer));
+        _exec.enqueue(NotifyEvt{
             .evt = &_evt,
             .value = fence});
 
@@ -681,7 +681,7 @@ void Stream::dispatch(
     auto fence = _evt.last_fence() + 1;
     if (!cmds.empty()) {
         CommandBuffer cmdbuffer = [&]() {
-            auto p = _cmdbuffers.pop();
+            auto p = _cmdbuffers.dequeue();
             if (p) return std::move(*p);
             return CommandBuffer{*this};
         }();
@@ -779,18 +779,18 @@ void Stream::dispatch(
         }
         _evt.signal(*this, fence, cb_ptr);
         _mtx.lock();
-        _exec.push(SyncExt{
+        _exec.enqueue(SyncExt{
             .evt = &_evt,
             .value = fence});
-        _exec.push(std::move(cmdbuffer));
+        _exec.enqueue(std::move(cmdbuffer));
     } else {
         _evt.update_fence(fence);
         _mtx.lock();
     }
     if (!callbacks.empty()) {
-        _exec.push(std::move(callbacks));
+        _exec.enqueue(std::move(callbacks));
     }
-    _exec.push(NotifyEvt{
+    _exec.enqueue(NotifyEvt{
         .evt = &_evt,
         .value = fence});
 
@@ -929,7 +929,7 @@ void Stream::update_sparse_resources(luisa::vector<SparseUpdateTile> &&textures_
     _queue_mtx->unlock();
     _evt.mark_signal_fence(fence);
     _mtx.lock();
-    _exec.push(NotifyEvt{
+    _exec.enqueue(NotifyEvt{
         .evt = &_evt,
         .value = fence});
     _mtx.unlock();
@@ -980,8 +980,8 @@ void Stream::signal(Event *event, uint64_t value) {
     std::lock_guard lck{_dispatch_mtx};
     event->signal(*this, value);
     _mtx.lock();
-    _exec.push(SyncExt{event, value});
-    _exec.push(NotifyEvt{event, value});
+    _exec.enqueue(SyncExt{event, value});
+    _exec.enqueue(NotifyEvt{event, value});
     _mtx.unlock();
 }
 void Stream::wait(Event *event, uint64_t value) {

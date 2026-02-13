@@ -64,7 +64,7 @@ public:
     }
     template<typename... Args>
         requires(luisa::is_constructible_v<T, Args && ...>)
-    [[deprecated("please use enqueue instead")]] void push(Args &&...args) {
+    void enqueue(Args &&...args) {
         std::lock_guard<spin_mutex> lck(mtx);
         size_t index = head++;
         if (head - tail > capacity) {
@@ -84,8 +84,8 @@ public:
     }
     template<typename... Args>
         requires(luisa::is_constructible_v<T, Args && ...>)
-    void enqueue(Args &&...args) {
-        push(std::forward<Args>(args)...);
+    [[deprecated("please use enqueue instead")]] void push(Args &&...args) {
+        enqueue(std::forward<Args>(args)...);
     }
     template<typename... Args>
         requires(luisa::is_constructible_v<T, Args && ...>)
@@ -123,8 +123,7 @@ public:
         std::destroy_at(std::addressof(value));
         return true;
     }
-    [[deprecated("please use dequeue instead")]]
-    optional<T> pop() {
+    optional<T> dequeue() {
         mtx.lock();
         if (head == tail) {
             mtx.unlock();
@@ -137,8 +136,9 @@ public:
         });
         return optional<T>(std::move(*value));
     }
-    optional<T> dequeue() {
-        return pop();
+    [[deprecated("please use dequeue instead")]]
+    optional<T> pop() {
+        return dequeue();
     }
     optional<T> try_pop() {
         std::unique_lock<spin_mutex> lck(mtx, std::try_to_lock);
@@ -218,7 +218,7 @@ public:
     }
     template<typename... Args>
         requires(luisa::is_constructible_v<T, Args && ...>)
-    [[deprecated("please use enqueue instead")]] T *push(Args &&...args) {
+    T *enqueue(Args &&...args) {
         size_t index = head++;
         if (head - tail > capacity) {
             auto newCapa = (capacity + 1) * 2;
@@ -237,8 +237,8 @@ public:
     }
     template<typename... Args>
         requires(luisa::is_constructible_v<T, Args && ...>)
-    T *enqueue(Args &&...args) {
-        return push(std::forward<Args>(args)...);
+    [[deprecated("please use enqueue instead")]] T *push(Args &&...args) {
+        return enqueue(std::forward<Args>(args)...);
     }
     T *front() {
         if (head == tail)
@@ -259,8 +259,7 @@ public:
         std::destroy_at(std::addressof(value));
         return true;
     }
-    [[deprecated("please use dequeue instead")]]
-    optional<T> pop() {
+    optional<T> dequeue() {
         if (head == tail) {
             return optional<T>();
         }
@@ -270,8 +269,9 @@ public:
         });
         return optional<T>(std::move(*value));
     }
-    optional<T> dequeue() {
-        return pop();
+    [[deprecated("please use dequeue instead")]]
+    optional<T> pop() {
+        return dequeue();
     }
     void pop_discard() {
         if (head == tail) {
