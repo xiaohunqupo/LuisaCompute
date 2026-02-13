@@ -81,7 +81,7 @@ ComputeShader *ComputeShader::compile(
     uint shader_model,
     bool unsafe_math) {
 
-    auto result = ShaderSerializer::try_deser_compute(device, code_md5, vstd::vector<Argument>(bindings), file_name, serde_type, bin_io);
+    auto result = ShaderSerializer::try_deser_compute(device, code_md5, std::move(bindings), file_name, serde_type, bin_io);
     // cache invalid, need compile
     bool write_cache = !file_name.empty();
     if (!result.shader) {
