@@ -89,50 +89,77 @@ int main(int argc, char *argv[]) {
         });
     Image<float> display = device.create_image<float>(swap_chain.backend_storage(), window.size());
 
-    // Black hole rendering kernel
-    Kernel2D blackhole_kernel = [&](ImageFloat image, Float rot_x, Float rot_y, Float cam_distance) noexcept {
+    // Black hole rendering kernel with anti-aliasing
+    Kernel2D blackhole_kernel = [&](ImageFloat image, Float rot_x, Float rot_y, Float cam_distance, Float time) noexcept {
         set_block_size(16, 16, 1);
         Var uv = dispatch_id().xy();
         Var size = dispatch_size().xy();
         
-        // Normalized coordinates (-1 to 1)
-        Var ndc = (make_float2(uv) / make_float2(size)) * 2.0f - 1.0f;
-        ndc.y = -ndc.y;  // Flip Y
-        Var aspect = cast<float>(size.x) / cast<float>(size.y);
-        ndc.x *= aspect;
+        // Anti-aliasing: 4x supersampling with jitter
+        Var final_color = make_float3(0.0f);
         
-        // Camera setup
-        Var fov = 0.6f;
-        
-        // Ray origin (camera position)
-        Var cam_pos = make_float3(
-            cam_distance * sin(rot_y) * cos(rot_x),
-            cam_distance * sin(rot_x),
-            cam_distance * cos(rot_y) * cos(rot_x)
-        );
-        
-        // Look at origin
-        Var forward = normalize(-cam_pos);
-        Var right = normalize(cross(forward, make_float3(0.0f, 1.0f, 0.0f)));
-        Var up = cross(right, forward);
-        
-        // Ray direction through pixel
-        Var ray_dir = normalize(forward + ndc.x * right * fov + ndc.y * up * fov);
-        
-        // Ray marching with gravitational bending
-        Var pos = cam_pos;
-        Var dir = ray_dir;
-        Var color = make_float3(0.0f);
-        Var hit_disk = def(false);
-        
-        // Background starfield (procedural)
-        auto get_star_color = [&](Float3 rd) noexcept {
-            // Simple starfield based on ray direction
-            Var star_noise = fract(sin(rd.x * 123.45f + rd.y * 543.21f + rd.z * 987.65f) * 43758.5453f);
-            Var star_brightness = ite(star_noise > 0.995f, star_noise, 0.0f);
-            Var star_twinkle = 0.8f + 0.2f * sin(rd.x * 10.0f + rd.y * 20.0f);
-            return make_float3(star_brightness * star_twinkle);
-        };
+        for (int sample_i = 0; sample_i < 4; sample_i++) {
+            // Jitter offsets for 4x supersampling
+            float2 offsets[4] = {{0.25f, 0.25f}, {0.75f, 0.25f}, {0.25f, 0.75f}, {0.75f, 0.75f}};
+            Var offset = make_float2(offsets[sample_i][0], offsets[sample_i][1]);
+            
+            // Add sub-pixel jitter for smoother results
+            Var jittered_uv = make_float2(uv) + offset;
+            
+            // Normalized coordinates (-1 to 1)
+            Var ndc = (jittered_uv / make_float2(size)) * 2.0f - 1.0f;
+            ndc.y = -ndc.y;  // Flip Y
+            Var aspect = cast<float>(size.x) / cast<float>(size.y);
+            ndc.x *= aspect;
+            
+            // Camera setup
+            Var fov = 0.6f;
+            
+            // Ray origin (camera position)
+            Var cam_pos = make_float3(
+                cam_distance * sin(rot_y) * cos(rot_x),
+                cam_distance * sin(rot_x),
+                cam_distance * cos(rot_y) * cos(rot_x)
+            );
+            
+            // Look at origin
+            Var forward = normalize(-cam_pos);
+            Var right = normalize(cross(forward, make_float3(0.0f, 1.0f, 0.0f)));
+            Var up = cross(right, forward);
+            
+            // Ray direction through pixel
+            Var ray_dir = normalize(forward + ndc.x * right * fov + ndc.y * up * fov);
+            
+            // Ray marching with gravitational bending
+            Var pos = cam_pos;
+            Var dir = ray_dir;
+            Var sample_color = make_float3(0.0f);
+            Var hit_disk = def(false);
+            
+            // Background starfield (procedural) - improved with better distribution
+            auto get_star_color = [&](Float3 rd) noexcept {
+                // Multiple octaves of noise for better star distribution
+                Var star1 = fract(sin(rd.x * 123.456f + rd.y * 234.567f + rd.z * 345.678f) * 43758.5453f);
+                Var star2 = fract(sin(rd.x * 456.789f + rd.y * 567.890f + rd.z * 678.901f) * 23421.1234f);
+                Var star3 = fract(sin(rd.x * 789.012f + rd.y * 890.123f + rd.z * 901.234f) * 54321.6789f);
+                
+                // Different brightness thresholds for variety
+                Var brightness = ite(star1 > 0.997f, 0.9f, 0.0f);
+                brightness = ite((star2 > 0.998f) & (brightness < 0.1f), 0.7f, brightness);
+                brightness = ite((star3 > 0.999f) & (brightness < 0.1f), 0.5f, brightness);
+                
+                // Subtle twinkle
+                Var twinkle = 0.9f + 0.1f * sin(rd.x * 5.0f + time * 0.5f + rd.y * 3.0f);
+                
+                // Star color variation (blue-white to yellow-white)
+                Var star_color = make_float3(
+                    1.0f,
+                    0.95f + 0.05f * star1,
+                    0.8f + 0.2f * star2
+                );
+                
+                return star_color * brightness * twinkle;
+            };
         
         // Gravitational ray marching
         static constexpr int max_steps = 200;
@@ -179,24 +206,28 @@ int main(int argc, char *argv[]) {
                     
                     Var disk_color = make_float3(disk_r, disk_g, disk_b);
                     
-                    // Gravitational redshift
-                    Var redshift = sqrt(1.0f - bh_radius / r);
+                    // Gravitational redshift (avoid negative inside sqrt)
+                    Var redshift = sqrt(max(0.001f, 1.0f - bh_radius / max(r, bh_radius * 1.01f)));
                     disk_color *= redshift;
                     
                     // Apply intensity with Doppler beaming
                     Var intensity = beaming * smoothstep(accretion_outer, accretion_inner, r) * 
                                    smoothstep(accretion_inner * 0.9f, accretion_inner, r);
                     
-                    color += disk_color * intensity * 2.0f;
+                    sample_color += disk_color * intensity * 2.0f;
                 };
             };
             
             // Gravitational acceleration (simplified)
             // For photons, the bending is twice Newtonian prediction (general relativity)
-            Var accel = -1.5f * bh_mass / (r * r * r) * pos;  // 2x Newtonian for light
+            Var r_safe = max(r, bh_radius * 0.5f);  // Prevent division by zero
+            Var accel = -1.5f * bh_mass / (r_safe * r_safe * r_safe) * pos;  // 2x Newtonian for light
             
             // Update direction (bending)
-            dir = normalize(dir + accel * dt);
+            Var new_dir = dir + accel * dt;
+            Var new_dir_len = length(new_dir);
+            // Prevent NaN from zero-length direction
+            dir = ite(new_dir_len > 0.001f, new_dir / new_dir_len, dir);
             
             // Step forward
             pos = pos + dir * dt;
@@ -204,7 +235,7 @@ int main(int argc, char *argv[]) {
         
         // If we didn't hit anything, show starfield background
         $if (!hit_disk) {
-            color = get_star_color(dir);
+            sample_color = get_star_color(dir);
         };
         
         // Add lensing glow around black hole
@@ -214,17 +245,31 @@ int main(int argc, char *argv[]) {
         Var glow = exp(-(1.0f - cos_angle) * 50.0f) * 0.5f;
         
         // Check if ray passes near photon sphere
-        Var impact_param = length(cross(pos, dir)) / length(pos);
+        Var impact_param = length(cross(pos, dir)) / max(length(pos), 0.001f);
         Var near_photon_sphere = smoothstep(photon_sphere * 1.2f, photon_sphere, impact_param);
         
-        color += make_float3(1.0f, 0.9f, 0.7f) * glow * near_photon_sphere * 0.3f;
+        sample_color += make_float3(1.0f, 0.9f, 0.7f) * glow * near_photon_sphere * 0.3f;
         
-        image.write(uv, make_float4(color, 1.0f));
+        // Accumulate samples
+        final_color += sample_color;
+        }
+        
+        // Average the 4 samples
+        final_color *= 0.25f;
+        
+        // Tone mapping to prevent clipping
+        final_color = final_color / (final_color + 1.0f) * 1.5f;
+        
+        // Ensure no NaN values
+        final_color = clamp(final_color, 0.0f, 1.0f);
+        
+        image.write(uv, make_float4(final_color, 1.0f));
     };
 
     auto blackhole_shader = device.compile(blackhole_kernel);
 
     // Main loop
+    Clock app_clock;
     while (!window.should_close()) {
         window.poll_events();
 
@@ -243,7 +288,8 @@ int main(int argc, char *argv[]) {
         }
 
         // Render
-        stream << blackhole_shader(display, rot_x, rot_y, zoom).dispatch(width, height)
+        float time = static_cast<float>(app_clock.toc() * 1e-3);
+        stream << blackhole_shader(display, rot_x, rot_y, zoom, time).dispatch(width, height)
                << swap_chain.present(display);
     }
 
