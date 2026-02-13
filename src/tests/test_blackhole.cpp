@@ -36,7 +36,7 @@ int main(int argc, char *argv[]) {
     }
     Device device = context.create_device(argv[1]);
     LUISA_INFO("Black Hole Renderer - Interstellar Style");
-    LUISA_INFO("Controls: Left/Right mouse drag = Rotate, Scroll/+/- = Zoom, ESC = Quit");
+    LUISA_INFO("Controls: Left drag = Orbit, Right drag = Roll, Scroll/+/- = Zoom, ESC = Quit");
 
     // Image dimensions
     static constexpr uint width = 1024u;
@@ -72,13 +72,24 @@ int main(int argc, char *argv[]) {
         }
     });
     
-    window.set_cursor_position_callback([&left_mouse_down, &right_mouse_down, &last_mouse_pos, &rot_x, &rot_y](float2 p) noexcept {
-        if (left_mouse_down || right_mouse_down) {
+    // Roll rotation for right mouse drag (rotate around image plane/view direction)
+    float roll_angle = 0.0f;
+    
+    window.set_cursor_position_callback([&left_mouse_down, &right_mouse_down, &last_mouse_pos, &rot_x, &rot_y, &roll_angle](float2 p) noexcept {
+        if (left_mouse_down) {
+            // Left mouse: orbit around black hole
             float dx = p.x - last_mouse_pos.x;
             float dy = p.y - last_mouse_pos.y;
             rot_y += dx * 0.005f;
             rot_x += dy * 0.005f;
             rot_x = clamp(rot_x, -1.0f, 1.0f);
+            last_mouse_pos = p;
+        } else if (right_mouse_down) {
+            // Right mouse: roll/rotate around view direction (image plane rotation)
+            float dx = p.x - last_mouse_pos.x;
+            float dy = p.y - last_mouse_pos.y;
+            // Roll based on circular motion around center of screen
+            roll_angle += (dx * 0.005f + dy * 0.005f);
             last_mouse_pos = p;
         }
     });
@@ -99,7 +110,7 @@ int main(int argc, char *argv[]) {
     Image<float> display = device.create_image<float>(swap_chain.backend_storage(), window.size());
 
     // Black hole rendering kernel with smooth edges
-    Kernel2D blackhole_kernel = [&](ImageFloat image, Float rot_x, Float rot_y, Float cam_distance, Float time) noexcept {
+    Kernel2D blackhole_kernel = [&](ImageFloat image, Float rot_x, Float rot_y, Float roll_angle, Float cam_distance, Float time) noexcept {
         set_block_size(16, 16, 1);
         Var uv = dispatch_id().xy();
         Var size = dispatch_size().xy();
@@ -124,6 +135,14 @@ int main(int argc, char *argv[]) {
         Var forward = normalize(-cam_pos);
         Var right = normalize(cross(forward, make_float3(0.0f, 1.0f, 0.0f)));
         Var up = cross(right, forward);
+        
+        // Apply roll rotation around view direction
+        Var cos_roll = cos(roll_angle);
+        Var sin_roll = sin(roll_angle);
+        Var new_right = right * cos_roll + up * sin_roll;
+        Var new_up = -right * sin_roll + up * cos_roll;
+        right = new_right;
+        up = new_up;
         
         // Ray direction through pixel
         Var ray_dir = normalize(forward + ndc.x * right * fov + ndc.y * up * fov);
@@ -289,7 +308,7 @@ int main(int argc, char *argv[]) {
 
         // Render
         float time = static_cast<float>(app_clock.toc() * 1e-3);
-        stream << blackhole_shader(display, rot_x, rot_y, zoom, time).dispatch(width, height)
+        stream << blackhole_shader(display, rot_x, rot_y, roll_angle, zoom, time).dispatch(width, height)
                << swap_chain.present(display);
     }
 
