@@ -18,6 +18,7 @@
 
 #include "../common/vulkan_instance.h"
 #include <luisa/backends/common/vulkan_swapchain.h>
+#include <luisa/core/pool.h>
 
 #include "hip_check.h"
 #include "hip_device.h"
@@ -26,6 +27,37 @@
 #include "hip_swapchain.h"
 
 namespace luisa::compute::hip {
+
+#ifndef LUISA_PLATFORM_WINDOWS
+struct HIPVulkanSyncContext {
+    VkDevice device;
+    VkSemaphore semaphore;
+    uint64_t value;
+
+    [[nodiscard]] static auto &pool() noexcept {
+        static Pool<HIPVulkanSyncContext> pool;
+        return pool;
+    }
+
+    template<typename... Args>
+    [[nodiscard]] static auto create(Args &&...args) noexcept {
+        return pool().create(std::forward<Args>(args)...);
+    }
+
+    void recycle() noexcept {
+        pool().destroy(this);
+    }
+};
+static void luisa_hip_vulkan_sync_callback(void *ptr) noexcept {
+    auto ctx = static_cast<HIPVulkanSyncContext *>(ptr);
+    VkSemaphoreSignalInfo signal_info{};
+    signal_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO;
+    signal_info.semaphore = ctx->semaphore;
+    signal_info.value = ctx->value;
+    LUISA_CHECK_VULKAN(vkSignalSemaphore(ctx->device, &signal_info));
+    ctx->recycle();
+}
+#endif
 
 class HIPSwapchain::Impl {
 
@@ -61,7 +93,12 @@ private:
     hipExternalMemory_t _hip_ext_image_memory{};
     void *_hip_ext_image_buffer{nullptr};
     size_t _hip_ext_image_stride{0u};
+#ifdef LUISA_PLATFORM_WINDOWS
     luisa::vector<hipExternalSemaphore_t> _hip_ext_semaphores;
+#else
+    VkSemaphore _sync_semaphore{nullptr};
+    uint64_t _sync_value{0u};
+#endif
 
     [[nodiscard]] auto _find_memory_type(uint32_t type_filter, VkMemoryPropertyFlags properties) noexcept {
         VkPhysicalDeviceMemoryProperties memory_properties;
@@ -376,12 +413,22 @@ private:
         _create_semaphores();
         // cuda objects
         _hip_import_image();
-#ifdef LUISA_PLATFORM_WINDOWS
         auto n = _base.back_buffer_count();
+#ifdef LUISA_PLATFORM_WINDOWS
         _hip_ext_semaphores.resize(n);
         for (auto i = 0u; i < n; i++) {
             _hip_import_semaphore(_semaphores[i], _hip_ext_semaphores[i]);
         }
+#else
+        _sync_value = 0u;
+        VkSemaphoreTypeCreateInfo type_info{};
+        type_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
+        type_info.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+        type_info.initialValue = 0u;
+        VkSemaphoreCreateInfo semaphore_info{};
+        semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+        semaphore_info.pNext = &type_info;
+        LUISA_CHECK_VULKAN(vkCreateSemaphore(_base.device(), &semaphore_info, nullptr, &_sync_semaphore));
 #endif
     }
 
@@ -395,6 +442,8 @@ private:
         for (auto i = 0u; i < n; i++) {
             LUISA_CHECK_HIP(hipDestroyExternalSemaphore(_hip_ext_semaphores[i]));
         }
+#else
+        vkDestroySemaphore(_base.device(), _sync_semaphore, nullptr);
 #endif
         // vulkan objects
         LUISA_CHECK_VULKAN(vkDeviceWaitIdle(device));
@@ -469,10 +518,14 @@ public:
                       VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 #else
         // ROCm doesn't support external semaphores on Linux yet,
-        // so we have to synchronize on the host.
-        LUISA_CHECK_HIP(hipStreamSynchronize(stream));
+        // so we have to use timeline semaphores signaled from the host.
+        auto sync_value = ++_sync_value;
+        auto ctx = HIPVulkanSyncContext::create(
+            _base.device(), _sync_semaphore, sync_value);
+        LUISA_CHECK_HIP(hipLaunchHostFunc(stream, luisa_hip_vulkan_sync_callback, ctx));
         _base.present(nullptr, nullptr, _image_view,
-                      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                      _sync_semaphore, sync_value);
 #endif
 
         // update current frame index

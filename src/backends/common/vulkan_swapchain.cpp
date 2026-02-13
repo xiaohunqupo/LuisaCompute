@@ -1014,7 +1014,8 @@ public:
     }
 
     void present(VkSemaphore wait, VkSemaphore signal,
-                 VkImageView image, VkImageLayout image_layout) noexcept {
+                 VkImageView image, VkImageLayout image_layout,
+                 VkSemaphore wait_timeline, uint64_t wait_timeline_value) noexcept {
 
         wait_for_fence();
 
@@ -1058,12 +1059,32 @@ public:
         // submit command buffer
         VkSubmitInfo submit_info{};
         submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        std::array wait_semaphores = {_image_available_semaphores[_current_frame], wait};
-        std::array wait_stages = {static_cast<VkPipelineStageFlags>(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT),
-                                  static_cast<VkPipelineStageFlags>(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT)};
-        submit_info.waitSemaphoreCount = wait == nullptr ? 1u : 2u;
+        luisa::fixed_vector<VkSemaphore, 3> wait_semaphores;
+        luisa::fixed_vector<VkPipelineStageFlags, 3> wait_stages;
+        luisa::fixed_vector<uint64_t, 3> wait_values;
+        wait_semaphores.emplace_back(_image_available_semaphores[_current_frame]);
+        wait_stages.emplace_back(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+        wait_values.emplace_back(0u);
+        if (wait != nullptr) {
+            wait_semaphores.emplace_back(wait);
+            wait_stages.emplace_back(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+            wait_values.emplace_back(0u);
+        }
+        if (wait_timeline != nullptr) {
+            wait_semaphores.emplace_back(wait_timeline);
+            wait_stages.emplace_back(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+            wait_values.emplace_back(wait_timeline_value);
+        }
+        submit_info.waitSemaphoreCount = wait_semaphores.size();
         submit_info.pWaitSemaphores = wait_semaphores.data();
         submit_info.pWaitDstStageMask = wait_stages.data();
+
+        VkTimelineSemaphoreSubmitInfo timeline_info{};
+        timeline_info.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
+        timeline_info.waitSemaphoreValueCount = wait_values.size();
+        timeline_info.pWaitSemaphoreValues = wait_values.data();
+        submit_info.pNext = &timeline_info;
+
         std::array signal_semaphores = {_render_finished_semaphores[image_index], signal};
         submit_info.signalSemaphoreCount = signal == nullptr ? 1u : 2u;
         submit_info.pSignalSemaphores = signal_semaphores.data();
@@ -1119,8 +1140,9 @@ VkQueue VulkanSwapchain::queue() const noexcept { return _impl->queue(); }
 bool VulkanSwapchain::is_hdr() const noexcept { return _impl->is_hdr(); }
 void VulkanSwapchain::wait_for_fence() noexcept { _impl->wait_for_fence(); }
 void VulkanSwapchain::present(VkSemaphore wait, VkSemaphore signal,
-                              VkImageView image, VkImageLayout image_layout) noexcept {
-    _impl->present(wait, signal, image, image_layout);
+                              VkImageView image, VkImageLayout image_layout,
+                              VkSemaphore wait_timeline, uint64_t wait_timeline_value) noexcept {
+    _impl->present(wait, signal, image, image_layout, wait_timeline, wait_timeline_value);
 }
 
 class VulkanSwapchainForCPU {

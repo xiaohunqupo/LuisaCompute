@@ -35,7 +35,9 @@ public:
     [[nodiscard]] bool is_hdr() const noexcept;
     void wait_for_fence() noexcept;
     void present(VkSemaphore wait, VkSemaphore signal,
-                 VkImageView image, VkImageLayout image_layout) noexcept;
+                 VkImageView image, VkImageLayout image_layout,
+                 VkSemaphore wait_timeline = nullptr,
+                 uint64_t wait_timeline_value = 0u) noexcept;
 };
 
 }// namespace luisa::compute
