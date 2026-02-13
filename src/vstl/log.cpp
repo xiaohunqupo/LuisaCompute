@@ -6,7 +6,7 @@ void vengine_log(std::string_view const &chunk) {
 }
 void vengine_log(std::string_view const *chunk, size_t chunkCount) {
     vstd::string str;
-    for (auto i : vstd::range(chunkCount)) {
+    for (auto i : vstd::range(static_cast<int64>(chunkCount))) {
         str << chunk[i];
     }
     LUISA_ERROR("{}", str);

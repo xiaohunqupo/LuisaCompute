@@ -1,5 +1,3 @@
-#include <sstream>
-
 #include <luisa/core/clock.h>
 #include <luisa/core/platform.h>
 #include <luisa/core/logging.h>
@@ -171,9 +169,9 @@ luisa::vector<TraceItem> backtrace() noexcept { return {}; }
 
 luisa::string cpu_name() noexcept {
     int32_t brand[12];
-    __cpuid(&brand[0], 0x80000002);
-    __cpuid(&brand[4], 0x80000003);
-    __cpuid(&brand[8], 0x80000004);
+    __cpuid(&brand[0], static_cast<int>(0x80000002u));
+    __cpuid(&brand[4], static_cast<int>(0x80000003u));
+    __cpuid(&brand[8], static_cast<int>(0x80000004u));
     return reinterpret_cast<const char *>(brand);
 }
 
@@ -203,6 +201,7 @@ char env_separator() noexcept {
 
 #ifdef LUISA_PLATFORM_APPLE
 #include <libproc.h>// to get current executable path
+#include <sstream>
 #endif
 
 #ifdef LUISA_ARCH_ARM64

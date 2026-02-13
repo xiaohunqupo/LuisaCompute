@@ -19,7 +19,7 @@ BufferCreationInfo ClientInterface::create_buffer(
     void *external_memory /* nullptr if now imported from external memory */) noexcept {
 
     LUISA_ASSERT(external_memory == nullptr, "Remote device not support.");
-    BufferCreationInfo r;
+    BufferCreationInfo r{};
     if (element) {
         r.total_size_bytes = elem_count * element->size();
         r.element_stride = element->size();
@@ -56,7 +56,7 @@ ResourceCreationInfo ClientInterface::create_texture(
     uint mipmap_levels, void *external_native_handle,
     bool simultaneous_access, bool allow_raster_target) noexcept {
     LUISA_ASSERT(external_native_handle == nullptr, "Not implemented.");
-    ResourceCreationInfo r;
+    ResourceCreationInfo r{};
     r.handle = _flag++;
     r.native_handle = nullptr;
     SerDe::ser_value(DeviceFunc::CreateTexture, _send_bytes);
@@ -81,7 +81,7 @@ void ClientInterface::destroy_texture(uint64_t handle) noexcept {
 
 // bindless array
 ResourceCreationInfo ClientInterface::create_bindless_array(size_t size, BindlessSlotType type) noexcept {
-    ResourceCreationInfo r;
+    ResourceCreationInfo r{};
     r.handle = _flag++;
     r.native_handle = nullptr;
 
@@ -100,7 +100,7 @@ void ClientInterface::destroy_bindless_array(uint64_t handle) noexcept {
 
 // stream
 ResourceCreationInfo ClientInterface::create_stream(StreamTag stream_tag) noexcept {
-    ResourceCreationInfo r;
+    ResourceCreationInfo r{};
     r.handle = _flag++;
     r.native_handle = nullptr;
     SerDe::ser_value(DeviceFunc::CreateStream, _send_bytes);
@@ -359,7 +359,7 @@ void ClientInterface::destroy_shader(uint64_t handle) noexcept {
 
 // event
 ResourceCreationInfo ClientInterface::create_event() noexcept {
-    ResourceCreationInfo r;
+    ResourceCreationInfo r{};
     r.handle = _flag++;
     r.native_handle = nullptr;
     SerDe::ser_value(DeviceFunc::CreateEvent, _send_bytes);
@@ -421,7 +421,7 @@ void ClientInterface::synchronize_event(uint64_t handle, uint64_t fence_value) n
 
 // accel
 ResourceCreationInfo ClientInterface::create_mesh(const AccelOption &option) noexcept {
-    ResourceCreationInfo r;
+    ResourceCreationInfo r{};
     r.handle = _flag++;
     r.native_handle = nullptr;
     SerDe::ser_value(DeviceFunc::CreateMesh, _send_bytes);
@@ -437,7 +437,7 @@ void ClientInterface::destroy_mesh(uint64_t handle) noexcept {
 }
 
 ResourceCreationInfo ClientInterface::create_procedural_primitive(const AccelOption &option) noexcept {
-    ResourceCreationInfo r;
+    ResourceCreationInfo r{};
     r.handle = _flag++;
     r.native_handle = nullptr;
     SerDe::ser_value(DeviceFunc::CreateProcedrualPrim, _send_bytes);
@@ -453,7 +453,7 @@ void ClientInterface::destroy_procedural_primitive(uint64_t handle) noexcept {
 }
 
 ResourceCreationInfo ClientInterface::create_curve(const AccelOption &option) noexcept {
-    ResourceCreationInfo r;
+    ResourceCreationInfo r{};
     r.handle = _flag++;
     r.native_handle = nullptr;
     SerDe::ser_value(DeviceFunc::CreateCurve, _send_bytes);
@@ -469,7 +469,7 @@ void ClientInterface::destroy_curve(uint64_t handle) noexcept {
 }
 
 ResourceCreationInfo ClientInterface::create_accel(const AccelOption &option) noexcept {
-    ResourceCreationInfo r;
+    ResourceCreationInfo r{};
     r.handle = _flag++;
     r.native_handle = nullptr;
     SerDe::ser_value(DeviceFunc::CreateAccel, _send_bytes);
@@ -494,7 +494,7 @@ void ClientInterface::set_name(luisa::compute::Resource::Tag resource_tag, uint6
 
 // sparse buffer
 SparseBufferCreationInfo ClientInterface::create_sparse_buffer(const Type *element, size_t elem_count) noexcept {
-    SparseBufferCreationInfo r;
+    SparseBufferCreationInfo r{};
     if (element) {
         r.total_size_bytes = elem_count * element->size();
         r.element_stride = element->size();
@@ -516,7 +516,7 @@ SparseBufferCreationInfo ClientInterface::create_sparse_buffer(const Type *eleme
     return r;
 }
 ResourceCreationInfo ClientInterface::allocate_sparse_buffer_heap(size_t byte_size) noexcept {
-    ResourceCreationInfo r;
+    ResourceCreationInfo r{};
     r.handle = _flag++;
     r.native_handle = nullptr;
     SerDe::ser_value(DeviceFunc::AllocSparseBufferHeap, _send_bytes);
@@ -554,7 +554,7 @@ void ClientInterface::destroy_sparse_buffer(uint64_t handle) noexcept {
 
 // sparse texture
 ResourceCreationInfo ClientInterface::allocate_sparse_texture_heap(size_t byte_size) noexcept {
-    ResourceCreationInfo r;
+    ResourceCreationInfo r{};
     r.handle = _flag++;
     r.native_handle = nullptr;
     SerDe::ser_value(DeviceFunc::AllocSparseTextureHeap, _send_bytes);

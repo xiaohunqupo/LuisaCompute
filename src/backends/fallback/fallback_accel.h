@@ -29,12 +29,12 @@ public:
     static_assert(sizeof(Instance) == 64u);
 
     struct alignas(16) View {
-        RTCScene scene;
-        Instance *instances;
+        RTCScene scene{};
+        Instance *instances{};
     };
 
 private:
-    RTCScene _handle;
+    RTCScene _handle{};
     luisa::vector<Instance> _instances;
     luisa::vector<RTCGeometry> _geometries;
 

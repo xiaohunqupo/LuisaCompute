@@ -11,7 +11,7 @@ namespace luisa::compute::hip {
 class HIPBuffer {
 
 private:
-    hipDeviceptr_t _device_ptr;
+    hipDeviceptr_t _device_ptr{};
     uint64_t _size_bytes : 62;
     uint64_t _is_host : 1;
     uint64_t _is_external : 1;

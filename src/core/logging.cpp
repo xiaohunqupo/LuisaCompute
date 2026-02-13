@@ -34,7 +34,7 @@ private:
     luisa::function<void(const char *, const char *)> _callback;
 
 public:
-    template<class F>
+    template<class F, std::enable_if_t<!std::is_same_v<std::remove_cvref_t<F>, SinkWithCallback>, int> = 0>
     explicit SinkWithCallback(F &&_callback) noexcept
         : _callback{std::forward<F>(_callback)} {}
 

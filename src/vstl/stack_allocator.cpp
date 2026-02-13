@@ -7,11 +7,12 @@ StackAllocator::StackAllocator(
     : visitor(visitor),
       capacity(initCapacity),
       initCapacity(initCapacity),
-      capaExpanRate(capaExpanRate) {
+      capaExpanRate(capaExpanRate),
+      allocatedBuffers{} {
 }
 StackAllocator::Chunk StackAllocator::allocate(uint64 targetSize) {
     for (auto &&i : allocatedBuffers) {
-        int64 leftSize = (i.fullSize - i.position);
+        auto leftSize = static_cast<int64>(i.fullSize - i.position);
         if (leftSize >= targetSize) {
             auto ofst = i.position;
             i.position += targetSize;
@@ -19,7 +20,7 @@ StackAllocator::Chunk StackAllocator::allocate(uint64 targetSize) {
         }
     }
     if (capacity < targetSize) {
-        capacity = std::max<uint64>(capacity, capacity * capaExpanRate);
+        capacity = std::max<uint64>(capacity, static_cast<uint64>(static_cast<double>(capacity) * capaExpanRate));
     }
     auto allocSize = std::max<uint64>(targetSize, capacity);
     auto newHandle = visitor->allocate(allocSize);
@@ -48,7 +49,7 @@ StackAllocator::Chunk StackAllocator::allocate(
         }
     }
     if (capacity < targetSize) {
-        capacity = std::max<uint64>(capacity, capacity * capaExpanRate);
+        capacity = std::max<uint64>(capacity, static_cast<uint64>(static_cast<double>(capacity) * capaExpanRate));
     }
     auto allocSize = std::max<uint64>(targetSize, capacity);
     auto newHandle = visitor->allocate(allocSize);

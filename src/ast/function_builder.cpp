@@ -251,8 +251,7 @@ const CallExpr *FunctionBuilder::make_vector(const Type *type, luisa::span<const
                     return CallOp::MAKE_INT2;
                 case Type::Tag::INT64:
                     return CallOp::MAKE_LONG2;
-                case Type::Tag::FLOAT16:
-                    return CallOp::MAKE_HALF2;
+                case Type::Tag::FLOAT16: [[fallthrough]];
                 case Type::Tag::FLOAT32:
                     return CallOp::MAKE_HALF2;
                 case Type::Tag::FLOAT64:
@@ -854,13 +853,13 @@ void FunctionBuilder::print_(luisa::string format,
 }
 
 void FunctionBuilder::debug_break_(DebugBreakStmt::Wrapper *wrapper,
-                                   luisa::span<const Expression *const> args) noexcept {
+                                   luisa::span<const Expression *const> watches) noexcept {
     CallExpr::ArgumentList internalized_args;
-    internalized_args.reserve(args.size());
-    for (auto &&w : args) {
+    internalized_args.reserve(watches.size());
+    for (auto &&w : watches) {
         internalized_args.emplace_back(_internalize(w));
     }
-    _create_and_append_statement<DebugBreakStmt>(std::move(wrapper), std::move(internalized_args));
+    _create_and_append_statement<DebugBreakStmt>(wrapper, std::move(internalized_args));
 }
 
 void FunctionBuilder::set_block_size(uint3 size) noexcept {
@@ -1008,8 +1007,7 @@ bool is_expr_statically_evaluated(const Expression *expr) noexcept {
             return is_expr_statically_evaluated(e->index()) &&
                    is_expr_statically_evaluated(e->range());
         }
-        case Expression::Tag::LITERAL: return true;
-        case Expression::Tag::CONSTANT: return true;
+        case Expression::Tag::LITERAL: case Expression::Tag::CONSTANT: return true;
         case Expression::Tag::CALL: {
             auto e = static_cast<CallExpr const *>(expr);
             if (e->is_external()) { return false; }

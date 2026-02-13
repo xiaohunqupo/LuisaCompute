@@ -139,7 +139,7 @@ DXHDRExtImpl::DXHDRExtImpl(LCDevice *lc_device) : _lc_device(lc_device) {
         i++;
     }
 }
-DXHDRExtImpl::~DXHDRExtImpl() = default;
+
 
 SwapchainCreationInfo DXHDRExtImpl::create_swapchain(
     const DXSwapchainOption &option,

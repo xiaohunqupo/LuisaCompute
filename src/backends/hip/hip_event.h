@@ -14,7 +14,7 @@ class HIPDevice;
 class HIPEvent {
 
 private:
-    hipDeviceptr_t _semaphore_device_ptr;
+    hipDeviceptr_t _semaphore_device_ptr{};
     volatile uint64_t *_semaphore_host_ptr;
     uint64_t _initial_value;
 

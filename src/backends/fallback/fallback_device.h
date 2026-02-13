@@ -28,7 +28,7 @@ private:
 
 private:
     luisa::spin_mutex _ext_mutex;
-    luisa::unique_ptr<FallbackTexCompressInterface> _tex_compress_ext;
+    luisa::unique_ptr<FallbackTexCompressInterface> _tex_compress_ext{};
 
 public:
     explicit FallbackDevice(Context &&ctx) noexcept;

@@ -4,7 +4,11 @@
 namespace lc::vk {
 using namespace luisa::compute;
 Texture::Texture(Device *device)
-    : Resource(device) {
+    : Resource(device),
+      _vk_img(nullptr),
+      _format(static_cast<compute::PixelFormat>(0)),
+      _mip(0),
+      _dimension(0) {
     _allocation = nullptr;
 }
 Texture::Texture(

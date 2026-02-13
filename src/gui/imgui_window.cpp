@@ -1,5 +1,4 @@
 #include <mutex>
-#include <random>
 
 #if defined(LUISA_PLATFORM_WINDOWS)
 #define GLFW_EXPOSE_NATIVE_WIN32

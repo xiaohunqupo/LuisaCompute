@@ -122,9 +122,9 @@ uint64_t Buffer::get_device_address() const {
     return vkGetBufferDeviceAddress(device()->logic_device(), &buffer_device_address_info);
 }
 DefaultBuffer::DefaultBuffer(DefaultBuffer &&rhs) noexcept
-    : Buffer(std::move(rhs)) {
-    _buffer = rhs._buffer;
-    _external_allocation = rhs._external_allocation;
+    : Buffer(std::move(rhs)),
+      _buffer(rhs._buffer),
+      _external_allocation(rhs._external_allocation) {
     if (_external_allocation)
         _allocated_memory = rhs._allocated_memory;
     else
@@ -155,8 +155,8 @@ SparseBuffer::SparseBuffer(Device *device, size_t size_bytes, bool used_as_accel
         &_buffer));
 }
 SparseBuffer::SparseBuffer(SparseBuffer &&rhs) noexcept
-    : Buffer(std::move(rhs)) {
-    _buffer = rhs._buffer;
+    : Buffer(std::move(rhs)),
+      _buffer(rhs._buffer) {
     rhs._buffer = nullptr;
 }
 SparseBuffer::~SparseBuffer() {

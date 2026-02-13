@@ -30,7 +30,8 @@ AllocatedBuffer VkAllocator::allocate_buffer(size_t byte_size, VkBufferUsageFlag
     VK_CHECK_RESULT(vmaCreateBuffer(_allocator, &bufferInfo, &allocInfo, &r.buffer, &r.allocation, nullptr));
     return r;
 }
-VkAllocator::VkAllocator(Device &device) {
+VkAllocator::VkAllocator(Device &device)
+    : _allocator(nullptr) {
     VmaAllocatorCreateInfo createInfo{
         .flags = VmaAllocatorCreateFlags(device.enable_device_address() ? VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT : 0),
         .physicalDevice = device.physical_device(),

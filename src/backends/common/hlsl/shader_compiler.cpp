@@ -35,7 +35,10 @@ IDxcLibrary *ShaderCompiler::library() {
 }
 ShaderCompiler::~ShaderCompiler() = default;
 ShaderCompilerModule::ShaderCompilerModule(std::filesystem::path const &path, bool is_spirv)
-    : dxil([&]() {
+    : comp{nullptr},
+      library{nullptr},
+      utils{nullptr},
+      dxil([&]() {
           if (!is_spirv) return luisa::DynamicModule::load(path, "dxil");
           return luisa::DynamicModule{};
       }()),

@@ -128,8 +128,8 @@ struct VertexData {
     float4 tangent;
     float4 color;
     std::array<float2, 4> uv;
-    uint32_t vertex_id;
-    uint32_t instance_id;
+    uint32_t vertex_id{};
+    uint32_t instance_id{};
 };
 struct AtomicAccessChain {
     using Node = luisa::compute::detail::AtomicRefNode;
@@ -173,20 +173,20 @@ public:
     }
 
 public:
-    unique_ptr<BinaryStream> read_shader_bytecode(luisa::string_view name) const noexcept override {
+    [[nodiscard]] unique_ptr<BinaryStream> read_shader_bytecode(luisa::string_view name) const noexcept override {
         return luisa::make_unique<BinaryFileStream>(luisa::string{name});
     }
-    unique_ptr<BinaryStream> read_shader_cache(luisa::string_view name) const noexcept override {
+    [[nodiscard]] unique_ptr<BinaryStream> read_shader_cache(luisa::string_view name) const noexcept override {
         if (_path.empty()) { return {}; }
         auto path = _path / "cache" / name;
         return luisa::make_unique<BinaryFileStream>(luisa::string{path.string()});
     }
-    unique_ptr<BinaryStream> read_internal_shader(luisa::string_view name) const noexcept override {
+    [[nodiscard]] unique_ptr<BinaryStream> read_internal_shader(luisa::string_view name) const noexcept override {
         if (_path.empty()) { return {}; }
         auto path = _path / "internal" / name;
         return luisa::make_unique<BinaryFileStream>(luisa::string{path.string()});
     }
-    filesystem::path write_shader_bytecode(luisa::string_view name, luisa::span<const std::byte> data) const noexcept override {
+    [[nodiscard]] filesystem::path write_shader_bytecode(luisa::string_view name, luisa::span<const std::byte> data) const noexcept override {
         std::filesystem::path path{name};
         if (std::ofstream file{path, std::ios::binary}) {
             file.write(reinterpret_cast<const char *>(data.data()), data.size_bytes());
@@ -205,7 +205,7 @@ public:
                           cache_path.string(), ec.message());
         }
     }
-    filesystem::path write_shader_cache(luisa::string_view name, luisa::span<const std::byte> data) const noexcept override {
+    [[nodiscard]] filesystem::path write_shader_cache(luisa::string_view name, luisa::span<const std::byte> data) const noexcept override {
         if (_path.empty()) { return {}; }
         auto cache_path = _path / "cache";
         std::error_code ec;
@@ -223,7 +223,7 @@ public:
         LUISA_WARNING("Failed to write shader cache to '{}'.", path.string());
         return {};
     }
-    filesystem::path write_internal_shader(luisa::string_view name, luisa::span<const std::byte> data) const noexcept override {
+    [[nodiscard]] filesystem::path write_internal_shader(luisa::string_view name, luisa::span<const std::byte> data) const noexcept override {
         if (_path.empty()) { return {}; }
         auto internal_path = _path / "internal";
         std::error_code ec;

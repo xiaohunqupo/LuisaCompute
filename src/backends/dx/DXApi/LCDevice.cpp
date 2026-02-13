@@ -244,7 +244,7 @@ ResourceCreationInfo LCDevice::create_texture(
         simultaneous_access = false;
     }
     bool allowUAV = !is_block_compressed(format);
-    ResourceCreationInfo info;
+    ResourceCreationInfo info{};
     auto res = new RenderTexture(
         &nativeDevice,
         width,
@@ -268,7 +268,7 @@ void LCDevice::destroy_texture(uint64 handle) noexcept {
     delete reinterpret_cast<TextureBase *>(handle);
 }
 ResourceCreationInfo LCDevice::create_bindless_array(size_t size, BindlessSlotType type) noexcept {
-    ResourceCreationInfo info;
+    ResourceCreationInfo info{};
     auto res = new BindlessArray(&nativeDevice, size, type);
     info.handle = resource_to_handle(res);
     info.native_handle = res->GetResource();
@@ -278,7 +278,7 @@ void LCDevice::destroy_bindless_array(uint64 handle) noexcept {
     delete reinterpret_cast<BindlessArray *>(handle);
 }
 ResourceCreationInfo LCDevice::create_stream(StreamTag type) noexcept {
-    ResourceCreationInfo info;
+    ResourceCreationInfo info{};
     auto res = new LCCmdBuffer(
         &nativeDevice,
         nativeDevice.defaultAllocator.get(),
@@ -449,7 +449,7 @@ void LCDevice::destroy_shader(uint64 handle) noexcept {
     delete shader;
 }
 ResourceCreationInfo LCDevice::create_event() noexcept {
-    ResourceCreationInfo info;
+    ResourceCreationInfo info{};
     auto res = new LCEvent(&nativeDevice);
     info.handle = resource_to_handle(res);
     info.native_handle = res->Fence();
@@ -492,7 +492,7 @@ void LCDevice::destroy_procedural_primitive(uint64 handle) noexcept {
     destroy_mesh(handle);
 }
 ResourceCreationInfo LCDevice::create_mesh(const AccelOption &option) noexcept {
-    ResourceCreationInfo info;
+    ResourceCreationInfo info{};
     auto res = new BottomAccel(&nativeDevice, option);
     info.handle = resource_to_handle(res);
     info.native_handle = nullptr;
@@ -502,7 +502,7 @@ void LCDevice::destroy_mesh(uint64 handle) noexcept {
     delete reinterpret_cast<BottomAccel *>(handle);
 }
 ResourceCreationInfo LCDevice::create_accel(const AccelOption &option) noexcept {
-    ResourceCreationInfo info;
+    ResourceCreationInfo info{};
     auto res = new TopAccel(
         &nativeDevice,
         option);
@@ -519,7 +519,7 @@ SwapchainCreationInfo LCDevice::create_swapchain(const SwapchainOption &option, 
     if (queue->Tag() != CmdQueueTag::MainCmd) [[unlikely]] {
         LUISA_ERROR("swapchain not allowed in Direct-Storage.");
     }
-    SwapchainCreationInfo info;
+    SwapchainCreationInfo info{};
     auto res = new LCSwapChain(
         &nativeDevice,
         &reinterpret_cast<LCCmdBuffer *>(stream_handle)->queue,
@@ -584,7 +584,7 @@ ResourceCreationInfo DxRasterExt::create_raster_shader(
 ResourceCreationInfo DxRasterExt::load_raster_shader(
     span<Type const *const> types,
     string_view ser_path) noexcept {
-    ResourceCreationInfo info;
+    ResourceCreationInfo info{};
     auto res = RasterShader::LoadRaster(
         nativeDevice.fileIo,
         &nativeDevice,
@@ -603,7 +603,7 @@ void DxRasterExt::destroy_raster_shader(uint64_t handle) noexcept {
     delete reinterpret_cast<RasterShader *>(handle);
 }
 ResourceCreationInfo DxRasterExt::create_depth_buffer(DepthFormat format, uint width, uint height) noexcept {
-    ResourceCreationInfo info;
+    ResourceCreationInfo info{};
     auto res = new DepthBuffer(
         &nativeDevice,
         width, height,
@@ -724,7 +724,7 @@ void LCDevice::destroy_sparse_texture(uint64_t handle) noexcept {
 }
 
 SparseBufferCreationInfo LCDevice::create_sparse_buffer(const Type *element, size_t elem_count) noexcept {
-    SparseBufferCreationInfo info;
+    SparseBufferCreationInfo info{};
     SparseBuffer *res;
     if (element->is_custom()) {
         if (element == Type::of<IndirectKernelDispatch>()) {
@@ -807,7 +807,7 @@ ResourceCreationInfo LCDevice::allocate_sparse_buffer_heap(size_t byte_size) noe
     auto heap = reinterpret_cast<SparseHeap *>(vengine_malloc(sizeof(SparseHeap)));
     heap->allocation = nativeDevice.defaultAllocator->AllocateBufferHeap(&nativeDevice, "sparse buffer heap", byte_size, D3D12_HEAP_TYPE_DEFAULT, &heap->heap, &heap->offset, D3D12_HEAP_FLAG_NONE, true);
     heap->size_bytes = byte_size;
-    ResourceCreationInfo r;
+    ResourceCreationInfo r{};
     r.handle = reinterpret_cast<uint64>(heap);
     r.native_handle = heap->heap;
     return r;
@@ -821,7 +821,7 @@ ResourceCreationInfo LCDevice::allocate_sparse_texture_heap(size_t byte_size) no
     auto heap = reinterpret_cast<SparseHeap *>(vengine_malloc(sizeof(SparseHeap)));
     heap->allocation = nativeDevice.defaultAllocator->AllocateTextureHeap(&nativeDevice, "sparse texture heap", byte_size, &heap->heap, &heap->offset, false, D3D12_HEAP_FLAG_NONE, true);
     heap->size_bytes = byte_size;
-    ResourceCreationInfo r;
+    ResourceCreationInfo r{};
     r.handle = reinterpret_cast<uint64>(heap);
     r.native_handle = heap->heap;
     return r;

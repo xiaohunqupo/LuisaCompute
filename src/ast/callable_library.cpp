@@ -618,8 +618,9 @@ void CallableLibrary::ser_value(Statement const &t, luisa::vector<std::byte> &ve
         case Statement::Tag::PRINT:
             ser_value(*static_cast<PrintStmt const *>(&t), vec);
             break;
-        case Statement::Tag::BREAK: break;
-        case Statement::Tag::CONTINUE: break;
+        case Statement::Tag::BREAK:
+        case Statement::Tag::CONTINUE:
+            break;
         case Statement::Tag::DEBUG_BREAK:
             LUISA_NOT_IMPLEMENTED("Debug break statement serialization is not implemented.");
     }
@@ -927,7 +928,7 @@ luisa::vector<std::byte> CallableLibrary::serialize() const noexcept {
     }
     return vec;
 }
-void CallableLibrary::add_callable(luisa::string_view name, luisa::shared_ptr<const detail::FunctionBuilder> callable) noexcept {
+void CallableLibrary::add_callable(luisa::string_view name, const luisa::shared_ptr<const detail::FunctionBuilder> &callable) noexcept {
 #ifdef LUISA_USE_SYSTEM_STL
     _callables.try_emplace(luisa::string{name}, std::move(callable));
 #else

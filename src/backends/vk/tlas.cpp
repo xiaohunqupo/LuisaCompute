@@ -17,7 +17,7 @@ struct TlasInputInst {
 };
 }// namespace tlas_detail
 Tlas::Tlas(Device *device, AccelOption const &option)
-    : Resource(device) {
+    : Resource(device), acceleration_build_geometry_info(nullptr) {
     if (!device->enable_raytracing()) [[unlikely]] {
         LUISA_ERROR("Raytracing not enabled, TLAS can not be loaded.");
     }

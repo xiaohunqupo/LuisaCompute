@@ -91,7 +91,7 @@ void LMDB::_dispose() noexcept {
         _env = nullptr;
     }
 }
-void LMDB::copy_to(std::filesystem::path path) const noexcept {
+void LMDB::copy_to(std::filesystem::path const &path) const noexcept {
     if (!std::filesystem::exists(path)) {
         std::filesystem::create_directories(path);
     } else {

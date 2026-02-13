@@ -13,8 +13,8 @@ public:
 class FallbackPrim : public FallbackPrimBase {
 
 private:
-    RTCScene _handle;
-    RTCGeometry _geometry;
+    RTCScene _handle{};
+    RTCGeometry _geometry{};
     AccelMotionOption _motion;
 
 protected:

@@ -9,7 +9,8 @@ Graph::Graph(TensorExt *ext, TensorBuilder &&builder) noexcept
           Resource::Tag::TENSOR_GRAPH,
           ext->create_graph(std::move(builder))),
       _ext(ext) {}
-Graph::Graph() noexcept = default;
+Graph::Graph() noexcept
+    : _ext(nullptr) {}
 Graph::~Graph() noexcept {
     if (*this) {
         static_cast<TensorExt *>(device()->extension(TensorExt::name))->destroy_graph(handle());

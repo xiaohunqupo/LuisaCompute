@@ -112,7 +112,7 @@ DynamicModule DynamicModule::load(std::string_view name) noexcept {
 }
 
 DynamicModule DynamicModule::load(const luisa::filesystem::path &folder, luisa::string_view name) noexcept {
-    auto make_path = [&folder](auto file_name) noexcept {
+    auto make_path = [&folder](const auto &file_name) noexcept {
         return folder.empty() ? std::filesystem::path{file_name} : folder / file_name;
     };
     if (auto m = load_exact(make_path(dynamic_module_name(name)))) {

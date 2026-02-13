@@ -5,7 +5,7 @@ namespace luisa::compute {
 
 struct CUDADeviceConfigExtImpl : public CUDADeviceConfigExt {
     ExternalVkDevice external_device;
-    CUDADeviceConfigExtImpl(ExternalVkDevice external_device) : external_device(external_device) {}
+    explicit CUDADeviceConfigExtImpl(ExternalVkDevice external_device) : external_device(external_device) {}
     [[nodiscard]] ExternalVkDevice get_external_vk_device() const noexcept override {
         return external_device;
     }
@@ -115,7 +115,7 @@ BufferCreationInfo PyInterop::create_interop_buffer(const Type *element, size_t 
     if (_render_device_idx == ~0u) [[unlikely]] {
         LUISA_ERROR("Cuda device invalid.");
     }
-    BufferCreationInfo r;
+    BufferCreationInfo r{};
     r.invalidate();
     _ext.visit([&](auto &t) {
         r = t->create_interop_buffer(element, elem_count);
@@ -130,7 +130,7 @@ ResourceCreationInfo PyInterop::create_interop_texture(
     if (_render_device_idx == ~0u) [[unlikely]] {
         LUISA_ERROR("Cuda device invalid.");
     }
-    ResourceCreationInfo r;
+    ResourceCreationInfo r{};
     r.invalidate();
     _ext.visit([&](auto &t) {
         r = t->create_interop_texture(

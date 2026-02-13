@@ -123,8 +123,8 @@ struct WindowImpl : public Window::IWindowImpl {
 }// namespace detail
 
 Window::Window(string name, uint width, uint height, bool resizable, bool full_screen) noexcept
-    : _size{width, height},
-      _name{std::move(name)} {
+    : _name{std::move(name)},
+      _size{width, height} {
     _impl = make_unique<detail::WindowImpl>(_size, _name.c_str(), resizable, full_screen);
 }
 

@@ -102,7 +102,7 @@ public:
     /// Construct Type object from description
     [[nodiscard]] const Type *decode_type(luisa::string_view desc) noexcept;
     /// Construct custom type
-    [[nodiscard]] const Type *custom_type(luisa::string_view desc) noexcept;
+    [[nodiscard]] const Type *custom_type(luisa::string_view name) noexcept;
     /// Return type count
     [[nodiscard]] size_t type_count() const noexcept;
     /// Traverse all types using visitor

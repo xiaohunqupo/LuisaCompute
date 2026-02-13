@@ -3,12 +3,12 @@ namespace vstd {
 
 char StringUtil::to_lower(char c) {
     if ((c >= 'A') && (c <= 'Z'))
-        return c + ('a' - 'A');
+        return static_cast<char>(c + ('a' - 'A'));
     return c;
 }
 char StringUtil::to_upper(char c) {
     if ((c >= 'a') && (c <= 'z'))
-        return c + ('A' - 'a');
+        return static_cast<char>(c + ('A' - 'a'));
     return c;
 }
 
@@ -30,7 +30,7 @@ void StringUtil::to_upper(string &str) {
 string StringUtil::to_lower(std::string_view str) {
     string s;
     s.resize(str.size());
-    for (auto i : range(str.size())) {
+    for (size_t i = 0; i < str.size(); ++i) {
         auto &&v = s[i];
         v = str[i];
         v = to_lower(v);
@@ -40,7 +40,7 @@ string StringUtil::to_lower(std::string_view str) {
 string StringUtil::to_upper(std::string_view str) {
     string s;
     s.resize(str.size());
-    for (auto i : range(str.size())) {
+    for (size_t i = 0; i < str.size(); ++i) {
         auto &&v = s[i];
         v = str[i];
         v = to_upper(v);
@@ -202,7 +202,7 @@ std::pair<size_t, size_t> decode(void *dest, char const *src, size_t len) {
             c3[2] = ((c4[2] & 0x3) << 6) + c4[3];
 
             for (i = 0; i < 3; i++)
-                *out++ = c3[i];
+                *out++ = static_cast<char>(c3[i]);
             i = 0;
         }
     }
@@ -213,7 +213,7 @@ std::pair<size_t, size_t> decode(void *dest, char const *src, size_t len) {
         c3[2] = ((c4[2] & 0x3) << 6) + c4[3];
 
         for (j = 0; j < i - 1; j++)
-            *out++ = c3[j];
+            *out++ = static_cast<char>(c3[j]);
     }
 
     return {out - static_cast<char *>(dest),
@@ -229,23 +229,23 @@ size_t constexpr decoded_size(size_t n) {
 }
 
 }// namespace strutil_detail
-void StringUtil::to_base64(span<uint8_t const> binary, string &str) {
+void StringUtil::to_base64(span<uint8_t const> binary, string &result) {
     using namespace strutil_detail;
-    size_t oriSize = str.size();
-    str.resize(oriSize + encoded_size(binary.size()));
-    encode(str.data() + oriSize, binary.data(), binary.size());
+    size_t oriSize = result.size();
+    result.resize(oriSize + encoded_size(binary.size()));
+    encode(result.data() + oriSize, binary.data(), binary.size());
 }
 void StringUtil::to_base64(span<uint8_t const> binary, char *result) {
     using namespace strutil_detail;
     encode(result, binary.data(), binary.size());
 }
 
-void StringUtil::from_base64(std::string_view str, vector<uint8_t> &bin) {
+void StringUtil::from_base64(std::string_view str, vector<uint8_t> &result) {
     using namespace strutil_detail;
-    size_t oriSize = bin.size();
-    bin.reserve(oriSize + decoded_size(str.size()));
-    auto destAndSrcSize = decode(bin.data() + oriSize, str.data(), str.size());
-    bin.resize(oriSize + destAndSrcSize.first);
+    size_t oriSize = result.size();
+    result.reserve(oriSize + decoded_size(str.size()));
+    auto destAndSrcSize = decode(result.data() + oriSize, str.data(), str.size());
+    result.resize(oriSize + destAndSrcSize.first);
 }
 
 void StringUtil::from_base64(std::string_view str, uint8_t *size) {
