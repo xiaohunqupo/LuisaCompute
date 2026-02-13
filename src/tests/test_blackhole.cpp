@@ -36,7 +36,7 @@ int main(int argc, char *argv[]) {
     }
     Device device = context.create_device(argv[1]);
     LUISA_INFO("Black Hole Renderer - Interstellar Style");
-    LUISA_INFO("Controls: Mouse drag = Rotate, Scroll/+/- = Zoom, ESC = Quit");
+    LUISA_INFO("Controls: Left/Right mouse drag = Rotate, Scroll/+/- = Zoom, ESC = Quit");
 
     // Image dimensions
     static constexpr uint width = 1024u;
@@ -51,20 +51,29 @@ int main(int argc, char *argv[]) {
     float rot_x = 0.2f;  // Tilt angle
     float rot_y = 0.0f;  // Rotation around black hole
     float zoom = 30.0f;  // Camera distance
-    bool mouse_down = false;
+    bool left_mouse_down = false;
+    bool right_mouse_down = false;
     float2 last_mouse_pos{0.0f, 0.0f};
     
-    window.set_mouse_callback([&mouse_down, &last_mouse_pos](MouseButton, Action a, float2 p) noexcept {
+    window.set_mouse_callback([&left_mouse_down, &right_mouse_down, &last_mouse_pos](MouseButton button, Action a, float2 p) noexcept {
         if (a == Action::ACTION_PRESSED) {
-            mouse_down = true;
+            if (button == MOUSE_BUTTON_LEFT) {
+                left_mouse_down = true;
+            } else if (button == MOUSE_BUTTON_RIGHT) {
+                right_mouse_down = true;
+            }
             last_mouse_pos = p;
         } else if (a == Action::ACTION_RELEASED) {
-            mouse_down = false;
+            if (button == MOUSE_BUTTON_LEFT) {
+                left_mouse_down = false;
+            } else if (button == MOUSE_BUTTON_RIGHT) {
+                right_mouse_down = false;
+            }
         }
     });
     
-    window.set_cursor_position_callback([&mouse_down, &last_mouse_pos, &rot_x, &rot_y](float2 p) noexcept {
-        if (mouse_down) {
+    window.set_cursor_position_callback([&left_mouse_down, &right_mouse_down, &last_mouse_pos, &rot_x, &rot_y](float2 p) noexcept {
+        if (left_mouse_down || right_mouse_down) {
             float dx = p.x - last_mouse_pos.x;
             float dy = p.y - last_mouse_pos.y;
             rot_y += dx * 0.005f;
