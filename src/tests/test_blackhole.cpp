@@ -232,6 +232,29 @@ int main(int argc, char *argv[]) {
                     
                     Var local_disk_color = make_float3(disk_r, disk_g, disk_b);
                     
+                    // === FLOWING TEXTURE FOR ACCRETION DISK ===
+                    // Create swirling pattern that rotates with time
+                    Var normalized_r = (r - accretion_inner) / (accretion_outer - accretion_inner);
+                    Var spiral_angle = orbital_angle * 3.0f + normalized_r * 10.0f - time * 0.5f;
+                    
+                    // Multiple spiral arms
+                    Var arm_pattern = sin(spiral_angle) * 0.5f + 0.5f;
+                    Var fine_detail = sin(spiral_angle * 2.0f + time) * 0.3f + 0.7f;
+                    
+                    // Radial variations (clumps of matter falling in)
+                    Var radial_wave = sin(normalized_r * 20.0f + time * 0.3f) * 0.5f + 0.5f;
+                    
+                    // Turbulence/noise-like variation
+                    Var turbulence = fract(sin(orbital_angle * 7.0f + normalized_r * 13.0f + time * 0.2f) * 43758.5453f);
+                    turbulence = turbulence * 0.4f + 0.6f;
+                    
+                    // Combine all texture layers
+                    Var texture_intensity = arm_pattern * fine_detail * radial_wave * turbulence;
+                    texture_intensity = pow(texture_intensity, 0.7f);  // Adjust contrast
+                    
+                    // Apply texture as brightness variation
+                    local_disk_color *= (0.6f + 0.8f * texture_intensity);
+                    
                     // Gravitational redshift (avoid negative inside sqrt)
                     Var redshift = sqrt(max(0.001f, 1.0f - bh_radius / max(r, bh_radius * 1.01f)));
                     local_disk_color *= redshift;
@@ -307,7 +330,7 @@ int main(int argc, char *argv[]) {
         }
 
         // Render
-        float time = static_cast<float>(app_clock.toc() * 1e-3);
+        auto time = static_cast<float>(app_clock.toc() * 1e-3);
         stream << blackhole_shader(display, rot_x, rot_y, roll_angle, zoom, time).dispatch(width, height)
                << swap_chain.present(display);
     }
