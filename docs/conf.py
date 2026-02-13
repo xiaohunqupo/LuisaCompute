@@ -34,9 +34,6 @@ breathe_default_project = "LuisaCompute"
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'venv', '.venv', 'output']
 
-# Suppress warnings for missing Doxygen XML (not generated in CI)
-suppress_warnings = ['breathe']
-
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 

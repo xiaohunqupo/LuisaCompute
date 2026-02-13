@@ -41,18 +41,19 @@ jobs:
 
       - name: Install dependencies
         run: |
+          sudo apt-get update
+          sudo apt-get install -y doxygen
           python -m pip install --upgrade pip
           pip install sphinx sphinx-rtd-theme breathe myst-parser
 
       - name: Build documentation
         run: |
+          # Generate Doxygen XML
+          doxygen docs/Doxyfile
           cd docs
           # Create necessary directories
           mkdir -p _static
           # Build HTML documentation
-          # Note: Doxygen XML is not generated in CI to save time.
-          # The API reference uses breathe which expects Doxygen output.
-          # For now, we allow warnings but still check for actual errors.
           sphinx-build -b html . _build/html \
             -D exclude_patterns='["_build", "Thumbs.db", ".DS_Store", "venv", ".venv", "output"]' \
             --keep-going 2>&1 | tee build.log
@@ -61,7 +62,7 @@ jobs:
             echo "Documentation build had errors!"
             exit 1
           fi
-          echo "Documentation built successfully (with warnings allowed)"
+          echo "Documentation built successfully"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
