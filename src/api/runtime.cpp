@@ -18,7 +18,7 @@ void forget(T &&value) noexcept {
     static_assert(sizeof(AlignedStorage) == sizeof(T));
     static_assert(alignof(AlignedStorage) == alignof(T));
     AlignedStorage s{};
-    new (s._) T{std::move(value)};
+    new (s._) T{std::forward<T>(value)};
 }
 }// namespace luisa
 #define LUISA_RC_TOMBSTONE 0xdeadbeef
@@ -340,8 +340,7 @@ LUISA_EXPORT_API LCDevice luisa_compute_device_create(LCContext ctx,
 LUISA_EXPORT_API void luisa_compute_device_destroy(LCDevice device) LUISA_NOEXCEPT {
     auto handle = reinterpret_cast<DeviceInterface *>(device._0)->shared_from_this();
     LUISA_ASSERT(handle.use_count() == 2u, "Should have exactly 2 references.");
-    luisa::shared_ptr<DeviceInterface> _copy;
-    std::memcpy(static_cast<void *>(&_copy), &handle, sizeof(luisa::shared_ptr<DeviceInterface>));
+    luisa::shared_ptr<DeviceInterface> _copy = handle;
 }
 
 LUISA_EXPORT_API void *luisa_compute_device_native_handle(LCDevice device) LUISA_NOEXCEPT {

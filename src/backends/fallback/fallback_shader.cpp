@@ -431,7 +431,7 @@ class FallbackShaderDispatchBuffer {
 
 public:
     struct alignas(16) Config {
-        FallbackShader::kernel_entry_t *kernel;
+        FallbackShader::kernel_entry_t *kernel{};
         std::array<uint, 3> dispatch_size;
         std::array<uint, 3> block_size;
     };

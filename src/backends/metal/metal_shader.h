@@ -22,14 +22,14 @@ public:
 
 private:
     MetalShaderHandle _handle;
-    luisa::vector<Usage> _argument_usages;
-    luisa::vector<Argument> _bound_arguments;
+    luisa::vector<Usage> _argument_usages{};
+    luisa::vector<Argument> _bound_arguments{};
     uint _block_size[3];
     mutable spin_mutex _name_mutex;
     NS::String *_name{nullptr};
     NS::String *_indirect_name{nullptr};
     MTL::ComputePipelineState *_prepare_indirect;
-    luisa::unique_ptr<MetalShaderPrinter> _printer;
+    luisa::unique_ptr<MetalShaderPrinter> _printer{nullptr};
 
 public:
     MetalShader(MetalDevice *device,

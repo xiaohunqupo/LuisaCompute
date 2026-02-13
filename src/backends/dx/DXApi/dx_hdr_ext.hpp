@@ -9,7 +9,7 @@ class DXHDRExtImpl : public luisa::compute::DXHDRExt {
     bool device_support_hdr() const noexcept override;
 public:
     DXHDRExtImpl(LCDevice *lc_device);
-    ~DXHDRExtImpl();
+    ~DXHDRExtImpl() = default;
     SwapchainCreationInfo create_swapchain(
         const DXSwapchainOption &option,
         uint64_t stream_handle) noexcept override;

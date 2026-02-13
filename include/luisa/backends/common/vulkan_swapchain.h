@@ -15,7 +15,7 @@ public:
     class Impl;
 
 private:
-    luisa::unique_ptr<Impl> _impl;
+    luisa::unique_ptr<Impl> _impl{};
 
 public:
     VulkanSwapchain(const VulkanDeviceUUID &device_uuid,

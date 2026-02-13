@@ -28,11 +28,11 @@ ByteBuffer::~ByteBuffer() noexcept {
     if (*this) { device()->destroy_buffer(handle()); }
 }
 
-ByteBuffer Device::create_byte_buffer(size_t byte_size) noexcept {
+ByteBuffer Device::create_byte_buffer(size_t byte_size) const noexcept {
     return ByteBuffer{impl(), byte_size};
 }
 
-ByteBuffer Device::import_external_byte_buffer(void *external_memory, size_t byte_size) noexcept {
+ByteBuffer Device::import_external_byte_buffer(void *external_memory, size_t byte_size) const noexcept {
     auto info = impl()->create_buffer(Type::of<uint>(),
                                       (byte_size + sizeof(uint) - 1u) / sizeof(uint),
                                       external_memory);

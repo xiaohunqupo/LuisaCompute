@@ -14,8 +14,8 @@ namespace luisa::compute::hip {
 class HIPDevice final : public luisa::compute::DeviceInterface {
 
 private:
-    luisa::unique_ptr<DefaultBinaryIO> _default_io;
-    const BinaryIO *_io;
+    luisa::unique_ptr<DefaultBinaryIO> _default_io{nullptr};
+    const BinaryIO *_io{nullptr};
     int _device_id;
     hiprtContext _hiprt_context{nullptr};
 

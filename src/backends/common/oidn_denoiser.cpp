@@ -3,7 +3,16 @@
 namespace luisa::compute {
 
 OidnDenoiser::OidnDenoiser(DeviceInterface *device, oidn::DeviceRef &&oidn_device, uint64_t stream) noexcept
-    : _device(device), _oidn_device(std::move(oidn_device)), _stream(stream) {
+    : _device(device),
+      _oidn_device(std::move(oidn_device)),
+      _stream(stream),
+      _filters{},
+      _input_buffers{},
+      _output_buffers{},
+      _albedo_buffer{},
+      _normal_buffer{},
+      _albedo_prefilter{},
+      _normal_prefilter{} {
     _oidn_device.setErrorFunction([](void *, oidn::Error err, const char *message) noexcept {
         switch (err) {
             case oidn::Error::None:

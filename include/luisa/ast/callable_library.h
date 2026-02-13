@@ -44,7 +44,7 @@ public:
     [[nodiscard]] Function get_function(luisa::string_view name) const noexcept;
     [[nodiscard]] luisa::shared_ptr<const detail::FunctionBuilder> get_function_builder(luisa::string_view name) const noexcept;
     CallableLibrary() noexcept;
-    void add_callable(luisa::string_view name, luisa::shared_ptr<const detail::FunctionBuilder> callable) noexcept;
+    void add_callable(luisa::string_view name, const luisa::shared_ptr<const detail::FunctionBuilder> &callable) noexcept;
     void load(luisa::span<const std::byte> binary) noexcept;
     [[nodiscard]] luisa::vector<std::byte> serialize() const noexcept;
     CallableLibrary(CallableLibrary const &) = delete;

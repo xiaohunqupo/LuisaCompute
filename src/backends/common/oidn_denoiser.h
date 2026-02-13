@@ -10,18 +10,18 @@ namespace luisa::compute {
 
 class OidnDenoiser : public DenoiserExt::Denoiser {
 protected:
-    DeviceInterface *_device;
-    oidn::DeviceRef _oidn_device;
+    DeviceInterface *_device{nullptr};
+    oidn::DeviceRef _oidn_device{};
     // shared access on ::execute
     // exclusive access on ::init
     std::shared_mutex _mutex;
-    luisa::vector<oidn::FilterRef> _filters;
-    luisa::vector<oidn::BufferRef> _input_buffers, _output_buffers;
-    oidn::BufferRef _albedo_buffer;
-    oidn::BufferRef _normal_buffer;
-    oidn::FilterRef _albedo_prefilter;
-    oidn::FilterRef _normal_prefilter;
-    uint64_t _stream;
+    luisa::vector<oidn::FilterRef> _filters{};
+    luisa::vector<oidn::BufferRef> _input_buffers{}, _output_buffers{};
+    oidn::BufferRef _albedo_buffer{};
+    oidn::BufferRef _normal_buffer{};
+    oidn::FilterRef _albedo_prefilter{};
+    oidn::FilterRef _normal_prefilter{};
+    uint64_t _stream{0u};
     virtual void reset() noexcept;
     virtual oidn::BufferRef get_buffer(const DenoiserExt::Image &img, bool read) noexcept;
     void exec_filters() noexcept;

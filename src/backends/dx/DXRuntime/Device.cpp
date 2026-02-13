@@ -22,7 +22,7 @@ DirectXHeap DXAllocatorImpl::AllocateBufferHeap(
     uint64_t targetSizeInBytes,
     D3D12_HEAP_TYPE heapType,
     D3D12_HEAP_FLAGS extraFlags) const noexcept {
-    DirectXHeap heap;
+    DirectXHeap heap{};
     heap.handle = device->defaultAllocator->AllocateBufferHeap(device, name, targetSizeInBytes, heapType, &heap.heap, &heap.offset, extraFlags);
     return heap;
 }
@@ -31,7 +31,7 @@ DirectXHeap DXAllocatorImpl::AllocateTextureHeap(
     size_t sizeBytes,
     bool isRenderTexture,
     D3D12_HEAP_FLAGS extraFlags) const noexcept {
-    DirectXHeap heap;
+    DirectXHeap heap{};
     heap.handle = device->defaultAllocator->AllocateTextureHeap(device, name, sizeBytes, &heap.heap, &heap.offset, extraFlags);
     return heap;
 }

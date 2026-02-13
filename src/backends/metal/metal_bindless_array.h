@@ -30,9 +30,9 @@ private:
     std::mutex _mutex;
     MTL::Buffer *_array;
     MTL::ComputePipelineState *_update;
-    luisa::vector<MTL::Buffer *> _buffer_slots;
-    luisa::vector<MTL::Texture *> _tex2d_slots;
-    luisa::vector<MTL::Texture *> _tex3d_slots;
+    luisa::vector<MTL::Buffer *> _buffer_slots{};
+    luisa::vector<MTL::Texture *> _tex2d_slots{};
+    luisa::vector<MTL::Texture *> _tex3d_slots{};
     ResourceTracker _buffer_tracker;
     ResourceTracker _texture_tracker;
 

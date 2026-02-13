@@ -23,8 +23,8 @@ private:
     MTL::Buffer *_update_buffer{nullptr};
     MTL::InstanceAccelerationStructureDescriptor *_descriptor{nullptr};
     MTL::ComputePipelineState *_update;
-    luisa::vector<MetalPrimitive *> _primitives;
-    luisa::vector<MTL::Resource *> _resources;
+    luisa::vector<MetalPrimitive *> _primitives{};
+    luisa::vector<MTL::Resource *> _resources{};
     NS::String *_name{nullptr};
     AccelOption _option;
     bool _requires_rebuild{true};

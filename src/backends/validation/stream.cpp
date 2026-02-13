@@ -22,7 +22,8 @@ namespace lc::validation {
 
 Stream::Stream(Device *device, uint64_t handle, StreamTag stream_tag)
     : RWResource{handle, Tag::STREAM, false},
-      _device{device}, _stream_tag{stream_tag} {}
+      _device{device}, _stream_tag{stream_tag},
+      waited_stream{}, res_usages{} {}
 
 void Stream::check_align(uint64_t offset, uint64_t align) const noexcept {
     if (_device->underlying_device()->backend_name() == "vk" && offset % align != 0) [[unlikely]] {

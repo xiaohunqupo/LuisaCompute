@@ -20,8 +20,8 @@ void ShaderInvokeBase::encode(ShaderDispatchCmdEncoder &encoder, const BindlessA
 
 }// namespace detail
 
-BindlessArray Device::create_bindless_array(size_t slots, BindlessSlotType type) noexcept {
-    return _create<BindlessArray>(slots, type);
+BindlessArray Device::create_bindless_array(size_t slot_count, BindlessSlotType type) noexcept {
+    return _create<BindlessArray>(slot_count, type);
 }
 
 BindlessArray::BindlessArray(BindlessArray &&rhs) noexcept

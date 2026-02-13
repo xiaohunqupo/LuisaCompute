@@ -15,7 +15,7 @@ private:
     GuidData data;
 
 public:
-    Guid() = default;
+    Guid() : data{0, 0} {}
     explicit Guid(bool generate);
     Guid(std::string_view strv);
     static optional<Guid> TryParseGuid(std::string_view strv);

@@ -18,9 +18,9 @@ class ShaderCompilerModule : public vstd::IOperatorNewBase {
 public:
     luisa::DynamicModule dxil;
     luisa::DynamicModule dxcCompiler;
-    IDxcCompiler3 *comp;
-    IDxcLibrary *library;
-    IDxcUtils *utils;
+    IDxcCompiler3 *comp{nullptr};
+    IDxcLibrary *library{nullptr};
+    IDxcUtils *utils{nullptr};
 
     ShaderCompilerModule(std::filesystem::path const &path, bool is_spirv);
     ~ShaderCompilerModule();

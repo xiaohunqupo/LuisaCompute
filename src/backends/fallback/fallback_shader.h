@@ -35,16 +35,16 @@ public:
 
 private:
     luisa::string _name;
-    luisa::unordered_map<uint, size_t> _argument_offsets;
+    luisa::unordered_map<uint, size_t> _argument_offsets{};
     kernel_entry_t *_kernel_entry{nullptr};
     size_t _argument_buffer_size{};
     size_t _shared_memory_size{};
-    luisa::vector<ShaderDispatchCommand::Argument> _bound_arguments;
+    luisa::vector<ShaderDispatchCommand::Argument> _bound_arguments{};
     luisa::vector<luisa::unique_ptr<ShaderPrintFormatter>> _print_formatters;
 
     uint3 _block_size;
-    std::unique_ptr<::llvm::orc::LLJIT> _jit;
-    std::unique_ptr<::llvm::TargetMachine> _target_machine;
+    std::unique_ptr<::llvm::orc::LLJIT> _jit{};
+    std::unique_ptr<::llvm::TargetMachine> _target_machine{};
 
 private:
     void _initialize_target_machine_jit(const ShaderOption &option) noexcept;

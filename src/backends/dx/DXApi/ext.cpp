@@ -89,7 +89,7 @@ BufferCreationInfo DxNativeResourceExt::register_external_buffer(
         dx_device,
         reinterpret_cast<ID3D12Resource *>(external_ptr),
         custom_data ? *reinterpret_cast<D3D12_RESOURCE_STATES const *>(custom_data) : D3D12_RESOURCE_STATE_COMMON));
-    BufferCreationInfo info;
+    BufferCreationInfo info{};
     info.handle = resource_to_handle(res);
     info.native_handle = res->GetResource();
     info.element_stride = element->size();
@@ -145,7 +145,7 @@ ResourceCreationInfo DxNativeResourceExt::register_external_depth_buffer(
 SwapchainCreationInfo DxNativeResourceExt::register_external_swapchain(
     void *swapchain_ptr,
     bool vsync) noexcept {
-    SwapchainCreationInfo info;
+    SwapchainCreationInfo info{};
     auto res = new LCSwapChain(
         info.storage,
         dx_device,
@@ -193,7 +193,7 @@ ResourceCreationInfo DStorageExtImpl::create_stream_handle(const DStorageStreamO
             LUISA_WARNING("Staging buffer already setted, staging set failed.");
         }
     }
-    ResourceCreationInfo r;
+    ResourceCreationInfo r{};
     auto ptr = new DStorageCommandQueue{factory.Get(), &mdevice->nativeDevice, option.source};
     ptr->staging_buffer_size = staging_buffer_size;
     r.handle = reinterpret_cast<uint64_t>(ptr);
@@ -210,7 +210,7 @@ DStorageExtImpl::FileCreationInfo DStorageExtImpl::open_file_handle(luisa::strin
         wstr[i] = path[i];
     }
     HRESULT hr = factory->OpenFile(wstr.data(), IID_PPV_ARGS(file.GetAddressOf()));
-    DStorageExtImpl::FileCreationInfo f;
+    DStorageExtImpl::FileCreationInfo f{};
     if (FAILED(hr)) {
         f.invalidate();
         return f;

@@ -971,9 +971,9 @@ void CommandBuffer::end() {
 }
 CommandBuffer::CommandBuffer(CommandBuffer &&rhs) noexcept
     : Resource(std::move(rhs)),
-      stream(rhs.stream),
-      _cmdbuffer(rhs._cmdbuffer),
-      _state(std::move(rhs._state)) {
+      stream(rhs.stream),               // NOLINT(bugprone-use-after-move)
+      _cmdbuffer(rhs._cmdbuffer),       // NOLINT(bugprone-use-after-move)
+      _state(std::move(rhs._state)) {   // NOLINT(bugprone-use-after-move)
     rhs._cmdbuffer = nullptr;
 }
 void Stream::signal(Event *event, uint64_t value) {

@@ -30,7 +30,7 @@ private:
         vstd::span<const BindProperty> resources);
 
 public:
-    CommandBuffer const *GetCB() const { return cb; }
+    [[nodiscard]] CommandBuffer const *GetCB() const { return cb; }
 
     void DispatchCompute(
         ComputeShader const *cs,

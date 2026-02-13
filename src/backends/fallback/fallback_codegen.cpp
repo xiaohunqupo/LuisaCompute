@@ -40,7 +40,7 @@ class FallbackCodegen {
 private:
     struct LLVMStruct {
         llvm::StructType *type = nullptr;
-        luisa::vector<uint> padded_field_indices;
+        luisa::vector<uint> padded_field_indices{};
     };
 
     using IRBuilder = llvm::IRBuilder<>;
@@ -52,10 +52,10 @@ private:
         llvm::Value *coro_handle = nullptr;
         llvm::BasicBlock *coro_suspend_block = nullptr;
         llvm::BasicBlock *coro_cleanup_block = nullptr;
-        luisa::unordered_map<const xir::Value *, llvm::Value *> value_map;
-        luisa::unordered_set<const llvm::BasicBlock *> translated_basic_blocks;
-        luisa::unordered_map<llvm::BasicBlock *, llvm::BasicBlock *> phi_incoming_overrides;
-        luisa::vector<const xir::PhiInst *> phi_nodes;
+        luisa::unordered_map<const xir::Value *, llvm::Value *> value_map{};
+        luisa::unordered_set<const llvm::BasicBlock *> translated_basic_blocks{};
+        luisa::unordered_map<llvm::BasicBlock *, llvm::BasicBlock *> phi_incoming_overrides{};
+        luisa::vector<const xir::PhiInst *> phi_nodes{};
 
         // builtin variables
 #define LUISA_FALLBACK_BACKEND_DECL_BUILTIN_VARIABLE(NAME, INDEX) \
@@ -71,7 +71,7 @@ private:
     };
 
 private:
-    luisa::unordered_map<const xir::Function *, uint> _special_register_usages;
+    luisa::unordered_map<const xir::Function *, uint> _special_register_usages{};
     [[nodiscard]] uint _analyze_special_register_usage(const xir::Function *f) noexcept {
         if (auto iter = _special_register_usages.find(f); iter != _special_register_usages.end()) {
             return iter->second;
@@ -130,11 +130,11 @@ private:
 private:
     llvm::LLVMContext &_llvm_context;
     llvm::Module *_llvm_module = nullptr;
-    luisa::unordered_map<const Type *, luisa::unique_ptr<LLVMStruct>> _llvm_struct_types;
-    luisa::unordered_map<const xir::Constant *, llvm::Constant *> _llvm_constants;
-    luisa::unordered_map<const xir::Function *, llvm::Function *> _llvm_functions;
-    FallbackCodeGenFeedback::PrintInstMap _print_inst_map;
-    FallbackCodeGenFeedback::DebugCallbackMap _debug_callback_map;
+    luisa::unordered_map<const Type *, luisa::unique_ptr<LLVMStruct>> _llvm_struct_types{};
+    luisa::unordered_map<const xir::Constant *, llvm::Constant *> _llvm_constants{};
+    luisa::unordered_map<const xir::Function *, llvm::Function *> _llvm_functions{};
+    FallbackCodeGenFeedback::PrintInstMap _print_inst_map{};
+    FallbackCodeGenFeedback::DebugCallbackMap _debug_callback_map{};
     size_t _tls_offset = 0u;
 
 private:
@@ -3282,15 +3282,15 @@ private:
     }
 
     struct KernelWrapper {
-        llvm::Function *func;
-        llvm::BasicBlock *entry_block;
-        llvm::Value *block_id;
-        llvm::Value *block_size;
-        llvm::Value *block_size_x;
-        llvm::Value *block_size_y;
-        llvm::Value *thread_count;
-        llvm::Value *dispatch_size;
-        llvm::SmallVector<llvm::Value *, 32u> args;
+        llvm::Function *func{};
+        llvm::BasicBlock *entry_block{};
+        llvm::Value *block_id{};
+        llvm::Value *block_size{};
+        llvm::Value *block_size_x{};
+        llvm::Value *block_size_y{};
+        llvm::Value *thread_count{};
+        llvm::Value *dispatch_size{};
+        llvm::SmallVector<llvm::Value *, 32u> args{};
     };
 
     [[nodiscard]] KernelWrapper _create_kernel_wrapper(const xir::KernelFunction *f) noexcept {
@@ -3432,9 +3432,9 @@ private:
     }
 
     struct KernelInvokeIndex {
-        llvm::Value *thread_id;
-        llvm::Value *dispatch_id;
-        llvm::Value *in_range;
+        llvm::Value *thread_id{};
+        llvm::Value *dispatch_id{};
+        llvm::Value *in_range{};
     };
 
     [[nodiscard]] KernelInvokeIndex _compute_kernel_invoke_index(const KernelWrapper &llvm_wrapper, IRBuilder &b, llvm::Value *llvm_i) const noexcept {

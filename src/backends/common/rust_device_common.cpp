@@ -34,9 +34,9 @@ public:
     class CommandBuffer {
 
     private:
-        luisa::vector<void *> _temp;
-        luisa::vector<api::Command> _api_commands;
-        CommandList::CallbackContainer _callbacks;
+        luisa::vector<void *> _temp{};
+        luisa::vector<api::Command> _api_commands{};
+        CommandList::CallbackContainer _callbacks{};
 
     public:
         CommandBuffer(luisa::vector<void *> temp,
@@ -44,7 +44,8 @@ public:
                       CommandList::CallbackContainer callbacks) noexcept
             : _temp{std::move(temp)},
               _api_commands{std::move(api_commands)},
-              _callbacks{std::move(callbacks)} {}
+              _callbacks{std::move(callbacks)},
+              _converted{} {}
 
         void on_completion() noexcept {
             for (auto &&callback : _callbacks) { callback(); }

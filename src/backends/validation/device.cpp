@@ -81,7 +81,8 @@ struct StatsExtImpl : public StatsExt, public vstd::IOperatorNewBase {
 
 Device::Device(Context &&ctx, luisa::shared_ptr<DeviceInterface> &&native) noexcept
     : DeviceInterface{std::move(ctx)},
-      _native{std::move(native)} {
+      _native{std::move(native)},
+      exts{} {
     device_stats = DeviceStats::add_ref();
     auto raster_ext = static_cast<RasterExt *>(_native->extension(RasterExt::name));
     auto dstorage_ext = static_cast<DStorageExt *>(_native->extension(DStorageExt::name));

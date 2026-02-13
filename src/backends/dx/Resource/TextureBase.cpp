@@ -20,8 +20,8 @@ TextureBase::TextureBase(
       dimension(dimension),
       depth(depth),
       mip(mip),
-      initState(initState),
-      allowUAV(allowUAV) {
+      allowUAV(allowUAV),
+      initState(initState) {
     this->depth = std::max<uint>(this->depth, 1);
     this->mip = std::max<uint>(this->mip, 1);
     switch (dimension) {

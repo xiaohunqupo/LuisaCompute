@@ -12,9 +12,9 @@ struct DispatchPack {
 struct GEMMKey {
     uint2 lhs_matrix_size;
     uint2 rhs_matrix_size;
-    uint min_batch_size;
-    uint batch;
-    uint type;
+    uint min_batch_size = 0;
+    uint batch = 0;
+    uint type = 0;
     FusedActivation activation;
 };
 template<typename T>

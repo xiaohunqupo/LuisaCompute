@@ -12,7 +12,7 @@
 namespace luisa::compute {
 
 FallbackTensorKernel::FallbackTensorKernel(DeviceInterface *device, ShaderManager *shader_manager, luisa::unique_ptr<TensorBuilder> &&t_args)
-    : device(device), tensor_builder(std::move(t_args)) {
+    : device(device), tensor_builder(std::move(t_args)), tensor_buffer() {
     expr_topo.init(tensor_builder->root_expr().expressions, tensor_builder->allocated_tensor().size());
     auto sorted_tensors = expr_topo.topo_sort();
     executors.reserve(sorted_tensors.size());

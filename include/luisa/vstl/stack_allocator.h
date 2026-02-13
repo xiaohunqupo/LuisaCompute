@@ -19,7 +19,7 @@ private:
     uint64 initCapacity;
     double capaExpanRate;
 
-    vstd::vector<Buffer> allocatedBuffers;
+    vstd::vector<Buffer> allocatedBuffers{};
 
 public:
     StackAllocator(

@@ -33,7 +33,7 @@ public:
 
 private:
     HIPDevice *_device;
-    hipStream_t _stream;
+    hipStream_t _stream{};
     HIPStageBufferPool _upload_pool;
     HIPStageBufferPool _download_pool;
     std::thread _callback_thread;
@@ -43,7 +43,7 @@ private:
     hipDeviceptr_t _callback_semaphore_device{};
     std::atomic_uint64_t _current_ticket{0u};
     std::atomic_uint64_t _finished_ticket{0u};
-    luisa::queue<CallbackPackage> _callback_lists;
+    luisa::queue<CallbackPackage> _callback_lists{};
     spin_mutex _dispatch_mutex;
 
 private:

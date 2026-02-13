@@ -10,17 +10,13 @@
 #endif
 
 namespace vstd {
-Guid::Guid(bool generate) {
+Guid::Guid(bool generate) : data{0, 0} {
     if (generate) {
         remake();
-    } else {
-        std::memset(&data, 0, sizeof(GuidData));
     }
 }
 
-Guid::Guid(GuidData const &d) {
-    std::memcpy(&data, &d, sizeof(GuidData));
-}
+Guid::Guid(GuidData const &d) : data{d.data0, d.data1} {}
 namespace VGuid_Detail {
 uint8_t GetNumber(char c) {
     switch (c) {
@@ -63,19 +59,19 @@ optional<Guid> Guid::TryParseGuid(std::string_view strv) {
     using namespace VGuid_Detail;
     switch (strv.size()) {
         case 22: {
-            Guid opt;
+            Guid opt{};
             StringUtil::from_base64(strv, reinterpret_cast<uint8_t *>(&opt.data));
             return {opt};
         }
         case 32: {
-            Guid opt;
+            Guid opt{};
             ParseHex(strv, opt.data);
             return {opt};
         }
     }
     return {};
 }
-Guid::Guid(std::string_view strv) {
+Guid::Guid(std::string_view strv) : data{0, 0} {
     using namespace VGuid_Detail;
     switch (strv.size()) {
         case 22:
@@ -90,14 +86,14 @@ Guid::Guid(std::string_view strv) {
     }
 }
 
-Guid::Guid(span<uint8_t> data) {
+Guid::Guid(span<uint8_t> data) : data{0, 0} {
     if (data.size() != sizeof(GuidData) * 2) {
         vengine_log("Wrong guid string length!\n");
         VENGINE_EXIT;
     }
     std::memcpy(&this->data, data.data(), sizeof(GuidData));
 }
-Guid::Guid(std::array<uint8_t, sizeof(GuidData)> const &data) {
+Guid::Guid(std::array<uint8_t, sizeof(GuidData)> const &data) : data{0, 0} {
     std::memcpy(&this->data, data.data(), sizeof(GuidData));
 }
 
@@ -136,7 +132,7 @@ void Guid::remake() {
 #endif
 }
 std::array<uint8_t, sizeof(Guid::GuidData)> Guid::ToArray() const {
-    std::array<uint8_t, sizeof(GuidData)> arr;
+    std::array<uint8_t, sizeof(GuidData)> arr{};
     std::memcpy(arr.data(), &data, sizeof(GuidData));
     return arr;
 }

@@ -27,17 +27,17 @@ private:
     MTL::ComputePipelineState *_builtin_prepare_indirect_dispatches{nullptr};
     MTL::RenderPipelineState *_builtin_swapchain_present_ldr{nullptr};
     MTL::RenderPipelineState *_builtin_swapchain_present_hdr{nullptr};
-    luisa::unique_ptr<DefaultBinaryIO> _default_io;
+    luisa::unique_ptr<DefaultBinaryIO> _default_io{nullptr};
     const BinaryIO *_io{nullptr};
-    luisa::unique_ptr<MetalCompiler> _compiler;
+    luisa::unique_ptr<MetalCompiler> _compiler{nullptr};
     bool _inqueue_buffer_limit;
 
 private:
     std::mutex _ext_mutex;
-    luisa::unique_ptr<MetalDStorageExt> _dstorage_ext;
-    luisa::unique_ptr<MetalPinnedMemoryExt> _pinned_memory_ext;
-    luisa::unique_ptr<MetalDebugCaptureExt> _debug_capture_ext;
-    luisa::unique_ptr<MetalTexCompressExt> _tex_compress_ext;
+    luisa::unique_ptr<MetalDStorageExt> _dstorage_ext{nullptr};
+    luisa::unique_ptr<MetalPinnedMemoryExt> _pinned_memory_ext{nullptr};
+    luisa::unique_ptr<MetalDebugCaptureExt> _debug_capture_ext{nullptr};
+    luisa::unique_ptr<MetalTexCompressExt> _tex_compress_ext{nullptr};
 
 #if LUISA_BACKEND_ENABLE_OIDN
     luisa::unique_ptr<MetalDenoiserExt> _denoiser_ext;

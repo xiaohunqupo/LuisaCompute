@@ -40,7 +40,6 @@ CommandList &CommandList::add_callback(luisa::move_only_function<void()> &&callb
 CommandList &CommandList::add_range(CommandList &&cmdlist) noexcept {
     if (cmdlist.empty()) [[unlikely]] { return *this; }
     // move commands into this command list
-    auto size = _commands.size();
     _commands.reserve(_commands.size() + cmdlist._commands.size());
     for (auto &&cmd : cmdlist._commands) { _commands.emplace_back(std::move(cmd)); }
     // move callbacks into this command list
@@ -48,7 +47,7 @@ CommandList &CommandList::add_range(CommandList &&cmdlist) noexcept {
     for (auto &&cb : cmdlist._callbacks) { _callbacks.emplace_back(std::move(cb)); }
     // move presents into this command list
     _presents.reserve(_presents.size() + cmdlist._presents.size());
-    for (auto &&present : cmdlist._presents) { _presents.emplace_back(std::move(present)); }
+    for (auto &&present : cmdlist._presents) { _presents.emplace_back(present); }
     // clear the other command list
     cmdlist.clear();
     return *this;

@@ -57,7 +57,8 @@ decltype(auto) with_cuda(CUcontext ctx, F &&f) {
     return std::invoke(std::forward<F>(f));
 }
 
-WindowsSecurityAttributes::WindowsSecurityAttributes() {
+WindowsSecurityAttributes::WindowsSecurityAttributes()
+    : m_winSecurityAttributes{} {
     m_winPSecurityDescriptor = (PSECURITY_DESCRIPTOR)calloc(1, SECURITY_DESCRIPTOR_MIN_LENGTH + 2 * sizeof(void **));
     LUISA_ASSUME(m_winPSecurityDescriptor != (PSECURITY_DESCRIPTOR)NULL);
 

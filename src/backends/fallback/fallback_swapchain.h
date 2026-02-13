@@ -14,7 +14,7 @@ class FallbackStream;
 class FallbackSwapchain {
 private:
     FallbackStream *_bound_stream;
-    void *_handle;
+    void *_handle{};
     luisa::uint2 size;
 
 public:

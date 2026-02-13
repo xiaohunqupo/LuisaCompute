@@ -1,5 +1,3 @@
-#include <array>
-
 #include <luisa/core/platform.h>
 #include <luisa/core/stl/format.h>
 #include <luisa/core/logging.h>

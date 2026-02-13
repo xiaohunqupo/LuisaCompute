@@ -33,10 +33,10 @@ public:
     void transform(const uint8_t block[64]);
 
     /* Encodes input (usigned long) into output (uint8_t). */
-    void encode(const uint32_t *input, uint8_t *output, size_t length);
+    static void encode(const uint32_t *input, uint8_t *output, size_t length);
 
     /* Decodes input (uint8_t) into output (usigned long). */
-    void decode(const uint8_t *input, uint32_t *output, size_t length);
+    static void decode(const uint8_t *input, uint32_t *output, size_t length);
 
     /* Initialization the md5 object, processing another message block,
    * and updating the context.*/
@@ -119,14 +119,10 @@ const char MD5_Impl::HEX_NUMBERS[16] = {
  *
  */
 MD5_Impl::MD5_Impl(span<uint8_t const> message, uint8_t *digest)
-    : digest(digest) {
-    /* Reset number of bits. */
-    count[0] = count[1] = 0;
-    /* Initialization constants. */
-    state[0] = 0x67452301;
-    state[1] = 0xefcdab89;
-    state[2] = 0x98badcfe;
-    state[3] = 0x10325476;
+    : state{0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476},
+      count{0, 0},
+      buffer{},
+      digest(digest) {
 
     /* Initialization the object according to message. */
     init(message.data(), message.size());
@@ -357,14 +353,14 @@ void MD5_Impl::decode(const uint8_t *input, uint32_t *output, size_t length) {
 }// namespace detail
 std::array<uint8_t, MD5_SIZE> GetMD5FromString(string const &str) {
     using namespace detail;
-    std::array<uint8_t, MD5_SIZE> arr;
+    std::array<uint8_t, MD5_SIZE> arr{};
     MD5_Impl md5({reinterpret_cast<uint8_t const *>(str.data()), str.size()}, arr.data());
     md5.GetDigest();
     return arr;
 }
 std::array<uint8_t, MD5_SIZE> GetMD5FromArray(span<uint8_t const> data) {
     using namespace detail;
-    std::array<uint8_t, MD5_SIZE> arr;
+    std::array<uint8_t, MD5_SIZE> arr{};
     MD5_Impl md5(data, arr.data());
     md5.GetDigest();
     return arr;
@@ -375,7 +371,8 @@ MD5::MD5(string const &str)
 MD5::MD5(std::string_view str)
     : MD5(span<uint8_t const>(reinterpret_cast<uint8_t const *>(str.data()), str.size())) {
 }
-MD5::MD5(span<uint8_t const> bin) {
+MD5::MD5(span<uint8_t const> bin)
+    : data{} {
     using namespace detail;
     MD5_Impl md5(bin, reinterpret_cast<uint8_t *>(&data));
     md5.GetDigest();

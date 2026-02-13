@@ -28,9 +28,9 @@ private:
     spin_mutex _download_pool_creation_mutex;
     spin_mutex _callback_mutex;
     spin_mutex _dispatch_mutex;
-    luisa::unique_ptr<MetalStageBufferPool> _upload_pool;
-    luisa::unique_ptr<MetalStageBufferPool> _download_pool;
-    luisa::queue<CallbackContainer> _callback_lists;
+    luisa::unique_ptr<MetalStageBufferPool> _upload_pool{nullptr};
+    luisa::unique_ptr<MetalStageBufferPool> _download_pool{nullptr};
+    luisa::queue<CallbackContainer> _callback_lists{};
 
 protected:
     void _do_dispatch(MetalCommandEncoder &encoder, CommandList &&list) noexcept;

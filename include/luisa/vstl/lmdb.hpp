@@ -94,7 +94,7 @@ public:
     void write_all(luisa::vector<LMDBWriteCommand> &&commands) const noexcept;
     void remove(luisa::span<const std::byte> key) const noexcept;
     void remove_all(luisa::vector<luisa::vector<std::byte>> &&keys) const noexcept;
-    void copy_to(std::filesystem::path path) const noexcept;
+    void copy_to(std::filesystem::path const& path) const noexcept;
     ~LMDB() noexcept;
     [[nodiscard]] LMDBIterator begin() const noexcept;
     [[nodiscard]] LMDBIteratorEndTag end() const noexcept { return {}; }

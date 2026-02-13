@@ -64,6 +64,7 @@ LCSwapChain::LCSwapChain(
     bool vsync)
     : Resource(device),
       swapChain(swapChain, false),
+      format(DXGI_FORMAT_UNKNOWN),
       vsync(vsync) {
     DXGI_SWAP_CHAIN_DESC1 swapChainDesc;
     swapChain->GetDesc1(&swapChainDesc);
