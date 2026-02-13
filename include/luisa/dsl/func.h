@@ -176,16 +176,19 @@ template<typename... Args>
 struct is_kernel<Kernel3D<Args...>> : std::true_type {};
 
 /**
- * @brief Class of kernel function.
+ * @brief Represents a parallelized computation task on the device.
  * 
- * To create a kernel, user needs to provide a function. 
- * The function will be called during construction of Kernel object.
- * All operations inside the provided function will be recorded by FunctionBuilder.
- * After calling the function, the function is changed to AST represented by FunctionBuilder.
- * When compiling the kernel, the AST will be sent to backend and translated to specific backend code.
+ * A Kernel is an entry point for device-side execution. When a Kernel is constructed
+ * from a C++ lambda, the lambda is executed once on the host to trace the DSL
+ * operations and build an AST.
  * 
- * @tparam N = 1, 2, 3. KernelND
- * @tparam Args args of kernel function
+ * @tparam N Dimension of the kernel grid (1, 2, or 3).
+ * @tparam Args Argument types of the kernel.
+ * 
+ * Logic:
+ * 1. Construction: Executes the provided lambda to record the AST.
+ * 2. Compilation: The AST is sent to the backend to generate a Shader.
+ * 3. Dispatch: The compiled Shader is launched on the device grid.
  */
 template<size_t N, typename... Args>
 class Kernel {
@@ -212,12 +215,13 @@ public:
         : _builder{std::move(builder)} {}
 
     /**
-     * @brief Create Kernel object from function.
+     * @brief Create a Kernel from a C++ lambda or function object.
+     * @tparam Def Lambda type.
+     * @param def The kernel definition lambda.
      * 
-     * Def must be a callable function and not a kernel.
-     * This function will be called during construction.
-     * 
-     * @param def definition of kernel function 
+     * Logic: Pushes a new FunctionBuilder, defines the kernel grid dimension,
+     * creates DSL variables for arguments, and invokes the lambda to record 
+     * the computation logic into the AST.
      */
     template<typename Def>
         requires std::negation_v<is_callable<std::remove_cvref_t<Def>>> &&
@@ -238,6 +242,8 @@ public:
             }(std::forward<Def>(def), std::index_sequence_for<Args...>{});
         });
     }
+
+    /// @return The underlying recorded AST function.
     [[nodiscard]] const auto &function() const noexcept { return _builder; }
 };
 

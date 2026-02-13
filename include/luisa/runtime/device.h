@@ -99,6 +99,18 @@ template<typename T>
 concept device_extension = std::is_base_of_v<DeviceExtension, T> &&
                            std::is_same_v<const luisa::string_view, decltype(T::name)>;
 
+/**
+ * @brief Device abstraction for high-performance computation.
+ *
+ * The Device class represents a logical computation unit (e.g., a GPU).
+ * It is responsible for:
+ * 1. Creating and managing device resources (Buffers, Images, etc.).
+ * 2. Compiling Kernels into executable Shaders.
+ * 3. Creating Streams for asynchronous command execution.
+ * 
+ * Logic: Device is a wrapper around a backend-specific DeviceInterface.
+ * Most of its methods delegate calls to the underlying implementation.
+ */
 class LUISA_RUNTIME_API Device {
 
 public:
@@ -118,146 +130,181 @@ private:
 
 public:
     Device() noexcept = default;
-    // Device construct from backend handle, use Context::create_device for convenience
+
+    /**
+     * @brief Construct Device from a backend handle.
+     * @param handle Shared pointer to the device interface.
+     */
     explicit Device(Handle handle) noexcept : _impl{std::move(handle)} {}
-    // The backend name in lower case, can be used to recognize the corresponding backend
+
+    /// @return Name of the backend (e.g., "cuda", "dx").
     [[nodiscard]] auto backend_name() const noexcept { return _impl->backend_name(); }
-    // The native handle, can be used by other frontend language
+
+    /// @return Native driver handle (e.g., CUcontext or ID3D12Device*).
     [[nodiscard]] auto native_handle() const noexcept { return _impl->native_handle(); }
-    // The backend implementation, can be used by other frontend language
+
+    /// @return Pointer to the underlying device interface.
     [[nodiscard]] auto impl() const noexcept { return _impl.get(); }
     [[nodiscard]] auto const &impl_shared() const & noexcept { return _impl; }
     [[nodiscard]] auto &&impl_shared() && noexcept { return std::move(_impl); }
+
+    /// @return Warp size (simd width) of the compute units.
     [[nodiscard]] auto compute_warp_size() const noexcept { return _impl->compute_warp_size(); }
+
+    /// @return Alignment requirement for memory allocations.
     [[nodiscard]] auto memory_granularity() const noexcept { return _impl->memory_granularity(); }
-    // Is device initialized
+
+    /// @return True if the device is properly initialized.
     [[nodiscard]] explicit operator bool() const noexcept { return static_cast<bool>(_impl); }
-    // backend native plugins & extensions interface
+
+    /**
+     * @brief Access backend-specific extensions.
+     * @tparam Ext Extension type.
+     * @return Pointer to the requested extension, or nullptr if not supported.
+     */
     template<device_extension Ext>
     [[nodiscard]] auto extension() const noexcept {
         return static_cast<Ext *>(_impl->extension(Ext::name));
     }
-    // see definition in runtime/stream.cpp
+
+    /**
+     * @brief Create a command stream.
+     * @param stream_tag Type of the stream (Compute, Graphics, Transfer).
+     * @return A Stream object for submitting commands.
+     */
     [[nodiscard]] Stream create_stream(StreamTag stream_tag = StreamTag::COMPUTE) noexcept;
-    // see definition in runtime/event.cpp
+
+    /**
+     * @brief Create an event for synchronization.
+     * @return An Event object.
+     */
     [[nodiscard]] Event create_event() noexcept;
-    // see definition in runtime/event.cpp
+
+    /**
+     * @brief Create a timeline event for fine-grained synchronization.
+     * @return A TimelineEvent object.
+     */
     [[nodiscard]] TimelineEvent create_timeline_event() noexcept;
-    // see definition in runtime/swap_chain.cpp
+
+    /**
+     * @brief Create a swapchain for window presentation.
+     * @param stream The stream used for presentation.
+     * @param option Swapchain configuration options.
+     * @return A Swapchain object.
+     */
     [[nodiscard]] Swapchain create_swapchain(const Stream &stream, const SwapchainOption &option) noexcept;
-    // see definition in runtime/dispatch_buffer.cpp
+
+    /**
+     * @brief Create a buffer for indirect dispatch.
+     * @param capacity Maximum number of dispatches the buffer can hold.
+     * @return An IndirectDispatchBuffer object.
+     */
     [[nodiscard]] IndirectDispatchBuffer create_indirect_dispatch_buffer(size_t capacity) noexcept;
-    // see definition in rtx/mesh.h
+
+    /**
+     * @brief Create a ray-tracing mesh.
+     * @param vertices Buffer containing vertex data.
+     * @param triangles Buffer containing triangle indices.
+     * @param option Mesh acceleration structure options.
+     * @return A Mesh object.
+     */
     template<typename VBuffer, typename TBuffer>
     [[nodiscard]] Mesh create_mesh(VBuffer &&vertices,
                                    TBuffer &&triangles,
                                    const AccelOption &option = {}) noexcept;
 
+    /**
+     * @brief Create a ray-tracing mesh with custom vertex stride.
+     */
     template<typename VBuffer, typename TBuffer>
     [[nodiscard]] Mesh create_mesh(VBuffer &&vertices,
                                    size_t vertex_stride,
                                    TBuffer &&triangles,
                                    const AccelOption &option = {}) noexcept;
-    // see definition in rtx/curve.h
+
+    /**
+     * @brief Create a ray-tracing curve.
+     */
     template<typename CPBuffer, typename SegmentBuffer>
     [[nodiscard]] Curve create_curve(CurveBasis basis,
                                      CPBuffer &&control_points,
                                      SegmentBuffer &&segments,
                                      const AccelOption &option = {}) noexcept;
 
-    // see definition in rtx/procedural_primitive.h
+    /**
+     * @brief Create procedural primitives for ray tracing.
+     */
     template<typename AABBBuffer>
     [[nodiscard]] ProceduralPrimitive create_procedural_primitive(AABBBuffer &&aabb_buffer,
                                                                   const AccelOption &option = {}) noexcept;
 
-    // see definition in rtx/motion_instance.h
+    /**
+     * @brief Create a motion instance for temporal ray tracing.
+     */
     [[nodiscard]] MotionInstance create_motion_instance(const Mesh &mesh, const AccelMotionOption &option) noexcept;
     [[nodiscard]] MotionInstance create_motion_instance(const Curve &curve, const AccelMotionOption &option) noexcept;
     [[nodiscard]] MotionInstance create_motion_instance(const ProceduralPrimitive &primitive, const AccelMotionOption &option) noexcept;
 
-    // see definition in rtx/accel.cpp
+    /**
+     * @brief Create a top-level acceleration structure (Accel).
+     * @param option Accel configuration options.
+     * @return An Accel object.
+     */
     [[nodiscard]] Accel create_accel(const AccelOption &option = {}) noexcept;
-    // see definition in runtime/bindless_array.cpp
+
+    /**
+     * @brief Create a bindless array for resource indexing in shaders.
+     * @param slot_count Number of slots in the array.
+     * @param type Resource types allowed in the slots.
+     * @return A BindlessArray object.
+     */
     [[nodiscard]] BindlessArray create_bindless_array(size_t slot_count = 65536u, BindlessSlotType type = BindlessSlotType::MULTIPLE) noexcept;
 
+    /**
+     * @brief Create a 2D image.
+     * @tparam T Pixel channel type (e.g., float, int).
+     * @param pixel Internal storage format.
+     * @param width Width in pixels.
+     * @param height Height in pixels.
+     * @param mip_levels Number of mipmap levels.
+     * @return An Image object.
+     */
     template<typename T>
     [[nodiscard]] auto create_image(PixelStorage pixel, uint width, uint height, uint mip_levels = 1u, bool simultaneous_access = false, bool allow_raster_target = false) noexcept {
         return _create<Image<T>>(pixel, make_uint2(width, height), mip_levels, simultaneous_access, allow_raster_target);
     }
 
-    template<typename T>
-    [[nodiscard]] auto create_image(PixelStorage pixel, uint2 size, uint mip_levels = 1u, bool simultaneous_access = false, bool allow_raster_target = false) noexcept {
-        return _create<Image<T>>(pixel, size, mip_levels, simultaneous_access, allow_raster_target);
-    }
-
-    template<typename T>
-    [[nodiscard]] auto import_external_image(PixelStorage pixel, void *external_native_handle, uint2 size, uint mip_levels = 1u, bool simultaneous_access = false, bool allow_raster_target = false) noexcept {
-        return _create<Image<T>>(pixel, external_native_handle, size, mip_levels, simultaneous_access, allow_raster_target);
-    }
-
-    template<typename T>
-    [[nodiscard]] auto create_sparse_image(PixelStorage pixel, uint width, uint height, uint mip_levels = 1u, bool simultaneous_access = true) noexcept {
-        return _create<SparseImage<T>>(pixel, make_uint2(width, height), mip_levels, simultaneous_access);
-    }
-
-    template<typename T>
-    [[nodiscard]] auto create_sparse_image(PixelStorage pixel, uint2 size, uint mip_levels = 1u, bool simultaneous_access = true) noexcept {
-        return _create<SparseImage<T>>(pixel, size, mip_levels, simultaneous_access);
-    }
-
-    [[nodiscard]] DepthBuffer create_depth_buffer(DepthFormat depth_format, uint2 size) noexcept;
-
+    /**
+     * @brief Create a 3D volume.
+     */
     template<typename T>
     [[nodiscard]] auto create_volume(PixelStorage pixel, uint width, uint height, uint depth, uint mip_levels = 1u, bool simultaneous_access = false, bool allow_raster_target = false) noexcept {
         return _create<Volume<T>>(pixel, make_uint3(width, height, depth), mip_levels, simultaneous_access, allow_raster_target);
     }
 
+    /**
+     * @brief Create a linear buffer.
+     * @tparam T Element type.
+     * @param size Number of elements.
+     * @return A Buffer object.
+     */
     template<typename T>
-    [[nodiscard]] auto create_volume(PixelStorage pixel, uint3 size, uint mip_levels = 1u, bool simultaneous_access = false, bool allow_raster_target = false) noexcept {
-        return _create<Volume<T>>(pixel, size, mip_levels, simultaneous_access, allow_raster_target);
-    }
-
-    template<typename T>
-    [[nodiscard]] auto create_sparse_volume(PixelStorage pixel, uint width, uint height, uint depth, uint mip_levels = 1u, bool simultaneous_access = true) noexcept {
-        return _create<SparseVolume<T>>(pixel, make_uint3(width, height, depth), mip_levels, simultaneous_access);
-    }
-
-    template<typename T>
-    [[nodiscard]] auto create_sparse_volume(PixelStorage pixel, uint3 size, uint mip_levels = 1u, bool simultaneous_access = true) noexcept {
-        return _create<SparseVolume<T>>(pixel, size, mip_levels, simultaneous_access);
-    }
-
-    [[nodiscard]] SparseBufferHeap allocate_sparse_buffer_heap(size_t byte_size) noexcept;
-
-    [[nodiscard]] SparseTextureHeap allocate_sparse_texture_heap(size_t byte_size) noexcept;
-
-    [[nodiscard]] ByteBuffer create_byte_buffer(size_t byte_size) noexcept;
-
-    [[nodiscard]] ByteBuffer import_external_byte_buffer(void *external_memory, size_t byte_size) noexcept;
-
-    template<typename T>
-        requires(!is_custom_struct_v<T>)//backend-specific type not allowed
+        requires(!is_custom_struct_v<T>)
     [[nodiscard]] auto create_buffer(size_t size) noexcept {
         return _create<Buffer<T>>(size);
     }
 
-    template<typename T>
-        requires(!is_custom_struct_v<T>)
-    [[nodiscard]] auto import_external_buffer(void *external_memory, size_t elem_count) noexcept {
-        return _create<Buffer<T>>(impl()->create_buffer(Type::of<T>(), elem_count, external_memory));
-    }
-
-    template<typename T>
-    [[nodiscard]] auto create_soa(size_t size) noexcept {
-        return SOA<T>{*this, size};
-    }
-
-    template<typename T>
-        requires(!is_custom_struct_v<T>)//backend-specific type not allowed
-    [[nodiscard]] auto create_sparse_buffer(size_t size) noexcept {
-        return _create<SparseBuffer<T>>(size);
-    }
-
+    /**
+     * @brief Compile a kernel into a shader.
+     * @param kernel The DSL kernel definition.
+     * @param option Compilation options (FastMath, Cache, etc.).
+     * @return A runnable Shader object.
+     * 
+     * Logic: This triggers the backend compilation pipeline:
+     * 1. Trace kernel to build AST.
+     * 2. Backend translates AST to platform-dependent source.
+     * 3. Backend calls driver compiler (NVCC, DXC, etc.) to generate binary.
+     */
     template<size_t N, typename... Args>
     [[nodiscard]] auto compile(const Kernel<N, Args...> &kernel,
                                const ShaderOption &option = {}) noexcept {

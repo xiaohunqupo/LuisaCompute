@@ -302,6 +302,17 @@ doc/latex/**
 # Doxygen output
 doxygen_output
 
+# Documentation build
+docs/_build/
+docs/.venv/
+docs/venv/
+docs/output/
+
+# Generated documentation files
+docs/build/
+docs/*.html
+docs/*.log
+
 *.ll
 *.bc
 *.S

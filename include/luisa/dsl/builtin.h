@@ -16,7 +16,29 @@ LUISA_DSL_API void luisa_compute_validate_local_array_backward_types(const Type 
 
 inline namespace dsl {
 
-/// Expression cast operation
+/**
+ * @brief Cast a DSL expression to a different type.
+ * @tparam Dest Target type.
+ * @tparam Src Source expression type.
+ * @param s Source expression.
+ * @return A new DSL expression of type Dest.
+ * 
+ * Performs a value conversion (like static_cast in C++).
+ * Supported conversions include:
+ * - Between numeric types (int <-> float)
+ * - Between vector types of same dimension
+ * 
+ * Example:
+ * @code
+ * Float f = 3.7f;
+ * Int i = cast<int>(f);  // i = 3 (truncated)
+ * 
+ * Float3 f3 = make_float3(1.5f, 2.5f, 3.5f);
+ * Int3 i3 = cast<int>(f3);  // (1, 2, 3)
+ * @endcode
+ * 
+ * @see as() for bitwise reinterpretation
+ */
 template<typename Dest, typename Src>
     requires is_dsl_v<Src>
 [[nodiscard]] inline auto cast(Src &&s) noexcept {
@@ -30,7 +52,28 @@ template<typename Dest, typename Src>
     return static_cast<Dest>(std::forward<Src>(s));
 }
 
-/// Expression as operation
+/**
+ * @brief Bitwise reinterpret a DSL expression as a different type.
+ * @tparam Dest Target type (must have same size as source).
+ * @tparam Src Source expression type.
+ * @param s Source expression.
+ * @return A new DSL expression of type Dest with the same bit pattern.
+ * 
+ * Performs a bitwise reinterpretation (like bit_cast/std::bit_cast in C++).
+ * The source and destination types must have the same size.
+ * 
+ * Example:
+ * @code
+ * Float f = 1.0f;
+ // Reinterpret float bits as uint
+ * UInt bits = as<uint>(f);  // bits = 0x3f800000
+ * 
+ * Float2 f2 = make_float2(1.0f, 2.0f);
+ * UInt2 u2 = as<uint2>(f2);  // Reinterpret as uints
+ * @endcode
+ * 
+ * @see cast() for value conversion
+ */
 template<typename Dest, typename Src>
     requires is_dsl_v<Src>
 [[nodiscard]] inline auto as(Src &&s) noexcept {
@@ -44,13 +87,50 @@ template<typename Dest, typename Src>
     return luisa::bit_cast<Dest>(std::forward<Src>(s));
 }
 
-/// Call assume on bool expression
+/**
+ * @brief Provide a boolean assumption hint to the compiler.
+ * @param pred Boolean expression that is assumed to be true.
+ * 
+ * The assume statement tells the optimizer that the condition is always
+ * true, allowing it to generate more efficient code. Use with caution -
+ * if the assumption is violated, undefined behavior occurs.
+ * 
+ * Example:
+ * @code
+ * Var<int> index = ...;
+ assume(index >= 0 && index < buffer_size);
+ * // Compiler can now optimize knowing index is in bounds
+ * Float value = buffer.read(index);
+ * @endcode
+ * 
+ * @see unreachable() for marking unreachable code
+ */
 inline void assume(Expr<bool> pred) noexcept {
     detail::FunctionBuilder::current()->call(
         CallOp::ASSUME, {pred.expression()});
 }
 
-/// Call unreachable
+/**
+ * @brief Mark code as unreachable.
+ * 
+ * Tells the compiler that this code path should never be executed.
+ * Useful after branches that always return/exit or for switch defaults
+ * that should never be hit.
+ * 
+ * Example:
+ * @code
+ * $switch (value) {
+ *     $case (0) { result = "zero"; };
+ *     $case (1) { result = "one"; };
+ *     $default {
+ *         unreachable();  // Should never reach here
+ *     };
+ * };
+ * @endcode
+ * 
+ * @param msg Optional message for debugging
+ * @see assume() for providing optimization hints
+ */
 inline void unreachable() noexcept {
     detail::FunctionBuilder::current()->call(
         CallOp::UNREACHABLE, {});
@@ -77,7 +157,24 @@ inline void device_assert(Expr<bool> pred, luisa::string_view msg) noexcept {
     detail::FunctionBuilder::current()->call(CallOp::ASSERT, {pred.expression(), message});
 }
 
-/// Get thread_id(uint3)
+/**
+ * @brief Get the thread index within its block.
+ * @return uint3 containing (x, y, z) thread coordinates within the block.
+ * 
+ * The thread_id identifies a thread's position within its thread block.
+ * It ranges from (0, 0, 0) to block_size() - 1.
+ * 
+ * Example:
+ * @code
+ * Kernel1D kernel = [&]() noexcept {
+ *     UInt tid = thread_id().x;  // 0 to block_size().x - 1
+ *     // Use tid for shared memory indexing...
+ * };
+ * @endcode
+ * 
+ * @see block_id() for block position in the grid
+ * @see dispatch_id() for global thread position
+ */
 [[nodiscard]] inline const auto thread_id() noexcept {
     return def<uint3>(detail::FunctionBuilder::current()->thread_id());
 }
@@ -97,7 +194,16 @@ inline void device_assert(Expr<bool> pred, luisa::string_view msg) noexcept {
     return thread_id().z;
 }
 
-/// Get block_id(uint3)
+/**
+ * @brief Get the block index within the dispatch grid.
+ * @return uint3 containing (x, y, z) block coordinates.
+ * 
+ * The block_id identifies which thread block this thread belongs to.
+ * It ranges from (0, 0, 0) to (grid_dim - 1).
+ * 
+ * @see thread_id() for position within the block
+ * @see dispatch_id() for global thread position
+ */
 [[nodiscard]] inline const auto block_id() noexcept {
     return def<uint3>(detail::FunctionBuilder::current()->block_id());
 }
@@ -117,7 +223,29 @@ inline void device_assert(Expr<bool> pred, luisa::string_view msg) noexcept {
     return block_id().z;
 }
 
-/// Get dispatch_id(uint3)
+/**
+ * @brief Get the global thread index in the dispatch grid.
+ * @return uint3 containing (x, y, z) global coordinates.
+ * 
+ * The dispatch_id is the global thread identifier, computed as:
+ * dispatch_id = block_id * block_size + thread_id
+ * 
+ * This is the most commonly used coordinate for indexing into
+ * buffers and images.
+ * 
+ * Example:
+ * @code
+ * Kernel2D process_image = [&](ImageFloat img) noexcept {
+ *     UInt2 coord = dispatch_id().xy();  // Pixel coordinate
+ *     Float4 color = img.read(coord);
+ *     img.write(coord, color);
+ * };
+ * stream << shader(image).dispatch(width, height);
+ * @endcode
+ * 
+ * @see dispatch_size() for total grid dimensions
+ * @see thread_id() for local thread position
+ */
 [[nodiscard]] inline const auto dispatch_id() noexcept {
     return def<uint3>(detail::FunctionBuilder::current()->dispatch_id());
 }
@@ -145,7 +273,26 @@ inline void device_assert(Expr<bool> pred, luisa::string_view msg) noexcept {
     return dispatch_id().z;
 }
 
-/// Get dispatch size(uint3)
+/**
+ * @brief Get the total dispatch grid size.
+ * @return uint3 containing (width, height, depth) of the dispatch grid.
+ * 
+ * The dispatch_size represents the total number of threads in each dimension.
+ * Useful for normalizing coordinates or computing global indices.
+ * 
+ * Example:
+ * @code
+ * Kernel2D render = [&](ImageFloat image) noexcept {
+ *     UInt2 coord = dispatch_id().xy();
+ *     UInt2 size = dispatch_size().xy();
+ *     Float2 uv = (make_float2(coord) + 0.5f) / make_float2(size);
+ *     // uv is now in [0, 1] range...
+ * };
+ * @endcode
+ * 
+ * @see dispatch_id() for current thread position
+ * @see set_block_size() for configuring block dimensions
+ */
 [[nodiscard]] inline const auto dispatch_size() noexcept {
     return def<uint3>(detail::FunctionBuilder::current()->dispatch_size());
 }
@@ -165,7 +312,15 @@ inline void device_assert(Expr<bool> pred, luisa::string_view msg) noexcept {
     return dispatch_size().z;
 }
 
-/// Get block size(uint3)
+/**
+ * @brief Get the thread block size.
+ * @return uint3 containing (x, y, z) dimensions of each thread block.
+ * 
+ * The block_size represents how many threads are in each block.
+ * Use this for computing local indices or shared memory offsets.
+ * 
+ * @see set_block_size() for configuring block dimensions at compile time
+ */
 [[nodiscard]] inline const auto block_size() noexcept {
     return detail::FunctionBuilder::current()->block_size();
 }

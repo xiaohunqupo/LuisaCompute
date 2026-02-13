@@ -26,7 +26,18 @@ void apply_default_initializer(const Ref<T> &var) noexcept {
 
 }// namespace detail
 
-/// Class of variable
+/**
+ * @brief Represents a variable in the embedded DSL.
+ *
+ * Var<T> is the core type for representing data on the device within the DSL.
+ * It inherits from Ref<T>, providing reference semantics.
+ * 
+ * Logic: When a Var<T> is constructed, it records a local variable declaration
+ * into the current FunctionBuilder's AST. Subsequent operations on the Var
+ * are recorded as expressions targeting this local variable.
+ *
+ * @tparam T The C++ type being represented in the DSL.
+ */
 template<typename T>
 struct Var : public detail::Ref<T> {
 
@@ -39,30 +50,45 @@ private:
 public:
     static_assert(std::is_trivially_destructible_v<T>);
 
-    /// Construct from expression
+    /**
+     * @brief Construct Var from an existing AST expression.
+     * @param expr Pointer to the AST expression.
+     */
     explicit Var(const Expression *expr) noexcept
         : detail::Ref<T>{expr} {}
 
-    // for local variables of basic or array types
-    /// Construct a local variable of basic or array types
+    /**
+     * @brief Construct a new local variable.
+     * 
+     * Logic: This allocates a new local variable slot in the current AST FunctionBuilder
+     * and applies default initialization.
+     */
     Var() noexcept : Var{LocalCreationTag{}} {
-        // we have to apply the default initializer here so the variable
-        // is properly defined right after construction
         detail::apply_default_initializer(*this);
     }
 
-    /// Assign members from args
+    /**
+     * @brief Construct and initialize from a tuple of arguments.
+     */
     template<typename... Args, size_t... i>
     Var(std::tuple<Args...> args, std::index_sequence<i...>) noexcept : Var{LocalCreationTag{}} {
         (dsl::assign(this->template get<i>(), std::get<i>(args)), ...);
     }
 
-    /// Assign members
+    /**
+     * @brief Construct and initialize from a tuple.
+     */
     template<typename... Args>
     Var(std::tuple<Args...> args) noexcept
         : Var{std::move(args), std::index_sequence_for<Args...>{}} {}
 
-    /// Assign from a single argument
+    /**
+     * @brief Construct and initialize from a single argument.
+     * @tparam Arg Type of the initializer.
+     * 
+     * Logic: If T is a structure and Arg is not, it tries to initialize the first member.
+     * If Arg is another DSL expression, it records an assignment.
+     */
     template<typename Arg>
         requires concepts::different<std::remove_cvref_t<Arg>, Var> &&
                  std::negation_v<std::is_pointer<std::remove_cvref_t<Arg>>>
@@ -76,7 +102,9 @@ public:
         }
     }
 
-    /// Assign from list
+    /**
+     * @brief Construct and initialize from multiple arguments (list-init).
+     */
     template<typename First, typename Second, typename... Other>
     Var(First &&first, Second &&second, Other &&...other) noexcept
         : Var{std::make_tuple(
@@ -84,17 +112,23 @@ public:
               Expr{std::forward<Second>(second)},
               Expr{std::forward<Other>(other)}...)} {}
 
-    // create as function arguments, for internal use only
+    // Internal use: create as function argument
     explicit Var(detail::ArgumentCreation) noexcept
         : detail::Ref<T>{static_cast<const Expression *>(
               detail::FunctionBuilder::current()->argument(Type::of<T>()))} {}
 
+    // Internal use: create as reference function argument
     explicit Var(detail::ReferenceArgumentCreation) noexcept
         : detail::Ref<T>{static_cast<const Expression *>(
               detail::FunctionBuilder::current()->reference(Type::of<T>()))} {}
 
     Var(Var &&) noexcept = default;
 
+    /**
+     * @brief Copy constructor (DSL assignment).
+     * 
+     * Logic: This records an assignment from `another` to the newly created local variable.
+     */
     Var(const Var &another) noexcept : Var{LocalCreationTag{}} {
         detail::FunctionBuilder::current()->assign(this->expression(), another.expression());
     }
