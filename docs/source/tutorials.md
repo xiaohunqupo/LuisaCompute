@@ -11,6 +11,9 @@ This section provides step-by-step tutorials for building practical applications
 5. [Wave Equation Simulation](#wave-equation-simulation) - Interactive PDE solver
 6. [Image Processing Pipeline](#image-processing-pipeline) - Multi-pass filters and effects
 7. [N-Body Simulation](#n-body-gravitational-simulation) - Gravitational particle physics
+8. [Fire Particle System](#fire-particle-system) - Physics-based fire simulation
+9. [Reaction-Diffusion](#reaction-diffusion-simulation) - Gray-Scott pattern formation
+10. [Voxel Ray Tracer](#voxel-ray-tracer) - Real-time voxel rendering
 
 ---
 
@@ -815,11 +818,11 @@ while (!window.should_close()) {
 
 ## Wave Equation Simulation
 
-Simulate realistic water ripples using the **finite difference method** to solve the 2D wave equation. This demonstrates PDE solving and interactive GPU computing.
+Simulate realistic water ripples using the **finite difference method** to solve the 2D wave equation. This demonstrates PDE solving and interactive GPU computing with beautiful visual results.
 
 ### Final Result
 
-An interactive water simulation where you can drop droplets and watch ripples propagate with realistic physics.
+An interactive water simulation where you can click and drag to create waves that propagate realistically, interfere with each other, and gradually dampen. The rendering includes caustics effects and foam at wave crests.
 
 ### The Physics
 
@@ -827,11 +830,13 @@ The wave equation: `∂²u/∂t² = c²(∂²u/∂x² + ∂²u/∂y²)`
 
 Discretized form: `u_next = 2*u_curr - u_prev + c²*dt²*laplacian(u)`
 
+For stability, the CFL condition requires: `c² * dt² < 0.5`
+
 ### Step-by-Step Implementation
 
 #### Step 1: Setup Three Buffers
 
-We need three height buffers for time integration:
+We need three height buffers for time integration (past, present, future):
 
 ```cpp
 Image<float> height_prev = device.create_image<float>(PixelStorage::FLOAT1, width, height);
@@ -847,15 +852,16 @@ Kernel2D wave_step = [&](ImageFloat prev, ImageFloat curr, ImageFloat next) noex
     Var uv = dispatch_id().xy();
     Var size = dispatch_size().xy();
 
-    // Sample neighbors with wrapping
+    Var u_curr = curr.read(uv).x;
+
+    // Sample neighbors with clamping (not wrapping)
     auto sample = [&](Int2 offset) noexcept {
-        Var sample_uv = make_uint2(
-            (cast<int>(uv.x) + offset.x + cast<int>(size.x)) % cast<int>(size.x),
-            (cast<int>(uv.y) + offset.y + cast<int>(size.y)) % cast<int>(size.y));
-        return curr.read(sample_uv).x;
+        Int2 p = make_int2(uv) + offset;
+        p.x = clamp(p.x, 0, cast<int>(size.x) - 1);
+        p.y = clamp(p.y, 0, cast<int>(size.y) - 1);
+        return curr.read(make_uint2(p)).x;
     };
 
-    Var u_curr = curr.read(uv).x;
     Var u_left = sample(make_int2(-1, 0));
     Var u_right = sample(make_int2(1, 0));
     Var u_up = sample(make_int2(0, -1));
@@ -864,13 +870,15 @@ Kernel2D wave_step = [&](ImageFloat prev, ImageFloat curr, ImageFloat next) noex
     // Laplacian: sum of neighbors - 4*center
     Var laplacian = u_left + u_right + u_up + u_down - 4.0f * u_curr;
 
-    // Wave equation
+    // Read previous height
     Var u_prev = prev.read(uv).x;
-    Var u_next = 2.0f * u_curr - u_prev + c * c * dt * dt * laplacian;
+
+    // Wave equation integration
+    Var u_next = 2.0f * u_curr - u_prev + (c * c * dt * dt) * laplacian;
     
-    // Damping prevents infinite oscillation
+    // Apply damping for energy loss
     u_next *= damping;
-    u_next = clamp(u_next, -10.0f, 10.0f);
+    u_next = clamp(u_next, -2.0f, 2.0f);
 
     next.write(uv, make_float4(u_next, 0.0f, 0.0f, 1.0f));
 };
@@ -879,16 +887,26 @@ Kernel2D wave_step = [&](ImageFloat prev, ImageFloat curr, ImageFloat next) noex
 #### Step 3: Interactive Droplet Drop
 
 ```cpp
+// Setup mouse callbacks
+window.set_mouse_callback([&mouse_down, &mouse_pos](MouseButton, Action a, float2 p) noexcept {
+    if (a == Action::ACTION_PRESSED) {
+        mouse_down = true;
+    } else if (a == Action::ACTION_RELEASED) {
+        mouse_down = false;
+    }
+    mouse_pos = p;
+});
+
+// Droplet kernel - creates Gaussian ripple
 Kernel2D drop_droplet = [](ImageFloat height, UInt2 center, Float strength) noexcept {
     set_block_size(16, 16, 1);
     Var uv = dispatch_id().xy();
 
-    // Gaussian drop shape
     Var dx = cast<float>(cast<int>(uv.x) - cast<int>(center.x));
     Var dy = cast<float>(cast<int>(uv.y) - cast<int>(center.y));
     Var dist_sq = dx * dx + dy * dy;
     
-    Var radius = 20.0f;
+    Var radius = 15.0f;
     Var gaussian = exp(-dist_sq / (radius * radius * 0.5f));
 
     Var current = height.read(uv).x;
@@ -896,42 +914,46 @@ Kernel2D drop_droplet = [](ImageFloat height, UInt2 center, Float strength) noex
 };
 ```
 
-#### Step 4: Rendering with Normal Mapping
+#### Step 4: Rendering with Caustics Effect
 
 ```cpp
-Kernel2D render_kernel = [](ImageFloat height, ImageFloat output, Float3 light_dir) noexcept {
+Kernel2D render_kernel = [](ImageFloat height, ImageFloat output, Float time) noexcept {
     set_block_size(16, 16, 1);
     Var uv = dispatch_id().xy();
-    
-    // Compute normal from height gradient
-    Var h_center = height.read(uv).x;
-    Var h_left = sample_height(make_int2(-1, 0));
-    Var h_right = sample_height(make_int2(1, 0));
-    Var h_up = sample_height(make_int2(0, -1));
-    Var h_down = sample_height(make_int2(0, 1));
+    Var size = dispatch_size().xy();
 
-    Var normal = normalize(make_float3(
-        (h_left - h_right) * 0.5f,
-        (h_up - h_down) * 0.5f,
-        1.0f));
+    Var h = height.read(uv).x;
 
-    // Blinn-Phong lighting
-    Var N = normal;
-    Var L = normalize(light_dir);
-    Var V = make_float3(0.0f, 0.0f, 1.0f);
-    Var H = normalize(L + V);
-    
-    Var diff = max(dot(N, L), 0.0f);
-    Var spec = pow(max(dot(N, H), 0.0f), 64.0f);
+    // Sample neighbors for slope (caustics effect)
+    Var h_left = sample(make_int2(-2, 0));
+    Var h_right = sample(make_int2(2, 0));
+    Var h_up = sample(make_int2(0, -2));
+    Var h_down = sample(make_int2(0, 2));
 
-    // Water color with foam at peaks
-    Var water_color = make_float3(0.0f, 0.3f, 0.5f);
+    // Slope magnitude creates caustic highlights
+    Var slope_x = abs(h_right - h_left);
+    Var slope_y = abs(h_down - h_up);
+    Var slope = sqrt(slope_x * slope_x + slope_y * slope_y);
+
+    // Water color palette
+    Var deep_color = make_float3(0.0f, 0.1f, 0.3f);
+    Var shallow_color = make_float3(0.0f, 0.4f, 0.6f);
     Var foam_color = make_float3(0.9f, 0.95f, 1.0f);
-    Var foam = smoothstep(0.3f, 0.8f, h_center);
-    Var base_color = lerp(water_color, foam_color, foam);
-    
-    Var lit_color = base_color * (0.3f + 0.7f * diff) + make_float3(spec * 0.5f);
-    output.write(uv, make_float4(lit_color, 1.0f));
+    Var highlight_color = make_float3(0.6f, 0.8f, 1.0f);
+
+    // Base color based on wave height
+    Var t = clamp(h * 0.5f + 0.5f, 0.0f, 1.0f);
+    Var base_color = lerp(deep_color, shallow_color, t);
+
+    // Add caustics based on slope
+    Var caustics = smoothstep(0.1f, 0.5f, slope);
+    base_color = lerp(base_color, highlight_color, caustics * 0.5f);
+
+    // Foam at wave peaks
+    Var foam = smoothstep(0.5f, 1.0f, h);
+    base_color = lerp(base_color, foam_color, foam * 0.7f);
+
+    output.write(uv, make_float4(base_color, 1.0f));
 };
 ```
 
@@ -939,46 +961,49 @@ Kernel2D render_kernel = [](ImageFloat height, ImageFloat output, Float3 light_d
 
 ```cpp
 while (!window.should_close()) {
-    // Handle mouse input for droplet drop
-    if (window.is_mouse_down(MouseButton::LEFT)) {
-        uint sim_x = mouse_pos.x / display_scale;
-        uint sim_y = mouse_pos.y / display_scale;
-        stream << drop_shader(height_curr, make_uint2(sim_x, sim_y), -1.0f)
+    // Handle mouse interaction
+    if (mouse_down) {
+        uint sim_x = clamp(cast<uint>(mouse_pos.x / scale), 0u, width - 1);
+        uint sim_y = clamp(cast<uint>(mouse_pos.y / scale), 0u, height - 1);
+        
+        // Interpolate for smooth trails when dragging
+        stream << drop_shader(height_curr, make_uint2(sim_x, sim_y), -0.5f)
                       .dispatch(width, height);
     }
 
-    // Auto rain occasionally
-    if (rng() % 60u == 0u) {
-        stream << drop_shader(height_curr, random_pos, -0.3f).dispatch(width, height);
+    // Update wave simulation (multiple steps per frame)
+    for (int step = 0; step < 4; step++) {
+        stream << wave_shader(height_prev, height_curr, height_next).dispatch(width, height);
+        std::swap(height_prev, height_curr);
+        std::swap(height_curr, height_next);
     }
 
-    // Update wave simulation
-    stream << wave_shader(height_prev, height_curr, height_next).dispatch(width, height);
-    
-    // Swap buffers: prev <- curr, curr <- next
-    std::swap(height_prev, height_curr);
-    std::swap(height_curr, height_next);
-
-    // Render with rotating light
-    rot_time += 0.02f;
-    Float3 light_dir{cosf(rot_time), sinf(rot_time), 0.8f};
-    stream << render(height_curr, temp_display, light_dir).dispatch(width, height)
-           << upscale(temp_display, display).dispatch(display_width, display_height)
+    // Render
+    stream << render(height_curr, display, time).dispatch(width, height)
            << swap_chain.present(display);
 }
 ```
 
 #### Key Concepts
 
-1. **Finite Differences**: Approximate derivatives using neighbor samples
-2. **Three-Buffer Scheme**: Need past, present, and future for second-order time integration
-3. **Normal Mapping**: Create realistic lighting from height field gradients
+1. **Finite Differences**: Approximate spatial derivatives using neighbor samples
+2. **Time Integration**: Three-buffer scheme for second-order time integration (Verlet-style)
+3. **Stability**: CFL condition requires careful parameter tuning
+4. **Caustics**: Surface slope creates realistic water shimmer
+
+#### Tips for Better Results
+
+1. **Parameters**: Try `c = 0.2f`, `dt = 1.0f`, `damping = 0.995f` for nice propagation
+2. **Multiple Steps**: Run 4 simulation steps per frame for faster wave propagation
+3. **Smooth Trails**: Interpolate droplet positions when dragging mouse
+4. **Clamped Boundaries**: Edges act as walls (wave reflection) rather than wrapping
 
 #### Exercises
 
-1. **Different Boundary Conditions**: Try clamped or reflective boundaries
-2. **Variable Speed**: Make wave speed vary by position for interesting effects
-3. **Multiple Drops**: Implement a buffer of pending droplets
+1. **Variable Depth**: Make wave speed vary by location for refraction effects
+2. **Obstacles**: Add static obstacles that block/reflect waves
+3. **Rain**: Add periodic random droplets for ambient activity
+4. **Underwater**: Add objects beneath the surface with distortion
 
 ---
 
@@ -1350,9 +1375,402 @@ while (!window.should_close()) {
 
 ---
 
+## Fire Particle System
+
+Create a mesmerizing fire simulation using 65,000 GPU particles with physics-based motion, procedural turbulence, and temperature-driven color gradients. Watch as flames dance and flicker with realistic fluid-like behavior.
+
+### Final Result
+
+A captivating campfire-like effect with:
+- **White-hot cores** at the base where particles are born
+- **Yellow-orange flames** rising and swirling upward
+- **Red embers** cooling as they float higher
+- **Procedural turbulence** creating realistic flickering motion
+- **Interactive wind** (press SPACE) that bends the flames sideways
+
+The particles cycle through their lifecycle endlessly—born hot and bright, rising with buoyancy, cooling as they age, fading to smoke, then respawning to keep the fire alive.
+
+### Key Concepts
+
+**Particle Lifecycle Management**: Each particle tracks its own state:
+```cpp
+struct FireParticle {
+    float3 position;    // Position in 3D space
+    float lifetime;     // Seconds remaining before respawn
+    float3 velocity;    // Current movement direction
+    float temperature;  // 1.0 = white hot, 0.0 = cold
+    float size;         // Particle radius for rendering
+};
+```
+
+This structure enables individual particle behavior while the GPU processes thousands in parallel.
+
+```cpp
+struct FireParticle {
+    float3 position;
+    float lifetime;
+    float3 velocity;
+    float temperature;
+    float size;
+};
+```
+
+**Procedural Turbulence**: We use a simple 3D noise function to create realistic turbulent motion:
+
+```cpp
+Callable noise3d = [](Float3 p) noexcept {
+    Var i = floor(p);
+    Var f = fract(p);
+    f = f * f * (3.0f - 2.0f * f);
+    // ... trilinear interpolation
+};
+```
+
+**Temperature-Based Coloring**: The color gradient follows real fire physics:
+- White: Hottest (1.0)
+- Yellow: Hot (0.75-1.0)
+- Orange: Warm (0.5-0.75)
+- Red: Cool (0.25-0.5)
+- Black: Cold (< 0.25)
+
+### Step-by-Step Implementation
+
+#### Step 1: Particle Update Kernel
+
+```cpp
+Kernel1D update_kernel = [&](BufferVar<FireParticle> particles, 
+                             Float time, Float wind) noexcept {
+    set_block_size(256);
+    Var idx = dispatch_id().x;
+    Var p = particles.read(idx);
+
+    $if (p.lifetime > 0.0f) {
+        // Apply gravity (negative = buoyancy)
+        p.velocity.y += gravity * dt;
+        
+        // Add turbulence
+        Var noise_pos = p.position * 2.0f + time;
+        p.velocity.x += (noise3d(noise_pos) - 0.5f) * 2.0f * dt;
+        
+        // Wind effect
+        p.velocity.x += wind * dt;
+        
+        // Update position
+        p.position += p.velocity * dt;
+        
+        // Cool down
+        p.temperature -= dt * 0.3f;
+        p.lifetime -= dt;
+    }
+    $else {
+        // Respawn with random properties
+        Var seed = idx + cast<uint>(time * 1000.0f);
+        // ... spawn new particle
+    };
+
+    particles.write(idx, p);
+};
+```
+
+#### Step 2: Rendering with Additive Blending
+
+```cpp
+Kernel2D render_kernel = [&](BufferVar<FireParticle> particles, 
+                             ImageFloat image) noexcept {
+    // For each pixel, accumulate contributions from all particles
+    Var color = make_float3(0.0f);
+    
+    for (uint i = 0u; i < n_particles; i += 256u) {
+        Var p = particles.read(i);
+        
+        // Project to screen space
+        Var screen_pos = project(p.position);
+        Var dist = length(pixel_pos - screen_pos);
+        
+        // Gaussian intensity falloff
+        Var intensity = exp(-dist_sq / (p.size * size_scale));
+        
+        // Temperature-based color
+        Var fire_color = get_fire_color(p.temperature);
+        color += fire_color * intensity;
+    }
+    
+    image.write(uv, make_float4(color, 1.0f));
+};
+```
+
+#### Exercises
+
+1. **Smoke**: Add a smoke trail that rises from cooling particles
+2. **Sparks**: Add smaller, faster particles that shoot upward occasionally
+3. **Interactive**: Make the fire react to mouse position as a wind source
+
+---
+
+## Reaction-Diffusion Simulation
+
+Watch mathematical magic unfold as beautiful organic patterns emerge from simple chemical rules. The Gray-Scott model simulates how two chemicals interact to create mesmerizing textures resembling coral reefs, zebra stripes, fingerprints, and more.
+
+### What You'll See
+
+Starting from a tiny seed in the center, watch as intricate patterns **grow and evolve** across the screen:
+- **Coral Growth**: Branching, tree-like structures spreading outward
+- **Fingerprint Patterns**: Meandering, maze-like lines
+- **Leopard Spots**: Isolated dots that grow and stabilize
+- **Stripes**: Parallel waves that propagate across the field
+
+Press keys **1-4** to switch between pattern types in real-time and observe how the same equations produce wildly different results!
+
+### The Gray-Scott Model
+
+Two virtual chemicals dance on the grid:
+- **U** (inhibitor, shown as blue): The "food" that prevents reaction
+- **V** (activator, shown as red/yellow): The "predator" that consumes U and spreads
+
+The mathematical rules that create life-like patterns:
+```
+du/dt = Du * ∇²u - u*v² + F*(1-u)   // U diffuses and gets consumed
+dv/dt = Dv * ∇²v + u*v² - (F+k)*v   // V diffuses, grows, and dies
+```
+
+Where:
+- **Du, Dv**: How fast each chemical spreads (U spreads faster than V)
+- **F (Feed)**: Rate that fresh U is added
+- **k (Kill)**: Rate that V is removed
+- **u*v²**: The reaction where V consumes U
+
+### Pattern Types
+
+By adjusting feed rate (F) and kill rate (k), we get different patterns:
+
+| Pattern | F | k | Description |
+|---------|---|---|-------------|
+| Coral | 0.035 | 0.06 | Branching coral-like growth |
+| Fingerprint | 0.037 | 0.06 | Meandering lines |
+| Spots | 0.03 | 0.062 | Isolated spots |
+| Stripes | 0.03 | 0.054 | Parallel stripes |
+
+### Step-by-Step Implementation
+
+#### Step 1: Chemical State Storage
+
+```cpp
+// Two buffers for ping-pong rendering
+Image<float> u_prev, u_curr;  // Inhibitor
+Image<float> v_prev, v_curr;  // Activator
+```
+
+#### Step 2: Reaction-Diffusion Kernel
+
+```cpp
+Kernel2D rd_step = [&](ImageFloat u_in, ImageFloat v_in,
+                       ImageFloat u_out, ImageFloat v_out,
+                       Float F, Float k, Float Du, Float Dv) noexcept {
+    set_block_size(16, 16, 1);
+    Var uv = dispatch_id().xy();
+
+    // Sample current state
+    Var u = u_in.read(uv).x;
+    Var v = v_in.read(uv).x;
+
+    // Compute Laplacian (5-point stencil)
+    Var u_lap = (sample(u_in, uv, {-1,0}) + sample(u_in, uv, {1,0}) +
+                 sample(u_in, uv, {0,-1}) + sample(u_in, uv, {0,1}) +
+                 u) * 0.2f - u;
+
+    // Reaction term
+    Var reaction = u * v * v;
+
+    // Update
+    Var u_new = u + dt * (Du * u_lap - reaction + F * (1.0f - u));
+    Var v_new = v + dt * (Dv * v_lap + reaction - (F + k) * v);
+
+    u_out.write(uv, make_float4(u_new, 0, 0, 1));
+    v_out.write(uv, make_float4(v_new, 0, 0, 1));
+};
+```
+
+#### Step 3: Visualization
+
+```cpp
+Kernel2D visualize = [&](ImageFloat u, ImageFloat v, ImageFloat output) {
+    Var uv = dispatch_id().xy();
+    Var u_val = u.read(uv).x;
+    Var v_val = v.read(uv).x;
+    
+    // U = blue, V = red/yellow
+    Var color = make_float3(v_val * 1.5f,  // Red
+                           v_val * u_val * 0.5f,  // Green
+                           u_val * 0.8f);  // Blue
+    
+    output.write(uv, make_float4(color, 1.0f));
+};
+```
+
+#### Key Concepts
+
+1. **Reaction**: V consumes U when they meet (u*v² term)
+2. **Diffusion**: U spreads faster than V (Du > Dv)
+3. **Feed/Kill**: Constant injection of U, removal of V
+4. **Instability**: Small perturbations grow into patterns
+
+#### Exercises
+
+1. **Multiscale**: Use different F/k values in different regions
+2. **3D Extension**: Extend to 3D and render with volume ray marching
+3. **Interactive Brush**: Paint V values with mouse to guide pattern growth
+
+---
+
+## Voxel Ray Tracer
+
+Explore a procedurally generated 3D voxel world in real-time! This example renders a Minecraft-style landscape with terrain, trees, and floating islands using ray marching through a voxel grid. Use arrow keys to rotate the view and W/S to zoom.
+
+### What You'll See
+
+A charming voxel scene featuring:
+- **Rolling Hills**: Procedurally generated terrain with sine-wave elevation
+- **Green Grass Tops**: Different block types for grass, dirt, and stone
+- **Trees**: Scattered throughout with wood trunks and leafy canopies
+- **Floating Magic Orb**: A mysterious purple sphere hovering above the landscape
+- **Interactive Camera**: Rotate with arrow keys, zoom with W/S
+
+### How Ray Voxel Traversal Works
+
+Unlike traditional polygon rendering, we trace rays through a 3D grid:
+
+1. **Ray-Box Intersection**: Calculate where the camera ray enters the voxel grid bounding box
+2. **DDA Traversal**: Use the Digital Differential Analyzer algorithm to step through voxels in order along the ray, similar to Bresenham's line algorithm in 3D
+3. **Hit Detection**: At each voxel, check if it's solid. If yes, render its color. If no, continue stepping.
+
+This technique, used in games like Minecraft and Teardown, allows rendering millions of voxels efficiently without storing explicit geometry.
+
+### Step-by-Step Implementation
+
+#### Step 1: Voxel Grid Storage
+
+```cpp
+static constexpr uint grid_size = 64;
+Buffer<uint> voxel_grid = device.create_buffer<uint>(
+    grid_size * grid_size * grid_size);
+
+// Voxel types: 0=empty, 1=dirt, 2=grass, 3=stone, etc.
+```
+
+#### Step 2: Ray-Box Intersection
+
+```cpp
+Callable intersect_box = [](Float3 ray_origin, Float3 ray_dir,
+                            Float3 box_min, Float3 box_max) {
+    // Slab method for AABB intersection
+    Var tmin = (box_min - ray_origin) / ray_dir;
+    Var tmax = (box_max - ray_origin) / ray_dir;
+    // ... swap if necessary
+    return make_float2(entry_t, exit_t);
+};
+```
+
+#### Step 3: DDA Traversal
+
+```cpp
+Callable trace_ray = [](Float3 origin, Float3 dir, BufferVar<uint> voxels) {
+    // Find entry point
+    Var box_hit = intersect_box(origin, dir, grid_min, grid_max);
+    $if (box_hit.x < 0.0f) { return miss_color; };
+
+    // Initialize DDA
+    Var t = box_hit.x;
+    Var vx = floor(origin.x + dir.x * t);
+    // ... calculate step direction and initial distances
+
+    // Traverse
+    $for (step, max_steps) {
+        Var voxel = read_voxel(voxels, vx, vy, vz);
+        $if (voxel > 0u) {
+            // Hit! Return voxel color
+            return get_voxel_color(voxel);
+        };
+        
+        // Step to next voxel
+        $if (next_tx < next_ty & next_tx < next_tz) {
+            vx += step_x;
+            next_tx += delta_tx;
+        }
+        // ... similar for y, z
+    };
+    
+    return sky_color;  // Missed everything
+};
+```
+
+#### Step 4: Camera and Rendering
+
+```cpp
+Kernel2D render = [&](ImageFloat image, Float3 cam_pos, 
+                      Float2 cam_rot, BufferVar<uint> voxels) {
+    Var uv = dispatch_id().xy();
+    Var ndc = (make_float2(uv) / resolution) * 2.0f - 1.0f;
+    
+    // Generate ray direction from camera
+    Var ray_dir = normalize(make_float3(
+        ndc.x * aspect * fov,
+        -ndc.y * fov,
+        -1.0f
+    ));
+    
+    // Apply camera rotation
+    ray_dir = rotate_y(ray_dir, cam_rot.x);
+    ray_dir = rotate_x(ray_dir, cam_rot.y);
+    
+    // Trace and write color
+    Var color = trace_ray(cam_pos, ray_dir, voxels);
+    image.write(uv, make_float4(color, 1.0f));
+};
+```
+
+#### Exercises
+
+1. **Lighting**: Add directional lighting with voxel self-shadowing
+2. **Materials**: Add emission for some voxel types (glowing blocks)
+3. **Destruction**: Add ability to remove voxels with mouse clicks
+4. **LOD**: Implement level-of-detail for distant chunks
+
+---
+
 ## Summary
 
-These seven tutorials demonstrate:
+Congratulations! You've explored ten fascinating GPU computing tutorials that demonstrate the breadth of what's possible with LuisaCompute:
+
+### Visual Effects & Rendering
+1. **Mandelbrot**: Mathematical beauty through iterative complex numbers
+2. **Path Tracer**: Physically-based global illumination with ray tracing
+3. **Voxel Ray Tracer**: Real-time ray marching through 3D voxel grids
+
+### Physics Simulations
+4. **MPM**: Material Point Method for fluid/solid simulation
+5. **Wave Equation**: Interactive water ripples with caustics rendering
+6. **N-Body**: Gravitational galaxy simulation with 4,000+ particles
+
+### Pattern Formation & Cellular Automata
+7. **Game of Life**: Classic cellular automata with emergent behavior
+8. **Reaction-Diffusion**: Gray-Scott chemical patterns mimicking nature
+
+### Image Processing & Particles
+9. **Image Processing**: Multi-pass Gaussian blur and edge detection
+10. **Fire Particles**: 65,000 temperature-driven animated particles
+
+### Interactive Features Summary
+
+| Tutorial | Interaction |
+|----------|-------------|
+| Wave Equation | Click & drag to create ripples |
+| N-Body | Mouse drag to rotate, scroll/+/- to zoom |
+| Game of Life | Watch evolution, R to reset |
+| Fire | SPACE to toggle wind |
+| Reaction-Diffusion | 1-4 to switch patterns, R to reset |
+| Voxel Ray Tracer | Arrow keys to rotate, W/S to zoom |
+
+### What You've Learned
 
 1. **Mandelbrot**: Basic kernel structure, loops, and image output
 2. **Path Tracer**: Ray tracing, acceleration structures, sampling
@@ -1361,6 +1779,9 @@ These seven tutorials demonstrate:
 5. **Wave Equation**: PDE solving, interactive simulation
 6. **Image Processing**: Multi-pass pipelines, convolution
 7. **N-Body**: Particle systems, tile-based optimization
+8. **Fire Particles**: Particle systems with lifecycle management and procedural noise
+9. **Reaction-Diffusion**: Coupled PDEs and pattern formation
+10. **Voxel Ray Tracer**: 3D grid traversal and ray-box intersection
 
 ### Performance Tips
 
