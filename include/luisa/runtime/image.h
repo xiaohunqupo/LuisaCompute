@@ -29,45 +29,12 @@ class BufferView;
 
 class BindlessArray;
 
-/**
- * @brief 2D texture resource on the device.
- *
- * Image<T> represents a 2D grid of pixels stored on the device. 
- * Unlike Buffers, Images are optimized for 2D spatial locality and support 
- * hardware-accelerated sampling with automatic format conversion.
- * 
- * @tparam T Pixel channel type (float, int, or uint). This determines how
- *             pixels are read/written in DSL, not the internal storage format.
- * 
- * Logic: Image is a Resource mapped to a backend texture object. The internal
- * storage format (e.g., BYTE4, FLOAT4) is specified at creation time, and
- * automatic conversion happens when reading/writing pixel values.
- * 
- * @note Images follow RAII semantics. When an Image goes out of scope, the
- *       device memory is automatically scheduled for deallocation.
- * 
- * @see ImageView for accessing specific mipmap levels
- * @see Volume for 3D textures
- * 
- * Example:
- * @code
- * // Create a 1920x1080 RGBA image with 8-bit storage
- * Image<float> image = device.create_image<float>(
- *     PixelStorage::BYTE4, 1920, 1080);
- * 
- * // Upload pixel data from host
- * std::vector<std::byte> pixels(1920 * 1080 * 4);
- * stream << image.copy_from(pixels.data()) << synchronize();
- * 
- * // Use in kernel
- * Kernel2D process = [&](ImageFloat img) noexcept {
- *     Var coord = dispatch_id().xy();
- *     Float4 color = img.read(coord);
- *     img.write(coord, color * 0.5f);  // Darken
- * };
- * stream << device.compile(process)(image).dispatch(1920, 1080);
- * @endcode
- */
+// Images are textures without sampling, i.e., surfaces.
+template<typename T>
+constexpr bool is_legal_image_element = std::disjunction_v<
+    std::is_same<T, int32_t>,
+    std::is_same<T, uint>,
+    std::is_same<T, float>>;
 template<typename T>
 class Image final : public Resource {
     static_assert(is_legal_image_element<T>);
@@ -95,16 +62,39 @@ private:
         }
     }
 
+    Image(DeviceInterface *device, PixelStorage storage, uint2 size,
+          uint mip_levels = 1u, bool simultaneous_access = false, bool allow_raster_target = false) noexcept
+        : Image{device,
+                [&] {
+                    if (size.x == 0 || size.y == 0) [[unlikely]] {
+                        detail::image_size_zero_error();
+                    }
+                    return device->create_texture(
+                        pixel_storage_to_format<T>(storage), 2u, size.x, size.y, 1u,
+                        detail::max_mip_levels(make_uint3(size, 1u), mip_levels), nullptr,
+                        simultaneous_access, allow_raster_target);
+                }(),
+                storage, size, mip_levels} {}
+
+    Image(DeviceInterface *device, PixelStorage storage, void *external_native_handle, uint2 size,
+          uint mip_levels, bool simultaneous_access = false, bool allow_raster_target = false) noexcept
+        : Image{device,
+                [&] {
+                    if (size.x == 0 || size.y == 0) [[unlikely]] {
+                        detail::image_size_zero_error();
+                    }
+                    return device->create_texture(
+                        pixel_storage_to_format<T>(storage), 2u, size.x, size.y, 1u,
+                        detail::max_mip_levels(make_uint3(size, 1u), mip_levels), external_native_handle,
+                        simultaneous_access, allow_raster_target);
+                }(),
+                storage, size, mip_levels} {}
+
 public:
     Image() noexcept = default;
-
-    /**
-     * @brief Destructor. Automatically destroys the device-side texture.
-     */
     ~Image() noexcept override {
         if (*this) { device()->destroy_texture(handle()); }
     }
-
     using Resource::operator bool;
     using Resource::release;
     Image(Image &&) noexcept = default;
@@ -114,52 +104,24 @@ public:
         return *this;
     }
     Image &operator=(Image const &) noexcept = delete;
-
-    /**
-     * @brief Get the image dimensions.
-     * @return uint2 containing (width, height) in pixels.
-     */
+    // properties
     [[nodiscard]] auto size() const noexcept {
         _check_is_valid();
         return _size;
     }
-
-    /**
-     * @brief Get the number of mipmap levels.
-     * @return Mipmap count (1 for no mipmaps, >1 for mipmapped images).
-     */
     [[nodiscard]] auto mip_levels() const noexcept {
         _check_is_valid();
         return _mip_levels;
     }
-
-    /**
-     * @brief Get the internal storage format.
-     * @return PixelStorage enum value (e.g., BYTE4, FLOAT4).
-     * @see PixelStorage
-     */
     [[nodiscard]] auto storage() const noexcept {
         _check_is_valid();
         return _storage;
     }
-
-    /**
-     * @brief Get the backend-specific pixel format.
-     * @return PixelFormat enum value.
-     * @note This is the actual format used by the GPU driver.
-     */
     [[nodiscard]] auto format() const noexcept {
         _check_is_valid();
         return pixel_storage_to_format<T>(_storage);
     }
 
-    /**
-     * @brief Create a view of a specific mipmap level.
-     * @param level Mipmap level index (0 = full resolution).
-     * @return An ImageView object for that mipmap level.
-     * @note Level 0 is the base level (full resolution).
-     *       Each subsequent level is half the size of the previous.
-     */
     [[nodiscard]] auto view(uint32_t level) const noexcept {
         _check_is_valid();
         if (level >= _mip_levels) [[unlikely]] {
@@ -169,80 +131,29 @@ public:
         return ImageView<T>{native_handle(), handle(), _storage, level, mip_size};
     }
 
-    /**
-     * @brief Create a view of the base mipmap level (level 0).
-     * @return An ImageView for the full-resolution image.
-     * @note This is equivalent to view(0).
-     */
     [[nodiscard]] auto view() const noexcept { return view(0u); }
-
-    /**
-     * @brief Create a command to download image data to the host.
-     * @tparam U Destination type (pointer or another Image/Buffer).
-     * @return A command object for use with operator<< on a Stream.
-     * 
-     * Example:
-     * @code
-     * std::vector<std::byte> pixels(image.size().x * image.size().y * 4);
-     * stream << image.copy_to(pixels.data()) << synchronize();
-     * @endcode
-     */
+    // commands
+    // copy image's data to pointer or another image
     template<typename U>
     [[nodiscard]] auto copy_to(U &&dst) const noexcept {
         _check_is_valid();
         return this->view(0).copy_to(std::forward<U>(dst));
     }
-
-    /**
-     * @brief Create a command to upload image data from the host.
-     * @tparam U Source type (pointer or another Image/Buffer).
-     * @return A command object for use with operator<< on a Stream.
-     */
+    // copy pointer or another image's data to image
     template<typename U>
     [[nodiscard]] auto copy_from(U &&dst) const noexcept {
         _check_is_valid();
         return this->view(0).copy_from(std::forward<U>(dst));
     }
-
-    /**
-     * @brief DSL access to the image.
-     * 
-     * Logic: This allows using `image->read(coord)` and `image->write(coord, value)`
-     * within DSL kernels.
-     */
+    // DSL interface
     [[nodiscard]] auto operator->() const noexcept {
         _check_is_valid();
         return reinterpret_cast<const detail::ImageExprProxy<Image<T>> *>(this);
     }
 };
 
-/**
- * @brief Non-owning reference to an Image mipmap level.
- * 
- * ImageView provides access to a specific mipmap level of an Image.
- * It is a lightweight handle that can be passed to kernels and commands
- * without transferring ownership.
- * 
- * ImageViews are useful for:
- * - Processing specific mipmap levels
- * - Passing image references to kernels
- * - Creating sub-views (for future extensions)
- * 
- * @tparam T Pixel channel type (float, int, or uint).
- * 
- * @see Image
- * @see VolumeView for 3D texture views
- * 
- * Example:
- * @code
- * Image<float> mip_image = device.create_image<float>(
- *     PixelStorage::BYTE4, 1024, 1024, 10);  // With mipmaps
- * 
- * // Access level 2 (256x256)
- * auto view = mip_image.view(2);
- * stream << kernel(view).dispatch(view.size().x, view.size().y);
- * @endcode
- */
+// An ImageView is a reference to an Image without ownership
+// (i.e., it will not destroy the Image on destruction).
 template<typename T>
 class ImageView {
 

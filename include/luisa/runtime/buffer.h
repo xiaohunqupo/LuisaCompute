@@ -75,44 +75,7 @@ constexpr bool is_valid_buffer_element_v =
     std::is_trivially_copyable_v<T> &&
     std::is_trivially_destructible_v<T>;
 
-/**
- * @brief Linear memory range on the device.
- *
- * Buffer<T> is a one-dimensional array of elements of type T located on the device.
- * It is strongly typed and ensures alignment based on the element type. Buffers
- * are the primary way to store and transfer structured data between host and device.
- * 
- * @tparam T Element type. Must be trivially copyable and destructible.
- *             Supported types include scalars (int, float), vectors (float2, float4),
- *             matrices, and user-defined structs reflected with LUISA_STRUCT.
- * 
- * Logic: Buffer is a Resource that manages device-side memory. It provides
- * methods to create command units (e.g., copy_to, copy_from) and views for 
- * sub-range access.
- *
- * @note Buffers follow RAII semantics. When a Buffer goes out of scope, the
- *       device memory is automatically scheduled for deallocation.
- * 
- * @see BufferView for non-owning sub-range views
- * 
- * Example:
- * @code
- * // Create a buffer of 1000 float4 elements
- * Buffer<float4> buffer = device.create_buffer<float4>(1000);
- * 
- * // Upload data from host
- * std::vector<float4> host_data(1000);
- * stream << buffer.copy_from(host_data.data()) << synchronize();
- * 
- * // Use in kernel
- * Kernel1D process = [&](BufferFloat4 buf) noexcept {
- *     Var idx = dispatch_id().x;
- *     Float4 value = buf.read(idx);
- *     buf.write(idx, value * 2.0f);
- * };
- * stream << device.compile(process)(buffer).dispatch(1000);
- * @endcode
- */
+// Buffer is a one-dimensional data structure that can be of any base data type, such as int, float2, struct or array
 template<typename T>
 class Buffer final : public Resource {
 
@@ -142,14 +105,9 @@ private:
 
 public:
     Buffer() noexcept = default;
-
-    /**
-     * @brief Destructor. Automatically destroys the device-side buffer.
-     */
     ~Buffer() noexcept override {
         if (*this) { device()->destroy_buffer(handle()); }
     }
-
     Buffer(Buffer &&) noexcept = default;
     Buffer(Buffer const &) noexcept = delete;
     Buffer &operator=(Buffer &&rhs) noexcept {
@@ -158,134 +116,76 @@ public:
     }
     Buffer &operator=(Buffer const &) noexcept = delete;
     using Resource::operator bool;
-    using Resource::release;
-
-    /**
-     * @brief Get the number of elements in the buffer.
-     * @return The element count.
-     * @note This is the element count, not the byte size. Use size_bytes() for bytes.
-     */
+    // properties
     [[nodiscard]] auto size() const noexcept {
         _check_is_valid();
         return _size;
     }
-
-    /**
-     * @brief Get the stride (byte size) of a single element.
-     * @return Element size in bytes.
-     * @note This is typically sizeof(T) but may be larger due to alignment requirements.
-     */
     [[nodiscard]] constexpr auto stride() const noexcept {
         _check_is_valid();
         return _element_stride;
     }
-
-    /**
-     * @brief Get the total buffer size in bytes.
-     * @return Total size = size() * stride().
-     */
     [[nodiscard]] auto size_bytes() const noexcept {
         _check_is_valid();
         return _size * _element_stride;
     }
+    // views
+    [[nodiscard]] auto view_unchecked() const noexcept {
+        return BufferView<T>{this->native_handle(), this->handle(), _element_stride, 0u, _size, _size};
+    }
 
-    /**
-     * @brief Create a view of the entire buffer.
-     * @return A BufferView object covering all elements.
-     * 
-     * Example:
-     * @code
-     * auto view = buffer.view();
-     * stream << kernel(view).dispatch(view.size());
-     * @endcode
-     */
     [[nodiscard]] auto view() const noexcept {
         _check_is_valid();
         return BufferView<T>{this->native_handle(), this->handle(), _element_stride, 0u, _size, _size};
     }
-
-    /**
-     * @brief Create a view of a sub-range of the buffer.
-     * @param offset Start index (in elements) of the sub-view.
-     * @param count Number of elements in the sub-view.
-     * @return A sub-range BufferView.
-     * 
-     * Example:
-     * @code
-     * // Process only the middle 1000 elements
-     * auto subview = buffer.view(500, 1000);
-     * stream << kernel(subview).dispatch(subview.size());
-     * @endcode
-     */
     [[nodiscard]] auto view(size_t offset, size_t count) const noexcept {
         return view().subview(offset, count);
     }
-
 #ifndef LUISA_ENABLE_SAFE_MODE
-    /**
-     * @brief Create a command to download buffer data to the host.
-     * @param data Host-side destination pointer.
-     * @return A BufferDownloadCommand.
-     */
+    // commands
+    // copy buffer's data to pointer
     [[nodiscard]] auto copy_to(void *data) const noexcept {
         return this->view().copy_to(data);
     }
-
-    /**
-     * @brief Create a command to copy data between buffers.
-     */
+    // copy buffer's data to another buffer
     [[nodiscard]] auto copy_to(BufferView<T> dst) const noexcept {
         return this->view().copy_to(dst);
     }
-
-    /**
-     * @brief Create a command to upload data from host to buffer.
-     * @param data Host-side source pointer.
-     */
+    // copy buffer's data to a byte buffer
+    [[nodiscard]] auto copy_to(const ByteBufferView &dst) const noexcept {
+        return this->view().copy_to(dst);
+    }
+    // copy pointer's data to buffer
     [[nodiscard]] auto copy_from(const void *data) const noexcept {
         return this->view().copy_from(data);
     }
+    [[nodiscard]] auto copy_from(const void *data, luisa::move_only_function<void(void *)> &&upload_callback) const noexcept {
+        return this->view().copy_from(data, std::move(upload_callback));
+    }
+    // copy source buffer's data to buffer
+    [[nodiscard]] auto copy_from(BufferView<T> source) const noexcept {
+        return this->view().copy_from(source);
+    }
+    // copy source byte buffer's data to buffer
+    [[nodiscard]] auto copy_from(const ByteBufferView &source) const noexcept {
+        return this->view().copy_from(source);
+    }
 #endif
-
-    /**
-     * @brief DSL access to the buffer.
-     * 
-     * Logic: This allows using `buffer->read(index)` and `buffer->write(index, value)` 
-     * within DSL kernels. It returns a proxy that records AST nodes.
-     */
+    // DSL interface
     [[nodiscard]] auto operator->() const noexcept {
         _check_is_valid();
         return reinterpret_cast<const detail::BufferExprProxy<Buffer<T>> *>(this);
     }
+    BufferCreationInfo release() noexcept {
+        return BufferCreationInfo{
+            Resource::release(),
+            _element_stride,
+            _size * sizeof(T)
+        };
+    }
 };
 
-/**
- * @brief Non-owning reference to a Buffer.
- *
- * BufferView allows passing sub-ranges of buffers to shaders and commands
- * without transferring ownership. It is a lightweight handle that can be
- * created from a Buffer or another BufferView.
- * 
- * BufferViews are useful for:
- * - Processing sub-ranges of large buffers
- * - Passing buffer references to kernels without copying
- * - Reinterpreting buffer data as different types
- * 
- * @tparam T Element type of the buffer view.
- * 
- * Example:
- * @code
- * Buffer<float> large = device.create_buffer<float>(10000);
- * 
- * // Create a view of elements 1000-1999
- * auto view = large.view(1000, 1000);
- * 
- * // Use the view in a kernel
- * stream << kernel(view).dispatch(view.size());
- * @endcode
- * 
- * @see Buffer
- */
+// BufferView represents a reference to a Buffer. Use a BufferView that referenced to a destructed Buffer is an undefined behavior.
 template<typename T>
 class BufferView {
     friend class lc::validation::Stream;
@@ -348,23 +248,7 @@ public:
                           _offset_bytes + offset_elements * _element_stride,
                           size_elements, _total_size};
     }
-    /**
-     * @brief Reinterpret the buffer view as a different element type.
-     * @tparam U Target element type.
-     * @return A BufferView<U> with the same underlying memory.
-     * 
-     * This allows viewing the same memory with different types, similar to
-     * reinterpret_cast in C++. The total byte size must be compatible.
-     * 
-     * Example:
-     * @code
-     * Buffer<float> float_buf = device.create_buffer<float>(1000);
-     * // View as bytes
-     * auto byte_view = float_buf.view().as<std::byte>();
-     * // View as float4 (250 elements)
-     * auto vec4_view = float_buf.view().as<float4>();
-     * @endcode
-     */
+    // reinterpret cast buffer to another type U
     template<typename U>
         requires(!is_custom_struct_v<U>)
     [[nodiscard]] auto as() const noexcept {
