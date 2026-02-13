@@ -13,9 +13,13 @@ jobs:
           - os: ubuntu-24.04
             arch: x86_64
             cuda-keyring: x86_64
+            jobs: 16
+            unity: OFF
           - os: ubuntu-24.04-arm
             arch: aarch64
             cuda-keyring: sbsa
+            jobs: 4
+            unity: ON
 
     name: ${{ matrix.config }} / ${{ matrix.platform.os }} / ${{ matrix.platform.arch }} / ${{ matrix.compiler }}
     runs-on: ${{ matrix.platform.os }}
@@ -57,8 +61,8 @@ jobs:
             export LUISA_CXX=clang++-20
             export LUISA_FLAGS="-stdlib=libc++"
           fi
-          cmake -S . -B build -G Ninja -D LUISA_COMPUTE_ENABLE_RUST=OFF -D LUISA_COMPUTE_ENABLE_REMOTE=OFF -D LUISA_COMPUTE_ENABLE_CPU=OFF -D CMAKE_BUILD_TYPE=${{ matrix.config }} -D CMAKE_C_COMPILER=${LUISA_CC} -D CMAKE_CXX_COMPILER=${LUISA_CXX} -D CMAKE_CXX_FLAGS="${LUISA_FLAGS}"
-          cmake --build build -j 16
+          cmake -S . -B build -G Ninja -D LUISA_COMPUTE_ENABLE_RUST=OFF -D LUISA_COMPUTE_ENABLE_REMOTE=OFF -D LUISA_COMPUTE_ENABLE_CPU=OFF -D LUISA_COMPUTE_ENABLE_UNITY_BUILD=${{ matrix.platform.unity }} -D CMAKE_BUILD_TYPE=${{ matrix.config }} -D CMAKE_C_COMPILER=${LUISA_CC} -D CMAKE_CXX_COMPILER=${LUISA_CXX} -D CMAKE_CXX_FLAGS="${LUISA_FLAGS}"
+          cmake --build build -j ${{ matrix.platform.jobs }}
       - name: "Install"
         run: |
           if [ "${{ matrix.config }}" = "Release" ]; then
