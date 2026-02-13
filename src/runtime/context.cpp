@@ -271,14 +271,9 @@ Device Context::create_device(
 Device Context::create_device(luisa::string_view backend_name, const DeviceConfig *settings) noexcept {
     auto enable_validation = [] {
         using namespace std::string_view_literals;
-        char *env = nullptr;
-        size_t env_len = 0;
-        if (_dupenv_s(&env, &env_len, "LUISA_ENABLE_VALIDATION") == 0 && env != nullptr) {
-            auto result = std::string_view(env) == "1"sv;
-            free(env);
-            return result;
+        if (auto env = getenv("LUISA_ENABLE_VALIDATION")) {
+            return env == "1"sv;
         }
-        if (env) free(env);
         return false;
     }();
     return create_device(backend_name, settings, enable_validation);
