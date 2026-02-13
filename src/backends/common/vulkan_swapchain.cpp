@@ -403,7 +403,7 @@ private:
         static constexpr std::array validation_layers{"VK_LAYER_KHRONOS_validation"};
         if (_instance->has_debug_layer()) {
             device_create_info.enabledLayerCount = static_cast<uint32_t>(validation_layers.size());
-            device_create_info.ppEnabledLayerNames = validation_layers.data();
+            device_create_info.ppEnabledLayerNames = reinterpret_cast<const char *const *>(validation_layers.data());
         } else {
             device_create_info.enabledLayerCount = 0u;
         }

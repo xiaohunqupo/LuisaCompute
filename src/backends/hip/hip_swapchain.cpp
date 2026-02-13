@@ -28,7 +28,6 @@
 
 namespace luisa::compute::hip {
 
-#ifndef LUISA_PLATFORM_WINDOWS
 struct HIPVulkanSyncContext {
     VkDevice device;
     VkSemaphore semaphore;
@@ -57,20 +56,16 @@ static void luisa_hip_vulkan_sync_callback(void *ptr) noexcept {
     LUISA_CHECK_VULKAN(vkSignalSemaphore(ctx->device, &signal_info));
     ctx->recycle();
 }
-#endif
 
 class HIPSwapchain::Impl {
 
 private:
     static constexpr std::array required_extensions{
         VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
-        VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,
 #ifdef LUISA_PLATFORM_WINDOWS
         VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME,
-        VK_KHR_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME,
 #else
         VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
-        VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME,
 #endif
     };
 
@@ -87,18 +82,13 @@ private:
     VkDeviceMemory _image_memory{nullptr};
     VkDeviceSize _image_memory_size{};
     VkImageView _image_view{nullptr};
-    luisa::vector<VkSemaphore> _semaphores{};
 
     // HIP objects
     hipExternalMemory_t _hip_ext_image_memory{};
     void *_hip_ext_image_buffer{nullptr};
     size_t _hip_ext_image_stride{0u};
-#ifdef LUISA_PLATFORM_WINDOWS
-    luisa::vector<hipExternalSemaphore_t> _hip_ext_semaphores;
-#else
     VkSemaphore _sync_semaphore{nullptr};
     uint64_t _sync_value{0u};
-#endif
 
     [[nodiscard]] auto _find_memory_type(uint32_t type_filter, VkMemoryPropertyFlags properties) noexcept {
         VkPhysicalDeviceMemoryProperties memory_properties;
@@ -267,30 +257,6 @@ private:
         LUISA_CHECK_VULKAN(vkCreateImageView(_base.device(), &view_info, nullptr, &_image_view));
     }
 
-    void _create_semaphores() noexcept {
-
-        VkSemaphoreCreateInfo semaphore_info = {};
-        semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-        VkExportSemaphoreCreateInfoKHR export_info = {};
-        export_info.sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO_KHR;
-#ifdef LUISA_PLATFORM_WINDOWS
-        export_info.handleTypes = IsWindows8OrGreater() ?
-                                      VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_BIT :
-                                      VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT;
-#else
-        export_info.handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
-#endif
-        semaphore_info.pNext = &export_info;
-
-        auto device = _base.device();
-        auto n = _base.back_buffer_count();
-        _semaphores.resize(n);
-        for (uint32_t i = 0u; i < n; i++) {
-            LUISA_CHECK_VULKAN(vkCreateSemaphore(device, &semaphore_info, nullptr, &_semaphores[i]));
-        }
-    }
-
     void _hip_import_image() noexcept {
 
         auto vulkan_image_memory_handle = [this](auto type) noexcept {
@@ -349,60 +315,6 @@ private:
             &_hip_ext_image_buffer, _hip_ext_image_memory, &hip_ext_buffer_desc));
     }
 
-    void _hip_import_semaphore(VkSemaphore vk_semaphore,
-                               hipExternalSemaphore_t &ext_semaphore) noexcept {
-
-        auto vulkan_semaphore_handle = [this, vk_semaphore](auto type) noexcept {
-            auto device = _base.device();
-#ifdef LUISA_PLATFORM_WINDOWS
-            auto fp_vkGetSemaphoreWin32HandleKHR = reinterpret_cast<PFN_vkGetSemaphoreWin32HandleKHR>(
-                vkGetDeviceProcAddr(device, "vkGetSemaphoreWin32HandleKHR"));
-            LUISA_ASSERT(fp_vkGetSemaphoreWin32HandleKHR != nullptr,
-                         "Failed to load vkGetSemaphoreWin32HandleKHR function.");
-            HANDLE handle{};
-            VkSemaphoreGetWin32HandleInfoKHR handle_info{};
-            handle_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_WIN32_HANDLE_INFO_KHR;
-            handle_info.pNext = nullptr;
-            handle_info.semaphore = vk_semaphore;
-            handle_info.handleType = type;
-            LUISA_CHECK_VULKAN(fp_vkGetSemaphoreWin32HandleKHR(device, &handle_info, &handle));
-            return handle;
-#else
-            auto fp_vkGetSemaphoreFdKHR = reinterpret_cast<PFN_vkGetSemaphoreFdKHR>(
-                vkGetDeviceProcAddr(device, "vkGetSemaphoreFdKHR"));
-            LUISA_ASSERT(fp_vkGetSemaphoreFdKHR != nullptr,
-                         "Failed to load vkGetSemaphoreFdKHR function.");
-            auto fd = 0;
-            VkSemaphoreGetFdInfoKHR fd_info{};
-            fd_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR;
-            fd_info.pNext = nullptr;
-            fd_info.semaphore = vk_semaphore;
-            fd_info.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT_KHR;
-            LUISA_CHECK_VULKAN(fp_vkGetSemaphoreFdKHR(device, &fd_info, &fd));
-            return fd;
-#endif
-        };
-
-        hipExternalSemaphoreHandleDesc hip_ext_semaphore_handle_desc{};
-
-#ifdef LUISA_PLATFORM_WINDOWS
-        hip_ext_semaphore_handle_desc.type =
-            IsWindows8OrGreater() ?
-                hipExternalSemaphoreHandleTypeOpaqueWin32 :
-                hipExternalSemaphoreHandleTypeOpaqueWin32Kmt;
-        hip_ext_semaphore_handle_desc.handle.win32.handle = vulkan_semaphore_handle(
-            IsWindows8OrGreater() ? VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_BIT :
-                                    VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT);
-#else
-        hip_ext_semaphore_handle_desc.type = hipExternalSemaphoreHandleTypeOpaqueFd;
-        hip_ext_semaphore_handle_desc.handle.fd = vulkan_semaphore_handle(
-            VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT);
-#endif
-
-        LUISA_CHECK_HIP(hipImportExternalSemaphore(&ext_semaphore, &hip_ext_semaphore_handle_desc));
-        LUISA_ASSERT(ext_semaphore != nullptr, "Failed to import external semaphore.");
-    }
-
 private:
     void _initialize() noexcept {
         // vulkan objects
@@ -410,16 +322,8 @@ private:
         _transition_image_layout(VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
         _transition_image_layout(VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
         _create_image_view();
-        _create_semaphores();
         // cuda objects
         _hip_import_image();
-        auto n = _base.back_buffer_count();
-#ifdef LUISA_PLATFORM_WINDOWS
-        _hip_ext_semaphores.resize(n);
-        for (auto i = 0u; i < n; i++) {
-            _hip_import_semaphore(_semaphores[i], _hip_ext_semaphores[i]);
-        }
-#else
         _sync_value = 0u;
         VkSemaphoreTypeCreateInfo type_info{};
         type_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
@@ -429,30 +333,19 @@ private:
         semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
         semaphore_info.pNext = &type_info;
         LUISA_CHECK_VULKAN(vkCreateSemaphore(_base.device(), &semaphore_info, nullptr, &_sync_semaphore));
-#endif
     }
 
     void _cleanup() noexcept {
         auto device = _base.device();
-        auto n = _base.back_buffer_count();
         // cuda objects
         LUISA_CHECK_HIP(hipDeviceSynchronize());
         LUISA_CHECK_HIP(hipDestroyExternalMemory(_hip_ext_image_memory));
-#ifdef LUISA_PLATFORM_WINDOWS
-        for (auto i = 0u; i < n; i++) {
-            LUISA_CHECK_HIP(hipDestroyExternalSemaphore(_hip_ext_semaphores[i]));
-        }
-#else
         vkDestroySemaphore(_base.device(), _sync_semaphore, nullptr);
-#endif
         // vulkan objects
         LUISA_CHECK_VULKAN(vkDeviceWaitIdle(device));
         vkDestroyImageView(device, _image_view, nullptr);
         vkDestroyImage(device, _image, nullptr);
         vkFreeMemory(device, _image_memory, nullptr);
-        for (auto i = 0u; i < n; i++) {
-            vkDestroySemaphore(device, _semaphores[i], nullptr);
-        }
     }
 
 public:
@@ -482,7 +375,6 @@ public:
 
     void present(hipStream_t stream, hipArray_t image) noexcept {
 
-        LUISA_ASSERT(_current_frame < _semaphores.size(), "Invalid frame index.");
         auto name = [this] {
             std::scoped_lock lock{_name_mutex};
             return _name;
@@ -506,19 +398,10 @@ public:
         copy.Depth = 1u;
         LUISA_CHECK_HIP(hipDrvMemcpy3DAsync(&copy, stream));
 
-#ifdef LUISA_PLATFORM_WINDOWS
-        // signal that the frame is ready
-        hipExternalSemaphoreSignalParams signal_params{};
-        LUISA_ASSERT(_current_frame < _hip_ext_semaphores.size(), "Invalid frame index.");
-        auto current_semaphore = _hip_ext_semaphores[_current_frame];
-        LUISA_CHECK_HIP(hipSignalExternalSemaphoresAsync(&current_semaphore, &signal_params, 1, stream));
-
-        // present
-        _base.present(_semaphores[_current_frame], nullptr, _image_view,
-                      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-#else
         // ROCm doesn't support external semaphores on Linux yet,
         // so we have to use timeline semaphores signaled from the host.
+        // The same path is used on Windows because the external
+        // semaphore interop seems to be broken.
         auto sync_value = ++_sync_value;
         auto ctx = HIPVulkanSyncContext::create(
             _base.device(), _sync_semaphore, sync_value);
@@ -526,7 +409,6 @@ public:
         _base.present(nullptr, nullptr, _image_view,
                       VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                       _sync_semaphore, sync_value);
-#endif
 
         // update current frame index
         _current_frame = (_current_frame + 1u) % _base.back_buffer_count();
