@@ -51,7 +51,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ 13, 15 ]
+        os: [ 15 ]
     name: macos-${{ matrix.os }}
     runs-on: macos-${{ matrix.os }}
     steps:
@@ -64,15 +64,10 @@ jobs:
           brew install --overwrite llvm molten-vk
       - name: "Build Wheels"
         run: |
-          if [ "${{ matrix.os }}" = "13" ]; then
-            export CC=/usr/local/opt/llvm/bin/clang
-            export CXX=/usr/local/opt/llvm/bin/clang++
-          else
-            export CC=/opt/homebrew/opt/llvm/bin/clang
-            export CXX=/opt/homebrew/opt/llvm/bin/clang++
-          fi
+          export CC=/opt/homebrew/opt/llvm/bin/clang
+          export CXX=/opt/homebrew/opt/llvm/bin/clang++
           python3 -m pip install -U cibuildwheel --break-system-packages
-          for dep_target in {13..${{ matrix.os }}}; do
+          for dep_target in {14..${{ matrix.os }}}; do
             export MACOSX_DEPLOYMENT_TARGET=${dep_target}.0
             python3 -m cibuildwheel --output-dir wheelhouse
           done
