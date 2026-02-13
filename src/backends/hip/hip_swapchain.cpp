@@ -57,10 +57,10 @@ private:
     VkImageView _image_view{nullptr};
     luisa::vector<VkSemaphore> _semaphores{};
 
-    // HIP objectsCUexternalMemory _cuda_ext_image_memory{};
+    // HIP objects
     hipExternalMemory_t _hip_ext_image_memory{};
-    hipMipmappedArray_t _hip_ext_image_mipmapped_array{};
-    hipArray_t _hip_ext_image_array{};
+    void *_hip_ext_image_buffer{nullptr};
+    size_t _hip_ext_image_stride{0u};
     luisa::vector<hipExternalSemaphore_t> _hip_ext_semaphores;
 
     [[nodiscard]] auto _find_memory_type(uint32_t type_filter, VkMemoryPropertyFlags properties) noexcept {
@@ -99,7 +99,7 @@ private:
         image_info.mipLevels = 1;
         image_info.arrayLayers = 1;
         image_info.format = _choose_image_format();
-        image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+        image_info.tiling = VK_IMAGE_TILING_LINEAR;
         image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         image_info.usage = VK_IMAGE_USAGE_SAMPLED_BIT;
         image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
@@ -111,6 +111,14 @@ private:
         VkMemoryRequirements mem_requirements;
         vkGetImageMemoryRequirements(_base.device(), _image, &mem_requirements);
         _image_memory_size = mem_requirements.size;
+
+        VkImageSubresource subresource{};
+        subresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        subresource.mipLevel = 0;
+        subresource.arrayLayer = 0;
+        VkSubresourceLayout layout;
+        vkGetImageSubresourceLayout(_base.device(), _image, &subresource, &layout);
+        _hip_ext_image_stride = layout.rowPitch;
 
 #ifdef LUISA_PLATFORM_WINDOWS
         WindowsSecurityAttributes security_attributes;
@@ -296,18 +304,12 @@ private:
         hip_ext_memory_handle.size = _image_memory_size;
         LUISA_CHECK_HIP(hipImportExternalMemory(&_hip_ext_image_memory, &hip_ext_memory_handle));
 
-        hipExternalMemoryMipmappedArrayDesc hip_ext_mipmapped_array_desc{};
-        hip_ext_mipmapped_array_desc.offset = 0;
-        hip_ext_mipmapped_array_desc.formatDesc = _base.is_hdr() ?
-                                                      hipCreateChannelDescHalf4() :
-                                                      hipCreateChannelDesc<uchar4>();
-        hip_ext_mipmapped_array_desc.extent = {_size.x, _size.y, 0};
-        hip_ext_mipmapped_array_desc.numLevels = 1;
-        LUISA_CHECK_HIP(hipExternalMemoryGetMappedMipmappedArray(
-            &_hip_ext_image_mipmapped_array, _hip_ext_image_memory,
-            &hip_ext_mipmapped_array_desc));
-        LUISA_CHECK_HIP(hipMipmappedArrayGetLevel(
-            &_hip_ext_image_array, _hip_ext_image_mipmapped_array, 0));
+        hipExternalMemoryBufferDesc hip_ext_buffer_desc{};
+        hip_ext_buffer_desc.offset = 0;
+        hip_ext_buffer_desc.size = _image_memory_size;
+        hip_ext_buffer_desc.flags = 0;
+        LUISA_CHECK_HIP(hipExternalMemoryGetMappedBuffer(
+            &_hip_ext_image_buffer, _hip_ext_image_memory, &hip_ext_buffer_desc));
     }
 
     void _hip_import_semaphore(VkSemaphore vk_semaphore,
@@ -374,11 +376,13 @@ private:
         _create_semaphores();
         // cuda objects
         _hip_import_image();
+#ifdef LUISA_PLATFORM_WINDOWS
         auto n = _base.back_buffer_count();
         _hip_ext_semaphores.resize(n);
         for (auto i = 0u; i < n; i++) {
             _hip_import_semaphore(_semaphores[i], _hip_ext_semaphores[i]);
         }
+#endif
     }
 
     void _cleanup() noexcept {
@@ -387,10 +391,11 @@ private:
         // cuda objects
         LUISA_CHECK_HIP(hipDeviceSynchronize());
         LUISA_CHECK_HIP(hipDestroyExternalMemory(_hip_ext_image_memory));
-        LUISA_CHECK_HIP(hipMipmappedArrayDestroy(_hip_ext_image_mipmapped_array));
+#ifdef LUISA_PLATFORM_WINDOWS
         for (auto i = 0u; i < n; i++) {
             LUISA_CHECK_HIP(hipDestroyExternalSemaphore(_hip_ext_semaphores[i]));
         }
+#endif
         // vulkan objects
         LUISA_CHECK_VULKAN(vkDeviceWaitIdle(device));
         vkDestroyImageView(device, _image_view, nullptr);
@@ -443,13 +448,16 @@ public:
         HIP_MEMCPY3D copy{};
         copy.srcMemoryType = hipMemoryTypeArray;
         copy.srcArray = image;
-        copy.dstMemoryType = hipMemoryTypeArray;
-        copy.dstArray = _hip_ext_image_array;
+        copy.dstMemoryType = hipMemoryTypeDevice;
+        copy.dstDevice = _hip_ext_image_buffer;
+        copy.dstPitch = _hip_ext_image_stride;
+        copy.dstHeight = _size.y;
         copy.WidthInBytes = pixel_storage_size(pixel_storage(), make_uint3(_size.x, 1u, 1u));
-        copy.Height = pixel_storage_size(pixel_storage(), make_uint3(_size.xy(), 1u)) / copy.WidthInBytes;
+        copy.Height = _size.y;
         copy.Depth = 1u;
         LUISA_CHECK_HIP(hipDrvMemcpy3DAsync(&copy, stream));
 
+#ifdef LUISA_PLATFORM_WINDOWS
         // signal that the frame is ready
         hipExternalSemaphoreSignalParams signal_params{};
         LUISA_ASSERT(_current_frame < _hip_ext_semaphores.size(), "Invalid frame index.");
@@ -459,6 +467,13 @@ public:
         // present
         _base.present(_semaphores[_current_frame], nullptr, _image_view,
                       VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+#else
+        // ROCm doesn't support external semaphores on Linux yet,
+        // so we have to synchronize on the host.
+        LUISA_CHECK_HIP(hipStreamSynchronize(stream));
+        _base.present(nullptr, nullptr, _image_view,
+                      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+#endif
 
         // update current frame index
         _current_frame = (_current_frame + 1u) % _base.back_buffer_count();
