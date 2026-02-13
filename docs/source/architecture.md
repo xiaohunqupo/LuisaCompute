@@ -436,13 +436,13 @@ cmake --build build
 
 **Method 1: add_subdirectory**
 
-```cmake
+```bash
 # Clone with submodules
 git clone --recursive https://github.com/LuisaGroup/LuisaCompute.git
 
-# In your CMakeLists.txt
-add_subdirectory(LuisaCompute)
-target_link_libraries(your_target PRIVATE luisa::compute)
+# In your CMakeLists.txt, add:
+# add_subdirectory(LuisaCompute)
+# target_link_libraries(your_target PRIVATE luisa::compute)
 ```
 
 **Method 2: FetchContent**

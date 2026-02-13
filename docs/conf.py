@@ -3,6 +3,8 @@
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
+import os
+
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
@@ -30,13 +32,16 @@ breathe_projects = { "LuisaCompute": "output/xml" }
 breathe_default_project = "LuisaCompute"
 
 templates_path = ['_templates']
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'venv', '.venv']
+exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'venv', '.venv', 'output']
+
+# Suppress warnings for missing Doxygen XML (not generated in CI)
+suppress_warnings = ['breathe']
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_theme = 'sphinx_rtd_theme'
-html_static_path = ['_static']
+html_static_path = ['_static'] if os.path.isdir('_static') else []
 
 # -- Options for todo extension ----------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/extensions/todo.html#configuration

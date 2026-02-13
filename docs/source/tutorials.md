@@ -4,13 +4,13 @@ This section provides step-by-step tutorials for building practical applications
 
 ## Table of Contents
 
-1. [ShaderToy-Style Mandelbrot](#shadertoy-style-mandelbrot) - A gentle introduction
+1. [ShaderToy-Style Mandelbrot](#shadertoy-style-mandelbrot-set) - A gentle introduction
 2. [Path Tracing Renderer](#path-tracing-renderer) - Global illumination with ray tracing
 3. [MPM Fluid Simulation](#mpm-fluid-simulation) - Material Point Method for fluids
 
 ---
 
-## ShaderToy-Style Mandelbrot
+## ShaderToy-Style Mandelbrot Set
 
 Let's start with a simple yet visually appealing example: rendering the Mandelbrot set. This mimics the style of [ShaderToy](https://www.shadertoy.com/), a popular platform for fragment shaders.
 
@@ -693,6 +693,6 @@ stream << buffer.copy_to(host_data.data())
 
 ### Next Steps
 
-- Explore the [LuisaCompute tests](../../src/tests) for more examples
+- Explore the [LuisaCompute tests](https://github.com/LuisaGroup/LuisaCompute/tree/stable/src/tests) for more examples
 - Check [LuisaRender](https://github.com/LuisaGroup/LuisaRender) for production rendering
 - Try implementing your own simulations!
