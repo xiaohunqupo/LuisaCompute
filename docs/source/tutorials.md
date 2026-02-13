@@ -14,6 +14,7 @@ This section provides step-by-step tutorials for building practical applications
 8. [Fire Particle System](#fire-particle-system) - Physics-based fire simulation
 9. [Reaction-Diffusion](#reaction-diffusion-simulation) - Gray-Scott pattern formation
 10. [Voxel Ray Tracer](#voxel-ray-tracer) - Real-time voxel rendering
+11. [Black Hole Renderer](#black-hole-renderer) - Interstellar-style gravitational lensing
 
 ---
 
@@ -1737,14 +1738,128 @@ Kernel2D render = [&](ImageFloat image, Float3 cam_pos,
 
 ---
 
+## Black Hole Renderer
+
+Experience the mind-bending visual effects of Einstein's theory of general relativity! This example renders a Schwarzschild black hole with realistic gravitational lensing, an accretion disk, and relativistic Doppler effects—just like in the movie *Interstellar*.
+
+### What You'll See
+
+- **The Event Horizon**: A perfectly black sphere where light cannot escape
+- **Gravitational Lensing**: Stars behind the black hole bend around it, creating a distorted "Einstein ring"
+- **The Photon Sphere**: A thin bright ring just outside the event horizon where light orbits the black hole
+- **Accretion Disk**: A swirling disk of superheated matter orbiting the black hole
+- **Doppler Beaming**: The side of the disk rotating toward you appears brighter (blueshifted), while the receding side appears dimmer (redshifted)
+
+Use mouse drag to rotate around the black hole and scroll/+/- to zoom in/out. Watch how the gravitational lensing distorts the background starfield!
+
+### The Physics
+
+**Gravitational Lensing**: Massive objects bend spacetime, causing light to curve. The bending angle follows:
+```
+acceleration = -1.5 * GM / r³ * position
+```
+(This is 2x Newtonian gravity as predicted by general relativity)
+
+**Photon Sphere**: At r = 1.5 × Rs (Schwarzschild radius), light can orbit the black hole in unstable circular paths.
+
+**Accretion Disk Physics**:
+- **Temperature**: Hotter near the center (~T ∝ r^(-3/4))
+- **Doppler Effect**: Approaching matter appears brighter/bluer
+- **Gravitational Redshift**: Light loses energy climbing out of the gravity well
+
+### Step-by-Step Implementation
+
+#### Step 1: Ray Setup with Camera Transformation
+
+```cpp
+// Camera position in orbit around black hole
+Var cam_pos = make_float3(
+    distance * sin(rot_y) * cos(rot_x),
+    distance * sin(rot_x),  
+    distance * cos(rot_y) * cos(rot_x)
+);
+
+// Ray direction through each pixel
+Var ray_dir = normalize(forward + ndc.x * right * fov + ndc.y * up * fov);
+```
+
+#### Step 2: Gravitational Ray Marching
+
+```cpp
+$for (step, max_steps) {
+    Var r = length(pos);
+    
+    // Hit event horizon?
+    $if (r < bh_radius) { $break; };
+    
+    // Gravitational bending (general relativity)
+    Var accel = -1.5f * bh_mass / (r * r * r) * pos;
+    dir = normalize(dir + accel * dt);
+    
+    // Step forward
+    pos = pos + dir * dt;
+};
+```
+
+#### Step 3: Accretion Disk Rendering
+
+```cpp
+// Check disk intersection (thin disk in XZ plane)
+$if (abs(pos.y) < 0.3f & r > inner_radius & r < outer_radius) {
+    // Keplerian orbital velocity
+    Var orbital_speed = sqrt(bh_mass / r);
+    
+    // Temperature profile
+    Var temp = 2.0f * pow(outer_radius / r, 0.75f);
+    
+    // Doppler beaming from orbital motion
+    Var doppler = dot(orbital_dir, ray_dir);
+    Var beaming = pow(1.0f + doppler * orbital_speed * 2.0f, 2.0f);
+    
+    // Gravitational redshift
+    Var redshift = sqrt(1.0f - bh_radius / r);
+    
+    // Final color with all effects
+    color = disk_color * beaming * redshift;
+};
+```
+
+#### Step 4: Background Starfield
+
+```cpp
+// Procedural stars for lensing demonstration
+auto get_star_color = [&](Float3 rd) noexcept {
+    Var star_noise = fract(sin(rd.x * 123.45f + ...) * 43758.5453f);
+    Var star_brightness = ite(star_noise > 0.995f, star_noise, 0.0f);
+    return make_float3(star_brightness);
+};
+```
+
+### Key Concepts
+
+1. **Geodesic Ray Tracing**: Light follows curved paths in curved spacetime
+2. **Relativistic Doppler Effect**: Motion toward/away affects brightness and color
+3. **Gravitational Redshift**: Light loses energy escaping gravity
+4. **Photon Sphere**: Where light can orbit the black hole
+
+### Exercises
+
+1. **Spinning Black Hole**: Add frame-dragging effects (Kerr metric) for a rotating black hole
+2. **Multiple Black Holes**: Simulate a binary black hole system
+3. **Time Dilation**: Visualize clock slowing near the event horizon
+4. **Gravitational Waves**: Add ripples to the accretion disk from merging black holes
+
+---
+
 ## Summary
 
-Congratulations! You've explored ten fascinating GPU computing tutorials that demonstrate the breadth of what's possible with LuisaCompute:
+Congratulations! You've explored eleven fascinating GPU computing tutorials that demonstrate the breadth of what's possible with LuisaCompute:
 
 ### Visual Effects & Rendering
 1. **Mandelbrot**: Mathematical beauty through iterative complex numbers
 2. **Path Tracer**: Physically-based global illumination with ray tracing
 3. **Voxel Ray Tracer**: Real-time ray marching through 3D voxel grids
+4. **Black Hole**: Gravitational lensing and relativistic ray tracing (Interstellar-style)
 
 ### Physics Simulations
 4. **MPM**: Material Point Method for fluid/solid simulation
@@ -1769,6 +1884,7 @@ Congratulations! You've explored ten fascinating GPU computing tutorials that de
 | Fire | SPACE to toggle wind |
 | Reaction-Diffusion | 1-4 to switch patterns, R to reset |
 | Voxel Ray Tracer | Arrow keys to rotate, W/S to zoom |
+| Black Hole | Mouse drag to rotate, scroll/+/- to zoom |
 
 ### What You've Learned
 
