@@ -1750,7 +1750,11 @@ Experience the mind-bending visual effects of Einstein's theory of general relat
 - **Accretion Disk**: A swirling disk of superheated matter orbiting the black hole
 - **Doppler Beaming**: The side of the disk rotating toward you appears brighter (blueshifted), while the receding side appears dimmer (redshifted)
 
-Use mouse drag to rotate around the black hole and scroll/+/- to zoom in/out. Watch how the gravitational lensing distorts the background starfield!
+- **Left Mouse Drag**: Orbit around the black hole
+- **Right Mouse Drag**: Roll/rotate the view (rotate around viewing direction)
+- **Scroll Wheel** or **+/-**: Zoom in/out
+
+Watch how the gravitational lensing distorts the background starfield!
 
 ### The Physics
 
@@ -1862,17 +1866,17 @@ Congratulations! You've explored eleven fascinating GPU computing tutorials that
 4. **Black Hole**: Gravitational lensing and relativistic ray tracing (Interstellar-style)
 
 ### Physics Simulations
-4. **MPM**: Material Point Method for fluid/solid simulation
-5. **Wave Equation**: Interactive water ripples with caustics rendering
-6. **N-Body**: Gravitational galaxy simulation with 4,000+ particles
+5. **MPM**: Material Point Method for fluid/solid simulation
+6. **Wave Equation**: Interactive water ripples with caustics rendering
+7. **N-Body**: Gravitational galaxy simulation with 4,000+ particles
 
 ### Pattern Formation & Cellular Automata
-7. **Game of Life**: Classic cellular automata with emergent behavior
-8. **Reaction-Diffusion**: Gray-Scott chemical patterns mimicking nature
+8. **Game of Life**: Classic cellular automata with emergent behavior
+9. **Reaction-Diffusion**: Gray-Scott chemical patterns mimicking nature
 
 ### Image Processing & Particles
-9. **Image Processing**: Multi-pass Gaussian blur and edge detection
-10. **Fire Particles**: 65,000 temperature-driven animated particles
+10. **Image Processing**: Multi-pass Gaussian blur and edge detection
+11. **Fire Particles**: 65,000 temperature-driven animated particles
 
 ### Interactive Features Summary
 
@@ -1884,7 +1888,7 @@ Congratulations! You've explored eleven fascinating GPU computing tutorials that
 | Fire | SPACE to toggle wind |
 | Reaction-Diffusion | 1-4 to switch patterns, R to reset |
 | Voxel Ray Tracer | Arrow keys to rotate, W/S to zoom |
-| Black Hole | Mouse drag to rotate, scroll/+/- to zoom |
+| Black Hole | Left drag=Orbit, Right drag=Roll, Scroll/+/-=Zoom |
 
 ### What You've Learned
 
@@ -1898,6 +1902,7 @@ Congratulations! You've explored eleven fascinating GPU computing tutorials that
 8. **Fire Particles**: Particle systems with lifecycle management and procedural noise
 9. **Reaction-Diffusion**: Coupled PDEs and pattern formation
 10. **Voxel Ray Tracer**: 3D grid traversal and ray-box intersection
+11. **Black Hole**: Gravitational lensing, geodesic ray tracing, relativistic effects
 
 ### Performance Tips
 
