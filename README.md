@@ -2,12 +2,14 @@
 
 ![teaser](https://user-images.githubusercontent.com/7614925/195987646-fe932ebe-ca6e-4d6e-ab2a-203bcfd3d559.jpg)
 
+[**[Documentation]**](https://luisa-render.com/LuisaCompute) | [**[Project Page]**](https://luisa-render.com) | [**[Paper]**](https://doi.org/10.1145/3550454.3555463) | [**[Discord]**](https://discord.com/invite/ymYEBkUa7F)
+
 LuisaCompute is a high-performance cross-platform computing framework for graphics and beyond.
 
 LuisaCompute is also the *rendering framework* described in the **SIGGRAPH Asia 2022** paper
 > ***LuisaRender: A High-Performance Rendering Framework with Layered and Unified Interfaces on Stream Architectures***.
 
-See also [LuisaRender](https://github.com/LuisaGroup/LuisaRender) for the *rendering application* as described in the paper; and please visit the [project page](https://luisa-render.com) for other information about the paper and the project.
+See also [LuisaRender](https://github.com/LuisaGroup/LuisaRender) for the *rendering application* as described in the paper.
 
 Welcome to join the [discussion channel on Discord](https://discord.com/invite/ymYEBkUa7F)!
 
@@ -547,7 +549,9 @@ We implement several proof-of-concept examples in tree under `src/tests` (sorry 
 
 ## Documentation and Tutorials
 
-Sorry that we are still working on them. Currently, we would recommand reading the original [paper](https://luisa-render.com) and learning through the examples and applications.
+The documentation for LuisaCompute is available at [luisa-render.com/LuisaCompute](https://luisa-render.com/LuisaCompute).
+
+Currently, we also recommend reading the original [paper](https://luisa-render.com) and learning through the examples and applications.
 
 If you have any problem or suggestion, please just feel free to open an [issue](https://github.com/LuisaGroup/LuisaCompute/issues) or start a [discussion](https://github.com/LuisaGroup/LuisaCompute/discussions). We are very happy to hear from you!
 
