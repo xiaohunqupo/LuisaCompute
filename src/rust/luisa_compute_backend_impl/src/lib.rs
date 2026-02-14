@@ -242,7 +242,7 @@ pub extern "C" fn luisa_compute_lib_interface() -> api::LibInterface {
     }
 }
 
-const IR_V2_BINDING_TABLE: AtomicPtr<IrV2BindingTable> = AtomicPtr::new(std::ptr::null_mut());
+static IR_V2_BINDING_TABLE: AtomicPtr<IrV2BindingTable> = AtomicPtr::new(std::ptr::null_mut());
 #[no_mangle]
 pub extern "C" fn luisa_compute_set_ir_v2_binding(table: *const IrV2BindingTable) {
     IR_V2_BINDING_TABLE.store(
