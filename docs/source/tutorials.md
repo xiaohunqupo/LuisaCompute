@@ -662,45 +662,6 @@ while (!window.should_close()) {
 
 ---
 
-## Summary
-
-These tutorials demonstrate:
-
-1. **Mandelbrot**: Basic kernel structure, loops, and image output
-2. **Path Tracer**: Ray tracing, acceleration structures, sampling
-3. **MPM**: Complex simulation with multiple kernels, atomic operations
-
-### Common Patterns
-
-All examples follow this structure:
-
-```cpp
-// 1. Setup
-Context context{argv[0]};
-Device device = context.create_device("cuda");
-Stream stream = device.create_stream();
-
-// 2. Create resources
-Buffer<T> buffer = device.create_buffer<T>(size);
-Image<float> image = device.create_image<float>(...);
-
-// 3. Define kernels
-Kernel2D kernel = [&](...) noexcept {
-    // GPU code
-};
-
-// 4. Compile and execute
-auto shader = device.compile(kernel);
-stream << shader(args...).dispatch(size)
-       << synchronize();
-
-// 5. Retrieve results
-stream << buffer.copy_to(host_data.data())
-       << synchronize();
-```
-
----
-
 ## Conway's Game of Life
 
 Cellular automata are fascinating discrete systems. Let's implement Conway's Game of Life, a classic example that demonstrates **ping-pong buffering** - a technique where we alternate between two buffers to avoid read-write conflicts.
