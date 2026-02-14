@@ -1768,26 +1768,48 @@ $for (step, max_steps) {
 
 #### Step 3: Accretion Disk Rendering
 
+The accretion disk is a thin sheet in the XZ plane. To render it correctly with proper depth ordering, we detect when the ray crosses the plane and determine whether we're hitting the front (visible) or back (hidden behind black hole) side:
+
 ```cpp
-// Check disk intersection (thin disk in XZ plane)
-$if (abs(pos.y) < 0.3f & r > inner_radius & r < outer_radius) {
-    // Keplerian orbital velocity
-    Var orbital_speed = sqrt(bh_mass / r);
+// Track previous position to detect plane crossing
+Var prev_y = cam_pos.y;
+
+$for (step, max_steps) {
+    // ... ray marching loop ...
     
-    // Temperature profile
-    Var temp = 2.0f * pow(outer_radius / r, 0.75f);
+    // Check if we crossed the disk plane (XZ plane at y=0)
+    Var crossed_plane = (prev_y > 0.0f & pos.y <= 0.0f) | 
+                        (prev_y < 0.0f & pos.y >= 0.0f);
     
-    // Doppler beaming from orbital motion
-    Var doppler = dot(orbital_dir, ray_dir);
-    Var beaming = pow(1.0f + doppler * orbital_speed * 2.0f, 2.0f);
+    $if (crossed_plane & r > inner_radius & r < outer_radius) {
+        // Interpolate to find exact intersection point
+        Var t = abs(prev_y) / (abs(prev_y) + abs(pos.y));
+        Var intersect_pos = prev_pos * (1.0f - t) + pos * t;
+        Var intersect_r = length(intersect_pos);
+        
+        // Calculate disk color (temperature, Doppler beaming, etc.)
+        // ... color calculation code ...
+        
+        // Determine if this is front or back side
+        // Front side: ray moving toward the plane from camera
+        Var moving_toward_plane = (cam_pos.y > 0.0f & pos.y < prev_y) | 
+                                  (cam_pos.y < 0.0f & pos.y > prev_y);
+        
+        $if (moving_toward_plane) {
+            // Front side - use this sample
+            disk_color = local_disk_color;
+            hit_disk = true;
+        }
+        $else {
+            // Back side - only use if front wasn't hit
+            // (handles edge case of camera inside disk radius)
+            $if (!hit_disk) { disk_color = local_disk_color; };
+        };
+    };
     
-    // Gravitational redshift
-    Var redshift = sqrt(1.0f - bh_radius / r);
-    
-    // Final color with all effects
-    color = disk_color * beaming * redshift;
+    prev_y = pos.y;  // Update for next iteration
+    // ... continue ray marching ...
 };
-```
 
 #### Step 4: Background Starfield
 
@@ -1806,6 +1828,7 @@ auto get_star_color = [&](Float3 rd) noexcept {
 2. **Relativistic Doppler Effect**: Motion toward/away affects brightness and color
 3. **Gravitational Redshift**: Light loses energy escaping gravity
 4. **Photon Sphere**: Where light can orbit the black hole
+5. **Depth-Ordered Rendering**: The accretion disk must be rendered with proper front/back ordering so the back side (behind the black hole) doesn't incorrectly show through the event horizon
 
 ### Exercises
 
