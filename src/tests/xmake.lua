@@ -108,6 +108,14 @@ end
 if has_config("lc_enable_ir") then
     test_proj('test_autodiff')
     test_proj('test_autodiff_full')
+    test_proj('test_ast2ir')
+    test_proj('test_ast2ir_headless')
+    test_proj('test_ast2ir_ir2ast')
+    if has_config("lc_enable_gui") then
+        test_proj('test_kernel_ir', true)
+        test_proj('test_sdf_renderer_ir', true)
+        test_proj('test_path_tracing_ir', true)
+    end
 end
 
 test_proj("test_helloworld")
@@ -116,17 +124,39 @@ test_proj("test_ast")
 test_proj("test_atomic")
 test_proj("test_bindless", true)
 test_proj("test_bindless_buffer", true)
+test_proj("test_binding_group")
+test_proj("test_binding_group_template")
 test_proj("test_soa")
 test_proj("test_callable")
 test_proj("test_decoupled_look_back")
 test_proj("test_dsl")
 test_proj("test_warp")
+test_proj("test_warp_prefix_scan")
 test_proj("test_dsl_multithread")
 test_proj("test_dsl_sugar")
+test_proj("test_constant")
+test_proj("test_copy")
+test_proj("test_cpu_callable")
+test_proj("test_curve", true)
+test_proj("test_curve_pbrt", true)
+test_proj("test_curve_pbrt_diffuse", true)
+test_proj("test_device_debugger")
+test_proj("test_denoiser", true)
 test_proj("test_game_of_life", true)
 test_proj("test_mpm3d", true)
 test_proj("test_mpm88", true)
+test_proj("test_image_processing")
+test_proj("test_indirect", true)
+test_proj("test_indirect_rtx", true)
+test_proj("test_mipmap", true)
+test_proj("test_motion_blur", true)
+test_proj("test_nbody_simulation")
 test_proj("test_normal_encoding")
+if has_config('lc_enable_osl') then
+    test_proj("test_oso_parser", false, function()
+        add_deps('lc-osl')
+    end)
+end
 -- test_proj("test_win_hdr", true, function()
 --     after_build(function(target)
 --         os.cp(path.join(os.scriptdir(), "genshin_start.jpg"), path.join(target:targetdir(), "genshin_start.jpg"))
@@ -143,6 +173,8 @@ test_proj("test_mnist", true, function()
     end)
 end, "shared")
 test_proj("test_path_tracing", true)
+test_proj("test_path_tracing_nested_callable", true)
+test_proj("test_path_tracing_ray_masks", true)
 test_proj("test_path_tracing_spectrum", true, function()
     after_build(function(target)
         os.cp(path.join(os.scriptdir(), "SRGBToFourierEvenPacked.dat"),
@@ -161,10 +193,10 @@ test_proj("test_printer")
 test_proj("test_matrix")
 test_proj("test_printer_custom_callback")
 test_proj("test_procedural")
+test_proj("test_procedural_callable")
 test_proj("test_rtx")
 test_proj("test_runtime", true)
 test_proj("test_sampler")
--- test_proj("test_denoiser", true)
 test_proj("test_sdf_renderer", true, function()
     add_defines("ENABLE_DISPLAY")
 end)
@@ -175,18 +207,26 @@ test_proj("test_texture_io")
 test_proj("test_type")
 test_proj("test_texture_compress")
 test_proj("test_swapchain", true)
+-- test_proj("test_swapchain_qt", true)
 test_proj("test_swapchain_static", true)
+-- test_proj("test_swapchain_wx", true)
 test_proj("test_select_device", true)
--- test_proj("test_dstorage", true)
--- test_proj("test_indirect", true)
+test_proj("test_soa_simple")
+test_proj("test_dstorage", true)
+test_proj("test_dstorage_decompression", true)
 test_proj("test_texture3d", true)
 test_proj("test_atomic_queue", true)
 test_proj("test_shared_memory", true)
 test_proj("test_native_include", true)
 test_proj("test_pinned_mem")
+test_proj("test_present", true)
+test_proj("test_voxel_raytracer")
+test_proj("test_blackhole")
+test_proj("test_wave_equation")
 test_proj("test_imgui", true, function()
     add_deps("imgui")
 end)
+test_proj("test_win_hdr", true)
 test_proj("test_transient_resource", true, function()
     add_files("transient_resource_device/*.cpp")
 end)
@@ -201,6 +241,19 @@ if has_config("lc_dx_backend") then
     test_proj("test_raster", true)
     test_proj("test_dml")
 end
+
+-- Raytracing weekend test (uses main.cpp subdirectory)
+target("test_raytracing_weekend")
+add_deps("lc-backends-dummy", {
+    inherit = false,
+    links = false
+})
+_config_project({
+    project_kind = "binary"
+})
+add_files("test_raytracing_weekend/main.cpp")
+add_deps("lc-runtime", "lc-dsl", "lc-vstl", "stb-image")
+target_end()
 test_proj("test_manual_ast")
 if not is_mode("debug") then
     if has_config("lc_enable_clangcxx") then
@@ -214,6 +267,13 @@ end
 if has_config("lc_cuda_ext_lcub") then
     test_proj("test_cuda_lcub", false, function()
         add_deps("lc-compute-cuda-ext-lcub")
+    end)
+end
+
+-- XIR tests
+if has_config("lc_enable_xir") then
+    test_proj("test_ast_to_xir", false, function()
+        add_defines('LUISA_ENABLE_XIR')
     end)
 end
 
