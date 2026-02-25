@@ -77,7 +77,7 @@ private:
     marl::Event _evt;
 public:
     using Mode = marl::Event::Mode;
-    event(Mode mode = Mode::Manual, bool init_signalled = false) noexcept
+    explicit event(Mode mode = Mode::Manual, bool init_signalled = false) noexcept
         : _evt{mode, init_signalled} {}
     void signal() const noexcept {
         _evt.signal();
@@ -133,7 +133,7 @@ template<typename T>
 struct NonMovableAtomic {
     std::atomic<T> value;
     NonMovableAtomic() noexcept = default;
-    NonMovableAtomic(T &&t) noexcept : value{std::move(t)} {}
+    explicit NonMovableAtomic(T &&t) noexcept : value{std::move(t)} {}
     NonMovableAtomic(NonMovableAtomic const &) = delete;
     NonMovableAtomic(NonMovableAtomic &&rhs) noexcept
         : value{rhs.value.load()} {

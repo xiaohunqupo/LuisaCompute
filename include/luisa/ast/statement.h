@@ -532,7 +532,7 @@ private:
     [[nodiscard]] uint64_t _compute_hash() const noexcept override;
 
 private:
-    DebugBreakStmt() noexcept = default;// for Maxwell's dear CallableLibrary
+    DebugBreakStmt() noexcept : _wrapper{nullptr} {}// for Maxwell's dear CallableLibrary
 
 public:
     DebugBreakStmt(Wrapper *wrapper, luisa::vector<const Expression *> watches) noexcept;

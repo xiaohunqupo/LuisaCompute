@@ -56,7 +56,7 @@ int main(int argc, char *argv[]) {
             s.b = coord;
             // Break point with custom trap function (dispatch_id is always captured for convenience)
             $debug_break_on(s, v, coord, my_trap(dispatch_id, s, v, coord));
-            $outline_with_name(my_logger) {
+            $outline_with_name("my_logger") {
                 device_log("s = {} at {}", s, dispatch_id());
             };
             // Custom trap function without parameters (useful for use with interactive debuggers)

@@ -16,7 +16,7 @@ namespace luisa::fiber {
 template<typename T>
 class Future {
 public:
-    Future(marl::Allocator *allocator = marl::Allocator::Default);
+    explicit Future(marl::Allocator *allocator = marl::Allocator::Default);
     template<typename... Args>
         requires(luisa::is_constructible_v<T, Args && ...>)
     void signal(Args &&...) const;
@@ -43,7 +43,7 @@ public:
     [[nodiscard]] bool isSignalled() const;
     Future(Future const &) = default;
     Future(Future &&) = default;
-    Future &operator=(Future &&rhs) {
+    Future &operator=(Future &&rhs) noexcept {
         if (std::addressof(rhs) == this) [[unlikely]]
             return *this;
         std::destroy_at(this);
@@ -60,7 +60,7 @@ public:
 
 private:
     struct Shared {
-        [[nodiscard]] Shared(marl::Allocator *allocator);
+        explicit Shared(marl::Allocator *allocator);
         template<typename... Args>
         void signal(Args &&...args);
         T &wait();
