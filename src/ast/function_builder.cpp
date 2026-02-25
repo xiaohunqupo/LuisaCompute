@@ -551,6 +551,10 @@ void FunctionBuilder::call(Function custom, std::initializer_list<const Expressi
     static_cast<void>(call(nullptr, custom, args));
 }
 bool FunctionBuilder::operator==(const FunctionBuilder &rhs) const noexcept {
+    // TODO FIXME hash is broken!
+    return std::addressof(rhs) == this;
+
+    /*
     if (std::addressof(rhs) == this) [[unlikely]] {
         return true;
     }
@@ -585,6 +589,7 @@ bool FunctionBuilder::operator==(const FunctionBuilder &rhs) const noexcept {
     // Compare required curve bases
     if (_required_curve_bases != rhs._required_curve_bases) { return false; }
     return true;
+ */
 }
 
 void FunctionBuilder::_compute_hash() noexcept {
