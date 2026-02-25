@@ -556,6 +556,7 @@ bool FunctionBuilder::operator==(const FunctionBuilder &rhs) const noexcept {
     }
     // Compare tag
     if (_tag != rhs._tag) { return false; }
+    if (hash() != rhs.hash()) { return false; }
     // Compare body (using hash)
     if (_body.hash() != rhs._body.hash()) { return false; }
     if (_all_expressions.size() != rhs._all_expressions.size()) { return false; }
@@ -566,7 +567,9 @@ bool FunctionBuilder::operator==(const FunctionBuilder &rhs) const noexcept {
     // Compare arguments
     if (_arguments.size() != rhs._arguments.size()) { return false; }
     for (size_t i = 0; i < _arguments.size(); ++i) {
-        if (_arguments[i] != rhs._arguments[i]) { return false; }
+        auto &&a = _arguments[i];
+        auto &&b = rhs._arguments[i];
+        if (a.hash() != b.hash()) { return false; }
     }
     // Compare captured constants
     if (_captured_constants.size() != rhs._captured_constants.size()) { return false; }
@@ -574,9 +577,11 @@ bool FunctionBuilder::operator==(const FunctionBuilder &rhs) const noexcept {
         if (_captured_constants[i] != rhs._captured_constants[i]) { return false; }
     }
     // Compare block size
-    if (_block_size[0] != rhs._block_size[0] ||
-        _block_size[1] != rhs._block_size[1] ||
-        _block_size[2] != rhs._block_size[2]) { return false; }
+    if (_tag == Function::Tag::KERNEL) [[unlikely]] {
+        if (_block_size[0] != rhs._block_size[0] ||
+            _block_size[1] != rhs._block_size[1] ||
+            _block_size[2] != rhs._block_size[2]) { return false; }
+    }
     // Compare required curve bases
     if (_required_curve_bases != rhs._required_curve_bases) { return false; }
     return true;
