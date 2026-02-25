@@ -106,7 +106,7 @@ private:
         const Expression * /* captured */>
         _internalizer_arguments;
     luisa::vector<luisa::shared_ptr<const ExternalFunction>> _used_external_functions;
-    luisa::vector<luisa::shared_ptr<const FunctionBuilder>> _used_custom_callables;
+    FuncBuilderMap _used_custom_callables;
     luisa::vector<Variable> _local_variables;
     luisa::vector<Variable> _shared_variables;
     luisa::vector<Usage> _variable_usages;
@@ -214,7 +214,7 @@ public:
     /// Return a span of unbound arguments.
     [[nodiscard]] auto unbound_arguments() const noexcept { return luisa::span{_arguments}.subspan(_bound_arguments.size()); }
     /// Return a span of custom callables.
-    [[nodiscard]] auto custom_callables() const noexcept { return luisa::span{_used_custom_callables}; }
+    [[nodiscard]] auto const &custom_callables() const noexcept { return _used_custom_callables; }
     /// Return a span of external callables.
     [[nodiscard]] auto external_callables() const noexcept { return luisa::span{_used_external_functions}; }
     /// Return a CallOpSet of builtin callables that are directly called.
@@ -468,6 +468,7 @@ public:
 
     /// Duplicate the function builder, also perform certain simplifications and canonicalizations.
     [[nodiscard]] luisa::shared_ptr<const FunctionBuilder> duplicate() const noexcept;
+    [[nodiscard]] bool operator==(const FunctionBuilder &rhs) const noexcept;
 };
 
 }// namespace luisa::compute::detail

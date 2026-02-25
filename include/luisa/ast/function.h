@@ -1,6 +1,7 @@
 #pragma once
 
 #include <luisa/core/basic_types.h>
+#include <luisa/core/stl/unordered_map.h>
 #include <luisa/ast/op.h>
 #include <luisa/ast/variable.h>
 #include <luisa/ast/expression.h>
@@ -13,7 +14,26 @@ class CurveBasisSet;
 
 namespace detail {
 class FunctionBuilder;
-}
+struct FuncBuilderHash {
+    LUISA_AST_API size_t operator()(const FunctionBuilder *ptr, uint64_t hash = hash64_default_seed) const noexcept;
+    size_t operator()(luisa::shared_ptr<const FunctionBuilder> const &ptr, uint64_t hash = hash64_default_seed) const noexcept {
+        return operator()(ptr.get(), hash);
+    }
+};
+struct FuncBuilderEqual {
+    LUISA_AST_API bool operator()(const FunctionBuilder *a, const FunctionBuilder *b) const noexcept;
+    bool operator()(const FunctionBuilder *a, luisa::shared_ptr<const FunctionBuilder> const &b) const noexcept {
+        return operator()(a, b.get());
+    }
+    bool operator()(luisa::shared_ptr<const FunctionBuilder> const &a, const FunctionBuilder *b) const noexcept {
+        return operator()(a.get(), b);
+    }
+    bool operator()(luisa::shared_ptr<const FunctionBuilder> const &a, luisa::shared_ptr<const FunctionBuilder> const &b) const noexcept {
+        return operator()(a.get(), b.get());
+    }
+};
+using FuncBuilderMap = luisa::unordered_set<luisa::shared_ptr<const FunctionBuilder>, FuncBuilderHash, FuncBuilderEqual>;
+}// namespace detail
 
 class ScopeStmt;
 class Expression;
@@ -118,7 +138,7 @@ public:
     /// Return unbound arguments
     [[nodiscard]] luisa::span<const Variable> unbound_arguments() const noexcept;
     /// Return custom callables
-    [[nodiscard]] luisa::span<const luisa::shared_ptr<const detail::FunctionBuilder>> custom_callables() const noexcept;
+    [[nodiscard]] detail::FuncBuilderMap const &custom_callables() const noexcept;
     /// Return external callables
     [[nodiscard]] luisa::span<const luisa::shared_ptr<const ExternalFunction>> external_callables() const noexcept;
     /// Return builtin callables that are *directly* used by this function
@@ -171,4 +191,3 @@ public:
 };
 
 }// namespace luisa::compute
-

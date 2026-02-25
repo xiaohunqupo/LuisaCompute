@@ -550,6 +550,37 @@ void FunctionBuilder::call(CallOp call_op, std::initializer_list<const Expressio
 void FunctionBuilder::call(Function custom, std::initializer_list<const Expression *> args) noexcept {
     static_cast<void>(call(nullptr, custom, args));
 }
+bool FunctionBuilder::operator==(const FunctionBuilder &rhs) const noexcept {
+    if (std::addressof(rhs) == this) [[unlikely]] {
+        return true;
+    }
+    // Compare tag
+    if (_tag != rhs._tag) { return false; }
+    // Compare body (using hash)
+    if (_body.hash() != rhs._body.hash()) { return false; }
+    if (_all_expressions.size() != rhs._all_expressions.size()) { return false; }
+    if (_all_statements.size() != rhs._all_statements.size()) { return false; }
+    // Compare return type
+    if (_return_type.has_value() != rhs._return_type.has_value()) { return false; }
+    if (_return_type.has_value() && *_return_type.value() != *rhs._return_type.value()) { return false; }
+    // Compare arguments
+    if (_arguments.size() != rhs._arguments.size()) { return false; }
+    for (size_t i = 0; i < _arguments.size(); ++i) {
+        if (_arguments[i] != rhs._arguments[i]) { return false; }
+    }
+    // Compare captured constants
+    if (_captured_constants.size() != rhs._captured_constants.size()) { return false; }
+    for (size_t i = 0; i < _captured_constants.size(); ++i) {
+        if (_captured_constants[i] != rhs._captured_constants[i]) { return false; }
+    }
+    // Compare block size
+    if (_block_size[0] != rhs._block_size[0] ||
+        _block_size[1] != rhs._block_size[1] ||
+        _block_size[2] != rhs._block_size[2]) { return false; }
+    // Compare required curve bases
+    if (_required_curve_bases != rhs._required_curve_bases) { return false; }
+    return true;
+}
 
 void FunctionBuilder::_compute_hash() noexcept {
     if (_hash_computed) {
@@ -715,13 +746,9 @@ const FuncRefExpr *FunctionBuilder::func_ref(Function custom) noexcept {
         LUISA_ERROR_WITH_LOCATION(
             "Calling non-callable function in device code.");
     }
-    auto f = custom.builder();
-    auto expr = _create_expression<FuncRefExpr>(custom.builder());
-    if (auto iter = std::find_if(
-            _used_custom_callables.cbegin(), _used_custom_callables.cend(),
-            [&](auto &&p) noexcept { return f == p.get(); });
-        iter == _used_custom_callables.cend()) {
-        _used_custom_callables.emplace_back(custom.shared_builder());
+    auto iter = _used_custom_callables.emplace(custom.shared_builder());
+    auto f = iter.first->get();
+    if (iter.second) {
         // propagate used builtin/custom callables and constants
         _propagated_builtin_callables.propagate(f->_propagated_builtin_callables);
         _required_curve_bases.propagate(f->_required_curve_bases);
@@ -729,6 +756,7 @@ const FuncRefExpr *FunctionBuilder::func_ref(Function custom) noexcept {
         _requires_atomic_float |= f->_requires_atomic_float;
         _requires_printing |= f->_requires_printing;
     }
+    auto expr = _create_expression<FuncRefExpr>(f);
     return expr;
 }
 
@@ -738,6 +766,8 @@ const CallExpr *FunctionBuilder::call(const Type *type, Function custom, luisa::
             "Calling non-callable function in device code.");
     }
     auto f = custom.builder();
+    auto iter = _used_custom_callables.emplace(custom.shared_builder());
+    f = iter.first->get();
     CallExpr::ArgumentList call_args(f->_arguments.size(), nullptr);
     auto in_iter = args.begin();
     for (auto i = 0u; i < f->_arguments.size(); i++) {
@@ -795,12 +825,8 @@ const CallExpr *FunctionBuilder::call(const Type *type, Function custom, luisa::
             "Received: {}.",
             custom.hash(), expected_args, received_args);
     }
-    auto expr = _create_expression<CallExpr>(type, custom, std::move(call_args));
-    if (auto iter = std::find_if(
-            _used_custom_callables.cbegin(), _used_custom_callables.cend(),
-            [&](auto &&p) noexcept { return f == p.get(); });
-        iter == _used_custom_callables.cend()) {
-        _used_custom_callables.emplace_back(custom.shared_builder());
+
+    if (iter.second) {
         // propagate used builtin/custom callables and constants
         _propagated_builtin_callables.propagate(f->_propagated_builtin_callables);
         _required_curve_bases.propagate(f->_required_curve_bases);
@@ -808,10 +834,7 @@ const CallExpr *FunctionBuilder::call(const Type *type, Function custom, luisa::
         _requires_atomic_float |= f->_requires_atomic_float;
         _requires_printing |= f->_requires_printing;
     }
-    if (type == nullptr) {
-        _void_expr(expr);
-        return nullptr;
-    }
+    auto expr = _create_expression<CallExpr>(type, Function(iter.first->get()), std::move(call_args));
     return expr;
 }
 
@@ -1007,7 +1030,8 @@ bool is_expr_statically_evaluated(const Expression *expr) noexcept {
             return is_expr_statically_evaluated(e->index()) &&
                    is_expr_statically_evaluated(e->range());
         }
-        case Expression::Tag::LITERAL: case Expression::Tag::CONSTANT: return true;
+        case Expression::Tag::LITERAL:
+        case Expression::Tag::CONSTANT: return true;
         case Expression::Tag::CALL: {
             auto e = static_cast<CallExpr const *>(expr);
             if (e->is_external()) { return false; }
@@ -1237,5 +1261,22 @@ void FunctionBuilder::set_allowed_warp_size(uint8_t value) noexcept {
 }
 void FunctionBuilder::clear_allowed_warp_size() noexcept {
     _allowed_warp_size = 255;
+}
+bool FuncBuilderEqual::operator()(const FunctionBuilder *a, const FunctionBuilder *b) const noexcept {
+    if (a != nullptr && b != nullptr) {
+        return *a == *b;
+    }
+    return a == b;
+}
+size_t FuncBuilderHash::operator()(const FunctionBuilder *ptr, uint64_t hash) const noexcept {
+    if (ptr) {
+        if (hash == hash64_default_seed) [[likely]] {
+            return ptr->hash();
+        } else {
+            return hash_value(ptr->hash(), hash);
+        }
+    } else {
+        return 0;
+    }
 }
 }// namespace luisa::compute::detail

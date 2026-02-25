@@ -47,8 +47,7 @@ const ScopeStmt *Function::body() const noexcept {
     return _builder->body();
 }
 
-luisa::span<const luisa::shared_ptr<const detail::FunctionBuilder>>
-Function::custom_callables() const noexcept {
+detail::FuncBuilderMap const &Function::custom_callables() const noexcept {
     return _builder->custom_callables();
 }
 
