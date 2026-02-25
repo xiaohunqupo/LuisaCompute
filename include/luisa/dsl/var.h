@@ -67,6 +67,12 @@ public:
         detail::apply_default_initializer(*this);
     }
 
+    void set_name(luisa::string_view name) const noexcept {
+        detail::FunctionBuilder::current()->set_variable_name(
+            static_cast<RefExpr const *>(this->expression())->variable().uid(),
+            name);
+    }
+
     /**
      * @brief Construct and initialize from a tuple of arguments.
      */

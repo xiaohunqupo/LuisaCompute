@@ -104,6 +104,7 @@ int main(int argc, char *argv[]) {
     Callable bb = [&](BindlessVar a) noexcept {
         return a.buffer<TriArray>(0u).read(0u);
     };
+    bb.function_builder()->set_name("my_function_bb");
 
     // Callable demonstrating struct variables and buffer capture
     Callable c1 = [&](UInt a) noexcept {
@@ -115,12 +116,14 @@ int main(int argc, char *argv[]) {
         Var<KeyValuePair<int, float>> kvp1;
         return buffer->read(a + thread_x());// captures buffer
     };
+    c1.function_builder()->set_name("my_function_c1");
 
     // Callable that calls another callable (c1) and captures additional buffer
     Callable c2 = [&](UInt b) noexcept {
         // captures buffer (propagated from c1) and float_buffer
         return c1(b) + make_float4(float_buffer->read(b));
     };
+    c2.function_builder()->set_name("my_function_c2");
 
     // Kernel that uses callable c2 and writes to buffer
     Kernel1D k1 = [&] {
@@ -135,19 +138,29 @@ int main(int argc, char *argv[]) {
 
     // Callable demonstrating type casting and tuple composition
     Callable add_mul = [&](Var<int> a, Var<int> b) noexcept {
+        a.set_name("a");
+        b.set_name("b");
         return compose(cast<int>(float_buffer->read(a + b)), a * b);
     };
+    add_mul.function_builder()->set_name("my_function_add_mul");
 
     // Callable with constant array access and type casting
     Callable callable = [&](Var<int> a, Var<int> b, Var<float> c) noexcept {
+        a.set_name("a");
+        b.set_name("b");
+        c.set_name("c");
         Constant int_consts = const_vector;
         return cast<float>(a) + int_consts[b].cast<float>() * c;
     };
+    callable.function_builder()->set_name("my_function_callable");
 
     // Callable binding to template lambdas
     Callable<int(int, int)> add = [&]<typename T>(Var<T> a, Var<T> b) noexcept {
+        a.set_name("a");
+        b.set_name("b");
         return cast<int>(c1(cast<uint>(a + b)).x);
     };
+    add.function_builder()->set_name("my_function_add");
 
     Clock clock;
     Constant float_consts = {1.0f, 2.0f};
@@ -156,17 +169,20 @@ int main(int argc, char *argv[]) {
     // Main kernel definition demonstrating various DSL features
     auto kernel_def = [&](BufferVar<float> buffer_float, Var<uint> count, Var<BindlessArray> heap, BufferVar<int3> b0, BufferVar<float4x4> b1, Var<ByteBuffer> bb) noexcept -> void {
         using namespace dsl_literals;
-        
+
         // Test volatile read/write operations on different buffer types
         b0.volatile_write(1, b0.volatile_read(0));
         b1.volatile_write(1, b1.volatile_read(0));
         bb.volatile_write(16, bb.volatile_read<float3>(1));
         bb.volatile_write(16, bb.volatile_read<float3x3>(1));
-        
+
         // Test literal suffixes for type specification
         auto lx = 0._half;
         auto ly = 0._float;
         auto lz = 0_ulong2;
+        lx.set_name("lx");
+        ly.set_name("ly");
+        lz.set_name("lz");
 
         // Shared memory allocation
         Shared<float4> shared_floats{16};
@@ -255,7 +271,7 @@ int main(int argc, char *argv[]) {
         Var another_vec4 = buffer->read(v_int);// indexing into captured buffer (with Var)
         another_vec4 += heap.buffer<float4>(0).read(0);
         buffer->write(v_int + 1, float4(123.0f));
-        
+
         // Volatile buffer operations
         auto test_volatile = buffer_float.volatile_read(v_int + 1);
         buffer_float.volatile_write(v_int + 1, test_volatile);

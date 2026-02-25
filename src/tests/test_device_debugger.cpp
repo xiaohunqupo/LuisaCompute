@@ -36,7 +36,11 @@ int main(int argc, char *argv[]) {
 
     // Create context and device (using fallback for debugging)
     Context context{argv[0]};
-    Device device = context.create_device("fallback");
+    if (argc <= 1) {
+        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
+        exit(1);
+    }
+    Device device = context.create_device(argv[1]);
 
     // Define a kernel with debug breakpoints
     Kernel2D kernel = [&]() noexcept {
@@ -52,14 +56,14 @@ int main(int argc, char *argv[]) {
             s.b = coord;
             // Break point with custom trap function (dispatch_id is always captured for convenience)
             $debug_break_on(s, v, coord, my_trap(dispatch_id, s, v, coord));
-            $outline {
+            $outline_with_name(my_logger) {
                 device_log("s = {} at {}", s, dispatch_id());
             };
             // Custom trap function without parameters (useful for use with interactive debuggers)
             $debug_break_on(foo());
         };
     };
-    
+
     // Compile and dispatch the kernel
     auto shader = device.compile(kernel);
     Stream stream = device.create_stream();

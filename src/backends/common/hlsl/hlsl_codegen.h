@@ -55,6 +55,7 @@ public:
     void GetVariableName(Function func, Variable::Tag type, uint id, vstd::StringBuilder &str);
     void GetTypeName(Type const &type, vstd::StringBuilder &str, Usage usage, bool local_var = true);
     void GetFunctionDecl(Function func, vstd::StringBuilder &str);
+    static luisa::string_view GetFunctionName(Function callable);
     void GetFunctionName(Function callable, vstd::StringBuilder &result);
     void GetFunctionName(CallExpr const *expr, vstd::StringBuilder &result, StringStateVisitor &visitor);
     void RegistStructType(Type const *type);

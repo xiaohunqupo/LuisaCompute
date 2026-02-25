@@ -283,6 +283,19 @@ const RefExpr *FunctionBuilder::local(const Type *type) noexcept {
     _local_variables.emplace_back(v);
     return _ref(v);
 }
+void FunctionBuilder::set_variable_name(uint32_t id, luisa::string_view name) const noexcept {
+    if (_variables_names.size() <= id) {
+        _variables_names.resize(id + 1);
+    }
+    _variables_names[id] = luisa::string{name};
+}
+
+luisa::string_view FunctionBuilder::get_variable_name(uint32_t uid) const noexcept {
+    if (uid < _variables_names.size()) {
+        return _variables_names[uid];
+    }
+    return {};
+}
 
 const RefExpr *FunctionBuilder::shared(const Type *type) noexcept {
     if (type->is_structure() && !type->member_attributes().empty()) [[unlikely]] {
@@ -551,7 +564,7 @@ void FunctionBuilder::call(Function custom, std::initializer_list<const Expressi
     static_cast<void>(call(nullptr, custom, args));
 }
 bool FunctionBuilder::operator==(const FunctionBuilder &rhs) const noexcept {
-    // TODO FIXME hash is broken!
+    // FIXME hash is broken!
     return std::addressof(rhs) == this;
 
     /*
@@ -919,7 +932,7 @@ void FunctionBuilder::set_block_size(uint3 size) noexcept {
     }
 }
 
-void FunctionBuilder::set_name(luisa::string_view name) noexcept {
+void FunctionBuilder::set_name(luisa::string_view name) const noexcept {
     _name = name;
     // canonicalize the name
     for (auto &c : _name) {

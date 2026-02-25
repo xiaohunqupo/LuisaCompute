@@ -188,6 +188,8 @@ public:
     [[nodiscard]] auto operator==(Function rhs) const noexcept { return _builder == rhs._builder; }
     /// Cast to bool, true if builder is not nullptr
     [[nodiscard]] explicit operator bool() const noexcept { return _builder != nullptr; }
+    [[nodiscard]] luisa::string_view get_variable_name(uint32_t uid) const noexcept;
+
 };
 
 }// namespace luisa::compute

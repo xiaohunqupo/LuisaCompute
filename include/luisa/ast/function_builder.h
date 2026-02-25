@@ -122,7 +122,9 @@ private:
     bool _requires_atomic_float{false};
     bool _requires_printing{false};
     bool _use_cooperative_operations{false};
-    luisa::string _name;
+    // Codegen Comment
+    mutable luisa::string _name;
+    mutable luisa::vector<luisa::string> _variables_names;
 
 protected:
     [[nodiscard]] static luisa::vector<FunctionBuilder *> &_function_stack() noexcept;
@@ -279,7 +281,9 @@ public:
     void set_block_size(uint3 size) noexcept;
 
     /// Set name
-    void set_name(luisa::string_view name) noexcept;
+    void set_name(luisa::string_view name) const noexcept;
+    void set_variable_name(uint32_t id, luisa::string_view name) const noexcept;
+    luisa::string_view get_variable_name(uint32_t uid) const noexcept;
 
     // built-in variables
     /// Return thread id.

@@ -144,4 +144,7 @@ luisa::optional<uint8_t> Function::allowed_warp_size() const noexcept {
 bool Function::use_cooperative_operations() const noexcept {
     return _builder->use_cooperative_operations();
 }
+luisa::string_view Function::get_variable_name(uint32_t uid) const noexcept {
+    return _builder->get_variable_name(uid);
+}
 }// namespace luisa::compute
