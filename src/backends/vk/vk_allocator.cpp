@@ -14,17 +14,17 @@ AllocatedBuffer VkAllocator::allocate_buffer(size_t byte_size, VkBufferUsageFlag
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .size = byte_size,
         .usage = static_cast<VkBufferUsageFlags>(usage)};
-    VmaAllocationCreateInfo allocInfo = {
-        .flags = VMA_ALLOCATION_CREATE_STRATEGY_BEST_FIT_BIT,
-        .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE};
+    VmaAllocationCreateInfo allocInfo = {.flags = VMA_ALLOCATION_CREATE_STRATEGY_BEST_FIT_BIT};
     switch (access) {
         case AccessType::ReadBack:
-            allocInfo.flags |= VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
+            allocInfo.usage = VMA_MEMORY_USAGE_GPU_TO_CPU;
             break;
         case AccessType::Upload:
-            allocInfo.flags |= VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
+            allocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
             break;
-        default: break;
+        default:
+            allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+            break;
     }
     AllocatedBuffer r;
     VK_CHECK_RESULT(vmaCreateBuffer(_allocator, &bufferInfo, &allocInfo, &r.buffer, &r.allocation, nullptr));
