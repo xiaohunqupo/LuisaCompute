@@ -505,8 +505,7 @@ void CodegenUtility::GetFunctionDecl(Function func, vstd::StringBuilder &funcDec
     }
     {
         data += " "sv;
-        data += GetFunctionName(func);
-        vstd::to_string((opt->GetFuncCount(func)), data);
+        GetFunctionName(func, data);
         if (func.arguments().empty()) {
             data += "()"sv;
         } else {
@@ -550,12 +549,9 @@ void CodegenUtility::GetFunctionDecl(Function func, vstd::StringBuilder &funcDec
     funcDecl << '\n'
              << data;
 }
-luisa::string_view CodegenUtility::GetFunctionName(Function callable) {
-    if (callable.name().empty()) return "custom_"sv;
-    return callable.name();
-}
 void CodegenUtility::GetFunctionName(Function callable, vstd::StringBuilder &result) {
-    result << GetFunctionName(callable) << vstd::to_string((opt->GetFuncCount(callable)));
+    auto &&count_and_name = opt->GetFuncCountAndName(callable);
+    result << (count_and_name.second.empty() ? "custom_"sv : luisa::string_view{count_and_name.second}) << luisa::format("{}", count_and_name.first);
 }
 struct SpirvMatrixPack {
     vstd::StringBuilder *_result;
@@ -645,7 +641,7 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
     };
     switch (expr->op()) {
         case CallOp::CUSTOM:
-            str << GetFunctionName(expr->custom()) << vstd::to_string((opt->GetFuncCount(expr->custom())));
+            GetFunctionName(expr->custom(), str);
             str << '(';
             {
                 uint64 sz = 0;

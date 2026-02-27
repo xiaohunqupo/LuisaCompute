@@ -110,15 +110,20 @@ std::pair<uint64, bool> CodegenStackData::GetConstCount(uint64 data) {
             }));
     return {ite.first->second, ite.second};
 }
-
-uint64 CodegenStackData::GetFuncCount(Function f) {
+std::pair<uint64, luisa::string> const &CodegenStackData::GetFuncCountAndName(Function f) {
     auto ite = funcTypes.try_emplace(
         f.hash(),
         vstd::lazy_eval(
             [&] {
-                return funcCount++;
+                return std::pair<uint64, luisa::string>{
+                    funcCount++,
+                    f.name()};
             }));
-    return ite.first->second;
+    auto &value = ite.first->second;
+    if (value.second.empty() && (!f.name().empty())) {
+        value.second = f.name();
+    }
+    return value;
 }
 uint64 CodegenStackData::GetTypeCount(Type const *t) {
     auto ite = structTypes.try_emplace(

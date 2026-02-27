@@ -22,7 +22,13 @@ namespace luisa::clangcxx {
 using namespace clang;
 using namespace clang::ast_matchers;
 using namespace luisa::compute;
-
+static bool non_legal_char(char v) {
+    return !(
+        (v >= 'a' && v <= 'z') ||
+        (v >= 'A' && v <= 'Z') ||
+        (v >= '0' && v <= '9') ||
+        v == '_');
+};
 inline bool FuncIsEmpty(Function func) {
     for (auto &&i : func.body()->statements()) {
         if (i->tag() != Statement::Tag::COMMENT) return false;
@@ -566,6 +572,11 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                                         current = lcInit;
                                     } else {
                                         auto lcVar = LC_Local(fb, lcType, Usage::NONE);
+                                        auto name = luisa::string(varDecl->getNameAsString());
+                                        std::erase_if(name, non_legal_char);
+                                        if (!name.empty()) {
+                                            fb->set_variable_name(lcVar->variable().uid(), name);
+                                        }
                                         fb->assign(lcVar, lcInit);
                                         stack->SetLocal(varDecl, lcVar);
                                         current = lcVar;
@@ -573,6 +584,11 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                                 }
                             } else {
                                 auto lcVar = LC_Local(fb, lcType, Usage::NONE);
+                                auto name = luisa::string(varDecl->getNameAsString());
+                                std::erase_if(name, non_legal_char);
+                                if (!name.empty()) {
+                                    fb->set_variable_name(lcVar->variable().uid(), name);
+                                }
                                 stack->SetLocal(varDecl, lcVar);
                                 current = lcVar;
                             }
@@ -653,7 +669,6 @@ struct ExprTranslator : public clang::RecursiveASTVisitor<ExprTranslator> {
                 SKR_DEFER({  stack->SetExprAsCtor(constructed); current = constructed; });
                 if (!moveCtor) {
                     constructed = LC_Local(fb, db->FindOrAddType(cxxCtorCall->getType(), x->getBeginLoc()), Usage::READ);
-                    // args
                     lcArgs.emplace_back(constructed);
                     for (auto arg : cxxCtorCall->arguments()) {
                         if (auto lcArg = stack->GetExpr(arg))
@@ -1449,20 +1464,24 @@ auto FunctionBuilderBuilder::build(const clang::FunctionDecl *S, bool allowKerne
 
                 // comment name
                 luisa::string name;
-#if LC_CLANGCXX_ENABLE_COMMENT
-                {
-                    if (auto Ctor = llvm::dyn_cast<clang::CXXConstructorDecl>(S))
-                        name = "[Ctor] ";
-                    else if (auto Method = llvm::dyn_cast<clang::CXXMethodDecl>(S))
-                        name = "[Method] ";
-                    else if (auto Dtor = llvm::dyn_cast<clang::CXXDestructorDecl>(S))
-                        name = "[Dtor] ";
-                    else
-                        name = "[Function] ";
-                    name += luisa::string(S->getQualifiedNameAsString());
-                    builder->comment_(std::move(name));
+                if (builder->name().empty()) {
+                    // if (auto Ctor = llvm::dyn_cast<clang::CXXConstructorDecl>(S))
+                    //     name = "[Ctor] ";
+                    // else if (auto Method = llvm::dyn_cast<clang::CXXMethodDecl>(S))
+                    //     name = "[Method] ";
+                    // else if (auto Dtor = llvm::dyn_cast<clang::CXXDestructorDecl>(S))
+                    //     name = "[Dtor] ";
+                    // else
+                    //     name = "[Function] ";
+
+                    // auto qualified_name = luisa::string(S->getQualifiedNameAsString());
+                    // name += qualified_name;
+                    auto qualified_name = luisa::string(S->getNameAsString());
+                    if (!qualified_name.empty()) {
+                        std::erase_if(qualified_name, non_legal_char);
+                        builder->set_name(qualified_name);
+                    }
                 }
-#endif
                 // Stack stack;
                 // this arg
                 if (is_method) {

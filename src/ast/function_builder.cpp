@@ -612,18 +612,27 @@ void FunctionBuilder::_compute_hash() noexcept {
     using namespace std::string_view_literals;
     static auto seed = hash_value("__hash_function"sv);
     luisa::vector<uint64_t> hashes;
+    bool is_callable = _tag == Function::Tag::CALLABLE;
     hashes.reserve(2u /* body and tag */ +
                    1u /* return type */ +
+                   1 +
                    _arguments.size() +
                    _captured_constants.size() +
-                   1u /* block size */);
+                   _variable_usages.size() +
+                   (is_callable ? 0 : 1) /* block size */);
     hashes.emplace_back(hash_value(_tag));
     hashes.emplace_back(_body.hash());
     hashes.emplace_back(_return_type ? hash_value(*_return_type.value()) : hash_value("void"sv));
-    for (auto &&arg : _arguments) { hashes.emplace_back(hash_value(arg)); }
+    for (auto &&arg : _arguments) { hashes.emplace_back(arg.hash()); }
+    for (auto &&arg : _variable_usages) { hashes.emplace_back(hash_value(arg)); }
     for (auto &&c : _captured_constants) { hashes.emplace_back(hash_value(c)); }
-    hashes.emplace_back(hash_value(_block_size));
     hashes.emplace_back(_required_curve_bases.hash());
+    if (!is_callable) {
+        hashes.emplace_back(hash_value(_block_size));
+        hashes.emplace_back(_body.statements().size() | (static_cast<uint64_t>(_allowed_warp_size) << 48ull));
+    } else {
+        hashes.emplace_back(_body.statements().size());
+    }
     _hash = hash64(hashes.data(), hashes.size() * sizeof(uint64_t), seed);
     _hash_computed = true;
 }
