@@ -215,7 +215,7 @@ void parallel(uint32_t job_count, F &&lambda, uint32_t internal_jobs = 1) noexce
     }
 }
 
-template<class F, class Iter>
+template<class Iter, class F>
     requires(std::is_invocable_v<F, Iter, Iter> || std::is_invocable_v<F, Iter>)
 void parallel(Iter begin, Iter end, size_t batch, F f, size_t inplace_batch_threahold = 1ull) {
     auto n = _distance(begin, end);
