@@ -222,7 +222,8 @@ test_proj("test_pinned_mem")
 test_proj("test_present", true)
 test_proj("test_voxel_raytracer")
 test_proj("test_blackhole")
-test_proj("test_wave_equation")
+test_proj("test_wave_equation", true)
+test_proj("test_fire_simulation", true)
 test_proj("test_imgui", true, function()
     add_deps("imgui")
 end)
@@ -243,17 +244,6 @@ if has_config("lc_dx_backend") then
 end
 
 -- Raytracing weekend test (uses main.cpp subdirectory)
-target("test_raytracing_weekend")
-add_deps("lc-backends-dummy", {
-    inherit = false,
-    links = false
-})
-_config_project({
-    project_kind = "binary"
-})
-add_files("test_raytracing_weekend/main.cpp")
-add_deps("lc-runtime", "lc-dsl", "lc-vstl", "stb-image")
-target_end()
 test_proj("test_manual_ast")
 if not is_mode("debug") then
     if has_config("lc_enable_clangcxx") then

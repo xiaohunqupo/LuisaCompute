@@ -57,8 +57,7 @@ int main(int argc, char *argv[]) {
     // Initialize
     stream << clear(height_prev).dispatch(width, height)
            << clear(height_curr).dispatch(width, height)
-           << clear(height_next).dispatch(width, height)
-           << synchronize();
+           << clear(height_next).dispatch(width, height);
 
     // Wave equation solver kernel
     Kernel2D wave_step = [&](ImageFloat prev, ImageFloat curr, ImageFloat next) noexcept {
@@ -170,7 +169,7 @@ int main(int argc, char *argv[]) {
     window.set_mouse_callback([&mouse_down, &mouse_pos, &last_mouse_pos](MouseButton, Action a, float2 p) noexcept {
         if (a == Action::ACTION_PRESSED || a == Action::ACTION_REPEATED) {
             mouse_down = true;
-            last_mouse_pos = make_float2(-1.0f, -1.0f);  // Reset for new stroke
+            last_mouse_pos = make_float2(-1.0f, -1.0f);// Reset for new stroke
         } else {
             mouse_down = false;
         }
@@ -204,7 +203,8 @@ int main(int argc, char *argv[]) {
     Clock clock;
     std::mt19937 rng{std::random_device{}()};
     float time = 0.0f;
-
+    CommandList cmdlist;
+    Image<float> temp_display = device.create_image<float>(PixelStorage::FLOAT4, width, height);
     while (!window.should_close()) {
         window.poll_events();
 
@@ -212,9 +212,9 @@ int main(int argc, char *argv[]) {
             break;
         }
         if (window.is_key_down(KEY_SPACE)) {
-            stream << clear(height_prev).dispatch(width, height)
-                   << clear(height_curr).dispatch(width, height)
-                   << clear(height_next).dispatch(width, height);
+            cmdlist << clear(height_prev).dispatch(width, height)
+                    << clear(height_curr).dispatch(width, height)
+                    << clear(height_next).dispatch(width, height);
         }
 
         // Handle mouse interaction - drop droplets when mouse is down
@@ -222,32 +222,32 @@ int main(int argc, char *argv[]) {
             // Convert to simulation coordinates
             uint sim_x = clamp(cast<uint>(mouse_pos.x / display_scale), 0u, width - 1);
             uint sim_y = clamp(cast<uint>(mouse_pos.y / display_scale), 0u, height - 1);
-            
+
             float drop_strength = -0.5f;
-            
+
             // If we have a previous position, interpolate
             if (last_mouse_pos.x >= 0) {
                 uint last_x = clamp(cast<uint>(last_mouse_pos.x / display_scale), 0u, width - 1);
                 uint last_y = clamp(cast<uint>(last_mouse_pos.y / display_scale), 0u, height - 1);
-                
+
                 // Simple line interpolation
                 int dx = (int)sim_x - (int)last_x;
                 int dy = (int)sim_y - (int)last_y;
                 int steps = max(abs(dx), abs(dy));
-                
+
                 for (int i = 0; i <= steps && i < 10; i++) {
                     float t = (steps == 0) ? 0.0f : (float)i / steps;
                     uint ix = last_x + cast<uint>(dx * t);
                     uint iy = last_y + cast<uint>(dy * t);
-                    stream << drop_shader(height_curr, make_uint2(ix, iy), drop_strength * 0.7f)
-                                  .dispatch(width, height);
+                    cmdlist << drop_shader(height_curr, make_uint2(ix, iy), drop_strength * 0.7f)
+                                   .dispatch(width, height);
                 }
             } else {
                 // Single drop
-                stream << drop_shader(height_curr, make_uint2(sim_x, sim_y), drop_strength)
-                              .dispatch(width, height);
+                cmdlist << drop_shader(height_curr, make_uint2(sim_x, sim_y), drop_strength)
+                               .dispatch(width, height);
             }
-            
+
             last_mouse_pos = mouse_pos;
         }
 
@@ -255,24 +255,23 @@ int main(int argc, char *argv[]) {
         if (rng() % 120u == 0u) {
             uint rain_x = 50 + rng() % (width - 100);
             uint rain_y = 50 + rng() % (height - 100);
-            stream << drop_shader(height_curr, make_uint2(rain_x, rain_y), -0.3f)
-                          .dispatch(width, height);
+            cmdlist << drop_shader(height_curr, make_uint2(rain_x, rain_y), -0.3f)
+                           .dispatch(width, height);
         }
 
         // Update wave simulation (multiple steps per frame)
         for (int step = 0; step < 4; step++) {
-            stream << wave_shader(height_prev, height_curr, height_next).dispatch(width, height);
+            cmdlist << wave_shader(height_prev, height_curr, height_next).dispatch(width, height);
             std::swap(height_prev, height_curr);
             std::swap(height_curr, height_next);
         }
 
         // Render
         time += 0.016f;
-        Image<float> temp_display = device.create_image<float>(PixelStorage::FLOAT4, width, height);
-        stream << render(height_curr, temp_display, time).dispatch(width, height)
-               << upscale(temp_display, display).dispatch(display_width, display_height)
-               << swap_chain.present(display);
 
+        cmdlist << render(height_curr, temp_display, time).dispatch(width, height)
+                << upscale(temp_display, display).dispatch(display_width, display_height);
+        stream << cmdlist.commit() << swap_chain.present(display);
     }
 
     stream << synchronize();
