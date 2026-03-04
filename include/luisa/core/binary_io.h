@@ -12,14 +12,14 @@ namespace luisa {
 class BinaryBlob {
     std::byte *_ptr{nullptr};
     size_t _size{0};
-    luisa::move_only_function<void(void*)> _disposer;
+    luisa::move_only_function<void(void *)> _disposer;
 
 public:
     BinaryBlob() noexcept = default;
     BinaryBlob(
         std::byte *ptr,
         size_t size,
-        luisa::move_only_function<void(void*)> &&disposer) noexcept
+        luisa::move_only_function<void(void *)> &&disposer) noexcept
         : _ptr{ptr},
           _size{size},
           _disposer{std::move(disposer)} {}
@@ -69,7 +69,7 @@ public:
             static_cast<std::byte *>(luisa::detail::allocator_allocate(len, 0)),
             len,
             [](void *ptr) { luisa::detail::allocator_deallocate(ptr, 0); }};
-        read(blob);
+        read(luisa::span<std::byte>(blob.data(), blob.size()));
         return blob;
     }
     virtual ~BinaryStream() noexcept = default;
