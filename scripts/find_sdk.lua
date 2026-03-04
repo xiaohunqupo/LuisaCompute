@@ -132,6 +132,9 @@ function on_install_sdk(target, rule_name)
     if not custom_sdk_dir then
         custom_sdk_dir = get_config("lc_sdk_dir")
     end
+    if type(custom_sdk_dir) == 'string' and #custom_sdk_dir ==0 then
+        return nil
+    end
     local libnames = target:extraconf("rules", rule_name, "libnames")
     if type(libnames) == "string" or (type(libnames) == "table" and type(libnames["name"]) == "string") then
         libnames = {libnames}
