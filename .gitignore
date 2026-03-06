@@ -344,3 +344,5 @@ mnist_data/
 # AGENT
 agents.*
 AGENTS.*
+/*agent.py
+/agent*.py

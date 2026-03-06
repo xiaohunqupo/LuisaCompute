@@ -1,19 +1,23 @@
 #include <pybind11/pybind11.h>
-#include <luisa/ast/function.h>
+#include <pybind11/stl.h>
+#include <pybind11/numpy.h>
 #include <luisa/core/logging.h>
-#include <luisa/runtime/device.h>
-#include <luisa/runtime/context.h>
-#include <luisa/runtime/stream.h>
-#include <luisa/runtime/rhi/command.h>
-#include <luisa/runtime/image.h>
-#include <luisa/runtime/rtx/accel.h>
-#include <luisa/runtime/rtx/mesh.h>
-#include <luisa/runtime/rtx/hit.h>
-#include <luisa/runtime/rtx/ray.h>
+#include <luisa/core/mathematics.h>
 
 namespace py = pybind11;
 using namespace luisa;
-using namespace luisa::compute;
+
+template<typename T>
+Vector<T, 3> vector3_from_sequence(py::sequence seq) {
+    if (seq.size() != 3) {
+        LUISA_ERROR("expected sequence of length 3, got {}", seq.size());
+    }
+    return Vector<T, 3>(
+        seq[0].cast<T>(),
+        seq[1].cast<T>(),
+        seq[2].cast<T>()
+    );
+}
 
 #define LUISA_EXPORT_ARITHMETIC_OP(T)                                                                              \
     m##T                                                                                                           \
@@ -72,7 +76,7 @@ using namespace luisa::compute;
 #define LUISA_EXPORT_FLOAT_FUNC(T)                                                                             \
     m.def("pow", [](const Vector<T, 3> &a, const Vector<T, 3> &b) { return luisa::pow(a, b); });               \
     m.def("atan2", [](const Vector<T, 3> &a, const Vector<T, 3> &b) { return luisa::atan2(a, b); });           \
-    m.def("lerp", [](const Vector<T, 3> &a, const Vector<T, 3> &b, float t) { return luisa::lerp(a, b, t); }); \
+    m.def("lerp", [](const Vector<T, 3> &a, const Vector<T, 3> &b, T t) { return luisa::lerp(a, b, t); }); \
     m.def("dot", [](const Vector<T, 3> &a, const Vector<T, 3> &b) { return luisa::dot(a, b); });               \
     m.def("distance", [](const Vector<T, 3> &a, const Vector<T, 3> &b) { return luisa::distance(a, b); });     \
     m.def("cross", [](const Vector<T, 3> &a, const Vector<T, 3> &b) { return luisa::cross(a, b); });           \
@@ -106,6 +110,14 @@ using namespace luisa::compute;
                     .def(py::init<T>())                                                                                   \
                     .def(py::init<T, T, T>())                                                                             \
                     .def(py::init<Vector<T, 3>>())                                                                        \
+                    .def(py::init([](py::sequence seq) { return vector3_from_sequence<T>(seq); }))                        \
+                    .def(py::init([](py::array_t<T> arr) {                                                              \
+                        if (arr.size() != 3) {                                                                          \
+                            LUISA_ERROR("expected numpy array of size 3, got {}", arr.size());                          \
+                        }                                                                                               \
+                        auto r = arr.unchecked<1>();                                                                    \
+                        return Vector<T, 3>(r(0), r(1), r(2));                                                          \
+                    }))                                                                        \
                     .def("__repr__", [](Vector<T, 3> &self) { return format(#T "3({},{},{})", self.x, self.y, self.z); }) \
                     .def("__getitem__", [](Vector<T, 3> &self, size_t i) { return self[i]; })                             \
                     .def("__setitem__", [](Vector<T, 3> &self, size_t i, T k) { self[i] = k; })                           \
@@ -232,22 +244,35 @@ using namespace luisa::compute;
                     .def_property_readonly("zzzz", &Vector<T, 3>::zzzz);                                                  \
     m.def("make_" #T "3", [](T a) { return make_##T##3(a); });                                                            \
     m.def("make_" #T "3", [](T a, T b, T c) { return make_##T##3(a, b, c); });                                            \
-    m.def("make_" #T "3", [](Vector<T, 3> a) { return make_##T##3(a); });
+    m.def("make_" #T "3", [](Vector<T, 3> a) { return make_##T##3(a); });                                                 \
+    m.def("make_" #T "3", [](py::sequence seq) { return vector3_from_sequence<T>(seq); });                                \
+    m.def("make_" #T "3", [](py::array_t<T> arr) {                                                                        \
+        if (arr.size() != 3) {                                                                                            \
+            LUISA_ERROR("expected numpy array of size 3, got {}", arr.size());                                            \
+        }                                                                                                                 \
+        auto r = arr.unchecked<1>();                                                                                      \
+        return make_##T##3(r(0), r(1), r(2));                                                                             \
+    });
 
 void export_vector3(py::module &m) {
     LUISA_EXPORT_VECTOR3(bool)
     LUISA_EXPORT_VECTOR3(uint)
     LUISA_EXPORT_VECTOR3(int)
     LUISA_EXPORT_VECTOR3(float)
+    LUISA_EXPORT_VECTOR3(double)
     LUISA_EXPORT_ARITHMETIC_FUNC(int)
     LUISA_EXPORT_ARITHMETIC_FUNC(uint)
     LUISA_EXPORT_ARITHMETIC_FUNC(float)
+    LUISA_EXPORT_ARITHMETIC_FUNC(double)
     LUISA_EXPORT_FLOAT_FUNC(float)
+    LUISA_EXPORT_FLOAT_FUNC(double)
     LUISA_EXPORT_ARITHMETIC_OP(uint)
     LUISA_EXPORT_ARITHMETIC_OP(int)
     LUISA_EXPORT_ARITHMETIC_OP(float)
+    LUISA_EXPORT_ARITHMETIC_OP(double)
     LUISA_EXPORT_INT_OP(uint)
     LUISA_EXPORT_INT_OP(int)
     LUISA_EXPORT_FLOAT_OP(float)
+    LUISA_EXPORT_FLOAT_OP(double)
     LUISA_EXPORT_BOOL_OP(bool)
 }
