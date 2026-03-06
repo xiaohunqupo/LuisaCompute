@@ -32,22 +32,22 @@ public:
     }
 
     /// Add statement to false branch. f is a function.
-    template<typename False>
-    void else_(False &&f) && noexcept {
-        FunctionBuilder::current()->with(_stmt->false_branch(), std::forward<False>(f));
+    template<typename FalseFunc>
+    void else_(FalseFunc &&f) && noexcept {
+        FunctionBuilder::current()->with(_stmt->false_branch(), std::forward<FalseFunc>(f));
     }
 
     /// Add statement to true branch. t is a function. Return this.
-    template<typename True>
-    auto operator%(True &&t) && noexcept {
-        FunctionBuilder::current()->with(_stmt->true_branch(), std::forward<True>(t));
+    template<typename TrueFunc>
+    auto operator%(TrueFunc &&t) && noexcept {
+        FunctionBuilder::current()->with(_stmt->true_branch(), std::forward<TrueFunc>(t));
         return *this;
     }
 
     /// Add statement to false branch. Same as else_ but no return.
-    template<typename False>
-    void operator/(False &&f) && noexcept {
-        IfStmtBuilder{*this}.else_(std::forward<False>(f));
+    template<typename FalseFunc>
+    void operator/(FalseFunc &&f) && noexcept {
+        IfStmtBuilder{*this}.else_(std::forward<FalseFunc>(f));
     }
 
     /// Add else-if branch. Return builder of else-if statement.
@@ -330,9 +330,9 @@ inline void break_() noexcept { detail::FunctionBuilder::current()->break_(); }
 inline void continue_() noexcept { detail::FunctionBuilder::current()->continue_(); }
 
 /// if condition then t
-template<typename True>
-inline auto if_(Expr<bool> condition, True &&t) noexcept {
-    return detail::IfStmtBuilder{condition} % std::forward<True>(t);
+template<typename TrueFunc>
+inline auto if_(Expr<bool> condition, TrueFunc &&t) noexcept {
+    return detail::IfStmtBuilder{condition} % std::forward<TrueFunc>(t);
 }
 
 /// unconditioned loop like `for (;;)`
