@@ -29,9 +29,6 @@
 #endif
 
 namespace lc::vk {
-static constexpr uint k_shader_model = 65u;
-static constexpr uint k_high_shader_model = 66u;
-static constexpr uint k_tensor_shader_model = 69u;
 using namespace std::string_literals;
 static luisa::spin_mutex gDxcMutex;
 static vstd::StackObject<hlsl::ShaderCompiler, false> gDxcCompiler;

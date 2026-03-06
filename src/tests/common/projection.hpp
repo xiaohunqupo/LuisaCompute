@@ -1,3 +1,4 @@
+#pragma once
 #include <luisa/core/mathematics.h>
 using namespace luisa;
 constexpr float XM_PI = 3.141592654f;

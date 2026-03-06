@@ -11,6 +11,9 @@ namespace lc::hlsl {
 class ShaderCompiler;
 }// namespace lc::hlsl
 namespace lc::vk {
+static constexpr uint k_shader_model = 65u;
+static constexpr uint k_high_shader_model = 66u;
+static constexpr uint k_tensor_shader_model = 69u;
 class ComputeShader;
 using namespace luisa;
 using namespace luisa::compute;
