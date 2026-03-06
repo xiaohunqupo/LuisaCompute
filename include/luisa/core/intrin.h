@@ -11,7 +11,6 @@
 #if defined(LUISA_ARCH_X86_64)
 
 #include <immintrin.h>
-#include <cstdint>
 #include <cassert>
 
 #define LUISA_INTRIN_PAUSE() _mm_pause()

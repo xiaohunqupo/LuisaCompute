@@ -184,6 +184,17 @@ int main(int argc, char *argv[]) {
         static constexpr int max_steps = 300;
         static constexpr float dt = 0.25f;
         
+        // Track previous position for disk intersection
+        Var prev_pos = pos;
+        Var prev_y = cam_pos.y;
+        
+        // We need to sample the disk at the correct depth order
+        // The disk has two sides: back (hit first) and front (hit second)
+        // We only want to show the front side that's facing the camera
+        Var back_disk_sampled = def(false);
+        Var back_disk_color = def(make_float3(0.0f));
+        Var back_disk_alpha = def(0.0f);
+        
         $for (step, max_steps) {
             // Distance from black hole center
             Var r = length(pos);
@@ -193,27 +204,30 @@ int main(int argc, char *argv[]) {
                 $break;  // Absorbed by black hole
             };
             
-            // Check if we hit the accretion disk (thin disk in XZ plane)
-            // Use smooth transition for disk thickness
-            Var disk_thickness = 0.5f;
-            Var dist_from_plane = abs(pos.y);
-            Var in_disk_plane = smoothstep(disk_thickness, 0.0f, dist_from_plane);
+            // Check for accretion disk intersection (crossing the XZ plane)
+            // The disk is a thin sheet at y=0
+            Var crossed_plane = (prev_y > 0.0f & pos.y <= 0.0f) | (prev_y < 0.0f & pos.y >= 0.0f);
             
-            $if (in_disk_plane > 0.01f & r > accretion_inner & r < accretion_outer * 1.1f) {
+            $if (crossed_plane & r > accretion_inner & r < accretion_outer * 1.1f) {
+                // We crossed the disk plane - interpolate to find exact intersection
+                Var t_cross = abs(prev_y) / (abs(prev_y) + abs(pos.y));
+                Var intersect_pos = prev_pos * (1.0f - t_cross) + pos * t_cross;
+                Var intersect_r = length(intersect_pos);
+                
                 // Smooth edge falloff for inner and outer boundaries
-                Var inner_falloff = smoothstep(accretion_inner * 0.9f, accretion_inner, r);
-                Var outer_falloff = smoothstep(accretion_outer * 1.1f, accretion_outer, r);
+                Var inner_falloff = smoothstep(accretion_inner * 0.9f, accretion_inner, intersect_r);
+                Var outer_falloff = smoothstep(accretion_outer * 1.1f, accretion_outer, intersect_r);
                 Var edge_smooth = inner_falloff * outer_falloff;
                 
                 $if (edge_smooth > 0.01f) {
                     // Orbital velocity at this radius (Keplerian)
-                    Var orbital_speed = sqrt(bh_mass / max(r, 0.1f));
+                    Var orbital_speed = sqrt(bh_mass / max(intersect_r, 0.1f));
                     
                     // Disk temperature profile (T ~ r^(-3/4))
-                    Var temp = 2.0f * pow(accretion_outer / max(r, 0.1f), 0.75f);
+                    Var temp = 2.0f * pow(accretion_outer / max(intersect_r, 0.1f), 0.75f);
                     
                     // Doppler effect from orbital motion
-                    Var orbital_angle = atan2(pos.z, pos.x);
+                    Var orbital_angle = atan2(intersect_pos.z, intersect_pos.x);
                     Var orbital_dir = make_float3(-sin(orbital_angle), 0.0f, cos(orbital_angle));
                     
                     // Doppler shift: approaching = blueshift (brighter), receding = redshift (dimmer)
@@ -234,7 +248,7 @@ int main(int argc, char *argv[]) {
                     
                     // === FLOWING TEXTURE FOR ACCRETION DISK ===
                     // Create swirling pattern that rotates with time
-                    Var normalized_r = (r - accretion_inner) / (accretion_outer - accretion_inner);
+                    Var normalized_r = (intersect_r - accretion_inner) / (accretion_outer - accretion_inner);
                     Var spiral_angle = orbital_angle * 3.0f + normalized_r * 10.0f - time * 0.5f;
                     
                     // Multiple spiral arms
@@ -255,19 +269,41 @@ int main(int argc, char *argv[]) {
                     // Apply texture as brightness variation
                     local_disk_color *= (0.6f + 0.8f * texture_intensity);
                     
-                    // Gravitational redshift (avoid negative inside sqrt)
-                    Var redshift = sqrt(max(0.001f, 1.0f - bh_radius / max(r, bh_radius * 1.01f)));
+                    // Gravitational redshift
+                    Var redshift = sqrt(max(0.001f, 1.0f - bh_radius / max(intersect_r, bh_radius * 1.01f)));
                     local_disk_color *= redshift;
                     
                     // Apply intensity with Doppler beaming and edge smoothing
-                    Var intensity = beaming * edge_smooth * in_disk_plane * 2.0f;
+                    Var intensity = beaming * edge_smooth * 2.0f;
+                    Var alpha = intensity * 0.5f;
                     
-                    // Accumulate with alpha blending for smooth edges
-                    Var alpha = intensity * 0.3f;
-                    disk_color = lerp(disk_color, local_disk_color, alpha);
-                    disk_alpha = min(disk_alpha + alpha, 1.0f);
+                    // Determine if this is the front or back side of the disk
+                    // Front side: ray is coming from camera toward disk (moving toward y=0)
+                    // Back side: ray has passed through disk (moving away from y=0)
+                    // We want to show the side that's closer to the camera
+                    Var moving_toward_plane = (cam_pos.y > 0.0f & pos.y < prev_y) | (cam_pos.y < 0.0f & pos.y > prev_y);
+                    
+                    $if (moving_toward_plane) {
+                        // This is the front side (closer to camera) - use it
+                        disk_color = local_disk_color;
+                        disk_alpha = alpha;
+                        hit_disk = true;
+                    }
+                    $else {
+                        // This is the back side - only use it if we haven't hit front yet
+                        // and if it's not behind the event horizon from our view
+                        $if (!hit_disk) {
+                            back_disk_color = local_disk_color;
+                            back_disk_alpha = alpha;
+                            back_disk_sampled = true;
+                        };
+                    };
                 };
             };
+            
+            // Store previous position for next iteration
+            prev_pos = pos;
+            prev_y = pos.y;
             
             // Gravitational acceleration (simplified)
             Var r_safe = max(r, bh_radius * 0.5f);
@@ -280,6 +316,13 @@ int main(int argc, char *argv[]) {
             
             // Step forward
             pos = pos + dir * dt;
+        };
+        
+        // If we didn't hit the front side but hit the back side, use back side
+        // This handles cases where camera is inside the disk radius looking outward
+        $if (!hit_disk & back_disk_sampled) {
+            disk_color = back_disk_color;
+            disk_alpha = back_disk_alpha;
         };
         
         // Background starfield

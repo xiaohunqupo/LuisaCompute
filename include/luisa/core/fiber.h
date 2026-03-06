@@ -77,7 +77,7 @@ private:
     marl::Event _evt;
 public:
     using Mode = marl::Event::Mode;
-    event(Mode mode = Mode::Manual, bool init_signalled = false) noexcept
+    explicit event(Mode mode = Mode::Manual, bool init_signalled = false) noexcept
         : _evt{mode, init_signalled} {}
     void signal() const noexcept {
         _evt.signal();
@@ -133,7 +133,7 @@ template<typename T>
 struct NonMovableAtomic {
     std::atomic<T> value;
     NonMovableAtomic() noexcept = default;
-    NonMovableAtomic(T &&t) noexcept : value{std::move(t)} {}
+    explicit NonMovableAtomic(T &&t) noexcept : value{std::move(t)} {}
     NonMovableAtomic(NonMovableAtomic const &) = delete;
     NonMovableAtomic(NonMovableAtomic &&rhs) noexcept
         : value{rhs.value.load()} {
@@ -215,7 +215,7 @@ void parallel(uint32_t job_count, F &&lambda, uint32_t internal_jobs = 1) noexce
     }
 }
 
-template<class F, class Iter>
+template<class Iter, class F>
     requires(std::is_invocable_v<F, Iter, Iter> || std::is_invocable_v<F, Iter>)
 void parallel(Iter begin, Iter end, size_t batch, F f, size_t inplace_batch_threahold = 1ull) {
     auto n = _distance(begin, end);

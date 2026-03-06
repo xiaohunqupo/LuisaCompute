@@ -15,7 +15,6 @@ static const bool RASTER_PRINT_CODE = ([] {
     }
     return std::string_view{env} == "1";
 })();
-static constexpr uint k_shader_model = 65u;
 ResourceCreationInfo VkRasterExt::create_raster_shader(
     Function vert,
     Function pixel,

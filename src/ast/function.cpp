@@ -47,8 +47,7 @@ const ScopeStmt *Function::body() const noexcept {
     return _builder->body();
 }
 
-luisa::span<const luisa::shared_ptr<const detail::FunctionBuilder>>
-Function::custom_callables() const noexcept {
+detail::FuncBuilderMap const &Function::custom_callables() const noexcept {
     return _builder->custom_callables();
 }
 
@@ -144,5 +143,8 @@ luisa::optional<uint8_t> Function::allowed_warp_size() const noexcept {
 }
 bool Function::use_cooperative_operations() const noexcept {
     return _builder->use_cooperative_operations();
+}
+luisa::string_view Function::get_variable_name(uint32_t uid) const noexcept {
+    return _builder->get_variable_name(uid);
 }
 }// namespace luisa::compute

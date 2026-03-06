@@ -7,15 +7,15 @@ namespace luisa::compute {
 class DxCudaInterop;
 namespace dx_cuda_interop {
 struct Signal {
-    DxCudaInterop *ext;
-    void *native_handle;
-    uint64_t fence;
+    DxCudaInterop *ext{};
+    void *native_handle{};
+    uint64_t fence{};
     void operator()(DeviceInterface *device, uint64_t stream_handle) const && noexcept;
 };
 struct Wait {
-    DxCudaInterop *ext;
-    void *native_handle;
-    uint64_t fence;
+    DxCudaInterop *ext{};
+    void *native_handle{};
+    uint64_t fence{};
     void operator()(DeviceInterface *device, uint64_t stream_handle) const && noexcept;
 };
 }// namespace dx_cuda_interop
@@ -30,10 +30,10 @@ private:
 
 public:
     [[nodiscard]] auto cuda_event() const noexcept { return _cuda_event; }
-    DxCudaTimelineEvent() noexcept : _cuda_event{nullptr} {}
-    DxCudaTimelineEvent(DxCudaInterop *ext) noexcept;
+    DxCudaTimelineEvent() noexcept : _ext{nullptr}, dx_event{}, _cuda_event{nullptr} {}
+    explicit DxCudaTimelineEvent(DxCudaInterop *ext) noexcept;
     ~DxCudaTimelineEvent() noexcept;
-    operator bool() const noexcept {
+    explicit operator bool() const noexcept {
         return _cuda_event != nullptr;
     }
     DxCudaTimelineEvent(DxCudaTimelineEvent const &) = delete;

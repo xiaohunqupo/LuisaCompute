@@ -105,17 +105,17 @@ int main(int argc, char *argv[]) {
         Var force = make_float3(0.0f);
 
         // Compute forces from all other particles
-        for (uint j = 0u; j < n_particles; j++) {
+        $for (j, n_particles) {
             // Skip self-interaction
-            if_(j != idx, [&] {
+            $if (j != idx) {
                 Var other = read_buf.read(j);
                 Var r = other.position - p.position;
                 Var dist_sq = dot(r, r) + softening * softening;
                 Var dist = sqrt(dist_sq);
                 Var f = G * p.mass * other.mass / dist_sq;
                 force += f * r / dist;
-            });
-        }
+            };
+        };
 
         // Update velocity and position using Euler integration
         Var new_vel = p.velocity + force / p.mass * dt;

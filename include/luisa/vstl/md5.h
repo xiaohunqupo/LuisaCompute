@@ -18,7 +18,7 @@ private:
 
 public:
     MD5Data const &to_binary() const { return data; }
-    MD5() {}
+    MD5() : data{0ull, 0ull} {}
     MD5(string const &str);
     MD5(vstd::string_view str);
     MD5(vstd::span<uint8_t const> bin);

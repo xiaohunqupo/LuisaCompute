@@ -21,13 +21,13 @@ after_check(function(option)
     if not is_arch("x64", "x86_64", "arm64") then
         option:set_value(false)
         utils.error("Illegal environment. Please check your compiler, architecture or platform.")
-        return
+        return nil
     end
     -- Validate build mode
     if not (is_mode("debug") or is_mode("release") or is_mode("releasedbg")) then
         option:set_value(false)
         utils.error("Illegal mode. set mode to 'release', 'debug' or 'releasedbg'.")
-        return
+        return nil
     end
     option:set_value(true)
 end)
@@ -397,7 +397,7 @@ target("lc-check-winsdk")
 set_kind("phony")
 on_config(function(target)
     if not target:is_plat("windows") then
-        return
+        return nil
     end
 
     -- Try to get Windows SDK version from toolchain
@@ -409,7 +409,7 @@ on_config(function(target)
         toolchain_settings = target:toolchain("llvm")
     end
     if not toolchain_settings then
-        return
+        return nil
     end
 
     local sdk_version = toolchain_settings:runenvs().WindowsSDKVersion
@@ -512,7 +512,7 @@ on_load(function(target, opt)
     local libs = {}
     local lc_llvm_path = get_config("lc_llvm_path")
     if not lc_llvm_path then
-        return
+        return nil
     end
 
     -- Add LLVM library and include paths
@@ -544,12 +544,12 @@ after_build(function(target)
     import("async.runjobs")
 
     if not is_plat("windows") then
-        return
+        return nil
     end
 
     local lc_llvm_path = get_config("lc_llvm_path")
     if not lc_llvm_path then
-        return
+        return nil
     end
 
     local function copy(src_path, dst_path)

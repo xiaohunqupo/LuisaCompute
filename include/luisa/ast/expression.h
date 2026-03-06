@@ -121,8 +121,8 @@ class LUISA_AST_API UnaryExpr final : public Expression {
     friend class CallableLibrary;
 
 private:
-    const Expression *_operand;
-    UnaryOp _op;
+    const Expression *_operand{nullptr};
+    UnaryOp _op{};
     UnaryExpr() noexcept = default;
 
 protected:
@@ -151,9 +151,9 @@ class LUISA_AST_API BinaryExpr final : public Expression {
     friend class CallableLibrary;
 
 private:
-    const Expression *_lhs;
-    const Expression *_rhs;
-    BinaryOp _op;
+    const Expression *_lhs{nullptr};
+    const Expression *_rhs{nullptr};
+    BinaryOp _op{};
     BinaryExpr() noexcept = default;
 protected:
     void _mark(Usage) const noexcept override {}
@@ -187,8 +187,8 @@ class LUISA_AST_API AccessExpr final : public Expression {
     friend class CallableLibrary;
 
 private:
-    const Expression *_range;
-    const Expression *_index;
+    const Expression *_range{nullptr};
+    const Expression *_index{nullptr};
     AccessExpr() noexcept = default;
 protected:
     void _mark(Usage usage) const noexcept override { _range->mark(usage); }
@@ -222,9 +222,9 @@ public:
     static constexpr auto swizzle_shift = 24u;
 
 private:
-    const Expression *_self;
-    uint32_t _swizzle_size;
-    uint32_t _swizzle_code;
+    const Expression *_self{nullptr};
+    uint32_t _swizzle_size{};
+    uint32_t _swizzle_code{};
     MemberExpr() noexcept = default;
 
 protected:
@@ -411,7 +411,7 @@ public:
 
 private:
     ArgumentList _arguments;
-    CallOp _op;
+    CallOp _op{};
     Callee _func;
     CurveBasisSet _curve_basis_set;
 
@@ -473,8 +473,8 @@ class LUISA_AST_API CastExpr final : public Expression {
     friend class CallableLibrary;
 
 private:
-    const Expression *_source;
-    CastOp _op;
+    const Expression *_source{nullptr};
+    CastOp _op{};
     CastExpr() noexcept = default;
 
 protected:
@@ -502,7 +502,7 @@ class LUISA_AST_API TypeIDExpr final : public Expression {
 private:
     // Note: `data_type` is the argument of the expression,
     //   not the result type. The result type is always uint64.
-    const Type *_data_type;
+    const Type *_data_type{nullptr};
     TypeIDExpr() noexcept = default;
 
 protected:
@@ -535,7 +535,7 @@ public:
 };
 
 class LUISA_AST_API FuncRefExpr final : public Expression {
-    detail::FunctionBuilder const *_func;
+    detail::FunctionBuilder const *_func{nullptr};
     FuncRefExpr() = default;
 
 protected:

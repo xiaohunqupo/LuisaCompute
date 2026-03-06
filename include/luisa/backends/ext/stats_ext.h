@@ -1,3 +1,4 @@
+#pragma once
 #include <luisa/runtime/rhi/device_interface.h>
 #include <luisa/core/stl/unordered_map.h>
 #include <luisa/core/stl/queue.h>

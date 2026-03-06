@@ -769,11 +769,13 @@ void CallableLibrary::deserialize_func_builder(detail::FunctionBuilder &builder,
     for (auto i = 0u; i < builder._arguments.size(); i++) {
         builder._bound_arguments.emplace_back(luisa::monostate{});
     }
-    builder._used_custom_callables.resize(deser_value<size_t>(ptr, pack));
-    for (auto &&i : builder._used_custom_callables) {
+    auto used_custom_callables_size = deser_value<size_t>(ptr, pack);
+    builder._used_custom_callables.clear();
+    builder._used_custom_callables.reserve(used_custom_callables_size);
+    for (size_t i = 0; i < used_custom_callables_size; ++i) {
         auto iter = pack.callable_map.find(deser_value<uint64_t>(ptr, pack));
         LUISA_ASSERT(iter != pack.callable_map.end(), "Illegal bin-data.");
-        i = iter->second;
+        builder._used_custom_callables.emplace(iter->second);
     }
     luisa::enlarge_by(builder._local_variables, deser_value<size_t>(ptr, pack));
     for (auto &&i : builder._local_variables) {

@@ -33,7 +33,7 @@ private:
           _is_pinned_memory{is_pinned_memory} {}
 
 public:
-    DStorageFileView(const DStorageFile &file) noexcept;
+    explicit DStorageFileView(const DStorageFile &file) noexcept;
     DStorageFileView(const DStorageFile &file, size_t offset_bytes, size_t size_bytes) noexcept;
     [[nodiscard]] auto handle() const noexcept { return _handle; }
     [[nodiscard]] auto offset_bytes() const noexcept { return _offset_bytes; }

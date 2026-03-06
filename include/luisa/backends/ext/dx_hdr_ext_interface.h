@@ -27,14 +27,14 @@ public:
         float WhiteY{0.f};
     };
     struct DXSwapchainOption {
-        uint64_t window;
-        uint2 size;
+        uint64_t window{};
+        uint2 size{};
         PixelStorage storage = PixelStorage::HALF4;
         bool wants_vsync = true;
         uint back_buffer_count = 2;
     };
 
-    enum class ColorSpace : uint {
+    enum class ColorSpace : uint32_t {
         RGB_FULL_G22_NONE_P709 = 0,
         RGB_FULL_G10_NONE_P709 = 1,
         RGB_STUDIO_G22_NONE_P709 = 2,
@@ -60,7 +60,7 @@ public:
         YCBCR_STUDIO_G24_LEFT_P709 = 22,
         YCBCR_STUDIO_G24_LEFT_P2020 = 23,
         YCBCR_STUDIO_G24_TOPLEFT_P2020 = 24,
-        CUSTOM = 0xFFFFFFFF
+        CUSTOM = 0xFFFFFFFFu
     };
 
     struct Meta {

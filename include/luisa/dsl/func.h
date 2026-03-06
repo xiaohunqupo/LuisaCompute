@@ -387,7 +387,9 @@ public:
             }
         });
     }
-
+    void set_name(luisa::string_view name) const noexcept {
+        _builder->set_name(name);
+    }
     /// Get the underlying AST
     [[nodiscard]] auto function() const noexcept { return Function{_builder.get()}; }
     [[nodiscard]] auto const &function_builder() const & noexcept { return _builder; }
@@ -621,10 +623,9 @@ Callable(T &&) -> Callable<detail::dsl_function_t<std::remove_cvref_t<T>>>;
 namespace detail {
 
 struct CallableOutliner {
+    luisa::string _name;
     template<typename F>
-    void operator%(F &&body) && noexcept {
-        return Callable{std::forward<F>(body)}();
-    }
+    void operator%(F &&body) && noexcept;
 };
 
 }// namespace detail
@@ -639,6 +640,13 @@ template<typename S>
 [[nodiscard]] inline auto outliner_with_comment(S &&s) noexcept {
     comment(std::forward<S>(s));
     return CallableOutliner{};
+}
+template<typename S>
+[[nodiscard]] inline auto outliner_with_comment(luisa::string_view name, S &&s) noexcept {
+    comment(std::forward<S>(s));
+    CallableOutliner out{};
+    out._name = name;
+    return out;
 }
 }// namespace detail
 
@@ -687,5 +695,16 @@ Lambda(F &&) -> Lambda<detail::canonical_signature_t<std::remove_cvref_t<F>>>;
 
 template<typename S, typename F>
 Lambda(S &&, F &&) -> Lambda<detail::canonical_signature_t<std::remove_cvref_t<F>>>;
-
+namespace detail {
+template<typename F>
+inline void CallableOutliner::operator%(F &&body) && noexcept {
+    if (_name.empty())
+        return Callable{std::forward<F>(body)}();
+    else {
+        Callable c{std::forward<F>(body)};
+        c.set_name(_name);
+        return c();
+    }
+}
+}// namespace detail
 }// namespace luisa::compute

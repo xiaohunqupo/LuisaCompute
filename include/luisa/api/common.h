@@ -3,8 +3,6 @@
 #include <luisa/core/dll_export.h>
 
 #ifdef __cplusplus
-#include <cstdint>
-#include <cstddef>
 #else
 #include <stdint.h>
 #include <stddef.h>

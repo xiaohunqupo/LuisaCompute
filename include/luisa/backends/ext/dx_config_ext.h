@@ -18,9 +18,9 @@ struct IDxcLibrary;
 struct IDxcUtils;
 namespace luisa::compute {
 struct DirectXHeap {
-    uint64_t handle;
-    ID3D12Heap *heap;
-    size_t offset;
+    uint64_t handle{};
+    ID3D12Heap *heap{};
+    size_t offset{};
 };
 class DirectXFuncTable {
 public:
@@ -50,8 +50,8 @@ struct DirectXDeviceConfigExt : public DeviceConfigExt {
         size_t sparse_image_block_size;
     };
 
-    virtual luisa::optional<ExternalDevice> CreateExternalDevice() noexcept { return {}; }
-    virtual luisa::optional<GPUAllocatorSettings> GetGPUAllocatorSettings() noexcept { return {}; }
+    [[nodiscard]] virtual luisa::optional<ExternalDevice> CreateExternalDevice() noexcept { return {}; }
+    [[nodiscard]] virtual luisa::optional<GPUAllocatorSettings> GetGPUAllocatorSettings() noexcept { return {}; }
     virtual bool UseDRED() const noexcept { return false; }
     virtual bool LoadDXC() const noexcept { return true; }
     virtual bool UseEnhancedBarrier() const noexcept { return false; }
@@ -88,8 +88,8 @@ struct DirectXDeviceConfigExt : public DeviceConfigExt {
         ID3D12Fence *fence, uint64_t fenceIndex) noexcept { return false; }
     virtual bool SyncFence(ID3D12Fence *fence, uint64_t fenceIndex) noexcept { return false; }
     virtual ~DirectXDeviceConfigExt() noexcept override = default;
-    virtual luisa::span<DXCustomCmd::EnhancedResourceUsage const> before_states(uint64_t stream_handle) noexcept { return {}; }
-    virtual luisa::span<DXCustomCmd::EnhancedResourceUsage const> after_states(uint64_t stream_handle) noexcept { return {}; }
+    [[nodiscard]] virtual luisa::span<DXCustomCmd::EnhancedResourceUsage const> before_states(uint64_t stream_handle) noexcept { return {}; }
+    [[nodiscard]] virtual luisa::span<DXCustomCmd::EnhancedResourceUsage const> after_states(uint64_t stream_handle) noexcept { return {}; }
 };
 
 }// namespace luisa::compute

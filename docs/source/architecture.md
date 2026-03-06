@@ -473,11 +473,134 @@ target_link_libraries(your_target PRIVATE LuisaCompute::compute)
 
 ### XMake Integration
 
+LuisaCompute uses XMake (3.0.6+) as an alternative build system with a more streamlined workflow.
+
+#### Main Build Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| **Backend Options** |||
+| `lc_cuda_backend` | true | Enable NVIDIA CUDA backend |
+| `lc_dx_backend` | true | Enable DirectX 12 backend |
+| `lc_vk_backend` | true | Enable Vulkan backend |
+| `lc_metal_backend` | true | Enable Metal backend |
+| `lc_fallback_backend` | false | Enable fallback backend |
+| `lc_toy_c_backend` | false | Enable toy C backend (experimental) |
+| **Backend Extensions** |||
+| `lc_cuda_ext_lcub` | false | Enable NVIDIA CUB extension (long compile time) |
+| `lc_dx_cuda_interop` | false | Enable DirectX-CUDA interop |
+| `lc_vk_cuda_interop` | false | Enable Vulkan-CUDA interop |
+| **Module Options** |||
+| `lc_enable_dsl` | true | Enable C++ DSL module |
+| `lc_enable_gui` | true | Enable GUI module |
+| `lc_enable_imgui` | true | Enable ImGui support |
+| `lc_enable_osl` | true | Enable OSL (Open Shading Language) support |
+| `lc_enable_py` | true | Enable Python bindings |
+| `lc_enable_clangcxx` | false | Enable Clang C++ module |
+| `lc_enable_xir` | false | Enable XIR (experimental IR) |
+| **Build Configuration** |||
+| `lc_enable_mimalloc` | true | Use mimalloc as default allocator |
+| `lc_enable_custom_malloc` | false | Enable custom malloc |
+| `lc_enable_unity_build` | true | Enable unity (jumbo) build for faster compilation |
+| `lc_enable_simd` | true | Enable SSE and SSE2 SIMD |
+| `lc_use_lto` | false | Enable Link Time Optimization |
+| `lc_rtti` | false | Enable C++ RTTI |
+| `lc_cxx_standard` | cxx20 | C++ standard (cxx20, cxx23, etc.) |
+| `lc_c_standard` | clatest | C standard |
+| `lc_enable_tests` | true | Enable test suite |
+| `lc_external_marl` | false | Use external marl library |
+| `lc_use_system_stl` | false | Use system STL instead of EASTL |
+| **Python Configuration** |||
+| `lc_py_include` | false | Python include path |
+| `lc_py_linkdir` | false | Python library directory |
+| `lc_py_libs` | false | Python libraries to link |
+| **Path Configuration** |||
+| `lc_bin_dir` | bin | Custom binary output directory |
+| `lc_sdk_dir` | false | Custom SDK directory |
+| `lc_llvm_path` | false | LLVM installation path (for CPU backend) |
+| `lc_embree_path` | false | Embree path (for CPU ray tracing) |
+| `lc_toolchain` | false | Custom toolchain |
+| `lc_win_runtime` | false | Windows runtime library |
+| `lc_optimize` | false | Additional optimization flags |
+| **Third-Party Source** |||
+| `lc_spdlog_use_xrepo` | false | Use xrepo for spdlog |
+| `lc_reproc_use_xrepo` | false | Use xrepo for reproc |
+| `lc_lmdb_use_xrepo` | false | Use xrepo for lmdb |
+| `lc_imgui_use_xrepo` | false | Use xrepo for imgui |
+| `lc_glfw_use_xrepo` | false | Use xrepo for glfw |
+| `lc_yyjson_use_xrepo` | false | Use xrepo for yyjson |
+
+#### Build Commands
+
+```bash
+# Basic(Release) build
+xmake f -m release -c
+xmake
+
+# With specific backends
+xmake f -m release --lc_cuda_backend=true --lc_dx_backend=false --lc_metal_backend=false -c
+xmake
+
+# Debug build
+xmake f -m debug -c
+xmake
+
+# Using ClangCL toolchain (recommended on Windows)
+xmake f -m release --toolchain=clang-cl -c
+xmake
+```
+
+#### Local Configuration with options.lua
+
+You can create `scripts/options.lua` to save default configuration for your local environment:
+
+```bash
+# Generate default options.lua
+xmake lua scripts/write_options.lua
+```
+
+Example `scripts/options.lua`:
+
+```lua
+lc_options = {
+    toolchain = "clang-cl",           -- Use LLVM clang-cl compiler
+    lc_enable_tests = true,           -- Enable test-case compilation
+    lc_enable_gui = false             -- Disable GUI targets
+}
+```
+
+Options in `options.lua` can be overridden by command-line arguments:
+
+```bash
+xmake f --lc_enable_tests=false -c
+```
+
+#### Using LuisaCompute in Your Project
+
+**Method 1: Git Submodule + includes**
+
+```bash
+# Clone with submodules
+git submodule add https://github.com/LuisaGroup/LuisaCompute.git third_party/LuisaCompute
+git submodule update --init --recursive
+```
+
+```lua
+-- Include LuisaCompute's build scripts
+includes("third_party/LuisaCompute")
+
+target("your_app")
+    set_kind("binary")
+    add_deps("lc-dsl")
+```
+
+**Method 2: External Project with xmake.repo**
+
 ```lua
 -- xmake.lua for your project
 set_languages("c++20")
 
--- Add LuisaCompute as a dependency
+-- Require LuisaCompute as a package
 add_requires("luisa-compute")
 
 target("your_app")
@@ -507,6 +630,16 @@ Based on [LuisaRender](https://github.com/LuisaGroup/LuisaRender) and [LuisaComp
    if(LUISA_COMPUTE_ENABLE_CUDA AND CUDA_FOUND)
        target_compile_definitions(your_target PRIVATE ENABLE_CUDA)
    endif()
+   ```
+
+4. **Use unity build for faster compilation:**
+   ```bash
+   xmake f --lc_enable_unity_build=true -c
+   ```
+   
+5. **Use `-c` flag for clean configuration when switching options:**
+   ```bash
+   xmake f --lc_cuda_backend=false --lc_vk_backend=true -c
    ```
 
 ## Performance Considerations

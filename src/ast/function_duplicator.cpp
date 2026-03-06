@@ -447,8 +447,7 @@ private:
             [](auto) noexcept {});
         builder->_used_custom_callables.clear();
         builder->_used_custom_callables.reserve(used.size());
-        for (auto f : used) { builder->_used_custom_callables.emplace_back(f->shared_from_this()); }
-        builder->_used_custom_callables.shrink_to_fit();
+        for (auto f : used) { builder->_used_custom_callables.emplace(f->shared_from_this()); }
     }
 
 public:

@@ -253,10 +253,14 @@ void CodegenUtility::GetVariableName(Function f, Variable::Tag type, uint id, vs
                     if (id == opt->appdataId) {
                         str << "vv"sv;
                     } else {
+
                         if (opt->arguments.find(id) != opt->arguments.end()) {
                             id += opt->argOffset;
                             str << "a.l"sv;
                         } else {
+                            auto custom_name = f.get_variable_name(id);
+                            if (!custom_name.empty())
+                                str << custom_name << '_';
                             str << 'l';
                         }
                         vstd::to_string(id, str);
@@ -265,6 +269,9 @@ void CodegenUtility::GetVariableName(Function f, Variable::Tag type, uint id, vs
                 case CodegenStackData::FuncType::Pixel: {
                     auto ite = opt->arguments.find(id);
                     if (ite == opt->arguments.end()) {
+                        auto custom_name = f.get_variable_name(id);
+                        if (!custom_name.empty())
+                            str << custom_name << '_';
                         str << 'l';
                         vstd::to_string(id, str);
                     } else {
@@ -282,41 +289,60 @@ void CodegenUtility::GetVariableName(Function f, Variable::Tag type, uint id, vs
                     }
                 } break;
                 default: {
+                    auto custom_name = f.get_variable_name(id);
+                    if (!custom_name.empty())
+                        str << custom_name << '_';
                     str << 'l';
                     vstd::to_string(id, str);
                 }
             }
             break;
-        case Variable::Tag::SHARED:
-            str << "_s"sv;
+        case Variable::Tag::SHARED: {
+            auto custom_name = f.get_variable_name(id);
+            str << custom_name;
+            str << "_s";
             vstd::to_string(f.hash(), str);
             str << '_';
             vstd::to_string(id, str);
-            break;
-        case Variable::Tag::REFERENCE:
+        } break;
+        case Variable::Tag::REFERENCE: {
+            auto custom_name = f.get_variable_name(id);
+            if (!custom_name.empty())
+                str << custom_name << '_';
             str << 'r';
             vstd::to_string(id, str);
-            break;
-        case Variable::Tag::BUFFER:
+        } break;
+        case Variable::Tag::BUFFER: {
+            auto custom_name = f.get_variable_name(id);
+            str << custom_name;
             str << "_b"sv;
             vstd::to_string(id, str);
-            break;
-        case Variable::Tag::TEXTURE:
+        } break;
+        case Variable::Tag::TEXTURE: {
+            auto custom_name = f.get_variable_name(id);
+            str << custom_name;
             str << "_t"sv;
             vstd::to_string(id, str);
-            break;
-        case Variable::Tag::BINDLESS_ARRAY:
+        } break;
+        case Variable::Tag::BINDLESS_ARRAY: {
+            auto custom_name = f.get_variable_name(id);
+            str << custom_name;
             str << "_ba"sv;
             vstd::to_string(id, str);
-            break;
-        case Variable::Tag::ACCEL:
+        } break;
+        case Variable::Tag::ACCEL: {
+            auto custom_name = f.get_variable_name(id);
+            str << custom_name;
             str << "_ac"sv;
             vstd::to_string(id, str);
-            break;
-        default:
+        } break;
+        default: {
+            auto custom_name = f.get_variable_name(id);
+            if (!custom_name.empty())
+                str << custom_name << '_';
             str << 'v';
             vstd::to_string(id, str);
-            break;
+        } break;
     }
 }
 
@@ -478,8 +504,8 @@ void CodegenUtility::GetFunctionDecl(Function func, vstd::StringBuilder &funcDec
         data += "void"sv;
     }
     {
-        data += " custom_"sv;
-        vstd::to_string((opt->GetFuncCount(func)), data);
+        data += " "sv;
+        GetFunctionName(func, data);
         if (func.arguments().empty()) {
             data += "()"sv;
         } else {
@@ -524,7 +550,8 @@ void CodegenUtility::GetFunctionDecl(Function func, vstd::StringBuilder &funcDec
              << data;
 }
 void CodegenUtility::GetFunctionName(Function callable, vstd::StringBuilder &result) {
-    result << "custom_"sv << vstd::to_string((opt->GetFuncCount(callable)));
+    auto &&count_and_name = opt->GetFuncCountAndName(callable);
+    result << (count_and_name.second.empty() ? "custom_"sv : luisa::string_view{count_and_name.second}) << luisa::format("{}", count_and_name.first);
 }
 struct SpirvMatrixPack {
     vstd::StringBuilder *_result;
@@ -614,7 +641,7 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
     };
     switch (expr->op()) {
         case CallOp::CUSTOM:
-            str << "custom_"sv << vstd::to_string((opt->GetFuncCount(expr->custom())));
+            GetFunctionName(expr->custom(), str);
             str << '(';
             {
                 uint64 sz = 0;

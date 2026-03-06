@@ -81,7 +81,7 @@ protected:
 public:
     [[nodiscard]] Stream create_stream(const DStorageStreamOption &option = {}) noexcept;
     [[nodiscard]] DStorageFile open_file(luisa::string_view path) noexcept;
-    [[nodiscard]] DStorageFile pin_memory(void *data, size_t size_bytes) noexcept;
+    [[nodiscard]] DStorageFile pin_memory(void *ptr, size_t size_bytes) noexcept;
 
     virtual void compress(const void *data, size_t size_bytes,
                           Compression algorithm, CompressionQuality quality,

@@ -106,7 +106,7 @@ private:
         const Expression * /* captured */>
         _internalizer_arguments;
     luisa::vector<luisa::shared_ptr<const ExternalFunction>> _used_external_functions;
-    luisa::vector<luisa::shared_ptr<const FunctionBuilder>> _used_custom_callables;
+    FuncBuilderMap _used_custom_callables;
     luisa::vector<Variable> _local_variables;
     luisa::vector<Variable> _shared_variables;
     luisa::vector<Usage> _variable_usages;
@@ -122,7 +122,9 @@ private:
     bool _requires_atomic_float{false};
     bool _requires_printing{false};
     bool _use_cooperative_operations{false};
-    luisa::string _name;
+    // Codegen Comment
+    mutable luisa::string _name;
+    mutable luisa::vector<luisa::string> _variables_names;
 
 protected:
     [[nodiscard]] static luisa::vector<FunctionBuilder *> &_function_stack() noexcept;
@@ -214,7 +216,7 @@ public:
     /// Return a span of unbound arguments.
     [[nodiscard]] auto unbound_arguments() const noexcept { return luisa::span{_arguments}.subspan(_bound_arguments.size()); }
     /// Return a span of custom callables.
-    [[nodiscard]] auto custom_callables() const noexcept { return luisa::span{_used_custom_callables}; }
+    [[nodiscard]] auto const &custom_callables() const noexcept { return _used_custom_callables; }
     /// Return a span of external callables.
     [[nodiscard]] auto external_callables() const noexcept { return luisa::span{_used_external_functions}; }
     /// Return a CallOpSet of builtin callables that are directly called.
@@ -279,7 +281,9 @@ public:
     void set_block_size(uint3 size) noexcept;
 
     /// Set name
-    void set_name(luisa::string_view name) noexcept;
+    void set_name(luisa::string_view name) const noexcept;
+    void set_variable_name(uint32_t id, luisa::string_view name) const noexcept;
+    luisa::string_view get_variable_name(uint32_t uid) const noexcept;
 
     // built-in variables
     /// Return thread id.
@@ -468,6 +472,7 @@ public:
 
     /// Duplicate the function builder, also perform certain simplifications and canonicalizations.
     [[nodiscard]] luisa::shared_ptr<const FunctionBuilder> duplicate() const noexcept;
+    [[nodiscard]] bool operator==(const FunctionBuilder &rhs) const noexcept;
 };
 
 }// namespace luisa::compute::detail

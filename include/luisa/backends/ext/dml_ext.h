@@ -52,7 +52,7 @@ public:
         uint32_t out_elements,
         luisa::span<const uint32_t> hidden_layer_elements,
         luisa::span<const FusedActivation> activations,
-        bool half_precision = false) noexcept = 0;
+        bool half_precision) noexcept = 0;
 };
 
 }// namespace luisa::compute

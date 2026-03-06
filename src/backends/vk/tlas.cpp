@@ -288,6 +288,14 @@ void Tlas::build(
         1,
         acceleration_build_geometry_info,
         &acceleration_structure_build_range_info);
+    // possible? 
+    cmdbuffer.resource_barrier->record(
+        BufferView{
+            _instance_buffer.get()},
+        ResourceBarrier::Usage::ComputeRead);
+    cmdbuffer.resource_barrier->record(
+        _accel_buffer.get(),
+        ResourceBarrier::Usage::ComputeRead);
 }
 void Tlas::resize_instance(size_t size) {
     if (size < allInstance.size()) {
