@@ -159,11 +159,13 @@ public:
         ::llvm::orc::LLJITBuilder jit_builder;
         if (auto host = ::llvm::orc::JITTargetMachineBuilder::detectHost()) {
             ::llvm::TargetOptions options;
+#if LLVM_VERSION_MAJOR <= 21
             options.UnsafeFPMath = true;
+            options.ApproxFuncFPMath = true;
+#endif
             options.NoInfsFPMath = true;
             options.NoNaNsFPMath = true;
             options.NoSignedZerosFPMath = true;
-            options.ApproxFuncFPMath = true;
             options.NoTrappingFPMath = true;
             options.AllowFPOpFusion = ::llvm::FPOpFusion::Fast;
             options.EnableIPRA = false;// true causes crash

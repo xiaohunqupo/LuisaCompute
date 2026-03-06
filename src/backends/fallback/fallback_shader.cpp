@@ -562,11 +562,13 @@ void FallbackShader::_initialize_target_machine_jit(const ShaderOption &option) 
     if (auto host = ::llvm::orc::JITTargetMachineBuilder::detectHost()) {
         ::llvm::TargetOptions options;
         if (option.enable_fast_math) {
+#if LLVM_VERSION_MAJOR <= 21
             options.UnsafeFPMath = true;
+            options.ApproxFuncFPMath = true;
+#endif
             options.NoInfsFPMath = true;
             options.NoNaNsFPMath = true;
             options.NoSignedZerosFPMath = true;
-            options.ApproxFuncFPMath = true;
         }
         options.NoTrappingFPMath = true;
         options.AllowFPOpFusion = ::llvm::FPOpFusion::Fast;
