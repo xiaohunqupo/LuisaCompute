@@ -320,6 +320,11 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
                 allocSettings->sparse_image_block_size);
         else
             defaultAllocator = vstd::make_unique<GpuAllocator>(this, profiler, 0, 0, 0);
+        if (deviceSettings) {
+            deviceSettings->GetDefragmentFunction([ptr = defaultAllocator.get()] {
+                ptr->Defragment();
+            });
+        }
         allocatorInterface.device = this;
         globalHeap = vstd::create_unique(
             new DescriptorHeap(

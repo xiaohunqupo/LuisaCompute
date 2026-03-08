@@ -68,7 +68,7 @@ struct DirectXDeviceConfigExt : public DeviceConfigExt {
         IDxcUtils *dxcUtils,
         ID3D12DescriptorHeap *shaderDescriptor,
         ID3D12DescriptorHeap *samplerDescriptor) noexcept {}
-
+    virtual void GetDefragmentFunction(luisa::move_only_function<void()> &&defragment_func) {}
     // plugin resources
     virtual ID3D12CommandQueue *CreateQueue(D3D12_COMMAND_LIST_TYPE type) noexcept { return nullptr; }
 
