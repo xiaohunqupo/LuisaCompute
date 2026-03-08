@@ -54,6 +54,7 @@ public:
     virtual void init_volk(PFN_vkGetInstanceProcAddr handler) noexcept {}
     virtual luisa::vector<luisa::string> extra_instance_exts() noexcept { return {}; }
     virtual luisa::vector<luisa::string> extra_device_exts() noexcept { return {}; }
+    virtual void get_defragment_function(luisa::move_only_function<void()> &&defragment_func) {}
     virtual void readback_vulkan_device(
         VkInstance instance,
         VkPhysicalDevice physical_device,

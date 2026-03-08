@@ -304,6 +304,9 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
     if (configs) {
         if (configs->extension) {
             _config_ext = luisa::unique_ptr<VulkanDeviceConfigExt>{reinterpret_cast<VulkanDeviceConfigExt *>(configs->extension.release())};
+            _config_ext->get_defragment_function([this] {
+                vma_defragment(this);
+            });
         }
         headless = configs->headless;
         use_lmdb = configs->use_lmdb;

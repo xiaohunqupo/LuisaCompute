@@ -5,6 +5,69 @@
 #include "device.h"
 #include "log.h"
 namespace lc::vk {
+void vma_defragment(Device *device) {
+    if (!device) return;
+    
+    VmaDefragmentationInfo defragInfo = {};
+    defragInfo.flags = VMA_DEFRAGMENTATION_FLAG_ALGORITHM_FAST_BIT;
+    defragInfo.pool = VK_NULL_HANDLE;  // Defragment all default pools
+    
+    VmaDefragmentationContext defragCtx;
+    VkResult result = vmaBeginDefragmentation(
+        device->allocator().allocator(),
+        &defragInfo,
+        &defragCtx);
+    
+    if (result != VK_SUCCESS) {
+        return;
+    }
+    
+    // Perform defragmentation passes
+    [&]{
+        VmaDefragmentationPassMoveInfo passInfo = {};
+        result = vmaBeginDefragmentationPass(
+            device->allocator().allocator(),
+            defragCtx,
+            &passInfo);
+        
+        if (result == VK_SUCCESS) {
+            // No more moves needed
+            return;
+        }
+        
+        if (result != VK_INCOMPLETE) {
+            // Error occurred
+            return;
+        }
+        
+        // Mark all moves as IGNORE since we don't have access to buffer/image handles
+        // to recreate them at the new locations. This will still allow VMA to free
+        // empty memory blocks.
+        for (uint32_t i = 0; i < passInfo.moveCount; ++i) {
+            passInfo.pMoves[i].operation = VMA_DEFRAGMENTATION_MOVE_OPERATION_IGNORE;
+        }
+        
+        result = vmaEndDefragmentationPass(
+            device->allocator().allocator(),
+            defragCtx,
+            &passInfo);
+    }();
+    
+    VmaDefragmentationStats stats = {};
+    vmaEndDefragmentation(
+        device->allocator().allocator(),
+        defragCtx,
+        &stats);
+    
+    // Log compaction results
+    if (stats.bytesMoved > 0 || stats.bytesFreed > 0) {
+        LUISA_INFO("VMA memory compacted: {} bytes moved, {} bytes freed, {} allocations moved, {} blocks freed",
+                   stats.bytesMoved,
+                   stats.bytesFreed,
+                   stats.allocationsMoved,
+                   stats.deviceMemoryBlocksFreed);
+    }
+}
 UploadBuffer::UploadBuffer(Device *device, size_t size_bytes)
     : Buffer{device, size_bytes},
       _res{

@@ -9,6 +9,7 @@ struct BufferFlusher {
     void mark_dirty(size_t begin, size_t end);
     void flush(Device *device, void *alloc);
 };
+void vma_defragment(Device* device);
 class Buffer : public Resource {
     size_t _byte_size;
 

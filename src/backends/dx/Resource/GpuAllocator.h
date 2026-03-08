@@ -33,6 +33,7 @@ public:
         uint64_t preferred_block_size,
         uint64_t sparse_buffer_block_size,
         uint64_t sparse_image_block_size);
+    void Defragment();
     ~GpuAllocator();
 };
 }// namespace lc::dx
