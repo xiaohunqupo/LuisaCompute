@@ -2,27 +2,29 @@
 // efficient parallel prefix sum (scan) algorithms using GPU warp operations.
 
 #include <cmath>
+#include <numeric>
 #include <luisa/luisa-compute.h>
 #include "luisa/core/basic_traits.h"
+#include "luisa/core/logging.h"
+#include "luisa/core/stl/string.h"
 #include "luisa/dsl/resource.h"
-#include "luisa/dsl/stmt.h"
 #include "luisa/dsl/struct.h"
+#include "luisa/dsl/sugar.h"
+#include "luisa/dsl/func.h"
+#include "luisa/dsl/var.h"
+#include "luisa/dsl/builtin.h"
 #include <cstddef>
-#include <luisa/dsl/sugar.h>
-#include <luisa/dsl/func.h>
-#include <luisa/dsl/var.h>
-#include <luisa/dsl/builtin.h>
 
 namespace luisa::parallel_primitive {
-
+using namespace luisa::compute;
 // Shuffle down operation for warp-level communication
 template<typename Type4Byte>
-luisa::compute::Var<Type4Byte> ShuffleDown(luisa::compute::Var<Type4Byte> &input,
-                                           luisa::compute::UInt curr_lane_id,
-                                           luisa::compute::UInt offset,
-                                           luisa::compute::UInt last_lane = 32u) {
+Var<Type4Byte> ShuffleDown(Var<Type4Byte> &input,
+                           luisa::compute::UInt curr_lane_id,
+                           luisa::compute::UInt offset,
+                           luisa::compute::UInt last_lane = 32u) {
     luisa::compute::UInt src_lane = curr_lane_id + offset;
-    luisa::compute::Var<Type4Byte> result = compute::warp_read_lane(input, src_lane);
+    Var<Type4Byte> result = warp_read_lane(input, src_lane);
     $if (src_lane > last_lane) {
         result = input;
     };
@@ -30,13 +32,23 @@ luisa::compute::Var<Type4Byte> ShuffleDown(luisa::compute::Var<Type4Byte> &input
 };
 
 // Get lane mask for threads with lane_id >= given value
-inline luisa::compute::UInt get_lane_mask_ge(luisa::compute::UInt lane_id,
-                                             luisa::compute::UInt wave_size) {
-    luisa::compute::ULong mask64 = ~((1ull << lane_id) - 1ull);
-    mask64 &= (1ull << wave_size) - 1ull;
-    return static_cast<luisa::compute::UInt>(mask64);
+static Callable get_lane_mask_ge = []() { return 0xFFFFFFFFu << warp_lane_id(); };
+static constexpr inline bool is_power_of_two(int x) {
+    return (x & (x - 1)) == 0;
 }
+template<size_t LOGIC_WARP_SIZE>
+inline luisa::compute::UInt warp_mask(luisa::compute::UInt warp_id) {
+    constexpr bool is_pow_of_two = is_power_of_two(LOGIC_WARP_SIZE);
+    constexpr bool is_arch_warp = (LOGIC_WARP_SIZE == 32);
 
+    luisa::compute::UInt member_mask = 0xFFFFFFFFu >> (32 - LOGIC_WARP_SIZE);
+
+    if constexpr (is_pow_of_two && !is_arch_warp) {
+        member_mask <<= warp_id * luisa::compute::UInt(LOGIC_WARP_SIZE);
+    };
+
+    return member_mask;
+}
 namespace details {
 using namespace luisa::compute;
 
@@ -44,56 +56,98 @@ using namespace luisa::compute;
 template<typename Type4Byte, size_t LOGIC_WARP_SIZE = 32>
 struct WarpReduceShfl {
     constexpr static bool IS_ARCH_WARP = (LOGIC_WARP_SIZE == 32);
+    compute::UInt lane_id;
+    compute::UInt warp_id;
+    compute::UInt member_mask;
+
+    WarpReduceShfl()
+        : lane_id(warp_lane_id()), warp_id(IS_ARCH_WARP ? 0 : warp_lane_id() / compute::UInt(LOGIC_WARP_SIZE)), member_mask(IS_ARCH_WARP ? 0xFFFFFFFFu : warp_mask<LOGIC_WARP_SIZE>(warp_id)) {
+        if constexpr (!IS_ARCH_WARP) {
+            lane_id = lane_id % compute::UInt(LOGIC_WARP_SIZE);
+        }
+    }
 
     template<typename ReduceOp>
     Var<Type4Byte> Reduce(const Var<Type4Byte> &input, ReduceOp op, UInt valid_item = LOGIC_WARP_SIZE) {
+        return ReduceStep(input, op, valid_item - 1);
+    }
+
+    template<bool HEAD_SEGMENT, typename FlagT, typename ReduceOp>
+    Var<Type4Byte> SegmentReduce(const Var<Type4Byte> &input,
+                                 const Var<FlagT> &flag,
+                                 ReduceOp reduce_op,
+                                 UInt valid_item = LOGIC_WARP_SIZE) {
+        UInt warp_flags = compute::warp_active_bit_mask(flag == 1u).x;
+        if constexpr (HEAD_SEGMENT) {
+            warp_flags >>= 1;
+        };
+
+        warp_flags &= get_lane_mask_ge();
+
+        if constexpr (!IS_ARCH_WARP) {
+            warp_flags = (warp_flags & member_mask) >> (warp_id * UInt(LOGIC_WARP_SIZE));
+        };
+
+        warp_flags |= 1u << (UInt(LOGIC_WARP_SIZE) - 1u);
+
+        UInt last_lane = compute::ctz(warp_flags);
+
+        return ReduceStep(input, reduce_op, last_lane);
+    }
+
+private:
+    template<typename ReduceOp>
+    Var<Type4Byte> ReduceStep(const Var<Type4Byte> &input, ReduceOp op, UInt valid_item = LOGIC_WARP_SIZE) {
         Var<Type4Byte> result = input;
-        compute::UInt lane_id = compute::warp_lane_id();
-        compute::UInt wave_size = compute::warp_lane_count();
 
         compute::UInt offset = 1u;
-        $while (offset < wave_size) {
+        $while (offset < warp_lane_count()) {
             Var<Type4Byte> temp = ShuffleDown(result, lane_id, offset, valid_item);
-            $if (lane_id + offset < valid_item) {
+            $if (lane_id + offset <= valid_item) {
                 result = op(result, temp);
             };
             offset <<= 1;
         };
         return result;
     }
-
-    // Segmented reduction for handling boundaries
-template<bool HEAD_SEGMENT, typename FlagT, typename ReduceOp>
-    Var<Type4Byte> SegmentReduce(const Var<Type4Byte> &input,
-                                 const Var<FlagT> &flag,
-                                 ReduceOp redecu_op,
-                                 const UInt &valid_item = LOGIC_WARP_SIZE) {
-        compute::UInt lane_id = compute::warp_lane_id();
-        compute::UInt wave_size = compute::warp_lane_count();
-
-        UInt warp_flags = compute::warp_active_bit_mask(flag == 1).x;
-        if constexpr (HEAD_SEGMENT) {
-            warp_flags >>= 1;
-        };
-
-        if constexpr (!IS_ARCH_WARP) {
-            compute::UInt member_mask = warp_mask<LOGIC_WARP_SIZE>(lane_id);
-            compute::UInt warp_id = lane_id / compute::UInt(LOGIC_WARP_SIZE);
-            warp_flags = (warp_flags & member_mask) >> (warp_id * UInt(LOGIC_WARP_SIZE));
-        };
-
-        warp_flags &= get_lane_mask_ge(lane_id, wave_size);
-
-        warp_flags |= 1u << (wave_size - 1u);
-
-        UInt last_lane = compute::clz(compute::reverse(warp_flags));
-
-        return Reduce(input, redecu_op, last_lane + 1);
-    }
 };
 }// namespace details
+
+template<typename Type4Byte, size_t WARP_SIZE = 32>
+class WarpReduce {
+public:
+    WarpReduce() {
+        m_shared_mem = new Shared<Type4Byte>{WARP_SIZE};
+    }
+    WarpReduce(Shared<Type4Byte> *shared_mem)
+        : m_shared_mem(shared_mem) {
+    }
+    ~WarpReduce() = default;
+
+public:
+    template<typename FlagT, typename ReduceOp>
+    Var<Type4Byte> TailSegmentedReduce(const Var<Type4Byte> &d_in,
+                                       const Var<FlagT> &flag,
+                                       ReduceOp redecu_op,
+                                       compute::UInt valid_item = WARP_SIZE) {
+        Var<Type4Byte> result;
+        result = details::WarpReduceShfl<Type4Byte, WARP_SIZE>().template SegmentReduce<false>(d_in, flag, redecu_op, valid_item);
+        return result;
+    }
+
+    template<typename FlagT>
+    Var<Type4Byte> TailSegmentedSum(const Var<Type4Byte> &d_in, const Var<FlagT> &flag, compute::UInt valid_item = WARP_SIZE) {
+        Var<Type4Byte> result;
+        result = details::WarpReduceShfl<Type4Byte, WARP_SIZE>().template SegmentReduce<false>(d_in, flag, [](const Var<Type4Byte> &a, const Var<Type4Byte> &b) noexcept { return a + b; }, valid_item);
+        return result;
+    }
+
+private:
+    Shared<Type4Byte> *m_shared_mem;
+};
+
+// Swizzle scan operator for reversing operand order
 template<typename ScanOp>
-// Swizzle scan operator for reversing operand ordertemplate<typename ScanOp>
 struct SwizzleScanOp {
     ScanOp scan_op;
 
@@ -136,173 +190,189 @@ struct TileDescriptor {
     TileDescriptor &operator=(const TileDescriptor &) = default;
 };
 
-// Device and host tile state for scan
 template<typename T>
-struct ScanTileState {
-
-    compute::uint status;
-    T value;
-};
-
-// Tile state viewer for managing scan state
-template<typename T, bool SINGLE_WORD = std::is_integral_v<T>>
-struct ScanTileStateViewer;
-template<typename T>
-struct ScanTileStateViewer<T, true> {
+struct ScanTileStateViewer {
 
     using StatusWordT = compute::uint;
 
     constexpr static size_t TILE_STATUS_PADDING = 32;
 
-    // Initialize ward status for all tiles
-    static void InitializeWardStatus(compute::BufferVar<ScanTileState<T>> &tile_state,
-                                     compute::UInt num_tile) noexcept {
+    compute::BufferVar<compute::uint> &d_tile_status;
+    compute::BufferVar<T> &d_tile_partial;
+    compute::BufferVar<T> &d_tile_inclusive;
 
-        compute::UInt tile_idx = compute::dispatch_id().x;
-        compute::Var<ScanTileState<T>> state;
+    ScanTileStateViewer(compute::BufferVar<StatusWordT> &tile_status,
+                        compute::BufferVar<T> &tile_partial,
+                        compute::BufferVar<T> &tile_inclusive)
+        : d_tile_status(tile_status), d_tile_partial(tile_partial), d_tile_inclusive(tile_inclusive) {};
 
-        $if (tile_idx < num_tile) {
-            state.status =
-                compute::def(StatusWordT(ScanTileStatus::SCAN_TILE_INVALID));
-            state.value = T(0);
-            tile_state.write(compute::UInt(TILE_STATUS_PADDING) + tile_idx, state);
-        };
-        $if (compute::block_id().x == 0 & compute::thread_x() < compute::UInt(TILE_STATUS_PADDING)) {
-            state.status =
-                compute::def(StatusWordT(ScanTileStatus::SCAN_TILE_OBB));
-            state.value = T(0);
-            tile_state.write(compute::thread_x(), state);
-        };
+    void SetInclusive(compute::Int tile_index, const compute::Var<T> &tile_inclusive) noexcept {
+        d_tile_inclusive.volatile_write(compute::Int(TILE_STATUS_PADDING) + tile_index, tile_inclusive);
+        d_tile_status.volatile_write(compute::Int(TILE_STATUS_PADDING) + tile_index,
+                                     compute::def(StatusWordT(ScanTileStatus::SCAN_TILE_INCLUSIVE)));
     };
 
-    // Set tile status to inclusive
-    static void SetInclusive(compute::BufferVar<ScanTileState<T>> &tile_state,
-                             compute::UInt tile_index,
-                             const compute::Var<T> &tile_prefix) noexcept {
-        compute::Var<ScanTileState<T>> state;
-        state.status = StatusWordT(ScanTileStatus::SCAN_TILE_INCLUSIVE);
-        state.value = tile_prefix;
-        tile_state.write(compute::UInt(TILE_STATUS_PADDING) + tile_index, state);
+    void SetPartial(compute::Int tile_index, const compute::Var<T> &tile_partial) noexcept {
+        d_tile_partial.volatile_write(compute::Int(TILE_STATUS_PADDING) + tile_index, tile_partial);
+        d_tile_status.volatile_write(compute::Int(TILE_STATUS_PADDING) + tile_index,
+                                     compute::def(StatusWordT(ScanTileStatus::SCAN_TILE_PARTIAL)));
     };
 
-    // Set tile status to partial
-    static void SetPartial(compute::BufferVar<ScanTileState<T>> &tile_state,
-                           compute::UInt tile_index,
-                           const compute::Var<T> &tile_partial) noexcept {
-        compute::Var<ScanTileState<T>> state;
-        state.status = StatusWordT(ScanTileStatus::SCAN_TILE_PARTIAL);
-        state.value = tile_partial;
-        tile_state.write(compute::UInt(TILE_STATUS_PADDING) + tile_index, state);
-    };
-
-    // Wait for tile to become valid (decoupled look-back)
-    static void WaitForValid(compute::BufferVar<ScanTileState<T>> &tile_state,
-                             compute::Int tile_index,
-                             compute::Var<StatusWordT> &out_status,
-                             compute::Var<T> &out_value) noexcept {
-        compute::Var<ScanTileState<T>> curr_tile_state;
-        curr_tile_state =
-            tile_state.volatile_read(compute::Int(TILE_STATUS_PADDING) + tile_index);
-        $while (compute::warp_active_any(curr_tile_state.status == StatusWordT(ScanTileStatus::SCAN_TILE_INVALID))) {
-            curr_tile_state =
-                tile_state.volatile_read(compute::Int(TILE_STATUS_PADDING) + tile_index);
+    template<typename DelayT>
+    void WaitForValid(compute::Int tile_index, compute::Var<StatusWordT> &out_status, compute::Var<T> &out_value, DelayT delay) noexcept {
+        out_status = d_tile_status.volatile_read(compute::Int(TILE_STATUS_PADDING) + tile_index);
+        $while (compute::warp_active_any(out_status == StatusWordT(ScanTileStatus::SCAN_TILE_INVALID))) {
+            delay();
+            out_status = d_tile_status.volatile_read(compute::Int(TILE_STATUS_PADDING) + tile_index);
         };
-
-        out_status = curr_tile_state.status;
-        out_value = curr_tile_state.value;
-
-        $if (tile_index > 0) {
-            compute::device_log("thid:{} Tile {} status: {}, value: {}", compute::dispatch_id().x, tile_index, out_status, out_value);
+        $if (out_status == StatusWordT(ScanTileStatus::SCAN_TILE_PARTIAL)) {
+            out_value = d_tile_partial.volatile_read(compute::Int(TILE_STATUS_PADDING) + tile_index);
+        }
+        $else {
+            out_value = d_tile_inclusive.volatile_read(compute::Int(TILE_STATUS_PADDING) + tile_index);
         };
     };
 };
+static void InitializeWardStatus(compute::UInt num_tile, compute::BufferVar<compute::uint> &d_tile_status) noexcept {
+    compute::UInt tile_idx = compute::dispatch_id().x;
+    $if (tile_idx < num_tile) {
+        d_tile_status.write(compute::UInt(ScanTileStateViewer<int>::TILE_STATUS_PADDING) + tile_idx,
+                            compute::def(ScanTileStateViewer<int>::StatusWordT(ScanTileStatus::SCAN_TILE_INVALID)));
+    };
+    $if (compute::block_id().x == 0 & compute::thread_x() < compute::UInt(ScanTileStateViewer<int>::TILE_STATUS_PADDING)) {
+        d_tile_status.write(compute::thread_x(), compute::def(ScanTileStateViewer<int>::StatusWordT(ScanTileStatus::SCAN_TILE_OBB)));
+    };
+};
 
-// Decoupled look-back (warp) callback operator
+template<typename T>
+struct TilePrefixTempStorage {
+    T exclusive_prefix;
+    T inclusive_prefix;
+    T block_aggregate;
+};
+
+template<typename T>
+struct no_delay_constructor {
+    no_delay_constructor(compute::UInt) noexcept {};
+
+    struct delay_t {
+        void operator()() const noexcept {};
+    };
+
+    [[nodiscard]] delay_t operator()() const noexcept { return delay_t{}; };
+};
+
+// Decoupled look-back(warp)
 // only device
-template<typename T, typename ScanOpT, typename ScanTileStateT>
+template<typename T, typename ScanOpT, typename ScanTileStateT = ScanTileStateViewer<T>, typename DelayConstructorT = no_delay_constructor<T>>
 class TilePrefixCallbackOp {
 public:
+    using WarpReduceT = WarpReduce<T, 32>;
 
     using StatusWordT = compute::uint;
 
-    compute::BufferVar<ScanTileStateT> &tile_status;
+    using TempStorageT = TilePrefixTempStorage<T>;
+
+    // TempStorageT&                        temp_storage;
+    SmemTypePtr<TempStorageT> temp_storage;
+    // compute::BufferVar<ScanTileStateT>& tile_status;
+    ScanTileStateT &tile_status;
     ScanOpT scan_op;
-    compute::Int tile_index;
-    compute::Var<T> exclusive_prefix;
-    compute::Var<T> inclusive_prefix;
+    compute::UInt tile_index;
+    Var<T> exclusive_prefix;
+    Var<T> inclusive_prefix;
 
-    TilePrefixCallbackOp(compute::BufferVar<ScanTileStateT> &tile_state,
+    TilePrefixCallbackOp(ScanTileStateT &tile_state,
+                         SmemTypePtr<TempStorageT> temp_storage,
                          ScanOpT scan_op,
-                         const compute::Int tile_index)
-        : tile_status{tile_state}, scan_op{scan_op}, tile_index{tile_index} {};
+                         compute::UInt tile_index)
+        : tile_status{tile_state}, temp_storage{temp_storage}, scan_op{scan_op}, tile_index{tile_index} {};
 
-    TilePrefixCallbackOp(compute::BufferVar<ScanTileStateT> &tile_state,
-                         ScanOpT scan_op)
-        : TilePrefixCallbackOp(tile_state, scan_op, compute::block_x()) {};
+    TilePrefixCallbackOp(ScanTileStateT &tile_state, SmemTypePtr<TempStorageT> temp_storage, ScanOpT scan_op)
+        : TilePrefixCallbackOp(tile_state, temp_storage, scan_op, compute::block_x()) {};
 
 public:
-    // Compute tile prefix using decoupled look-back
-    compute::Var<T> operator()(const compute::Var<T> &block_aggregate) {
+    Var<T> operator()(const Var<T> &block_aggregate) {
         $if (compute::thread_x() == 0) {
-            ScanTileStateViewer<T>::SetPartial(tile_status, tile_index, block_aggregate);
+            (*temp_storage)[0].block_aggregate = block_aggregate;
+            // ScanTileStateViewer::SetPartial(tile_status, tile_index, block_aggregate);
+            tile_status.SetPartial(tile_index, block_aggregate);
         };
 
         compute::Int predecessor_idx = tile_index - compute::thread_x() - 1;
-        compute::Var<StatusWordT> predecessor_status;
-        compute::Var<T> windows_aggregate;
-        process_windows(predecessor_idx, predecessor_status, windows_aggregate);
+        Var<StatusWordT> predecessor_status;
+        Var<T> windows_aggregate;
 
+        // decay
+        DelayConstructorT construct_delay(tile_index);
+        process_windows(predecessor_idx, predecessor_status, windows_aggregate, construct_delay());
+
+        // The exclusive tile prefix starts out as the current window aggregate
         exclusive_prefix = windows_aggregate;
 
-        $while (compute::warp_active_all(
-                    predecessor_status != StatusWordT(ScanTileStatus::SCAN_TILE_INCLUSIVE))) {
+        // warp(32) polling for predecessor tiles
+        $while (compute::warp_active_all(predecessor_status != StatusWordT(ScanTileStatus::SCAN_TILE_INCLUSIVE))) {
             predecessor_idx -= compute::Int(32);
-            process_windows(predecessor_idx, predecessor_status, windows_aggregate);
+            process_windows(predecessor_idx, predecessor_status, windows_aggregate, construct_delay());
+
             exclusive_prefix = scan_op(windows_aggregate, exclusive_prefix);
         };
 
         $if (compute::thread_x() == 0) {
             inclusive_prefix = scan_op(exclusive_prefix, block_aggregate);
-            ScanTileStateViewer<T>::SetInclusive(tile_status, tile_index, inclusive_prefix);
+            // ScanTileStateViewer::SetInclusive(tile_status, tile_index, inclusive_prefix);
+            tile_status.SetInclusive(tile_index, inclusive_prefix);
+            (*temp_storage)[0].exclusive_prefix = exclusive_prefix;
+            (*temp_storage)[0].inclusive_prefix = inclusive_prefix;
+            // device_log("Tile {}: exclusive = {} inclusive = {} ", tile_index, exclusive_prefix, inclusive_prefix);
         };
 
         return exclusive_prefix;
     }
 
-    compute::UInt GetTileIndex() const noexcept { return tile_index; }
+    inline compute::UInt GetTileIndex() const noexcept { return tile_index; }
+
+    inline compute::Var<T> GetInclusivePrefix() const noexcept {
+        return (*temp_storage)[0].inclusive_prefix;
+    };
+
+    inline compute::Var<T> GetExclusivePrefix() const noexcept {
+        return (*temp_storage)[0].exclusive_prefix;
+    };
+
+    inline compute::Var<T> GetBlockAggregate() const noexcept {
+        return (*temp_storage)[0].block_aggregate;
+    };
 
 private:
-    // Process a window of predecessor tiles
-    void process_windows(compute::Int predecessor_idx,
-                         compute::Var<StatusWordT> &predecessor_status,
-                         compute::Var<T> &windows_aggregate) {
-        compute::Var<T> value;
-        ScanTileStateViewer<T>::WaitForValid(
-            tile_status, predecessor_idx, predecessor_status, value);
+    template<typename DeLayT>
+    void process_windows(compute::Int predecessor_idx, Var<StatusWordT> &predecessor_status, Var<T> &windows_aggregate, DeLayT delay) {
+        Var<T> value;
+        // ScanTileStateViewer::WaitForValid(tile_status, predecessor_idx, predecessor_status, value, delay);
+        tile_status.WaitForValid(predecessor_idx, predecessor_status, value, delay);
 
-        compute::Int tail_flag =
-            predecessor_status == StatusWordT(ScanTileStatus::SCAN_TILE_INCLUSIVE);
-
-        windows_aggregate = details::WarpReduceShfl<T>().template SegmentReduce<false>(
-            value, tail_flag, scan_op);
+        compute::UInt tail_flag = (predecessor_status == StatusWordT(ScanTileStatus::SCAN_TILE_INCLUSIVE));
+        windows_aggregate =
+            WarpReduceT().TailSegmentedReduce(value, tail_flag, SwizzleScanOp<ScanOpT>(scan_op));
     }
 };
 
 }// namespace luisa::parallel_primitive
-
 #define LUISA_T_TEMPLATE() template<typename U>
-
-#define LUISA_SCANTILESTATE_TRUE_NAME() \
-    luisa::parallel_primitive::ScanTileState<U>
-LUISA_TEMPLATE_STRUCT(LUISA_T_TEMPLATE, LUISA_SCANTILESTATE_TRUE_NAME, status, value){};
-
+#define LUISA_TILEPREFIXTEMPSTORAGE_NAME() luisa::parallel_primitive::TilePrefixTempStorage<U>
+LUISA_TEMPLATE_STRUCT(LUISA_T_TEMPLATE, LUISA_TILEPREFIXTEMPSTORAGE_NAME, exclusive_prefix, inclusive_prefix, block_aggregate){};
 using namespace luisa;
 using namespace luisa::compute;
 using namespace luisa::parallel_primitive;
 
+static size_t ceil_div(size_t a, size_t b) {
+    return (a + b - 1) / b;
+}
+
 int main(int argc, char **argv) {
     log_level_verbose();
 
+    // Initialize compute context
     Context context{argv[0]};
     if (argc <= 1) {
         LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
@@ -313,78 +383,102 @@ int main(int argc, char **argv) {
     CommandList cmdlist;
     Stream stream = device.create_stream();
 
-    // Configuration for decoupled look-back scan
     constexpr size_t WARP_SIZE = 32;
     constexpr size_t BLOCK_SIZE = 256;
-    constexpr size_t NUM_TILES = 10000;
-    const size_t num_blocks = ceil(float(NUM_TILES) / BLOCK_SIZE);
-    auto scan_tile_buffer = device.create_buffer<ScanTileState<int>>(WARP_SIZE + NUM_TILES);
+    constexpr size_t NUM_TILES = 102400;
+    const size_t num_blocks = ceil_div(NUM_TILES, BLOCK_SIZE);
 
-    auto exclusive_buffer = device.create_buffer<int>(NUM_TILES);
-    auto inclusive_buffer = device.create_buffer<int>(NUM_TILES);
+    auto scan_tile_status_buffer = device.create_buffer<uint>(WARP_SIZE + NUM_TILES);
+    auto scan_tile_value_partial_buffer = device.create_buffer<int>(WARP_SIZE + NUM_TILES);
+    auto scan_tile_value_inclusive_buffer = device.create_buffer<int>(WARP_SIZE + NUM_TILES);
 
-    // Initialize tile status to invalid and out-of-bounds
-    Kernel1D init_kernel = [&](BufferVar<ScanTileState<int>> tile_state) noexcept {
-        luisa::compute::set_block_size(BLOCK_SIZE);
-        luisa::parallel_primitive::ScanTileStateViewer<int, true>::InitializeWardStatus(tile_state, NUM_TILES);
+    Kernel1D init_kernel = [&](BufferVar<uint> tile_status_buffer, BufferVar<int> tile_value_partial_buffer, BufferVar<int> tile_value_inclusive_buffer) noexcept {
+        set_block_size(BLOCK_SIZE);
+        InitializeWardStatus(NUM_TILES, tile_status_buffer);
     };
     auto init_shader = device.compile(init_kernel);
-    cmdlist << init_shader(scan_tile_buffer.view()).dispatch(num_blocks * BLOCK_SIZE);
+    cmdlist << init_shader(scan_tile_status_buffer.view(), scan_tile_value_partial_buffer.view(), scan_tile_value_inclusive_buffer.view()).dispatch(num_blocks * BLOCK_SIZE);
     stream << cmdlist.commit() << synchronize();
 
-    // Define scan operator (addition)
     auto scan_op = [](const Var<int> &a, const Var<int> &b) noexcept { return a + b; };
 
-    // Decoupled look-back kernel
-    Kernel1D decoupled_look_back_kernel = [&](BufferVar<ScanTileState<int>> tile_state,
+    Kernel1D decoupled_look_back_kernel = [&](BufferVar<uint> tile_status,
+                                              BufferVar<int> tile_partial,
+                                              BufferVar<int> tile_inclusive,
                                               BufferVar<int> exclusive_output,
                                               BufferVar<int> inclusive_output) noexcept {
         luisa::compute::set_block_size(BLOCK_SIZE);
         luisa::compute::set_warp_size(WARP_SIZE);
         compute::UInt tid = compute::thread_x();
-        using tile_prefix_op = TilePrefixCallbackOp<int, decltype(scan_op), ScanTileState<int>>;
 
-        tile_prefix_op prefix(tile_state, scan_op);
+        ScanTileStateViewer<int> viewer{tile_status, tile_partial, tile_inclusive};
+
+        using tile_prefix_op =
+            TilePrefixCallbackOp<int, decltype(scan_op), ScanTileStateViewer<int>, no_delay_constructor<int>>;
+
+        auto temp_storage = luisa::compute::Shared<TilePrefixTempStorage<int>>(1);
+
+        tile_prefix_op prefix(viewer, &temp_storage, scan_op);
         const auto tile_idx = prefix.GetTileIndex();
-        compute::Int block_aggregate = block_id().x;
+        compute::Int block_aggregate = 1;
         $if (tile_idx == 0) {
             $if (tid == 0) {
-                luisa::parallel_primitive::ScanTileStateViewer<int, true>::SetInclusive(tile_state, tile_idx, block_aggregate);
+                viewer.SetInclusive(tile_idx, block_aggregate);
                 exclusive_output.write(tile_idx, 0);
-                inclusive_output.write(tile_idx, 0);
+                inclusive_output.write(tile_idx, block_aggregate);
             };
         }
         $else {
             const auto warp_id = tid / luisa::compute::UInt(WARP_SIZE);
+
             $if (warp_id == 0) {
                 Var<int> exclusive_prefix = prefix(block_aggregate);
                 $if (tid == 0) {
-                    Var<int> inclusive_prefix =
-                        scan_op(exclusive_prefix, block_aggregate);
+                    Var<int> inclusive_prefix = scan_op(exclusive_prefix, block_aggregate);
                     exclusive_output.write(tile_idx, exclusive_prefix);
                     inclusive_output.write(tile_idx, inclusive_prefix);
                 };
             };
         };
     };
-
-    auto decoupled_look_back_kernel_shader = device.compile(decoupled_look_back_kernel);
-
-    cmdlist
-        << decoupled_look_back_kernel_shader(scan_tile_buffer.view(), exclusive_buffer.view(), inclusive_buffer.view()).dispatch(NUM_TILES * BLOCK_SIZE);
+    auto exclusive_output = device.create_buffer<int>(NUM_TILES);
+    auto inclusive_output = device.create_buffer<int>(NUM_TILES);
+    auto decoupled_look_back_shader = device.compile(decoupled_look_back_kernel);
+    cmdlist << decoupled_look_back_shader(scan_tile_status_buffer.view(),
+                                          scan_tile_value_partial_buffer.view(),
+                                          scan_tile_value_inclusive_buffer.view(),
+                                          exclusive_output.view(),
+                                          inclusive_output.view())
+                   .dispatch(NUM_TILES * BLOCK_SIZE);
     stream << cmdlist.commit() << synchronize();
 
-    // Copy results back to host
     luisa::vector<int> exclusive_result(NUM_TILES);
     luisa::vector<int> inclusive_result(NUM_TILES);
-    stream << exclusive_buffer.copy_to(exclusive_result.data())
-           << inclusive_buffer.copy_to(inclusive_result.data()) << synchronize();
+    stream << exclusive_output.copy_to(exclusive_result.data())
+           << inclusive_output.copy_to(inclusive_result.data()) << synchronize();
 
-    // Print results
-    for (size_t i = 0; i < NUM_TILES; i++) {
-        LUISA_INFO("Tile {}: exclusive_result = {}, inclusive_result = {}",
-                   i,
-                   exclusive_result[i],
-                   inclusive_result[i]);
+    luisa::vector<int> data(NUM_TILES, 1);
+    luisa::vector<int> exclusive_expected(NUM_TILES);
+    luisa::vector<int> inclusive_expected(NUM_TILES);
+    std::exclusive_scan(data.begin(), data.end(), exclusive_expected.begin(), 0);
+    std::inclusive_scan(data.begin(), data.end(), inclusive_expected.begin());
+
+    bool exclusive_ok = std::equal(exclusive_result.begin(), exclusive_result.end(),
+                                   exclusive_expected.begin());
+    bool inclusive_ok = std::equal(inclusive_result.begin(), inclusive_result.end(),
+                                   inclusive_expected.begin());
+
+    if (!exclusive_ok || !inclusive_ok) {
+        for (size_t i = 0; i < NUM_TILES; i++) {
+            if (exclusive_result[i] != exclusive_expected[i] ||
+                inclusive_result[i] != inclusive_expected[i]) {
+                LUISA_INFO("Tile {}: exclusive = {}, inclusive = {} (expected: {}, {})",
+                           i, exclusive_result[i], inclusive_result[i],
+                           exclusive_expected[i], inclusive_expected[i]);
+            }
+        }
+        LUISA_ERROR("Decoupled look-back scan failed (exclusive: {}, inclusive: {})",
+                    exclusive_ok ? "ok" : "fail", inclusive_ok ? "ok" : "fail");
     }
+    LUISA_INFO("Decoupled look-back scan passed.");
 }
