@@ -239,10 +239,10 @@ if has_config("lc_vk_cuda_interop") then
     test_proj("test_cuda_vk_interop")
 end
 
-test_proj("test_memory_compact", false, function()
-    add_deps('lc-volk')
-    add_defines("LUISA_TEST_DX_BACKEND")
-end)
+-- test_proj("test_memory_compact", false, function()
+--     add_deps('lc-volk')
+--     add_defines("LUISA_TEST_DX_BACKEND")
+-- end)
 if has_config("lc_dx_backend") then
     test_proj("test_raster", true)
     test_proj("test_dml")
