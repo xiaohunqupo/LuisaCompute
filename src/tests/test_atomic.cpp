@@ -44,14 +44,17 @@ int main(int argc, char *argv[]) {
     // Create buffer for atomic counter test
     Buffer<uint> buffer = device.create_buffer<uint>(4u);
     
+    // Create a buffer to hold the constant value (1u)
+    Buffer<uint> constant_buffer = device.create_buffer<uint>(1);
+    uint host_value = 1u;
+    Stream stream = device.create_stream();
+    stream << constant_buffer.copy_from(&host_value) << synchronize();
+    
     // Kernel demonstrating atomic fetch_add and conditional write
     // This pattern can be used for counting unique events
-    Kernel1D count_kernel = [&]() noexcept {
-        // Constant value for atomic operation
-        Constant<uint> constant{1u};
-        
+    Kernel1D count_kernel = [&](BufferUInt counter_buffer) noexcept {
         // Atomically add 1 to buffer[3], returns old value
-        Var x = buffer->atomic(3u).fetch_add(constant[0]);
+        Var x = buffer->atomic(3u).fetch_add(counter_buffer.read(0));
         
         // Only the first thread to increment writes 1 to buffer[0]
         // This demonstrates atomic counting with flag setting
@@ -63,13 +66,12 @@ int main(int argc, char *argv[]) {
 
     // Initialize host buffer to zeros
     uint4 host_buffer = make_uint4(0u);
-    Stream stream = device.create_stream();
 
     // Performance test for atomic operations
     Clock clock;
     clock.tic();
     stream << buffer.copy_from(&host_buffer)
-           << count().dispatch(102400u)  // Launch many threads
+           << count(constant_buffer).dispatch(102400u)  // Launch many threads
            << buffer.copy_to(&host_buffer)
            << synchronize();
     double time = clock.toc();

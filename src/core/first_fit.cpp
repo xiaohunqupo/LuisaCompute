@@ -34,6 +34,9 @@ FirstFit::~FirstFit() noexcept { _destroy(); }
 
 FirstFit::FirstFit(FirstFit &&another) noexcept
     : _alignment{another._alignment} {
+    _free_list._next = another._free_list._next;
+    _free_list._size = another._free_list._size;
+    another._free_list._size = 0u;// indicates move
 }
 
 FirstFit &FirstFit::operator=(FirstFit &&rhs) noexcept {

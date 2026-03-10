@@ -92,17 +92,29 @@ int main(int argc, char *argv[]) {
            << accel.build()
            << synchronize();
 
-    Constant materials{
+    // Constant materials{
+    //     make_float3(0.725f, 0.710f, 0.680f),// floor
+    //     make_float3(0.725f, 0.710f, 0.680f),// ceiling
+    //     make_float3(0.725f, 0.710f, 0.680f),// back wall
+    //     make_float3(0.140f, 0.450f, 0.091f),// right wall
+    //     make_float3(0.630f, 0.065f, 0.050f),// left wall
+    //     make_float3(0.725f, 0.710f, 0.680f),// short box
+    //     make_float3(0.725f, 0.710f, 0.680f),// tall box
+    //     make_float3(0.000f, 0.000f, 0.000f),// light
+    // };
+
+    float3 materials_array[] = {
         make_float3(0.725f, 0.710f, 0.680f),// floor
         make_float3(0.725f, 0.710f, 0.680f),// ceiling
         make_float3(0.725f, 0.710f, 0.680f),// back wall
-        make_float3(0.140f, 0.450f, 0.091f),// right wall
-        make_float3(0.630f, 0.065f, 0.050f),// left wall
+        make_float3(0.140f, 0.450f, 0.091f),// right wall (green)
+        make_float3(0.630f, 0.065f, 0.050f),// left wall (red)
         make_float3(0.725f, 0.710f, 0.680f),// short box
         make_float3(0.725f, 0.710f, 0.680f),// tall box
-        make_float3(0.000f, 0.000f, 0.000f),// light
+        make_float3(0.000f, 0.000f, 0.000f),// light (emissive, not used directly)
     };
-
+    auto materials = device.create_buffer<float3>(8);
+    stream << materials.copy_from(materials_array);
     Callable linear_to_srgb = [&](Var<float3> x) noexcept {
         return saturate(select(1.055f * pow(x, 1.0f / 2.4f) - 0.055f,
                                12.92f * x,
@@ -220,7 +232,7 @@ int main(int argc, char *argv[]) {
                 Bool occluded = accel.intersect_any(shadow_ray, {});
                 Float cos_wi_light = dot(wi_light, n);
                 Float cos_light = -dot(light_normal, wi_light);
-                Float3 albedo = materials.read(hit.inst);
+                Float3 albedo = materials->read(hit.inst);
                 $if (!occluded & cos_wi_light > 1e-4f & cos_light > 1e-4f) {
                     Float pdf_light = (d_light * d_light) / (light_area * cos_light);
                     Float pdf_bsdf = cos_wi_light * inv_pi;

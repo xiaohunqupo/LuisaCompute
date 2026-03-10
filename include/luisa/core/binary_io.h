@@ -34,8 +34,10 @@ public:
     }
     BinaryBlob &operator=(BinaryBlob const &rhs) noexcept = delete;
     BinaryBlob &operator=(BinaryBlob &&rhs) noexcept {
-        std::destroy_at(this);
-        std::construct_at(this, std::move(rhs));
+        if (std::addressof(rhs) != this) [[likely]] {
+            std::destroy_at(this);
+            std::construct_at(this, std::move(rhs));
+        }
         return *this;
     }
     ~BinaryBlob() noexcept {

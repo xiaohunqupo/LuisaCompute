@@ -70,7 +70,10 @@ void BinaryFileStream::read(luisa::span<std::byte> dst) noexcept {
 }
 
 void BinaryFileStream::close() noexcept {
-    if (_file) [[likely]] { fclose(_file); }
+    if (_file) [[likely]] {
+        fclose(_file);
+        _file = nullptr;
+    }
     _length = 0;
     _pos = 0;
 }

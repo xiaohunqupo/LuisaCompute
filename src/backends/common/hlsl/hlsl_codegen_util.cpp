@@ -2465,6 +2465,9 @@ protected:
 void CodegenUtility::CodegenFunction(Function func, vstd::StringBuilder &result, bool cbufferNonEmpty, bool codegen_self) {
     auto codegenOneFunc = [&](Function func) {
         auto constants = func.constants();
+        if (opt->isSpirv && !constants.empty()) [[unlikely]] {
+            LUISA_ERROR("Constant not supported in vulkan. for some strange driver bug");
+        }
         for (auto &&i : constants) {
             vstd::StringBuilder constValueName;
             if (!GetConstName(i.hash(), i, constValueName)) continue;

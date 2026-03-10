@@ -385,17 +385,28 @@ int main(int argc, char *argv[]) {
                << synchronize();
     }
 
-    Constant materials{
+    // Constant materials{
+    //     make_float3(0.725f, 0.710f, 0.680f),// floor
+    //     make_float3(0.725f, 0.710f, 0.680f),// ceiling
+    //     make_float3(0.725f, 0.710f, 0.680f),// back wall
+    //     make_float3(0.140f, 0.450f, 0.091f),// right wall
+    //     make_float3(0.630f, 0.065f, 0.050f),// left wall
+    //     make_float3(0.725f, 0.710f, 0.680f),// short box
+    //     make_float3(0.725f, 0.710f, 0.680f),// tall box
+    //     make_float3(0.000f, 0.000f, 0.000f),// light
+    // };
+    float3 materials_array[] = {
         make_float3(0.725f, 0.710f, 0.680f),// floor
         make_float3(0.725f, 0.710f, 0.680f),// ceiling
         make_float3(0.725f, 0.710f, 0.680f),// back wall
-        make_float3(0.140f, 0.450f, 0.091f),// right wall
-        make_float3(0.630f, 0.065f, 0.050f),// left wall
+        make_float3(0.140f, 0.450f, 0.091f),// right wall (green)
+        make_float3(0.630f, 0.065f, 0.050f),// left wall (red)
         make_float3(0.725f, 0.710f, 0.680f),// short box
         make_float3(0.725f, 0.710f, 0.680f),// tall box
-        make_float3(0.000f, 0.000f, 0.000f),// light
+        make_float3(0.000f, 0.000f, 0.000f),// light (emissive, not used directly)
     };
-
+    auto materials = device.create_buffer<float3>(8);
+    stream << materials.copy_from(materials_array);
     Callable lsrgb_to_lagrange = [&](Float3 x) noexcept {
         auto lut = lut_heap->tex3d(SRGB_TO_FOURIER_EVEN);
         auto size = make_float3(lut.size());
@@ -560,7 +571,7 @@ int main(int argc, char *argv[]) {
                 Bool occluded = accel.intersect_any(shadow_ray, {});
                 Float cos_wi_light = dot(wi_light, n);
                 Float cos_light = -dot(light_normal, wi_light);
-                Float3 albedo = materials.read(hit.inst);
+                Float3 albedo = materials->read(hit.inst);
                 $if (use_spectrum) {
                     auto lagrange = lsrgb_to_lagrange(albedo);
                     albedo = make_float3(spectrum_reflectance(lambda.x, lagrange), spectrum_reflectance(lambda.y, lagrange), spectrum_reflectance(lambda.z, lagrange));

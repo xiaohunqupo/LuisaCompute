@@ -15,7 +15,7 @@
 #include <luisa/dsl/sugar.h>
 
 #include "common/cornell_box.h"
-
+#include <luisa/dsl/sugar.h>
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "common/tiny_obj_loader.h"
 
@@ -79,7 +79,7 @@ int main(int argc, char *argv[]) {
     Stream stream = device.create_stream(StreamTag::GRAPHICS);
     Buffer<float3> vertex_buffer = device.create_buffer<float3>(vertices.size());
     stream << vertex_buffer.copy_from(vertices.data());
-    
+
     // Build meshes for each shape in the scene
     luisa::vector<Mesh> meshes;
     luisa::vector<Buffer<Triangle>> triangle_buffers;
@@ -106,11 +106,20 @@ int main(int argc, char *argv[]) {
         accel.emplace_back(m, make_float4x4(1.0f));
     }
     stream << heap.update()
-           << accel.build()
-           << synchronize();
+           << accel.build();
 
     // Material definitions for Cornell Box (diffuse albedos)
-    Constant materials{
+    // Constant materials{
+    //     make_float3(0.725f, 0.710f, 0.680f),// floor
+    //     make_float3(0.725f, 0.710f, 0.680f),// ceiling
+    //     make_float3(0.725f, 0.710f, 0.680f),// back wall
+    //     make_float3(0.140f, 0.450f, 0.091f),// right wall (green)
+    //     make_float3(0.630f, 0.065f, 0.050f),// left wall (red)
+    //     make_float3(0.725f, 0.710f, 0.680f),// short box
+    //     make_float3(0.725f, 0.710f, 0.680f),// tall box
+    //     make_float3(0.000f, 0.000f, 0.000f),// light (emissive, not used directly)
+    // };
+    float3 materials_array[] = {
         make_float3(0.725f, 0.710f, 0.680f),// floor
         make_float3(0.725f, 0.710f, 0.680f),// ceiling
         make_float3(0.725f, 0.710f, 0.680f),// back wall
@@ -120,6 +129,8 @@ int main(int argc, char *argv[]) {
         make_float3(0.725f, 0.710f, 0.680f),// tall box
         make_float3(0.000f, 0.000f, 0.000f),// light (emissive, not used directly)
     };
+    auto materials = device.create_buffer<float3>(8);
+    stream << materials.copy_from(materials_array);
 
     // Convert linear RGB to sRGB with proper gamma correction
     Callable linear_to_srgb = [&](Var<float3> x) noexcept {
@@ -213,31 +224,34 @@ int main(int argc, char *argv[]) {
         Float ry = lcg(state);
         Float2 pixel = (make_float2(coord) + make_float2(rx, ry)) / frame_size * 2.0f - 1.0f;
         Float3 radiance = def(make_float3(0.0f));
-        
+
         // Light source definition (area light at ceiling)
         $for (i, spp_per_dispatch) {
             Var<Ray> ray = generate_ray(pixel * make_float2(1.0f, -1.0f));
-            Float3 beta = def(make_float3(1.0f));  // Path throughput
-            Float pdf_bsdf = def(0.0f);            // BSDF PDF for MIS
+            Float3 beta = def(make_float3(1.0f));// Path throughput
+            Float pdf_bsdf = def(0.0f);          // BSDF PDF for MIS
             constexpr float3 light_position = make_float3(-0.24f, 1.98f, 0.16f);
             constexpr float3 light_u = make_float3(-0.24f, 1.98f, -0.22f) - light_position;
             constexpr float3 light_v = make_float3(0.23f, 1.98f, 0.16f) - light_position;
             constexpr float3 light_emission = make_float3(17.0f, 12.0f, 4.0f);
             Float light_area = length(cross(light_u, light_v));
             Float3 light_normal = normalize(cross(light_u, light_v));
-            
+
             // Path tracing loop with maximum depth of 10
             $for (depth, 10u) {
                 // Trace ray against scene
                 Var<TriangleHit> hit = accel.intersect(ray, {});
                 reorder_shader_execution();
-                $if (hit->miss()) { $break; };
+                $if (hit->miss()) {
+                    $break;
+                };
                 Var<Triangle> triangle = heap->buffer<Triangle>(hit.inst).read(hit.prim);
                 Float3 p0 = vertex_buffer->read(triangle.i0);
                 Float3 p1 = vertex_buffer->read(triangle.i1);
                 Float3 p2 = vertex_buffer->read(triangle.i2);
                 Float3 p = triangle_interpolate(hit.bary, p0, p1, p2);
                 Float3 n = normalize(cross(p1 - p0, p2 - p0));
+
                 Float cos_wo = dot(-ray->direction(), n);
                 $if (cos_wo < 1e-4f) { $break; };
 
@@ -268,7 +282,10 @@ int main(int argc, char *argv[]) {
                 Bool occluded = accel.intersect_any(shadow_ray, {});
                 Float cos_wi_light = dot(wi_light, n);
                 Float cos_light = -dot(light_normal, wi_light);
-                Float3 albedo = materials.read(hit.inst);
+                Float3 albedo = materials->read(hit.inst);
+                $if (depth == 0 & (coord.x == 0u & coord.y == dispatch_size().y / 2u)) {
+                    device_log("{} {} {}", albedo, d_light, hit.inst);
+                };
                 // Add direct lighting contribution if not occluded
                 $if (!occluded & cos_wi_light > 1e-4f & cos_light > 1e-4f) {
                     Float pdf_light = (d_light * d_light) / (light_area * cos_light);
@@ -371,8 +388,7 @@ int main(int argc, char *argv[]) {
                << accumulate_shader(accum_image, framebuffer)
                       .dispatch(resolution)
                << hdr2ldr_shader(accum_image, ldr_image, 2.f).dispatch(resolution)
-               << swap_chain.present(ldr_image)
-               << synchronize();
+               << swap_chain.present(ldr_image);
         window.poll_events();
         double dt = clock.toc() - last_time;
         LUISA_INFO("dt = {:.2f}ms ({:.2f} spp/s)", dt, spp_per_dispatch / dt * 1000);
