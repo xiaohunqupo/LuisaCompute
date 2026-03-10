@@ -19,6 +19,7 @@ namespace luisa {
  */
 template<typename T, std::enable_if_t<std::is_unsigned_v<T> && (sizeof(T) == 4u || sizeof(T) == 8u), int> = 0>
 [[nodiscard]] constexpr auto next_pow2(T v) noexcept {
+    if (v == 0) return T(0);
 #ifdef __cpp_lib_int_pow2
     return std::bit_ceil(v);
 #else

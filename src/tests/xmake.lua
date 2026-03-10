@@ -371,3 +371,5 @@ end
 if not is_mode("debug") and has_config("lc_enable_clangcxx") then
     includes("clangcxx_compiler")
 end
+
+-- includes('for_agent')
