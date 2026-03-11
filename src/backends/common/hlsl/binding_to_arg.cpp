@@ -8,7 +8,7 @@ vstd::vector<Argument> binding_to_arg(vstd::span<const Function::Binding> bindin
         [&](size_t i) {
             return luisa::visit(
                 [&]<typename T>(T const &a) -> Argument {
-                    Argument arg;
+                    Argument arg{};
                     if constexpr (std::is_same_v<T, Function::BufferBinding>) {
                         arg.tag = Argument::Tag::BUFFER;
                         arg.buffer = a;
@@ -22,7 +22,7 @@ vstd::vector<Argument> binding_to_arg(vstd::span<const Function::Binding> bindin
                         arg.tag = Argument::Tag::ACCEL;
                         arg.accel = a;
                     } else {
-                        LUISA_ERROR("Binding Contain unwanted variable.");
+                        LUISA_ERROR("Binding contains unwanted variable.");
                     }
                     return arg;
                 },

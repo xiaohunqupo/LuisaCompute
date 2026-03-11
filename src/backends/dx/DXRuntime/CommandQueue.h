@@ -54,7 +54,7 @@ public:
         D3D12_COMMAND_LIST_TYPE type);
     ~CommandQueue();
     AllocatorPtr CreateAllocator(size_t maxAllocCount);
-    void AddEvent(LCEvent const *evt, uint64 fenceIdx);
+    void AddEvent(LCEvent const *evt, uint64_t fenceIdx);
     void Signal();
     void Execute(AllocatorPtr &&alloc, vstd::vector<vstd::function<void()>> &&callbacks, luisa::span<std::pair<IDXGISwapChain *, bool>> swapChains, bool cmdlist_is_empty);
     void Complete(uint64 fence);

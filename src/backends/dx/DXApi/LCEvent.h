@@ -15,9 +15,9 @@ public:
     LCEvent(Device *device, bool shared = false);
     ~LCEvent();
     void Sync(uint64_t fence) const;
-    void Signal(CommandQueue *queue, uint64 fenceIdx) const;
-    void Signal(DStorageCommandQueue *queue, uint64 fenceIdx) const;
-    void Wait(CommandQueue *queue, uint64 fenceIdx) const;
-    bool IsComplete(uint64 fenceIdx) const;
+    void Signal(CommandQueue *queue, uint64_t fenceIdx) const;
+    void Signal(DStorageCommandQueue *queue, uint64_t fenceIdx) const;
+    void Wait(CommandQueue *queue, uint64_t fenceIdx) const;
+    bool IsComplete(uint64_t fenceIdx) const;
 };
 }// namespace lc::dx

@@ -74,7 +74,7 @@ void CallExpr::_mark() const noexcept {
             case CallOp::COOPERATIVE_OUTER_PRODUCT_ACCUMULATE:
             case CallOp::COOPERATIVE_VECTOR_ACCUMULATE:
                 _arguments[0]->mark(Usage::WRITE);
-                for (auto i = 1u; i < _arguments.size(); i++) {
+                for (size_t i = 1; i < _arguments.size(); i++) {
                     _arguments[i]->mark(Usage::READ);
                 }
                 break;
@@ -85,12 +85,12 @@ void CallExpr::_mark() const noexcept {
         }
     } else if (is_external()) {
         auto f = external();
-        for (auto i = 0u; i < _arguments.size(); i++) {
+        for (size_t i = 0; i < _arguments.size(); i++) {
             _arguments[i]->mark(f->argument_usages()[i]);
         }
     } else {
         auto args = custom().arguments();
-        for (auto i = 0u; i < args.size(); i++) {
+        for (size_t i = 0; i < args.size(); i++) {
             auto arg = args[i];
             _arguments[i]->mark(
                 arg.is_reference() || arg.is_resource() ?

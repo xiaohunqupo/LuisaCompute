@@ -31,8 +31,7 @@ CommandAllocator::BufferAllocator<T>::BufferAllocator(size_t initCapacity)
     : alloc(initCapacity, &visitor) {
 }
 template<typename T>
-CommandAllocator::BufferAllocator<T>::~BufferAllocator() {
-}
+CommandAllocator::BufferAllocator<T>::~BufferAllocator() = default;
 template<typename T>
 BufferView CommandAllocator::BufferAllocator<T>::Allocate(size_t size) {
     if (size <= kLargeBufferSize) [[likely]] {
@@ -119,6 +118,7 @@ void CommandAllocator::Complete(
     resDisposeListMtx.lock();
     auto vec = std::move(resDisposeList);
     resDisposeListMtx.unlock();
+    (void)vec;
 }
 
 CommandBuffer *CommandAllocator::GetBuffer() const {
@@ -178,7 +178,7 @@ DefaultBuffer const *CommandAllocator::AllocateScratchBuffer(size_t targetSize) 
         if (scratchBuffer->GetByteSize() < targetSize) {
             size_t allocSize = scratchBuffer->GetByteSize();
             while (allocSize < targetSize) {
-                allocSize = std::max<size_t>(allocSize + 1, allocSize * 1.5f);
+                allocSize = std::max<size_t>(allocSize + 1, (allocSize * 3) / 2);
             }
             DisposeAfterComplete(std::move(scratchBuffer));
             allocSize = CalcAlign(allocSize, 65536);

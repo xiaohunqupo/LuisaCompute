@@ -37,9 +37,9 @@ struct TypeImpl final : public Type {
     uint16_t alignment{};
     uint16_t dimension{};
     uint index{};
-    luisa::string description;
-    luisa::fixed_vector<const Type *, 1> members;
-    luisa::vector<Attribute> member_attributes;
+    luisa::string description{};
+    luisa::fixed_vector<const Type *, 1> members{};
+    luisa::vector<Attribute> member_attributes{};
 };
 
 /// Type registry class
@@ -531,7 +531,7 @@ void Type::traverse(TypeVisitor &visitor) noexcept {
 class TypeVisitorAdapter final : public TypeVisitor {
 
 private:
-    luisa::function<void(const Type *)> _visitor;
+    luisa::function<void(const Type *)> _visitor{};
 
 public:
     explicit TypeVisitorAdapter(luisa::function<void(const Type *)> visitor) noexcept
@@ -592,7 +592,7 @@ uint Type::dimension() const noexcept {
 uint2 Type::coop_matrix_dimension() const noexcept {
     LUISA_ASSERT(is_cooperative_matrix_ref(), "Calling coop_matrix_dimension() on a non-cooperative-matrix {}", description());
     auto impl = static_cast<const detail::TypeImpl *>(this);
-    return uint2(impl->dimension, impl->size);
+    return {impl->dimension, impl->size};
 }
 
 auto Type::coop_vec_ref_type() const noexcept -> CoopRefVecType {

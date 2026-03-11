@@ -62,7 +62,7 @@ void StructGenerator::ProvideAlignVariable(Type const *type, size_t tarAlign, si
     structSize = alignedSize;
 }
 
-bool StructGenerator::half_type_adajcent_with_bool(Type const *a, Type const *b) {
+bool StructGenerator::half_type_adjacent_with_bool(Type const *a, Type const *b) {
     switch (a->tag() == Type::Tag::VECTOR ? a->element()->tag() : a->tag()) {
         case Type::Tag::FLOAT16:
         case Type::Tag::INT16:
@@ -79,10 +79,10 @@ bool StructGenerator::half_type_adajcent_with_bool(Type const *a, Type const *b)
     }
 }
 
-void StructGenerator::InitAsStructAlised(
+void StructGenerator::InitAsStructAliased(
     Type const *originType,
     vstd::span<Type const *const> const &vars,
-    size_t structIdx,
+    size_t /*structIdx*/,
     Callback const &visitor,
     bool isSpirv) {
     size_t alignCount = 0;
@@ -96,7 +96,7 @@ void StructGenerator::InitAsStructAlised(
     size_t varIdx = 0;
     for (auto &&i : vars) {
         Align(i->alignment());
-        if (last_type && (half_type_adajcent_with_bool(last_type, i) || half_type_adajcent_with_bool(i, last_type))) [[unlikely]] {
+        if (last_type && (half_type_adjacent_with_bool(last_type, i) || half_type_adjacent_with_bool(i, last_type))) [[unlikely]] {
             LUISA_ERROR("HLSL do not support 16-bit variables adjacent with bool");
         }
         last_type = i;
@@ -139,11 +139,11 @@ void StructGenerator::InitAsStructAlised(
 }
 
 void StructGenerator::InitAsArrayAliased(
-    Type const *t,
-    size_t structIdx,
-    Callback const &visitor,
+    Type const *structureType,
+    size_t /*structIdx*/,
+    Callback const &/*visitor*/,
     bool isSpirv) {
-    auto i = t->element();
+    auto i = structureType->element();
     if (i->is_structure() || i->is_array()) {
         auto name = util->opt->CreateAliasedStruct(i);
         structDesc << name.first;
@@ -157,13 +157,13 @@ void StructGenerator::InitAsArrayAliased(
     } else {
         util->GetTypeName(*i, structDesc, Usage::READ, false);
     }
-    structDesc << " v["sv << vstd::to_string(t->dimension()) << "];\n";
+    structDesc << " v["sv << vstd::to_string(structureType->dimension()) << "];\n";
 }
 
 void StructGenerator::InitAsStruct(
     Type const *originType,
     vstd::span<Type const *const> const &vars,
-    size_t structIdx,
+    size_t /*structIdx*/,
     Callback const &visitor,
     bool isSpirv) {
     size_t alignCount = 0;
@@ -176,7 +176,7 @@ void StructGenerator::InitAsStruct(
     size_t varIdx = 0;
     for (auto &&i : vars) {
         Align(i->alignment());
-        if (last_type && (half_type_adajcent_with_bool(last_type, i) || half_type_adajcent_with_bool(i, last_type))) [[unlikely]] {
+        if (last_type && (half_type_adjacent_with_bool(last_type, i) || half_type_adjacent_with_bool(i, last_type))) [[unlikely]] {
             LUISA_ERROR("HLSL do not support 16-bit variables adjacent with bool");
         }
         last_type = i;
@@ -201,17 +201,17 @@ void StructGenerator::InitAsStruct(
     Align(originType->alignment());
 }
 void StructGenerator::InitAsArray(
-    Type const *t,
-    size_t structIdx,
-    Callback const &visitor,
+    Type const *structureType,
+    size_t /*structIdx*/,
+    Callback const &/*visitor*/,
     bool isSpirv) {
-    auto &&ele = t->element();
+    const auto ele = structureType->element();
     util->GetTypeName(*ele, structDesc, Usage::READ, false);
-    structDesc << " v["sv << vstd::to_string(t->dimension()) << "];\n";
+    structDesc << " v["sv << vstd::to_string(structureType->dimension()) << "];\n";
 }
 void StructGenerator::InitAliased(Callback const &visitor, bool isSpirv) {
     if (structureType->tag() == Type::Tag::STRUCTURE) {
-        InitAsStructAlised(structureType, structureType->members(), idx, visitor, isSpirv);
+        InitAsStructAliased(structureType, structureType->members(), idx, visitor, isSpirv);
     } else {
         InitAsArrayAliased(structureType, idx, visitor, isSpirv);
     }

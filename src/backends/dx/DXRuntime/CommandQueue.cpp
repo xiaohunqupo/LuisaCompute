@@ -20,8 +20,7 @@ CommandQueue::CommandQueue(
             case D3D12_COMMAND_LIST_TYPE_DIRECT:
                 queueDesc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_HIGH;
                 break;
-            case D3D12_COMMAND_LIST_TYPE_COMPUTE:
-            case D3D12_COMMAND_LIST_TYPE_COPY:
+            default:
                 queueDesc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
                 break;
         }
@@ -41,7 +40,7 @@ CommandQueue::CommandQueue(
         IID_PPV_ARGS(&cmdFence)));
 }
 CommandQueue::AllocatorPtr CommandQueue::CreateAllocator(size_t maxAllocCount) {
-    if (maxAllocCount != std::numeric_limits<uint64>::max()) {
+    if (maxAllocCount != std::numeric_limits<uint64_t>::max()) {
         if (lastFrame > maxAllocCount)
             Complete(lastFrame - maxAllocCount);
     }
@@ -53,7 +52,7 @@ CommandQueue::AllocatorPtr CommandQueue::CreateAllocator(size_t maxAllocCount) {
     return AllocatorPtr(new CommandAllocator(device, resourceAllocator, type));
 }
 
-void CommandQueue::AddEvent(LCEvent const *evt, uint64 fenceIdx) {
+void CommandQueue::AddEvent(LCEvent const *evt, uint64_t fenceIdx) {
     ++lastFrame;
     mtx.lock();
     executedAllocators.enqueue(evt, fenceIdx, true);
@@ -66,7 +65,7 @@ void CommandQueue::ExecuteThread() {
         bool wakeupThread;
         auto Weakup = [&] {
             if (wakeupThread) {
-                uint64 prev_value = executedFrame;
+                uint64_t prev_value = executedFrame;
                 while (prev_value < fence && !executedFrame.compare_exchange_weak(prev_value, fence)) {
                     std::this_thread::yield();
                 }
@@ -139,7 +138,7 @@ CommandQueue::~CommandQueue() {
     }
     thd.join();
 }
-void CommandQueue::WaitFrame(uint64 lastFrame) {
+void CommandQueue::WaitFrame(uint64_t lastFrame) {
     if (lastFrame > 0)
         queue->Wait(cmdFence.Get(), lastFrame);
 }
@@ -155,18 +154,19 @@ void CommandQueue::Execute(AllocatorPtr &&alloc, vstd::vector<vstd::function<voi
     alloc->Execute(this, cmdFence.Get(), curFrame, swapChains, cmdlist_is_empty);
     if (cmdlist_is_empty) {
         allocatorPool.enqueue(std::move(alloc));
-    }
-    if ((!cmdlist_is_empty) || (!callbacks.empty())) {
-        mtx.lock();
-        if (!cmdlist_is_empty)
-            executedAllocators.enqueue(std::move(alloc), curFrame, callbacks.empty());
+        if (!callbacks.empty()) {
+            std::lock_guard lck{mtx};
+            executedAllocators.enqueue(std::move(callbacks), curFrame, true);
+        }
+    } else {
+        std::lock_guard lck{mtx};
+        executedAllocators.enqueue(std::move(alloc), curFrame, callbacks.empty());
         if (!callbacks.empty())
             executedAllocators.enqueue(std::move(callbacks), curFrame, true);
-        mtx.unlock();
     }
 }
 
-void CommandQueue::Complete(uint64 fence) {
+void CommandQueue::Complete(uint64_t fence) {
     while (executedFrame < fence) {
         std::this_thread::yield();
     }

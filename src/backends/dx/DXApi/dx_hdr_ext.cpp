@@ -5,6 +5,8 @@
 #include <DXApi/LCSwapChain.h>
 #include <Resource/TextureBase.h>
 #include <dxgi1_6.h>
+#include <wrl/client.h>
+#include <Windows.h>
 namespace lc::dx {
 using namespace luisa::compute;
 namespace dx_hdr_ext_detail {
@@ -69,7 +71,7 @@ DXHDRExt::DisplayChromaticities SetHDRMetaData(
         };
 
     // Select the chromaticity based on HDR format of the DWM.
-    DXHDRExt::SwapChainBitDepth hitDepth;
+    DXHDRExt::SwapChainBitDepth hitDepth = DXHDRExt::SwapChainBitDepth::_8;
     switch (format) {
         case DXGI_FORMAT_R10G10B10A2_TYPELESS:
         case DXGI_FORMAT_R10G10B10A2_UNORM:
@@ -103,8 +105,9 @@ DXHDRExt::DisplayChromaticities SetHDRMetaData(
     }
 
     // Set HDR meta data
-    if (!Chroma)
+    if (!Chroma) {
         Chroma = &DisplayChromaticityList[selectedChroma];
+    }
     DXGI_HDR_METADATA_HDR10 HDR10MetaData = {};
     HDR10MetaData.RedPrimary[0] = static_cast<UINT16>(Chroma->RedX * 50000.0f);
     HDR10MetaData.RedPrimary[1] = static_cast<UINT16>(Chroma->RedY * 50000.0f);
@@ -122,11 +125,9 @@ DXHDRExt::DisplayChromaticities SetHDRMetaData(
     return *Chroma;
 }
 }// namespace dx_hdr_ext_detail
-DXHDRExtImpl::DXHDRExtImpl(LCDevice *lc_device) : _lc_device(lc_device) {
-
+DXHDRExtImpl::DXHDRExtImpl(LCDevice *lc_device) : _lc_device(lc_device), _device_support_hdr(false) {
     UINT i = 0;
     ComPtr<IDXGIOutput> currentOutput;
-    float bestIntersectArea = -1;
 
     while (lc_device->nativeDevice.adapter->EnumOutputs(i, &currentOutput) != DXGI_ERROR_NOT_FOUND) {
         // Having determined the output (display) upon which the app is primarily being
@@ -148,7 +149,7 @@ SwapchainCreationInfo DXHDRExtImpl::create_swapchain(
     if (queue->Tag() != CmdQueueTag::MainCmd) [[unlikely]] {
         LUISA_ERROR("swapchain not allowed in Direct-Storage.");
     }
-    SwapchainCreationInfo info;
+    SwapchainCreationInfo info{};
     auto res = new LCSwapChain(
         &(_lc_device->nativeDevice),
         &reinterpret_cast<LCCmdBuffer *>(stream_handle)->queue,
@@ -206,11 +207,11 @@ auto DXHDRExtImpl::get_display_data(uint64_t hwnd) const noexcept -> DisplayData
     GetWindowRect(reinterpret_cast<HWND>(hwnd), &windowRect);
 
     UINT i = 0;
-    Microsoft::WRL::ComPtr<IDXGIOutput> currentOutput;
-    Microsoft::WRL::ComPtr<IDXGIOutput> bestOutput;
+    ComPtr<IDXGIOutput> currentOutput;
+    ComPtr<IDXGIOutput> bestOutput;
     float bestIntersectArea = -1;
-    auto ComputeIntersectionArea = [](int ax1, int ay1, int ax2, int ay2, int bx1, int by1, int bx2, int by2) {
-        return std::max(0, std::min(ax2, bx2) - std::max(ax1, bx1)) * std::max(0, std::min(ay2, by2) - std::max(ay1, by1));
+    auto ComputeIntersectionArea = [](int ax1, int ay1, int ax2, int ay2, int bx1, int by1, int bx2, int by2) -> float {
+        return static_cast<float>(std::max(0, std::min(ax2, bx2) - std::max(ax1, bx1)) * std::max(0, std::min(ay2, by2) - std::max(ay1, by1)));
     };
 
     while (_lc_device->nativeDevice.adapter->EnumOutputs(i, &currentOutput) != DXGI_ERROR_NOT_FOUND) {
@@ -230,10 +231,10 @@ auto DXHDRExtImpl::get_display_data(uint64_t hwnd) const noexcept -> DisplayData
         int by2 = r.bottom;
 
         // Compute the intersection
-        int intersectArea = ComputeIntersectionArea(ax1, ay1, ax2, ay2, bx1, by1, bx2, by2);
+        float intersectArea = ComputeIntersectionArea(ax1, ay1, ax2, ay2, bx1, by1, bx2, by2);
         if (intersectArea > bestIntersectArea) {
             bestOutput = currentOutput;
-            bestIntersectArea = static_cast<float>(intersectArea);
+            bestIntersectArea = intersectArea;
         }
 
         i++;

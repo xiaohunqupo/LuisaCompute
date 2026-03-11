@@ -19,18 +19,18 @@ static vstd::wstring GetSM(uint shaderModel) {
     smStr << vstd::to_string(shaderModel / 10) << '_' << vstd::to_string(shaderModel % 10);
     vstd::wstring wstr;
     wstr.resize(smStr.size());
-    for (auto i : vstd::range(smStr.size())) {
+    for (size_t i = 0; i < smStr.size(); ++i) {
         wstr[i] = smStr[i];
     }
     return wstr;
 }
-IDxcCompiler3 *ShaderCompiler::compiler() {
+IDxcCompiler3 *ShaderCompiler::compiler() const {
     return compiler_module.comp;
 }
-IDxcUtils *ShaderCompiler::utils() {
+IDxcUtils *ShaderCompiler::utils() const {
     return compiler_module.utils;
 }
-IDxcLibrary *ShaderCompiler::library() {
+IDxcLibrary *ShaderCompiler::library() const {
     return compiler_module.library;
 }
 ShaderCompiler::~ShaderCompiler() = default;
@@ -50,8 +50,7 @@ ShaderCompilerModule::ShaderCompilerModule(std::filesystem::path const &path, bo
         LUISA_ERROR("dxcompiler.dll not found.");
     }
     auto voidPtr = dxcCompiler.address("DxcCreateInstance");
-    HRESULT(WINAPI * DxcCreateInstance)
-    (const IID &, const IID &, LPVOID *) =
+    auto DxcCreateInstance =
         reinterpret_cast<HRESULT(WINAPI *)(const IID &, const IID &, LPVOID *)>(voidPtr);
     DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&comp));
     DxcCreateInstance(CLSID_DxcLibrary, IID_PPV_ARGS(&library));
@@ -68,7 +67,7 @@ ShaderCompiler::ShaderCompiler(std::filesystem::path const &path, bool is_spirv)
 }
 CompileResult ShaderCompiler::compile(
     vstd::string_view code,
-    vstd::span<LPCWSTR> args) {
+    vstd::span<LPCWSTR> args) const {
     DxcBuffer buffer{
         code.data(),
         code.size(),
@@ -138,7 +137,7 @@ CompileResult ShaderCompiler::compile_compute(
     uint shaderModel,
     bool enableUnsafeMath,
     bool spirv,
-    bool debug) {
+    bool debug) const {
 #ifndef NDEBUG
     if (shaderModel < 10) {
         LUISA_ERROR("Illegal shader model!");
@@ -171,7 +170,7 @@ RasterBin ShaderCompiler::compile_raster(
     uint shaderModel,
     bool enableUnsafeMath,
     bool spirv,
-    bool debug) {
+    bool debug) const {
 #ifndef NDEBUG
     if (shaderModel < 10) {
         LUISA_ERROR("Illegal shader model!");

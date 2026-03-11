@@ -9,7 +9,9 @@
 #include <luisa/runtime/rhi/pixel.h>
 
 #include "vulkan_instance.h"
+#ifdef LUISA_PLATFORM_APPLE
 #include "moltenvk_surface.h"
+#endif
 #include <luisa/backends/common/vulkan_swapchain.h>
 
 namespace luisa::compute {
@@ -1149,11 +1151,11 @@ class VulkanSwapchainForCPU {
 
 private:
     VulkanSwapchain _base;
-    size_t _stage_buffer_size{};
+    size_t _stage_buffer_size{0u};
     luisa::vector<VkBuffer> _stage_buffers;
     luisa::vector<VkDeviceMemory> _stage_buffer_memories;
 
-    VkFormat _image_format{};
+    VkFormat _image_format{VK_FORMAT_UNDEFINED};
     VkImage _image{nullptr};
     VkDeviceMemory _image_memory{nullptr};
     VkImageView _image_view{nullptr};
@@ -1358,6 +1360,15 @@ public:
                 vsync,
                 back_buffer_count,
                 {/* not required */}},
+          _stage_buffer_size{},
+          _stage_buffers{},
+          _stage_buffer_memories{},
+          _image_format{},
+          _image{},
+          _image_memory{},
+          _image_view{},
+          _command_buffers{},
+          _current_frame{},
           _image_extent{width, height} {
         _initialize();
     }
@@ -1366,7 +1377,7 @@ public:
 
     [[nodiscard]] auto format() const noexcept { return _image_format; }
 
-    [[nodiscard]] auto pixel_storage() const noexcept {
+    [[nodiscard]] auto pixel_storage() noexcept {
         LUISA_ASSERT(_image_format == VK_FORMAT_R8G8B8A8_SRGB ||
                          _image_format == VK_FORMAT_R16G16B16A16_SFLOAT,
                      "Unsupported image format.");

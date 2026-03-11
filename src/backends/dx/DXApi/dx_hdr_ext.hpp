@@ -15,11 +15,11 @@ public:
         uint64_t stream_handle) noexcept override;
     Meta set_hdr_meta_data(
         uint64_t swapchain_handle,
-        float max_output_nits = 1000.0f,
-        float min_output_nits = 0.001f,
-        float max_cll = 2000.0f,
-        float max_fall = 500.0f,
-        const DXHDRExt::DisplayChromaticities *custom_chroma = nullptr) noexcept override;
+        float max_output_nits,
+        float min_output_nits,
+        float max_cll,
+        float max_fall,
+        const DXHDRExt::DisplayChromaticities *custom_chroma) noexcept override;
     void set_color_space(
         uint64_t handle,
         ColorSpace const &color_space) const noexcept override;

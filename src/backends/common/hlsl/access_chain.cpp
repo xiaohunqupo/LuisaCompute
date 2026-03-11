@@ -42,9 +42,9 @@ void AccessChain::init_name() {
 size_t AccessChain::_get_hash() const {
     auto hash_value = luisa::hash<CallOp>{}(_op);
     if (_root_var.is_shared()) {
-        hash_value = luisa::hash<size_t>{}(_root_var.uid());
+        hash_value = luisa::hash<size_t>{}(_root_var.uid(), hash_value);
     } else {
-        hash_value = luisa::hash<size_t>{}(reinterpret_cast<size_t>(_root_var.type()));
+        hash_value = luisa::hash<size_t>{}(reinterpret_cast<size_t>(_root_var.type()), hash_value);
     }
     for (auto &&i : _nodes) {
         hash_value = luisa::hash<size_t>{}(i.index(), hash_value);
@@ -64,7 +64,7 @@ bool AccessChain::operator==(AccessChain const &node) const {
     } else {
         if (node._root_var.type() != _root_var.type()) return false;
     }
-    for (auto idx : vstd::range(_nodes.size())) {
+    for (auto idx : vstd::range(static_cast<int64>(_nodes.size()))) {
         auto &l = _nodes[idx];
         auto &r = node._nodes[idx];
         if (!l.visit_or(true, [&]<typename T>(T const &t) {
@@ -210,7 +210,7 @@ void AccessChain::gen_func_impl(Function f, CodegenUtility *util, TemplateFuncti
             } else if (i == tmp.args_place) {
                 builder << 'a';
                 vstd::to_string(arg_start, builder);
-                for (auto j : vstd::range(arg_start + 1, arg_idx)) {
+                for (auto j : vstd::range(static_cast<int64>(arg_start + 1), static_cast<int64>(arg_idx))) {
                     builder << ",a"sv;
                     vstd::to_string(j, builder);
                 }
@@ -230,14 +230,14 @@ void AccessChain::call_this_func(luisa::span<Expression const *const> args, vstd
         args[0]->accept(visitor);
         builder << ',';
     }
-    for (auto i : vstd::range(0, _nodes.size())) {
+    for (auto i : vstd::range(0, static_cast<int64>(_nodes.size()))) {
         auto &node = _nodes[i];
         if (node.is_type_of<AccessNode>()) {
             args[i + 1]->accept(visitor);
             builder << ',';
         }
     }
-    for (auto i : vstd::range(_nodes.size() + 1, args.size())) {
+    for (auto i : vstd::range(static_cast<int64>(_nodes.size() + 1), static_cast<int64>(args.size()))) {
         args[i]->accept(visitor);
         builder << ',';
     }

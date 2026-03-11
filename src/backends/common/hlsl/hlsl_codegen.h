@@ -117,8 +117,8 @@ private:
     luisa::fixed_vector<uint, 4> switchCount;
     struct Scope {
         StringStateVisitor *self;
-        Scope(StringStateVisitor *self);
-        ~Scope();
+        explicit Scope(StringStateVisitor *self);
+        ~Scope() { self->str << "}\n"sv; }
     };
     size_t accessCount = 0;
     size_t printCount = 0;
@@ -172,7 +172,7 @@ public:
         Function f,
         vstd::StringBuilder &str,
         CodegenUtility *util);
-    ~StringStateVisitor();
+    ~StringStateVisitor() = default;
 
 protected:
     vstd::StringBuilder &str;

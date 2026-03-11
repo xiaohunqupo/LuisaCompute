@@ -1,11 +1,13 @@
 #include "dml_ext.h"
-#include "LCCmdBuffer.h"
 #include <luisa/core/dynamic_module.h>
 #include <luisa/runtime/stream.h>
 #define _D3D12MA_IUNKNOWN_IMPL_FUNCTIONS
 #include "DirectMLX.h"
 #include <luisa/backends/ext/dx_custom_cmd.h>
 #include <wrl/client.h>
+#include <Resource/DefaultBuffer.h>
+
+using Microsoft::WRL::ComPtr;
 //#include <wil/result_macros.h>
 using namespace luisa;
 using namespace luisa::compute;
@@ -21,7 +23,7 @@ public:
         return module;
     }
 };
-static DMLModule _dml_module;
+static DMLModule g_dml_module;
 class DxDMLGraph : public DMLGraph {
 public:
     DeviceInterface *device_interface;
@@ -78,7 +80,7 @@ public:
         }
         vstd::push_back_all(this->activations, activations);
     }
-    ~DxDMLGraph() {
+    ~DxDMLGraph() override {
         if (temporaryBuffer.valid()) {
             device_interface->destroy_buffer(temporaryBuffer.handle);
         }
@@ -86,19 +88,19 @@ public:
             device_interface->destroy_buffer(persistentBuffer.handle);
         }
     }
-    size_t input_buffer_size_bytes() const noexcept override {
+    [[nodiscard]] size_t input_buffer_size_bytes() const noexcept override {
         return input_size;
     }
-    size_t output_buffer_size_bytes() const noexcept override {
+    [[nodiscard]] size_t output_buffer_size_bytes() const noexcept override {
         return output_size;
     }
-    size_t weight_buffer_size_bytes() const noexcept override {
+    [[nodiscard]] size_t weight_buffer_size_bytes() const noexcept override {
         return weight_size;
     }
 };
 class DxGraphBuildCommand final : public DXCustomCmd {
 public:
-    DxGraphBuildCommand(DxDMLGraph *graph) : dmlGraph(graph) {}
+    explicit DxGraphBuildCommand(DxDMLGraph *graph) : dmlGraph(graph) {}
     LUISA_MAKE_COMMAND_COMMON(StreamTag::COMPUTE)
 
 private:
@@ -147,7 +149,7 @@ void DxGraphBuildCommand::execute(IDXGIAdapter1 *adapter, IDXGIFactory2 *dxgi_fa
     const uint batch_size = dmlGraph->batch_size;
     DML_TENSOR_DATA_TYPE dataType = dmlGraph->half ? DML_TENSOR_DATA_TYPE_FLOAT16 : DML_TENSOR_DATA_TYPE_FLOAT32;
     DML_CREATE_DEVICE_FLAGS dmlCreateDeviceFlags = DML_CREATE_DEVICE_FLAG_NONE;
-    auto &md = _dml_module.get();
+    auto &md = g_dml_module.get();
     HRESULT(WINAPI * DMLCreateDevice)
     (
         ID3D12Device * d3d12Device,
@@ -299,9 +301,9 @@ class DxGraphForwardCommand final : public DXCustomCmd {
 public:
     DxGraphForwardCommand(DxDMLGraph *graph, Argument::Buffer const &ipt, Argument::Buffer const &opt, Argument::Buffer const &w)
         : dmlGraph(graph),
-          input(reinterpret_cast<lc::dx::DefaultBuffer *>(ipt.handle)->GetResource()),
-          output(reinterpret_cast<lc::dx::DefaultBuffer *>(opt.handle)->GetResource()),
-          weight(reinterpret_cast<lc::dx::DefaultBuffer *>(w.handle)->GetResource()) {
+          input(static_cast<lc::dx::DefaultBuffer *>(reinterpret_cast<lc::dx::Buffer *>(ipt.handle))->GetResource()),
+          output(static_cast<lc::dx::DefaultBuffer *>(reinterpret_cast<lc::dx::Buffer *>(opt.handle))->GetResource()),
+          weight(static_cast<lc::dx::DefaultBuffer *>(reinterpret_cast<lc::dx::Buffer *>(w.handle))->GetResource()) {
         if (ipt.size != graph->input_size) [[unlikely]] {
             LUISA_ERROR("Input buffer size {} mismatch. required {}", ipt.size, graph->input_size);
         }

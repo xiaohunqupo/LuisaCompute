@@ -39,10 +39,10 @@ class ShaderCompiler final : public vstd::IOperatorNewBase {
 public:
     CompileResult compile(
         vstd::string_view code,
-        vstd::span<LPCWSTR> args);
-    IDxcCompiler3 *compiler();
-    IDxcUtils *utils();
-    IDxcLibrary *library();
+        vstd::span<LPCWSTR> args) const;
+    IDxcCompiler3 *compiler() const;
+    IDxcUtils *utils() const;
+    IDxcLibrary *library() const;
 
     ShaderCompiler(std::filesystem::path const &path, bool is_spirv);
     ~ShaderCompiler();
@@ -52,14 +52,14 @@ public:
         uint shaderModel,
         bool enableUnsafeMath,
         bool spirv,
-        bool debug);
+        bool debug) const;
     RasterBin compile_raster(
         vstd::string_view code,
         bool optimize,
         uint shaderModel,
         bool enableUnsafeMath,
         bool spirv,
-        bool debug);
+        bool debug) const;
     /*CompileResult CompileRayTracing(
         vstd::string_view code,
         bool optimize,

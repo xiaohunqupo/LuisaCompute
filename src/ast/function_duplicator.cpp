@@ -15,11 +15,11 @@ private:
         luisa::unordered_map<
             uint32_t /* original uid */,
             const RefExpr * /* copy */>
-            var_map;
+            var_map{};
         luisa::unordered_map<
             const Expression * /* original */,
             const Expression * /* copy */>
-            expr_map;
+            expr_map{};
     };
 
 private:
@@ -406,7 +406,7 @@ private:
             return iter->second;
         }
         auto dup = FunctionBuilder::_define(f.tag(), [&f, this] {
-            DupCtx ctx{.original = f};
+            DupCtx ctx{.original = f, .var_map = {}, .expr_map = {}};
             _contexts.emplace_back(&ctx);
             _dup_function(f);
             LUISA_ASSERT(!_contexts.empty() && _contexts.back() == &ctx,

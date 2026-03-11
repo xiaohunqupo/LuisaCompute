@@ -18,9 +18,9 @@ class LUISA_AST_API ExternalFunction {
 private:
     luisa::string _name;
     const Type *_return_type;
-    uint64_t _hash;
-    luisa::vector<const Type *> _argument_types;
-    luisa::vector<Usage> _argument_usages;
+    uint64_t _hash{};
+    luisa::vector<const Type *> _argument_types{};
+    luisa::vector<Usage> _argument_usages{};
 
 private:
     void _compute_hash() noexcept;

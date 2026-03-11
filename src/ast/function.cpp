@@ -103,6 +103,7 @@ bool Function::requires_atomic_float() const noexcept {
 bool Function::requires_raytracing() const noexcept {
     return _builder->requires_raytracing();
 }
+
 bool Function::requires_motion_blur() const noexcept {
     return _builder->requires_motion_blur();
 }
@@ -138,12 +139,15 @@ bool Function::requires_printing() const noexcept {
 CurveBasisSet Function::required_curve_bases() const noexcept {
     return _builder->required_curve_bases();
 }
+
 luisa::optional<uint8_t> Function::allowed_warp_size() const noexcept {
     return _builder->allowed_warp_size();
 }
+
 bool Function::use_cooperative_operations() const noexcept {
     return _builder->use_cooperative_operations();
 }
+
 luisa::string_view Function::get_variable_name(uint32_t uid) const noexcept {
     return _builder->get_variable_name(uid);
 }

@@ -31,7 +31,7 @@ private:
         size_t structIdx,
         Callback const &visitor,
         bool isSpirv);
-    void InitAsStructAlised(
+    void InitAsStructAliased(
         Type const *originType,
         vstd::span<Type const *const> const &vars,
         size_t structIdx,
@@ -44,7 +44,7 @@ private:
         bool isSpirv);
 
 public:
-    static bool half_type_adajcent_with_bool(Type const *a, Type const *b);
+    static bool half_type_adjacent_with_bool(Type const *a, Type const *b);
     static void ProvideAlignVariable(Type const *type, size_t tarAlign, size_t &align, size_t &structSize, vstd::StringBuilder &structDesc);
     vstd::string_view GetStructDesc() const { return structDesc.view(); }
     vstd::string_view GetStructName() const { return structName; }

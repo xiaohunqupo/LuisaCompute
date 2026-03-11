@@ -7,7 +7,7 @@ namespace luisa::compute::detail {
 
 AtomicRefNode::AtomicRefNode(const RefExpr *self) noexcept
     : _parent{nullptr}, _value{self} {
-    LUISA_ASSERT(self->variable().tag() == Variable::Tag::BUFFER ||
+    LUISA_ASSERT(self->variable().tag() == Variable::Tag::BUFFER ||// NOLINT(bugprone-assert-side-effect)
                      self->variable().is_shared(),
                  "Atomic operation is only allowed on buffers or shared memory.");
 }
@@ -15,8 +15,8 @@ AtomicRefNode::AtomicRefNode(const RefExpr *self) noexcept
 AtomicRefNode::AtomicRefNode(const AtomicRefNode *parent,
                              const Expression *index) noexcept
     : _parent{parent}, _value{index} {
-    LUISA_ASSERT(parent != nullptr, "Null parent for non-root AtomicRefNode.");
-    LUISA_ASSERT(index->type()->is_int32() ||
+    LUISA_ASSERT(parent != nullptr, "Null parent for non-root AtomicRefNode.");// NOLINT(bugprone-assert-side-effect)
+    LUISA_ASSERT(index->type()->is_int32() ||// NOLINT(bugprone-assert-side-effect)
                      index->type()->is_uint32(),
                  "Only integral types are allowed as "
                  "AtomicRefNode indices (got {}).",
@@ -26,11 +26,11 @@ AtomicRefNode::AtomicRefNode(const AtomicRefNode *parent,
 const Expression *AtomicRefNode::operate(
     CallOp op, luisa::span<const Expression *const> values) const noexcept {
 
-    LUISA_ASSERT(is_atomic_operation(op),
+    LUISA_ASSERT(is_atomic_operation(op),// NOLINT(bugprone-assert-side-effect)
                  "Only atomic operations are allowed "
                  "on AtomicRefNode (got {}).",
                  to_string(op));
-    LUISA_ASSERT((op == CallOp::ATOMIC_COMPARE_EXCHANGE && values.size() == 2u) ||
+    LUISA_ASSERT((op == CallOp::ATOMIC_COMPARE_EXCHANGE && values.size() == 2u) ||// NOLINT(bugprone-assert-side-effect)
                      (op != CallOp::ATOMIC_COMPARE_EXCHANGE && values.size() == 1u),
                  "Invalid number of arguments for atomic operation {} (got {}).",
                  to_string(op), values.size());
@@ -40,21 +40,21 @@ const Expression *AtomicRefNode::operate(
     }
     std::reverse(args.begin(), args.end());
 
-    auto access_chain_string = [&] {
+    auto access_chain_string = [&]() noexcept {
         auto s = luisa::string{args.front()->type()->description()};
-        for (auto index : luisa::span{args}.subspan(1)) {
+        for (auto *index : luisa::span{args}.subspan(1)) {
             s.append(luisa::format(" -> {}", index->type()->description()));
         }
         return s;
     };
 
     auto type = args.front()->type();
-    LUISA_ASSERT(type->is_buffer() || type->is_array(),
+    LUISA_ASSERT(type->is_buffer() || type->is_array(),// NOLINT(bugprone-assert-side-effect)
                  "Atomic operation is only allowed on "
                  "buffers or shared-memory arrays (got {}).",
                  type->description());
-    for (auto index : luisa::span{args}.subspan(1)) {
-        LUISA_ASSERT(index->type()->is_int32() ||
+    for (auto *index : luisa::span{args}.subspan(1)) {
+        LUISA_ASSERT(index->type()->is_int32() ||// NOLINT(bugprone-assert-side-effect)
                          index->type()->is_uint32(),
                      "Only integral types are allowed as "
                      "AtomicRefNode indices (got {}).",
@@ -64,7 +64,7 @@ const Expression *AtomicRefNode::operate(
             case Type::Tag::MATRIX: type = Type::vector(type->element(), type->dimension()); break;
             case Type::Tag::ARRAY: type = type->element(); break;
             case Type::Tag::STRUCTURE: {
-                LUISA_ASSERT(index->tag() == Expression::Tag::LITERAL,
+                LUISA_ASSERT(index->tag() == Expression::Tag::LITERAL,// NOLINT(bugprone-assert-side-effect)
                              "Only literal indices are allowed for "
                              "AtomicRefNode on structures (got {}).",
                              index->type()->description());
@@ -72,7 +72,7 @@ const Expression *AtomicRefNode::operate(
                 auto member_index = luisa::holds_alternative<int>(literal) ?
                                         static_cast<uint>(luisa::get<int>(literal)) :
                                         luisa::get<uint>(literal);
-                LUISA_ASSERT(member_index < type->members().size(),
+                LUISA_ASSERT(member_index < type->members().size(),// NOLINT(bugprone-assert-side-effect)
                              "Invalid member index {} for "
                              "atomic operation {} on {}.",
                              member_index, to_string(op),
@@ -90,8 +90,8 @@ const Expression *AtomicRefNode::operate(
     }
 
     // append extra parameters
-    for (auto value : values) {
-        LUISA_ASSERT(value->type() == type,
+    for (auto *value : values) {
+        LUISA_ASSERT(value->type() == type,// NOLINT(bugprone-assert-side-effect)
                      "Type mismatch for atomic operation {} (got {}, expected {}).",
                      to_string(op),
                      value->type()->description(),
@@ -116,7 +116,7 @@ const AtomicRefNode *AtomicRefNode::access(const Expression *index) const noexce
 
 const AtomicRefNode *AtomicRefNode::access(size_t member_index) const noexcept {
     return access(FunctionBuilder::current()->literal(
-        Type::of<uint>(), static_cast<uint>(member_index)));
+        Type::of<uint>(), static_cast<uint>(member_index)));// NOLINT(cppcoreguidelines-narrowing-conversions)
 }
 
 const AtomicRefNode *AtomicRefNode::create(const RefExpr *ref) noexcept {

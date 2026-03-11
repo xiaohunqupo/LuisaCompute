@@ -10,7 +10,6 @@
 #include <Resource/UploadBuffer.h>
 #include <Resource/ReadbackBuffer.h>
 #include <DXApi/LCEvent.h>
-#include <DXApi/LCDevice.h>
 #include <DXApi/LCSwapChain.h>
 #include <DXRuntime/DStorageCommandQueue.h>
 #include <DXApi/TypeCheck.h>
@@ -25,12 +24,11 @@ namespace lc::dx {
 DxTexCompressExt::DxTexCompressExt(Device *device)
     : device(device) {
 }
-DxTexCompressExt::~DxTexCompressExt() {
-}
-TexCompressExt::Result DxTexCompressExt::compress_bc6h(Stream &stream, ImageView<float> const &src, luisa::compute::BufferView<uint> const &result) noexcept {
-    LCCmdBuffer *cmdBuffer = reinterpret_cast<LCCmdBuffer *>(stream.handle());
 
-    TextureBase *srcTex = reinterpret_cast<TextureBase *>(src.handle());
+TexCompressExt::Result DxTexCompressExt::compress_bc6h(Stream &stream, ImageView<float> const &src, luisa::compute::BufferView<uint> const &result) noexcept {
+    auto cmdBuffer = reinterpret_cast<LCCmdBuffer *>(stream.handle());
+
+    auto srcTex = reinterpret_cast<TextureBase *>(src.handle());
     cmdBuffer->CompressBC(
         srcTex,
         src.level(),
@@ -43,7 +41,7 @@ TexCompressExt::Result DxTexCompressExt::compress_bc6h(Stream &stream, ImageView
 }
 
 TexCompressExt::Result DxTexCompressExt::compress_bc7(Stream &stream, ImageView<float> const &src, luisa::compute::BufferView<uint> const &result, float alphaImportance) noexcept {
-    LCCmdBuffer *cmdBuffer = reinterpret_cast<LCCmdBuffer *>(stream.handle());
+    auto cmdBuffer = reinterpret_cast<LCCmdBuffer *>(stream.handle());
     cmdBuffer->CompressBC(
         reinterpret_cast<TextureBase *>(src.handle()),
         src.level(),
@@ -356,7 +354,7 @@ auto DXOidnDenoiser::get_buffer(const DenoiserExt::Image &img, bool read) noexce
     uint64_t cuda_device_ptr, cuda_handle;
     _interop->cuda_buffer(interop_buffer.handle, &cuda_device_ptr, &cuda_handle);
     auto oidn_buffer = _oidn_device.newBuffer(
-        (void *)cuda_device_ptr,
+        reinterpret_cast<void *>(cuda_device_ptr),
         buffer->GetByteSize());
     LUISA_ASSERT(oidn_buffer, "OIDN buffer creation failed.");
     _interop_images.push_back(InteropImage{.img = img, .shared_buffer = interop_buffer, .read = read});
@@ -374,7 +372,7 @@ void DXOidnDenoiser::prepare() noexcept {
     auto cmd_list = CommandList{};
     for (auto &&img : _interop_images) {
         if (img.read) {
-            cmd_list.append(std::move(luisa::make_unique<BufferCopyCommand>(
+            cmd_list.append(luisa::make_unique<BufferCopyCommand>(
                 img.img.buffer_handle,
                 img.shared_buffer.handle,
                 img.img.offset,
@@ -389,7 +387,7 @@ void DXOidnDenoiser::post_sync() noexcept {
     auto cmd_list = CommandList{};
     for (auto &&img : _interop_images) {
         if (!img.read) {
-            cmd_list.append(std::move(luisa::make_unique<BufferCopyCommand>(
+            cmd_list.append(luisa::make_unique<BufferCopyCommand>(
                 img.shared_buffer.handle,
                 img.img.buffer_handle,
                 0ull,

@@ -50,7 +50,7 @@ struct RegisterIndexer {
     virtual uint &get(uint idx) = 0;
 };
 struct DXILRegisterIndexer : public RegisterIndexer {
-    std::array<uint, 3> values;
+    std::array<uint, 3> values{};
     void init() override {
         values = {1, 0, 0};
     }
@@ -59,7 +59,7 @@ struct DXILRegisterIndexer : public RegisterIndexer {
     }
 };
 struct SpirVRegisterIndexer : public RegisterIndexer {
-    uint count;
+    uint count{};
     void init() override {
         count = 0;
     }
@@ -484,7 +484,7 @@ void CodegenUtility::GetTypeName(Type const &type, vstd::StringBuilder &str, Usa
     }
 }
 
-void CodegenUtility::GetFunctionDecl(Function func, vstd::StringBuilder &funcDecl) {
+void CodegenUtility::GetFunctionDecl(Function func, vstd::StringBuilder &str) {
     vstd::StringBuilder data;
     uint64 tempIdx = 0;
     auto GetTemplateName = [&] {
@@ -538,20 +538,20 @@ void CodegenUtility::GetFunctionDecl(Function func, vstd::StringBuilder &funcDec
         }
     }
     if (tempIdx > 0) {
-        funcDecl << "template<"sv;
-        for (auto i : vstd::range(tempIdx)) {
-            funcDecl << "typename T"sv;
-            vstd::to_string(i, funcDecl);
-            funcDecl << ',';
+        str << "template<"sv;
+        for (uint64 i : vstd::range(tempIdx)) {
+            str << "typename T"sv;
+            vstd::to_string(static_cast<int64_t>(i), str);
+            str << ',';
         }
-        *(funcDecl.end() - 1) = '>';
+        *(str.end() - 1) = '>';
     }
-    funcDecl << '\n'
-             << data;
+    str << '\n'
+        << data;
 }
-void CodegenUtility::GetFunctionName(Function callable, vstd::StringBuilder &result) {
+void CodegenUtility::GetFunctionName(Function callable, vstd::StringBuilder &str) {
     auto &&count_and_name = opt->GetFuncCountAndName(callable);
-    result << (count_and_name.second.empty() ? "custom_"sv : luisa::string_view{count_and_name.second}) << luisa::format("{}", count_and_name.first);
+    str << (count_and_name.second.empty() ? "custom_"sv : luisa::string_view{count_and_name.second}) << luisa::format("{}", count_and_name.first);
 }
 struct SpirvMatrixPack {
     vstd::StringBuilder *_result;
@@ -597,7 +597,7 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
     auto PrintArgs = [&](size_t offset = 0) {
         if (args.empty()) return;
         auto last = args.size() - 1;
-        for (auto i : vstd::range(offset, last)) {
+        for (auto i : vstd::range(static_cast<size_t>(offset), static_cast<size_t>(last))) {
             args[i]->accept(vis);
             str << ',';
         }
@@ -1021,7 +1021,7 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             }
             str << '(';
             auto last = args.size() - 1;
-            for (auto i : vstd::range(0, last)) {
+            for (auto i : vstd::range(static_cast<size_t>(0), static_cast<size_t>(last))) {
                 args[i]->accept(vis);
                 str << ',';
             }
@@ -2698,7 +2698,7 @@ o0=pixel(p,primId)"sv;
         write_arg();
         result << ");\n"sv;
         for (auto i : vstd::range(retType->members().size())) {
-            auto num = vstd::to_string(i);
+            auto num = vstd::to_string(static_cast<int64_t>(i));
             result << 'o' << num << "=o.v"sv << num << ";\n"sv;
         }
         result << "}\n"sv;
@@ -2784,8 +2784,8 @@ void CodegenUtility::GenerateCBuffer(
             if (!detail::IsCBuffer(i.tag())) continue;
             size_cache++;
             StructGenerator::ProvideAlignVariable(last_type, i.type()->alignment(), align, struct_size, result);
-            if (last_type && (StructGenerator::half_type_adajcent_with_bool(last_type, i.type()) ||
-                              StructGenerator::half_type_adajcent_with_bool(i.type(), last_type))) [[unlikely]] {
+            if (last_type && (StructGenerator::half_type_adjacent_with_bool(last_type, i.type()) ||
+                              StructGenerator::half_type_adjacent_with_bool(i.type(), last_type))) [[unlikely]] {
                 LUISA_ERROR("HLSL do not support 16-bit variables adjacent with bool");
             }
             last_type = i.type();
@@ -3209,7 +3209,7 @@ CodegenUtility::CodegenUtility() {
     attributes.try_emplace("instance_id", "SV_InstanceID", Type::of<uint>());
     attributes.try_emplace("is_front_face", "SV_IsFrontFace", Type::of<bool>());
 }
-CodegenUtility::~CodegenUtility() {}
+CodegenUtility::~CodegenUtility() = default;
 
 CodegenResult CodegenUtility::Codegen(
     Function kernel, luisa::string_view native_code, uint custom_mask, bool isSpirV, bool noRegister) {
@@ -3394,10 +3394,10 @@ uint obj_id:register(b0);
         opt->internalStruct.try_emplace(appdataType, "_mesh");
         codegenData << "struct _mesh{\n"sv;
         for (auto i : vstd::range(appdataAttris.size())) {
-            auto member = appdataMems[i];
-            auto &attr = appdataAttris[i];
+            auto member = appdataMems[static_cast<size_t>(i)];
+            auto &attr = appdataAttris[static_cast<size_t>(i)];
             if (attr.key.empty()) [[unlikely]] {
-                LUISA_ERROR("Mesh-to-vertex structure member {} miss attributes.", i);
+                LUISA_ERROR("Mesh-to-vertex structure member {} miss attributes.", static_cast<int64_t>(i));
             }
             if (!(member->is_scalar() || member->is_vector())) [[unlikely]] {
                 LUISA_ERROR("Mesh-to-vertex structure do not support type {}", member->description());
@@ -3495,9 +3495,9 @@ bool CodegenUtility::TypeIsAliased(Type const *t) const {
     // }
     return false;
 }
-bool CodegenUtility::VectorShouldBeAliased(Type const *i) const {
-    return (i->is_vector() && ((opt->isSpirv && i->element()->size() > 4 && i->dimension() >= 3) || i->element()->is_bool())) ||
-           (i->is_matrix() && opt->isSpirv);
+bool CodegenUtility::VectorShouldBeAliased(Type const *t) const {
+    return (t->is_vector() && ((opt->isSpirv && t->element()->size() > 4 && t->dimension() >= 3) || t->element()->is_bool())) ||
+           (t->is_matrix() && opt->isSpirv);
 }
 void CodegenUtility::OriginToAliased(Type const *t, vstd::StringBuilder &sb) {
     auto aliasedType = opt->CreateAliasedStruct(t);
@@ -3534,7 +3534,7 @@ void CodegenUtility::OriginToAliased(Type const *t, vstd::StringBuilder &sb) {
         str << "}\n"sv;
     } else {
         auto members = t->members();
-        for (auto i : vstd::range(members.size())) {
+        for (size_t i : vstd::range(members.size())) {
             auto m = members[i];
             if (TypeIsAliased(m)) {
                 str << luisa::format("r.v{}=", i);
@@ -3587,7 +3587,7 @@ void CodegenUtility::AliasedToOrigin(Type const *t, vstd::StringBuilder &sb) {
         str << "}\n"sv;
     } else {
         auto members = t->members();
-        for (auto i : vstd::range(members.size())) {
+        for (size_t i : vstd::range(members.size())) {
             auto m = members[i];
             if (TypeIsAliased(m)) {
                 str << luisa::format("r.v{}=", i);

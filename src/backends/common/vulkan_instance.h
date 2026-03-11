@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstdlib>
 #include <cstring>
 
 #include <volk.h>
@@ -34,7 +33,7 @@ namespace luisa::compute {
 static constexpr auto LUISA_REQUIRED_VULKAN_VERSION = VK_API_VERSION_1_2;
 
 struct VulkanDeviceUUID {
-    uint8_t bytes[VK_UUID_SIZE];
+    uint8_t bytes[VK_UUID_SIZE]{};
     [[nodiscard]] auto operator==(const VulkanDeviceUUID &rhs) const noexcept {
         return memcmp(bytes, rhs.bytes, sizeof(bytes)) == 0;
     }

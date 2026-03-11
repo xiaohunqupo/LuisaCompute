@@ -86,14 +86,14 @@ public:
         GpuAllocator *resourceAllocator,
         D3D12_COMMAND_LIST_TYPE type);
     void Execute(
-        vstd::span<const luisa::unique_ptr<Command>> cmds,
-        luisa::vector<luisa::move_only_function<void()>> &&callbacks,
+        vstd::span<const luisa::unique_ptr<Command>> commands,
+        luisa::vector<luisa::move_only_function<void()>> &&funcs,
         vstd::span<const SwapchainPresent> presents,
         size_t maxAlloc);
     void Sync();
     void Present(
         LCSwapChain *swapchain,
-        TextureBase *rt,
+        TextureBase *img,
         uint mip,
         size_t maxAlloc);
     void CompressBC(
