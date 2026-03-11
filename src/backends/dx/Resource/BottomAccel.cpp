@@ -59,7 +59,7 @@ bool BottomAccel::RequireCompact() const {
 BottomAccel::BottomAccel(
     Device *device,
     AccelOption const &option)
-    : Resource(device) {
+    : Resource(device), compactSize(0) {
     if (!device->support_raytracing) [[unlikely]] {
         LUISA_ERROR("RayTracing not supported on this device.");
     }
@@ -189,7 +189,7 @@ void BottomAccel::UpdateStates(
     EnhancedBarrierTracker &tracker,
     CommandBufferBuilder &builder,
     BufferView const &scratchBuffer,
-    BottomAccelData &accelData) {
+    BottomAccelData &accelData) const {
     accelData.bottomStruct.ScratchAccelerationStructureData = scratchBuffer.buffer->GetAddress() + scratchBuffer.offset;
     accelData.bottomStruct.Inputs.pGeometryDescs = &accelData.geometryDesc;
     if (RequireCompact()) {
