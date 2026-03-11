@@ -76,7 +76,7 @@ public:
         EnhancedBarrierTracker &tracker,
         CommandBufferBuilder &builder,
         BufferView const &scratchBuffer,
-        BottomAccelData &accelData);
+        BottomAccelData &accelData) const;
     bool CheckAccel(
         CommandBufferBuilder &builder);
     void FinalCopy(

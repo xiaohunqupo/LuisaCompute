@@ -16,9 +16,8 @@ Buffer::Buffer(
     Device *device)
     : Resource(device) {
 }
-Buffer::~Buffer() {
-}
-D3D12_SHADER_RESOURCE_VIEW_DESC Buffer::GetColorSrvDescBase(uint64 offset, uint64 byteSize, bool isRaw) const {
+Buffer::~Buffer() = default;
+D3D12_SHADER_RESOURCE_VIEW_DESC Buffer::GetColorSrvDescBase(uint64 offset, uint64 byteSize, bool isRaw) {
     D3D12_SHADER_RESOURCE_VIEW_DESC res;
     res.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
     res.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -39,7 +38,7 @@ D3D12_SHADER_RESOURCE_VIEW_DESC Buffer::GetColorSrvDescBase(uint64 offset, uint6
     }
     return res;
 }
-D3D12_UNORDERED_ACCESS_VIEW_DESC Buffer::GetColorUavDescBase(uint64 offset, uint64 byteSize, bool isRaw) const {
+D3D12_UNORDERED_ACCESS_VIEW_DESC Buffer::GetColorUavDescBase(uint64 offset, uint64 byteSize, bool isRaw) {
     D3D12_UNORDERED_ACCESS_VIEW_DESC res;
     res.Format = DXGI_FORMAT_R32_TYPELESS;
     res.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;

@@ -59,11 +59,11 @@ decltype(auto) with_cuda(CUcontext ctx, F &&f) {
 
 WindowsSecurityAttributes::WindowsSecurityAttributes()
     : m_winSecurityAttributes{} {
-    m_winPSecurityDescriptor = static_cast<PSECURITY_DESCRIPTOR>(calloc(1, SECURITY_DESCRIPTOR_MIN_LENGTH + 2 * sizeof(void **)));
+    m_winPSecurityDescriptor = static_cast<PSECURITY_DESCRIPTOR>(calloc(1, SECURITY_DESCRIPTOR_MIN_LENGTH + 2 * sizeof(void**)));
     LUISA_ASSUME(m_winPSecurityDescriptor != nullptr);
 
     PSID *ppSID = reinterpret_cast<PSID *>(reinterpret_cast<PBYTE>(m_winPSecurityDescriptor) + SECURITY_DESCRIPTOR_MIN_LENGTH);
-    PACL *ppACL = reinterpret_cast<PACL *>(reinterpret_cast<PBYTE>(ppSID) + sizeof(PSID *));
+    PACL *ppACL = reinterpret_cast<PACL *>(reinterpret_cast<PBYTE>(ppSID) + sizeof(PSID*));
 
     InitializeSecurityDescriptor(m_winPSecurityDescriptor, SECURITY_DESCRIPTOR_REVISION);
 
@@ -90,7 +90,7 @@ WindowsSecurityAttributes::WindowsSecurityAttributes()
 
 WindowsSecurityAttributes::~WindowsSecurityAttributes() {
     PSID *ppSID = reinterpret_cast<PSID *>(reinterpret_cast<PBYTE>(m_winPSecurityDescriptor) + SECURITY_DESCRIPTOR_MIN_LENGTH);
-    PACL *ppACL = reinterpret_cast<PACL *>(reinterpret_cast<PBYTE>(ppSID) + sizeof(PSID *));
+    PACL *ppACL = reinterpret_cast<PACL *>(reinterpret_cast<PBYTE>(ppSID) + sizeof(PSID*));
 
     if (*ppSID) {
         FreeSid(*ppSID);
@@ -180,16 +180,15 @@ void *DxCudaInteropImpl::cuda_event(uint64_t dx_event_handle) noexcept {
         WindowsSecurityAttributes windowsSecurityAttributes;
         HANDLE sharedHandle;
         externalSemaphoreHandleDesc.type = CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_D3D12_FENCE;
-        if (!SUCCEEDED(_device.nativeDevice.device->CreateSharedHandle(dxEvent->Fence(), windowsSecurityAttributes.GetAttributes(), GENERIC_ALL, nullptr, &sharedHandle)))
-            [[unlikely]] {
+        if (!SUCCEEDED(_device.nativeDevice.device->CreateSharedHandle(dxEvent->Fence(), windowsSecurityAttributes.GetAttributes(), GENERIC_ALL, nullptr, &sharedHandle))) [[unlikely]] {
             LUISA_ERROR("Failed to create shared handle.");
         }
         externalSemaphoreHandleDesc.handle.win32.handle = static_cast<void *>(sharedHandle);
         externalSemaphoreHandleDesc.handle.win32.name = nullptr;
         externalSemaphoreHandleDesc.flags = 0;
-        CUexternalSemaphore externalSemaphre{};
-        LUISA_CHECK_CUDA(cuImportExternalSemaphore(&externalSemaphre, &externalSemaphoreHandleDesc));
-        return externalSemaphre;
+        CUexternalSemaphore externalSemaphore{};
+        LUISA_CHECK_CUDA(cuImportExternalSemaphore(&externalSemaphore, &externalSemaphoreHandleDesc));
+        return externalSemaphore;
     });
 }
 void DxCudaInteropImpl::cuda_signal(uint64_t stream_handle, void *event_handle, uint64_t fence) noexcept {
