@@ -11,7 +11,11 @@ CodegenStackData::CodegenStackData()
       generateAliasedStruct(
           [this](Type const *t) {
               CreateAliasedStruct(t);
-          }) {
+          }),
+      util(nullptr),
+      incrementalFunc(nullptr),
+      funcType(FuncType::Kernel),
+      tempSwitchExpr(nullptr) {
     Clear();
 }
 void CodegenStackData::Clear() {
@@ -105,7 +109,7 @@ std::pair<uint64, bool> CodegenStackData::GetConstCount(uint64 data) {
     auto ite = constTypes.try_emplace(
         data,
         vstd::lazy_eval(
-            [&] {
+            [this] {
                 return constCount++;
             }));
     return {ite.first->second, ite.second};
@@ -114,7 +118,7 @@ std::pair<uint64, luisa::string> const &CodegenStackData::GetFuncCountAndName(Fu
     auto ite = funcTypes.try_emplace(
         f.hash(),
         vstd::lazy_eval(
-            [&] {
+            [this, &f] {
                 return std::pair<uint64, luisa::string>{
                     funcCount++,
                     f.name()};
@@ -129,7 +133,7 @@ uint64 CodegenStackData::GetTypeCount(Type const *t) {
     auto ite = structTypes.try_emplace(
         t,
         vstd::lazy_eval(
-            [&] {
+            [this] {
                 return count++;
             }));
     return ite.first->second;
@@ -156,7 +160,7 @@ struct CodegenGlobalPool {
 };
 static CodegenGlobalPool codegenGlobalPool;
 }// namespace detail
-CodegenStackData::~CodegenStackData() {}
+CodegenStackData::~CodegenStackData() = default;
 vstd::unique_ptr<CodegenStackData> CodegenStackData::Allocate(CodegenUtility *util) {
     auto ptr = detail::codegenGlobalPool.Allocate();
     ptr->util = util;
@@ -278,25 +282,19 @@ AccessChain const &CodegenStackData::GetAtomicFunc(
             tmp.body = _atomic_exchange;
             break;
         case CallOp::ATOMIC_COMPARE_EXCHANGE:
-            if (retType->is_float32()) {
-                tmp.body = isSpirv ? _atomic_compare_exchange_float_spirv : _atomic_compare_exchange_float;
-            } else {
-                tmp.body = _atomic_compare_exchange;
-            }
+            tmp.body = (retType->is_float32())
+                           ? (isSpirv ? _atomic_compare_exchange_float_spirv : _atomic_compare_exchange_float)
+                           : _atomic_compare_exchange;
             break;
         case CallOp::ATOMIC_FETCH_ADD:
-            if (retType->is_float32()) {
-                tmp.body = isSpirv ? _atomic_add_float_spirv : _atomic_add_float;
-            } else {
-                tmp.body = _atomic_add;
-            }
+            tmp.body = (retType->is_float32())
+                           ? (isSpirv ? _atomic_add_float_spirv : _atomic_add_float)
+                           : _atomic_add;
             break;
         case CallOp::ATOMIC_FETCH_SUB:
-            if (retType->is_float32()) {
-                tmp.body = isSpirv ? _atomic_sub_float_spirv : _atomic_sub_float;
-            } else {
-                tmp.body = _atomic_sub;
-            }
+            tmp.body = (retType->is_float32())
+                           ? (isSpirv ? _atomic_sub_float_spirv : _atomic_sub_float)
+                           : _atomic_sub;
             break;
         case CallOp::ATOMIC_FETCH_AND:
             tmp.body = _atomic_and;
@@ -308,18 +306,14 @@ AccessChain const &CodegenStackData::GetAtomicFunc(
             tmp.body = _atomic_xor;
             break;
         case CallOp::ATOMIC_FETCH_MIN:
-            if (retType->is_float32()) {
-                tmp.body = isSpirv ? _atomic_min_float_spirv : _atomic_min_float;
-            } else {
-                tmp.body = _atomic_min;
-            }
+            tmp.body = (retType->is_float32())
+                           ? (isSpirv ? _atomic_min_float_spirv : _atomic_min_float)
+                           : _atomic_min;
             break;
         case CallOp::ATOMIC_FETCH_MAX:
-            if (retType->is_float32()) {
-                tmp.body = isSpirv ? _atomic_max_float_spirv : _atomic_max_float;
-            } else {
-                tmp.body = _atomic_max;
-            }
+            tmp.body = (retType->is_float32())
+                           ? (isSpirv ? _atomic_max_float_spirv : _atomic_max_float)
+                           : _atomic_max;
             break;
         default:
             LUISA_ERROR_WITH_LOCATION("Invalid atomic operator.");

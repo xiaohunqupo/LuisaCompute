@@ -39,13 +39,13 @@ private:
     size_t _hash;
     vstd::string _func_name;
     size_t _get_hash() const;
-    static vstd::vector<Node> nodes_from_exprs(luisa::span<Expression const *const> exprs, bool isSpirv);
+    static vstd::vector<Node> nodes_from_exprs(luisa::span<Expression const *const> args, bool isSpirv);
 
 public:
     AccessChain(
         CallOp op,
         Variable const &root_var,
-        luisa::span<Expression const *const> access_expr,
+        luisa::span<Expression const *const> exprs,
         bool isSpirv);
     AccessChain(AccessChain const &) = delete;
     AccessChain(AccessChain &&) = default;

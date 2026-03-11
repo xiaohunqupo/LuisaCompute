@@ -382,7 +382,7 @@ void StringStateVisitor::visit(const PrintStmt *stmt) {
         vstd::string dataName = "_pv";
         vstd::to_string(printCount, dataName);
         str << typeName << ' ' << dataName << "=("sv << typeName << ")0;\n"sv;
-        for (auto i : vstd::range(types.size())) {
+        for (auto i : vstd::range(static_cast<int64>(types.size()))) {
             str << dataName << ".v"sv;
             vstd::to_string(i, str);
             auto t = types[i];
@@ -608,7 +608,7 @@ StringStateVisitor::StringStateVisitor(
     Function f,
     vstd::StringBuilder &str,
     CodegenUtility *util)
-    : f(f), util(util), str(str) {
+    : f(f), util(util), str(str), switchCount{}, lazyDeclVars{} {
 }
 void StringStateVisitor::VisitFunction(
 #ifdef LUISA_ENABLE_IR
@@ -666,12 +666,9 @@ void StringStateVisitor::VisitFunction(
     func.body()->accept(*this);
 }
 
-StringStateVisitor::~StringStateVisitor() = default;
+
 StringStateVisitor::Scope::Scope(StringStateVisitor *self)
     : self(self) {
     self->str << "{\n"sv;
-}
-StringStateVisitor::Scope::~Scope() {
-    self->str << "}\n"sv;
 }
 }// namespace lc::hlsl

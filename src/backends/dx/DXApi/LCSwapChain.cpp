@@ -19,7 +19,7 @@ LCSwapChain::LCSwapChain(
     vstd::push_back_func(
         m_renderTargets,
         frameCount,
-        [&] { return device; });
+        [device] { return device; });
     DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
     swapChainDesc.BufferCount = frameCount;
     swapChainDesc.Width = width;
@@ -71,7 +71,7 @@ LCSwapChain::LCSwapChain(
     vstd::push_back_func(
         m_renderTargets,
         swapChainDesc.BufferCount,
-        [&] { return device; });
+        [device] { return device; });
     frameCount = swapChainDesc.BufferCount;
     for (uint32_t n = 0; n < swapChainDesc.BufferCount; n++) {
         ThrowIfFailed(swapChain->GetBuffer(n, IID_PPV_ARGS(&m_renderTargets[n].rt)));

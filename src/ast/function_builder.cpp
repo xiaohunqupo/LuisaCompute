@@ -214,11 +214,11 @@ void FunctionBuilder::assign(const Expression *lhs, const Expression *rhs) noexc
             auto elem = mem_expr->type()->element();
             _create_and_append_statement<AssignStmt>(local_var, rhs);
             std::array<const Expression *, 4> exprs{};
-            for (int i = 0; i < mem_expr->swizzle_size(); ++i) {
+            for (auto i = 0; i < mem_expr->swizzle_size(); ++i) {
                 exprs[mem_expr->swizzle_index(i)] = swizzle(elem, local_var, 1, i);
             }
             auto make_type = self->type();
-            for (int i = 0; i < make_type->dimension(); ++i) {
+            for (auto i = 0; i < make_type->dimension(); ++i) {
                 if (exprs[i] == nullptr) {
                     exprs[i] = swizzle(elem, self, 1, i);
                 }
@@ -1294,7 +1294,8 @@ void FunctionBuilder::set_allowed_warp_size(uint8_t value) noexcept {
 void FunctionBuilder::clear_allowed_warp_size() noexcept {
     _allowed_warp_size = 255;
 }
-bool FuncBuilderEqual::operator()(const FunctionBuilder *a, const FunctionBuilder *b) const noexcept {
+bool FuncBuilderEqual::operator()(const FunctionBuilder *a,
+                                   const FunctionBuilder *b) const noexcept {
     if (a != nullptr && b != nullptr) {
         return *a == *b;
     }

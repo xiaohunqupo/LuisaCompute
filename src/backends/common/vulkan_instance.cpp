@@ -37,7 +37,8 @@ static VkBool32 vulkan_validation_callback(VkDebugUtilsMessageSeverityFlagBitsEX
 #endif
 }// namespace detail
 
-VulkanInstance::VulkanInstance() noexcept {
+VulkanInstance::VulkanInstance() noexcept
+    : _volk_initializer{} {
     _volk_initializer.init();
     luisa::vector<const char *> extensions;
     extensions.reserve(5u);

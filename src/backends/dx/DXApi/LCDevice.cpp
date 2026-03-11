@@ -1,4 +1,3 @@
-#include <filesystem>
 #include <DXApi/LCDevice.h>
 #include <DXRuntime/Device.h>
 #include <Resource/DefaultBuffer.h>
@@ -164,8 +163,7 @@ LCDevice::LCDevice(Context &&ctx, DeviceConfig const *settings)
             delete static_cast<DxRasterExt *>(ext);
         });
 }
-LCDevice::~LCDevice() {
-}
+LCDevice::~LCDevice() = default;
 //Hash128 LCDevice::device_hash() const noexcept {
 //    vstd::MD5::MD5Data const &md5 = nativeDevice.adapterID.to_binary();
 //    Hash128 r;
@@ -277,13 +275,13 @@ ResourceCreationInfo LCDevice::create_bindless_array(size_t size, BindlessSlotTy
 void LCDevice::destroy_bindless_array(uint64 handle) noexcept {
     delete reinterpret_cast<BindlessArray *>(handle);
 }
-ResourceCreationInfo LCDevice::create_stream(StreamTag type) noexcept {
+ResourceCreationInfo LCDevice::create_stream(StreamTag stream_tag) noexcept {
     ResourceCreationInfo info{};
     auto res = new LCCmdBuffer(
         &nativeDevice,
         nativeDevice.defaultAllocator.get(),
         [&] {
-            switch (type) {
+            switch (stream_tag) {
                 case compute::StreamTag::COMPUTE:
                     return D3D12_COMMAND_LIST_TYPE_COMPUTE;
                 case compute::StreamTag::GRAPHICS:
@@ -631,7 +629,7 @@ void LCDevice::set_name(luisa::compute::Resource::Tag resource_tag, uint64_t res
     vstd::vector<wchar_t> vec;
     luisa::enlarge_by(vec, name.size() + 1);
     vec[name.size()] = 0;
-    for (auto i : vstd::range(name.size())) {
+    for (auto i : vstd::range(static_cast<int64>(name.size()))) {
         vec[i] = name[i];
     }
     using Tag = luisa::compute::Resource::Tag;

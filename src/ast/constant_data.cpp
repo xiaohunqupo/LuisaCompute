@@ -70,10 +70,20 @@ void ConstantDecoder::_decode(const Type *type, const std::byte *data) noexcept 
         case Type::Tag::FLOAT16: _decode_half(*reinterpret_cast<const half *>(data)); break;
         case Type::Tag::FLOAT32: _decode_float(*reinterpret_cast<const float *>(data)); break;
         case Type::Tag::FLOAT64: _decode_double(*reinterpret_cast<const double *>(data)); break;
-        case Type::Tag::VECTOR: _decode_vector(type, data); break;
-        case Type::Tag::MATRIX: _decode_matrix(type, data); break;
-        case Type::Tag::ARRAY: _decode_array(type, data); break;
-        case Type::Tag::STRUCTURE: _decode_struct(type, data); break;
+        // NOLINTBEGIN(bugprone-branch-clone)
+        case Type::Tag::VECTOR:
+            _decode_vector(type, data);
+            break;
+        case Type::Tag::MATRIX:
+            _decode_matrix(type, data);
+            break;
+        case Type::Tag::ARRAY:
+            _decode_array(type, data);
+            break;
+        case Type::Tag::STRUCTURE:
+            _decode_struct(type, data);
+            break;
+        // NOLINTEND(bugprone-branch-clone)
         default: LUISA_ERROR_WITH_LOCATION(
             "Unsupported constant type: {}.",
             type->description());
@@ -86,9 +96,9 @@ void ConstantDecoder::decode(const Type *type, const std::byte *data) noexcept {
 
 namespace detail {
 
-struct ConstantContainer {
-    const Type *type;
-    size_t hash;
+struct ConstantContainer {// NOLINT(cppcoreguidelines-pro-type-member-init)
+    const Type *type = nullptr;
+    size_t hash = 0;
     luisa::vector<std::byte> data;
 };
 
@@ -127,6 +137,7 @@ protected:
     void _decode_half(half x) noexcept override { _s.append(luisa::format("half({})", static_cast<float>(x))); }
     void _decode_float(float x) noexcept override { _s.append(luisa::format("float({})", luisa::bit_cast<uint>(x))); }
     void _decode_double(double x) noexcept override { _s.append(luisa::format("double({})", luisa::bit_cast<ulong>(x))); }
+    // NOLINTBEGIN(bugprone-branch-clone)
     void _vector_separator(const Type *type, uint index) noexcept override {
         auto n = type->dimension();
         if (index == 0u) {
@@ -167,6 +178,7 @@ protected:
             _s.append(", ");
         }
     }
+    // NOLINTEND(bugprone-branch-clone)
 
 public:
     [[nodiscard]] auto s() const noexcept { return luisa::string_view{_s}; }

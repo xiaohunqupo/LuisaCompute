@@ -62,13 +62,13 @@ void DStorageCommandQueue::ExecuteThread() {
         }
     }
 }
-void DStorageCommandQueue::AddEvent(LCEvent const *evt, uint64 fenceIdx) {
+void DStorageCommandQueue::AddEvent(LCEvent const *evt, uint64_t fenceIdx) {
     ++lastFrame;
     mtx.lock();
     executedAllocators.enqueue(evt, fenceIdx, true);
     mtx.unlock();
 }
-uint64 DStorageCommandQueue::Execute(
+uint64_t DStorageCommandQueue::Execute(
     vstd::span<const luisa::unique_ptr<luisa::compute::Command>> commands,
         luisa::vector<luisa::move_only_function<void()>> &&funcs
 ) {
@@ -254,7 +254,7 @@ uint64 DStorageCommandQueue::Execute(
     }
     return curFrame;
 }
-void DStorageCommandQueue::Complete(uint64 fence) {
+void DStorageCommandQueue::Complete(uint64_t fence) {
     while (executedFrame < fence) {
         std::this_thread::yield();
     }

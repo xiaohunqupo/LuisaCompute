@@ -25,7 +25,7 @@ public:
     static constexpr size_t BLOCK_SIZE = 16;
     Device *device;
     DxTexCompressExt(Device *device);
-    ~DxTexCompressExt();
+    ~DxTexCompressExt() = default;
     Result compress_bc6h(Stream &stream, ImageView<float> const &src, luisa::compute::BufferView<uint> const &result) noexcept override;
     Result compress_bc7(Stream &stream, ImageView<float> const &src, luisa::compute::BufferView<uint> const &result, float alphaImportance) noexcept override;
     Result check_builtin_shader() noexcept override;

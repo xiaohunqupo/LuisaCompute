@@ -43,7 +43,7 @@ void CommandBufferBuilder::SetComputeResources(
     Shader const *s,
     vstd::span<const BindProperty> resources) {
     LUISA_ASSUME(resources.size() == s->Properties().size());
-    for (auto i : vstd::range(resources.size())) {
+    for (auto i : vstd::range(static_cast<int64>(resources.size()))) {
         resources[i].visit(
             [&](auto &&b) {
                 s->SetComputeResource(
@@ -57,7 +57,7 @@ void CommandBufferBuilder::SetRasterResources(
     Shader const *s,
     vstd::span<const BindProperty> resources) {
     LUISA_ASSUME(resources.size() == s->Properties().size());
-    for (auto i : vstd::range(resources.size())) {
+    for (auto i : vstd::range(static_cast<int64>(resources.size()))) {
         resources[i].visit(
             [&](auto &&b) {
                 s->SetRasterResource(
@@ -151,7 +151,7 @@ void CommandBufferBuilder::DispatchComputeIndirect(
     c->SetComputeRootSignature(cs->RootSig());
     SetComputeResources(cs, resources);
     c->SetPipelineState(cs->Pso());
-    maxIndirectCount = std::min<uint>(maxIndirectCount, cmdSize - indirectOffset);
+    maxIndirectCount = std::min<uint32_t>(maxIndirectCount, static_cast<uint32_t>(cmdSize - indirectOffset));
     // TODO
     c->ExecuteIndirect(
         cs->CmdSig(),
@@ -215,10 +215,10 @@ void CommandBufferBuilder::CopyBufferTexture(
     sourceLocation.pResource = buffer.buffer->GetResource();
     sourceLocation.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
     sourceLocation.PlacedFootprint.Offset = buffer.offset;
-    auto rowPitch = size.x / (Resource::IsBCtex(texture->Format()) ? 4ull : 1ull) * Resource::GetTexturePixelSize(texture->Format());
+    auto rowPitch = size.x / (Resource::IsBCtex(texture->Format()) ? 4u : 1u) * Resource::GetTexturePixelSize(texture->Format());
     if (checkAlign) {
         if ((rowPitch & (D3D12_TEXTURE_DATA_PITCH_ALIGNMENT - 1)) != 0) [[unlikely]] {
-            LUISA_ERROR("Texture's row must be aligned as {}, current value row-size({}) x pixel-size({}) = {}.", D3D12_TEXTURE_DATA_PITCH_ALIGNMENT, size.x / (Resource::IsBCtex(texture->Format()) ? 4ull : 1ull), Resource::GetTexturePixelSize(texture->Format()), rowPitch);
+            LUISA_ERROR("Texture's row must be aligned as {}, current value row-size({}) x pixel-size({}) = {}.", D3D12_TEXTURE_DATA_PITCH_ALIGNMENT, size.x / (Resource::IsBCtex(texture->Format()) ? 4u : 1u), Resource::GetTexturePixelSize(texture->Format()), rowPitch);
         }
         if ((buffer.offset & (D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT - 1)) != 0) [[unlikely]] {
             LUISA_ERROR("Buffer offset must be aligned as {}, current value is {}", D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT, buffer.offset);

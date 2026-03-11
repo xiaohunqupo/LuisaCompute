@@ -87,12 +87,12 @@ void DecodeCmd(vstd::span<const Argument> args, Visitor &&visitor) {
 }
 class LCPreProcessVisitor : public CommandVisitor {
 public:
-    CommandBufferBuilder *bd;
-    EnhancedBarrierTracker *stateTracker;
-    vstd::vector<std::pair<size_t, size_t>> *argVecs;
-    vstd::vector<uint8_t> *argBuffer;
-    vstd::vector<BottomAccelData> *bottomAccelDatas;
-    vstd::fixed_vector<std::pair<size_t, size_t>, 4> *accelOffset;
+    CommandBufferBuilder *bd{};
+    EnhancedBarrierTracker *stateTracker{};
+    vstd::vector<std::pair<size_t, size_t>> *argVecs{};
+    vstd::vector<uint8_t> *argBuffer{};
+    vstd::vector<BottomAccelData> *bottomAccelDatas{};
+    vstd::fixed_vector<std::pair<size_t, size_t>, 4> *accelOffset{};
     size_t buildAccelSize = 0;
     void AddBuildAccel(size_t size) {
         size = CalcAlign(size, 256);
@@ -499,18 +499,18 @@ inline DWORD get_pix_color() {
 #endif
 class LCCmdVisitor : public CommandVisitor {
 public:
-    Device *device;
-    luisa::function<void(luisa::string_view)> *logger;
-    CommandBufferBuilder *bd;
-    EnhancedBarrierTracker *stateTracker;
-    BufferView argBuffer;
-    Buffer const *accelScratchBuffer;
-    std::pair<size_t, size_t> *accelScratchOffsets;
-    std::pair<size_t, size_t> *bufferVec;
-    vstd::vector<BindProperty> *bindProps;
-    vstd::vector<ButtomCompactCmd> *updateAccel;
-    vstd::vector<D3D12_VERTEX_BUFFER_VIEW> *vbv;
-    BottomAccelData *bottomAccelData;
+    Device *device{};
+    luisa::function<void(luisa::string_view)> *logger{};
+    CommandBufferBuilder *bd{};
+    EnhancedBarrierTracker *stateTracker{};
+    BufferView argBuffer{};
+    Buffer const *accelScratchBuffer{};
+    std::pair<size_t, size_t> *accelScratchOffsets{};
+    std::pair<size_t, size_t> *bufferVec{};
+    vstd::vector<BindProperty> *bindProps{};
+    vstd::vector<ButtomCompactCmd> *updateAccel{};
+    vstd::vector<D3D12_VERTEX_BUFFER_VIEW> *vbv{};
+    BottomAccelData *bottomAccelData{};
     vstd::func_ptr_t<void(Device *, CommandBufferBuilder *)>
         after_custom_cmd{};
 
@@ -1050,10 +1050,10 @@ public:
             auto &&viewport = cmd->viewport();
             view.MinDepth = 0;
             view.MaxDepth = 1;
-            view.TopLeftX = viewport.start.x;
-            view.TopLeftY = viewport.start.y;
-            view.Width = viewport.size.x;
-            view.Height = viewport.size.y;
+            view.TopLeftX = static_cast<FLOAT>(viewport.start.x);
+            view.TopLeftY = static_cast<FLOAT>(viewport.start.y);
+            view.Width = static_cast<FLOAT>(viewport.size.x);
+            view.Height = static_cast<FLOAT>(viewport.size.y);
             cmdList->RSSetViewports(1, &view);
             RECT rect{
                 .left = static_cast<int>(view.TopLeftX + 0.4999f),
@@ -1072,7 +1072,7 @@ public:
                 auto chunk = alloc->rtvAllocator.allocate(rtvs.size());
                 auto descHeap = reinterpret_cast<DescriptorHeap *>(chunk.handle);
                 rtvHandle = descHeap->hCPU(chunk.offset);
-                for (auto i : vstd::range(rtvs.size())) {
+                for (auto i : vstd::range(static_cast<int64>(rtvs.size()))) {
                     auto &&rtv = rtvs[i];
                     auto tex = reinterpret_cast<TextureBase *>(rtv.handle);
                     rtvFormats[i] = tex->Format();
@@ -1110,7 +1110,7 @@ public:
         if (tempBuffer.second > 0) {
             bindProps->emplace_back(BufferView(argBuffer.buffer, argBuffer.offset + tempBuffer.first, tempBuffer.second));
         }
-        DescriptorHeapView globalHeapView(DescriptorHeapView(device->globalHeap.get()));
+        auto globalHeapView = DescriptorHeapView(device->globalHeap.get());
         vstd::push_back_func(*bindProps, shader->BindlessCount(), [&] { return globalHeapView; });
         DecodeCmd(cmd->arguments(), Visitor{this, shader->Args().data()});
         bd->SetRasterShader(shader, pso, *bindProps);
@@ -1126,7 +1126,7 @@ public:
         }());
         auto &&meshes = cmd->scene();
         auto propCount = shader->Properties().size();
-        for (auto idx : vstd::range(meshes.size())) {
+        for (auto idx : vstd::range(static_cast<int64>(meshes.size()))) {
             auto &&mesh = meshes[idx];
             cmdList->SetGraphicsRoot32BitConstant(propCount, mesh.object_id(), 0);
             vbv->clear();
@@ -1560,10 +1560,10 @@ void LCCmdBuffer::CompressBC(
         result.size_bytes()};
 
     constexpr uint MAX_BATCH = 1024 * 1024;
-    int batchNum = (numTotalBlocks + MAX_BATCH - 1) / MAX_BATCH;
+    auto batchNum = static_cast<int>((numTotalBlocks + MAX_BATCH - 1) / MAX_BATCH);
     uint startBlockID = 0;
     for (int batch = 0; batch < batchNum; batch++) {
-        int target = (batch + 1) * MAX_BATCH;
+        auto target = static_cast<int>((batch + 1) * MAX_BATCH);
         auto alloc = queue.CreateAllocator(maxAlloc);
         {
             std::lock_guard lck{mtx};

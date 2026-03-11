@@ -29,8 +29,8 @@ static constexpr auto curve_basis_count =
 [[nodiscard]] constexpr auto segment_control_point_count(CurveBasis b) noexcept {
     switch (b) {
         case CurveBasis::PIECEWISE_LINEAR: return 2u;
-        case CurveBasis::CUBIC_BSPLINE: return 4u;
-        case CurveBasis::CATMULL_ROM: return 4u;
+        case CurveBasis::CUBIC_BSPLINE:
+        case CurveBasis::CATMULL_ROM:
         case CurveBasis::BEZIER: return 4u;
     }
     return 0u;
@@ -67,7 +67,7 @@ public:
     [[nodiscard]] auto none() const noexcept { return _set.none(); }
     [[nodiscard]] auto count() const noexcept { return _set.count(); }
     [[nodiscard]] auto test(CurveBasis basis) const noexcept { return _set.test(luisa::to_underlying(basis)); }
-    [[nodiscard]] auto propagate(CurveBasisSet s) noexcept { _set |= s._set; }
+    auto propagate(CurveBasisSet s) noexcept { _set |= s._set; }
     [[nodiscard]] auto operator==(CurveBasisSet rhs) const noexcept { return _set == rhs._set; }
 
 public:

@@ -37,6 +37,7 @@ void CallableLibrary::ser_value(T const &t, luisa::vector<std::byte> &vec) noexc
 }
 template<typename T>
 T CallableLibrary::deser_value(std::byte const *&ptr, DeserPackage &pack) noexcept {
+    (void)pack;
     static_assert(std::is_trivially_destructible_v<T> && !std::is_pointer_v<T>);
     T t;
     std::memcpy(&t, ptr, sizeof(T));
@@ -82,11 +83,26 @@ Type const *CallableLibrary::deser_value(std::byte const *&ptr, DeserPackage &pa
     return Type::from(desc);
 }
 template<>
+luisa::span<const std::byte> CallableLibrary::deser_value(std::byte const *&ptr, DeserPackage &pack) noexcept {
+    (void)pack;
+    auto size = deser_value<size_t>(ptr, pack);
+    luisa::span<const std::byte> s{ptr, size};
+    ptr += size;
+    return s;
+}
+template<>
 void CallableLibrary::ser_value(luisa::span<const std::byte> const &t, luisa::vector<std::byte> &vec) noexcept {
     ser_value(t.size(), vec);
     auto last_len = vec.size();
     luisa::enlarge_by(vec, t.size());
     std::memcpy(vec.data() + last_len, t.data(), t.size());
+}
+template<>
+void CallableLibrary::deser_ptr(Variable *obj, std::byte const *&ptr, DeserPackage &pack) noexcept {
+    (void)pack;
+    obj->_type = deser_value<Type const *>(ptr, pack);
+    obj->_uid = deser_value<uint32_t>(ptr, pack);
+    obj->_tag = deser_value<Variable::Tag>(ptr, pack);
 }
 template<>
 void CallableLibrary::ser_value(Variable const &t, luisa::vector<std::byte> &vec) noexcept {
@@ -101,6 +117,13 @@ Variable CallableLibrary::deser_value(std::byte const *&ptr, DeserPackage &pack)
     v._uid = deser_value<uint32_t>(ptr, pack);
     v._tag = deser_value<Variable::Tag>(ptr, pack);
     return v;
+}
+template<>
+void CallableLibrary::deser_ptr(ConstantData *obj, std::byte const *&ptr, DeserPackage &pack) noexcept {
+    (void)pack;
+    Type const *type = deser_value<Type const *>(ptr, pack);
+    *obj = ConstantData::create(type, ptr, type->size());
+    ptr += type->size();
 }
 template<>
 void CallableLibrary::ser_value(ConstantData const &t, luisa::vector<std::byte> &vec) noexcept {
@@ -149,6 +172,7 @@ void CallableLibrary::ser_value(UnaryExpr const &t, luisa::vector<std::byte> &ve
 }
 template<>
 void CallableLibrary::deser_ptr(UnaryExpr *obj, std::byte const *&ptr, DeserPackage &pack) noexcept {
+    (void)pack;
     obj->_operand = deser_value<Expression const *>(ptr, pack);
     obj->_op = deser_value<UnaryOp>(ptr, pack);
 }
@@ -160,6 +184,7 @@ void CallableLibrary::ser_value(BinaryExpr const &t, luisa::vector<std::byte> &v
 }
 template<>
 void CallableLibrary::deser_ptr(BinaryExpr *obj, std::byte const *&ptr, DeserPackage &pack) noexcept {
+    (void)pack;
     obj->_lhs = deser_value<Expression const *>(ptr, pack);
     obj->_rhs = deser_value<Expression const *>(ptr, pack);
     obj->_op = deser_value<BinaryOp>(ptr, pack);
@@ -171,6 +196,7 @@ void CallableLibrary::ser_value(AccessExpr const &t, luisa::vector<std::byte> &v
 }
 template<>
 void CallableLibrary::deser_ptr(AccessExpr *obj, std::byte const *&ptr, DeserPackage &pack) noexcept {
+    (void)pack;
     obj->_range = deser_value<Expression const *>(ptr, pack);
     obj->_index = deser_value<Expression const *>(ptr, pack);
 }
@@ -182,6 +208,7 @@ void CallableLibrary::ser_value(MemberExpr const &t, luisa::vector<std::byte> &v
 }
 template<>
 void CallableLibrary::deser_ptr(MemberExpr *obj, std::byte const *&ptr, DeserPackage &pack) noexcept {
+    (void)pack;
     obj->_self = deser_value<Expression const *>(ptr, pack);
     obj->_swizzle_size = deser_value<uint32_t>(ptr, pack);
     obj->_swizzle_code = deser_value<uint32_t>(ptr, pack);
@@ -199,6 +226,7 @@ void CallableLibrary::ser_value(LiteralExpr const &t, luisa::vector<std::byte> &
 
 template<>
 void CallableLibrary::deser_ptr(LiteralExpr *obj, std::byte const *&ptr, DeserPackage &pack) noexcept {
+    (void)pack;
     auto index = deser_value<size_t>(ptr, pack);
     auto literal_size = deser_value<size_t>(ptr, pack);
 #ifdef LUISA_USE_SYSTEM_STL
@@ -229,6 +257,7 @@ void CallableLibrary::ser_value(RefExpr const &t, luisa::vector<std::byte> &vec)
 }
 template<>
 void CallableLibrary::deser_ptr(RefExpr *obj, std::byte const *&ptr, DeserPackage &pack) noexcept {
+    (void)pack;
     obj->_variable = deser_value<Variable>(ptr, pack);
 }
 template<>
@@ -237,6 +266,7 @@ void CallableLibrary::ser_value(ConstantExpr const &t, luisa::vector<std::byte> 
 }
 template<>
 void CallableLibrary::deser_ptr(ConstantExpr *obj, std::byte const *&ptr, DeserPackage &pack) noexcept {
+    (void)pack;
     obj->_data = deser_value<ConstantData>(ptr, pack);
 }
 template<>
@@ -263,6 +293,7 @@ void CallableLibrary::ser_value(CallExpr const &t, luisa::vector<std::byte> &vec
 }
 template<>
 void CallableLibrary::deser_ptr(CallExpr *obj, std::byte const *&ptr, DeserPackage &pack) noexcept {
+    (void)pack;
     auto arg_size = deser_value<size_t>(ptr, pack);
     luisa::enlarge_by(obj->_arguments, arg_size);
     for (auto &&i : obj->_arguments) {
@@ -294,6 +325,7 @@ void CallableLibrary::ser_value(CastExpr const &t, luisa::vector<std::byte> &vec
 
 template<>
 void CallableLibrary::deser_ptr(CastExpr *obj, std::byte const *&ptr, DeserPackage &pack) noexcept {
+    (void)pack;
     obj->_source = deser_value<Expression const *>(ptr, pack);
     obj->_op = deser_value<CastOp>(ptr, pack);
 }
@@ -305,6 +337,7 @@ void CallableLibrary::ser_value(TypeIDExpr const &t, luisa::vector<std::byte> &v
 
 template<>
 void CallableLibrary::deser_ptr(TypeIDExpr *obj, std::byte const *&ptr, DeserPackage &pack) noexcept {
+    (void)pack;
     obj->_data_type = deser_value<Type const *>(ptr, pack);
 }
 
@@ -417,6 +450,7 @@ void CallableLibrary::ser_value(ReturnStmt const &t, luisa::vector<std::byte> &v
 
 template<>
 void CallableLibrary::deser_ptr(ReturnStmt *obj, std::byte const *&ptr, DeserPackage &pack) noexcept {
+    (void)pack;
     auto contain_ret = deser_value<uint8_t>(ptr, pack);
     if (contain_ret) {
         obj->_expr = deser_value<Expression const *>(ptr, pack);
@@ -467,6 +501,7 @@ void CallableLibrary::ser_value(ExprStmt const &t, luisa::vector<std::byte> &vec
 }
 template<>
 void CallableLibrary::deser_ptr(ExprStmt *obj, std::byte const *&ptr, DeserPackage &pack) noexcept {
+    (void)pack;
     obj->_expr = deser_value<Expression const *>(ptr, pack);
 }
 template<>
@@ -517,6 +552,7 @@ void CallableLibrary::ser_value(CommentStmt const &t, luisa::vector<std::byte> &
 }
 template<>
 void CallableLibrary::deser_ptr(CommentStmt *obj, std::byte const *&ptr, DeserPackage &pack) noexcept {
+    (void)pack;
     obj->_comment = deser_value<luisa::string>(ptr, pack);
 }
 template<>
@@ -546,6 +582,7 @@ void CallableLibrary::ser_value(AssignStmt const &t, luisa::vector<std::byte> &v
 }
 template<>
 void CallableLibrary::deser_ptr(AssignStmt *obj, std::byte const *&ptr, DeserPackage &pack) noexcept {
+    (void)pack;
     obj->_lhs = deser_value<Expression const *>(ptr, pack);
     obj->_rhs = deser_value<Expression const *>(ptr, pack);
 }
@@ -561,6 +598,7 @@ void CallableLibrary::ser_value(PrintStmt const &t, luisa::vector<std::byte> &ve
 }
 template<>
 void CallableLibrary::deser_ptr(PrintStmt *obj, std::byte const *&ptr, DeserPackage &pack) noexcept {
+    (void)pack;
     obj->_format = deser_value<luisa::string>(ptr, pack);
     auto size = deser_value<size_t>(ptr, pack);
     obj->_args.reserve(size);
@@ -932,9 +970,9 @@ luisa::vector<std::byte> CallableLibrary::serialize() const noexcept {
 }
 void CallableLibrary::add_callable(luisa::string_view name, const luisa::shared_ptr<const detail::FunctionBuilder> &callable) noexcept {
 #ifdef LUISA_USE_SYSTEM_STL
-    _callables.try_emplace(luisa::string{name}, std::move(callable));
+    _callables.try_emplace(luisa::string{name}, callable);
 #else
-    _callables.try_emplace(name, std::move(callable));
+    _callables.try_emplace(name, callable);
 #endif
 }
 CallableLibrary::~CallableLibrary() noexcept = default;
