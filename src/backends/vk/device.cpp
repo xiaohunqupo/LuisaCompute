@@ -998,7 +998,7 @@ SwapchainCreationInfo Device::create_swapchain(const SwapchainOption &option, ui
         option.back_buffer_count + 1,
         false,
         option.wants_hdr,
-        option.wants_vsync);
+        option.wants_vsync, option.wants_transparent);
     SwapchainCreationInfo r{};
     r.handle = reinterpret_cast<uint64_t>(ptr);
     r.storage = option.wants_hdr ? PixelStorage::HALF4 : PixelStorage::BYTE4;

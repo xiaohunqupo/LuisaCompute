@@ -22,7 +22,8 @@ public:
                     uint64_t display_handle, uint64_t window_handle,
                     uint width, uint height, bool allow_hdr,
                     bool vsync, uint back_buffer_count,
-                    luisa::span<const char *const> required_device_extensions) noexcept;
+                    luisa::span<const char *const> required_device_extensions,
+                    bool transparent = false) noexcept;
     ~VulkanSwapchain() noexcept;
     [[nodiscard]] VkInstance instance() const noexcept;
     [[nodiscard]] VkDevice device() const noexcept;
