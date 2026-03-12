@@ -12,7 +12,8 @@ LCSwapChain::LCSwapChain(
     uint height,
     DXGI_FORMAT format,
     bool vsync,
-    uint backBufferCount)
+    uint backBufferCount,
+    bool transparent)
     : Resource(device), vsync(vsync) {
     this->format = format;
     frameCount = backBufferCount + 1;
@@ -31,6 +32,9 @@ LCSwapChain::LCSwapChain(
         swapChainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING | DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
     swapChainDesc.Flags |= DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
     swapChainDesc.SampleDesc.Count = 1;
+    if (transparent) {
+        swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_PREMULTIPLIED;
+    }
     {
         IDXGISwapChain1 *localSwap;
         ThrowIfFailed(device->dxgiFactory->CreateSwapChainForHwnd(

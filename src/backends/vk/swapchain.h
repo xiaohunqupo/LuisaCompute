@@ -40,7 +40,8 @@ public:
     void create_swapchain(
         uint64_t display_handle,
         uint64_t window_handle,
-        uint width, uint height, uint back_buffers, bool is_recreation, bool allow_hdr, bool vsync);
+        uint width, uint height, uint back_buffers, bool is_recreation, bool allow_hdr, bool vsync,
+        bool transparent = false);
     void present(
         CommandBuffer &cmdbuffer,
         // submit info

@@ -24,7 +24,8 @@ public:
         uint height,
         DXGI_FORMAT format,
         bool vsync,
-        uint backBufferCount);
+        uint backBufferCount,
+        bool transparent = false);
     LCSwapChain(
         PixelStorage& storage,
         Device* device,

@@ -24,6 +24,22 @@
 #endif
 
 namespace lc::vk {
+VkCompositeAlphaFlagBitsKHR choose_composite_alpha(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface) {
+    VkSurfaceCapabilitiesKHR caps;
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &caps);
+    // Priority: Post-multiplied > Pre-multiplied > Inherit > Opaque
+    if (caps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR) {
+        return VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR;// Best for transparency
+    }
+    if (caps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR) {
+        return VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR;
+    }
+    if (caps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR) {
+        return VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;// Use native window settings
+    }
+    return VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;// Fallback (no transparency)
+}
+
 static const std::array vulkan_swapchain_screen_shader_vertex_bytecode = {
     0x07230203u, 0x00010300u, 0x000d000bu, 0x00000026u, 0x00000000u, 0x00020011u, 0x00000001u, 0x0006000bu,
     0x00000001u, 0x4c534c47u, 0x6474732eu, 0x3035342eu, 0x00000000u, 0x0003000eu, 0x00000000u, 0x00000001u,
@@ -603,7 +619,8 @@ void Swapchain::create_swapchain(
     uint64_t display_handle,
     uint64_t window_handle,
     uint width, uint height, uint back_buffers,
-    bool is_recreation, bool allow_hdr, bool vsync) {
+    bool is_recreation, bool allow_hdr, bool vsync,
+    bool transparent) {
     _display_handle = display_handle;
     _window_handle = window_handle;
     _requested_size = uint2(width, height);
@@ -721,6 +738,9 @@ void Swapchain::create_swapchain(
     create_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     create_info.presentMode = present_mode;
     create_info.clipped = VK_TRUE;
+    if (transparent) {
+        create_info.compositeAlpha = choose_composite_alpha(device()->physical_device(), _surface);
+    }
     auto logic_device = device()->logic_device();
     VK_CHECK_RESULT(vkCreateSwapchainKHR(logic_device, &create_info, Device::alloc_callbacks(), &_swapchain));
 

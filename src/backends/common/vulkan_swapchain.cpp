@@ -15,6 +15,21 @@
 #include <luisa/backends/common/vulkan_swapchain.h>
 
 namespace luisa::compute {
+VkCompositeAlphaFlagBitsKHR choose_composite_alpha(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface) {
+    VkSurfaceCapabilitiesKHR caps;
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &caps);
+    // Priority: Post-multiplied > Pre-multiplied > Inherit > Opaque
+    if (caps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR) {
+        return VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR;// Best for transparency
+    }
+    if (caps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR) {
+        return VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR;
+    }
+    if (caps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR) {
+        return VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;// Use native window settings
+    }
+    return VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;// Fallback (no transparency)
+}
 
 // source:
 // #version 450
@@ -423,7 +438,7 @@ private:
     }
 
     void _create_swapchain(uint width, uint height, uint back_buffers,
-                           bool is_recreation, bool allow_hdr, bool vsync) noexcept {
+                           bool is_recreation, bool allow_hdr, bool vsync, bool transparent) noexcept {
 
         auto support = _query_swapchain_support(_physical_device);
         if (support.capabilities.maxImageCount == 0u) {
@@ -506,7 +521,9 @@ private:
         create_info.presentMode = present_mode;
         create_info.clipped = VK_TRUE;
         LUISA_CHECK_VULKAN(vkCreateSwapchainKHR(_device, &create_info, nullptr, &_swapchain));
-
+        if (transparent) {
+            create_info.compositeAlpha = choose_composite_alpha(_physical_device, _surface);
+        }
         // get the swapchain images
         auto image_count = back_buffers;
         LUISA_CHECK_VULKAN(vkGetSwapchainImagesKHR(_device, _swapchain, &image_count, nullptr));
@@ -940,6 +957,7 @@ private:
     uint2 _requested_size{};
     bool _requested_hdr{false};
     bool _requested_vsync{false};
+    bool _transparent {false};
 
 private:
     void _destroy_swapchain() noexcept {
@@ -957,7 +975,8 @@ private:
         _destroy_swapchain();
         _create_swapchain(_requested_size.x, _requested_size.y,
                           back_buffers, true,
-                          _requested_hdr, _requested_vsync);
+                          _requested_hdr, _requested_vsync,
+                          _transparent);
         _create_framebuffers();
     }
 
@@ -968,14 +987,16 @@ public:
          uint width, uint height,
          bool allow_hdr, bool vsync,
          uint back_buffer_count,
-         luisa::span<const char *const> required_device_extensions) noexcept
+         luisa::span<const char *const> required_device_extensions,
+         bool transparent) noexcept
         : _instance{VulkanInstance::retain()},
           _requested_size{width, height},
           _requested_hdr{allow_hdr},
-          _requested_vsync{vsync} {
+          _requested_vsync{vsync},
+          _transparent{transparent} {
         _create_surface(display_handle, window_handle);
         _create_device(device_uuid, required_device_extensions, allow_hdr);
-        _create_swapchain(width, height, back_buffer_count, false, allow_hdr, vsync);
+        _create_swapchain(width, height, back_buffer_count, false, allow_hdr, vsync, transparent);
         _create_render_pass();
         _create_descriptor_set_layout();
         _create_pipeline();
@@ -1124,11 +1145,12 @@ VulkanSwapchain::VulkanSwapchain(const VulkanDeviceUUID &device_uuid,
                                  uint width, uint height,
                                  bool allow_hdr, bool vsync,
                                  uint back_buffer_count,
-                                 luisa::span<const char *const> required_device_extensions) noexcept
+                                 luisa::span<const char *const> required_device_extensions,
+                                 bool transparent) noexcept
     : _impl{luisa::make_unique<Impl>(device_uuid, display_handle, window_handle,
                                      width, height, allow_hdr,
                                      vsync, back_buffer_count,
-                                     required_device_extensions)} {}
+                                     required_device_extensions, transparent)} {}
 
 VulkanSwapchain::~VulkanSwapchain() noexcept = default;
 VkInstance VulkanSwapchain::instance() const noexcept { return _impl->instance(); }

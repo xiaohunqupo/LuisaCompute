@@ -410,10 +410,11 @@ public:
     Impl(CUuuid device_uuid,
          uint64_t display_handle, uint64_t window_handle,
          uint width, uint height, bool allow_hdr,
-         bool vsync, uint back_buffer_size) noexcept
+         bool vsync, uint back_buffer_size,
+         bool transparent) noexcept
         : _base{luisa::bit_cast<VulkanDeviceUUID>(device_uuid),
                 display_handle, window_handle, width, height,
-                allow_hdr, vsync, back_buffer_size, required_extensions},
+                allow_hdr, vsync, back_buffer_size, required_extensions, transparent},
           _size{make_uint2(width, height)} { _initialize(); }
     ~Impl() noexcept { _cleanup(); }
     [[nodiscard]] auto native_handle() noexcept { return &_base; }
@@ -479,7 +480,7 @@ public:
 CUDASwapchain::CUDASwapchain(CUDADevice *device, SwapchainOption o) noexcept
     : _impl{luisa::make_unique<Impl>(device->handle().handle_uuid(),
                                      o.display, o.window, o.size.x, o.size.y,
-                                     o.wants_hdr, o.wants_vsync, o.back_buffer_count)} {}
+                                     o.wants_hdr, o.wants_vsync, o.back_buffer_count, o.wants_transparent)} {}
 
 CUDASwapchain::~CUDASwapchain() noexcept = default;
 

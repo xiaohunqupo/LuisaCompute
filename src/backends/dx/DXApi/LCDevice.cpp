@@ -527,7 +527,7 @@ SwapchainCreationInfo LCDevice::create_swapchain(const SwapchainOption &option, 
         option.size.y,
         option.wants_hdr ? DXGI_FORMAT_R16G16B16A16_FLOAT : DXGI_FORMAT_R8G8B8A8_UNORM,
         option.wants_vsync,
-        option.back_buffer_count);
+        option.back_buffer_count, option.wants_transparent);
     info.handle = resource_to_handle(res);
     info.native_handle = res->swapChain.Get();
     info.storage = option.wants_hdr ? PixelStorage::HALF4 : PixelStorage::BYTE4;
