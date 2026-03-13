@@ -5,6 +5,7 @@
 #include <Resource/SwapChain.h>
 #include <DXRuntime/CommandQueue.h>
 #include <DXRuntime/DxPtr.h>
+#include <dcomp.h>
 namespace lc::dx {
 class LCSwapChain : public Resource {
 public:
@@ -13,6 +14,9 @@ public:
     uint64 frameIndex = 0;
     uint64 frameCount = 0;
     DXGI_FORMAT format;
+    ComPtr<IDCompositionDevice> dcompDevice;
+    ComPtr<IDCompositionTarget> dcompTarget;
+    ComPtr<IDCompositionVisual> dcompVisual;
     bool vsync;
     Tag GetTag() const override { return Tag::SwapChain; }
     LCSwapChain(
@@ -27,9 +31,9 @@ public:
         uint backBufferCount,
         bool transparent = false);
     LCSwapChain(
-        PixelStorage& storage,
-        Device* device,
-        IDXGISwapChain1* swapChain,
+        PixelStorage &storage,
+        Device *device,
+        IDXGISwapChain1 *swapChain,
         bool vsync);
 };
 }// namespace lc::dx
