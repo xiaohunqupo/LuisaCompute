@@ -52,7 +52,7 @@ struct SwapchainOption {
     uint2 size;
     bool wants_hdr = false;
     bool wants_vsync = true;
-    bool wants_transparent = true;
+    bool wants_transparent = false;
     uint back_buffer_count = 2;
 };
 
