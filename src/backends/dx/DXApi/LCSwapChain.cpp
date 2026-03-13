@@ -32,20 +32,35 @@ LCSwapChain::LCSwapChain(
         swapChainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING | DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
     swapChainDesc.Flags |= DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
     swapChainDesc.SampleDesc.Count = 1;
-    if (transparent) {
-        swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_PREMULTIPLIED;
-    }
+
     {
         IDXGISwapChain1 *localSwap;
-        ThrowIfFailed(device->dxgiFactory->CreateSwapChainForHwnd(
-            queue->Queue(),
-            windowHandle,
+        if (transparent) {
+            swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_PREMULTIPLIED;
+            // For alpha-blended swapchains, use CreateSwapChainForComposition
+            // Note: This requires DirectComposition to be set up by the caller
+            ThrowIfFailed(device->dxgiFactory->CreateSwapChainForComposition(
+                queue->Queue(),
+                &swapChainDesc,
+                nullptr,
+                &localSwap));
 
-            &swapChainDesc,
-            nullptr,
-            nullptr,
-            &localSwap));
-
+            DCompositionCreateDevice(
+                nullptr, IID_PPV_ARGS(&dcompDevice));
+            dcompDevice->CreateTargetForHwnd(windowHandle, true, &dcompTarget);
+            dcompDevice->CreateVisual(&dcompVisual);
+            dcompVisual->SetContent(localSwap);
+            dcompTarget->SetRoot(dcompVisual.Get());
+            dcompDevice->Commit();
+        } else {
+            ThrowIfFailed(device->dxgiFactory->CreateSwapChainForHwnd(
+                queue->Queue(),
+                windowHandle,
+                &swapChainDesc,
+                nullptr,
+                nullptr,
+                &localSwap));
+        }
         swapChain = DxPtr(localSwap, true);
     }
     for (uint32_t n = 0; n < frameCount; n++) {

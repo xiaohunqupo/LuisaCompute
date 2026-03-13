@@ -8,7 +8,7 @@
 #if LUISA_ENABLE_WAYLAND
 #define GLFW_EXPOSE_NATIVE_WAYLAND
 #endif
-#define GLFW_EXPOSE_NATIVE_X11// TODO: other window compositors
+#define GLFW_EXPOSE_NATIVE_X11
 #endif
 
 #ifndef GLFW_INCLUDE_NONE
@@ -34,13 +34,16 @@ struct WindowImpl : public Window::IWindowImpl {
     Window::ScrollCallback _scroll_callback;
     uint64_t window_handle{};
 
-    WindowImpl(uint2 size, char const *name, bool resizable, bool full_screen) noexcept {
+    WindowImpl(uint2 size, char const *name, bool resizable, bool full_screen, bool window_transparent) noexcept {
+
         static std::once_flag once_flag;
         std::call_once(once_flag, [] { glfwInit(); });
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         glfwWindowHint(GLFW_RESIZABLE, resizable);
+        if (window_transparent) {
+            glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_TRUE);
+        }
         window = glfwCreateWindow(size.x, size.y, name, full_screen ? glfwGetPrimaryMonitor() : nullptr, nullptr);
-        // TODO: other platform
 #if defined(LUISA_PLATFORM_WINDOWS)
         window_handle = reinterpret_cast<uint64_t>(glfwGetWin32Window(window));
 #elif defined(LUISA_PLATFORM_APPLE)
@@ -122,10 +125,10 @@ struct WindowImpl : public Window::IWindowImpl {
 
 }// namespace detail
 
-Window::Window(string name, uint width, uint height, bool resizable, bool full_screen) noexcept
+Window::Window(string name, uint width, uint height, bool resizable, bool full_screen, bool window_transparent) noexcept
     : _name{std::move(name)},
       _size{width, height} {
-    _impl = make_unique<detail::WindowImpl>(_size, _name.c_str(), resizable, full_screen);
+    _impl = make_unique<detail::WindowImpl>(_size, _name.c_str(), resizable, full_screen, window_transparent);
 }
 
 Window::~Window() noexcept = default;

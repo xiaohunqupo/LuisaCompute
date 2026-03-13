@@ -14,7 +14,7 @@ if is_plat("windows") then
 end
 on_load(function(target)
     target:add("headerfiles", path.normalize(path.join(os.scriptdir(), "../common/default_binary_io.h")))
-    target:add("syslinks", "D3D12")
+    target:add("syslinks", "D3D12", "dcomp")
     target:add("defines", "LUISA_DX_SDK")
     if has_config("lc_enable_win_pix") then
         target:add("linkdirs", target:targetdir())

@@ -283,9 +283,6 @@ int main(int argc, char *argv[]) {
                 Float cos_wi_light = dot(wi_light, n);
                 Float cos_light = -dot(light_normal, wi_light);
                 Float3 albedo = materials->read(hit.inst);
-                $if (depth == 0 & (coord.x == 0u & coord.y == dispatch_size().y / 2u)) {
-                    device_log("{} {} {}", albedo, d_light, hit.inst);
-                };
                 // Add direct lighting contribution if not occluded
                 $if (!occluded & cos_wi_light > 1e-4f & cos_light > 1e-4f) {
                     Float pdf_light = (d_light * d_light) / (light_area * cos_light);
@@ -342,7 +339,7 @@ int main(int argc, char *argv[]) {
         UInt2 coord = dispatch_id().xy();
         Float4 hdr = hdr_image.read(coord);
         Float3 ldr = linear_to_srgb(clamp(hdr.xyz() / hdr.w * scale, 0.f, 1.f));
-        ldr_image.write(coord, make_float4(ldr, 1.f));
+        ldr_image.write(coord, make_float4(ldr, 0.2f));
     };
 
     // Compile shaders
@@ -364,7 +361,7 @@ int main(int argc, char *argv[]) {
            << make_sampler_shader(seed_image).dispatch(resolution);
 
     // Setup window and swapchain for real-time display
-    Window window{"path tracing", resolution};
+    Window window{"path tracing", resolution, false};
     Swapchain swap_chain = device.create_swapchain(
         stream,
         SwapchainOption{
@@ -373,7 +370,7 @@ int main(int argc, char *argv[]) {
             .size = make_uint2(resolution),
             .wants_hdr = false,
             .wants_vsync = false,
-            .back_buffer_count = 8,
+            .back_buffer_count = 2,
         });
 
     Image<float> ldr_image = device.create_image<float>(swap_chain.backend_storage(), resolution);
