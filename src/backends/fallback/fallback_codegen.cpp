@@ -2893,7 +2893,11 @@ private:
         // fill argument struct
         auto llvm_struct_alloca = b.CreateAlloca(llvm_struct_type);
         auto llvm_total_size = b.getInt64(total_size);
+#if LLVM_VERSION_MAJOR >= 22
+        b.CreateLifetimeStart(llvm_struct_alloca);
+#else
         b.CreateLifetimeStart(llvm_struct_alloca, llvm_total_size);
+#endif
         llvm_struct_alloca->setAlignment(llvm::Align{16});
         for (auto i = 0u; i < inst->operand_count(); i++) {
             auto llvm_field_offset = llvm_field_offsets[i];
@@ -2934,7 +2938,11 @@ private:
         // call print function
         auto llvm_fmt_id = b.getInt64(fmt_id);
         auto llvm_call = b.CreateCall(llvm_print_func, {llvm_print_context, llvm_fmt_id, llvm_struct_alloca});
+#if LLVM_VERSION_MAJOR >= 22
+        b.CreateLifetimeEnd(llvm_struct_alloca);
+#else
         b.CreateLifetimeEnd(llvm_struct_alloca, llvm_total_size);
+#endif
         return llvm_call;
     }
 
