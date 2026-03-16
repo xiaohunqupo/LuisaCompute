@@ -1722,10 +1722,10 @@ template<typename X, typename Y>
 template<typename X>
     requires is_dsl_v<X> && is_floating_point_or_vector_expr_v<X>
 [[nodiscard]] inline auto sign(X &&x) noexcept {
-    using Scalar = expr_value_t<decltype(x)>;
-    auto zero = def<Scalar>(0);
-    auto value = std::forward<X>(x);
-    return cast<Scalar>(value > zero) - cast<Scalar>(value < zero);
+    using value_type = expr_value_t<decltype(x)>;
+    auto zero = value_type(0);
+    auto value = def<value_type>(std::forward<X>(x));
+    return ite(value > zero, value_type(1), ite(value < zero, value_type(-1), zero));
 }
 
 template<typename X>
