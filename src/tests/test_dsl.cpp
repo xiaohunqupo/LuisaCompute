@@ -129,7 +129,8 @@ int main(int argc, char *argv[]) {
     Kernel1D k1 = [&] {
         // captures buffer and float_buffer (propagated from c2)
         auto v = c2(dispatch_x());
-        float_buffer->write(dispatch_x(), v.x + v.y + v.z);
+        auto z = sign(v);
+        float_buffer->write(dispatch_x(), z.x + z.y + z.z);
     };
 
     // Create constant vector for testing
