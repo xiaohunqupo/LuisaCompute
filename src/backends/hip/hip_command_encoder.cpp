@@ -8,6 +8,7 @@
 #include "hip_buffer.h"
 #include "hip_texture.h"
 #include "hip_command_encoder.h"
+#include "hip_shader.h"
 
 #include "hip_buffer.h"
 #include "luisa/core/logging.h"
@@ -132,6 +133,7 @@ void HIPCommandEncoder::visit(BufferToTextureCopyCommand *command) noexcept {
 }
 
 void HIPCommandEncoder::visit(ShaderDispatchCommand *command) noexcept {
+    reinterpret_cast<HIPShader *>(command->handle())->launch(*this, command);
 }
 
 void HIPCommandEncoder::visit(TextureUploadCommand *command) noexcept {

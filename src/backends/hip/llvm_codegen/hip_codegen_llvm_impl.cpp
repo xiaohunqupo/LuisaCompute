@@ -3,6 +3,7 @@
 //
 
 #include "hip_codegen_llvm_impl.h"
+#include <llvm/Bitcode/BitcodeWriter.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/Analysis/TargetTransformInfo.h>
 #include <llvm/Analysis/TargetLibraryInfo.h>
@@ -87,6 +88,13 @@ void HIPCodegenLLVMImpl::_initialize() noexcept {
     _llvm_module->setTargetTriple(llvm::Triple{amdgpu_target_triple});
     _llvm_module->setDataLayout(*_data_layout);
 
+    auto i32_type = llvm::Type::getInt32Ty(_llvm_context);
+    auto &llvm_ctx = _llvm_context;
+    auto module_flags = _llvm_module->getOrInsertNamedMetadata("llvm.module.flags");
+    module_flags->addOperand(llvm::MDNode::get(llvm_ctx, {llvm::ConstantAsMetadata::get(llvm::Constant::getIntegerValue(i32_type, llvm::APInt(32, 1))),
+                                                          llvm::MDString::get(llvm_ctx, "amdhsa_code_object_version"),
+                                                          llvm::ConstantAsMetadata::get(llvm::Constant::getIntegerValue(i32_type, llvm::APInt(32, 600)))}));
+
     _llvm_buffer_type = _get_llvm_buffer_type();
     _llvm_texture_type = _get_llvm_texture_type();
     _llvm_bindless_array_type = _get_llvm_bindless_array_type();
@@ -168,15 +176,10 @@ void HIPCodegenLLVMImpl::_run_optimization_passes() noexcept {
 }
 
 luisa::string HIPCodegenLLVMImpl::_generate_code() const noexcept {
-    llvm::legacy::PassManager pass_manager;
-    llvm::SmallVector<char, 256> code;
-    llvm::raw_svector_ostream os{code};
-
-    if (_target_machine->addPassesToEmitFile(pass_manager, os, nullptr, llvm::CodeGenFileType::AssemblyFile)) {
-        LUISA_ERROR_WITH_LOCATION("Failed to add AMDGPU passes to pass manager.");
-    }
-    pass_manager.run(*_llvm_module);
-    return luisa::string{code.begin(), code.end()};
+    std::string code;
+    llvm::raw_string_ostream os{code};
+    _llvm_module->print(os, nullptr);
+    return luisa::string{code};
 }
 
 luisa::string HIPCodegenLLVMImpl::generate(const xir::Module &xir_module) noexcept {
@@ -194,7 +197,32 @@ luisa::string HIPCodegenLLVMImpl::generate(const xir::Module &xir_module) noexce
         LUISA_ERROR_WITH_LOCATION("Module verification failed.");
     }
 
+    static auto dump_ir = [] {
+        using namespace std::string_view_literals;
+        auto env = getenv("LUISA_DUMP_LLVM_IR");
+        return env != nullptr && env == "1"sv;
+    }();
+    if (dump_ir) {
+        _dump_module("hip_kernel_before_opt.ll");
+    }
+
     _run_optimization_passes();
+
+    for (auto &func : *_llvm_module) {
+        func.setAttributes(llvm::AttributeList{});
+        if (func.getName() == "kernel_main") {
+            func.addFnAttr(llvm::Attribute::NoInline);
+        }
+    }
+
+    static auto print_ir = [] {
+        using namespace std::string_view_literals;
+        auto env = getenv("LUISA_PRINT_LLVM_IR");
+        return env != nullptr && env == "1"sv;
+    }();
+    if (print_ir) {
+        _llvm_module->print(llvm::outs(), nullptr);
+    }
 
     LUISA_INFO_WITH_LOCATION("HIP LLVM codegen completed in {} ms.", clk.toc());
     return _generate_code();

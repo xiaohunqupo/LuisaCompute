@@ -11,6 +11,8 @@
 #include "hip_stream.h"
 #include "hip_event.h"
 #include "hip_swapchain.h"
+#include "hip_shader.h"
+#include "hip_shader_native.h"
 #include "hip_device.h"
 
 #ifdef LUISA_COMPUTE_ENABLE_LLVM
@@ -68,6 +70,7 @@ HIPDevice::HIPDevice(Context &&ctx, const DeviceConfig *config) noexcept
     // log device name and version
     hipDeviceProp_t prop;
     LUISA_CHECK_HIP(hipGetDeviceProperties(&prop, _device_id));
+    _gcn_arch = std::stoi(prop.gcnArchName + 3);
     auto driver_version = 0;
     auto runtime_version = 0;
     LUISA_CHECK_HIP(hipDriverGetVersion(&driver_version));
@@ -362,7 +365,7 @@ ShaderCreationInfo HIPDevice::create_shader(const ShaderOption &option, Function
         .source_file = option.name,
         .bindings = kernel.bound_arguments(),
         .block_size = {kernel.block_size().x, kernel.block_size().y, kernel.block_size().z},
-        .amdgpu_arch = 1200,
+        .amdgpu_arch = 1201,
         .opt_level = HIPCodegenLLVMConfig::OptLevel::LEVEL_AGGRESSIVE,
         .enable_fast_math = option.enable_fast_math,
         .enable_debug_info = option.enable_debug_info,
@@ -371,8 +374,66 @@ ShaderCreationInfo HIPDevice::create_shader(const ShaderOption &option, Function
     auto code = hip_codegen_llvm(*xir_module, config);
     LUISA_INFO("Generated AMDGPU code ({} bytes)", code.size());
 
-    LUISA_NOT_IMPLEMENTED("HIP shader compilation from AMDGPU code not yet implemented.");
-    return ShaderCreationInfo::make_invalid();
+    luisa::vector<Usage> argument_usages;
+    argument_usages.reserve(kernel.arguments().size());
+    for (auto &&arg : kernel.arguments()) {
+        argument_usages.push_back(kernel.variable_usage(arg.uid()));
+    }
+
+    HIPShaderMetadata metadata{
+        .checksum = 0u,
+        .kind = HIPShaderMetadata::Kind::COMPUTE,
+        .enable_debug = option.enable_debug_info,
+        .requires_trace_closest = false,
+        .requires_trace_any = false,
+        .requires_ray_query = false,
+        .requires_printing = kernel.requires_printing(),
+        .requires_motion_blur = kernel.requires_motion_blur(),
+        .max_register_count = 0u,
+        .block_size = kernel.block_size(),
+        .argument_types = {},
+        .argument_usages = std::move(argument_usages),
+        .format_types = {},
+    };
+
+    // process bound arguments
+    luisa::vector<ShaderDispatchCommand::Argument> bound_arguments;
+    bound_arguments.reserve(kernel.bound_arguments().size());
+    for (auto &&arg : kernel.bound_arguments()) {
+        luisa::visit(
+            [&bound_arguments]<typename T>(T binding) noexcept {
+                ShaderDispatchCommand::Argument argument{};
+                if constexpr (std::is_same_v<T, Function::BufferBinding>) {
+                    argument.tag = ShaderDispatchCommand::Argument::Tag::BUFFER;
+                    argument.buffer.handle = binding.handle;
+                    argument.buffer.offset = binding.offset;
+                    argument.buffer.size = binding.size;
+                } else if constexpr (std::is_same_v<T, Function::TextureBinding>) {
+                    argument.tag = ShaderDispatchCommand::Argument::Tag::TEXTURE;
+                    argument.texture.handle = binding.handle;
+                    argument.texture.level = binding.level;
+                } else if constexpr (std::is_same_v<T, Function::BindlessArrayBinding>) {
+                    argument.tag = ShaderDispatchCommand::Argument::Tag::BINDLESS_ARRAY;
+                    argument.bindless_array.handle = binding.handle;
+                } else if constexpr (std::is_same_v<T, Function::AccelBinding>) {
+                    argument.tag = ShaderDispatchCommand::Argument::Tag::ACCEL;
+                    argument.accel.handle = binding.handle;
+                } else {
+                    LUISA_ERROR_WITH_LOCATION("Unsupported binding type.");
+                }
+                bound_arguments.emplace_back(argument);
+            },
+            arg);
+    }
+
+    auto shader = luisa::new_with_allocator<HIPShaderNative>(
+        this, std::move(code),
+        "kernel_main", metadata, std::move(bound_arguments));
+
+    ShaderCreationInfo info{};
+    info.handle = reinterpret_cast<uint64_t>(shader);
+    info.block_size = kernel.block_size();
+    return info;
 #else
     LUISA_ERROR_WITH_LOCATION("HIP backend requires LLVM to be enabled.");
     return ShaderCreationInfo::make_invalid();
@@ -392,7 +453,8 @@ Usage HIPDevice::shader_argument_usage(uint64_t handle, size_t index) noexcept {
 }
 
 void HIPDevice::destroy_shader(uint64_t handle) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    auto shader = reinterpret_cast<HIPShader *>(handle);
+    luisa::delete_with_allocator(shader);
 }
 
 ResourceCreationInfo HIPDevice::create_event() noexcept {

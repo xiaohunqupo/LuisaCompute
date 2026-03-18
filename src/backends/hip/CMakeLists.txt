@@ -6,10 +6,16 @@ if (hip_FOUND)
             ../common/default_binary_io.cpp ../common/default_binary_io.h
             hip_device.cpp hip_device.h
             hip_buffer.cpp hip_buffer.h
+            hip_bindless_array.h
+            hip_accel.h
             hip_callback_context.h
             hip_command_encoder.cpp hip_command_encoder.h
             hip_event.cpp hip_event.h
             hip_mesh.cpp hip_mesh.h
+            hip_shader.h hip_shader.cpp
+            hip_shader_metadata.h
+            hip_shader_native.h hip_shader_native.cpp
+            hip_shader_printer.h
             hip_stage_buffer_pool.cpp hip_stage_buffer_pool.h
             hip_stream.cpp hip_stream.h
             hip_swapchain.cpp hip_swapchain.h
@@ -24,6 +30,7 @@ target_link_libraries(luisa-compute-backend-hip PRIVATE
         luisa-compute-ast
         luisa-compute-runtime
         hip::host
+        /opt/rocm/lib/libhiprtc.so
 )
     if (TARGET luisa-compute-vulkan-swapchain)
         target_link_libraries(luisa-compute-backend-hip PRIVATE luisa-compute-vulkan-swapchain)
