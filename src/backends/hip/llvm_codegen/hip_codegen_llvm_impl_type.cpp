@@ -126,89 +126,194 @@ const HIPCodegenLLVMImpl::KernelArgumentStruct *HIPCodegenLLVMImpl::_get_kernel_
     if (auto iter = _kernel_arg_struct_types.find(func); iter != _kernel_arg_struct_types.end()) {
         return iter->second.get();
     }
-    LUISA_NOT_IMPLEMENTED();
+    std::vector<llvm::Type *> llvm_arg_members;
+    std::vector<size_t> llvm_arg_member_indices;
+    auto current_offset = static_cast<size_t>(0u);
+    static constexpr auto alignment = KernelArgumentStruct::argument_alignment;
+    for (auto arg : func->arguments()) {
+        auto next_offset = luisa::align(current_offset, alignment);
+        if (next_offset > current_offset) {
+            auto llvm_i8_type = llvm::Type::getInt8Ty(_llvm_context);
+            llvm_arg_members.emplace_back(llvm::ArrayType::get(llvm_i8_type, next_offset - current_offset));
+        }
+        llvm_arg_member_indices.emplace_back(llvm_arg_members.size());
+        auto llvm_arg_type = _get_llvm_type(arg->type());
+        llvm_arg_members.emplace_back(llvm_arg_type->mem_type);
+        current_offset = next_offset + _data_layout->getTypeAllocSize(llvm_arg_members.back()).getFixedValue();
+    }
+    if (current_offset % alignment != 0u) {
+        auto llvm_i8_type = llvm::Type::getInt8Ty(_llvm_context);
+        auto count = luisa::align(current_offset, alignment) - current_offset;
+        llvm_arg_members.emplace_back(llvm::ArrayType::get(llvm_i8_type, count));
+    }
+    auto dispatch_size_and_kernel_id_index = llvm_arg_members.size();
+    auto llvm_i32x4_type = llvm::ArrayType::get(llvm::Type::getInt32Ty(_llvm_context), 4);
+    llvm_arg_members.emplace_back(llvm_i32x4_type);
+    auto llvm_arg_struct_type = llvm::StructType::create(_llvm_context, llvm_arg_members, "kernel.params.struct");
+    auto kernel_arg_struct = luisa::make_unique<KernelArgumentStruct>(KernelArgumentStruct{
+        .llvm_type = llvm_arg_struct_type,
+        .argument_indices = std::move(llvm_arg_member_indices),
+        .dispatch_size_and_kernel_id_index = dispatch_size_and_kernel_id_index,
+    });
+    auto [iter, success] = _kernel_arg_struct_types.try_emplace(func, std::move(kernel_arg_struct));
+    LUISA_ASSERT(success, "Failed to insert kernel argument struct.");
+    return iter->second.get();
 }
 
 llvm::Type *HIPCodegenLLVMImpl::_get_llvm_buffer_type() noexcept {
-    auto ptr_type = llvm::PointerType::get(_llvm_context, amdgpu_address_space_global);
-    return llvm::StructType::create({ptr_type, llvm::Type::getInt64Ty(_llvm_context)}, "buffer");
+    if (_llvm_buffer_type == nullptr) {
+        auto ptr_type = llvm::PointerType::get(_llvm_context, amdgpu_address_space_global);
+        auto llvm_i64_type = llvm::Type::getInt64Ty(_llvm_context);
+        _llvm_buffer_type = llvm::StructType::get(_llvm_context, {ptr_type, llvm_i64_type}, false);
+    }
+    return _llvm_buffer_type;
 }
 
 llvm::Type *HIPCodegenLLVMImpl::_get_llvm_texture_type() noexcept {
-    return llvm::StructType::create({llvm::Type::getInt64Ty(_llvm_context), llvm::Type::getInt64Ty(_llvm_context)}, "texture");
+    if (_llvm_texture_type == nullptr) {
+        auto llvm_i64_type = llvm::Type::getInt64Ty(_llvm_context);
+        _llvm_texture_type = llvm::StructType::get(_llvm_context, {llvm_i64_type, llvm_i64_type}, false);
+    }
+    return _llvm_texture_type;
 }
 
 llvm::Type *HIPCodegenLLVMImpl::_get_llvm_bindless_array_type() noexcept {
-    auto ptr_type = llvm::PointerType::get(_llvm_context, amdgpu_address_space_global);
-    return llvm::StructType::create({ptr_type, llvm::Type::getInt64Ty(_llvm_context)}, "bindless_array");
+    if (_llvm_bindless_array_type == nullptr) {
+        auto ptr_type = llvm::PointerType::get(_llvm_context, amdgpu_address_space_global);
+        auto llvm_i64_type = llvm::Type::getInt64Ty(_llvm_context);
+        _llvm_bindless_array_type = llvm::StructType::get(_llvm_context, {ptr_type, llvm_i64_type}, false);
+    }
+    return _llvm_bindless_array_type;
 }
 
 llvm::Type *HIPCodegenLLVMImpl::_get_llvm_bindless_array_slot_type() noexcept {
-    return llvm::StructType::create({llvm::Type::getInt64Ty(_llvm_context),
-                                     llvm::Type::getInt64Ty(_llvm_context),
-                                     llvm::Type::getInt64Ty(_llvm_context),
-                                     llvm::Type::getInt64Ty(_llvm_context)},
-                                    "bindless_array_slot");
+    if (_llvm_bindless_array_slot_type == nullptr) {
+        auto llvm_i64_type = llvm::Type::getInt64Ty(_llvm_context);
+        _llvm_bindless_array_slot_type = llvm::StructType::create({llvm_i64_type,
+                                                                   llvm_i64_type,
+                                                                   llvm_i64_type,
+                                                                   llvm_i64_type},
+                                                                  "bindless_array_slot");
+    }
+    return _llvm_bindless_array_slot_type;
 }
 
 llvm::Type *HIPCodegenLLVMImpl::_get_llvm_accel_type() noexcept {
-    auto ptr_type = llvm::PointerType::get(_llvm_context, amdgpu_address_space_global);
-    return llvm::StructType::create({llvm::Type::getInt64Ty(_llvm_context), ptr_type}, "accel");
+    if (_llvm_accel_type == nullptr) {
+        auto llvm_i64_type = llvm::Type::getInt64Ty(_llvm_context);
+        auto ptr_type = llvm::PointerType::get(_llvm_context, amdgpu_address_space_global);
+        _llvm_accel_type = llvm::StructType::get(_llvm_context, {llvm_i64_type, ptr_type}, false);
+    }
+    return _llvm_accel_type;
 }
 
 llvm::Type *HIPCodegenLLVMImpl::_get_llvm_accel_instance_type() noexcept {
-    auto float4x3_type = llvm::ArrayType::get(llvm::FixedVectorType::get(llvm::Type::getFloatTy(_llvm_context), 4), 3);
-    return llvm::StructType::create({float4x3_type,
-                                     llvm::Type::getInt32Ty(_llvm_context),
-                                     llvm::Type::getInt32Ty(_llvm_context),
-                                     llvm::Type::getInt32Ty(_llvm_context),
-                                     llvm::Type::getInt32Ty(_llvm_context),
-                                     llvm::Type::getInt64Ty(_llvm_context)},
-                                    "accel_instance");
+    if (_llvm_accel_instance_type == nullptr) {
+        auto float4x3_type = llvm::ArrayType::get(llvm::FixedVectorType::get(llvm::Type::getFloatTy(_llvm_context), 4), 3);
+        return llvm::StructType::create({float4x3_type,
+                                         llvm::Type::getInt32Ty(_llvm_context),
+                                         llvm::Type::getInt32Ty(_llvm_context),
+                                         llvm::Type::getInt32Ty(_llvm_context),
+                                         llvm::Type::getInt32Ty(_llvm_context),
+                                         llvm::Type::getInt64Ty(_llvm_context)},
+                                        "accel_instance");
+    }
+    return _llvm_accel_instance_type;
 }
 
 llvm::Type *HIPCodegenLLVMImpl::_get_llvm_ray_type() noexcept {
-    return llvm::StructType::create({llvm::ArrayType::get(llvm::Type::getFloatTy(_llvm_context), 3),
-                                     llvm::Type::getFloatTy(_llvm_context),
-                                     llvm::ArrayType::get(llvm::Type::getFloatTy(_llvm_context), 3),
-                                     llvm::Type::getFloatTy(_llvm_context)},
-                                    "ray");
+    if (_llvm_ray_type == nullptr) {
+        return llvm::StructType::create({llvm::ArrayType::get(llvm::Type::getFloatTy(_llvm_context), 3),
+                                         llvm::Type::getFloatTy(_llvm_context),
+                                         llvm::ArrayType::get(llvm::Type::getFloatTy(_llvm_context), 3),
+                                         llvm::Type::getFloatTy(_llvm_context)},
+                                        "ray");
+    }
+    return _llvm_ray_type;
 }
 
 llvm::Type *HIPCodegenLLVMImpl::_get_llvm_surface_hit_type() noexcept {
-    return llvm::StructType::create({llvm::Type::getInt32Ty(_llvm_context),
-                                     llvm::Type::getInt32Ty(_llvm_context),
-                                     llvm::FixedVectorType::get(llvm::Type::getFloatTy(_llvm_context), 2),
-                                     llvm::Type::getFloatTy(_llvm_context)},
-                                    "surface_hit");
+    if (_llvm_surface_hit_type == nullptr) {
+        return llvm::StructType::create({llvm::Type::getInt32Ty(_llvm_context),
+                                         llvm::Type::getInt32Ty(_llvm_context),
+                                         llvm::FixedVectorType::get(llvm::Type::getFloatTy(_llvm_context), 2),
+                                         llvm::Type::getFloatTy(_llvm_context)},
+                                        "surface_hit");
+    }
+    return _llvm_surface_hit_type;
 }
 
 llvm::Type *HIPCodegenLLVMImpl::_get_llvm_procedural_hit_type() noexcept {
-    return llvm::StructType::create({llvm::Type::getInt32Ty(_llvm_context),
-                                     llvm::Type::getInt32Ty(_llvm_context)},
-                                    "procedural_hit");
+    if (_llvm_procedural_hit_type == nullptr) {
+        return llvm::StructType::create({llvm::Type::getInt32Ty(_llvm_context),
+                                         llvm::Type::getInt32Ty(_llvm_context)},
+                                        "procedural_hit");
+    }
+    return _llvm_procedural_hit_type;
 }
 
 llvm::Type *HIPCodegenLLVMImpl::_get_llvm_committed_hit_type() noexcept {
-    return llvm::StructType::create({llvm::Type::getInt32Ty(_llvm_context),
-                                     llvm::Type::getInt32Ty(_llvm_context),
-                                     llvm::FixedVectorType::get(llvm::Type::getFloatTy(_llvm_context), 2),
-                                     llvm::Type::getInt32Ty(_llvm_context),
-                                     llvm::Type::getFloatTy(_llvm_context)},
-                                    "committed_hit");
+    if (_llvm_committed_hit_type == nullptr) {
+        return llvm::StructType::create({llvm::Type::getInt32Ty(_llvm_context),
+                                         llvm::Type::getInt32Ty(_llvm_context),
+                                         llvm::FixedVectorType::get(llvm::Type::getFloatTy(_llvm_context), 2),
+                                         llvm::Type::getInt32Ty(_llvm_context),
+                                         llvm::Type::getFloatTy(_llvm_context)},
+                                        "committed_hit");
+    }
+    return _llvm_committed_hit_type;
 }
 
 llvm::Type *HIPCodegenLLVMImpl::_get_llvm_ray_query_type() noexcept {
-    return llvm::StructType::create({llvm::Type::getInt64Ty(_llvm_context),
-                                     llvm::Type::getInt64Ty(_llvm_context),
-                                     llvm::Type::getInt64Ty(_llvm_context),
-                                     llvm::Type::getInt64Ty(_llvm_context),
-                                     llvm::Type::getInt64Ty(_llvm_context)},
-                                    "ray_query");
+    if (_llvm_ray_query_type == nullptr) {
+        return llvm::StructType::create({llvm::Type::getInt64Ty(_llvm_context),
+                                         llvm::Type::getInt64Ty(_llvm_context),
+                                         llvm::Type::getInt64Ty(_llvm_context),
+                                         llvm::Type::getInt64Ty(_llvm_context),
+                                         llvm::Type::getInt64Ty(_llvm_context)},
+                                        "ray_query");
+    }
+    return _llvm_ray_query_type;
 }
 
 std::pair<llvm::Value *, const Type *> HIPCodegenLLVMImpl::_lower_access_chain_address(IB &b, FunctionContext &func_ctx, llvm::Value *llvm_ptr, const Type *type, luisa::span<const xir::Use *const> index_uses) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    LUISA_DEBUG_ASSERT(llvm_ptr->getType()->isPointerTy());
+    for (auto index_use : index_uses) {
+        auto llvm_index = _get_llvm_value(b, func_ctx, index_use->value());
+        switch (type->tag()) {
+            case Type::Tag::VECTOR: {
+                type = type->element();
+                auto llvm_elem_type = _get_llvm_type(type)->mem_type;
+                llvm_ptr = b.CreateInBoundsGEP(llvm_elem_type, llvm_ptr, {llvm_index});
+                break;
+            }
+            case Type::Tag::MATRIX: {
+                type = Type::vector(type->element(), type->dimension());
+                auto llvm_col_type = _get_llvm_type(type)->mem_type;
+                llvm_ptr = b.CreateInBoundsGEP(llvm_col_type, llvm_ptr, {llvm_index});
+                break;
+            }
+            case Type::Tag::ARRAY: {
+                type = type->element();
+                auto llvm_elem_type = _get_llvm_type(type)->mem_type;
+                llvm_ptr = b.CreateInBoundsGEP(llvm_elem_type, llvm_ptr, {llvm_index});
+                break;
+            }
+            case Type::Tag::STRUCTURE: {
+                LUISA_DEBUG_ASSERT(llvm::isa<llvm::ConstantInt>(llvm_index));
+                auto member_index = llvm::cast<llvm::ConstantInt>(llvm_index)->getZExtValue();
+                LUISA_DEBUG_ASSERT(member_index < type->members().size());
+                auto llvm_struct_info = _get_llvm_type(type);
+                auto llvm_member_offset = llvm_struct_info->member_offsets[member_index];
+                type = type->members()[member_index];
+                auto llvm_i8_type = b.getInt8Ty();
+                llvm_ptr = b.CreateConstInBoundsGEP1_64(llvm_i8_type, llvm_ptr, llvm_member_offset);
+                break;
+            }
+            default: LUISA_ERROR("Invalid GEP base type: {}.", type->description());
+        }
+    }
+    return std::make_pair(llvm_ptr, type);
 }
 
 }// namespace luisa::compute::hip
