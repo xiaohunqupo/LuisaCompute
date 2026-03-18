@@ -7,7 +7,10 @@
 namespace luisa::compute::hip {
 
 size_t HIPCodegenLLVMImpl::_get_type_alignment(const Type *type) noexcept {
-    return _data_layout->getABITypeAlign(_get_llvm_type(type)->mem_type).value();
+    if (type->is_basic() || type->is_array() || type->is_structure()) {
+        return type->alignment();
+    }
+    return 16;
 }
 
 const HIPCodegenLLVMImpl::LLVMTypeInfo *HIPCodegenLLVMImpl::_get_llvm_type(const Type *type) noexcept {
@@ -15,57 +18,105 @@ const HIPCodegenLLVMImpl::LLVMTypeInfo *HIPCodegenLLVMImpl::_get_llvm_type(const
         return iter->second.get();
     }
     auto llvm_type_info = [this, type]() noexcept -> luisa::unique_ptr<LLVMTypeInfo> {
-        auto llvm_type = [this, type]() noexcept -> llvm::Type * {
-            switch (type->tag()) {
-                case Type::Tag::BOOL: return llvm::Type::getInt1Ty(_llvm_context);
-                case Type::Tag::INT8: return llvm::Type::getInt8Ty(_llvm_context);
-                case Type::Tag::INT16: return llvm::Type::getInt16Ty(_llvm_context);
-                case Type::Tag::INT32: return llvm::Type::getInt32Ty(_llvm_context);
-                case Type::Tag::INT64: return llvm::Type::getInt64Ty(_llvm_context);
-                case Type::Tag::UINT8: return llvm::Type::getInt8Ty(_llvm_context);
-                case Type::Tag::UINT16: return llvm::Type::getInt16Ty(_llvm_context);
-                case Type::Tag::UINT32: return llvm::Type::getInt32Ty(_llvm_context);
-                case Type::Tag::UINT64: return llvm::Type::getInt64Ty(_llvm_context);
-                case Type::Tag::FLOAT16: return llvm::Type::getHalfTy(_llvm_context);
-                case Type::Tag::FLOAT32: return llvm::Type::getFloatTy(_llvm_context);
-                case Type::Tag::FLOAT64: return llvm::Type::getDoubleTy(_llvm_context);
-                case Type::Tag::VECTOR: {
-                    auto v = static_cast<const VectorType *>(type);
-                    auto elem_type = _get_llvm_type(v->element())->mem_type;
-                    return llvm::VectorType::get(elem_type, v->dimension());
-                }
-                case Type::Tag::MATRIX: {
-                    auto m = static_cast<const MatrixType *>(type);
-                    auto elem_type = _get_llvm_type(m->element())->mem_type;
-                    auto rows = m->rows();
-                    llvm::SmallVector<llvm::Type *, 4> fields;
-                    for (size_t i = 0; i < rows; i++) {
-                        fields.push_back(llvm::ArrayType::get(elem_type, rows));
-                    }
-                    return llvm::StructType::create(fields);
-                }
-                case Type::Tag::ARRAY: {
-                    auto a = static_cast<const ArrayType *>(type);
-                    auto elem_type = _get_llvm_type(a->element())->mem_type;
-                    return llvm::ArrayType::get(elem_type, a->dimension());
-                }
-                case Type::Tag::STRUCT: {
-                    auto s = static_cast<const StructType *>(type);
-                    llvm::SmallVector<llvm::Type *, 4> fields;
-                    llvm::SmallVector<size_t, 4> offsets;
-                    for (auto member : s->members()) {
-                        fields.push_back(_get_llvm_type(member)->mem_type);
-                    }
-                    auto struct_type = llvm::StructType::create(fields, s->name().value_or(""));
-                    return struct_type;
-                }
-                default: LUISA_ERROR_WITH_LOCATION("Unsupported type.");
+        auto make_info = [this](llvm::Type *mem_t, llvm::Type *reg_t, size_t s, size_t a,
+                                luisa::vector<size_t> member_indices = {},
+                                luisa::vector<size_t> member_offsets = {}) noexcept {
+            auto info = luisa::make_unique<LLVMTypeInfo>();
+            info->mem_type = mem_t;
+            info->reg_type = reg_t;
+            info->member_indices = std::move(member_indices);
+            info->member_offsets = std::move(member_offsets);
+            return info;
+        };
+        switch (type->tag()) {
+            case Type::Tag::BOOL: {
+                auto t = llvm::Type::getInt1Ty(_llvm_context);
+                return make_info(t, t, sizeof(bool), alignof(bool));
             }
-        }();
-        auto info = luisa::make_unique<LLVMTypeInfo>();
-        info->mem_type = llvm_type;
-        info->reg_type = llvm_type;
-        return info;
+            case Type::Tag::INT8: [[fallthrough]];
+            case Type::Tag::UINT8: {
+                auto t = llvm::Type::getInt8Ty(_llvm_context);
+                return make_info(t, t, sizeof(int8_t), alignof(int8_t));
+            }
+            case Type::Tag::INT16: [[fallthrough]];
+            case Type::Tag::UINT16: {
+                auto t = llvm::Type::getInt16Ty(_llvm_context);
+                return make_info(t, t, sizeof(int16_t), alignof(int16_t));
+            }
+            case Type::Tag::INT32: [[fallthrough]];
+            case Type::Tag::UINT32: {
+                auto t = llvm::Type::getInt32Ty(_llvm_context);
+                return make_info(t, t, sizeof(int32_t), alignof(int32_t));
+            }
+            case Type::Tag::INT64: [[fallthrough]];
+            case Type::Tag::UINT64: {
+                auto t = llvm::Type::getInt64Ty(_llvm_context);
+                return make_info(t, t, sizeof(int64_t), alignof(int64_t));
+            }
+            case Type::Tag::FLOAT16: {
+                auto t = llvm::Type::getHalfTy(_llvm_context);
+                return make_info(t, t, sizeof(luisa::half), alignof(luisa::half));
+            }
+            case Type::Tag::FLOAT32: {
+                auto t = llvm::Type::getFloatTy(_llvm_context);
+                return make_info(t, t, sizeof(float), alignof(float));
+            }
+            case Type::Tag::FLOAT64: {
+                auto t = llvm::Type::getDoubleTy(_llvm_context);
+                return make_info(t, t, sizeof(double), alignof(double));
+            }
+            case Type::Tag::VECTOR: {
+                auto elem = _get_llvm_type(type->element());
+                auto dim = type->dimension();
+                auto llvm_reg_type = llvm::FixedVectorType::get(elem->reg_type, dim);
+                auto llvm_mem_type = llvm::ArrayType::get(elem->mem_type, luisa::align(dim, 2));
+                return make_info(llvm_mem_type, llvm_reg_type, type->size(), type->alignment());
+            }
+            case Type::Tag::MATRIX: {
+                auto dim = type->dimension();
+                auto col_type = Type::vector(type->element(), dim);
+                auto col_llvm = _get_llvm_type(col_type);
+                auto llvm_reg_type = llvm::ArrayType::get(col_llvm->reg_type, dim);
+                auto llvm_mem_type = llvm::ArrayType::get(col_llvm->mem_type, dim);
+                return make_info(llvm_mem_type, llvm_reg_type, type->size(), type->alignment());
+            }
+            case Type::Tag::ARRAY: {
+                auto elem = _get_llvm_type(type->element());
+                auto llvm_reg_type = llvm::ArrayType::get(elem->reg_type, type->dimension());
+                auto llvm_mem_type = llvm::ArrayType::get(elem->mem_type, type->dimension());
+                return make_info(llvm_mem_type, llvm_reg_type, type->size(), type->alignment());
+            }
+            case Type::Tag::STRUCTURE: {
+                luisa::vector<size_t> member_indices;
+                luisa::vector<size_t> member_offsets;
+                llvm::SmallVector<llvm::Type *> llvm_member_reg_types;
+                llvm::SmallVector<llvm::Type *> llvm_member_mem_types;
+                auto llvm_i8_type = llvm::Type::getInt8Ty(_llvm_context);
+                auto current_offset = static_cast<size_t>(0u);
+                for (auto member : type->members()) {
+                    auto llvm_member_type = _get_llvm_type(member);
+                    llvm_member_reg_types.emplace_back(llvm_member_type->reg_type);
+                    auto next_offset = luisa::align(current_offset, member->alignment());
+                    if (next_offset > current_offset) {
+                        llvm_member_mem_types.emplace_back(
+                            llvm::ArrayType::get(llvm_i8_type, next_offset - current_offset));
+                    }
+                    member_indices.emplace_back(llvm_member_mem_types.size());
+                    member_offsets.emplace_back(next_offset);
+                    llvm_member_mem_types.emplace_back(llvm_member_type->mem_type);
+                    current_offset = next_offset + member->size();
+                }
+                if (current_offset < type->size()) {
+                    llvm_member_mem_types.emplace_back(
+                        llvm::ArrayType::get(llvm_i8_type, type->size() - current_offset));
+                }
+                auto llvm_reg_type = llvm::StructType::get(_llvm_context, llvm_member_reg_types, false);
+                auto llvm_mem_type = llvm::StructType::get(_llvm_context, llvm_member_mem_types, false);
+                return make_info(llvm_mem_type, llvm_reg_type, type->size(), type->alignment(),
+                                 std::move(member_indices), std::move(member_offsets));
+            }
+            default: LUISA_ERROR_WITH_LOCATION("Unsupported type.");
+        }
     }();
     auto [iter, _] = _xir_to_llvm_type.try_emplace(type, std::move(llvm_type_info));
     return iter->second.get();
@@ -106,7 +157,8 @@ llvm::Type *HIPCodegenLLVMImpl::_get_llvm_accel_type() noexcept {
 }
 
 llvm::Type *HIPCodegenLLVMImpl::_get_llvm_accel_instance_type() noexcept {
-    return llvm::StructType::create({llvm::ArrayType::get(llvm::VectorType::get(llvm::Type::getFloatTy(_llvm_context), 4), 3),
+    auto float4x3_type = llvm::ArrayType::get(llvm::FixedVectorType::get(llvm::Type::getFloatTy(_llvm_context), 4), 3);
+    return llvm::StructType::create({float4x3_type,
                                      llvm::Type::getInt32Ty(_llvm_context),
                                      llvm::Type::getInt32Ty(_llvm_context),
                                      llvm::Type::getInt32Ty(_llvm_context),
@@ -126,7 +178,7 @@ llvm::Type *HIPCodegenLLVMImpl::_get_llvm_ray_type() noexcept {
 llvm::Type *HIPCodegenLLVMImpl::_get_llvm_surface_hit_type() noexcept {
     return llvm::StructType::create({llvm::Type::getInt32Ty(_llvm_context),
                                      llvm::Type::getInt32Ty(_llvm_context),
-                                     llvm::VectorType::get(llvm::Type::getFloatTy(_llvm_context), 2),
+                                     llvm::FixedVectorType::get(llvm::Type::getFloatTy(_llvm_context), 2),
                                      llvm::Type::getFloatTy(_llvm_context)},
                                     "surface_hit");
 }
@@ -140,7 +192,7 @@ llvm::Type *HIPCodegenLLVMImpl::_get_llvm_procedural_hit_type() noexcept {
 llvm::Type *HIPCodegenLLVMImpl::_get_llvm_committed_hit_type() noexcept {
     return llvm::StructType::create({llvm::Type::getInt32Ty(_llvm_context),
                                      llvm::Type::getInt32Ty(_llvm_context),
-                                     llvm::VectorType::get(llvm::Type::getFloatTy(_llvm_context), 2),
+                                     llvm::FixedVectorType::get(llvm::Type::getFloatTy(_llvm_context), 2),
                                      llvm::Type::getInt32Ty(_llvm_context),
                                      llvm::Type::getFloatTy(_llvm_context)},
                                     "committed_hit");
