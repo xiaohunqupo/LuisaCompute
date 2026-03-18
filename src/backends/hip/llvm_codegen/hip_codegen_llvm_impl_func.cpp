@@ -230,7 +230,7 @@ llvm::Function *HIPCodegenLLVMImpl::_get_texture2d_read_function(llvm::VectorTyp
 }
 
 llvm::Function *HIPCodegenLLVMImpl::_get_texture2d_write_function(llvm::VectorType *llvm_value_type) noexcept {
-    LUISA_NOT_IMPLEMENTED("Texture 2D write not implemented for HIP.");
+    LUISA_NOT_IMPLEMENTED("Texture 2D write not implemented for HIP - requires AMDGPU resource descriptor mapping.");
 }
 
 llvm::Function *HIPCodegenLLVMImpl::_get_texture3d_read_function(llvm::VectorType *llvm_value_type) noexcept {
