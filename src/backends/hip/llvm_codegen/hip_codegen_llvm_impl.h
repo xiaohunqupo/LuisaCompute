@@ -246,6 +246,7 @@ private:
     [[nodiscard]] llvm::Value *_static_cast_scalar_to_vector(IB &b, FunctionContext &func_ctx, llvm::Value *llvm_src, const Type *src_type, const Type *dst_type) noexcept;
     [[nodiscard]] llvm::Value *_static_cast_vector_to_vector(IB &b, FunctionContext &func_ctx, llvm::Value *llvm_src, const Type *src_type, const Type *dst_type) noexcept;
     [[nodiscard]] llvm::Value *_texel_cast(IB &b, llvm::Value *llvm_src, llvm::Type *dst_type) noexcept;
+    [[nodiscard]] llvm::Value *_safe_fp_cast(IB &b, llvm::Value *llvm_src, llvm::Type *dst_type, const llvm::Twine &name = "") const noexcept;
 
     [[nodiscard]] static llvm::Value *_create_llvm_vector(IB &b, llvm::ArrayRef<llvm::Value *> elems) noexcept;
     void _translate_instruction(IB &b, FunctionContext &func_ctx, const xir::Instruction *inst) noexcept;

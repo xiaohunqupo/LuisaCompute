@@ -2,28 +2,752 @@
 // Created by mike on 3/18/26.
 //
 
+#include <span>
+#include <numbers>
+
 #include "hip_codegen_llvm_impl.h"
 
 namespace luisa::compute::hip {
 
 llvm::Value *HIPCodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionContext &func_ctx, const xir::ArithmeticInst *inst) noexcept {
+    auto translate_unary = [&](auto op) noexcept {
+        LUISA_DEBUG_ASSERT(inst->operand_count() == 1 &&
+                           inst->operand(0)->type() == inst->type());
+        auto llvm_value = _get_llvm_value(b, func_ctx, inst->operand(0));
+        return op(llvm_value);
+    };
+    auto translate_binary = [&](auto op) noexcept {
+        LUISA_DEBUG_ASSERT(inst->operand_count() == 2 &&
+                           inst->operand(0)->type() == inst->type() &&
+                           inst->operand(1)->type() == inst->type());
+        auto llvm_lhs = _get_llvm_value(b, func_ctx, inst->operand(0));
+        auto llvm_rhs = _get_llvm_value(b, func_ctx, inst->operand(1));
+        return op(llvm_lhs, llvm_rhs);
+    };
+    auto translate_relational = [&](auto op) noexcept {
+        LUISA_DEBUG_ASSERT(inst->operand_count() == 2 &&
+                           inst->operand(0)->type() == inst->operand(1)->type() &&
+                           inst->type()->is_bool_or_bool_vector());
+        auto llvm_lhs = _get_llvm_value(b, func_ctx, inst->operand(0));
+        auto llvm_rhs = _get_llvm_value(b, func_ctx, inst->operand(1));
+        return op(llvm_lhs, llvm_rhs);
+    };
+    auto translate_ternary = [&](auto op) noexcept {
+        LUISA_DEBUG_ASSERT(inst->operand_count() == 3 &&
+                           inst->operand(0)->type() == inst->type() &&
+                           inst->operand(1)->type() == inst->type() &&
+                           inst->operand(2)->type() == inst->type());
+        auto llvm_a = _get_llvm_value(b, func_ctx, inst->operand(0));
+        auto llvm_b = _get_llvm_value(b, func_ctx, inst->operand(1));
+        auto llvm_c = _get_llvm_value(b, func_ctx, inst->operand(2));
+        return op(llvm_a, llvm_b, llvm_c);
+    };
+    auto translate_matrix_comp_unary_op = [&](auto op) noexcept {
+        LUISA_DEBUG_ASSERT(inst->operand_count() == 1 &&
+                           inst->operand(0)->type() == inst->type() &&
+                           inst->type()->is_matrix());
+        auto llvm_m = _get_llvm_value(b, func_ctx, inst->operand(0));
+        auto llvm_result = static_cast<llvm::Value *>(llvm::PoisonValue::get(llvm_m->getType()));
+        auto dim = inst->type()->dimension();
+        for (auto c = 0; c < dim; c++) {
+            auto llvm_col = op(b.CreateExtractValue(llvm_m, c));
+            llvm_result = b.CreateInsertValue(llvm_result, llvm_col, c);
+        }
+        return llvm_result;
+    };
+    auto translate_matrix_comp_binary_op = [&](auto op) noexcept {
+        LUISA_DEBUG_ASSERT(inst->operand_count() == 2 && inst->type()->is_matrix());
+        auto llvm_lhs = _get_llvm_value(b, func_ctx, inst->operand(0));
+        auto llvm_rhs = _get_llvm_value(b, func_ctx, inst->operand(1));
+        auto dim = inst->type()->dimension();
+        if (auto lhs_type = llvm_lhs->getType(); !lhs_type->isArrayTy()) {
+            LUISA_DEBUG_ASSERT(lhs_type->isFloatingPointTy());
+            llvm_lhs = b.CreateVectorSplat(dim, llvm_lhs);
+        }
+        if (auto rhs_type = llvm_rhs->getType(); !rhs_type->isArrayTy()) {
+            LUISA_DEBUG_ASSERT(rhs_type->isFloatingPointTy());
+            llvm_rhs = b.CreateVectorSplat(dim, llvm_rhs);
+        }
+        auto llvm_result_type = _get_llvm_type(inst->type())->reg_type;
+        LUISA_DEBUG_ASSERT(llvm_lhs->getType() == llvm_result_type || llvm_lhs->getType() == llvm_result_type->getArrayElementType());
+        LUISA_DEBUG_ASSERT(llvm_rhs->getType() == llvm_result_type || llvm_rhs->getType() == llvm_result_type->getArrayElementType());
+        auto llvm_result = static_cast<llvm::Value *>(llvm::PoisonValue::get(llvm_result_type));
+        for (auto c = 0; c < dim; c++) {
+            auto llvm_lhs_col = llvm_lhs->getType()->isVectorTy() ? llvm_lhs : b.CreateExtractValue(llvm_lhs, c);
+            auto llvm_rhs_col = llvm_rhs->getType()->isVectorTy() ? llvm_rhs : b.CreateExtractValue(llvm_rhs, c);
+            auto llvm_col_result = op(llvm_lhs_col, llvm_rhs_col);
+            llvm_result = b.CreateInsertValue(llvm_result, llvm_col_result, c);
+        }
+        return llvm_result;
+    };
+    auto dot_product_fp = [&](llvm::Value *u, llvm::Value *v) noexcept {
+        LUISA_DEBUG_ASSERT(u->getType()->isVectorTy() && v->getType()->isFPOrFPVectorTy() && u->getType() == v->getType());
+        auto zero = llvm::ConstantFP::getNegativeZero(u->getType()->getScalarType());
+        return b.CreateFAddReduce(zero, b.CreateFMul(u, v));
+    };
+    auto inf_nan_mask_and_test = [&](llvm::Type *t) noexcept -> std::pair<llvm::Constant *, llvm::Constant *> {
+        LUISA_DEBUG_ASSERT(t->isFPOrFPVectorTy());
+        auto elem_t = t->getScalarType();
+        auto int_t = static_cast<llvm::Type *>(llvm::Type::getIntNTy(b.getContext(), elem_t->getPrimitiveSizeInBits()));
+        if (auto vt = llvm::dyn_cast<llvm::VectorType>(t)) {
+            int_t = llvm::FixedVectorType::get(int_t, vt->getElementCount().getFixedValue());
+        }
+        return elem_t->isHalfTy()  ? std::make_pair(llvm::ConstantInt::get(int_t, 0x7fffull), llvm::ConstantInt::get(int_t, 0x7c00ull)) :
+               elem_t->isFloatTy() ? std::make_pair(llvm::ConstantInt::get(int_t, 0x7fff'ffffull), llvm::ConstantInt::get(int_t, 0x7f80'0000ull)) :
+                                     std::make_pair(llvm::ConstantInt::get(int_t, 0x7fff'ffff'ffff'ffffull), llvm::ConstantInt::get(int_t, 0x7ff0'0000'0000'0000ull));
+    };
+    auto call_unary_fp_intrinsic = [&](llvm::Value *v, llvm::Intrinsic::ID id) noexcept -> llvm::Value * {
+        if (auto vt = llvm::dyn_cast<llvm::VectorType>(v->getType())) {
+            auto dim = vt->getElementCount().getFixedValue();
+            auto result = static_cast<llvm::Value *>(llvm::PoisonValue::get(vt));
+            for (auto i = 0; i < dim; i++) {
+                auto elem = b.CreateExtractElement(v, i);
+                auto res = b.CreateUnaryIntrinsic(id, elem);
+                result = b.CreateInsertElement(result, res, i);
+            }
+            return result;
+        }
+        return b.CreateUnaryIntrinsic(id, v);
+    };
+    auto call_binary_fp_intrinsic = [&](llvm::Value *a, llvm::Value *b_arg, llvm::Intrinsic::ID id) noexcept -> llvm::Value * {
+        if (auto vt = llvm::dyn_cast<llvm::VectorType>(a->getType())) {
+            auto dim = vt->getElementCount().getFixedValue();
+            auto result = static_cast<llvm::Value *>(llvm::PoisonValue::get(vt));
+            for (auto i = 0; i < dim; i++) {
+                auto a_elem = b.CreateExtractElement(a, i);
+                auto b_elem = b.CreateExtractElement(b_arg, i);
+                auto res = b.CreateBinaryIntrinsic(id, a_elem, b_elem);
+                result = b.CreateInsertElement(result, res, i);
+            }
+            return result;
+        }
+        return b.CreateBinaryIntrinsic(id, a, b_arg);
+    };
+    auto call_rsqrt = [&](llvm::Value *v) noexcept -> llvm::Value * {
+        auto sqrt_v = call_unary_fp_intrinsic(v, llvm::Intrinsic::sqrt);
+        auto one = llvm::ConstantFP::get(v->getType(), 1.0);
+        return b.CreateFDiv(one, sqrt_v);
+    };
+    auto call_acosh = [&](llvm::Value *v) noexcept -> llvm::Value * {
+        auto x_squared = b.CreateFMul(v, v);
+        auto x_squared_minus_1 = b.CreateFSub(x_squared, llvm::ConstantFP::get(v->getType(), 1.0));
+        auto sqrt_term = call_unary_fp_intrinsic(x_squared_minus_1, llvm::Intrinsic::sqrt);
+        auto sum = b.CreateFAdd(v, sqrt_term);
+        return call_unary_fp_intrinsic(sum, llvm::Intrinsic::log);
+    };
+    auto call_asinh = [&](llvm::Value *v) noexcept -> llvm::Value * {
+        auto x_squared = b.CreateFMul(v, v);
+        auto x_squared_plus_1 = b.CreateFAdd(x_squared, llvm::ConstantFP::get(v->getType(), 1.0));
+        auto sqrt_term = call_unary_fp_intrinsic(x_squared_plus_1, llvm::Intrinsic::sqrt);
+        auto sum = b.CreateFAdd(v, sqrt_term);
+        return call_unary_fp_intrinsic(sum, llvm::Intrinsic::log);
+    };
+    auto call_atanh = [&](llvm::Value *v) noexcept -> llvm::Value * {
+        auto one = llvm::ConstantFP::get(v->getType(), 1.0);
+        auto one_plus_x = b.CreateFAdd(one, v);
+        auto one_minus_x = b.CreateFSub(one, v);
+        auto ratio = b.CreateFDiv(one_plus_x, one_minus_x);
+        auto log_ratio = call_unary_fp_intrinsic(ratio, llvm::Intrinsic::log);
+        auto half = llvm::ConstantFP::get(v->getType(), 0.5);
+        return b.CreateFMul(half, log_ratio);
+    };
+    switch (inst->op()) {
+        case xir::ArithmeticOp::UNARY_MINUS: return translate_unary([&](auto v) noexcept {
+            return v->getType()->isIntOrIntVectorTy() ? b.CreateNeg(v) : b.CreateFNeg(v);
+        });
+        case xir::ArithmeticOp::UNARY_BIT_NOT: return translate_unary([&](auto v) noexcept {
+            LUISA_DEBUG_ASSERT(v->getType()->isIntOrIntVectorTy());
+            return b.CreateNot(v);
+        });
+        case xir::ArithmeticOp::BINARY_ADD: return translate_binary([&](auto lhs, auto rhs) noexcept {
+            return inst->type()->is_int_or_int_vector()   ? b.CreateNSWAdd(lhs, rhs) :
+                   inst->type()->is_uint_or_uint_vector() ? b.CreateAdd(lhs, rhs) :
+                                                            b.CreateFAdd(lhs, rhs);
+        });
+        case xir::ArithmeticOp::BINARY_SUB: return translate_binary([&](auto lhs, auto rhs) noexcept {
+            return inst->type()->is_int_or_int_vector()   ? b.CreateNSWSub(lhs, rhs) :
+                   inst->type()->is_uint_or_uint_vector() ? b.CreateSub(lhs, rhs) :
+                                                            b.CreateFSub(lhs, rhs);
+        });
+        case xir::ArithmeticOp::BINARY_MUL: return translate_binary([&](auto lhs, auto rhs) noexcept {
+            return inst->type()->is_int_or_int_vector()   ? b.CreateNSWMul(lhs, rhs) :
+                   inst->type()->is_uint_or_uint_vector() ? b.CreateMul(lhs, rhs) :
+                                                            b.CreateFMul(lhs, rhs);
+        });
+        case xir::ArithmeticOp::BINARY_DIV: return translate_binary([&](auto lhs, auto rhs) noexcept {
+            return inst->type()->is_int_or_int_vector()   ? b.CreateSDiv(lhs, rhs) :
+                   inst->type()->is_uint_or_uint_vector() ? b.CreateUDiv(lhs, rhs) :
+                                                            b.CreateFDiv(lhs, rhs);
+        });
+        case xir::ArithmeticOp::BINARY_MOD: return translate_binary([&](auto lhs, auto rhs) noexcept {
+            return inst->type()->is_int_or_int_vector()   ? b.CreateSRem(lhs, rhs) :
+                   inst->type()->is_uint_or_uint_vector() ? b.CreateURem(lhs, rhs) :
+                                                            b.CreateFRem(lhs, rhs);
+        });
+        case xir::ArithmeticOp::BINARY_BIT_AND: return translate_binary([&](auto lhs, auto rhs) noexcept {
+            LUISA_DEBUG_ASSERT(lhs->getType()->isIntOrIntVectorTy());
+            return b.CreateAnd(lhs, rhs);
+        });
+        case xir::ArithmeticOp::BINARY_BIT_OR: return translate_binary([&](auto lhs, auto rhs) noexcept {
+            LUISA_DEBUG_ASSERT(lhs->getType()->isIntOrIntVectorTy());
+            return b.CreateOr(lhs, rhs);
+        });
+        case xir::ArithmeticOp::BINARY_BIT_XOR: return translate_binary([&](auto lhs, auto rhs) noexcept {
+            LUISA_DEBUG_ASSERT(lhs->getType()->isIntOrIntVectorTy());
+            return b.CreateXor(lhs, rhs);
+        });
+        case xir::ArithmeticOp::BINARY_SHIFT_LEFT: return translate_binary([&](auto lhs, auto rhs) noexcept {
+            LUISA_DEBUG_ASSERT(lhs->getType()->isIntOrIntVectorTy());
+            return b.CreateShl(lhs, rhs);
+        });
+        case xir::ArithmeticOp::BINARY_SHIFT_RIGHT: return translate_binary([&](auto lhs, auto rhs) noexcept {
+            LUISA_DEBUG_ASSERT(lhs->getType()->isIntOrIntVectorTy());
+            return inst->type()->is_int_or_int_vector() ? b.CreateAShr(lhs, rhs) : b.CreateLShr(lhs, rhs);
+        });
+        case xir::ArithmeticOp::BINARY_ROTATE_LEFT: return translate_binary([&](auto lhs, auto rhs) noexcept {
+            LUISA_DEBUG_ASSERT(lhs->getType()->isIntOrIntVectorTy());
+            return b.CreateIntrinsic(llvm::Intrinsic::fshl, lhs->getType(), {lhs, lhs, rhs});
+        });
+        case xir::ArithmeticOp::BINARY_ROTATE_RIGHT: return translate_binary([&](auto lhs, auto rhs) noexcept {
+            LUISA_DEBUG_ASSERT(lhs->getType()->isIntOrIntVectorTy());
+            return b.CreateIntrinsic(llvm::Intrinsic::fshr, lhs->getType(), {lhs, lhs, rhs});
+        });
+        case xir::ArithmeticOp::BINARY_LESS: return translate_relational([&](auto lhs, auto rhs) noexcept {
+            auto op_type = inst->operand(0)->type();
+            return op_type->is_int_or_int_vector()   ? b.CreateICmpSLT(lhs, rhs) :
+                   op_type->is_uint_or_uint_vector() ? b.CreateICmpULT(lhs, rhs) :
+                                                       b.CreateFCmpOLT(lhs, rhs);
+        });
+        case xir::ArithmeticOp::BINARY_GREATER: return translate_relational([&](auto lhs, auto rhs) noexcept {
+            auto op_type = inst->operand(0)->type();
+            return op_type->is_int_or_int_vector()   ? b.CreateICmpSGT(lhs, rhs) :
+                   op_type->is_uint_or_uint_vector() ? b.CreateICmpUGT(lhs, rhs) :
+                                                       b.CreateFCmpOGT(lhs, rhs);
+        });
+        case xir::ArithmeticOp::BINARY_LESS_EQUAL: return translate_relational([&](auto lhs, auto rhs) noexcept {
+            auto op_type = inst->operand(0)->type();
+            return op_type->is_int_or_int_vector()   ? b.CreateICmpSLE(lhs, rhs) :
+                   op_type->is_uint_or_uint_vector() ? b.CreateICmpULE(lhs, rhs) :
+                                                       b.CreateFCmpOLE(lhs, rhs);
+        });
+        case xir::ArithmeticOp::BINARY_GREATER_EQUAL: return translate_relational([&](auto lhs, auto rhs) noexcept {
+            auto op_type = inst->operand(0)->type();
+            return op_type->is_int_or_int_vector()   ? b.CreateICmpSGE(lhs, rhs) :
+                   op_type->is_uint_or_uint_vector() ? b.CreateICmpUGE(lhs, rhs) :
+                                                       b.CreateFCmpOGE(lhs, rhs);
+        });
+        case xir::ArithmeticOp::BINARY_EQUAL: return translate_relational([&](auto lhs, auto rhs) noexcept {
+            auto op_type = inst->operand(0)->type();
+            return op_type->is_float_or_float_vector() ? b.CreateFCmpOEQ(lhs, rhs) : b.CreateICmpEQ(lhs, rhs);
+        });
+        case xir::ArithmeticOp::BINARY_NOT_EQUAL: return translate_relational([&](auto lhs, auto rhs) noexcept {
+            auto op_type = inst->operand(0)->type();
+            return op_type->is_float_or_float_vector() ? b.CreateFCmpONE(lhs, rhs) : b.CreateICmpNE(lhs, rhs);
+        });
+        case xir::ArithmeticOp::ALL: {
+            auto llvm_v = _get_llvm_value(b, func_ctx, inst->operand(0));
+            LUISA_DEBUG_ASSERT(llvm_v->getType()->isIntOrIntVectorTy(1));
+            return b.CreateAndReduce(llvm_v);
+        }
+        case xir::ArithmeticOp::ANY: {
+            auto llvm_v = _get_llvm_value(b, func_ctx, inst->operand(0));
+            LUISA_DEBUG_ASSERT(llvm_v->getType()->isIntOrIntVectorTy(1));
+            return b.CreateOrReduce(llvm_v);
+        }
+        case xir::ArithmeticOp::SELECT: {
+            auto llvm_false_v = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto llvm_true_v = _get_llvm_value(b, func_ctx, inst->operand(1));
+            auto llvm_cond_v = _get_llvm_value(b, func_ctx, inst->operand(2));
+            LUISA_DEBUG_ASSERT(llvm_cond_v->getType()->isIntOrIntVectorTy(1));
+            return b.CreateSelect(llvm_cond_v, llvm_true_v, llvm_false_v);
+        }
+        case xir::ArithmeticOp::CLAMP: return translate_ternary([&](auto v, auto lo, auto hi) noexcept {
+            auto [max_op, min_op] = inst->type()->is_int_or_int_vector()   ? std::make_pair(llvm::Intrinsic::smax, llvm::Intrinsic::smin) :
+                                    inst->type()->is_uint_or_uint_vector() ? std::make_pair(llvm::Intrinsic::umax, llvm::Intrinsic::umin) :
+                                                                             std::make_pair(llvm::Intrinsic::maxnum, llvm::Intrinsic::minnum);
+            auto clamp_lo = b.CreateBinaryIntrinsic(max_op, v, lo);
+            return b.CreateBinaryIntrinsic(min_op, clamp_lo, hi);
+        });
+        case xir::ArithmeticOp::SATURATE: return translate_unary([&](auto v) noexcept {
+            LUISA_DEBUG_ASSERT(v->getType()->isFPOrFPVectorTy());
+            auto zero = llvm::Constant::getNullValue(v->getType());
+            auto one = llvm::ConstantFP::get(v->getType(), 1.);
+            return b.CreateMinNum(b.CreateMaxNum(v, zero), one);
+        });
+        case xir::ArithmeticOp::LERP: return translate_ternary([&](auto x, auto y, auto t) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
+            auto d = b.CreateFSub(y, x);
+            return b.CreateFMA(t, d, x);
+        });
+        case xir::ArithmeticOp::SMOOTHSTEP: return translate_ternary([&](auto e0, auto e1, auto x) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
+            auto zero = llvm::Constant::getNullValue(x->getType());
+            auto one = llvm::ConstantFP::get(x->getType(), 1.);
+            auto t = b.CreateFDiv(b.CreateFSub(x, e0), b.CreateFSub(e1, e0));
+            t = b.CreateMinNum(b.CreateMaxNum(t, zero), one);
+            auto t_squared = b.CreateFMul(t, t);
+            auto three = llvm::ConstantFP::get(x->getType(), 3.);
+            auto minus_two = llvm::ConstantFP::get(x->getType(), -2.);
+            return b.CreateFMul(t_squared, b.CreateFMA(minus_two, t, three));
+        });
+        case xir::ArithmeticOp::STEP: return translate_binary([&](auto edge, auto x) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
+            auto zero = llvm::Constant::getNullValue(x->getType());
+            auto one = llvm::ConstantFP::get(x->getType(), 1.);
+            auto cmp = b.CreateFCmpOLT(x, edge);
+            return b.CreateSelect(cmp, zero, one);
+        });
+        case xir::ArithmeticOp::ABS: return translate_unary([&](auto v) noexcept {
+            return inst->type()->is_float_or_float_vector() ? b.CreateUnaryIntrinsic(llvm::Intrinsic::fabs, v) :
+                   inst->type()->is_int_or_int_vector()     ? b.CreateIntrinsic(llvm::Intrinsic::abs, v->getType(), {v, b.getInt1(false)}) :
+                                                              v;
+        });
+        case xir::ArithmeticOp::MIN: return translate_binary([&](auto lhs, auto rhs) noexcept {
+            auto min_op = inst->type()->is_int_or_int_vector()   ? llvm::Intrinsic::smin :
+                          inst->type()->is_uint_or_uint_vector() ? llvm::Intrinsic::umin :
+                                                                   llvm::Intrinsic::minnum;
+            return b.CreateBinaryIntrinsic(min_op, lhs, rhs);
+        });
+        case xir::ArithmeticOp::MAX: return translate_binary([&](auto lhs, auto rhs) noexcept {
+            auto max_op = inst->type()->is_int_or_int_vector()   ? llvm::Intrinsic::smax :
+                          inst->type()->is_uint_or_uint_vector() ? llvm::Intrinsic::umax :
+                                                                   llvm::Intrinsic::maxnum;
+            return b.CreateBinaryIntrinsic(max_op, lhs, rhs);
+        });
+        case xir::ArithmeticOp::CLZ: return translate_unary([&](auto v) noexcept {
+            LUISA_DEBUG_ASSERT(v->getType()->isIntOrIntVectorTy());
+            return b.CreateBinaryIntrinsic(llvm::Intrinsic::ctlz, v, b.getInt1(false));
+        });
+        case xir::ArithmeticOp::CTZ: return translate_unary([&](auto v) noexcept {
+            LUISA_DEBUG_ASSERT(v->getType()->isIntOrIntVectorTy());
+            return b.CreateBinaryIntrinsic(llvm::Intrinsic::cttz, v, b.getInt1(false));
+        });
+        case xir::ArithmeticOp::POPCOUNT: return translate_unary([&](auto v) noexcept {
+            LUISA_DEBUG_ASSERT(v->getType()->isIntOrIntVectorTy());
+            return b.CreateUnaryIntrinsic(llvm::Intrinsic::ctpop, v);
+        });
+        case xir::ArithmeticOp::REVERSE: return translate_unary([&](auto v) noexcept {
+            LUISA_DEBUG_ASSERT(v->getType()->isIntOrIntVectorTy());
+            return b.CreateUnaryIntrinsic(llvm::Intrinsic::bitreverse, v);
+        });
+        case xir::ArithmeticOp::ISINF: {
+            auto v = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto [mask, test] = inf_nan_mask_and_test(v->getType());
+            auto v_as_int = b.CreateBitCast(v, mask->getType());
+            return b.CreateICmpEQ(b.CreateAnd(v_as_int, mask), test);
+        }
+        case xir::ArithmeticOp::ISNAN: {
+            auto v = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto [mask, test] = inf_nan_mask_and_test(v->getType());
+            auto v_as_int = b.CreateBitCast(v, mask->getType());
+            return b.CreateICmpUGT(b.CreateAnd(v_as_int, mask), test);
+        }
+        case xir::ArithmeticOp::ACOS: return translate_unary([&](auto v) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
+            return call_unary_fp_intrinsic(v, llvm::Intrinsic::acos);
+        });
+        case xir::ArithmeticOp::ACOSH: return translate_unary([&](auto v) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
+            return call_acosh(v);
+        });
+        case xir::ArithmeticOp::ASIN: return translate_unary([&](auto v) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
+            return call_unary_fp_intrinsic(v, llvm::Intrinsic::asin);
+        });
+        case xir::ArithmeticOp::ASINH: return translate_unary([&](auto v) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
+            return call_asinh(v);
+        });
+        case xir::ArithmeticOp::ATAN: return translate_unary([&](auto v) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
+            return call_unary_fp_intrinsic(v, llvm::Intrinsic::atan);
+        });
+        case xir::ArithmeticOp::ATAN2: return translate_binary([&](auto y, auto x) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
+            return call_binary_fp_intrinsic(y, x, llvm::Intrinsic::atan2);
+        });
+        case xir::ArithmeticOp::ATANH: return translate_unary([&](auto v) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
+            return call_atanh(v);
+        });
+        case xir::ArithmeticOp::COS: return translate_unary([&](auto v) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
+            return call_unary_fp_intrinsic(v, llvm::Intrinsic::cos);
+        });
+        case xir::ArithmeticOp::COSH: return translate_unary([&](auto v) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
+            return call_unary_fp_intrinsic(v, llvm::Intrinsic::cosh);
+        });
+        case xir::ArithmeticOp::SIN: return translate_unary([&](auto v) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
+            return call_unary_fp_intrinsic(v, llvm::Intrinsic::sin);
+        });
+        case xir::ArithmeticOp::SINH: return translate_unary([&](auto v) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
+            return call_unary_fp_intrinsic(v, llvm::Intrinsic::sinh);
+        });
+        case xir::ArithmeticOp::TAN: return translate_unary([&](auto v) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
+            return call_unary_fp_intrinsic(v, llvm::Intrinsic::tan);
+        });
+        case xir::ArithmeticOp::TANH: return translate_unary([&](auto v) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
+            return call_unary_fp_intrinsic(v, llvm::Intrinsic::tanh);
+        });
+        case xir::ArithmeticOp::EXP: return translate_unary([&](auto v) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
+            return call_unary_fp_intrinsic(v, llvm::Intrinsic::exp);
+        });
+        case xir::ArithmeticOp::EXP2: return translate_unary([&](auto v) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
+            return call_unary_fp_intrinsic(v, llvm::Intrinsic::exp2);
+        });
+        case xir::ArithmeticOp::EXP10: return translate_unary([&](auto v) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
+            return call_unary_fp_intrinsic(v, llvm::Intrinsic::exp10);
+        });
+        case xir::ArithmeticOp::LOG: return translate_unary([&](auto v) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
+            return call_unary_fp_intrinsic(v, llvm::Intrinsic::log);
+        });
+        case xir::ArithmeticOp::LOG2: return translate_unary([&](auto v) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
+            return call_unary_fp_intrinsic(v, llvm::Intrinsic::log2);
+        });
+        case xir::ArithmeticOp::LOG10: return translate_unary([&](auto v) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
+            return call_unary_fp_intrinsic(v, llvm::Intrinsic::log10);
+        });
+        case xir::ArithmeticOp::POW: return translate_binary([&](auto base, auto exponent) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
+            return call_binary_fp_intrinsic(base, exponent, llvm::Intrinsic::pow);
+        });
+        case xir::ArithmeticOp::POW_INT: {
+            auto base = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto exponent = _get_llvm_value(b, func_ctx, inst->operand(1));
+            LUISA_DEBUG_ASSERT(base->getType()->isFPOrFPVectorTy() &&
+                               exponent->getType()->isIntOrIntVectorTy() &&
+                               inst->type()->is_float_or_float_vector());
+            if (!exponent->getType()->getScalarType()->isIntegerTy(32)) {
+                auto i32_type = static_cast<llvm::Type *>(b.getInt32Ty());
+                if (inst->type()->is_vector()) {
+                    i32_type = llvm::FixedVectorType::get(i32_type, inst->type()->dimension());
+                }
+                exponent = b.CreateIntCast(exponent, i32_type, true);
+            }
+            return call_binary_fp_intrinsic(base, exponent, llvm::Intrinsic::pow);
+        }
+        case xir::ArithmeticOp::SQRT: return translate_unary([&](auto v) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
+            return call_unary_fp_intrinsic(v, llvm::Intrinsic::sqrt);
+        });
+        case xir::ArithmeticOp::RSQRT: return translate_unary([&](auto v) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
+            return call_rsqrt(v);
+        });
+        case xir::ArithmeticOp::CEIL: return translate_unary([&](auto v) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
+            return b.CreateUnaryIntrinsic(llvm::Intrinsic::ceil, v);
+        });
+        case xir::ArithmeticOp::FLOOR: return translate_unary([&](auto v) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
+            return b.CreateUnaryIntrinsic(llvm::Intrinsic::floor, v);
+        });
+        case xir::ArithmeticOp::FRACT: return translate_unary([&](auto v) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
+            auto floor_v = b.CreateUnaryIntrinsic(llvm::Intrinsic::floor, v);
+            return b.CreateFSub(v, floor_v);
+        });
+        case xir::ArithmeticOp::TRUNC: return translate_unary([&](auto v) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
+            return b.CreateUnaryIntrinsic(llvm::Intrinsic::trunc, v);
+        });
+        case xir::ArithmeticOp::ROUND: return translate_unary([&](auto v) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
+            return b.CreateUnaryIntrinsic(llvm::Intrinsic::round, v);
+        });
+        case xir::ArithmeticOp::RINT: return translate_unary([&](auto v) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
+            return b.CreateUnaryIntrinsic(llvm::Intrinsic::rint, v);
+        });
+        case xir::ArithmeticOp::FMA: return translate_ternary([&](auto x, auto y, auto z) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
+            return b.CreateFMA(x, y, z);
+        });
+        case xir::ArithmeticOp::COPYSIGN: return translate_binary([&](auto magnitude, auto sign) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
+            return b.CreateBinaryIntrinsic(llvm::Intrinsic::copysign, magnitude, sign);
+        });
+        case xir::ArithmeticOp::CROSS: return translate_binary([&](auto u, auto v) noexcept {
+            LUISA_DEBUG_ASSERT(u->getType()->isVectorTy() && u->getType()->isFPOrFPVectorTy() && u->getType() == v->getType());
+            auto poison = llvm::PoisonValue::get(u->getType());
+            auto s0 = b.CreateShuffleVector(u, poison, {1, 2, 0});
+            auto s1 = b.CreateShuffleVector(v, poison, {2, 0, 1});
+            auto s2 = b.CreateShuffleVector(v, poison, {1, 2, 0});
+            auto s3 = b.CreateShuffleVector(u, poison, {2, 0, 1});
+            auto s01 = b.CreateFMul(s0, s1);
+            auto s23 = b.CreateFMul(s2, s3);
+            return b.CreateFSub(s01, s23);
+        });
+        case xir::ArithmeticOp::DOT: {
+            auto u = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto v = _get_llvm_value(b, func_ctx, inst->operand(1));
+            if (inst->type()->is_float_or_float_vector()) { return dot_product_fp(u, v); }
+            LUISA_DEBUG_ASSERT(u->getType()->isVectorTy() && u->getType()->isIntOrIntVectorTy() && u->getType() == v->getType());
+            return inst->type()->is_int_or_int_vector() ?
+                       b.CreateAddReduce(b.CreateNSWMul(u, v)) :
+                       b.CreateAddReduce(b.CreateMul(u, v));
+        }
+        case xir::ArithmeticOp::LENGTH: {
+            auto v = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto length_sq = dot_product_fp(v, v);
+            return call_unary_fp_intrinsic(length_sq, llvm::Intrinsic::sqrt);
+        }
+        case xir::ArithmeticOp::LENGTH_SQUARED: {
+            auto v = _get_llvm_value(b, func_ctx, inst->operand(0));
+            return dot_product_fp(v, v);
+        }
+        case xir::ArithmeticOp::NORMALIZE: {
+            auto v = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto length_sq = dot_product_fp(v, v);
+            auto length_rsqrt = call_rsqrt(length_sq);
+            auto length_rsqrt_splat = b.CreateVectorSplat(inst->type()->dimension(), length_rsqrt);
+            return b.CreateFMul(v, length_rsqrt_splat);
+        }
+        case xir::ArithmeticOp::FACEFORWARD: {
+            auto n = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto i = _get_llvm_value(b, func_ctx, inst->operand(1));
+            auto n_ref = _get_llvm_value(b, func_ctx, inst->operand(2));
+            auto dot_product = dot_product_fp(i, n_ref);
+            auto zero = llvm::Constant::getNullValue(dot_product->getType());
+            auto cond = b.CreateFCmpOLT(dot_product, zero);
+            auto neg_n = b.CreateFNeg(n);
+            return b.CreateSelect(cond, n, neg_n);
+        }
+        case xir::ArithmeticOp::REFLECT: {
+            auto i = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto n = _get_llvm_value(b, func_ctx, inst->operand(1));
+            auto dot_product = dot_product_fp(n, i);
+            auto neg_two = llvm::ConstantFP::get(dot_product->getType(), -2.);
+            auto scale = b.CreateFMul(neg_two, dot_product);
+            auto scale_splat = b.CreateVectorSplat(inst->type()->dimension(), scale);
+            return b.CreateFMA(scale_splat, n, i);
+        }
+        case xir::ArithmeticOp::REDUCE_SUM: {
+            auto v = _get_llvm_value(b, func_ctx, inst->operand(0));
+            LUISA_DEBUG_ASSERT(v->getType()->isVectorTy());
+            return v->getType()->isFPOrFPVectorTy() ?
+                       b.CreateFAddReduce(llvm::ConstantFP::getNegativeZero(v->getType()->getScalarType()), v) :
+                       b.CreateAddReduce(v);
+        }
+        case xir::ArithmeticOp::REDUCE_PRODUCT: {
+            auto v = _get_llvm_value(b, func_ctx, inst->operand(0));
+            LUISA_DEBUG_ASSERT(v->getType()->isVectorTy());
+            auto elem_type = v->getType()->getScalarType();
+            return v->getType()->isFPOrFPVectorTy() ?
+                       b.CreateFMulReduce(llvm::ConstantFP::get(elem_type, 1.), v) :
+                       b.CreateMulReduce(v);
+        }
+        case xir::ArithmeticOp::REDUCE_MIN: {
+            auto v = _get_llvm_value(b, func_ctx, inst->operand(0));
+            LUISA_DEBUG_ASSERT(v->getType()->isVectorTy());
+            return inst->type()->is_int()  ? b.CreateIntMinReduce(v, true) :
+                   inst->type()->is_uint() ? b.CreateIntMinReduce(v, false) :
+                                             b.CreateFPMinReduce(v);
+        }
+        case xir::ArithmeticOp::REDUCE_MAX: {
+            auto v = _get_llvm_value(b, func_ctx, inst->operand(0));
+            LUISA_DEBUG_ASSERT(v->getType()->isVectorTy());
+            return inst->type()->is_int()  ? b.CreateIntMaxReduce(v, true) :
+                   inst->type()->is_uint() ? b.CreateIntMaxReduce(v, false) :
+                                             b.CreateFPMaxReduce(v);
+        }
+        case xir::ArithmeticOp::OUTER_PRODUCT: {
+            LUISA_DEBUG_ASSERT(inst->type()->is_matrix() && inst->operand_count() == 2);
+            auto lhs = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto rhs = _get_llvm_value(b, func_ctx, inst->operand(1));
+            return _translate_outer_product(b, lhs, rhs);
+        }
+        case xir::ArithmeticOp::MATRIX_COMP_NEG: return translate_matrix_comp_unary_op([&](auto col) noexcept {
+            return b.CreateFNeg(col);
+        });
+        case xir::ArithmeticOp::MATRIX_COMP_ADD: return translate_matrix_comp_binary_op([&](auto lhs_col, auto rhs_col) noexcept {
+            return b.CreateFAdd(lhs_col, rhs_col);
+        });
+        case xir::ArithmeticOp::MATRIX_COMP_SUB: return translate_matrix_comp_binary_op([&](auto lhs_col, auto rhs_col) noexcept {
+            return b.CreateFSub(lhs_col, rhs_col);
+        });
+        case xir::ArithmeticOp::MATRIX_COMP_MUL: return translate_matrix_comp_binary_op([&](auto lhs_col, auto rhs_col) noexcept {
+            return b.CreateFMul(lhs_col, rhs_col);
+        });
+        case xir::ArithmeticOp::MATRIX_COMP_DIV: return translate_matrix_comp_binary_op([&](auto lhs_col, auto rhs_col) noexcept {
+            return b.CreateFDiv(lhs_col, rhs_col);
+        });
+        case xir::ArithmeticOp::MATRIX_LINALG_MUL: {
+            LUISA_DEBUG_ASSERT(inst->operand_count() == 2 &&
+                                   inst->operand(0)->type()->is_matrix() &&
+                                   (inst->operand(1)->type()->is_matrix() || inst->operand(1)->type()->is_vector()) &&
+                                   inst->operand(0)->type()->dimension() == inst->operand(1)->type()->dimension() &&
+                                   inst->operand(0)->type()->element() == inst->operand(1)->type()->element(),
+                               "Invalid types in matrix multiply instruction: {} x {}",
+                               inst->operand(0)->type()->description(),
+                               inst->operand(1)->type()->description());
+            auto lhs = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto rhs = _get_llvm_value(b, func_ctx, inst->operand(1));
+            return _translate_matrix_multiply(b, lhs, rhs);
+        }
+        case xir::ArithmeticOp::MATRIX_DETERMINANT: return translate_unary([&](auto m) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_matrix());
+            return _translate_matrix_determinant(b, m);
+        });
+        case xir::ArithmeticOp::MATRIX_TRANSPOSE: return translate_unary([&](auto m) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_matrix());
+            return _translate_matrix_transpose(b, m);
+        });
+        case xir::ArithmeticOp::MATRIX_INVERSE: return translate_unary([&](auto m) noexcept {
+            LUISA_DEBUG_ASSERT(inst->type()->is_matrix());
+            return _translate_matrix_inverse(b, m);
+        });
+        case xir::ArithmeticOp::AGGREGATE: return _translate_aggregate(b, func_ctx, inst);
+        case xir::ArithmeticOp::SHUFFLE: return _translate_shuffle(b, func_ctx, inst);
+        case xir::ArithmeticOp::INSERT: return _translate_insert(b, func_ctx, inst);
+        case xir::ArithmeticOp::EXTRACT: return _translate_extract(b, func_ctx, inst);
+    }
     LUISA_NOT_IMPLEMENTED();
 }
 
 llvm::Value *HIPCodegenLLVMImpl::_translate_outer_product(IB &b, llvm::Value *lhs, llvm::Value *rhs) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    LUISA_DEBUG_ASSERT(lhs->getType() == rhs->getType());
+    if (auto col_type = llvm::dyn_cast<llvm::VectorType>(lhs->getType())) {
+        auto dim = col_type->getElementCount().getFixedValue();
+        auto result_type = llvm::ArrayType::get(col_type, dim);
+        auto result = static_cast<llvm::Value *>(llvm::PoisonValue::get(result_type));
+        for (auto i = 0; i < dim; i++) {
+            auto s = b.CreateVectorSplat(dim, b.CreateExtractElement(rhs, i));
+            result = b.CreateInsertValue(result, b.CreateFMul(lhs, s), i);
+        }
+        return result;
+    }
+    auto rhs_transposed = _translate_matrix_transpose(b, rhs);
+    return _translate_matrix_multiply(b, lhs, rhs_transposed);
 }
 
 llvm::Value *HIPCodegenLLVMImpl::_translate_matrix_multiply(IB &b, llvm::Value *lhs, llvm::Value *rhs) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    LUISA_DEBUG_ASSERT(lhs->getType()->isArrayTy());
+    auto dim = lhs->getType()->getArrayNumElements();
+    if (rhs->getType()->isVectorTy()) {
+        auto result = static_cast<llvm::Value *>(llvm::ConstantFP::getNegativeZero(rhs->getType()));
+        for (auto i = 0; i < dim; i++) {
+            auto lhs_col = b.CreateExtractValue(lhs, i);
+            auto rhs_elem = b.CreateExtractElement(rhs, i);
+            auto rhs_elem_splat = b.CreateVectorSplat(dim, rhs_elem);
+            result = b.CreateFMA(lhs_col, rhs_elem_splat, result);
+        }
+        return result;
+    }
+    LUISA_DEBUG_ASSERT(lhs->getType() == rhs->getType());
+    auto result = static_cast<llvm::Value *>(llvm::PoisonValue::get(lhs->getType()));
+    for (auto i = 0; i < dim; i++) {
+        auto rhs_col = b.CreateExtractValue(rhs, i);
+        auto result_col = _translate_matrix_multiply(b, lhs, rhs_col);
+        result = b.CreateInsertValue(result, result_col, i);
+    }
+    return result;
 }
 
 llvm::Value *HIPCodegenLLVMImpl::_translate_matrix_determinant(IB &b, llvm::Value *m) noexcept {
+    auto dim = m->getType()->getArrayNumElements();
+    if (dim == 2) {
+        auto m0 = b.CreateExtractValue(m, 0);
+        auto m1 = b.CreateExtractValue(m, 1);
+        auto m00 = b.CreateExtractElement(m0, b.getInt32(0));
+        auto m01 = b.CreateExtractElement(m0, b.getInt32(1));
+        auto m10 = b.CreateExtractElement(m1, b.getInt32(0));
+        auto m11 = b.CreateExtractElement(m1, b.getInt32(1));
+        return b.CreateFSub(b.CreateFMul(m00, m11), b.CreateFMul(m10, m01));
+    }
+    if (dim == 3) {
+        auto m0 = b.CreateExtractValue(m, 0);
+        auto m1 = b.CreateExtractValue(m, 1);
+        auto m2 = b.CreateExtractValue(m, 2);
+        auto m00 = b.CreateExtractElement(m0, b.getInt32(0));
+        auto m01 = b.CreateExtractElement(m0, b.getInt32(1));
+        auto m02 = b.CreateExtractElement(m0, b.getInt32(2));
+        auto m10 = b.CreateExtractElement(m1, b.getInt32(0));
+        auto m11 = b.CreateExtractElement(m1, b.getInt32(1));
+        auto m12 = b.CreateExtractElement(m1, b.getInt32(2));
+        auto m20 = b.CreateExtractElement(m2, b.getInt32(0));
+        auto m21 = b.CreateExtractElement(m2, b.getInt32(1));
+        auto m22 = b.CreateExtractElement(m2, b.getInt32(2));
+        auto term0 = b.CreateFMul(m00, b.CreateFSub(b.CreateFMul(m11, m22), b.CreateFMul(m21, m12)));
+        auto term1 = b.CreateFMul(m10, b.CreateFSub(b.CreateFMul(m21, m02), b.CreateFMul(m01, m22)));
+        auto term2 = b.CreateFMul(m20, b.CreateFSub(b.CreateFMul(m01, m12), b.CreateFMul(m11, m02)));
+        return b.CreateFAdd(b.CreateFAdd(term0, term1), term2);
+    }
+    if (dim == 4) {
+        auto m0 = b.CreateExtractValue(m, 0);
+        auto m1 = b.CreateExtractValue(m, 1);
+        auto m2 = b.CreateExtractValue(m, 2);
+        auto m3 = b.CreateExtractValue(m, 3);
+        auto a_val = b.CreateExtractElement(m0, b.getInt32(0));
+        auto b_val = b.CreateExtractElement(m0, b.getInt32(1));
+        auto c_val = b.CreateExtractElement(m0, b.getInt32(2));
+        auto d_val = b.CreateExtractElement(m0, b.getInt32(3));
+        auto e_val = b.CreateExtractElement(m1, b.getInt32(0));
+        auto f_val = b.CreateExtractElement(m1, b.getInt32(1));
+        auto g_val = b.CreateExtractElement(m1, b.getInt32(2));
+        auto h_val = b.CreateExtractElement(m1, b.getInt32(3));
+        auto i_val = b.CreateExtractElement(m2, b.getInt32(0));
+        auto j_val = b.CreateExtractElement(m2, b.getInt32(1));
+        auto k_val = b.CreateExtractElement(m2, b.getInt32(2));
+        auto l_val = b.CreateExtractElement(m2, b.getInt32(3));
+        auto mm_val = b.CreateExtractElement(m3, b.getInt32(0));
+        auto n_val = b.CreateExtractElement(m3, b.getInt32(1));
+        auto o_val = b.CreateExtractElement(m3, b.getInt32(2));
+        auto p_val = b.CreateExtractElement(m3, b.getInt32(3));
+        auto kp_lo = b.CreateFMul(k_val, p_val);
+        auto lp_ko = b.CreateFSub(b.CreateFMul(l_val, o_val), kp_lo);
+        auto jp_ln = b.CreateFSub(b.CreateFMul(j_val, n_val), lp_ko);
+        auto ip_lm = b.CreateFSub(b.CreateFMul(i_val, mm_val), b.CreateFMul(l_val, o_val));
+        auto fp_lj = b.CreateFSub(b.CreateFMul(f_val, j_val), b.CreateFMul(l_val, n_val));
+        auto ep_jf = b.CreateFSub(b.CreateFMul(e_val, j_val), b.CreateFMul(g_val, n_val));
+        auto dn_jm = b.CreateFSub(b.CreateFMul(d_val, n_val), b.CreateFMul(j_val, mm_val));
+        auto cl_kf = b.CreateFSub(b.CreateFMul(c_val, k_val), b.CreateFMul(f_val, o_val));
+        auto bl_kc = b.CreateFSub(b.CreateFMul(b_val, l_val), b.CreateFMul(k_val, d_val));
+        auto al_bj = b.CreateFSub(b.CreateFMul(a_val, j_val), b.CreateFMul(b_val, i_val));
+        auto ah_dn = b.CreateFSub(b.CreateFMul(a_val, n_val), b.CreateFMul(d_val, mm_val));
+        auto bg_ci = b.CreateFSub(b.CreateFMul(b_val, g_val), b.CreateFMul(c_val, f_val));
+        auto ae_ci = b.CreateFSub(b.CreateFMul(a_val, e_val), b.CreateFMul(c_val, i_val));
+        auto term0 = b.CreateFMul(a_val, jp_ln);
+        auto term1 = b.CreateFMul(b_val, ip_lm);
+        auto term2 = b.CreateFMul(c_val, fp_lj);
+        auto term3 = b.CreateFMul(d_val, ep_jf);
+        auto term4 = b.CreateFMul(e_val, dn_jm);
+        auto term5 = b.CreateFMul(f_val, ah_dn);
+        auto term6 = b.CreateFMul(g_val, al_bj);
+        auto term7 = b.CreateFMul(h_val, ae_ci);
+        auto det = b.CreateFAdd(b.CreateFSub(b.CreateFAdd(term0, term1), b.CreateFAdd(term2, term3)), b.CreateFSub(b.CreateFAdd(term4, term5), b.CreateFAdd(term6, term7)));
+        return det;
+    }
     LUISA_NOT_IMPLEMENTED();
 }
 
 llvm::Value *HIPCodegenLLVMImpl::_translate_matrix_transpose(IB &b, llvm::Value *m) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    auto dim = m->getType()->getArrayNumElements();
+    auto col_type = llvm::FixedVectorType::get(b.getFloatTy(), dim);
+    auto result_type = llvm::ArrayType::get(col_type, dim);
+    auto result = static_cast<llvm::Value *>(llvm::PoisonValue::get(result_type));
+    for (auto c = 0; c < dim; c++) {
+        auto col = b.CreateExtractValue(m, c);
+        auto transposed_col = static_cast<llvm::Value *>(llvm::PoisonValue::get(col_type));
+        for (auto r = 0; r < dim; r++) {
+            auto elem = b.CreateExtractElement(col, r);
+            transposed_col = b.CreateInsertElement(transposed_col, elem, c);
+        }
+        auto transposed_row = b.CreateShuffleVector(transposed_col, llvm::ArrayRef<int>{0, 1, 2, 3});
+        result = b.CreateInsertValue(result, transposed_row, c);
+    }
+    return result;
 }
 
 llvm::Value *HIPCodegenLLVMImpl::_translate_matrix_inverse(IB &b, llvm::Value *m) noexcept {
@@ -31,19 +755,161 @@ llvm::Value *HIPCodegenLLVMImpl::_translate_matrix_inverse(IB &b, llvm::Value *m
 }
 
 llvm::Value *HIPCodegenLLVMImpl::_translate_aggregate(IB &b, const FunctionContext &func_ctx, const xir::ArithmeticInst *inst) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    auto llvm_result_type = _get_llvm_type(inst->type());
+    auto llvm_result = static_cast<llvm::Value *>(llvm::PoisonValue::get(llvm_result_type->reg_type));
+    switch (inst->type()->tag()) {
+        case Type::Tag::VECTOR: {
+            LUISA_DEBUG_ASSERT(inst->operand_count() == inst->type()->dimension());
+            auto llvm_elem_type = llvm::cast<llvm::VectorType>(llvm_result_type->reg_type)->getElementType();
+            for (auto i = 0; i < inst->operand_count(); i++) {
+                auto llvm_elem = _get_llvm_value(b, func_ctx, inst->operand(i));
+                LUISA_DEBUG_ASSERT(llvm_elem->getType() == llvm_elem_type);
+                llvm_result = b.CreateInsertElement(llvm_result, llvm_elem, i);
+            }
+            return llvm_result;
+        }
+        case Type::Tag::MATRIX: [[fallthrough]];
+        case Type::Tag::ARRAY: {
+            LUISA_DEBUG_ASSERT(inst->operand_count() == inst->type()->dimension());
+            auto llvm_elem_type = llvm_result_type->reg_type->getArrayElementType();
+            for (auto i = 0; i < inst->operand_count(); i++) {
+                auto llvm_elem = _get_llvm_value(b, func_ctx, inst->operand(i));
+                LUISA_DEBUG_ASSERT(llvm_elem->getType() == llvm_elem_type);
+                llvm_result = b.CreateInsertValue(llvm_result, llvm_elem, i);
+            }
+            return llvm_result;
+        }
+        case Type::Tag::STRUCTURE: {
+            LUISA_DEBUG_ASSERT(inst->operand_count() == inst->type()->members().size());
+            for (auto i = 0; i < inst->operand_count(); i++) {
+                auto llvm_elem = _get_llvm_value(b, func_ctx, inst->operand(i));
+                LUISA_DEBUG_ASSERT(llvm_elem->getType() == llvm_result_type->reg_type->getStructElementType(i));
+                llvm_result = b.CreateInsertValue(llvm_result, llvm_elem, i);
+            }
+            return llvm_result;
+        }
+        default: break;
+    }
+    LUISA_ERROR_WITH_LOCATION("Unsupported aggregate type {} in LLVM codegen.", inst->type()->description());
 }
 
 llvm::Value *HIPCodegenLLVMImpl::_translate_shuffle(IB &b, FunctionContext &func_ctx, const xir::ArithmeticInst *inst) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    LUISA_DEBUG_ASSERT(inst->type()->is_vector());
+    auto llvm_src = _get_llvm_value(b, func_ctx, inst->operand(0));
+    auto index_uses = inst->operand_uses().subspan(1);
+    LUISA_DEBUG_ASSERT(index_uses.size() == inst->type()->dimension());
+    auto evaluate_constant = [](const xir::Constant *c) noexcept -> uint64_t {
+        switch (c->type()->tag()) {
+            case Type::Tag::INT8: return c->as<int8_t>();
+            case Type::Tag::UINT8: return c->as<uint8_t>();
+            case Type::Tag::INT16: return c->as<int16_t>();
+            case Type::Tag::UINT16: return c->as<uint16_t>();
+            case Type::Tag::INT32: return c->as<int32_t>();
+            case Type::Tag::UINT32: return c->as<uint32_t>();
+            case Type::Tag::INT64: return c->as<int64_t>();
+            case Type::Tag::UINT64: return c->as<uint64_t>();
+            default: LUISA_ERROR_WITH_LOCATION("Unsupported constant type for shuffle evaluation.");
+        }
+    };
+    if (std::all_of(index_uses.begin(), index_uses.end(), [](const xir::Use *index_use) noexcept {
+            return index_use->value()->isa<xir::Constant>();
+        })) {
+        llvm::SmallVector<int> llvm_indices;
+        llvm_indices.reserve(index_uses.size());
+        for (auto index_use : index_uses) {
+            auto static_index = static_cast<const xir::Constant *>(index_use->value());
+            llvm_indices.emplace_back(static_cast<int>(evaluate_constant(static_index)));
+        }
+        return b.CreateShuffleVector(llvm_src, llvm_indices);
+    }
+    auto llvm_dst_type = _get_llvm_type(inst->type())->reg_type;
+    LUISA_DEBUG_ASSERT(llvm_src->getType()->getScalarType() == llvm_dst_type->getScalarType());
+    auto llvm_dst = static_cast<llvm::Value *>(llvm::PoisonValue::get(llvm_dst_type));
+    for (auto [i, index_use] : llvm::enumerate(std::span{index_uses.data(), index_uses.size()})) {
+        auto llvm_index = _get_llvm_value(b, func_ctx, index_use->value());
+        auto llvm_src_elem = b.CreateExtractElement(llvm_src, llvm_index);
+        llvm_dst = b.CreateInsertElement(llvm_dst, llvm_src_elem, i);
+    }
+    return llvm_dst;
 }
 
 llvm::Value *HIPCodegenLLVMImpl::_translate_insert(IB &b, FunctionContext &func_ctx, const xir::ArithmeticInst *inst) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    auto llvm_src = _get_llvm_value(b, func_ctx, inst->operand(0));
+    LUISA_DEBUG_ASSERT(inst->type() == inst->operand(0)->type());
+    auto llvm_value = _get_llvm_value(b, func_ctx, inst->operand(1));
+    auto index_uses = inst->operand_uses().subspan(2);
+    if (llvm_src->getType()->isVectorTy()) {
+        LUISA_DEBUG_ASSERT(index_uses.size() == 1);
+        auto llvm_index = _get_llvm_value(b, func_ctx, index_uses.front()->value());
+        return b.CreateInsertElement(llvm_src, llvm_value, llvm_index);
+    }
+    LUISA_DEBUG_ASSERT(llvm_src->getType()->isAggregateType());
+    if (index_uses.size() == 1 && index_uses.front()->value()->isa<xir::Constant>()) {
+        auto index = static_cast<const xir::Constant *>(index_uses.front()->value());
+        auto evaluate_constant = [](const xir::Constant *c) noexcept -> uint64_t {
+            switch (c->type()->tag()) {
+                case Type::Tag::INT8: return c->as<int8_t>();
+                case Type::Tag::UINT8: return c->as<uint8_t>();
+                case Type::Tag::INT16: return c->as<int16_t>();
+                case Type::Tag::UINT16: return c->as<uint16_t>();
+                case Type::Tag::INT32: return c->as<int32_t>();
+                case Type::Tag::UINT32: return c->as<uint32_t>();
+                case Type::Tag::INT64: return c->as<int64_t>();
+                case Type::Tag::UINT64: return c->as<uint64_t>();
+                default: LUISA_ERROR_WITH_LOCATION("Unsupported constant type for insert evaluation.");
+            }
+        };
+        auto static_index = static_cast<unsigned>(evaluate_constant(index));
+        return b.CreateInsertValue(llvm_src, llvm_value, static_index);
+    }
+    auto llvm_src_mem = _convert_llvm_reg_value_to_mem(b, llvm_src, inst->type());
+    auto llvm_temp = _create_temp_in_alloca_block(func_ctx, llvm_src_mem->getType(), inst->type()->alignment());
+    b.CreateStore(llvm_src_mem, llvm_temp);
+    auto [llvm_ptr, elem_type] = _lower_access_chain_address(b, func_ctx, llvm_temp, inst->type(), index_uses);
+    LUISA_DEBUG_ASSERT(elem_type == inst->operand(1)->type());
+    _store_llvm_value(b, llvm_ptr, llvm_value, elem_type);
+    return _load_llvm_value(b, llvm_temp, inst->type());
 }
 
 llvm::Value *HIPCodegenLLVMImpl::_translate_extract(IB &b, FunctionContext &func_ctx, const xir::ArithmeticInst *inst) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    auto llvm_src = _get_llvm_value(b, func_ctx, inst->operand(0));
+    auto index_uses = inst->operand_uses().subspan(1);
+    LUISA_DEBUG_ASSERT(index_uses.size() == 1 && index_uses.front()->value()->isa<xir::Constant>());
+    if (llvm_src->getType()->isVectorTy()) {
+        auto index = static_cast<const xir::Constant *>(index_uses.front()->value());
+        auto evaluate_constant = [](const xir::Constant *c) noexcept -> uint64_t {
+            switch (c->type()->tag()) {
+                case Type::Tag::INT8: return c->as<int8_t>();
+                case Type::Tag::UINT8: return c->as<uint8_t>();
+                case Type::Tag::INT16: return c->as<int16_t>();
+                case Type::Tag::UINT16: return c->as<uint16_t>();
+                case Type::Tag::INT32: return c->as<int32_t>();
+                case Type::Tag::UINT32: return c->as<uint32_t>();
+                case Type::Tag::INT64: return c->as<int64_t>();
+                case Type::Tag::UINT64: return c->as<uint64_t>();
+                default: LUISA_ERROR_WITH_LOCATION("Unsupported constant type for extract evaluation.");
+            }
+        };
+        auto static_index = static_cast<unsigned>(evaluate_constant(index));
+        return b.CreateExtractElement(llvm_src, static_index);
+    }
+    LUISA_DEBUG_ASSERT(llvm_src->getType()->isAggregateType());
+    auto index = static_cast<const xir::Constant *>(index_uses.front()->value());
+    auto evaluate_constant = [](const xir::Constant *c) noexcept -> uint64_t {
+        switch (c->type()->tag()) {
+            case Type::Tag::INT8: return c->as<int8_t>();
+            case Type::Tag::UINT8: return c->as<uint8_t>();
+            case Type::Tag::INT16: return c->as<int16_t>();
+            case Type::Tag::UINT16: return c->as<uint16_t>();
+            case Type::Tag::INT32: return c->as<int32_t>();
+            case Type::Tag::UINT32: return c->as<uint32_t>();
+            case Type::Tag::INT64: return c->as<int64_t>();
+            case Type::Tag::UINT64: return c->as<uint64_t>();
+            default: LUISA_ERROR_WITH_LOCATION("Unsupported constant type for extract evaluation.");
+        }
+    };
+    auto static_index = static_cast<unsigned>(evaluate_constant(index));
+    return b.CreateExtractValue(llvm_src, static_index);
 }
 
 }// namespace luisa::compute::hip

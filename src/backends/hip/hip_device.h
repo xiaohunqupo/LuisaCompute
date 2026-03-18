@@ -17,6 +17,7 @@ private:
     luisa::unique_ptr<DefaultBinaryIO> _default_io{nullptr};
     const BinaryIO *_io{nullptr};
     int _device_id;
+    int _gcn_arch{};
     hiprtContext _hiprt_context{nullptr};
 
     template<typename F>
@@ -26,6 +27,7 @@ public:
     HIPDevice(Context &&ctx, const DeviceConfig *config) noexcept;
     ~HIPDevice() noexcept override;
     [[nodiscard]] auto device_id() const noexcept { return _device_id; }
+    [[nodiscard]] auto gcn_arch() const noexcept { return _gcn_arch; }
     [[nodiscard]] hipUUID_t device_uuid() const noexcept;
     [[nodiscard]] hipUUID_t device_uuid_for_vulkan() const noexcept;
     [[nodiscard]] void *native_handle() const noexcept override;
@@ -83,4 +85,4 @@ public:
     void destroy_sparse_texture(uint64_t handle) noexcept override;
 };
 
-}// namespace luisa::hip
+}// namespace luisa::compute::hip
