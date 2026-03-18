@@ -12,13 +12,13 @@ SparseTexture::SparseTexture(
     TextureDimension dimension,
     uint depth,
     uint mip,
-    bool allowUav,
+    bool allowUAV,
     bool allowSimul)
     : TextureBase(device, width, height, format, dimension, depth, mip, GetInitState(), allowUAV) {
     if (format == GFXFormat_BC7_UNorm_SRGB || format == GFXFormat_R8G8B8A8_UNorm_SRGB) {
-        allowUav = false;
+        this->allowUAV = false;
     }
-    auto texDesc = GetResourceDescBase(allowUav, allowSimul, false, true);
+    auto texDesc = GetResourceDescBase(allowUAV, allowSimul, false, true);
     ThrowIfFailed(device->device->CreateReservedResource(
         &texDesc,
         GetInitState(),

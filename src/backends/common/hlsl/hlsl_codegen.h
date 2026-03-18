@@ -144,6 +144,7 @@ public:
     void visit(const ConstantExpr *expr) override;
     void visit(const TypeIDExpr *expr) override { LUISA_NOT_IMPLEMENTED(); }
     void visit(const StringIDExpr *expr) override;
+    void visit(const FuncRefExpr *) override { LUISA_NOT_IMPLEMENTED(); }
     void visit(const CpuCustomOpExpr *) override { LUISA_NOT_IMPLEMENTED(); }
     void visit(const GpuCustomOpExpr *) override { LUISA_NOT_IMPLEMENTED(); }
 
@@ -163,6 +164,7 @@ public:
     void visit(const RayQueryStmt *) override;
     void visit(const AutoDiffStmt *stmt) override;
     void visit(const PrintStmt *stmt) override;
+    void visit(const DebugBreakStmt *stmt) override { LUISA_NOT_IMPLEMENTED(); }
     void VisitFunction(
 #ifdef LUISA_ENABLE_IR
         vstd::unordered_set<Variable> const &grad_vars,

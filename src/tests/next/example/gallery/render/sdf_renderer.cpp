@@ -107,7 +107,7 @@ int sdf_renderer(Device &device, luisa::string filename = "sdf_renderer.png") {
 
     Callable ray_march = [&sdf](Float3 p, Float3 d) noexcept {
         Float dist = def(0.0f);
-        $for (j, 100) {
+        $for (_, 100) {
             Float s = sdf(p + dist * d);
             $if (s <= 1e-6f | dist >= inf) { $break; };
             dist += s;

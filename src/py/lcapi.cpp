@@ -28,7 +28,7 @@ void export_commands(py::module &m);
 void export_runtime(py::module &m);
 void export_dlpack(py::module &m);
 
-constexpr auto pyref = py::return_value_policy::reference;// object lifetime is managed on C++ side
+[[maybe_unused]] constexpr auto pyref = py::return_value_policy::reference;// object lifetime is managed on C++ side
 // Note: declare pointer & base class;
 // use reference policy when python shouldn't destroy returned object
 PYBIND11_MODULE(lcapi, m) {

@@ -101,12 +101,10 @@ void ManagedAccel::pop_back() noexcept {
 }
 
 void ManagedAccel::set(size_t idx, MeshUpdateCmd const &mesh, float4x4 const &transform, uint visibility_mask, bool opaque, uint user_id) noexcept {
-    auto &last_mesh = data->meshes[idx];
     auto new_mesh = set_mesh<MeshUpdateCmd>(idx, mesh);
     data->accel.set_handle(idx, new_mesh, transform, visibility_mask, opaque, user_id);
 }
 void ManagedAccel::set(size_t idx, ProceduralUpdateCmd const &procedural, float4x4 const &transform, uint visibility_mask, bool opaque, uint user_id) noexcept {
-    auto &last_mesh = data->meshes[idx];
     auto new_mesh = set_mesh<ProceduralUpdateCmd>(idx, procedural);
     data->accel.set_handle(idx, new_mesh, transform, visibility_mask, opaque, user_id);
 }

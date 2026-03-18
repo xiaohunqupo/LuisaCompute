@@ -10,7 +10,7 @@
 #include <luisa/vstl/string_utility.h>
 namespace py = pybind11;
 using namespace luisa::compute;
-constexpr auto pyref = py::return_value_policy::reference;// object lifetime is managed on C++ side
+[[maybe_unused]] constexpr auto pyref = py::return_value_policy::reference;// object lifetime is managed on C++ side
 
 void export_img(py::module &m) {
     m.def("load_hdr_image", [](const std::string &path) {

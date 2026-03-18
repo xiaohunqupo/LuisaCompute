@@ -7,11 +7,11 @@ class VkCudaInteropImpl : public VkCudaInterop {
 public:
     VkCudaInterop *impl;
 
-    BufferCreationInfo create_interop_buffer(const Type *element, size_t elem_count) noexcept;
+    BufferCreationInfo create_interop_buffer(const Type *element, size_t elem_count) noexcept override;
     ResourceCreationInfo create_interop_texture(
         PixelFormat format, uint dimension,
         uint width, uint height, uint depth,
-        uint mipmap_levels, bool simultaneous_access, bool allow_raster_target) noexcept;
+        uint mipmap_levels, bool simultaneous_access, bool allow_raster_target) noexcept override;
     void vk_signal(uint64_t cuda_event_handle, uint64_t vk_stream, uint64_t fence_index) noexcept override {
         impl->vk_signal(cuda_event_handle, vk_stream, fence_index);
     }

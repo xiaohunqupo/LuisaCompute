@@ -66,7 +66,7 @@ static void transpose_store_gep(StoreInst *store, TransposeGEPInfo &info) noexce
     gep_chain[0] = alloca_load;
     gep_chain.insert(gep_chain.begin() + 1, store->value());
     auto insert = b.call(alloca_inst->type(), ArithmeticOp::INSERT, gep_chain);
-    auto store_insert = b.store(alloca_inst, insert);
+    (void)b.store(alloca_inst, insert);
     store->remove_self();
     info.transposed_store_count++;
 }
