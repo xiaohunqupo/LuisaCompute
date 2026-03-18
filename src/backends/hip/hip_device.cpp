@@ -3,6 +3,7 @@
 //
 
 #include <luisa/core/dll_export.h>
+#include <luisa/core/clock.h>
 
 #include "hip_check.h"
 #include "hip_buffer.h"
@@ -11,6 +12,11 @@
 #include "hip_event.h"
 #include "hip_swapchain.h"
 #include "hip_device.h"
+
+#ifdef LUISA_COMPUTE_ENABLE_LLVM
+#include <luisa/xir/translators/ast2xir.h>
+#include "llvm_codegen/hip_codegen_llvm.h"
+#endif
 
 namespace luisa::compute::hip {
 
@@ -346,7 +352,31 @@ void HIPDevice::present_display_in_stream(uint64_t stream_handle, uint64_t swapc
 }
 
 ShaderCreationInfo HIPDevice::create_shader(const ShaderOption &option, Function kernel) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+#ifdef LUISA_COMPUTE_ENABLE_LLVM
+    Clock translate_clk;
+    auto xir_module = xir::ast_to_xir_translate(kernel, {});
+    xir_module->set_name(luisa::format("kernel_{:016x}", kernel.hash()));
+    LUISA_VERBOSE("AST to XIR translation done in {} ms.", translate_clk.toc());
+
+    HIPCodegenLLVMConfig config{
+        .source_file = option.name,
+        .bindings = kernel.bound_arguments(),
+        .block_size = {kernel.block_size().x, kernel.block_size().y, kernel.block_size().z},
+        .amdgpu_arch = 1200,
+        .opt_level = HIPCodegenLLVMConfig::OptLevel::LEVEL_AGGRESSIVE,
+        .enable_fast_math = option.enable_fast_math,
+        .enable_debug_info = option.enable_debug_info,
+    };
+
+    auto code = hip_codegen_llvm(*xir_module, config);
+    LUISA_INFO("Generated AMDGPU code ({} bytes)", code.size());
+
+    LUISA_NOT_IMPLEMENTED("HIP shader compilation from AMDGPU code not yet implemented.");
+    return ShaderCreationInfo::make_invalid();
+#else
+    LUISA_ERROR_WITH_LOCATION("HIP backend requires LLVM to be enabled.");
+    return ShaderCreationInfo::make_invalid();
+#endif
 }
 
 ShaderCreationInfo HIPDevice::create_shader(const ShaderOption &option, const ir::KernelModule *kernel) noexcept {

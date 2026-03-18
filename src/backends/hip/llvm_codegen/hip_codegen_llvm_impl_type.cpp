@@ -10,6 +10,9 @@ size_t HIPCodegenLLVMImpl::_get_type_alignment(const Type *type) noexcept {
     if (type->is_basic() || type->is_array() || type->is_structure()) {
         return type->alignment();
     }
+    if (type->is_resource() || type->is_custom() || type->is_cooperative_vector_ref() || type->is_cooperative_matrix_ref()) {
+        return 16;
+    }
     return 16;
 }
 
@@ -115,7 +118,23 @@ const HIPCodegenLLVMImpl::LLVMTypeInfo *HIPCodegenLLVMImpl::_get_llvm_type(const
                 return make_info(llvm_mem_type, llvm_reg_type, type->size(), type->alignment(),
                                  std::move(member_indices), std::move(member_offsets));
             }
-            default: LUISA_ERROR_WITH_LOCATION("Unsupported type.");
+            case Type::Tag::BUFFER: {
+                auto llvm_type = _get_llvm_buffer_type();
+                return make_info(llvm_type, llvm_type, 16u, 16u);
+            }
+            case Type::Tag::TEXTURE: {
+                auto llvm_type = _get_llvm_texture_type();
+                return make_info(llvm_type, llvm_type, 16u, 16u);
+            }
+            case Type::Tag::BINDLESS_ARRAY: {
+                auto llvm_type = _get_llvm_bindless_array_type();
+                return make_info(llvm_type, llvm_type, 16u, 16u);
+            }
+            case Type::Tag::ACCEL: {
+                auto llvm_type = _get_llvm_accel_type();
+                return make_info(llvm_type, llvm_type, 16u, 16u);
+            }
+            default: LUISA_ERROR_WITH_LOCATION("Unsupported type with tag {}.", static_cast<uint32_t>(type->tag()));
         }
     }();
     auto [iter, _] = _xir_to_llvm_type.try_emplace(type, std::move(llvm_type_info));

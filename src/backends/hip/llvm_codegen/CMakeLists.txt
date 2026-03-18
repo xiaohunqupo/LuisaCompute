@@ -7,6 +7,7 @@ if (LUISA_COMPUTE_HIP_LINKED_LLVM)
             hip_codegen_llvm.h
             hip_codegen_llvm.cpp
             hip_codegen_llvm_impl.h
+            hip_codegen_llvm_impl.cpp
             hip_codegen_llvm_impl_type.cpp
             hip_codegen_llvm_impl_func.cpp
             hip_codegen_llvm_impl_inst.cpp
