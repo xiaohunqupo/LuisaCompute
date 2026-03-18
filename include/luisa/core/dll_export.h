@@ -1,5 +1,12 @@
 #pragma once
 
+// Suppress MSVC warnings for STL containers in DLL interfaces
+// These warnings are false positives for modern usage patterns
+#ifdef _MSC_VER
+#pragma warning(disable : 4251)  // class needs to have dll-interface
+#pragma warning(disable : 4275)  // non-DLL interface class base
+#endif
+
 #ifdef __cplusplus
 #define LUISA_EXTERN_C extern "C"
 #define LUISA_NOEXCEPT noexcept

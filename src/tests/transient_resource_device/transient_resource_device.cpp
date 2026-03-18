@@ -340,10 +340,11 @@ void TransientResourceDevice::_preprocess(luisa::span<luisa::unique_ptr<Command>
             case Command::Tag::ECustomCommand: {
                 switch (static_cast<CustomCommand *>(cmd)->custom_cmd_uuid()) {
                     case to_underlying(CustomCommandUUID::RASTER_CLEAR_DEPTH): {
-                        auto c = static_cast<ClearDepthCommand *>(cmd);
+                        (void)static_cast<ClearDepthCommand *>(cmd);
                     } break;
                     case to_underlying(CustomCommandUUID::RASTER_DRAW_SCENE): {
                         auto c = static_cast<DrawRasterSceneCommand *>(cmd);
+                        (void)c;
                         for (auto &i : c->arguments()) {
                             if (i.tag == Argument::Tag::TEXTURE) {
                                 i.texture.handle = _get_tex_handle(i.texture.handle);

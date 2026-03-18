@@ -277,7 +277,7 @@ static void lower_ray_query_loop(Function *function, RayQueryLoopInst *loop, Ray
     XIRBuilder b;
     b.set_insertion_point(loop->prev());
     auto loop_parent_block = loop->parent_block();
-    auto pipeline = b.ray_query_pipeline(subgraph.query_object, on_surface, on_procedural, captured_args);
+    (void)b.ray_query_pipeline(subgraph.query_object, on_surface, on_procedural, captured_args);
     // remove the loop and record the change
     {
         loop->remove_self();

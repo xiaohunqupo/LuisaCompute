@@ -119,7 +119,7 @@ const Type* buffer_dtype_from_dltensor(DLTensor t)
                 throw std::runtime_error("vector[3] must be 4-aligned");
         }
         if (n==2 || n==4) {
-            if (!t.strides || t.strides[1]==1 && t.strides[0]==n)
+            if (!t.strides || (t.strides[1]==1 && t.strides[0]==n))
                 return Type::vector(scalar_type, n);
             else
                 throw std::runtime_error("buffer of vector[2/4] must be compact");

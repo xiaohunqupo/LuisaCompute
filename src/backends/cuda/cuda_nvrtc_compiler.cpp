@@ -36,6 +36,10 @@ extern nvrtcResult nvrtcGetPTX(nvrtcProgram prog, char *ptx);
 // ReSharper restore CppInconsistentNaming
 // ReSharper restore CppEnforceTypeAliasCodeStyle
 
+#ifdef __cplusplus
+}
+#endif
+
 static void report_error(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
@@ -168,7 +172,3 @@ int main(int argc, char *argv[]) {
     free(buffer.data);
     return 0;
 }
-
-#ifdef __cplusplus
-}
-#endif

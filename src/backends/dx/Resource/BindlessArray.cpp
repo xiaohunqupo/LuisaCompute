@@ -134,7 +134,7 @@ void BindlessArray::Bind(vstd::span<const BindlessArrayUpdateCommand::Texture2DM
     };
     using Ope = BindlessArrayUpdateCommand::Modification::Operation;
     for (auto &&mod : mods) {
-        auto vv = mod.slot;
+        [[maybe_unused]] auto vv = mod.slot;
         auto &indices = binded[mod.slot];
         auto newIdx = device->globalHeap->GetSubAllocOffset(_buffer_node) + mod.slot;
         Deref(indices);

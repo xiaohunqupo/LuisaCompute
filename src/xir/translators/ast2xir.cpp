@@ -66,7 +66,7 @@ public:
     };
 
 private:
-    AST2XIRConfig _config;
+    [[maybe_unused]] AST2XIRConfig _config;
     luisa::unique_ptr<Module> _module;
     luisa::unordered_map<uint64_t, Function *> _generated_functions;
     luisa::unordered_map<ConstantData, Constant *> _generated_constants;
@@ -362,7 +362,7 @@ private:
     [[nodiscard]] Value *_translate_call_expr(XIRBuilder &b, const CallExpr *expr) noexcept {
         if (expr->is_external()) {
             auto ast = expr->external();
-            auto f = add_external_function(*ast);
+            (void)add_external_function(*ast);
             LUISA_NOT_IMPLEMENTED();
         }
         if (expr->is_custom()) {
