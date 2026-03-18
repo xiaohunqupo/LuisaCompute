@@ -60,6 +60,15 @@ public:
         std::vector<const xir::PhiInst *> pending_phi_nodes;
 
         explicit FunctionContext(llvm::Function *f) noexcept;
+
+        template<typename T = llvm::Value>
+            requires std::derived_from<T, llvm::Value>
+        [[nodiscard]] T *get_local_value(const xir::Value *v) const noexcept {
+            LUISA_DEBUG_ASSERT(v != nullptr, "Value is null.");
+            auto iter = local_values.find(v);
+            LUISA_DEBUG_ASSERT(iter != local_values.end() && llvm::isa<T>(iter->second), "Local value not found.");
+            return llvm::cast<T>(iter->second);
+        }
     };
 
     struct RayTracingAnalysis {
