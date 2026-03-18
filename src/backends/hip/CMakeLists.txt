@@ -16,11 +16,15 @@ if (hip_FOUND)
             hip_texture.cpp hip_texture.h
     )
     luisa_compute_add_backend(hip SOURCES ${LUISA_HIP_SOURCES})
-    target_link_libraries(luisa-compute-backend-hip PRIVATE
-            luisa-compute-ast
-            luisa-compute-runtime
-            hip::host
-    )
+
+# Add LLVM codegen for HIP
+add_subdirectory(llvm_codegen)
+
+target_link_libraries(luisa-compute-backend-hip PRIVATE
+        luisa-compute-ast
+        luisa-compute-runtime
+        hip::host
+)
     if (TARGET luisa-compute-vulkan-swapchain)
         target_link_libraries(luisa-compute-backend-hip PRIVATE luisa-compute-vulkan-swapchain)
     endif ()
