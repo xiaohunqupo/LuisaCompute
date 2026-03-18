@@ -16,6 +16,8 @@
 #include <llvm/IR/Dominators.h>
 #include <llvm/Analysis/AssumptionCache.h>
 #include <llvm/Transforms/Utils/CodeExtractor.h>
+#include <llvm/MC/MCAsmInfo.h>
+#include <llvm/Support/FileOutputBuffer.h>
 
 #include <luisa/core/clock.h>
 
@@ -62,18 +64,8 @@ void HIPCodegenLLVMImpl::_initialize() noexcept {
     options.NoTrappingFPMath = true;
     if (_config.enable_fast_math) {
         options.AllowFPOpFusion = llvm::FPOpFusion::Fast;
-        options.UnsafeFPMath = true;
-        options.NoInfsFPMath = true;
-        options.NoNaNsFPMath = true;
-        options.NoSignedZerosFPMath = true;
-        options.ApproxFuncFPMath = true;
     } else {
         options.AllowFPOpFusion = llvm::FPOpFusion::Strict;
-        options.UnsafeFPMath = false;
-        options.NoInfsFPMath = false;
-        options.NoNaNsFPMath = false;
-        options.NoSignedZerosFPMath = false;
-        options.ApproxFuncFPMath = false;
     }
 
     auto opt_level = llvm::CodeGenOptLevel::Default;
@@ -176,19 +168,15 @@ void HIPCodegenLLVMImpl::_run_optimization_passes() noexcept {
 }
 
 luisa::string HIPCodegenLLVMImpl::_generate_code() const noexcept {
-    std::string code;
-    llvm::raw_string_ostream os{code};
-
     llvm::legacy::PassManager pass_manager;
-    llvm::TargetMachine::CodeGenFileType file_type = llvm::TargetMachine::CGFT_AssemblyFile;
+    llvm::SmallVector<char, 256> code;
+    llvm::raw_svector_ostream os{code};
 
-    if (_target_machine->addPassesToEmitFile(pass_manager, os, nullptr, file_type)) {
+    if (_target_machine->addPassesToEmitFile(pass_manager, os, nullptr, llvm::CodeGenFileType::AssemblyFile)) {
         LUISA_ERROR_WITH_LOCATION("Failed to add AMDGPU passes to pass manager.");
     }
-
     pass_manager.run(*_llvm_module);
-    os.flush();
-    return code;
+    return luisa::string{code.begin(), code.end()};
 }
 
 luisa::string HIPCodegenLLVMImpl::generate(const xir::Module &xir_module) noexcept {
