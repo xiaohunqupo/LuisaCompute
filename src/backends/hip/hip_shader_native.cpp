@@ -166,16 +166,6 @@ HIPShaderNative::HIPShaderNative(HIPDevice *device, luisa::string code,
                                   hiprtcGetErrorString(create_result));
     }
 
-    static int dump_count = 0;
-    char filename[256];
-    snprintf(filename, sizeof(filename), "/tmp/hip_ir_to_test_%d.ll", dump_count);
-    FILE *f = fopen(filename, "w");
-    if (f) {
-        fwrite(code.data(), 1, code.size(), f);
-        fclose(f);
-    }
-    fprintf(stderr, "DEBUG: Dumped IR to %s (%zu bytes)\n", filename, code.size());
-
     auto add_result = hiprtcLinkAddData(link_state,
                                         hipJitInputLLVMBitcode,
                                         code.data(),
@@ -183,7 +173,6 @@ HIPShaderNative::HIPShaderNative(HIPDevice *device, luisa::string code,
                                         entry,
                                         0, nullptr, nullptr);
     if (add_result != hiprtcResult::HIPRTC_SUCCESS) {
-        fprintf(stderr, "DEBUG: hiprtcLinkAddData failed\n");
         hiprtcLinkDestroy(link_state);
         LUISA_ERROR_WITH_LOCATION("Failed to add LLVM bitcode to hiprtc linker: {}",
                                   hiprtcGetErrorString(add_result));
@@ -261,16 +250,6 @@ HIPShaderNative::HIPShaderNative(HIPDevice *device, luisa::string code,
 
     LUISA_INFO("RT shader: merged bitcode is {} bytes, calling hiprtBuildTraceKernelsFromBitcode...",
                bc_buffer.size());
-
-    {
-        auto dump_path = "/tmp/hip_rt_merged.bc";
-        FILE *f = fopen(dump_path, "wb");
-        if (f) {
-            fwrite(bc_buffer.data(), 1, bc_buffer.size(), f);
-            fclose(f);
-        }
-        LUISA_INFO("Dumped merged bitcode to {}", dump_path);
-    }
 
     const char *func_name = entry;
     hiprtApiFunction api_func = nullptr;

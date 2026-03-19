@@ -30,7 +30,7 @@ target_link_libraries(luisa-compute-backend-hip PRIVATE
         luisa-compute-ast
         luisa-compute-runtime
         hip::host
-        /opt/rocm/lib/libhiprtc.so
+        hip::hiprtc
 )
     if (TARGET luisa-compute-vulkan-swapchain)
         target_link_libraries(luisa-compute-backend-hip PRIVATE luisa-compute-vulkan-swapchain)
