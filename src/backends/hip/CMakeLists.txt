@@ -1,4 +1,5 @@
 find_package(hip)
+find_package(hiprtc QUIET)
 
 if (hip_FOUND)
     message(STATUS "Build with HIP backend: ${hip_VERSION}")
@@ -30,8 +31,15 @@ target_link_libraries(luisa-compute-backend-hip PRIVATE
         luisa-compute-ast
         luisa-compute-runtime
         hip::host
-        hip::hiprtc
 )
+    if (TARGET hiprtc::hiprtc)
+        target_link_libraries(luisa-compute-backend-hip PRIVATE hiprtc::hiprtc)
+    elseif (TARGET hip::hiprtc)
+        target_link_libraries(luisa-compute-backend-hip PRIVATE hip::hiprtc)
+    else ()
+        message(WARNING "hiprtc target not found; linking against libhiprtc.so by name")
+        target_link_libraries(luisa-compute-backend-hip PRIVATE hiprtc)
+    endif ()
     if (TARGET luisa-compute-vulkan-swapchain)
         target_link_libraries(luisa-compute-backend-hip PRIVATE luisa-compute-vulkan-swapchain)
     endif ()
