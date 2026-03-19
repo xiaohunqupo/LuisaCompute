@@ -28,6 +28,7 @@ public:
     ~HIPDevice() noexcept override;
     [[nodiscard]] auto device_id() const noexcept { return _device_id; }
     [[nodiscard]] auto gcn_arch() const noexcept { return _gcn_arch; }
+    [[nodiscard]] auto hiprt_context() const noexcept { return _hiprt_context; }
     [[nodiscard]] hipUUID_t device_uuid() const noexcept;
     [[nodiscard]] hipUUID_t device_uuid_for_vulkan() const noexcept;
     [[nodiscard]] void *native_handle() const noexcept override;

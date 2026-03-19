@@ -1,7 +1,11 @@
 #include <atomic>
+#include <cstdlib>
+#include <memory>
 #include <numbers>
 #include <numeric>
+#include <optional>
 #include <algorithm>
+#include <string_view>
 
 #include <stb/stb_image_write.h>
 
@@ -30,6 +34,17 @@ using namespace luisa::compute;
 
 // Credit: https://github.com/taichi-dev/taichi/blob/master/examples/rendering/sdf_renderer.py
 int main(int argc, char *argv[]) {
+
+    // Parse optional --spp and --offline flags
+    uint user_spp = 0u;
+    bool force_offline = false;
+    for (int i = 2; i < argc; i++) {
+        if (std::string_view{argv[i]} == "--offline") {
+            force_offline = true;
+        } else if (std::string_view{argv[i]} == "--spp" && i + 1 < argc) {
+            user_spp = static_cast<uint>(std::atoi(argv[++i]));
+        }
+    }
 
     static constexpr int max_ray_depth = 6;
     static constexpr float eps = 1e-4f;
@@ -194,25 +209,34 @@ int main(int argc, char *argv[]) {
     Image<uint> seed_image = device.create_image<uint>(PixelStorage::INT1, width, height);
     Image<float> accum_image = device.create_image<float>(PixelStorage::FLOAT4, width, height);
 #if ENABLE_DISPLAY
-    Stream stream = device.create_stream(StreamTag::GRAPHICS);
-    Window window{"SDF Renderer", width, height};
-    Swapchain swap_chain = device.create_swapchain(
-        stream,
-        SwapchainOption{
-            .display = window.native_display(),
-            .window = window.native_handle(),
-            .size = make_uint2(width, height),
-            .wants_hdr = false,
-            .wants_vsync = false,
-            .back_buffer_count = 2,
-        });
+    Stream stream = [&]() -> Stream {
+        if (force_offline) { return device.create_stream(StreamTag::COMPUTE); }
+        return device.create_stream(StreamTag::GRAPHICS);
+    }();
+    std::unique_ptr<Window> window;
+    std::optional<Swapchain> swap_chain;
+    if (!force_offline) {
+        window = std::make_unique<Window>("SDF Renderer", width, height);
+        swap_chain.emplace(device.create_swapchain(
+            stream,
+            SwapchainOption{
+                .display = window->native_display(),
+                .window = window->native_handle(),
+                .size = make_uint2(width, height),
+                .wants_hdr = false,
+                .wants_vsync = false,
+                .back_buffer_count = 2,
+            }));
+    }
     static constexpr uint interval = 4u;
-    static constexpr uint total_spp = 16384u;
-    Image<float> ldr_image = device.create_image<float>(swap_chain.backend_storage(), width, height);
+    uint total_spp = user_spp > 0u ? user_spp : 16384u;
+    Image<float> ldr_image = device.create_image<float>(
+        (!force_offline && swap_chain.has_value()) ? swap_chain->backend_storage() : PixelStorage::BYTE4,
+        width, height);
 #else
     Stream stream = device.create_stream(StreamTag::COMPUTE);
     static constexpr uint interval = 64u;
-    static constexpr uint total_spp = 16384u;
+    uint total_spp = user_spp > 0u ? user_spp : 16384u;
     Image<float> ldr_image = device.create_image<float>(PixelStorage::BYTE4, width, height);
 #endif
     Callable linear_to_srgb = [](Var<float3> x) noexcept {
@@ -240,10 +264,14 @@ int main(int argc, char *argv[]) {
         }
 
 #if ENABLE_DISPLAY
-        command_list << hdr2ldr_shader(accum_image, ldr_image, 2.0).dispatch(width, height);
-        stream << command_list.commit() << swap_chain.present(ldr_image);
-        if (window.should_close()) { break; }
-        window.poll_events();
+        if (!force_offline && swap_chain.has_value()) {
+            command_list << hdr2ldr_shader(accum_image, ldr_image, 2.0).dispatch(width, height);
+            stream << command_list.commit() << swap_chain->present(ldr_image);
+            if (window->should_close()) { break; }
+            window->poll_events();
+        } else {
+            stream << command_list.commit();
+        }
 #else
         stream << command_list.commit();
 #endif
