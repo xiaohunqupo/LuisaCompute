@@ -208,10 +208,20 @@ luisa::string HIPCodegenLLVMImpl::generate(const xir::Module &xir_module) noexce
 
     _run_optimization_passes();
 
+    auto target_cpu = _target_machine->getTargetCPU();
+    auto target_features = _target_machine->getTargetFeatureString();
     for (auto &func : *_llvm_module) {
         func.setAttributes(llvm::AttributeList{});
         if (func.getName() == "kernel_main") {
             func.addFnAttr(llvm::Attribute::NoInline);
+        }
+        // Re-add target CPU and features so that downstream consumers
+        // (e.g., HIPRT bitcode compiler) know the GPU architecture.
+        if (!func.isDeclaration()) {
+            func.addFnAttr("target-cpu", target_cpu);
+            if (!target_features.empty()) {
+                func.addFnAttr("target-features", target_features);
+            }
         }
     }
 

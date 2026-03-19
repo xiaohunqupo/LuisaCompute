@@ -75,6 +75,8 @@ target_link_libraries(luisa-compute-backend-hip PRIVATE
     # link HIPRT SDK
     target_include_directories(luisa-compute-backend-hip PRIVATE ${LUISA_COMPUTE_HIPRT_SDK_INCLUDE_DIR})
     target_link_libraries(luisa-compute-backend-hip PRIVATE ${LUISA_COMPUTE_HIPRT_SDK_LIBS})
+    target_compile_definitions(luisa-compute-backend-hip PRIVATE
+            LUISA_HIPRT_SDK_INCLUDE_DIR="${LUISA_COMPUTE_HIPRT_SDK_INCLUDE_DIR}")
 
     # copy HIPRT libraries to binary output directory
     add_custom_command(TARGET luisa-compute-backend-hip POST_BUILD

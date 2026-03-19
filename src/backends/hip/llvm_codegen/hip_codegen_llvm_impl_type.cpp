@@ -207,12 +207,17 @@ llvm::Type *HIPCodegenLLVMImpl::_get_llvm_bindless_array_type() noexcept {
 
 llvm::Type *HIPCodegenLLVMImpl::_get_llvm_bindless_array_slot_type() noexcept {
     if (_llvm_bindless_array_slot_type == nullptr) {
+        auto llvm_ptr_type = llvm::PointerType::get(_llvm_context, amdgpu_address_space_global);
         auto llvm_i64_type = llvm::Type::getInt64Ty(_llvm_context);
-        _llvm_bindless_array_slot_type = llvm::StructType::create({llvm_i64_type,
-                                                                   llvm_i64_type,
-                                                                   llvm_i64_type,
-                                                                   llvm_i64_type},
-                                                                  "bindless_array_slot");
+        _llvm_bindless_array_slot_type = llvm::StructType::get(
+            _llvm_context,
+            {
+                llvm_ptr_type,// buffer
+                llvm_i64_type,// size
+                llvm_i64_type,// tex2d
+                llvm_i64_type // tex3d
+            },
+            false);
     }
     return _llvm_bindless_array_slot_type;
 }
@@ -229,68 +234,74 @@ llvm::Type *HIPCodegenLLVMImpl::_get_llvm_accel_type() noexcept {
 llvm::Type *HIPCodegenLLVMImpl::_get_llvm_accel_instance_type() noexcept {
     if (_llvm_accel_instance_type == nullptr) {
         auto float4x3_type = llvm::ArrayType::get(llvm::FixedVectorType::get(llvm::Type::getFloatTy(_llvm_context), 4), 3);
-        return llvm::StructType::create({float4x3_type,
-                                         llvm::Type::getInt32Ty(_llvm_context),
-                                         llvm::Type::getInt32Ty(_llvm_context),
-                                         llvm::Type::getInt32Ty(_llvm_context),
-                                         llvm::Type::getInt32Ty(_llvm_context),
-                                         llvm::Type::getInt64Ty(_llvm_context)},
-                                        "accel_instance");
+        _llvm_accel_instance_type = llvm::StructType::get(_llvm_context,
+                                                          {float4x3_type,
+                                                           llvm::Type::getInt32Ty(_llvm_context),
+                                                           llvm::Type::getInt32Ty(_llvm_context),
+                                                           llvm::Type::getInt32Ty(_llvm_context),
+                                                           llvm::Type::getInt32Ty(_llvm_context),
+                                                           llvm::Type::getInt64Ty(_llvm_context)},
+                                                          false);
     }
     return _llvm_accel_instance_type;
 }
 
 llvm::Type *HIPCodegenLLVMImpl::_get_llvm_ray_type() noexcept {
     if (_llvm_ray_type == nullptr) {
-        return llvm::StructType::create({llvm::ArrayType::get(llvm::Type::getFloatTy(_llvm_context), 3),
-                                         llvm::Type::getFloatTy(_llvm_context),
-                                         llvm::ArrayType::get(llvm::Type::getFloatTy(_llvm_context), 3),
-                                         llvm::Type::getFloatTy(_llvm_context)},
-                                        "ray");
+        _llvm_ray_type = llvm::StructType::get(_llvm_context,
+                                               {llvm::ArrayType::get(llvm::Type::getFloatTy(_llvm_context), 3),
+                                                llvm::Type::getFloatTy(_llvm_context),
+                                                llvm::ArrayType::get(llvm::Type::getFloatTy(_llvm_context), 3),
+                                                llvm::Type::getFloatTy(_llvm_context)},
+                                               false);
     }
     return _llvm_ray_type;
 }
 
 llvm::Type *HIPCodegenLLVMImpl::_get_llvm_surface_hit_type() noexcept {
     if (_llvm_surface_hit_type == nullptr) {
-        return llvm::StructType::create({llvm::Type::getInt32Ty(_llvm_context),
-                                         llvm::Type::getInt32Ty(_llvm_context),
-                                         llvm::FixedVectorType::get(llvm::Type::getFloatTy(_llvm_context), 2),
-                                         llvm::Type::getFloatTy(_llvm_context)},
-                                        "surface_hit");
+        auto llvm_i32_type = llvm::Type::getInt32Ty(_llvm_context);
+        auto llvm_f32_type = llvm::Type::getFloatTy(_llvm_context);
+        auto llvm_f32x2_type = llvm::FixedVectorType::get(llvm_f32_type, 2);
+        _llvm_surface_hit_type = llvm::StructType::get(llvm_i32_type,
+                                                       llvm_i32_type,
+                                                       llvm_f32x2_type,
+                                                       llvm_f32_type);
     }
     return _llvm_surface_hit_type;
 }
 
 llvm::Type *HIPCodegenLLVMImpl::_get_llvm_procedural_hit_type() noexcept {
     if (_llvm_procedural_hit_type == nullptr) {
-        return llvm::StructType::create({llvm::Type::getInt32Ty(_llvm_context),
-                                         llvm::Type::getInt32Ty(_llvm_context)},
-                                        "procedural_hit");
+        auto llvm_i32_type = llvm::Type::getInt32Ty(_llvm_context);
+        _llvm_procedural_hit_type = llvm::StructType::get(llvm_i32_type,
+                                                          llvm_i32_type);
     }
     return _llvm_procedural_hit_type;
 }
 
 llvm::Type *HIPCodegenLLVMImpl::_get_llvm_committed_hit_type() noexcept {
     if (_llvm_committed_hit_type == nullptr) {
-        return llvm::StructType::create({llvm::Type::getInt32Ty(_llvm_context),
-                                         llvm::Type::getInt32Ty(_llvm_context),
-                                         llvm::FixedVectorType::get(llvm::Type::getFloatTy(_llvm_context), 2),
-                                         llvm::Type::getInt32Ty(_llvm_context),
-                                         llvm::Type::getFloatTy(_llvm_context)},
-                                        "committed_hit");
+        auto llvm_i32_type = llvm::Type::getInt32Ty(_llvm_context);
+        auto llvm_f32_type = llvm::Type::getFloatTy(_llvm_context);
+        auto llvm_f32x2_type = llvm::FixedVectorType::get(llvm_f32_type, 2);
+        _llvm_committed_hit_type = llvm::StructType::get(llvm_i32_type,
+                                                         llvm_i32_type,
+                                                         llvm_f32x2_type,
+                                                         llvm_i32_type,
+                                                         llvm_f32_type);
     }
     return _llvm_committed_hit_type;
 }
 
 llvm::Type *HIPCodegenLLVMImpl::_get_llvm_ray_query_type() noexcept {
     if (_llvm_ray_query_type == nullptr) {
-        return llvm::StructType::create({llvm::Type::getInt64Ty(_llvm_context),
-                                         llvm::Type::getInt64Ty(_llvm_context),
-                                         llvm::Type::getInt64Ty(_llvm_context),
-                                         llvm::Type::getInt64Ty(_llvm_context),
-                                         llvm::Type::getInt64Ty(_llvm_context)},
-                                        "ray_query");
+        auto llvm_i64_type = llvm::Type::getInt64Ty(_llvm_context);
+        _llvm_ray_query_type = llvm::StructType::get(llvm_i64_type,
+                                                     llvm_i64_type,
+                                                     llvm_i64_type,
+                                                     llvm_i64_type,
+                                                     llvm_i64_type);
     }
     return _llvm_ray_query_type;
 }

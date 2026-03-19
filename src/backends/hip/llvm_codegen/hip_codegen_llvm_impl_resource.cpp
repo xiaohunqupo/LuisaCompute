@@ -195,6 +195,46 @@ llvm::Value *HIPCodegenLLVMImpl::_translate_resource_query_inst(IB &b, FunctionC
             auto llvm_result_type = _get_llvm_type(inst->type())->reg_type;
             return b.CreatePtrToInt(llvm_buffer_ptr, llvm_result_type);
         }
+        case xir::ResourceQueryOp::RAY_TRACING_INSTANCE_TRANSFORM: {
+            LUISA_DEBUG_ASSERT(inst->type() == Type::of<luisa::float4x4>());
+            auto llvm_accel = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto llvm_instance_index = _get_llvm_value(b, func_ctx, inst->operand(1));
+            auto llvm_instance_ptr = _get_accel_instance_pointer(b, llvm_accel, llvm_instance_index);
+            auto llvm_affine_ptr = b.CreateStructGEP(_get_llvm_accel_instance_type(), llvm_instance_ptr, llvm_accel_instance_type_affine_index);
+            return _load_accel_affine_matrix(b, llvm_affine_ptr);
+        }
+        case xir::ResourceQueryOp::RAY_TRACING_INSTANCE_USER_ID: {
+            auto llvm_accel = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto llvm_instance_index = _get_llvm_value(b, func_ctx, inst->operand(1));
+            auto llvm_instance_ptr = _get_accel_instance_pointer(b, llvm_accel, llvm_instance_index);
+            auto llvm_instance_type = _get_llvm_accel_instance_type();
+            auto llvm_user_id_ptr = b.CreateStructGEP(llvm_instance_type, llvm_instance_ptr, llvm_accel_instance_type_user_id_index);
+            auto llvm_user_id = b.CreateLoad(llvm_instance_type->getStructElementType(llvm_accel_instance_type_user_id_index), llvm_user_id_ptr);
+            auto llvm_result_type = _get_llvm_type(inst->type())->reg_type;
+            return b.CreateZExtOrTrunc(llvm_user_id, llvm_result_type);
+        }
+        case xir::ResourceQueryOp::RAY_TRACING_INSTANCE_VISIBILITY_MASK: {
+            auto llvm_accel = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto llvm_instance_index = _get_llvm_value(b, func_ctx, inst->operand(1));
+            auto llvm_instance_ptr = _get_accel_instance_pointer(b, llvm_accel, llvm_instance_index);
+            auto llvm_instance_type = _get_llvm_accel_instance_type();
+            auto llvm_mask_ptr = b.CreateStructGEP(llvm_instance_type, llvm_instance_ptr, llvm_accel_instance_type_mask_index);
+            auto llvm_mask = b.CreateLoad(llvm_instance_type->getStructElementType(llvm_accel_instance_type_mask_index), llvm_mask_ptr);
+            auto llvm_result_type = _get_llvm_type(inst->type())->reg_type;
+            return b.CreateZExtOrTrunc(llvm_mask, llvm_result_type);
+        }
+        case xir::ResourceQueryOp::RAY_TRACING_TRACE_CLOSEST: {
+            auto llvm_accel = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto llvm_ray = _get_llvm_value(b, func_ctx, inst->operand(1));
+            auto llvm_mask = _get_llvm_value(b, func_ctx, inst->operand(2));
+            return _accel_trace_closest(b, llvm_accel, llvm_ray, llvm_mask);
+        }
+        case xir::ResourceQueryOp::RAY_TRACING_TRACE_ANY: {
+            auto llvm_accel = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto llvm_ray = _get_llvm_value(b, func_ctx, inst->operand(1));
+            auto llvm_mask = _get_llvm_value(b, func_ctx, inst->operand(2));
+            return _accel_trace_any(b, llvm_accel, llvm_ray, llvm_mask);
+        }
         default: LUISA_NOT_IMPLEMENTED();
     }
     LUISA_NOT_IMPLEMENTED();
@@ -373,6 +413,44 @@ void HIPCodegenLLVMImpl::_translate_resource_write_inst(IB &b, FunctionContext &
             _store_llvm_value(b, llvm_ptr, llvm_value, inst->operand(1)->type());
             return;
         }
+        case xir::ResourceWriteOp::RAY_TRACING_SET_INSTANCE_TRANSFORM: {
+            auto llvm_accel = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto llvm_instance_index = _get_llvm_value(b, func_ctx, inst->operand(1));
+            auto llvm_transform = _get_llvm_value(b, func_ctx, inst->operand(2));
+            auto llvm_instance_ptr = _get_accel_instance_pointer(b, llvm_accel, llvm_instance_index);
+            auto llvm_affine_ptr = b.CreateStructGEP(_get_llvm_accel_instance_type(), llvm_instance_ptr, llvm_accel_instance_type_affine_index);
+            _store_accel_affine_matrix(b, llvm_affine_ptr, llvm_transform);
+            return;
+        }
+        case xir::ResourceWriteOp::RAY_TRACING_SET_INSTANCE_VISIBILITY_MASK: {
+            auto llvm_accel = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto llvm_instance_index = _get_llvm_value(b, func_ctx, inst->operand(1));
+            auto llvm_instance_type = _get_llvm_accel_instance_type();
+            auto llvm_mask_type = llvm_instance_type->getStructElementType(llvm_accel_instance_type_mask_index);
+            auto llvm_mask = b.CreateZExtOrTrunc(_get_llvm_value(b, func_ctx, inst->operand(2)), llvm_mask_type);
+            auto llvm_instance_ptr = _get_accel_instance_pointer(b, llvm_accel, llvm_instance_index);
+            auto llvm_mask_ptr = b.CreateStructGEP(llvm_instance_type, llvm_instance_ptr, llvm_accel_instance_type_mask_index);
+            b.CreateStore(llvm_mask, llvm_mask_ptr);
+            return;
+        }
+        case xir::ResourceWriteOp::RAY_TRACING_SET_INSTANCE_OPACITY: {
+            auto llvm_accel = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto llvm_instance_index = _get_llvm_value(b, func_ctx, inst->operand(1));
+            auto llvm_is_opaque = _get_llvm_value(b, func_ctx, inst->operand(2));
+            _set_accel_instance_opacity(b, llvm_accel, llvm_instance_index, llvm_is_opaque);
+            return;
+        }
+        case xir::ResourceWriteOp::RAY_TRACING_SET_INSTANCE_USER_ID: {
+            auto llvm_accel = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto llvm_instance_index = _get_llvm_value(b, func_ctx, inst->operand(1));
+            auto llvm_instance_type = _get_llvm_accel_instance_type();
+            auto llvm_user_id_type = llvm_instance_type->getStructElementType(llvm_accel_instance_type_user_id_index);
+            auto llvm_user_id = b.CreateZExtOrTrunc(_get_llvm_value(b, func_ctx, inst->operand(2)), llvm_user_id_type);
+            auto llvm_instance_ptr = _get_accel_instance_pointer(b, llvm_accel, llvm_instance_index);
+            auto llvm_user_id_ptr = b.CreateStructGEP(llvm_instance_type, llvm_instance_ptr, llvm_accel_instance_type_user_id_index);
+            b.CreateStore(llvm_user_id, llvm_user_id_ptr);
+            return;
+        }
     }
     LUISA_NOT_IMPLEMENTED();
 }
@@ -411,11 +489,162 @@ llvm::Value *HIPCodegenLLVMImpl::_get_accel_instance_pointer(IB &b, llvm::Value 
 }
 
 llvm::Value *HIPCodegenLLVMImpl::_load_accel_affine_matrix(IB &b, llvm::Value *affine_ptr) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    auto llvm_f32_type = b.getFloatTy();
+    auto llvm_f32x4_type = llvm::VectorType::get(llvm_f32_type, 4, false);
+    auto llvm_align = llvm::Align{alignof(float4)};
+    auto llvm_a0 = b.CreateAlignedLoad(llvm_f32x4_type, b.CreateInBoundsGEP(llvm_f32x4_type, affine_ptr, b.getInt64(0)), llvm_align);
+    auto llvm_a1 = b.CreateAlignedLoad(llvm_f32x4_type, b.CreateInBoundsGEP(llvm_f32x4_type, affine_ptr, b.getInt64(1)), llvm_align);
+    auto llvm_a2 = b.CreateAlignedLoad(llvm_f32x4_type, b.CreateInBoundsGEP(llvm_f32x4_type, affine_ptr, b.getInt64(2)), llvm_align);
+    auto llvm_one = llvm::ConstantFP::get(llvm_f32_type, 1.);
+    auto llvm_a3 = b.CreateInsertElement(llvm::Constant::getNullValue(llvm_f32x4_type), llvm_one, b.getInt64(3));
+    auto llvm_transform = static_cast<llvm::Value *>(llvm::PoisonValue::get(_get_llvm_type(Type::of<float4x4>())->reg_type));
+    llvm_transform = b.CreateInsertValue(llvm_transform, llvm_a0, 0);
+    llvm_transform = b.CreateInsertValue(llvm_transform, llvm_a1, 1);
+    llvm_transform = b.CreateInsertValue(llvm_transform, llvm_a2, 2);
+    llvm_transform = b.CreateInsertValue(llvm_transform, llvm_a3, 3);
+    return _translate_matrix_transpose(b, llvm_transform);
 }
 
 void HIPCodegenLLVMImpl::_store_accel_affine_matrix(IB &b, llvm::Value *affine_ptr, llvm::Value *matrix) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    auto llvm_transform = _translate_matrix_transpose(b, matrix);
+    auto llvm_a0 = b.CreateExtractValue(llvm_transform, 0);
+    auto llvm_a1 = b.CreateExtractValue(llvm_transform, 1);
+    auto llvm_a2 = b.CreateExtractValue(llvm_transform, 2);
+    auto llvm_align = llvm::Align{alignof(float4)};
+    b.CreateAlignedStore(llvm_a0, b.CreateInBoundsGEP(llvm_a0->getType(), affine_ptr, b.getInt64(0)), llvm_align);
+    b.CreateAlignedStore(llvm_a1, b.CreateInBoundsGEP(llvm_a1->getType(), affine_ptr, b.getInt64(1)), llvm_align);
+    b.CreateAlignedStore(llvm_a2, b.CreateInBoundsGEP(llvm_a2->getType(), affine_ptr, b.getInt64(2)), llvm_align);
+}
+
+void HIPCodegenLLVMImpl::_set_accel_instance_opacity(IB &b, llvm::Value *accel, llvm::Value *instance_index, llvm::Value *is_opaque) noexcept {
+    LUISA_DEBUG_ASSERT(is_opaque->getType()->isIntegerTy(1));
+    auto instance_ptr = _get_accel_instance_pointer(b, accel, instance_index);
+    using namespace std::string_view_literals;
+    auto name = "luisa.accel.set.instance.opacity"sv;
+    auto f = _llvm_module->getFunction(name);
+    if (f == nullptr) {
+        auto void_type = llvm::Type::getVoidTy(_llvm_context);
+        auto f_type = llvm::FunctionType::get(void_type, {instance_ptr->getType(), is_opaque->getType()}, false);
+        f = llvm::Function::Create(f_type, llvm::Function::PrivateLinkage, name, *_llvm_module);
+        f->addFnAttr(llvm::Attribute::AlwaysInline);
+        auto entry = llvm::BasicBlock::Create(_llvm_context, "entry", f);
+        IB fb{entry};
+        auto flags_ptr = fb.CreateStructGEP(_get_llvm_accel_instance_type(), f->getArg(0), llvm_accel_instance_type_flags_index);
+        auto flags = fb.CreateLoad(fb.getInt32Ty(), flags_ptr);
+        // Instance flag constants (same as OptiX/CUDA)
+        constexpr auto INSTANCE_FLAG_DISABLE_TRIANGLE_FACE_CULLING = 1u << 0u;
+        constexpr auto INSTANCE_FLAG_DISABLE_ANYHIT = 1u << 2u;
+        constexpr auto INSTANCE_FLAG_ENFORCE_ANYHIT = 1u << 3u;
+        auto is_triangle = fb.CreateAnd(flags, INSTANCE_FLAG_DISABLE_TRIANGLE_FACE_CULLING);
+        is_triangle = fb.CreateICmpNE(is_triangle, fb.getInt32(0));
+        auto body = llvm::BasicBlock::Create(_llvm_context, "body", f);
+        auto exit = llvm::BasicBlock::Create(_llvm_context, "exit", f);
+        fb.CreateCondBr(is_triangle, body, exit);
+        fb.SetInsertPoint(body);
+        auto cleared_flags = fb.CreateAnd(flags, ~(INSTANCE_FLAG_DISABLE_ANYHIT | INSTANCE_FLAG_ENFORCE_ANYHIT));
+        auto new_flag_bit = fb.CreateSelect(f->getArg(1),
+                                            fb.getInt32(INSTANCE_FLAG_DISABLE_ANYHIT),
+                                            fb.getInt32(INSTANCE_FLAG_ENFORCE_ANYHIT));
+        fb.CreateStore(fb.CreateOr(cleared_flags, new_flag_bit), flags_ptr);
+        fb.CreateBr(exit);
+        fb.SetInsertPoint(exit);
+        fb.CreateRetVoid();
+    }
+    b.CreateCall(f, {instance_ptr, is_opaque});
+}
+
+llvm::Value *HIPCodegenLLVMImpl::_accel_trace_closest(IB &b, llvm::Value *accel, llvm::Value *ray, llvm::Value *mask) noexcept {
+    auto handle = b.CreateExtractValue(accel, llvm_accel_type_handle_index);
+    auto ox = b.CreateExtractValue(ray, {llvm_ray_type_origin_index, 0});
+    auto oy = b.CreateExtractValue(ray, {llvm_ray_type_origin_index, 1});
+    auto oz = b.CreateExtractValue(ray, {llvm_ray_type_origin_index, 2});
+    auto dx = b.CreateExtractValue(ray, {llvm_ray_type_direction_index, 0});
+    auto dy = b.CreateExtractValue(ray, {llvm_ray_type_direction_index, 1});
+    auto dz = b.CreateExtractValue(ray, {llvm_ray_type_direction_index, 2});
+    auto tmin = b.CreateExtractValue(ray, llvm_ray_type_t_min_index);
+    auto tmax = b.CreateExtractValue(ray, llvm_ray_type_t_max_index);
+    mask = b.CreateAnd(b.CreateZExtOrTrunc(mask, b.getInt32Ty()), 0xffu);
+
+    // ABI contract with luisa_hiprt_trace_closest in hip_rt_device_wrapper.hip:
+    //   void(uint64_t scene, float ox,oy,oz, float dx,dy,dz,
+    //        float tmin,tmax, uint32_t mask,
+    //        int32_t* inst_id, int32_t* prim_id, float* u, float* v, float* t)
+    using namespace std::string_view_literals;
+    auto wrapper_name = "luisa_hiprt_trace_closest"sv;
+    auto wrapper_f = _llvm_module->getFunction(wrapper_name);
+    if (wrapper_f == nullptr) {
+        auto void_type = llvm::Type::getVoidTy(_llvm_context);
+        auto f32 = b.getFloatTy();
+        auto i32 = b.getInt32Ty();
+        auto i64 = b.getInt64Ty();
+        auto generic_ptr = b.getPtrTy(0);
+        auto f_type = llvm::FunctionType::get(void_type,
+                                              {i64, f32, f32, f32, f32, f32, f32, f32, f32, i32, generic_ptr, generic_ptr, generic_ptr, generic_ptr, generic_ptr}, false);
+        wrapper_f = llvm::Function::Create(f_type, llvm::Function::ExternalLinkage, wrapper_name, *_llvm_module);
+    }
+
+    auto alloca_inst_id = b.CreateAlloca(b.getInt32Ty());
+    auto alloca_prim_id = b.CreateAlloca(b.getInt32Ty());
+    auto alloca_u = b.CreateAlloca(b.getFloatTy());
+    auto alloca_v = b.CreateAlloca(b.getFloatTy());
+    auto alloca_t = b.CreateAlloca(b.getFloatTy());
+
+    auto generic_ptr_type = b.getPtrTy(0);
+    auto cast_inst_id = b.CreateAddrSpaceCast(alloca_inst_id, generic_ptr_type);
+    auto cast_prim_id = b.CreateAddrSpaceCast(alloca_prim_id, generic_ptr_type);
+    auto cast_u = b.CreateAddrSpaceCast(alloca_u, generic_ptr_type);
+    auto cast_v = b.CreateAddrSpaceCast(alloca_v, generic_ptr_type);
+    auto cast_t = b.CreateAddrSpaceCast(alloca_t, generic_ptr_type);
+
+    b.CreateCall(wrapper_f, {handle, ox, oy, oz, dx, dy, dz, tmin, tmax, mask,
+                             cast_inst_id, cast_prim_id, cast_u, cast_v, cast_t});
+
+    auto inst_id = b.CreateLoad(b.getInt32Ty(), alloca_inst_id);
+    auto prim_id = b.CreateLoad(b.getInt32Ty(), alloca_prim_id);
+    auto u = b.CreateLoad(b.getFloatTy(), alloca_u);
+    auto v = b.CreateLoad(b.getFloatTy(), alloca_v);
+    auto t = b.CreateLoad(b.getFloatTy(), alloca_t);
+
+    auto bary = _create_llvm_vector(b, {u, v});
+
+    auto result_type = _get_llvm_surface_hit_type();
+    auto result = static_cast<llvm::Value *>(llvm::PoisonValue::get(result_type));
+    result = b.CreateInsertValue(result, inst_id, llvm_surface_hit_type_inst_id_index);
+    result = b.CreateInsertValue(result, prim_id, llvm_surface_hit_type_prim_id_index);
+    result = b.CreateInsertValue(result, bary, llvm_surface_hit_type_bary_index);
+    result = b.CreateInsertValue(result, t, llvm_surface_hit_type_t_index);
+    return result;
+}
+
+llvm::Value *HIPCodegenLLVMImpl::_accel_trace_any(IB &b, llvm::Value *accel, llvm::Value *ray, llvm::Value *mask) noexcept {
+    auto handle = b.CreateExtractValue(accel, llvm_accel_type_handle_index);
+    auto ox = b.CreateExtractValue(ray, {llvm_ray_type_origin_index, 0});
+    auto oy = b.CreateExtractValue(ray, {llvm_ray_type_origin_index, 1});
+    auto oz = b.CreateExtractValue(ray, {llvm_ray_type_origin_index, 2});
+    auto dx = b.CreateExtractValue(ray, {llvm_ray_type_direction_index, 0});
+    auto dy = b.CreateExtractValue(ray, {llvm_ray_type_direction_index, 1});
+    auto dz = b.CreateExtractValue(ray, {llvm_ray_type_direction_index, 2});
+    auto tmin = b.CreateExtractValue(ray, llvm_ray_type_t_min_index);
+    auto tmax = b.CreateExtractValue(ray, llvm_ray_type_t_max_index);
+    mask = b.CreateAnd(b.CreateZExtOrTrunc(mask, b.getInt32Ty()), 0xffu);
+
+    // ABI contract with luisa_hiprt_trace_any in hip_rt_device_wrapper.hip:
+    //   bool(uint64_t scene, float ox,oy,oz, float dx,dy,dz,
+    //        float tmin,tmax, uint32_t mask)
+    using namespace std::string_view_literals;
+    auto wrapper_name = "luisa_hiprt_trace_any"sv;
+    auto wrapper_f = _llvm_module->getFunction(wrapper_name);
+    if (wrapper_f == nullptr) {
+        auto f32 = b.getFloatTy();
+        auto i32 = b.getInt32Ty();
+        auto i64 = b.getInt64Ty();
+        auto i1 = b.getInt1Ty();
+        auto f_type = llvm::FunctionType::get(i1,
+                                              {i64, f32, f32, f32, f32, f32, f32, f32, f32, i32}, false);
+        wrapper_f = llvm::Function::Create(f_type, llvm::Function::ExternalLinkage, wrapper_name, *_llvm_module);
+    }
+
+    return b.CreateCall(wrapper_f, {handle, ox, oy, oz, dx, dy, dz, tmin, tmax, mask});
 }
 
 }// namespace luisa::compute::hip

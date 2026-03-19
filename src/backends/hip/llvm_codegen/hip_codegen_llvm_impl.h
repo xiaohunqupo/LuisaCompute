@@ -236,6 +236,8 @@ private:
     [[nodiscard]] llvm::Value *_read_dispatch_id(IB &b, const FunctionContext &func_ctx) noexcept;
     [[nodiscard]] llvm::Value *_read_warp_size(IB &b, const FunctionContext &func_ctx) const noexcept;
     [[nodiscard]] llvm::Value *_read_warp_lane_id(IB &b, const FunctionContext &func_ctx) const noexcept;
+    [[nodiscard]] llvm::Value *_read_warp_active_lane_mask(IB &b) const noexcept;
+    [[nodiscard]] llvm::Value *_read_warp_prefix_lane_mask(IB &b, const FunctionContext &func_ctx) const noexcept;
     [[nodiscard]] static llvm::Value *_read_kernel_id(IB &b, const FunctionContext &func_ctx) noexcept;
 
     [[nodiscard]] llvm::Value *_convert_llvm_reg_value_to_mem(IB &b, llvm::Value *reg_v, const Type *type) noexcept;
@@ -297,6 +299,9 @@ private:
     [[nodiscard]] llvm::Value *_get_accel_instance_pointer(IB &b, llvm::Value *accel, llvm::Value *instance_index) noexcept;
     [[nodiscard]] llvm::Value *_load_accel_affine_matrix(IB &b, llvm::Value *affine_ptr) noexcept;
     static void _store_accel_affine_matrix(IB &b, llvm::Value *affine_ptr, llvm::Value *matrix) noexcept;
+    void _set_accel_instance_opacity(IB &b, llvm::Value *accel, llvm::Value *instance_index, llvm::Value *is_opaque) noexcept;
+    [[nodiscard]] llvm::Value *_accel_trace_closest(IB &b, llvm::Value *accel, llvm::Value *ray, llvm::Value *mask) noexcept;
+    [[nodiscard]] llvm::Value *_accel_trace_any(IB &b, llvm::Value *accel, llvm::Value *ray, llvm::Value *mask) noexcept;
 
     [[nodiscard]] llvm::Value *_translate_cast_inst(IB &b, FunctionContext &func_ctx, const xir::CastInst *inst) noexcept;
 
