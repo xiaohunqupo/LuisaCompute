@@ -84,7 +84,7 @@ void HIPMesh::build(HIPCommandEncoder &encoder, MeshBuildCommand *command) noexc
 
         LUISA_CHECK_HIPRT(hiprtBuildGeometry(_hiprt_ctx, hiprtBuildOperationBuild,
                                              build_input, build_options,
-                                             temp_buffer, 0, _geometry));
+                                             temp_buffer, hip_stream, _geometry));
 
         if (temp_buffer) {
             LUISA_CHECK_HIP(hipFreeAsync(reinterpret_cast<void *>(temp_buffer), hip_stream));
@@ -92,7 +92,7 @@ void HIPMesh::build(HIPCommandEncoder &encoder, MeshBuildCommand *command) noexc
     } else {
         LUISA_CHECK_HIPRT(hiprtBuildGeometry(_hiprt_ctx, hiprtBuildOperationUpdate,
                                              build_input, build_options,
-                                             nullptr, 0, _geometry));
+                                             nullptr, hip_stream, _geometry));
     }
 }
 

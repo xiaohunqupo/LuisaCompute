@@ -1,4 +1,16 @@
 add_executable(luisa_embed_device_lib embed_device_lib.cpp)
-# exclude from all
 set_target_properties(luisa_embed_device_lib PROPERTIES EXCLUDE_FROM_ALL TRUE EXCLUDE_FROM_DEFAULT_BUILD TRUE)
 install(TARGETS luisa_embed_device_lib EXCLUDE_FROM_ALL)
+
+find_package(hiprtc QUIET)
+if (hiprtc_FOUND OR TARGET hiprtc::hiprtc OR TARGET hip::hiprtc)
+    add_executable(luisa_hip_compile_wrapper hip_compile_wrapper.cpp)
+    set_target_properties(luisa_hip_compile_wrapper PROPERTIES EXCLUDE_FROM_ALL TRUE EXCLUDE_FROM_DEFAULT_BUILD TRUE)
+    if (TARGET hiprtc::hiprtc)
+        target_link_libraries(luisa_hip_compile_wrapper PRIVATE hiprtc::hiprtc)
+    elseif (TARGET hip::hiprtc)
+        target_link_libraries(luisa_hip_compile_wrapper PRIVATE hip::hiprtc)
+    else ()
+        target_link_libraries(luisa_hip_compile_wrapper PRIVATE hiprtc)
+    endif ()
+endif ()

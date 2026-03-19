@@ -19,6 +19,9 @@ HIPAccel::~HIPAccel() noexcept {
         hiprtDestroyScene(_hiprt_ctx, _scene);
     }
     if (_instance_buffer) {
+        // _instance_buffer is allocated with hipMallocAsync, so we must
+        // synchronize before freeing to ensure the async alloc has completed.
+        LUISA_CHECK_HIP(hipDeviceSynchronize());
         LUISA_CHECK_HIP(hipFree(reinterpret_cast<void *>(_instance_buffer)));
     }
 }
@@ -70,7 +73,7 @@ void HIPAccel::_build(HIPCommandEncoder &encoder) noexcept {
 
     LUISA_CHECK_HIPRT(hiprtBuildScene(_hiprt_ctx, hiprtBuildOperationBuild,
                                       build_input, build_options,
-                                      temp_buffer, 0, _scene));
+                                      temp_buffer, hip_stream, _scene));
 
     if (temp_buffer) {
         LUISA_CHECK_HIP(hipFreeAsync(reinterpret_cast<void *>(temp_buffer), hip_stream));
@@ -112,7 +115,7 @@ void HIPAccel::_update(HIPCommandEncoder &encoder) noexcept {
 
     LUISA_CHECK_HIPRT(hiprtBuildScene(_hiprt_ctx, hiprtBuildOperationUpdate,
                                       build_input, build_options,
-                                      nullptr, 0, _scene));
+                                      nullptr, hip_stream, _scene));
 
     LUISA_CHECK_HIP(hipFreeAsync(reinterpret_cast<void *>(d_instances), hip_stream));
     LUISA_CHECK_HIP(hipFreeAsync(reinterpret_cast<void *>(d_frames), hip_stream));
@@ -138,10 +141,10 @@ void HIPAccel::build(HIPCommandEncoder &encoder, AccelBuildCommand *command) noe
     auto required_size = instance_count * sizeof(CodegenInstance);
     if (_instance_buffer_size < required_size) {
         if (_instance_buffer) {
-            LUISA_CHECK_HIP(hipFree(reinterpret_cast<void *>(_instance_buffer)));
+            LUISA_CHECK_HIP(hipFreeAsync(reinterpret_cast<void *>(_instance_buffer), hip_stream));
         }
         auto alloc_size = required_size;
-        LUISA_CHECK_HIP(hipMalloc(reinterpret_cast<void **>(&_instance_buffer), alloc_size));
+        LUISA_CHECK_HIP(hipMallocAsync(reinterpret_cast<void **>(&_instance_buffer), alloc_size, hip_stream));
         _instance_buffer_size = alloc_size;
     }
 

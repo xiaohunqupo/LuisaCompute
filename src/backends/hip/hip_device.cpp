@@ -447,7 +447,7 @@ ShaderCreationInfo HIPDevice::create_shader(const ShaderOption &option, Function
         shader = luisa::new_with_allocator<HIPShaderNative>(
             this, std::move(code),
             "kernel_main", metadata,
-            _hiprt_context, LUISA_HIPRT_SDK_INCLUDE_DIR,
+            _hiprt_context,
             std::move(bound_arguments));
     } else {
         shader = luisa::new_with_allocator<HIPShaderNative>(

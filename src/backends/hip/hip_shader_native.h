@@ -21,9 +21,6 @@ private:
     luisa::vector<ShaderDispatchCommand::Argument> _bound_arguments;
     bool _is_rt{false};
 
-    static luisa::vector<char> _compile_wrapper_bitcode(
-        const char *hiprt_include_dir);
-
 private:
     void _launch(HIPCommandEncoder &encoder, ShaderDispatchCommand *command) const noexcept override;
 
@@ -33,7 +30,7 @@ public:
                     luisa::vector<ShaderDispatchCommand::Argument> bound_arguments = {}) noexcept;
     HIPShaderNative(HIPDevice *device, luisa::string code,
                     const char *entry, const HIPShaderMetadata &metadata,
-                    hiprtContext hiprt_ctx, const char *hiprt_include_dir,
+                    hiprtContext hiprt_ctx,
                     luisa::vector<ShaderDispatchCommand::Argument> bound_arguments = {}) noexcept;
     ~HIPShaderNative() noexcept override;
     [[nodiscard]] void *handle() const noexcept override { return _function; }
