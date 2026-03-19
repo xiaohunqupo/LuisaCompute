@@ -207,49 +207,56 @@ HIPShaderNative::HIPShaderNative(HIPDevice *device, luisa::string code,
       _bound_arguments{std::move(bound_arguments)},
       _is_rt{true} {
 
-#ifdef LUISA_COMPUTE_ENABLE_LLVM
-    auto wrapper_bc = _compile_wrapper_bitcode(hiprt_include_dir);
-
     llvm::LLVMContext llvm_ctx;
     llvm::SMDiagnostic diag;
-
     auto kernel_module = llvm::parseAssemblyString(
         llvm::StringRef{code.data(), code.size()}, diag, llvm_ctx);
     if (!kernel_module) {
-        std::string err_msg;
-        llvm::raw_string_ostream err_os{err_msg};
-        diag.print("kernel", err_os);
-        LUISA_ERROR_WITH_LOCATION("Failed to parse kernel LLVM IR:\n{}", err_msg);
+        LUISA_ERROR_WITH_LOCATION("Failed to parse LLVM IR for RT kernel: {}",
+                                  diag.getMessage().str());
     }
+
+    auto wrapper_bitcode = _compile_wrapper_bitcode(hiprt_include_dir);
 
     auto wrapper_buf = llvm::MemoryBuffer::getMemBuffer(
-        llvm::StringRef{wrapper_bc.data(), wrapper_bc.size()},
+        llvm::StringRef{wrapper_bitcode.data(), wrapper_bitcode.size()},
         "hip_rt_wrapper", false);
-    auto wrapper_or_err = llvm::parseBitcodeFile(
-        wrapper_buf->getMemBufferRef(), llvm_ctx);
-    if (!wrapper_or_err) {
-        auto err = llvm::toString(wrapper_or_err.takeError());
-        LUISA_ERROR_WITH_LOCATION("Failed to parse wrapper bitcode: {}", err);
-    }
-    auto wrapper_module = std::move(wrapper_or_err.get());
-
-    LUISA_INFO("Kernel module triple: '{}', data layout: '{}'",
-               kernel_module->getTargetTriple().str(), kernel_module->getDataLayoutStr());
-    LUISA_INFO("Wrapper module triple: '{}', data layout: '{}'",
-               wrapper_module->getTargetTriple().str(), wrapper_module->getDataLayoutStr());
-
-    kernel_module->setDataLayout(wrapper_module->getDataLayout());
-
-    if (llvm::Linker::linkModules(*kernel_module, std::move(wrapper_module))) {
-        LUISA_ERROR_WITH_LOCATION("Failed to link kernel IR with wrapper bitcode.");
+    auto wrapper_module = llvm::parseBitcodeFile(*wrapper_buf, llvm_ctx);
+    if (!wrapper_module) {
+        LUISA_ERROR_WITH_LOCATION("Failed to parse HIPRT wrapper bitcode.");
     }
 
-    llvm::SmallVector<char, 0> bc_buffer;
-    llvm::raw_svector_ostream bc_os{bc_buffer};
-    llvm::WriteBitcodeToFile(*kernel_module, bc_os);
+    if (auto *wrapper_flags = (*wrapper_module)->getNamedMetadata("llvm.module.flags")) {
+        wrapper_flags->eraseFromParent();
+    }
 
-    LUISA_INFO("RT shader: merged bitcode is {} bytes, calling hiprtBuildTraceKernelsFromBitcode...",
-               bc_buffer.size());
+    if (llvm::Linker::linkModules(*kernel_module, std::move(*wrapper_module))) {
+        LUISA_ERROR_WITH_LOCATION("Failed to link kernel module with HIPRT wrapper bitcode.");
+    }
+
+    for (auto &func : *kernel_module) {
+        auto attrs = func.getAttributes().removeAttributeAtIndex(
+            func.getContext(), llvm::AttributeList::FunctionIndex,
+            llvm::Attribute::NoCreateUndefOrPoison);
+        func.setAttributes(attrs);
+        for (auto &bb : func) {
+            for (auto &inst : bb) {
+                if (auto *cb = llvm::dyn_cast<llvm::CallBase>(&inst)) {
+                    auto cb_attrs = cb->getAttributes().removeAttributeAtIndex(
+                        cb->getContext(), llvm::AttributeList::FunctionIndex,
+                        llvm::Attribute::NoCreateUndefOrPoison);
+                    cb->setAttributes(cb_attrs);
+                }
+            }
+        }
+    }
+
+    std::string bitcode_str;
+    llvm::raw_string_ostream bitcode_os{bitcode_str};
+    llvm::WriteBitcodeToFile(*kernel_module, bitcode_os);
+    bitcode_os.flush();
+
+    LUISA_INFO("Combined kernel+wrapper linked to {} bytes of bitcode.", bitcode_str.size());
 
     const char *func_name = entry;
     hiprtApiFunction api_func = nullptr;
@@ -258,8 +265,8 @@ HIPShaderNative::HIPShaderNative(HIPDevice *device, luisa::string code,
         1u,
         &func_name,
         "rt_module",
-        bc_buffer.data(),
-        bc_buffer.size(),
+        bitcode_str.data(),
+        bitcode_str.size(),
         0u,
         0u,
         nullptr,
@@ -275,9 +282,6 @@ HIPShaderNative::HIPShaderNative(HIPDevice *device, luisa::string code,
     _module = nullptr;
 
     LUISA_INFO("RT shader compiled successfully via HIPRT.");
-#else
-    LUISA_ERROR_WITH_LOCATION("RT shader compilation requires LLVM support.");
-#endif
 }
 
 HIPShaderNative::~HIPShaderNative() noexcept {
