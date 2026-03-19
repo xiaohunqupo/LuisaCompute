@@ -10,6 +10,7 @@
 #include "hip_shader.h"
 #include "hip_shader_native.h"
 #include "hip_check.h"
+#include "hip_rt_wrapper_bitcode_embedded.h"
 
 #ifdef LUISA_COMPUTE_ENABLE_LLVM
 #include <llvm/IR/Module.h>
@@ -24,129 +25,6 @@
 #endif
 
 namespace luisa::compute::hip {
-
-static constexpr const char *hip_rt_wrapper_source = R"(
-#include <hiprt/hiprt_device.h>
-
-extern "C" __device__ void luisa_hiprt_trace_closest(
-    uint64_t scene_handle,
-    float ox, float oy, float oz,
-    float dx, float dy, float dz,
-    float tmin, float tmax,
-    uint32_t mask,
-    int32_t *out_inst_id,
-    int32_t *out_prim_id,
-    float *out_u,
-    float *out_v,
-    float *out_t) {
-
-    hiprtRay ray;
-    ray.origin = hiprtFloat3{ox, oy, oz};
-    ray.minT = tmin;
-    ray.direction = hiprtFloat3{dx, dy, dz};
-    ray.maxT = tmax;
-
-    hiprtScene scene = reinterpret_cast<hiprtScene>(scene_handle);
-    hiprtSceneTraversalClosest traversal(scene, ray, static_cast<hiprtRayMask>(mask));
-    hiprtHit hit = traversal.getNextHit();
-
-    if (hit.hasHit()) {
-        *out_inst_id = static_cast<int32_t>(hit.instanceID);
-        *out_prim_id = static_cast<int32_t>(hit.primID);
-        *out_u = hit.uv.x;
-        *out_v = hit.uv.y;
-        *out_t = hit.t;
-    } else {
-        *out_inst_id = static_cast<int32_t>(~0u);
-        *out_prim_id = static_cast<int32_t>(~0u);
-        *out_u = 0.0f;
-        *out_v = 0.0f;
-        *out_t = tmax;
-    }
-}
-
-extern "C" __device__ bool luisa_hiprt_trace_any(
-    uint64_t scene_handle,
-    float ox, float oy, float oz,
-    float dx, float dy, float dz,
-    float tmin, float tmax,
-    uint32_t mask) {
-
-    hiprtRay ray;
-    ray.origin = hiprtFloat3{ox, oy, oz};
-    ray.minT = tmin;
-    ray.direction = hiprtFloat3{dx, dy, dz};
-    ray.maxT = tmax;
-
-    hiprtScene scene = reinterpret_cast<hiprtScene>(scene_handle);
-    hiprtSceneTraversalAnyHit traversal(scene, ray, static_cast<hiprtRayMask>(mask));
-    hiprtHit hit = traversal.getNextHit();
-
-    return hit.hasHit();
-}
-)";
-
-luisa::vector<char> HIPShaderNative::_compile_wrapper_bitcode(
-    const char *hiprt_include_dir) {
-
-    static std::mutex mutex;
-    static luisa::vector<char> cached_bitcode;
-    std::lock_guard lock{mutex};
-    if (!cached_bitcode.empty()) { return cached_bitcode; }
-
-    LUISA_INFO("Compiling HIPRT wrapper source to bitcode via hiprtc...");
-
-    hiprtcProgram prog{};
-    auto create_result = hiprtcCreateProgram(
-        &prog, hip_rt_wrapper_source, "hip_rt_wrapper.hip",
-        0, nullptr, nullptr);
-    if (create_result != HIPRTC_SUCCESS) {
-        LUISA_ERROR_WITH_LOCATION("hiprtcCreateProgram failed: {}",
-                                  hiprtcGetErrorString(create_result));
-    }
-
-    auto include_opt = luisa::string{"-I"} + hiprt_include_dir;
-    const char *options[] = {
-        "-fgpu-rdc",
-        "-Xclang",
-        "-disable-llvm-passes",
-        "-Xclang",
-        "-mno-constructor-aliases",
-        "-std=c++17",
-        include_opt.c_str(),
-    };
-    auto compile_result = hiprtcCompileProgram(
-        prog, static_cast<int>(std::size(options)), options);
-    if (compile_result != HIPRTC_SUCCESS) {
-        size_t log_size = 0;
-        hiprtcGetProgramLogSize(prog, &log_size);
-        luisa::string log(log_size, '\0');
-        hiprtcGetProgramLog(prog, log.data());
-        hiprtcDestroyProgram(&prog);
-        LUISA_ERROR_WITH_LOCATION("hiprtcCompileProgram failed: {}\nLog:\n{}",
-                                  hiprtcGetErrorString(compile_result), log);
-    }
-
-    size_t bitcode_size = 0;
-    auto size_result = hiprtcGetBitcodeSize(prog, &bitcode_size);
-    if (size_result != HIPRTC_SUCCESS) {
-        hiprtcDestroyProgram(&prog);
-        LUISA_ERROR_WITH_LOCATION("hiprtcGetBitcodeSize failed: {}",
-                                  hiprtcGetErrorString(size_result));
-    }
-
-    cached_bitcode.resize(bitcode_size);
-    auto get_result = hiprtcGetBitcode(prog, cached_bitcode.data());
-    hiprtcDestroyProgram(&prog);
-    if (get_result != HIPRTC_SUCCESS) {
-        cached_bitcode.clear();
-        LUISA_ERROR_WITH_LOCATION("hiprtcGetBitcode failed: {}",
-                                  hiprtcGetErrorString(get_result));
-    }
-
-    LUISA_INFO("HIPRT wrapper compiled to {} bytes of bitcode.", bitcode_size);
-    return cached_bitcode;
-}
 
 HIPShaderNative::HIPShaderNative(HIPDevice *device, luisa::string code,
                                  const char *entry, const HIPShaderMetadata &metadata,
@@ -197,7 +75,7 @@ HIPShaderNative::HIPShaderNative(HIPDevice *device, luisa::string code,
 
 HIPShaderNative::HIPShaderNative(HIPDevice *device, luisa::string code,
                                  const char *entry, const HIPShaderMetadata &metadata,
-                                 hiprtContext hiprt_ctx, const char *hiprt_include_dir,
+                                 hiprtContext hiprt_ctx,
                                  luisa::vector<ShaderDispatchCommand::Argument> bound_arguments) noexcept
     : HIPShader{metadata.argument_usages},
       _entry{entry},
@@ -216,11 +94,10 @@ HIPShaderNative::HIPShaderNative(HIPDevice *device, luisa::string code,
                                   diag.getMessage().str());
     }
 
-    auto wrapper_bitcode = _compile_wrapper_bitcode(hiprt_include_dir);
-
-    auto wrapper_buf = llvm::MemoryBuffer::getMemBuffer(
-        llvm::StringRef{wrapper_bitcode.data(), wrapper_bitcode.size()},
-        "hip_rt_wrapper", false);
+    llvm::StringRef wrapper_bc{
+        reinterpret_cast<const char *>(luisa_compute_hip_hip_rt_wrapper),
+        luisa_compute_hip_hip_rt_wrapper_size};
+    auto wrapper_buf = llvm::MemoryBuffer::getMemBuffer(wrapper_bc, "hip_rt_wrapper", false);
     auto wrapper_module = llvm::parseBitcodeFile(*wrapper_buf, llvm_ctx);
     if (!wrapper_module) {
         LUISA_ERROR_WITH_LOCATION("Failed to parse HIPRT wrapper bitcode.");
@@ -268,7 +145,7 @@ HIPShaderNative::HIPShaderNative(HIPDevice *device, luisa::string code,
         bitcode_str.data(),
         bitcode_str.size(),
         0u,
-        0u,
+        1u,
         nullptr,
         &api_func,
         false);

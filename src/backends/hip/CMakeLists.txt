@@ -83,8 +83,56 @@ target_link_libraries(luisa-compute-backend-hip PRIVATE
     # link HIPRT SDK
     target_include_directories(luisa-compute-backend-hip PRIVATE ${LUISA_COMPUTE_HIPRT_SDK_INCLUDE_DIR})
     target_link_libraries(luisa-compute-backend-hip PRIVATE ${LUISA_COMPUTE_HIPRT_SDK_LIBS})
-    target_compile_definitions(luisa-compute-backend-hip PRIVATE
-            LUISA_HIPRT_SDK_INCLUDE_DIR="${LUISA_COMPUTE_HIPRT_SDK_INCLUDE_DIR}")
+
+    # compile HIPRT wrapper .hip -> .bc at build time
+    set(LUISA_HIP_RT_WRAPPER_SOURCE ${CMAKE_CURRENT_LIST_DIR}/hip_rt_device_wrapper.hip)
+    set(LUISA_HIP_RT_WRAPPER_BC ${CMAKE_CURRENT_LIST_DIR}/hip_rt_wrapper.bc)
+    add_custom_target(luisa-compute-backend-hip-compile-wrapper
+            COMMAND $<TARGET_FILE:luisa_hip_compile_wrapper>
+                -i ${LUISA_HIP_RT_WRAPPER_SOURCE}
+                -o ${LUISA_HIP_RT_WRAPPER_BC}
+                -I ${LUISA_COMPUTE_HIPRT_SDK_INCLUDE_DIR}
+            BYPRODUCTS ${LUISA_HIP_RT_WRAPPER_BC}
+            DEPENDS luisa_hip_compile_wrapper ${LUISA_HIP_RT_WRAPPER_SOURCE}
+            WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
+            COMMENT "Compiling HIPRT wrapper to LLVM bitcode..."
+            VERBATIM)
+
+    # embed .bc -> .cpp/.h via luisa_embed_device_lib
+    add_custom_target(luisa-compute-backend-hip-embed-wrapper
+            COMMAND $<TARGET_FILE:luisa_embed_device_lib>
+                ${LUISA_HIP_RT_WRAPPER_BC}
+                --unsigned --prefix luisa_compute_hip_
+                -o hip_rt_wrapper_bitcode_embedded.cpp
+                -h hip_rt_wrapper_bitcode_embedded.h
+            BYPRODUCTS
+                ${CMAKE_CURRENT_LIST_DIR}/hip_rt_wrapper_bitcode_embedded.cpp
+                ${CMAKE_CURRENT_LIST_DIR}/hip_rt_wrapper_bitcode_embedded.h
+            DEPENDS luisa_embed_device_lib luisa-compute-backend-hip-compile-wrapper
+            WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
+            COMMENT "Embedding HIPRT wrapper bitcode..."
+            VERBATIM)
+
+    target_sources(luisa-compute-backend-hip PRIVATE
+            hip_rt_wrapper_bitcode_embedded.cpp
+            hip_rt_wrapper_bitcode_embedded.h)
+    add_dependencies(luisa-compute-backend-hip luisa-compute-backend-hip-embed-wrapper)
+
+    # standalone HIPRT test (bypasses LuisaCompute, tests HIPRT SDK directly)
+    add_executable(test_hiprt_standalone ${CMAKE_SOURCE_DIR}/src/tests/test_hiprt_standalone.cpp)
+    target_link_libraries(test_hiprt_standalone PRIVATE hip::host ${LUISA_COMPUTE_HIPRT_SDK_LIBS})
+    if (TARGET hiprtc::hiprtc)
+        target_link_libraries(test_hiprt_standalone PRIVATE hiprtc::hiprtc)
+    elseif (TARGET hip::hiprtc)
+        target_link_libraries(test_hiprt_standalone PRIVATE hip::hiprtc)
+    else ()
+        target_link_libraries(test_hiprt_standalone PRIVATE hiprtc)
+    endif ()
+    target_include_directories(test_hiprt_standalone PRIVATE ${LUISA_COMPUTE_HIPRT_SDK_INCLUDE_DIR})
+    target_compile_definitions(test_hiprt_standalone PRIVATE
+            HIPRT_SDK_INCLUDE_DIR="${LUISA_COMPUTE_HIPRT_SDK_INCLUDE_DIR}")
+    set_target_properties(test_hiprt_standalone PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
     # copy HIPRT libraries to binary output directory
     add_custom_command(TARGET luisa-compute-backend-hip POST_BUILD
