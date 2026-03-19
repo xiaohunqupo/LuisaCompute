@@ -95,6 +95,8 @@ HIPDevice::HIPDevice(Context &&ctx, const DeviceConfig *config) noexcept
     hiprt_ctx_input.device = device_id();
     LUISA_CHECK_HIP(hipCtxGetCurrent(reinterpret_cast<hipCtx_t *>(&hiprt_ctx_input.ctxt)));
     LUISA_CHECK_HIPRT(hiprtCreateContext(HIPRT_API_VERSION, hiprt_ctx_input, _hiprt_context));
+    LUISA_CHECK_HIPRT(hiprtSetLogLevel(_hiprt_context,
+                                       static_cast<hiprtLogLevel>(hiprtLogLevelInfo | hiprtLogLevelWarn | hiprtLogLevelError)));
 }
 
 HIPDevice::~HIPDevice() noexcept {
@@ -392,11 +394,15 @@ ShaderCreationInfo HIPDevice::create_shader(const ShaderOption &option, Function
 
     HIPShaderMetadata metadata{
         .checksum = 0u,
-        .kind = HIPShaderMetadata::Kind::COMPUTE,
+        .kind = kernel.requires_raytracing() ?
+                    HIPShaderMetadata::Kind::RAY_TRACING :
+                    HIPShaderMetadata::Kind::COMPUTE,
         .enable_debug = option.enable_debug_info,
-        .requires_trace_closest = false,
-        .requires_trace_any = false,
-        .requires_ray_query = false,
+        .requires_trace_closest = kernel.propagated_builtin_callables().test(CallOp::RAY_TRACING_TRACE_CLOSEST) ||
+                                  kernel.propagated_builtin_callables().test(CallOp::RAY_TRACING_TRACE_CLOSEST_MOTION_BLUR),
+        .requires_trace_any = kernel.propagated_builtin_callables().test(CallOp::RAY_TRACING_TRACE_ANY) ||
+                              kernel.propagated_builtin_callables().test(CallOp::RAY_TRACING_TRACE_ANY_MOTION_BLUR),
+        .requires_ray_query = kernel.propagated_builtin_callables().uses_ray_query(),
         .requires_printing = kernel.requires_printing(),
         .requires_motion_blur = kernel.requires_motion_blur(),
         .max_register_count = 0u,
@@ -436,9 +442,18 @@ ShaderCreationInfo HIPDevice::create_shader(const ShaderOption &option, Function
             arg);
     }
 
-    auto shader = luisa::new_with_allocator<HIPShaderNative>(
-        this, std::move(code),
-        "kernel_main", metadata, std::move(bound_arguments));
+    HIPShaderNative *shader = nullptr;
+    if (metadata.kind == HIPShaderMetadata::Kind::RAY_TRACING) {
+        shader = luisa::new_with_allocator<HIPShaderNative>(
+            this, std::move(code),
+            "kernel_main", metadata,
+            _hiprt_context, LUISA_HIPRT_SDK_INCLUDE_DIR,
+            std::move(bound_arguments));
+    } else {
+        shader = luisa::new_with_allocator<HIPShaderNative>(
+            this, std::move(code),
+            "kernel_main", metadata, std::move(bound_arguments));
+    }
 
     ShaderCreationInfo info{};
     info.handle = reinterpret_cast<uint64_t>(shader);

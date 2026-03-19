@@ -1,5 +1,6 @@
 #include <luisa/runtime/rhi/command.h>
 #include <hip/hiprtc.h>
+#include <hiprt/hiprt.h>
 #include "hip_device.h"
 #include "hip_buffer.h"
 #include "hip_texture.h"
@@ -10,7 +11,142 @@
 #include "hip_shader_native.h"
 #include "hip_check.h"
 
+#ifdef LUISA_COMPUTE_ENABLE_LLVM
+#include <llvm/IR/Module.h>
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/AsmParser/Parser.h>
+#include <llvm/Bitcode/BitcodeReader.h>
+#include <llvm/Bitcode/BitcodeWriter.h>
+#include <llvm/Linker/Linker.h>
+#include <llvm/Support/SourceMgr.h>
+#include <llvm/Support/MemoryBuffer.h>
+#include <llvm/Support/raw_ostream.h>
+#endif
+
 namespace luisa::compute::hip {
+
+static constexpr const char *hip_rt_wrapper_source = R"(
+#include <hiprt/hiprt_device.h>
+
+extern "C" __device__ void luisa_hiprt_trace_closest(
+    uint64_t scene_handle,
+    float ox, float oy, float oz,
+    float dx, float dy, float dz,
+    float tmin, float tmax,
+    uint32_t mask,
+    int32_t *out_inst_id,
+    int32_t *out_prim_id,
+    float *out_u,
+    float *out_v,
+    float *out_t) {
+
+    hiprtRay ray;
+    ray.origin = hiprtFloat3{ox, oy, oz};
+    ray.minT = tmin;
+    ray.direction = hiprtFloat3{dx, dy, dz};
+    ray.maxT = tmax;
+
+    hiprtScene scene = reinterpret_cast<hiprtScene>(scene_handle);
+    hiprtSceneTraversalClosest traversal(scene, ray, static_cast<hiprtRayMask>(mask));
+    hiprtHit hit = traversal.getNextHit();
+
+    if (hit.hasHit()) {
+        *out_inst_id = static_cast<int32_t>(hit.instanceID);
+        *out_prim_id = static_cast<int32_t>(hit.primID);
+        *out_u = hit.uv.x;
+        *out_v = hit.uv.y;
+        *out_t = hit.t;
+    } else {
+        *out_inst_id = static_cast<int32_t>(~0u);
+        *out_prim_id = static_cast<int32_t>(~0u);
+        *out_u = 0.0f;
+        *out_v = 0.0f;
+        *out_t = tmax;
+    }
+}
+
+extern "C" __device__ bool luisa_hiprt_trace_any(
+    uint64_t scene_handle,
+    float ox, float oy, float oz,
+    float dx, float dy, float dz,
+    float tmin, float tmax,
+    uint32_t mask) {
+
+    hiprtRay ray;
+    ray.origin = hiprtFloat3{ox, oy, oz};
+    ray.minT = tmin;
+    ray.direction = hiprtFloat3{dx, dy, dz};
+    ray.maxT = tmax;
+
+    hiprtScene scene = reinterpret_cast<hiprtScene>(scene_handle);
+    hiprtSceneTraversalAnyHit traversal(scene, ray, static_cast<hiprtRayMask>(mask));
+    hiprtHit hit = traversal.getNextHit();
+
+    return hit.hasHit();
+}
+)";
+
+luisa::vector<char> HIPShaderNative::_compile_wrapper_bitcode(
+    const char *hiprt_include_dir) {
+
+    static std::mutex mutex;
+    static luisa::vector<char> cached_bitcode;
+    std::lock_guard lock{mutex};
+    if (!cached_bitcode.empty()) { return cached_bitcode; }
+
+    LUISA_INFO("Compiling HIPRT wrapper source to bitcode via hiprtc...");
+
+    hiprtcProgram prog{};
+    auto create_result = hiprtcCreateProgram(
+        &prog, hip_rt_wrapper_source, "hip_rt_wrapper.hip",
+        0, nullptr, nullptr);
+    if (create_result != HIPRTC_SUCCESS) {
+        LUISA_ERROR_WITH_LOCATION("hiprtcCreateProgram failed: {}",
+                                  hiprtcGetErrorString(create_result));
+    }
+
+    auto include_opt = luisa::string{"-I"} + hiprt_include_dir;
+    const char *options[] = {
+        "-fgpu-rdc",
+        "-Xclang",
+        "-disable-llvm-passes",
+        "-Xclang",
+        "-mno-constructor-aliases",
+        "-std=c++17",
+        include_opt.c_str(),
+    };
+    auto compile_result = hiprtcCompileProgram(
+        prog, static_cast<int>(std::size(options)), options);
+    if (compile_result != HIPRTC_SUCCESS) {
+        size_t log_size = 0;
+        hiprtcGetProgramLogSize(prog, &log_size);
+        luisa::string log(log_size, '\0');
+        hiprtcGetProgramLog(prog, log.data());
+        hiprtcDestroyProgram(&prog);
+        LUISA_ERROR_WITH_LOCATION("hiprtcCompileProgram failed: {}\nLog:\n{}",
+                                  hiprtcGetErrorString(compile_result), log);
+    }
+
+    size_t bitcode_size = 0;
+    auto size_result = hiprtcGetBitcodeSize(prog, &bitcode_size);
+    if (size_result != HIPRTC_SUCCESS) {
+        hiprtcDestroyProgram(&prog);
+        LUISA_ERROR_WITH_LOCATION("hiprtcGetBitcodeSize failed: {}",
+                                  hiprtcGetErrorString(size_result));
+    }
+
+    cached_bitcode.resize(bitcode_size);
+    auto get_result = hiprtcGetBitcode(prog, cached_bitcode.data());
+    hiprtcDestroyProgram(&prog);
+    if (get_result != HIPRTC_SUCCESS) {
+        cached_bitcode.clear();
+        LUISA_ERROR_WITH_LOCATION("hiprtcGetBitcode failed: {}",
+                                  hiprtcGetErrorString(get_result));
+    }
+
+    LUISA_INFO("HIPRT wrapper compiled to {} bytes of bitcode.", bitcode_size);
+    return cached_bitcode;
+}
 
 HIPShaderNative::HIPShaderNative(HIPDevice *device, luisa::string code,
                                  const char *entry, const HIPShaderMetadata &metadata,
@@ -20,7 +156,8 @@ HIPShaderNative::HIPShaderNative(HIPDevice *device, luisa::string code,
       _block_size{metadata.block_size.x,
                   metadata.block_size.y,
                   metadata.block_size.z},
-      _bound_arguments{std::move(bound_arguments)} {
+      _bound_arguments{std::move(bound_arguments)},
+      _is_rt{false} {
 
     hiprtcLinkState link_state{};
     auto create_result = hiprtcLinkCreate(0, nullptr, nullptr, &link_state);
@@ -69,8 +206,105 @@ HIPShaderNative::HIPShaderNative(HIPDevice *device, luisa::string code,
     LUISA_CHECK_HIP(hipModuleGetFunction(&_function, _module, entry));
 }
 
+HIPShaderNative::HIPShaderNative(HIPDevice *device, luisa::string code,
+                                 const char *entry, const HIPShaderMetadata &metadata,
+                                 hiprtContext hiprt_ctx, const char *hiprt_include_dir,
+                                 luisa::vector<ShaderDispatchCommand::Argument> bound_arguments) noexcept
+    : HIPShader{metadata.argument_usages},
+      _entry{entry},
+      _block_size{metadata.block_size.x,
+                  metadata.block_size.y,
+                  metadata.block_size.z},
+      _bound_arguments{std::move(bound_arguments)},
+      _is_rt{true} {
+
+#ifdef LUISA_COMPUTE_ENABLE_LLVM
+    auto wrapper_bc = _compile_wrapper_bitcode(hiprt_include_dir);
+
+    llvm::LLVMContext llvm_ctx;
+    llvm::SMDiagnostic diag;
+
+    auto kernel_module = llvm::parseAssemblyString(
+        llvm::StringRef{code.data(), code.size()}, diag, llvm_ctx);
+    if (!kernel_module) {
+        std::string err_msg;
+        llvm::raw_string_ostream err_os{err_msg};
+        diag.print("kernel", err_os);
+        LUISA_ERROR_WITH_LOCATION("Failed to parse kernel LLVM IR:\n{}", err_msg);
+    }
+
+    auto wrapper_buf = llvm::MemoryBuffer::getMemBuffer(
+        llvm::StringRef{wrapper_bc.data(), wrapper_bc.size()},
+        "hip_rt_wrapper", false);
+    auto wrapper_or_err = llvm::parseBitcodeFile(
+        wrapper_buf->getMemBufferRef(), llvm_ctx);
+    if (!wrapper_or_err) {
+        auto err = llvm::toString(wrapper_or_err.takeError());
+        LUISA_ERROR_WITH_LOCATION("Failed to parse wrapper bitcode: {}", err);
+    }
+    auto wrapper_module = std::move(wrapper_or_err.get());
+
+    LUISA_INFO("Kernel module triple: '{}', data layout: '{}'",
+               kernel_module->getTargetTriple().str(), kernel_module->getDataLayoutStr());
+    LUISA_INFO("Wrapper module triple: '{}', data layout: '{}'",
+               wrapper_module->getTargetTriple().str(), wrapper_module->getDataLayoutStr());
+
+    kernel_module->setDataLayout(wrapper_module->getDataLayout());
+
+    if (llvm::Linker::linkModules(*kernel_module, std::move(wrapper_module))) {
+        LUISA_ERROR_WITH_LOCATION("Failed to link kernel IR with wrapper bitcode.");
+    }
+
+    llvm::SmallVector<char, 0> bc_buffer;
+    llvm::raw_svector_ostream bc_os{bc_buffer};
+    llvm::WriteBitcodeToFile(*kernel_module, bc_os);
+
+    LUISA_INFO("RT shader: merged bitcode is {} bytes, calling hiprtBuildTraceKernelsFromBitcode...",
+               bc_buffer.size());
+
+    {
+        auto dump_path = "/tmp/hip_rt_merged.bc";
+        FILE *f = fopen(dump_path, "wb");
+        if (f) {
+            fwrite(bc_buffer.data(), 1, bc_buffer.size(), f);
+            fclose(f);
+        }
+        LUISA_INFO("Dumped merged bitcode to {}", dump_path);
+    }
+
+    const char *func_name = entry;
+    hiprtApiFunction api_func = nullptr;
+    auto hiprt_err = hiprtBuildTraceKernelsFromBitcode(
+        hiprt_ctx,
+        1u,
+        &func_name,
+        "rt_module",
+        bc_buffer.data(),
+        bc_buffer.size(),
+        0u,
+        0u,
+        nullptr,
+        &api_func,
+        false);
+    if (hiprt_err != hiprtSuccess) {
+        LUISA_ERROR_WITH_LOCATION(
+            "hiprtBuildTraceKernelsFromBitcode failed with error code {}.",
+            static_cast<int>(hiprt_err));
+    }
+
+    _function = reinterpret_cast<hipFunction_t>(api_func);
+    _module = nullptr;
+
+    LUISA_INFO("RT shader compiled successfully via HIPRT.");
+#else
+    LUISA_ERROR_WITH_LOCATION("RT shader compilation requires LLVM support.");
+#endif
+}
+
 HIPShaderNative::~HIPShaderNative() noexcept {
-    LUISA_CHECK_HIP(hipModuleUnload(_module));
+    if (_module != nullptr) {
+        LUISA_CHECK_HIP(hipModuleUnload(_module));
+    }
 }
 
 void HIPShaderNative::_launch(HIPCommandEncoder &encoder, ShaderDispatchCommand *command) const noexcept {
@@ -120,18 +354,18 @@ void HIPShaderNative::_launch(HIPCommandEncoder &encoder, ShaderDispatchCommand 
                 break;
             }
             case Tag::ACCEL: {
-                LUISA_ERROR_WITH_LOCATION("Accelerator argument not implemented in HIP backend.");
+                auto accel = reinterpret_cast<const HIPAccel *>(arg.accel.handle);
+                auto binding = accel->binding();
+                auto ptr = allocate_argument(sizeof(binding));
+                std::memcpy(ptr, &binding, sizeof(binding));
                 break;
             }
         }
     };
 
-    fprintf(stderr, "DEBUG: _bound_arguments.size() = %zu\n", _bound_arguments.size());
-    fprintf(stderr, "DEBUG: command->arguments().size() = %zu\n", command->arguments().size());
     for (auto &&arg : _bound_arguments) { encode_argument(arg); }
     for (auto &&arg : command->arguments()) { encode_argument(arg); }
 
-    // Encode dispatch size (like CUDA does)
     auto ptr = allocate_argument(sizeof(uint4));
     auto dispatch_size = command->dispatch_size();
     uint4 launch_size_and_kernel_id = make_uint4(dispatch_size, 0u);
@@ -140,9 +374,6 @@ void HIPShaderNative::_launch(HIPCommandEncoder &encoder, ShaderDispatchCommand 
     auto hip_stream = encoder.stream()->handle();
     auto block_size = make_uint3(_block_size[0], _block_size[1], _block_size[2]);
     auto blocks = (dispatch_size + block_size - 1u) / block_size;
-    fprintf(stderr, "DEBUG: launching kernel with blocks=%u,%u,%u grid, block_size=%u,%u,%u\n",
-            blocks.x, blocks.y, blocks.z, block_size.x, block_size.y, block_size.z);
-    fprintf(stderr, "DEBUG: argument_buffer offset=%zu, size=%zu\n", argument_buffer_offset, argument_buffer.size());
     void *arguments = argument_buffer.data();
     LUISA_CHECK_HIP(hipModuleLaunchKernel(
         _function,
