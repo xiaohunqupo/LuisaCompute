@@ -284,7 +284,6 @@ HIPTexture *HIPTexture::create_device_texture(PixelFormat format, uint dim, uint
     array_desc.Depth = dim == 2u ? 0u : size.z;
     array_desc.Format = hip_array_format(format);
     array_desc.NumChannels = hip_array_channel_count(format);
-    if (!is_bc) { array_desc.Flags = hipArraySurfaceLoadStore; }
     if (mip_levels == 1u) {
         hipArray_t array_handle{nullptr};
         LUISA_CHECK_HIP(hipArray3DCreate(&array_handle, &array_desc));
