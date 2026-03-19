@@ -224,7 +224,31 @@ llvm::Value *HIPCodegenLLVMImpl::_texel_cast(IB &b, llvm::Value *llvm_src, llvm:
                        llvm::cast<llvm::VectorType>(src_type)->getElementCount().getFixedValue() == 4 &&
                        llvm::cast<llvm::VectorType>(dst_type)->getElementCount().getFixedValue() == 4);
     if (src_type == dst_type) { return llvm_src; }
-    return b.CreateFPCast(llvm_src, dst_type, llvm_src->getName().str() + ".texel.cast");
+    // float to float
+    if (src_type->isFPOrFPVectorTy() && dst_type->isFPOrFPVectorTy()) {
+        return _safe_fp_cast(b, llvm_src, dst_type, llvm_src->getName().str() + ".texel.cast.fp.to.fp");
+    }
+    // int to float, normalize the int into [0, 1]
+    if (src_type->isIntOrIntVectorTy() && dst_type->isFPOrFPVectorTy()) {
+        auto src_max = llvm::Constant::getAllOnesValue(src_type);
+        auto src_to_fp = b.CreateUIToFP(llvm_src, dst_type);
+        auto src_max_fp = b.CreateUIToFP(src_max, dst_type);
+        return b.CreateFDiv(src_to_fp, src_max_fp, llvm_src->getName().str() + ".texel.cast.int.to.fp");
+    }
+    // float to int, denormalize the float into [0, max_int]
+    if (src_type->isFPOrFPVectorTy() && dst_type->isIntOrIntVectorTy()) {
+        auto dst_max = llvm::Constant::getAllOnesValue(dst_type);
+        auto dst_max_fp = b.CreateUIToFP(dst_max, src_type);
+        auto src_zero = llvm::Constant::getNullValue(src_type);
+        auto src_one = llvm::ConstantFP::get(src_type, 1.);
+        auto src_clamped = b.CreateMinNum(b.CreateMaxNum(llvm_src, src_zero), src_one);
+        auto src_scaled = b.CreateFMul(src_clamped, dst_max_fp);
+        auto src_round = b.CreateUnaryIntrinsic(llvm::Intrinsic::rint, src_scaled);
+        return b.CreateFPToUI(src_round, dst_type, llvm_src->getName().str() + ".texel.cast.fp.to.int");
+    }
+    // must be int to int
+    LUISA_DEBUG_ASSERT(src_type->isIntOrIntVectorTy() && dst_type->isIntOrIntVectorTy());
+    return b.CreateIntCast(llvm_src, dst_type, false, llvm_src->getName().str() + ".texel.cast.int.to.int");
 }
 
 llvm::Value *HIPCodegenLLVMImpl::_safe_fp_cast(IB &b, llvm::Value *llvm_src, llvm::Type *dst_type, const llvm::Twine &name) const noexcept {

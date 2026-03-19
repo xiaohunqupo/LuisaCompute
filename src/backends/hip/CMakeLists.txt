@@ -6,8 +6,8 @@ if (hip_FOUND)
             ../common/default_binary_io.cpp ../common/default_binary_io.h
             hip_device.cpp hip_device.h
             hip_buffer.cpp hip_buffer.h
-            hip_bindless_array.h
-            hip_accel.h
+            hip_bindless_array.cpp hip_bindless_array.h
+            hip_accel.cpp hip_accel.h
             hip_callback_context.h
             hip_command_encoder.cpp hip_command_encoder.h
             hip_event.cpp hip_event.h

@@ -8,11 +8,14 @@
 #include "hip_check.h"
 #include "hip_buffer.h"
 #include "hip_texture.h"
+#include "hip_bindless_array.h"
 #include "hip_stream.h"
 #include "hip_event.h"
 #include "hip_swapchain.h"
 #include "hip_shader.h"
 #include "hip_shader_native.h"
+#include "hip_mesh.h"
+#include "hip_accel.h"
 #include "hip_device.h"
 
 #ifdef LUISA_COMPUTE_ENABLE_LLVM
@@ -267,11 +270,18 @@ void HIPDevice::destroy_texture(uint64_t handle) noexcept {
 }
 
 ResourceCreationInfo HIPDevice::create_bindless_array(size_t size, BindlessSlotType type) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    auto p = with_device([&] {
+        return luisa::new_with_allocator<HIPBindlessArray>(size);
+    });
+    return {.handle = reinterpret_cast<uint64_t>(p),
+            .native_handle = reinterpret_cast<void *>(p->handle())};
 }
 
 void HIPDevice::destroy_bindless_array(uint64_t handle) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    with_device([&] {
+        auto array = reinterpret_cast<HIPBindlessArray *>(handle);
+        luisa::delete_with_allocator(array);
+    });
 }
 
 ResourceCreationInfo HIPDevice::create_stream(StreamTag stream_tag) noexcept {
@@ -499,11 +509,18 @@ void HIPDevice::synchronize_event(uint64_t handle, uint64_t fence_value) noexcep
 }
 
 ResourceCreationInfo HIPDevice::create_mesh(const AccelOption &option) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    auto mesh = with_device([&] {
+        return luisa::new_with_allocator<HIPMesh>(_hiprt_context, option);
+    });
+    return {.handle = reinterpret_cast<uint64_t>(mesh),
+            .native_handle = mesh};
 }
 
 void HIPDevice::destroy_mesh(uint64_t handle) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    with_device([=] {
+        auto mesh = reinterpret_cast<HIPMesh *>(handle);
+        luisa::delete_with_allocator(mesh);
+    });
 }
 
 ResourceCreationInfo HIPDevice::create_procedural_primitive(const AccelOption &option) noexcept {
@@ -515,11 +532,18 @@ void HIPDevice::destroy_procedural_primitive(uint64_t handle) noexcept {
 }
 
 ResourceCreationInfo HIPDevice::create_accel(const AccelOption &option) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    auto accel = with_device([&] {
+        return luisa::new_with_allocator<HIPAccel>(_hiprt_context, option);
+    });
+    return {.handle = reinterpret_cast<uint64_t>(accel),
+            .native_handle = accel};
 }
 
 void HIPDevice::destroy_accel(uint64_t handle) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    with_device([=] {
+        auto accel = reinterpret_cast<HIPAccel *>(handle);
+        luisa::delete_with_allocator(accel);
+    });
 }
 
 void HIPDevice::set_name(Resource::Tag resource_tag,
