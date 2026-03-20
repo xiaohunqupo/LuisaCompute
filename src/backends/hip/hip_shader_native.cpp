@@ -13,7 +13,6 @@
 #include "hip_rt_wrapper_bitcode_embedded.h"
 
 #ifdef LUISA_COMPUTE_ENABLE_LLVM
-#include <fstream>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Constants.h>
@@ -165,18 +164,6 @@ HIPShaderNative::HIPShaderNative(HIPDevice *device, luisa::string code,
     llvm::raw_string_ostream bitcode_os{bitcode_str};
     llvm::WriteBitcodeToFile(*kernel_module, bitcode_os);
     bitcode_os.flush();
-
-    // Debug: dump linked IR
-    {
-        std::string ir_str;
-        llvm::raw_string_ostream ir_os{ir_str};
-        kernel_module->print(ir_os, nullptr);
-        ir_os.flush();
-        std::ofstream dump("/tmp/luisa_hiprt_linked.ll");
-        dump << ir_str;
-        dump.close();
-        LUISA_INFO("Dumped linked IR to /tmp/luisa_hiprt_linked.ll ({} bytes)", ir_str.size());
-    }
 
     LUISA_INFO("Combined kernel+wrapper linked to {} bytes of bitcode.", bitcode_str.size());
 
