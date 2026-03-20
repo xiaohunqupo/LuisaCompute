@@ -227,13 +227,13 @@ llvm::Value *HIPCodegenLLVMImpl::_translate_resource_query_inst(IB &b, FunctionC
             auto llvm_accel = _get_llvm_value(b, func_ctx, inst->operand(0));
             auto llvm_ray = _get_llvm_value(b, func_ctx, inst->operand(1));
             auto llvm_mask = _get_llvm_value(b, func_ctx, inst->operand(2));
-            return _accel_trace_closest(b, llvm_accel, llvm_ray, llvm_mask);
+            return _accel_trace_closest(b, func_ctx, llvm_accel, llvm_ray, llvm_mask);
         }
         case xir::ResourceQueryOp::RAY_TRACING_TRACE_ANY: {
             auto llvm_accel = _get_llvm_value(b, func_ctx, inst->operand(0));
             auto llvm_ray = _get_llvm_value(b, func_ctx, inst->operand(1));
             auto llvm_mask = _get_llvm_value(b, func_ctx, inst->operand(2));
-            return _accel_trace_any(b, llvm_accel, llvm_ray, llvm_mask);
+            return _accel_trace_any(b, func_ctx, llvm_accel, llvm_ray, llvm_mask);
         }
         default: LUISA_NOT_IMPLEMENTED();
     }
@@ -553,7 +553,7 @@ void HIPCodegenLLVMImpl::_set_accel_instance_opacity(IB &b, llvm::Value *accel, 
     b.CreateCall(f, {instance_ptr, is_opaque});
 }
 
-llvm::Value *HIPCodegenLLVMImpl::_accel_trace_closest(IB &b, llvm::Value *accel, llvm::Value *ray, llvm::Value *mask) noexcept {
+llvm::Value *HIPCodegenLLVMImpl::_accel_trace_closest(IB &b, const FunctionContext &func_ctx, llvm::Value *accel, llvm::Value *ray, llvm::Value *mask) noexcept {
     auto handle = b.CreateExtractValue(accel, llvm_accel_type_handle_index);
     auto ox = b.CreateExtractValue(ray, {llvm_ray_type_origin_index, 0});
     auto oy = b.CreateExtractValue(ray, {llvm_ray_type_origin_index, 1});
@@ -565,10 +565,6 @@ llvm::Value *HIPCodegenLLVMImpl::_accel_trace_closest(IB &b, llvm::Value *accel,
     auto tmax = b.CreateExtractValue(ray, llvm_ray_type_t_max_index);
     mask = b.CreateAnd(b.CreateZExtOrTrunc(mask, b.getInt32Ty()), 0xffu);
 
-    // ABI contract with luisa_hiprt_trace_closest in hip_rt_device_wrapper.hip:
-    //   void(uint64_t scene, float ox,oy,oz, float dx,dy,dz,
-    //        float tmin,tmax, uint32_t mask,
-    //        int32_t* inst_id, int32_t* prim_id, float* u, float* v, float* t)
     using namespace std::string_view_literals;
     auto wrapper_name = "luisa_hiprt_trace_closest"sv;
     auto wrapper_f = _llvm_module->getFunction(wrapper_name);
@@ -579,7 +575,10 @@ llvm::Value *HIPCodegenLLVMImpl::_accel_trace_closest(IB &b, llvm::Value *accel,
         auto i64 = b.getInt64Ty();
         auto generic_ptr = b.getPtrTy(0);
         auto f_type = llvm::FunctionType::get(void_type,
-                                              {i64, f32, f32, f32, f32, f32, f32, f32, f32, i32, generic_ptr, generic_ptr, generic_ptr, generic_ptr, generic_ptr}, false);
+                                              {i64, f32, f32, f32, f32, f32, f32, f32, f32, i32,
+                                               i32, i32, generic_ptr,
+                                               generic_ptr, generic_ptr, generic_ptr, generic_ptr, generic_ptr},
+                                              false);
         wrapper_f = llvm::Function::Create(f_type, llvm::Function::ExternalLinkage, wrapper_name, *_llvm_module);
     }
 
@@ -597,6 +596,7 @@ llvm::Value *HIPCodegenLLVMImpl::_accel_trace_closest(IB &b, llvm::Value *accel,
     auto cast_t = b.CreateAddrSpaceCast(alloca_t, generic_ptr_type);
 
     b.CreateCall(wrapper_f, {handle, ox, oy, oz, dx, dy, dz, tmin, tmax, mask,
+                             func_ctx.llvm_rt_stack_size, func_ctx.llvm_rt_stack_count, func_ctx.llvm_rt_stack_data,
                              cast_inst_id, cast_prim_id, cast_u, cast_v, cast_t});
 
     auto inst_id = b.CreateLoad(b.getInt32Ty(), alloca_inst_id);
@@ -616,7 +616,7 @@ llvm::Value *HIPCodegenLLVMImpl::_accel_trace_closest(IB &b, llvm::Value *accel,
     return result;
 }
 
-llvm::Value *HIPCodegenLLVMImpl::_accel_trace_any(IB &b, llvm::Value *accel, llvm::Value *ray, llvm::Value *mask) noexcept {
+llvm::Value *HIPCodegenLLVMImpl::_accel_trace_any(IB &b, const FunctionContext &func_ctx, llvm::Value *accel, llvm::Value *ray, llvm::Value *mask) noexcept {
     auto handle = b.CreateExtractValue(accel, llvm_accel_type_handle_index);
     auto ox = b.CreateExtractValue(ray, {llvm_ray_type_origin_index, 0});
     auto oy = b.CreateExtractValue(ray, {llvm_ray_type_origin_index, 1});
@@ -628,9 +628,6 @@ llvm::Value *HIPCodegenLLVMImpl::_accel_trace_any(IB &b, llvm::Value *accel, llv
     auto tmax = b.CreateExtractValue(ray, llvm_ray_type_t_max_index);
     mask = b.CreateAnd(b.CreateZExtOrTrunc(mask, b.getInt32Ty()), 0xffu);
 
-    // ABI contract with luisa_hiprt_trace_any in hip_rt_device_wrapper.hip:
-    //   bool(uint64_t scene, float ox,oy,oz, float dx,dy,dz,
-    //        float tmin,tmax, uint32_t mask)
     using namespace std::string_view_literals;
     auto wrapper_name = "luisa_hiprt_trace_any"sv;
     auto wrapper_f = _llvm_module->getFunction(wrapper_name);
@@ -639,12 +636,16 @@ llvm::Value *HIPCodegenLLVMImpl::_accel_trace_any(IB &b, llvm::Value *accel, llv
         auto i32 = b.getInt32Ty();
         auto i64 = b.getInt64Ty();
         auto i1 = b.getInt1Ty();
+        auto generic_ptr = b.getPtrTy(0);
         auto f_type = llvm::FunctionType::get(i1,
-                                              {i64, f32, f32, f32, f32, f32, f32, f32, f32, i32}, false);
+                                              {i64, f32, f32, f32, f32, f32, f32, f32, f32, i32,
+                                               i32, i32, generic_ptr},
+                                              false);
         wrapper_f = llvm::Function::Create(f_type, llvm::Function::ExternalLinkage, wrapper_name, *_llvm_module);
     }
 
-    return b.CreateCall(wrapper_f, {handle, ox, oy, oz, dx, dy, dz, tmin, tmax, mask});
+    return b.CreateCall(wrapper_f, {handle, ox, oy, oz, dx, dy, dz, tmin, tmax, mask,
+                                    func_ctx.llvm_rt_stack_size, func_ctx.llvm_rt_stack_count, func_ctx.llvm_rt_stack_data});
 }
 
 }// namespace luisa::compute::hip

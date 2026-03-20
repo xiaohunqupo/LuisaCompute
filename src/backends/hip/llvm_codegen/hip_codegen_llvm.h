@@ -29,6 +29,7 @@ struct HIPCodegenLLVMConfig {
     OptLevel opt_level{OptLevel::LEVEL_AGGRESSIVE};
     bool enable_fast_math{true};
     bool enable_debug_info{false};
+    bool requires_ray_tracing{false};
 };
 
 [[nodiscard]] luisa::string hip_codegen_llvm(

@@ -239,6 +239,8 @@ luisa::string HIPCodegenLLVMImpl::generate(const xir::Module &xir_module) noexce
     Clock clk;
     _initialize();
 
+    _rt_analysis.uses_ray_tracing = _config.requires_ray_tracing;
+
     for (auto f : xir_module.function_list()) {
         if (auto def = f->definition()) {
             _translate_function(def);

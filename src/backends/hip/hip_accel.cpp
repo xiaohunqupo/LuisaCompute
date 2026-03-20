@@ -59,7 +59,7 @@ void HIPAccel::_build(HIPCommandEncoder &encoder) noexcept {
     build_input.instanceMasks = nullptr;
 
     hiprtBuildOptions build_options{};
-    build_options.buildFlags = hiprtBuildFlagBitPreferFastBuild;
+    build_options.buildFlags = hiprtBuildFlagBitPreferHighQualityBuild;
 
     LUISA_CHECK_HIPRT(hiprtCreateScene(_hiprt_ctx, build_input, build_options, _scene));
 
@@ -111,7 +111,7 @@ void HIPAccel::_update(HIPCommandEncoder &encoder) noexcept {
     build_input.instanceMasks = nullptr;
 
     hiprtBuildOptions build_options{};
-    build_options.buildFlags = hiprtBuildFlagBitPreferFastBuild;
+    build_options.buildFlags = hiprtBuildFlagBitPreferHighQualityBuild;
 
     LUISA_CHECK_HIPRT(hiprtBuildScene(_hiprt_ctx, hiprtBuildOperationUpdate,
                                       build_input, build_options,

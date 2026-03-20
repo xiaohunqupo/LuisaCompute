@@ -53,6 +53,11 @@ llvm::Function *HIPCodegenLLVMImpl::_declare_llvm_callable_function(const xir::C
     auto llvm_i32x3_type = llvm::FixedVectorType::get(llvm_i32_type, 3);
     llvm_arg_types.emplace_back(llvm_i32x3_type);
     llvm_arg_types.emplace_back(llvm_i32_type);
+    if (_rt_analysis.uses_ray_tracing) {
+        llvm_arg_types.emplace_back(llvm_i32_type);
+        llvm_arg_types.emplace_back(llvm_i32_type);
+        llvm_arg_types.emplace_back(llvm::PointerType::get(_llvm_context, 0));
+    }
     auto llvm_ret_type = func->type() == nullptr ? llvm::Type::getVoidTy(_llvm_context) :
                                                    _get_llvm_type(func->type())->reg_type;
     auto llvm_func_type = llvm::FunctionType::get(llvm_ret_type, llvm_arg_types, false);
@@ -100,6 +105,16 @@ llvm::Function *HIPCodegenLLVMImpl::_translate_kernel_function(const xir::Kernel
     func_ctx.llvm_dispatch_size = _create_llvm_vector(b, {llvm_dispatch_size_x, llvm_dispatch_size_y, llvm_dispatch_size_z});
     func_ctx.llvm_dispatch_size->setName("sreg.dispatch.size");
     func_ctx.llvm_kernel_id = b.CreateExtractValue(llvm_dispatch_size_and_kernel_id, 3, "sreg.kernel.id");
+    if (arg_struct_info->has_rt_global_stack_buffer) {
+        auto idx = arg_struct_info->rt_global_stack_buffer_index;
+        func_ctx.llvm_rt_stack_size = b.CreateExtractValue(llvm_arg_struct, idx, "rt.stack.size");
+        func_ctx.llvm_rt_stack_count = b.CreateExtractValue(llvm_arg_struct, idx + 1, "rt.stack.count");
+        func_ctx.llvm_rt_stack_data = b.CreateExtractValue(llvm_arg_struct, idx + 2, "rt.stack.data");
+    } else if (_rt_analysis.uses_ray_tracing) {
+        func_ctx.llvm_rt_stack_size = b.getInt32(0);
+        func_ctx.llvm_rt_stack_count = b.getInt32(0);
+        func_ctx.llvm_rt_stack_data = llvm::ConstantPointerNull::get(b.getPtrTy(0));
+    }
     auto llvm_body = _translate_function_definition(func_ctx, func);
     auto llvm_dispatch_id = _read_dispatch_id(b, func_ctx);
     auto llvm_dispatch_id_in_bounds = b.CreateICmpULT(llvm_dispatch_id, func_ctx.llvm_dispatch_size, "dispatch.id.in.bounds");
@@ -128,6 +143,14 @@ llvm::Function *HIPCodegenLLVMImpl::_translate_callable_function(const xir::Call
     func_ctx.llvm_dispatch_size->setName("sreg.dispatch.size");
     func_ctx.llvm_kernel_id = llvm_arg_iter++;
     func_ctx.llvm_kernel_id->setName("sreg.kernel.id");
+    if (_rt_analysis.uses_ray_tracing) {
+        func_ctx.llvm_rt_stack_size = llvm_arg_iter++;
+        func_ctx.llvm_rt_stack_size->setName("rt.stack.size");
+        func_ctx.llvm_rt_stack_count = llvm_arg_iter++;
+        func_ctx.llvm_rt_stack_count->setName("rt.stack.count");
+        func_ctx.llvm_rt_stack_data = llvm_arg_iter++;
+        func_ctx.llvm_rt_stack_data->setName("rt.stack.data");
+    }
     auto body = _translate_function_definition(func_ctx, func);
     IB b{func_ctx.llvm_entry_block};
     b.CreateBr(body);
@@ -675,7 +698,7 @@ llvm::InlineAsm *HIPCodegenLLVMImpl::_get_inline_asm(std::string_view asm_string
 llvm::Value *HIPCodegenLLVMImpl::_translate_call_inst(IB &b, FunctionContext &func_ctx, const xir::CallInst *inst) noexcept {
     auto llvm_callee = _get_or_declare_llvm_function(inst->callee());
     llvm::SmallVector<llvm::Value *> llvm_args;
-    llvm_args.reserve(inst->argument_count() + 2u);
+    llvm_args.reserve(inst->argument_count() + 5u);
     for (auto i = 0u; i < inst->argument_count(); i++) {
         auto llvm_arg = _get_llvm_value(b, func_ctx, inst->argument(i));
         if (auto llvm_arg_type = llvm_arg->getType();
@@ -686,6 +709,11 @@ llvm::Value *HIPCodegenLLVMImpl::_translate_call_inst(IB &b, FunctionContext &fu
     }
     llvm_args.emplace_back(_read_dispatch_size(b, func_ctx));
     llvm_args.emplace_back(_read_kernel_id(b, func_ctx));
+    if (_rt_analysis.uses_ray_tracing) {
+        llvm_args.emplace_back(func_ctx.llvm_rt_stack_size);
+        llvm_args.emplace_back(func_ctx.llvm_rt_stack_count);
+        llvm_args.emplace_back(func_ctx.llvm_rt_stack_data);
+    }
     auto call_inst = b.CreateCall(llvm_callee, llvm_args, inst->name().value_or(""));
     call_inst->setCallingConv(llvm_callee->getCallingConv());
     return inst->type() == nullptr ? nullptr : call_inst;

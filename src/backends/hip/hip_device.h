@@ -19,6 +19,7 @@ private:
     int _device_id;
     int _gcn_arch{};
     hiprtContext _hiprt_context{nullptr};
+    hiprtGlobalStackBuffer _hiprt_global_stack_buffer{};
 
     template<typename F>
     decltype(auto) with_device(F &&f) const noexcept;
@@ -29,6 +30,7 @@ public:
     [[nodiscard]] auto device_id() const noexcept { return _device_id; }
     [[nodiscard]] auto gcn_arch() const noexcept { return _gcn_arch; }
     [[nodiscard]] auto hiprt_context() const noexcept { return _hiprt_context; }
+    [[nodiscard]] auto hiprt_global_stack_buffer() const noexcept { return _hiprt_global_stack_buffer; }
     [[nodiscard]] hipUUID_t device_uuid() const noexcept;
     [[nodiscard]] hipUUID_t device_uuid_for_vulkan() const noexcept;
     [[nodiscard]] void *native_handle() const noexcept override;

@@ -63,7 +63,7 @@ void HIPMesh::build(HIPCommandEncoder &encoder, MeshBuildCommand *command) noexc
     build_input.primitive.triangleMesh = mesh_prim;
 
     hiprtBuildOptions build_options{};
-    build_options.buildFlags = hiprtBuildFlagBitPreferFastBuild;
+    build_options.buildFlags = hiprtBuildFlagBitPreferHighQualityBuild;
 
     auto hip_stream = encoder.stream()->handle();
 

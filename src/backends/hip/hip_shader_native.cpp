@@ -13,8 +13,10 @@
 #include "hip_rt_wrapper_bitcode_embedded.h"
 
 #ifdef LUISA_COMPUTE_ENABLE_LLVM
+#include <fstream>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/Constants.h>
 #include <llvm/AsmParser/Parser.h>
 #include <llvm/Bitcode/BitcodeReader.h>
 #include <llvm/Bitcode/BitcodeWriter.h>
@@ -35,6 +37,7 @@ HIPShaderNative::HIPShaderNative(HIPDevice *device, luisa::string code,
                   metadata.block_size.y,
                   metadata.block_size.z},
       _bound_arguments{std::move(bound_arguments)},
+      _device{device},
       _is_rt{false} {
 
     hiprtcLinkState link_state{};
@@ -83,6 +86,7 @@ HIPShaderNative::HIPShaderNative(HIPDevice *device, luisa::string code,
                   metadata.block_size.y,
                   metadata.block_size.z},
       _bound_arguments{std::move(bound_arguments)},
+      _device{device},
       _is_rt{true} {
 
     llvm::LLVMContext llvm_ctx;
@@ -111,6 +115,35 @@ HIPShaderNative::HIPShaderNative(HIPDevice *device, luisa::string code,
         LUISA_ERROR_WITH_LOCATION("Failed to link kernel module with HIPRT wrapper bitcode.");
     }
 
+    // Replace the extern __shared__ declaration of luisa_hiprt_shared_stack_cache
+    // with a sized definition based on the actual kernel block size.
+    {
+        static constexpr auto SHARED_STACK_SIZE = 32u;
+        auto block_size = metadata.block_size.x * metadata.block_size.y * metadata.block_size.z;
+        auto shared_array_size = SHARED_STACK_SIZE * block_size;
+        auto *old_gv = kernel_module->getGlobalVariable("luisa_hiprt_shared_stack_cache");
+        if (old_gv) {
+            auto *i32_ty = llvm::Type::getInt32Ty(llvm_ctx);
+            auto *array_ty = llvm::ArrayType::get(i32_ty, shared_array_size);
+            auto *new_gv = new llvm::GlobalVariable(
+                *kernel_module, array_ty, false,
+                llvm::GlobalValue::InternalLinkage,
+                llvm::UndefValue::get(array_ty),
+                "luisa_hiprt_shared_stack_cache_tmp",
+                nullptr,
+                llvm::GlobalValue::NotThreadLocal,
+                3u);// addrspace(3) = shared/LDS
+            new_gv->setAlignment(llvm::Align(4));
+            LUISA_INFO("Replacing shared stack cache: {} uses, old type = [0 x i32], new type = [{} x i32]",
+                       old_gv->getNumUses(), shared_array_size);
+            old_gv->replaceAllUsesWith(new_gv);
+            old_gv->eraseFromParent();
+            new_gv->setName("luisa_hiprt_shared_stack_cache");
+        } else {
+            LUISA_WARNING("Could not find luisa_hiprt_shared_stack_cache in linked module!");
+        }
+    }
+
     for (auto &func : *kernel_module) {
         auto attrs = func.getAttributes().removeAttributeAtIndex(
             func.getContext(), llvm::AttributeList::FunctionIndex,
@@ -132,6 +165,18 @@ HIPShaderNative::HIPShaderNative(HIPDevice *device, luisa::string code,
     llvm::raw_string_ostream bitcode_os{bitcode_str};
     llvm::WriteBitcodeToFile(*kernel_module, bitcode_os);
     bitcode_os.flush();
+
+    // Debug: dump linked IR
+    {
+        std::string ir_str;
+        llvm::raw_string_ostream ir_os{ir_str};
+        kernel_module->print(ir_os, nullptr);
+        ir_os.flush();
+        std::ofstream dump("/tmp/luisa_hiprt_linked.ll");
+        dump << ir_str;
+        dump.close();
+        LUISA_INFO("Dumped linked IR to /tmp/luisa_hiprt_linked.ll ({} bytes)", ir_str.size());
+    }
 
     LUISA_INFO("Combined kernel+wrapper linked to {} bytes of bitcode.", bitcode_str.size());
 
@@ -231,14 +276,31 @@ void HIPShaderNative::_launch(HIPCommandEncoder &encoder, ShaderDispatchCommand 
     uint4 launch_size_and_kernel_id = make_uint4(dispatch_size, 0u);
     std::memcpy(ptr, &launch_size_and_kernel_id, sizeof(launch_size_and_kernel_id));
 
+    if (_is_rt) {
+        // RT stack fields must be packed contiguously to match LLVM struct layout:
+        //   i32 (stack_size) | i32 (stack_count) | ptr (stack_data) = 16 bytes total
+        // We allocate a single 16-byte-aligned block rather than 3 separate aligned fields.
+        struct alignas(16) RTStackArgs {
+            uint32_t stack_size;
+            uint32_t stack_count;
+            void *stack_data;
+        };
+        static_assert(sizeof(RTStackArgs) == 16u);
+        auto stack_buf = _device->hiprt_global_stack_buffer();
+        RTStackArgs rt_args{
+            .stack_size = stack_buf.stackSize,
+            .stack_count = stack_buf.stackCount,
+            .stack_data = stack_buf.stackData,
+        };
+        auto p_rt = allocate_argument(sizeof(RTStackArgs));
+        std::memcpy(p_rt, &rt_args, sizeof(RTStackArgs));
+    }
+
     auto hip_stream = encoder.stream()->handle();
     auto block_size = make_uint3(_block_size[0], _block_size[1], _block_size[2]);
     auto blocks = (dispatch_size + block_size - 1u) / block_size;
     void *arguments = argument_buffer.data();
 
-    // Increase per-thread stack size for kernels that use dynamic stack
-    // (scratch memory). ROCm 7.2 on gfx1201 has known issues with
-    // default scratch allocation for kernels with .uses_dynamic_stack=true.
     static std::once_flag stack_limit_flag;
     std::call_once(stack_limit_flag, [] {
         auto ret = hipDeviceSetLimit(hipLimitStackSize, 16384u);

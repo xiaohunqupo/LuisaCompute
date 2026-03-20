@@ -7,12 +7,18 @@
 
 #include <hiprt/hiprt_device.h>
 
+static constexpr uint32_t SHARED_STACK_SIZE = 32u;
+extern "C" __shared__ uint32_t luisa_hiprt_shared_stack_cache[];
+
 extern "C" __device__ void luisa_hiprt_trace_closest(
     uint64_t scene_handle,
     float ox, float oy, float oz,
     float dx, float dy, float dz,
     float tmin, float tmax,
     uint32_t mask,
+    uint32_t stack_size,
+    uint32_t stack_count,
+    void *stack_data,
     int32_t *out_inst_id,
     int32_t *out_prim_id,
     float *out_u,
@@ -26,21 +32,51 @@ extern "C" __device__ void luisa_hiprt_trace_closest(
     ray.maxT = tmax;
 
     hiprtScene scene = reinterpret_cast<hiprtScene>(scene_handle);
-    hiprtSceneTraversalClosest traversal(scene, ray, static_cast<hiprtRayMask>(mask));
-    hiprtHit hit = traversal.getNextHit();
 
-    if (hit.hasHit()) {
-        *out_inst_id = static_cast<int32_t>(hit.instanceID);
-        *out_prim_id = static_cast<int32_t>(hit.primID);
-        *out_u = hit.uv.x;
-        *out_v = hit.uv.y;
-        *out_t = hit.t;
+    if (stack_data != nullptr) {
+        // Use GlobalStack traversal with LDS-backed shared stack for performance
+        hiprtGlobalStackBuffer globalStackBuffer{stack_size, stack_count, stack_data};
+        hiprtSharedStackBuffer sharedStackBuffer{SHARED_STACK_SIZE, luisa_hiprt_shared_stack_cache};
+
+        hiprtGlobalStack stack(globalStackBuffer, sharedStackBuffer);
+        hiprtEmptyInstanceStack instanceStack;
+
+        hiprtSceneTraversalClosestCustomStack<hiprtGlobalStack, hiprtEmptyInstanceStack>
+            traversal(scene, ray, stack, instanceStack, static_cast<hiprtRayMask>(mask),
+                      hiprtTraversalHintReflectionRays);
+        hiprtHit hit = traversal.getNextHit();
+
+        if (hit.hasHit()) {
+            *out_inst_id = static_cast<int32_t>(hit.instanceID);
+            *out_prim_id = static_cast<int32_t>(hit.primID);
+            *out_u = hit.uv.x;
+            *out_v = hit.uv.y;
+            *out_t = hit.t;
+        } else {
+            *out_inst_id = static_cast<int32_t>(~0u);
+            *out_prim_id = static_cast<int32_t>(~0u);
+            *out_u = 0.0f;
+            *out_v = 0.0f;
+            *out_t = tmax;
+        }
     } else {
-        *out_inst_id = static_cast<int32_t>(~0u);
-        *out_prim_id = static_cast<int32_t>(~0u);
-        *out_u = 0.0f;
-        *out_v = 0.0f;
-        *out_t = tmax;
+        // Fallback: default traversal (CustomStack, no global stack buffer)
+        hiprtSceneTraversalClosest traversal(scene, ray, static_cast<hiprtRayMask>(mask));
+        hiprtHit hit = traversal.getNextHit();
+
+        if (hit.hasHit()) {
+            *out_inst_id = static_cast<int32_t>(hit.instanceID);
+            *out_prim_id = static_cast<int32_t>(hit.primID);
+            *out_u = hit.uv.x;
+            *out_v = hit.uv.y;
+            *out_t = hit.t;
+        } else {
+            *out_inst_id = static_cast<int32_t>(~0u);
+            *out_prim_id = static_cast<int32_t>(~0u);
+            *out_u = 0.0f;
+            *out_v = 0.0f;
+            *out_t = tmax;
+        }
     }
 }
 
@@ -49,7 +85,10 @@ extern "C" __device__ bool luisa_hiprt_trace_any(
     float ox, float oy, float oz,
     float dx, float dy, float dz,
     float tmin, float tmax,
-    uint32_t mask) {
+    uint32_t mask,
+    uint32_t stack_size,
+    uint32_t stack_count,
+    void *stack_data) {
 
     hiprtRay ray;
     ray.origin = hiprtFloat3{ox, oy, oz};
@@ -58,8 +97,24 @@ extern "C" __device__ bool luisa_hiprt_trace_any(
     ray.maxT = tmax;
 
     hiprtScene scene = reinterpret_cast<hiprtScene>(scene_handle);
-    hiprtSceneTraversalAnyHit traversal(scene, ray, static_cast<hiprtRayMask>(mask));
-    hiprtHit hit = traversal.getNextHit();
 
-    return hit.hasHit();
+    if (stack_data != nullptr) {
+        hiprtGlobalStackBuffer globalStackBuffer{stack_size, stack_count, stack_data};
+        hiprtSharedStackBuffer sharedStackBuffer{SHARED_STACK_SIZE, luisa_hiprt_shared_stack_cache};
+
+        hiprtGlobalStack stack(globalStackBuffer, sharedStackBuffer);
+        hiprtEmptyInstanceStack instanceStack;
+
+        hiprtSceneTraversalAnyHitCustomStack<hiprtGlobalStack, hiprtEmptyInstanceStack>
+            traversal(scene, ray, stack, instanceStack, static_cast<hiprtRayMask>(mask),
+                      hiprtTraversalHintShadowRays);
+        hiprtHit hit = traversal.getNextHit();
+
+        return hit.hasHit();
+    } else {
+        hiprtSceneTraversalAnyHit traversal(scene, ray, static_cast<hiprtRayMask>(mask));
+        hiprtHit hit = traversal.getNextHit();
+
+        return hit.hasHit();
+    }
 }
