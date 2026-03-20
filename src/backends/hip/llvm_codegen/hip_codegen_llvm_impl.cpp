@@ -3,7 +3,9 @@
 //
 
 #include "hip_codegen_llvm_impl.h"
+#include "hip_codegen_llvm_device_bitcode.h"
 #include <llvm/Bitcode/BitcodeWriter.h>
+#include <llvm/IR/DebugInfo.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/Analysis/TargetTransformInfo.h>
 #include <llvm/Analysis/TargetLibraryInfo.h>
@@ -84,9 +86,60 @@ void HIPCodegenLLVMImpl::_initialize() noexcept {
 
     _data_layout = std::make_unique<llvm::DataLayout>(_target_machine->createDataLayout());
 
-    _llvm_module = std::make_unique<llvm::Module>("hip_module", _llvm_context);
+    // parse OCML bitcode as the starting module (like CUDA's libdevice)
+    _llvm_module = [&] {
+        llvm::SMDiagnostic error;
+        llvm::StringRef bc{reinterpret_cast<const char *>(luisa_compute_hip_ocml),
+                           luisa_compute_hip_ocml_size};
+        if (auto m = llvm::parseIR({bc, "ocml.bc"}, error, _llvm_context)) {
+            llvm::StripDebugInfo(*m);
+            return m;
+        }
+        LUISA_ERROR_WITH_LOCATION("Failed to parse OCML bitcode: {}", error.getMessage());
+    }();
+
+    // set target triple and data layout
     _llvm_module->setTargetTriple(llvm::Triple{amdgpu_target_triple});
     _llvm_module->setDataLayout(*_data_layout);
+
+    // internalize all OCML functions
+    for (auto &&f : *_llvm_module) {
+        if (f.getName().starts_with("__ocml_")) {
+            f.setLinkage(llvm::Function::PrivateLinkage);
+            f.removeFnAttr(llvm::Attribute::StackProtect);
+        }
+    }
+
+    // provide OCLC configuration globals that OCML depends on
+    auto i8_type = llvm::Type::getInt8Ty(_llvm_context);
+    auto create_oclc_i8 = [&](llvm::StringRef name, uint8_t value) {
+        if (auto gv = _llvm_module->getGlobalVariable(name)) {
+            gv->setInitializer(llvm::ConstantInt::get(i8_type, value));
+            gv->setLinkage(llvm::GlobalValue::PrivateLinkage);
+            gv->setConstant(true);
+        } else {
+            auto g = new llvm::GlobalVariable(*_llvm_module, i8_type, true,
+                                              llvm::GlobalValue::PrivateLinkage,
+                                              llvm::ConstantInt::get(i8_type, value), name);
+            g->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
+        }
+    };
+    create_oclc_i8("__oclc_finite_only_opt", 0);
+    create_oclc_i8("__oclc_unsafe_math_opt", _config.enable_fast_math ? 1 : 0);
+    create_oclc_i8("__oclc_correctly_rounded_sqrt32", 1);
+    create_oclc_i8("__oclc_daz_opt", 0);
+    // ISA version: e.g., 1201 for gfx1201
+    if (auto gv = _llvm_module->getGlobalVariable("__oclc_ISA_version")) {
+        gv->setInitializer(llvm::ConstantInt::get(llvm::Type::getInt32Ty(_llvm_context), _config.amdgpu_arch));
+        gv->setLinkage(llvm::GlobalValue::PrivateLinkage);
+        gv->setConstant(true);
+    } else {
+        auto g = new llvm::GlobalVariable(*_llvm_module, llvm::Type::getInt32Ty(_llvm_context), true,
+                                          llvm::GlobalValue::PrivateLinkage,
+                                          llvm::ConstantInt::get(llvm::Type::getInt32Ty(_llvm_context), _config.amdgpu_arch),
+                                          "__oclc_ISA_version");
+        g->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
+    }
 
     auto i32_type = llvm::Type::getInt32Ty(_llvm_context);
     auto &llvm_ctx = _llvm_context;

@@ -226,6 +226,7 @@ int main(int argc, char **argv) {
 
     std::string hiprt_include = "-I" + std::string(HIPRT_SDK_INCLUDE_DIR);
 
+    // Let HIPRT_RTIP be determined by target macros (gfx1201 -> RTIP=31 with ROCm 7+)
     const char *compile_options[] = {
         "-fgpu-rdc",
         "-Xclang",

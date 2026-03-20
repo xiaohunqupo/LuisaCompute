@@ -53,32 +53,62 @@ target_link_libraries(luisa-compute-backend-hip PRIVATE
         endif ()
     endif ()
 
-    # download HIPRT SDK
-    set(LUISA_COMPUTE_HIPRT_SDK_VERSION "3.0.9ba63f3")
-    set(LUISA_COMPUTE_HIPRT_SDK_DOWNLOAD_URL "https://gpuopen.com/download/hiprtSdk-${LUISA_COMPUTE_HIPRT_SDK_VERSION}.zip")
-    set(LUISA_COMPUTE_HIPRT_SDK_SHA256 "dc1b8bd4842c74d580561449a3342911f7617e1f51ea6541fc3290e3f2e36e89")
-    message(STATUS "Downloading HIPRT SDK version ${LUISA_COMPUTE_HIPRT_SDK_VERSION}...")
-    include(FetchContent)
-    FetchContent_Declare(
-            hiprt_sdk
-            URL ${LUISA_COMPUTE_HIPRT_SDK_DOWNLOAD_URL}
-            URL_HASH SHA256=${LUISA_COMPUTE_HIPRT_SDK_SHA256}
-            DOWNLOAD_EXTRACT_TIMESTAMP ON
-    )
-    FetchContent_MakeAvailable(hiprt_sdk)
-    FetchContent_GetProperties(hiprt_sdk)
-    set(LUISA_COMPUTE_HIPRT_SDK_INCLUDE_DIR ${hiprt_sdk_SOURCE_DIR})
-    if (LINUX)
-        set(LUISA_COMPUTE_HIPRT_SDK_LIB_DIR ${hiprt_sdk_SOURCE_DIR}/hiprt/linux64)
-    elseif (WIN32)
-        set(LUISA_COMPUTE_HIPRT_SDK_LIB_DIR ${hiprt_sdk_SOURCE_DIR}/hiprt/win)
+    # Use system-installed HIPRT SDK from ROCm (preferred for matching ROCm version).
+    # Falls back to downloading HIPRT 3.0 SDK if system HIPRT is not found.
+    set(LUISA_COMPUTE_USE_SYSTEM_HIPRT OFF)
+
+    # Check for system HIPRT (installed with ROCm, e.g. /opt/rocm/include/hiprt)
+    find_path(LUISA_COMPUTE_HIPRT_SYSTEM_INCLUDE_DIR
+            NAMES hiprt/hiprt.h
+            PATHS /opt/rocm/include
+            NO_DEFAULT_PATH)
+    if (LUISA_COMPUTE_HIPRT_SYSTEM_INCLUDE_DIR)
+        # System HIPRT headers found; now find the library
+        find_library(LUISA_COMPUTE_HIPRT_SYSTEM_LIB
+                NAMES hiprt0300164 hiprt64
+                PATHS /opt/rocm/lib
+                NO_DEFAULT_PATH)
+        if (LUISA_COMPUTE_HIPRT_SYSTEM_LIB)
+            set(LUISA_COMPUTE_USE_SYSTEM_HIPRT ON)
+            # Include dir is parent of hiprt/ so headers are included as <hiprt/hiprt.h>
+            set(LUISA_COMPUTE_HIPRT_SDK_INCLUDE_DIR ${LUISA_COMPUTE_HIPRT_SYSTEM_INCLUDE_DIR})
+            set(LUISA_COMPUTE_HIPRT_SDK_LIB_DIR /opt/rocm/lib)
+            set(LUISA_COMPUTE_HIPRT_SDK_LIBS ${LUISA_COMPUTE_HIPRT_SYSTEM_LIB})
+            message(STATUS "Using system HIPRT SDK from ROCm:")
+            message(STATUS "  HIPRT include: ${LUISA_COMPUTE_HIPRT_SDK_INCLUDE_DIR}")
+            message(STATUS "  HIPRT library: ${LUISA_COMPUTE_HIPRT_SDK_LIBS}")
+            message(STATUS "  HIPRT lib dir: ${LUISA_COMPUTE_HIPRT_SDK_LIB_DIR}")
+        endif ()
     endif ()
-    file(GLOB LUISA_COMPUTE_HIPRT_SDK_LIBS
-            "${LUISA_COMPUTE_HIPRT_SDK_LIB_DIR}/hiprt*.lib"
-            "${LUISA_COMPUTE_HIPRT_SDK_LIB_DIR}/libhiprt*.so")
-    message(STATUS "HIPRT SDK include directory: ${LUISA_COMPUTE_HIPRT_SDK_INCLUDE_DIR}")
-    message(STATUS "HIPRT SDK library directory: ${LUISA_COMPUTE_HIPRT_SDK_LIB_DIR}")
-    message(STATUS "HIPRT SDK link libraries: ${LUISA_COMPUTE_HIPRT_SDK_LIBS}")
+
+    if (NOT LUISA_COMPUTE_USE_SYSTEM_HIPRT)
+        # Fallback: download HIPRT SDK
+        set(LUISA_COMPUTE_HIPRT_SDK_VERSION "3.0.9ba63f3")
+        set(LUISA_COMPUTE_HIPRT_SDK_DOWNLOAD_URL "https://gpuopen.com/download/hiprtSdk-${LUISA_COMPUTE_HIPRT_SDK_VERSION}.zip")
+        set(LUISA_COMPUTE_HIPRT_SDK_SHA256 "dc1b8bd4842c74d580561449a3342911f7617e1f51ea6541fc3290e3f2e36e89")
+        message(STATUS "System HIPRT not found; downloading HIPRT SDK version ${LUISA_COMPUTE_HIPRT_SDK_VERSION}...")
+        include(FetchContent)
+        FetchContent_Declare(
+                hiprt_sdk
+                URL ${LUISA_COMPUTE_HIPRT_SDK_DOWNLOAD_URL}
+                URL_HASH SHA256=${LUISA_COMPUTE_HIPRT_SDK_SHA256}
+                DOWNLOAD_EXTRACT_TIMESTAMP ON
+        )
+        FetchContent_MakeAvailable(hiprt_sdk)
+        FetchContent_GetProperties(hiprt_sdk)
+        set(LUISA_COMPUTE_HIPRT_SDK_INCLUDE_DIR ${hiprt_sdk_SOURCE_DIR})
+        if (LINUX)
+            set(LUISA_COMPUTE_HIPRT_SDK_LIB_DIR ${hiprt_sdk_SOURCE_DIR}/hiprt/linux64)
+        elseif (WIN32)
+            set(LUISA_COMPUTE_HIPRT_SDK_LIB_DIR ${hiprt_sdk_SOURCE_DIR}/hiprt/win)
+        endif ()
+        file(GLOB LUISA_COMPUTE_HIPRT_SDK_LIBS
+                "${LUISA_COMPUTE_HIPRT_SDK_LIB_DIR}/hiprt*.lib"
+                "${LUISA_COMPUTE_HIPRT_SDK_LIB_DIR}/libhiprt*.so")
+        message(STATUS "HIPRT SDK include directory: ${LUISA_COMPUTE_HIPRT_SDK_INCLUDE_DIR}")
+        message(STATUS "HIPRT SDK library directory: ${LUISA_COMPUTE_HIPRT_SDK_LIB_DIR}")
+        message(STATUS "HIPRT SDK link libraries: ${LUISA_COMPUTE_HIPRT_SDK_LIBS}")
+    endif ()
 
     # link HIPRT SDK
     target_include_directories(luisa-compute-backend-hip PRIVATE ${LUISA_COMPUTE_HIPRT_SDK_INCLUDE_DIR})
@@ -135,11 +165,26 @@ target_link_libraries(luisa-compute-backend-hip PRIVATE
             RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
     # copy HIPRT libraries to binary output directory
-    add_custom_command(TARGET luisa-compute-backend-hip POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${LUISA_COMPUTE_HIPRT_SDK_LIB_DIR}
-            $<TARGET_FILE_DIR:luisa-compute-backend-hip>
-            DEPENDS ${LUISA_COMPUTE_HIPRT_SDK_LIBS})
+    if (LUISA_COMPUTE_USE_SYSTEM_HIPRT)
+        # For system HIPRT, copy the specific runtime files needed
+        file(GLOB LUISA_COMPUTE_HIPRT_RUNTIME_FILES
+                "${LUISA_COMPUTE_HIPRT_SDK_LIB_DIR}/libhiprt*.so"
+                "${LUISA_COMPUTE_HIPRT_SDK_LIB_DIR}/hiprt*.hipfb"
+                "${LUISA_COMPUTE_HIPRT_SDK_LIB_DIR}/hiprt*_lib_linux.bc"
+                "${LUISA_COMPUTE_HIPRT_SDK_LIB_DIR}/oro_compiled_kernels.hipfb")
+        foreach (HIPRT_FILE ${LUISA_COMPUTE_HIPRT_RUNTIME_FILES})
+            add_custom_command(TARGET luisa-compute-backend-hip POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    ${HIPRT_FILE}
+                    $<TARGET_FILE_DIR:luisa-compute-backend-hip>)
+        endforeach ()
+    else ()
+        add_custom_command(TARGET luisa-compute-backend-hip POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_directory
+                ${LUISA_COMPUTE_HIPRT_SDK_LIB_DIR}
+                $<TARGET_FILE_DIR:luisa-compute-backend-hip>
+                DEPENDS ${LUISA_COMPUTE_HIPRT_SDK_LIBS})
+    endif ()
 
 elseif (NOT LUISA_COMPUTE_CHECK_BACKEND_DEPENDENCIES)
     message(FATAL_ERROR "HIP not found. The HIP backend will not be built.")

@@ -3,7 +3,29 @@ luisa_compute_link_llvm_into_backend(hip
         DEFINITIONS LUISA_COMPUTE_ENABLE_LLVM=1)
 if (LUISA_COMPUTE_HIP_LINKED_LLVM)
     message(STATUS "Linking LLVM AMDGPU into the HIP backend")
+    # find AMD OCML device library bitcode
+    set(HIP_OCML_SEARCH_PATHS
+            /opt/rocm/amdgcn/bitcode
+            $ENV{ROCM_PATH}/amdgcn/bitcode
+    )
+    find_file(HIP_OCML_FILE NAMES ocml.bc HINTS ${HIP_OCML_SEARCH_PATHS} NO_DEFAULT_PATH)
+    if (HIP_OCML_FILE)
+        message(STATUS "Found AMD OCML: ${HIP_OCML_FILE}")
+    else ()
+        message(FATAL_ERROR "Could not find AMD OCML (ocml.bc) in ${HIP_OCML_SEARCH_PATHS}")
+    endif ()
+    # use luisa-embed-device-lib to embed OCML bitcode
+    add_custom_target(luisa-compute-backend-hip-embed-ocml
+            COMMAND $<TARGET_FILE:luisa_embed_device_lib> ${HIP_OCML_FILE} --unsigned --prefix luisa_compute_hip_ -o hip_codegen_llvm_device_bitcode.cpp -h hip_codegen_llvm_device_bitcode.h
+            BYPRODUCTS ${CMAKE_CURRENT_LIST_DIR}/hip_codegen_llvm_device_bitcode.cpp ${CMAKE_CURRENT_LIST_DIR}/hip_codegen_llvm_device_bitcode.h
+            DEPENDS luisa_embed_device_lib ${CMAKE_CURRENT_LIST_FILE}
+            SOURCES ${HIP_OCML_FILE}
+            WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
+            COMMENT "Embedding AMD OCML bitcode..."
+            VERBATIM)
+    add_dependencies(luisa-compute-backend-hip luisa-compute-backend-hip-embed-ocml)
     target_sources(luisa-compute-backend-hip PRIVATE
+            hip_codegen_llvm_device_bitcode.cpp hip_codegen_llvm_device_bitcode.h
             hip_codegen_llvm.h
             hip_codegen_llvm.cpp
             hip_codegen_llvm_impl.h
