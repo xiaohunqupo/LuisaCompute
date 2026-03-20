@@ -97,9 +97,23 @@ HIPDevice::HIPDevice(Context &&ctx, const DeviceConfig *config) noexcept
     LUISA_CHECK_HIPRT(hiprtCreateContext(HIPRT_API_VERSION, hiprt_ctx_input, _hiprt_context));
     LUISA_CHECK_HIPRT(hiprtSetLogLevel(_hiprt_context,
                                        static_cast<hiprtLogLevel>(hiprtLogLevelInfo | hiprtLogLevelWarn | hiprtLogLevelError)));
+
+    // create global stack buffer for HIPRT traversal (LDS-backed, avoids scratch memory)
+    hiprtGlobalStackBufferInput stack_input{};
+    stack_input.type = hiprtStackTypeGlobal;
+    stack_input.entryType = hiprtStackEntryTypeInteger;
+    stack_input.stackSize = 64u;
+    // threadCount determines global stack buffer allocation:
+    // size = stackSize * threadCount * sizeof(uint32_t)
+    // Use max expected dispatch size. 2048*2048 covers typical RT renders.
+    stack_input.threadCount = 2048u * 2048u;
+    LUISA_CHECK_HIPRT(hiprtCreateGlobalStackBuffer(_hiprt_context, stack_input, _hiprt_global_stack_buffer));
+    LUISA_INFO("Created HIPRT global stack buffer (stackSize={}, threadCount={}).",
+               stack_input.stackSize, stack_input.threadCount);
 }
 
 HIPDevice::~HIPDevice() noexcept {
+    LUISA_CHECK_HIPRT(hiprtDestroyGlobalStackBuffer(_hiprt_context, _hiprt_global_stack_buffer));
     LUISA_CHECK_HIPRT(hiprtDestroyContext(_hiprt_context));
 }
 
@@ -381,6 +395,7 @@ ShaderCreationInfo HIPDevice::create_shader(const ShaderOption &option, Function
         .opt_level = HIPCodegenLLVMConfig::OptLevel::LEVEL_AGGRESSIVE,
         .enable_fast_math = option.enable_fast_math,
         .enable_debug_info = option.enable_debug_info,
+        .requires_ray_tracing = kernel.requires_raytracing(),
     };
 
     auto code = hip_codegen_llvm(*xir_module, config);

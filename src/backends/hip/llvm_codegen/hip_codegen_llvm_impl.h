@@ -47,6 +47,8 @@ public:
         llvm::StructType *llvm_type;
         std::vector<size_t> argument_indices;
         size_t dispatch_size_and_kernel_id_index;
+        size_t rt_global_stack_buffer_index{0};
+        bool has_rt_global_stack_buffer{false};
     };
 
     using IB = llvm::IRBuilder<>;
@@ -57,6 +59,10 @@ public:
         llvm::BasicBlock *llvm_entry_block;
         llvm::Value *llvm_dispatch_size{nullptr};
         llvm::Value *llvm_kernel_id{nullptr};
+        // RT global stack buffer fields (only set for RT-enabled kernels/callables)
+        llvm::Value *llvm_rt_stack_size{nullptr};
+        llvm::Value *llvm_rt_stack_count{nullptr};
+        llvm::Value *llvm_rt_stack_data{nullptr};
         llvm::DenseMap<const xir::Value *, llvm::Value *> local_values;
         std::vector<const xir::PhiInst *> pending_phi_nodes;
 
@@ -302,8 +308,8 @@ private:
     [[nodiscard]] llvm::Value *_load_accel_affine_matrix(IB &b, llvm::Value *affine_ptr) noexcept;
     static void _store_accel_affine_matrix(IB &b, llvm::Value *affine_ptr, llvm::Value *matrix) noexcept;
     void _set_accel_instance_opacity(IB &b, llvm::Value *accel, llvm::Value *instance_index, llvm::Value *is_opaque) noexcept;
-    [[nodiscard]] llvm::Value *_accel_trace_closest(IB &b, llvm::Value *accel, llvm::Value *ray, llvm::Value *mask) noexcept;
-    [[nodiscard]] llvm::Value *_accel_trace_any(IB &b, llvm::Value *accel, llvm::Value *ray, llvm::Value *mask) noexcept;
+    [[nodiscard]] llvm::Value *_accel_trace_closest(IB &b, const FunctionContext &func_ctx, llvm::Value *accel, llvm::Value *ray, llvm::Value *mask) noexcept;
+    [[nodiscard]] llvm::Value *_accel_trace_any(IB &b, const FunctionContext &func_ctx, llvm::Value *accel, llvm::Value *ray, llvm::Value *mask) noexcept;
 
     [[nodiscard]] llvm::Value *_translate_cast_inst(IB &b, FunctionContext &func_ctx, const xir::CastInst *inst) noexcept;
 

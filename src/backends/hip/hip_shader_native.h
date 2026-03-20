@@ -19,6 +19,7 @@ private:
     luisa::string _entry;
     uint _block_size[3];
     luisa::vector<ShaderDispatchCommand::Argument> _bound_arguments;
+    HIPDevice *_device{nullptr};
     bool _is_rt{false};
 
 private:

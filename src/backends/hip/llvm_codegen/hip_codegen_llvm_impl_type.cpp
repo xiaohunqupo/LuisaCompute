@@ -168,11 +168,25 @@ const HIPCodegenLLVMImpl::KernelArgumentStruct *HIPCodegenLLVMImpl::_get_kernel_
     auto dispatch_size_and_kernel_id_index = llvm_arg_members.size();
     auto llvm_i32x4_type = llvm::ArrayType::get(llvm::Type::getInt32Ty(_llvm_context), 4);
     llvm_arg_members.emplace_back(llvm_i32x4_type);
+    auto rt_global_stack_buffer_index = static_cast<size_t>(0u);
+    // TEMPORARILY DISABLED for firefly debugging: do NOT add RT stack fields to the kernel arg struct.
+    // The RT stack data will be passed as constants instead.
+    auto has_rt_global_stack_buffer = _rt_analysis.uses_ray_tracing;
+    if (has_rt_global_stack_buffer) {
+        rt_global_stack_buffer_index = llvm_arg_members.size();
+        auto llvm_i32_type = llvm::Type::getInt32Ty(_llvm_context);
+        auto generic_ptr = llvm::PointerType::get(_llvm_context, 0);
+        llvm_arg_members.emplace_back(llvm_i32_type);// stack_size
+        llvm_arg_members.emplace_back(llvm_i32_type);// stack_count
+        llvm_arg_members.emplace_back(generic_ptr);  // stack_data
+    }
     auto llvm_arg_struct_type = llvm::StructType::create(_llvm_context, llvm_arg_members, "kernel.params.struct");
     auto kernel_arg_struct = luisa::make_unique<KernelArgumentStruct>(KernelArgumentStruct{
         .llvm_type = llvm_arg_struct_type,
         .argument_indices = std::move(llvm_arg_member_indices),
         .dispatch_size_and_kernel_id_index = dispatch_size_and_kernel_id_index,
+        .rt_global_stack_buffer_index = rt_global_stack_buffer_index,
+        .has_rt_global_stack_buffer = has_rt_global_stack_buffer,
     });
     auto [iter, success] = _kernel_arg_struct_types.try_emplace(func, std::move(kernel_arg_struct));
     LUISA_ASSERT(success, "Failed to insert kernel argument struct.");

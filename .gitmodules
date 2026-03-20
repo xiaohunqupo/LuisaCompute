@@ -32,3 +32,6 @@
 [submodule "src/ext/yyjson"]
 	path = src/ext/yyjson
 	url = https://github.com/ibireme/yyjson.git
+[submodule "src/ext/HIPRT"]
+	path = src/ext/HIPRT
+	url = https://github.com/GPUOpen-LibrariesAndSDKs/HIPRT.git
