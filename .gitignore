@@ -1,4 +1,8 @@
 
+# Test-generated images
+test_*.png
+result.png
+sdf-renderer.png
 
 # Created by .ignore support plugin (hsz.mobi)
 ### Windows template
