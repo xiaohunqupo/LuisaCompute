@@ -265,8 +265,9 @@ llvm::Function *HIPCodegenLLVMImpl::_get_texture2d_read_function(llvm::VectorTyp
         llvm_switch->addCase(b.getInt64(luisa::to_underlying(storage)), llvm_case_block);
         b.SetInsertPoint(llvm_case_block);
 
-        auto llvm_ptr = b.CreateIntToPtr(llvm_handle, llvm::PointerType::get(_llvm_context, 0), "rsrc.ptr");
-        auto llvm_rsrc = b.CreateLoad(llvm_v8i32_type, llvm_ptr, "rsrc");
+        // Image descriptors must be loaded from constant address space (4) on AMDGPU
+        auto llvm_const_ptr = b.CreateIntToPtr(llvm_handle, llvm::PointerType::get(_llvm_context, amdgpu_address_space_constant), "rsrc.ptr");
+        auto llvm_rsrc = b.CreateLoad(llvm_v8i32_type, llvm_const_ptr, "rsrc");
 
         auto llvm_raw = b.CreateIntrinsic(
             llvm::Intrinsic::amdgcn_image_load_2d,
@@ -396,8 +397,8 @@ llvm::Function *HIPCodegenLLVMImpl::_get_texture2d_write_function(llvm::VectorTy
             llvm_data = llvm_dst;
         }
 
-        auto llvm_ptr = b.CreateIntToPtr(llvm_handle, llvm::PointerType::get(_llvm_context, 0), "rsrc.ptr");
-        auto llvm_rsrc = b.CreateLoad(llvm_v8i32_type, llvm_ptr, "rsrc");
+        auto llvm_const_ptr = b.CreateIntToPtr(llvm_handle, llvm::PointerType::get(_llvm_context, amdgpu_address_space_constant), "rsrc.ptr");
+        auto llvm_rsrc = b.CreateLoad(llvm_v8i32_type, llvm_const_ptr, "rsrc");
 
         b.CreateIntrinsic(
             llvm::Intrinsic::amdgcn_image_store_2d,
@@ -430,11 +431,210 @@ llvm::Function *HIPCodegenLLVMImpl::_get_texture2d_write_function(llvm::VectorTy
 }
 
 llvm::Function *HIPCodegenLLVMImpl::_get_texture3d_read_function(llvm::VectorType *llvm_value_type) noexcept {
-    LUISA_NOT_IMPLEMENTED("Texture 3D read not implemented for HIP.");
+    auto name = fmt::format("luisa.hip.texture.3d.read.{}", _to_string(llvm_value_type->getElementType()));
+    if (auto llvm_func = _llvm_module->getFunction(name)) { return llvm_func; }
+
+    auto llvm_i64_type = llvm::Type::getInt64Ty(_llvm_context);
+    auto llvm_i32_type = llvm::Type::getInt32Ty(_llvm_context);
+    auto llvm_i16_type = llvm::Type::getInt16Ty(_llvm_context);
+    auto llvm_i8_type = llvm::Type::getInt8Ty(_llvm_context);
+    auto llvm_f32_type = llvm::Type::getFloatTy(_llvm_context);
+    auto llvm_f16_type = llvm::Type::getHalfTy(_llvm_context);
+    auto llvm_coord_type = llvm::FixedVectorType::get(llvm_i32_type, 3);
+    auto llvm_v4f32_type = llvm::FixedVectorType::get(llvm_f32_type, 4);
+    auto llvm_v8i32_type = llvm::FixedVectorType::get(llvm_i32_type, 8);
+
+    auto llvm_func_type = llvm::FunctionType::get(
+        llvm_value_type, {llvm_i64_type, llvm_i64_type, llvm_coord_type}, false);
+    auto llvm_func = llvm::Function::Create(llvm_func_type, llvm::Function::PrivateLinkage, name, *_llvm_module);
+    llvm_func->addFnAttr(llvm::Attribute::AlwaysInline);
+
+    auto llvm_entry = llvm::BasicBlock::Create(_llvm_context, "entry", llvm_func);
+    IB b{llvm_entry};
+
+    auto llvm_handle = llvm_func->getArg(0);
+    llvm_handle->setName("surface.handle");
+    auto llvm_storage = llvm_func->getArg(1);
+    llvm_storage->setName("surface.storage");
+    auto llvm_coord = llvm_func->getArg(2);
+    llvm_coord->setName("coord");
+
+    auto llvm_coord_x = b.CreateExtractElement(llvm_coord, b.getInt64(0), "coord.x");
+    auto llvm_coord_y = b.CreateExtractElement(llvm_coord, b.getInt64(1), "coord.y");
+    auto llvm_coord_z = b.CreateExtractElement(llvm_coord, b.getInt64(2), "coord.z");
+
+    auto llvm_default_block = llvm::BasicBlock::Create(_llvm_context, "switch.default", llvm_func);
+    auto llvm_switch = b.CreateSwitch(llvm_storage, llvm_default_block, 16);
+
+    auto create_case = [&](PixelStorage storage, llvm::Type *llvm_channel_type) noexcept {
+        auto llvm_case_block = llvm::BasicBlock::Create(_llvm_context, fmt::format("switch.case.{}", luisa::to_string(storage)), llvm_func);
+        llvm_switch->addCase(b.getInt64(luisa::to_underlying(storage)), llvm_case_block);
+        b.SetInsertPoint(llvm_case_block);
+
+        // Image descriptors must be loaded from constant address space (4) on AMDGPU
+        auto llvm_const_ptr = b.CreateIntToPtr(llvm_handle, llvm::PointerType::get(_llvm_context, amdgpu_address_space_constant), "rsrc.ptr");
+        auto llvm_rsrc = b.CreateLoad(llvm_v8i32_type, llvm_const_ptr, "rsrc");
+
+        auto llvm_raw = b.CreateIntrinsic(
+            llvm::Intrinsic::amdgcn_image_load_3d,
+            {llvm_v4f32_type, llvm_i32_type, llvm_v8i32_type},
+            {b.getInt32(15), llvm_coord_x, llvm_coord_y, llvm_coord_z, llvm_rsrc, b.getInt32(0), b.getInt32(0)});
+
+        auto channel_count = pixel_storage_channel_count(storage);
+        LUISA_DEBUG_ASSERT(channel_count == 1 || channel_count == 2 || channel_count == 4);
+
+        llvm::Value *llvm_src;
+        if (llvm_channel_type->isIntegerTy()) {
+            auto llvm_v4i32_type = llvm::FixedVectorType::get(llvm_i32_type, 4);
+            auto llvm_raw_i32 = b.CreateBitCast(llvm_raw, llvm_v4i32_type, "raw.i32");
+            auto llvm_src_type = llvm::FixedVectorType::get(llvm_channel_type, 4);
+            llvm_src = static_cast<llvm::Value *>(llvm::Constant::getNullValue(llvm_src_type));
+            for (auto i = 0u; i < channel_count; i++) {
+                auto llvm_channel = b.CreateExtractElement(llvm_raw_i32, static_cast<uint64_t>(i));
+                llvm_channel = b.CreateTrunc(llvm_channel, llvm_channel_type);
+                llvm_src = b.CreateInsertElement(llvm_src, llvm_channel, static_cast<uint64_t>(i));
+            }
+        } else if (llvm_channel_type->isHalfTy()) {
+            auto llvm_src_type = llvm::FixedVectorType::get(llvm_f16_type, 4);
+            llvm_src = static_cast<llvm::Value *>(llvm::Constant::getNullValue(llvm_src_type));
+            for (auto i = 0u; i < channel_count; i++) {
+                auto llvm_channel = b.CreateExtractElement(llvm_raw, static_cast<uint64_t>(i));
+                llvm_channel = b.CreateFPTrunc(llvm_channel, llvm_f16_type);
+                llvm_src = b.CreateInsertElement(llvm_src, llvm_channel, static_cast<uint64_t>(i));
+            }
+        } else {
+            auto llvm_src_type = llvm::FixedVectorType::get(llvm_f32_type, 4);
+            llvm_src = static_cast<llvm::Value *>(llvm::Constant::getNullValue(llvm_src_type));
+            for (auto i = 0u; i < channel_count; i++) {
+                auto llvm_channel = b.CreateExtractElement(llvm_raw, static_cast<uint64_t>(i));
+                llvm_src = b.CreateInsertElement(llvm_src, llvm_channel, static_cast<uint64_t>(i));
+            }
+        }
+
+        auto llvm_dst = _texel_cast(b, llvm_src, llvm_value_type);
+        b.CreateRet(llvm_dst);
+    };
+
+    create_case(PixelStorage::BYTE1, llvm_i8_type);
+    create_case(PixelStorage::BYTE2, llvm_i8_type);
+    create_case(PixelStorage::BYTE4, llvm_i8_type);
+    create_case(PixelStorage::SHORT1, llvm_i16_type);
+    create_case(PixelStorage::SHORT2, llvm_i16_type);
+    create_case(PixelStorage::SHORT4, llvm_i16_type);
+    create_case(PixelStorage::INT1, llvm_i32_type);
+    create_case(PixelStorage::INT2, llvm_i32_type);
+    create_case(PixelStorage::INT4, llvm_i32_type);
+    create_case(PixelStorage::HALF1, llvm_f16_type);
+    create_case(PixelStorage::HALF2, llvm_f16_type);
+    create_case(PixelStorage::HALF4, llvm_f16_type);
+    create_case(PixelStorage::FLOAT1, llvm_f32_type);
+    create_case(PixelStorage::FLOAT2, llvm_f32_type);
+    create_case(PixelStorage::FLOAT4, llvm_f32_type);
+
+    b.SetInsertPoint(llvm_default_block);
+    b.CreateUnreachable();
+
+    return llvm_func;
 }
 
 llvm::Function *HIPCodegenLLVMImpl::_get_texture3d_write_function(llvm::VectorType *llvm_value_type) noexcept {
-    LUISA_NOT_IMPLEMENTED("Texture 3D write not implemented for HIP.");
+    auto element_type = _to_string(llvm_value_type->getElementType());
+    auto name = fmt::format("luisa.hip.texture.3d.write.{}", element_type);
+    if (auto llvm_func = _llvm_module->getFunction(name)) { return llvm_func; }
+
+    auto llvm_void_type = llvm::Type::getVoidTy(_llvm_context);
+    auto llvm_i64_type = llvm::Type::getInt64Ty(_llvm_context);
+    auto llvm_i32_type = llvm::Type::getInt32Ty(_llvm_context);
+    auto llvm_i16_type = llvm::Type::getInt16Ty(_llvm_context);
+    auto llvm_i8_type = llvm::Type::getInt8Ty(_llvm_context);
+    auto llvm_f32_type = llvm::Type::getFloatTy(_llvm_context);
+    auto llvm_f16_type = llvm::Type::getHalfTy(_llvm_context);
+    auto llvm_coord_type = llvm::FixedVectorType::get(llvm_i32_type, 3);
+    auto llvm_v4f32_type = llvm::FixedVectorType::get(llvm_f32_type, 4);
+    auto llvm_v8i32_type = llvm::FixedVectorType::get(llvm_i32_type, 8);
+
+    auto llvm_func_type = llvm::FunctionType::get(
+        llvm_void_type, {llvm_i64_type, llvm_i64_type, llvm_coord_type, llvm_value_type}, false);
+    auto llvm_func = llvm::Function::Create(llvm_func_type, llvm::Function::PrivateLinkage, name, *_llvm_module);
+    llvm_func->addFnAttr(llvm::Attribute::AlwaysInline);
+
+    auto llvm_entry = llvm::BasicBlock::Create(_llvm_context, "entry", llvm_func);
+    IB b{llvm_entry};
+
+    auto llvm_handle = llvm_func->getArg(0);
+    llvm_handle->setName("surface.handle");
+    auto llvm_storage = llvm_func->getArg(1);
+    llvm_storage->setName("surface.storage");
+    auto llvm_coord = llvm_func->getArg(2);
+    llvm_coord->setName("coord");
+    auto llvm_value = llvm_func->getArg(3);
+    llvm_value->setName("value");
+
+    auto llvm_coord_x = b.CreateExtractElement(llvm_coord, b.getInt64(0), "coord.x");
+    auto llvm_coord_y = b.CreateExtractElement(llvm_coord, b.getInt64(1), "coord.y");
+    auto llvm_coord_z = b.CreateExtractElement(llvm_coord, b.getInt64(2), "coord.z");
+
+    auto llvm_default_block = llvm::BasicBlock::Create(_llvm_context, "switch.default", llvm_func);
+    auto llvm_switch = b.CreateSwitch(llvm_storage, llvm_default_block, 16);
+
+    auto create_case = [&](PixelStorage storage, llvm::Type *llvm_channel_type) noexcept {
+        auto llvm_case_block = llvm::BasicBlock::Create(_llvm_context, fmt::format("switch.case.{}", luisa::to_string(storage)), llvm_func);
+        llvm_switch->addCase(b.getInt64(luisa::to_underlying(storage)), llvm_case_block);
+        b.SetInsertPoint(llvm_case_block);
+
+        auto channel_count = pixel_storage_channel_count(storage);
+        LUISA_DEBUG_ASSERT(channel_count == 1 || channel_count == 2 || channel_count == 4);
+
+        auto llvm_dst_type = llvm::FixedVectorType::get(llvm_channel_type, 4);
+        auto llvm_dst = _texel_cast(b, llvm_value, llvm_dst_type);
+
+        llvm::Value *llvm_data;
+        if (llvm_channel_type->isIntegerTy()) {
+            auto llvm_v4i32_type = llvm::FixedVectorType::get(llvm_i32_type, 4);
+            auto llvm_ext = b.CreateZExt(llvm_dst, llvm_v4i32_type, "ext.i32");
+            llvm_data = b.CreateBitCast(llvm_ext, llvm_v4f32_type, "data.f32");
+        } else if (llvm_channel_type->isHalfTy()) {
+            llvm_data = static_cast<llvm::Value *>(llvm::Constant::getNullValue(llvm_v4f32_type));
+            for (auto i = 0u; i < 4u; i++) {
+                auto llvm_channel = b.CreateExtractElement(llvm_dst, static_cast<uint64_t>(i));
+                llvm_channel = b.CreateFPExt(llvm_channel, llvm_f32_type);
+                llvm_data = b.CreateInsertElement(llvm_data, llvm_channel, static_cast<uint64_t>(i));
+            }
+        } else {
+            llvm_data = llvm_dst;
+        }
+
+        auto llvm_const_ptr = b.CreateIntToPtr(llvm_handle, llvm::PointerType::get(_llvm_context, amdgpu_address_space_constant), "rsrc.ptr");
+        auto llvm_rsrc = b.CreateLoad(llvm_v8i32_type, llvm_const_ptr, "rsrc");
+
+        b.CreateIntrinsic(
+            llvm::Intrinsic::amdgcn_image_store_3d,
+            {llvm_v4f32_type, llvm_i32_type, llvm_v8i32_type},
+            {llvm_data, b.getInt32(15), llvm_coord_x, llvm_coord_y, llvm_coord_z, llvm_rsrc, b.getInt32(0), b.getInt32(0)});
+
+        b.CreateRetVoid();
+    };
+
+    create_case(PixelStorage::BYTE1, llvm_i8_type);
+    create_case(PixelStorage::BYTE2, llvm_i8_type);
+    create_case(PixelStorage::BYTE4, llvm_i8_type);
+    create_case(PixelStorage::SHORT1, llvm_i16_type);
+    create_case(PixelStorage::SHORT2, llvm_i16_type);
+    create_case(PixelStorage::SHORT4, llvm_i16_type);
+    create_case(PixelStorage::INT1, llvm_i32_type);
+    create_case(PixelStorage::INT2, llvm_i32_type);
+    create_case(PixelStorage::INT4, llvm_i32_type);
+    create_case(PixelStorage::HALF1, llvm_f16_type);
+    create_case(PixelStorage::HALF2, llvm_f16_type);
+    create_case(PixelStorage::HALF4, llvm_f16_type);
+    create_case(PixelStorage::FLOAT1, llvm_f32_type);
+    create_case(PixelStorage::FLOAT2, llvm_f32_type);
+    create_case(PixelStorage::FLOAT4, llvm_f32_type);
+
+    b.SetInsertPoint(llvm_default_block);
+    b.CreateUnreachable();
+
+    return llvm_func;
 }
 
 llvm::InlineAsm *HIPCodegenLLVMImpl::_get_inline_asm(std::string_view asm_string, std::string_view constraints, bool has_side_effects) noexcept {

@@ -235,6 +235,19 @@ void HIPShaderNative::_launch(HIPCommandEncoder &encoder, ShaderDispatchCommand 
     auto block_size = make_uint3(_block_size[0], _block_size[1], _block_size[2]);
     auto blocks = (dispatch_size + block_size - 1u) / block_size;
     void *arguments = argument_buffer.data();
+
+    // Increase per-thread stack size for kernels that use dynamic stack
+    // (scratch memory). ROCm 7.2 on gfx1201 has known issues with
+    // default scratch allocation for kernels with .uses_dynamic_stack=true.
+    static std::once_flag stack_limit_flag;
+    std::call_once(stack_limit_flag, [] {
+        auto ret = hipDeviceSetLimit(hipLimitStackSize, 16384u);
+        if (ret != hipSuccess) {
+            LUISA_WARNING("hipDeviceSetLimit(hipLimitStackSize) failed: {}",
+                          hipGetErrorString(ret));
+        }
+    });
+
     LUISA_CHECK_HIP(hipModuleLaunchKernel(
         _function,
         blocks.x, blocks.y, blocks.z,

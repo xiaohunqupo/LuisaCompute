@@ -344,31 +344,31 @@ llvm::Value *HIPCodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionConte
         }
         case xir::ArithmeticOp::ACOS: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-            return call_unary_fp_intrinsic(v, llvm::Intrinsic::acos);
+            return _call_ocml_unary_op(b, "acos", v);
         });
         case xir::ArithmeticOp::ACOSH: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-            return call_acosh(v);
+            return _call_ocml_unary_op(b, "acosh", v);
         });
         case xir::ArithmeticOp::ASIN: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-            return call_unary_fp_intrinsic(v, llvm::Intrinsic::asin);
+            return _call_ocml_unary_op(b, "asin", v);
         });
         case xir::ArithmeticOp::ASINH: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-            return call_asinh(v);
+            return _call_ocml_unary_op(b, "asinh", v);
         });
         case xir::ArithmeticOp::ATAN: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-            return call_unary_fp_intrinsic(v, llvm::Intrinsic::atan);
+            return _call_ocml_unary_op(b, "atan", v);
         });
         case xir::ArithmeticOp::ATAN2: return translate_binary([&](auto y, auto x) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-            return call_binary_fp_intrinsic(y, x, llvm::Intrinsic::atan2);
+            return _call_ocml_binary_op(b, "atan2", y, x);
         });
         case xir::ArithmeticOp::ATANH: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-            return call_atanh(v);
+            return _call_ocml_unary_op(b, "atanh", v);
         });
         case xir::ArithmeticOp::COS: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
@@ -376,7 +376,7 @@ llvm::Value *HIPCodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionConte
         });
         case xir::ArithmeticOp::COSH: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-            return call_unary_fp_intrinsic(v, llvm::Intrinsic::cosh);
+            return _call_ocml_unary_op(b, "cosh", v);
         });
         case xir::ArithmeticOp::SIN: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
@@ -384,15 +384,15 @@ llvm::Value *HIPCodegenLLVMImpl::_translate_arithmetic_inst(IB &b, FunctionConte
         });
         case xir::ArithmeticOp::SINH: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-            return call_unary_fp_intrinsic(v, llvm::Intrinsic::sinh);
+            return _call_ocml_unary_op(b, "sinh", v);
         });
         case xir::ArithmeticOp::TAN: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-            return call_unary_fp_intrinsic(v, llvm::Intrinsic::tan);
+            return _call_ocml_unary_op(b, "tan", v);
         });
         case xir::ArithmeticOp::TANH: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
-            return call_unary_fp_intrinsic(v, llvm::Intrinsic::tanh);
+            return _call_ocml_unary_op(b, "tanh", v);
         });
         case xir::ArithmeticOp::EXP: return translate_unary([&](auto v) noexcept {
             LUISA_DEBUG_ASSERT(inst->type()->is_float_or_float_vector());
@@ -910,6 +910,69 @@ llvm::Value *HIPCodegenLLVMImpl::_translate_extract(IB &b, FunctionContext &func
     };
     auto static_index = static_cast<unsigned>(evaluate_constant(index));
     return b.CreateExtractValue(llvm_src, static_index);
+}
+
+namespace detail {
+
+[[nodiscard]] llvm::Function *find_ocml_function(llvm::Module &m, llvm::StringRef op_name,
+                                                 llvm::Type *t, bool enable_fast_math) noexcept {
+    auto suffix = t->isDoubleTy() ? "_f64" : t->isHalfTy() ? "_f16" :
+                                                             "_f32";
+    auto ocml_name = fmt::format("__ocml_{}{}", std::string_view{op_name}, suffix);
+    auto op = m.getFunction(ocml_name);
+    LUISA_ASSERT(op != nullptr, "OCML function {} not found.", ocml_name);
+    return op;
+}
+
+}// namespace detail
+
+llvm::Value *HIPCodegenLLVMImpl::_call_ocml_unary_op(IB &b, llvm::StringRef op_name, llvm::Value *llvm_value) const noexcept {
+    auto llvm_scalar_t = llvm_value->getType()->getScalarType();
+    auto op = detail::find_ocml_function(*_llvm_module, op_name, llvm_scalar_t, _config.enable_fast_math);
+    auto should_cast_to_float = !llvm_scalar_t->isFloatTy() && !llvm_scalar_t->isDoubleTy();
+    auto call_scalar = [&](llvm::Value *llvm_elem) noexcept {
+        if (should_cast_to_float) { llvm_elem = _safe_fp_cast(b, llvm_elem, llvm::Type::getFloatTy(b.getContext())); }
+        auto llvm_res_elem = static_cast<llvm::Value *>(b.CreateCall(op, {llvm_elem}));
+        if (should_cast_to_float) { llvm_res_elem = _safe_fp_cast(b, llvm_res_elem, llvm_scalar_t); }
+        return llvm_res_elem;
+    };
+    if (auto vt = llvm::dyn_cast<llvm::VectorType>(llvm_value->getType())) {
+        auto dim = vt->getElementCount().getFixedValue();
+        auto llvm_result = static_cast<llvm::Value *>(llvm::PoisonValue::get(llvm_value->getType()));
+        for (auto i = 0; i < dim; i++) {
+            auto llvm_elem = call_scalar(b.CreateExtractElement(llvm_value, i));
+            llvm_result = b.CreateInsertElement(llvm_result, llvm_elem, i);
+        }
+        return llvm_result;
+    }
+    return call_scalar(llvm_value);
+}
+
+llvm::Value *HIPCodegenLLVMImpl::_call_ocml_binary_op(IB &b, llvm::StringRef op_name, llvm::Value *llvm_lhs, llvm::Value *llvm_rhs) noexcept {
+    auto llvm_lhs_scalar_t = llvm_lhs->getType()->getScalarType();
+    auto llvm_rhs_scalar_t = llvm_rhs->getType()->getScalarType();
+    auto op = detail::find_ocml_function(*_llvm_module, op_name, llvm_lhs_scalar_t, _config.enable_fast_math);
+    auto lhs_should_cast_to_float = llvm_lhs_scalar_t->isFloatingPointTy() && !llvm_lhs_scalar_t->isFloatTy() && !llvm_lhs_scalar_t->isDoubleTy();
+    auto rhs_should_cast_to_float = llvm_rhs_scalar_t->isFloatingPointTy() && !llvm_rhs_scalar_t->isFloatTy() && !llvm_rhs_scalar_t->isDoubleTy();
+    auto call_scalar = [&](llvm::Value *llvm_lhs_elem, llvm::Value *llvm_rhs_elem) noexcept {
+        if (lhs_should_cast_to_float) { llvm_lhs_elem = _safe_fp_cast(b, llvm_lhs_elem, llvm::Type::getFloatTy(b.getContext())); }
+        if (rhs_should_cast_to_float) { llvm_rhs_elem = _safe_fp_cast(b, llvm_rhs_elem, llvm::Type::getFloatTy(b.getContext())); }
+        auto llvm_res_elem = static_cast<llvm::Value *>(b.CreateCall(op, {llvm_lhs_elem, llvm_rhs_elem}));
+        if (lhs_should_cast_to_float) { llvm_res_elem = _safe_fp_cast(b, llvm_res_elem, llvm_lhs_scalar_t); }
+        return llvm_res_elem;
+    };
+    if (auto vt = llvm::dyn_cast<llvm::VectorType>(llvm_lhs->getType())) {
+        auto dim = vt->getElementCount().getFixedValue();
+        auto llvm_result = static_cast<llvm::Value *>(llvm::PoisonValue::get(vt));
+        for (auto i = 0; i < dim; i++) {
+            auto llvm_lhs_elem = b.CreateExtractElement(llvm_lhs, i);
+            auto llvm_rhs_elem = b.CreateExtractElement(llvm_rhs, i);
+            auto llvm_elem = call_scalar(llvm_lhs_elem, llvm_rhs_elem);
+            llvm_result = b.CreateInsertElement(llvm_result, llvm_elem, i);
+        }
+        return llvm_result;
+    }
+    return call_scalar(llvm_lhs, llvm_rhs);
 }
 
 }// namespace luisa::compute::hip

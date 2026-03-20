@@ -278,6 +278,8 @@ private:
     [[nodiscard]] llvm::Value *_translate_atomic_inst(IB &b, FunctionContext &func_ctx, const xir::AtomicInst *inst) noexcept;
 
     [[nodiscard]] llvm::Value *_translate_arithmetic_inst(IB &b, FunctionContext &func_ctx, const xir::ArithmeticInst *inst) noexcept;
+    [[nodiscard]] llvm::Value *_call_ocml_unary_op(IB &b, llvm::StringRef op_name, llvm::Value *llvm_value) const noexcept;
+    [[nodiscard]] llvm::Value *_call_ocml_binary_op(IB &b, llvm::StringRef op_name, llvm::Value *llvm_lhs, llvm::Value *llvm_rhs) noexcept;
     [[nodiscard]] llvm::Value *_translate_outer_product(IB &b, llvm::Value *lhs, llvm::Value *rhs) noexcept;
     [[nodiscard]] llvm::Value *_translate_matrix_multiply(IB &b, llvm::Value *lhs, llvm::Value *rhs) noexcept;
     [[nodiscard]] llvm::Value *_translate_matrix_determinant(IB &b, llvm::Value *m) noexcept;
