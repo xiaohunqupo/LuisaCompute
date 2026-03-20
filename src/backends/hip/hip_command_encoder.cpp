@@ -7,9 +7,12 @@
 #include "hip_check.h"
 #include "hip_buffer.h"
 #include "hip_texture.h"
+#include "hip_bindless_array.h"
 #include "hip_command_encoder.h"
+#include "hip_mesh.h"
+#include "hip_accel.h"
+#include "hip_shader.h"
 
-#include "hip_buffer.h"
 #include "luisa/core/logging.h"
 
 namespace luisa::compute::hip {
@@ -132,6 +135,7 @@ void HIPCommandEncoder::visit(BufferToTextureCopyCommand *command) noexcept {
 }
 
 void HIPCommandEncoder::visit(ShaderDispatchCommand *command) noexcept {
+    reinterpret_cast<HIPShader *>(command->handle())->launch(*this, command);
 }
 
 void HIPCommandEncoder::visit(TextureUploadCommand *command) noexcept {
@@ -230,10 +234,14 @@ void HIPCommandEncoder::visit(TextureToBufferCopyCommand *command) noexcept {
     LUISA_CHECK_HIP(hipDrvMemcpy3DAsync(&copy, _stream->handle()));
 }
 
-void HIPCommandEncoder::visit(AccelBuildCommand *) noexcept {
+void HIPCommandEncoder::visit(AccelBuildCommand *command) noexcept {
+    auto accel = reinterpret_cast<HIPAccel *>(command->handle());
+    accel->build(*this, command);
 }
 
-void HIPCommandEncoder::visit(MeshBuildCommand *) noexcept {
+void HIPCommandEncoder::visit(MeshBuildCommand *command) noexcept {
+    auto mesh = reinterpret_cast<HIPMesh *>(command->handle());
+    mesh->build(*this, command);
 }
 
 void HIPCommandEncoder::visit(CurveBuildCommand *) noexcept {
@@ -245,7 +253,9 @@ void HIPCommandEncoder::visit(ProceduralPrimitiveBuildCommand *) noexcept {
 void HIPCommandEncoder::visit(MotionInstanceBuildCommand *) noexcept {
 }
 
-void HIPCommandEncoder::visit(BindlessArrayUpdateCommand *) noexcept {
+void HIPCommandEncoder::visit(BindlessArrayUpdateCommand *command) noexcept {
+    auto array = reinterpret_cast<HIPBindlessArray *>(command->handle());
+    array->update(*this, command);
 }
 
 void HIPCommandEncoder::visit(CustomCommand *) noexcept {

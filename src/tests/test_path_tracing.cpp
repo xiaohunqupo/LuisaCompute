@@ -7,7 +7,11 @@
 // - Cosine-weighted hemisphere sampling for diffuse BSDF
 // - Progressive rendering with real-time display
 
+#include <cstdlib>
 #include <iostream>
+#include <memory>
+#include <optional>
+#include <string_view>
 #include <luisa/backends/ext/dx_hdr_ext.hpp>
 #include <stb/stb_image_write.h>
 
@@ -43,9 +47,21 @@ int main(int argc, char *argv[]) {
 
     Context context{argv[0]};
     if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
+        LUISA_INFO("Usage: {} <backend> [--offline] [--spp N]. <backend>: cuda, dx, cpu, metal", argv[0]);
         exit(1);
     }
+
+    // Parse optional --spp and --offline flags
+    uint user_spp = 0u;
+    bool force_offline = false;
+    for (int i = 2; i < argc; i++) {
+        if (std::string_view{argv[i]} == "--offline") {
+            force_offline = true;
+        } else if (std::string_view{argv[i]} == "--spp" && i + 1 < argc) {
+            user_spp = static_cast<uint>(std::atoi(argv[++i]));
+        }
+    }
+
     Device device = context.create_device(argv[1]);
 
     // Load the Cornell Box scene from embedded OBJ string
@@ -76,7 +92,7 @@ int main(int argc, char *argv[]) {
 
     // Create bindless array for accessing triangle data in shaders
     BindlessArray heap = device.create_bindless_array(65535);
-    Stream stream = device.create_stream(StreamTag::GRAPHICS);
+    Stream stream = device.create_stream(force_offline ? StreamTag::COMPUTE : StreamTag::GRAPHICS);
     Buffer<float3> vertex_buffer = device.create_buffer<float3>(vertices.size());
     stream << vertex_buffer.copy_from(vertices.data());
 
@@ -211,6 +227,7 @@ int main(int argc, char *argv[]) {
 
     // Adjust samples per dispatch based on backend capabilities
     auto spp_per_dispatch = device.backend_name() == "metal" || device.backend_name() == "cpu" || device.backend_name() == "fallback" ? 1u : 64u;
+    uint total_spp = user_spp > 0u ? user_spp : 1024u;
 
     // Main path tracing kernel
     // Implements unidirectional path tracing with NEE and MIS
@@ -357,44 +374,54 @@ int main(int argc, char *argv[]) {
     luisa::vector<std::array<uint8_t, 4u>> host_image(resolution.x * resolution.y);
 
     Image<uint> seed_image = device.create_image<uint>(PixelStorage::INT1, resolution);
+
     stream << clear_shader(accum_image).dispatch(resolution)
            << make_sampler_shader(seed_image).dispatch(resolution);
 
-    // Setup window and swapchain for real-time display
-    Window window{"path tracing", resolution, false};
-    Swapchain swap_chain = device.create_swapchain(
-        stream,
-        SwapchainOption{
-            .display = window.native_display(),
-            .window = window.native_handle(),
-            .size = make_uint2(resolution),
-            .wants_hdr = false,
-            .wants_vsync = false,
-            .back_buffer_count = 2,
-        });
+    // Setup window and swapchain conditionally
+    std::unique_ptr<Window> window;
+    std::optional<Swapchain> swap_chain;
+    if (!force_offline) {
+        window = std::make_unique<Window>("path tracing", resolution, false);
+        swap_chain.emplace(device.create_swapchain(
+            stream,
+            SwapchainOption{
+                .display = window->native_display(),
+                .window = window->native_handle(),
+                .size = make_uint2(resolution),
+                .wants_hdr = false,
+                .wants_vsync = false,
+                .back_buffer_count = 2,
+            }));
+    }
 
-    Image<float> ldr_image = device.create_image<float>(swap_chain.backend_storage(), resolution);
+    Image<float> ldr_image = device.create_image<float>(
+        (!force_offline && swap_chain.has_value()) ? swap_chain->backend_storage() : PixelStorage::BYTE4,
+        resolution);
     double last_time = 0.0;
     uint frame_count = 0u;
     Clock clock;
 
     // Main render loop
-    while (!window.should_close()) {
+    while (frame_count < total_spp) {
         stream << raytracing_shader(framebuffer, seed_image, accel, resolution)
                       .dispatch(resolution)
                << accumulate_shader(accum_image, framebuffer)
-                      .dispatch(resolution)
-               << hdr2ldr_shader(accum_image, ldr_image, 2.f).dispatch(resolution)
-               << swap_chain.present(ldr_image);
-        window.poll_events();
+                      .dispatch(resolution);
+        if (!force_offline && swap_chain.has_value()) {
+            stream << hdr2ldr_shader(accum_image, ldr_image, 2.f).dispatch(resolution)
+                   << swap_chain->present(ldr_image);
+            if (window->should_close()) { break; }
+            window->poll_events();
+        }
         double dt = clock.toc() - last_time;
         LUISA_INFO("dt = {:.2f}ms ({:.2f} spp/s)", dt, spp_per_dispatch / dt * 1000);
         last_time = clock.toc();
         frame_count += spp_per_dispatch;
     }
-    stream
-        << ldr_image.copy_to(host_image.data())
-        << synchronize();
+    stream << hdr2ldr_shader(accum_image, ldr_image, 2.f).dispatch(resolution)
+           << ldr_image.copy_to(host_image.data())
+           << synchronize();
     LUISA_INFO("FPS: {}", frame_count / clock.toc() * 1000);
     stbi_write_png("test_path_tracing.png", resolution.x, resolution.y, 4, host_image.data(), 0);
 }

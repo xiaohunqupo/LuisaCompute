@@ -20,7 +20,7 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
     Device device = context.create_device(argv[1]);
-    Image<float> device_image = device.create_image<float>(PixelStorage::BYTE4, 1024u, 1024u, 0u);
+    Image<float> device_image = device.create_image<float>(PixelStorage::BYTE4, 1024u, 1024u, 1u);
 
     Callable linear_to_srgb = [](Float4 linear) noexcept {
         auto x = linear.xyz();
