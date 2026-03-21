@@ -54,7 +54,7 @@ private:
     vstd::HashMap<BinaryBlob, Pipeline, PtrHash, PtrEqual> _pipelines;
     VkPipelineCache _pipe_cache{};
     static BinaryBlob _make_pipeline_key(
-        MeshFormat const &mesh_format,
+        luisa::compute::MeshFormat const &mesh_format,
         RasterState const &state,
         VkPipelineVertexInputStateCreateInfo &vertex_input_create_info);
 public:
@@ -72,11 +72,11 @@ public:
     Pipeline create_pipeline(
         luisa::span<Argument::Texture const> rtv_textures,
         Argument::Texture dsv_textures,
-        MeshFormat const &mesh_format,
+        luisa::compute::MeshFormat const &mesh_format,
         RasterState const &state);
     static VkRenderPass create_render_pass(
         Device *device,
-        RasterState const& state,
+        RasterState const &state,
         luisa::span<Argument::Texture const> rtv_textures,
         Argument::Texture dsv_textures);
     ~RasterShader();

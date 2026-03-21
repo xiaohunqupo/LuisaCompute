@@ -29,7 +29,7 @@ public:
         bool use_tex2d_bindless,
         bool use_tex3d_bindless,
         bool use_buffer_bindless,
-        vstd::span<std::pair<vstd::string, Type const *> const> printers);
+        vstd::span<std::pair<vstd::string, luisa::compute::Type const *> const> printers);
     static void serialize_bytecode(
         vstd::span<const hlsl::Property> binds,
         vstd::span<const SavedArgument> saved_args,
@@ -43,7 +43,7 @@ public:
         bool use_tex2d_bindless,
         bool use_tex3d_bindless,
         bool use_buffer_bindless,
-        vstd::span<std::pair<vstd::string, Type const *> const> printers);
+        vstd::span<std::pair<vstd::string, luisa::compute::Type const *> const> printers);
     static void serialize_pso(
         Device *device,
         Shader const *shader,

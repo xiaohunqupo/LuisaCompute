@@ -2728,10 +2728,8 @@ void BlockMetadata::DebugLogAllocation(UINT64 offset, UINT64 size, void *private
         Allocation *allocation = reinterpret_cast<Allocation *>(privateData);
 
         privateData = allocation->GetPrivateData();
-        LPCWSTR name = allocation->GetName();
-
         D3D12MA_DEBUG_LOG(L"UNFREED ALLOCATION; Offset: %llu; Size: %llu; PrivateData: %p; Name: %s",
-                          offset, size, privateData, name ? name : L"D3D12MA_Empty");
+                          offset, size, privateData, allocation->GetName() ? allocation->GetName() : L"D3D12MA_Empty");
     }
 }
 
@@ -8377,10 +8375,6 @@ void Allocation::SetName(LPCWSTR Name) {
 }
 
 void Allocation::ReleaseThis() {
-    if (this == NULL) {
-        return;
-    }
-
     SAFE_RELEASE(m_Resource);
 
     switch (m_PackedData.GetType()) {
@@ -8508,10 +8502,6 @@ void DefragmentationContext::GetStats(DEFRAGMENTATION_STATS *pStats) {
 }
 
 void DefragmentationContext::ReleaseThis() {
-    if (this == NULL) {
-        return;
-    }
-
     D3D12MA_DELETE(m_Pimpl->GetAllocs(), this);
 }
 
@@ -8564,10 +8554,6 @@ HRESULT Pool::BeginDefragmentation(const DEFRAGMENTATION_DESC *pDesc, Defragment
 }
 
 void Pool::ReleaseThis() {
-    if (this == NULL) {
-        return;
-    }
-
     D3D12MA_DELETE(m_Pimpl->GetAllocator()->GetAllocs(), this);
 }
 

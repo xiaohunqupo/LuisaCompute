@@ -181,8 +181,8 @@ void EnhancedBarrierTrackerBackup::UpdateResourceState(Resource const *resPtr, R
         bf.first_time = false;
     } else {
         auto &vec = state.layer_states.get<1>();
-        bool setted = false;
         for (auto idx : vstd::range(vec.size())) {
+            (void)idx;
             auto &i = vec[idx];
             if (!i.level_require_update) continue;
             i.level_require_update = false;
@@ -255,7 +255,6 @@ void EnhancedBarrierTrackerBackup::RestoreState(BarrierCallback *cmdBuffer) {
             }
         } else {
             auto &vec = state.layer_states.get<1>();
-            auto init_state = resPtr->GetInitState();
             auto iter = restoreStates.find(i.first);
             for (auto idx : vstd::range(vec.size())) {
                 auto &i = vec[idx];

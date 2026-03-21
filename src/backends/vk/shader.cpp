@@ -2,8 +2,8 @@
 #include "log.h"
 #include "device.h"
 namespace lc::vk {
-SavedArgument::SavedArgument(Type const *type) {
-    if (luisa::to_underlying(type->tag()) < luisa::to_underlying(Type::Tag::BUFFER)) {
+SavedArgument::SavedArgument(luisa::compute::Type const *type) {
+    if (luisa::to_underlying(type->tag()) < luisa::to_underlying(luisa::compute::Type::Tag::BUFFER)) {
         structSize = type->size();
     }
 }
@@ -16,7 +16,7 @@ Shader::Shader(
     bool use_tex2d_bindless,
     bool use_tex3d_bindless,
     bool use_buffer_bindless,
-    vstd::vector<std::pair<luisa::string, Type const *>> &&printers)
+    vstd::vector<std::pair<luisa::string, luisa::compute::Type const *>> &&printers)
     : Resource{device}, _captured{std::move(captured)}, _saved_arguments(std::move(saved_arguments)),
       _use_tex2d_bindless(use_tex2d_bindless), _use_tex3d_bindless(use_tex3d_bindless), _use_buffer_bindless(use_buffer_bindless), _printers(std::move(printers)) {
     if ((!device->enable_bindless()) && (use_tex2d_bindless || use_tex3d_bindless || use_buffer_bindless)) [[unlikely]] {

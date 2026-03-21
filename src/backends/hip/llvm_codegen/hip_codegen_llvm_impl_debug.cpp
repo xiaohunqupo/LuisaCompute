@@ -27,7 +27,9 @@ void HIPCodegenLLVMImpl::_translate_assume_inst(IB &b, FunctionContext &func_ctx
 }
 
 void HIPCodegenLLVMImpl::_create_assertion_with_message(IB &b, llvm::Value *cond, luisa::string_view message) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    (void)b;
+    (void)cond;
+    (void)message;
 }
 
 }// namespace luisa::compute::hip

@@ -197,8 +197,6 @@ BufferCreationInfo VkCudaInteropImpl::create_interop_buffer(const Type *element,
 #else
     external_memory_info.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
 #endif
-    VkImage image;
-    VkDeviceMemory image_memory;
     size_t element_stride = (element == Type::of<void>() ? 1 : element->size());
     size_t size_bytes = element_stride * elem_count;
     VkBufferCreateInfo buffer_info{
@@ -226,7 +224,7 @@ BufferCreationInfo VkCudaInteropImpl::create_interop_buffer(const Type *element,
     // compute memory requirements
     VkMemoryRequirements mem_requirements;
     vkGetBufferMemoryRequirements(_device->logic_device(), buffer, &mem_requirements);
-    auto buffer_memory_size = mem_requirements.size;
+    [[maybe_unused]] auto buffer_memory_size = mem_requirements.size;
 
 #ifdef LUISA_PLATFORM_WINDOWS
     WindowsSecurityAttributes security_attributes;
@@ -310,7 +308,7 @@ ResourceCreationInfo VkCudaInteropImpl::create_interop_texture(
     // compute memory requirements
     VkMemoryRequirements mem_requirements;
     vkGetImageMemoryRequirements(_device->logic_device(), image, &mem_requirements);
-    auto image_memory_size = mem_requirements.size;
+    [[maybe_unused]] auto image_memory_size = mem_requirements.size;
 
 #ifdef LUISA_PLATFORM_WINDOWS
     WindowsSecurityAttributes security_attributes;

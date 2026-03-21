@@ -2465,9 +2465,6 @@ protected:
 void CodegenUtility::CodegenFunction(Function func, vstd::StringBuilder &result, bool cbufferNonEmpty, bool codegen_self) {
     auto codegenOneFunc = [&](Function func) {
         auto constants = func.constants();
-        if (opt->isSpirv && !constants.empty()) [[unlikely]] {
-            LUISA_ERROR("Constant not supported in vulkan. for some strange driver bug");
-        }
         for (auto &&i : constants) {
             vstd::StringBuilder constValueName;
             if (!GetConstName(i.hash(), i, constValueName)) continue;
@@ -3515,9 +3512,6 @@ void CodegenUtility::OriginToAliased(Type const *t, vstd::StringBuilder &sb) {
     str << aliasedType.first << ' ' << funcName << '(';
     GetTypeName(*t, str, Usage::NONE, false);
     str << " a){\n"sv << aliasedType.first << luisa::format(" r=({})0;\n", aliasedType.first);
-    auto TransformVector = [&](Type const *t, uint idx) {
-
-    };
     if (t->is_array()) {
         str << "for(uint i=0;i<" << luisa::format("{}", t->dimension()) << ";++i){\n";
         if (TypeIsAliased(t->element())) {

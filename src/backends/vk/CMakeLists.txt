@@ -16,7 +16,7 @@ if (LUISA_COMPUTE_ENABLE_VULKAN)
     if (WIN32)
         target_compile_definitions(luisa-compute-backend-vk PRIVATE VK_USE_PLATFORM_WIN32_KHR)
     elseif (UNIX AND NOT APPLE)
-        target_compile_definitions(luisa-compute-backend-vk PRIVATE VK_USE_PLATFORM_XCB_KHR)
+        target_compile_definitions(luisa-compute-backend-vk PRIVATE VK_USE_PLATFORM_XCB_KHR VK_USE_PLATFORM_XLIB_KHR)
         luisa_compute_link_wayland_if_enabled(luisa-compute-backend-vk)
     endif ()
 
@@ -53,5 +53,10 @@ if (LUISA_COMPUTE_ENABLE_VULKAN)
                 or set LUISA_COMPUTE_VK_SDK_DIR to an empty string to let the build script download the SDK for you.")
             endif ()
         endforeach ()
+        # Copy DXC library to runtime output directory
+        add_custom_command(TARGET luisa-compute-backend-vk POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${LUISA_COMPUTE_VK_SDK_DIR}/libdxcompiler.so"
+                "$<TARGET_FILE_DIR:luisa-compute-backend-vk>")
     endif ()
 endif ()

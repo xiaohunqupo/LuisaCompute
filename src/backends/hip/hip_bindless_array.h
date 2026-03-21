@@ -2,8 +2,10 @@
 
 #include <hip/hip_runtime.h>
 
+#include <luisa/core/spin_mutex.h>
 #include <luisa/core/stl.h>
 #include <luisa/runtime/rhi/command.h>
+#include "../common/resource_tracker.h"
 
 namespace luisa::compute::hip {
 
@@ -30,7 +32,11 @@ private:
     hipDeviceptr_t _handle{};
     size_t _capacity{};
     luisa::vector<Slot> _host_slots;
+    luisa::vector<hipTextureObject_t> _tex2d_slots;
+    luisa::vector<hipTextureObject_t> _tex3d_slots;
+    ResourceTracker _texture_tracker;
     luisa::string _name;
+    spin_mutex _mutex;
 
 public:
     explicit HIPBindlessArray(size_t capacity) noexcept;

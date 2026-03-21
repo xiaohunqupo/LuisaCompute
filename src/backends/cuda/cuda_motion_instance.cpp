@@ -68,7 +68,7 @@ void CUDAMotionInstance::build(CUDACommandEncoder &encoder,
                 optix::TraversableHandle child;
                 optix::MotionOptions motionOptions;
                 unsigned int pad[3];
-                [[no_unique_address]] float data[];
+                float data[];
             };
             static_assert(sizeof(MotionTransform) == 32u);
             auto p = reinterpret_cast<MotionTransform *>(view->address());

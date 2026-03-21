@@ -60,9 +60,7 @@ public:
         size_t size;
     };
     bool RequireCompact() const;
-    Buffer const *GetAccelBuffer() const {
-        return accelBuffer.get();
-    }
+    Buffer const *GetAccelBuffer() const;
     BottomAccel(
         Device *device,
         luisa::compute::AccelOption const &option);

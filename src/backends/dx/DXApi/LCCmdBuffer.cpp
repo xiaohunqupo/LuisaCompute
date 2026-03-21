@@ -225,11 +225,9 @@ public:
                     self->stateTracker->Record(
                         BufferView{accel->GetInstBuffer(), 0, accel->GetInstBuffer()->GetByteSize()},
                         read_usage);
-                    if (!accel->GetAccelBuffer()) [[unlikely]] {
-                        LUISA_ERROR("Accel not initialized.");
-                    }
+                    auto accelBuffer = accel->GetAccelBuffer();
                     self->stateTracker->Record(
-                        BufferView{accel->GetAccelBuffer(), 0, accel->GetAccelBuffer()->GetByteSize()},
+                        BufferView{accelBuffer, 0, accelBuffer->GetByteSize()},
                         accel_read_usage);
                 }
             } else {

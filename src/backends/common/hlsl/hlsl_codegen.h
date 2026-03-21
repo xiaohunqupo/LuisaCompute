@@ -22,7 +22,7 @@ struct CodegenResult {
     using Properties = vstd::vector<Property>;
     vstd::StringBuilder result;
     Properties properties;
-    vstd::vector<std::pair<vstd::string, Type const *>> printers;
+    vstd::vector<std::pair<vstd::string, luisa::compute::Type const *>> printers;
     bool useTex2DBindless;
     bool useTex3DBindless;
     bool useBufferBindless;
@@ -102,12 +102,12 @@ public:
         bool isSpirV,
         bool noRegister = false);
     static vstd::string_view ReadInternalHLSLFile(vstd::string_view name);
-    uint AddPrinter(vstd::string_view name, Type const *structType);
+    uint AddPrinter(vstd::string_view name, luisa::compute::Type const *structType);
     vstd::StringBuilder GetNewTempVarName();
-    bool TypeIsAliased(Type const *t) const;
-    bool VectorShouldBeAliased(Type const *t) const;
-    void OriginToAliased(Type const *t, vstd::StringBuilder &sb);
-    void AliasedToOrigin(Type const *t, vstd::StringBuilder &sb);
+    bool TypeIsAliased(luisa::compute::Type const *t) const;
+    bool VectorShouldBeAliased(luisa::compute::Type const *t) const;
+    void OriginToAliased(luisa::compute::Type const *t, vstd::StringBuilder &sb);
+    void AliasedToOrigin(luisa::compute::Type const *t, vstd::StringBuilder &sb);
 };
 class StringStateVisitor final : public StmtVisitor, public ExprVisitor {
 public:

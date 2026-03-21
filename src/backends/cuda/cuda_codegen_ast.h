@@ -44,6 +44,8 @@ private:
     const Type *_motion_srt_type;
 
 private:
+    using ExprVisitor::visit;
+    using StmtVisitor::visit;
     void visit(const Type *type) noexcept override;
     void visit(const UnaryExpr *expr) override;
     void visit(const BinaryExpr *expr) override;

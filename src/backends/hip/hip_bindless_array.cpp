@@ -1,3 +1,5 @@
+#include <mutex>
+
 #include <luisa/core/logging.h>
 #include <luisa/runtime/bindless_array.h>
 
@@ -5,11 +7,16 @@
 #include "hip_buffer.h"
 #include "hip_command_encoder.h"
 #include "hip_bindless_array.h"
+#include "hip_texture.h"
 
 namespace luisa::compute::hip {
 
 HIPBindlessArray::HIPBindlessArray(size_t capacity) noexcept
-    : _capacity{capacity}, _host_slots(capacity, Slot{}) {
+    : _capacity{capacity},
+      _host_slots(capacity, Slot{}),
+      _tex2d_slots(capacity, 0ull),
+      _tex3d_slots(capacity, 0ull),
+      _texture_tracker{capacity} {
     LUISA_CHECK_HIP(hipMalloc(&_handle, capacity * sizeof(Slot)));
     LUISA_CHECK_HIP(hipMemset(_handle, 0, capacity * sizeof(Slot)));
 }
@@ -18,10 +25,16 @@ HIPBindlessArray::~HIPBindlessArray() noexcept {
     if (_handle) {
         LUISA_CHECK_HIP(hipFree(_handle));
     }
+    _texture_tracker.traverse([](auto tex) noexcept {
+        auto tex_obj = reinterpret_cast<hipTextureObject_t>(tex);
+        LUISA_CHECK_HIP(hipTexObjectDestroy(tex_obj));
+    });
 }
 
 void HIPBindlessArray::update(HIPCommandEncoder &encoder,
                               BindlessArrayUpdateCommand *cmd) noexcept {
+
+    std::scoped_lock lock{_mutex};
 
     using Mod = BindlessArrayUpdateCommand::Modification;
     using BufferMod = BindlessArrayUpdateCommand::BufferModification;
@@ -53,11 +66,20 @@ void HIPBindlessArray::update(HIPCommandEncoder &encoder,
 
     auto process_tex2d = [&](size_t slot, const auto &tex) noexcept {
         if (tex.op == Op::EMPLACE) {
-            LUISA_WARNING_WITH_LOCATION(
-                "HIP bindless texture2d emplace not yet implemented.");
-            _host_slots[slot].tex2d = 0u;
+            if (auto t = _tex2d_slots[slot]) {
+                _texture_tracker.release(reinterpret_cast<uint64_t>(t));
+            }
+            auto texture = reinterpret_cast<const HIPTexture *>(tex.handle);
+            auto tex_object = texture->create_texture_object(tex.sampler);
+            _tex2d_slots[slot] = tex_object;
+            _host_slots[slot].tex2d = reinterpret_cast<uint64_t>(tex_object);
+            _texture_tracker.retain(reinterpret_cast<uint64_t>(tex_object));
             dirty_slots.emplace_back(slot);
         } else if (tex.op == Op::REMOVE) {
+            if (auto t = _tex2d_slots[slot]) {
+                _texture_tracker.release(reinterpret_cast<uint64_t>(t));
+            }
+            _tex2d_slots[slot] = 0ull;
             _host_slots[slot].tex2d = 0u;
             dirty_slots.emplace_back(slot);
         }
@@ -65,11 +87,20 @@ void HIPBindlessArray::update(HIPCommandEncoder &encoder,
 
     auto process_tex3d = [&](size_t slot, const auto &tex) noexcept {
         if (tex.op == Op::EMPLACE) {
-            LUISA_WARNING_WITH_LOCATION(
-                "HIP bindless texture3d emplace not yet implemented.");
-            _host_slots[slot].tex3d = 0u;
+            if (auto t = _tex3d_slots[slot]) {
+                _texture_tracker.release(reinterpret_cast<uint64_t>(t));
+            }
+            auto texture = reinterpret_cast<const HIPTexture *>(tex.handle);
+            auto tex_object = texture->create_texture_object(tex.sampler);
+            _tex3d_slots[slot] = tex_object;
+            _host_slots[slot].tex3d = reinterpret_cast<uint64_t>(tex_object);
+            _texture_tracker.retain(reinterpret_cast<uint64_t>(tex_object));
             dirty_slots.emplace_back(slot);
         } else if (tex.op == Op::REMOVE) {
+            if (auto t = _tex3d_slots[slot]) {
+                _texture_tracker.release(reinterpret_cast<uint64_t>(t));
+            }
+            _tex3d_slots[slot] = 0ull;
             _host_slots[slot].tex3d = 0u;
             dirty_slots.emplace_back(slot);
         }
@@ -98,6 +129,11 @@ void HIPBindlessArray::update(HIPCommandEncoder &encoder,
         }
     });
 
+    _texture_tracker.commit([](auto tex) noexcept {
+        auto tex_obj = reinterpret_cast<hipTextureObject_t>(tex);
+        LUISA_CHECK_HIP(hipTexObjectDestroy(tex_obj));
+    });
+
     if (dirty_slots.empty()) { return; }
 
     std::sort(dirty_slots.begin(), dirty_slots.end());
@@ -112,6 +148,7 @@ void HIPBindlessArray::update(HIPCommandEncoder &encoder,
 }
 
 void HIPBindlessArray::set_name(luisa::string &&name) noexcept {
+    std::scoped_lock lock{_mutex};
     _name = std::move(name);
 }
 

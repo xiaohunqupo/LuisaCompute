@@ -1,6 +1,10 @@
 //
 // Created by Mike on 5/24/2023.
 //
+#include <cstdlib>
+#include <cstring>
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "../ext/stb/stb/stb_image_write.h"
 #include <luisa/core/logging.h>
 #include <luisa/core/clock.h>
 #include <luisa/runtime/context.h>
@@ -39,11 +43,35 @@ int main(int argc, char *argv[]) {
 
     Context context{argv[0]};
 
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
+    bool offline_mode = false;
+    luisa::string output_filename = "texture3d_output.png";
+    int samples = 64;
+
+    // Parse command line arguments
+    int device_arg_index = 1;
+    for (int i = 1; i < argc; ++i) {
+        if (strcmp(argv[i], "--offline") == 0) {
+            offline_mode = true;
+        } else if (strcmp(argv[i], "--output") == 0 && i + 1 < argc) {
+            output_filename = argv[i + 1];
+            ++i;
+        } else if (strcmp(argv[i], "--samples") == 0 && i + 1 < argc) {
+            samples = atoi(argv[i + 1]);
+            ++i;
+        } else if (argv[i][0] != '-') {
+            device_arg_index = i;
+        }
+    }
+
+    if (device_arg_index >= argc) {
+        LUISA_INFO("Usage: {} <backend> [options]. <backend>: cuda, dx, cpu, metal, hip, fallback", argv[0]);
+        LUISA_INFO("Options:");
+        LUISA_INFO("  --offline          Render without window to file");
+        LUISA_INFO("  --output <file>    Output filename (default: texture3d_output.png)");
+        LUISA_INFO("  --samples <n>      Number of samples per pixel (default: 64)");
         exit(1);
     }
-    Device device = context.create_device(argv[1]);
+    Device device = context.create_device(argv[device_arg_index]);
 
     static constexpr auto mod289 = [](auto x) noexcept { return x - floor(x * (1.f / 289.f)) * 289.f; };
     static constexpr auto permute = [](auto x) noexcept { return mod289(((x * 34.f) + 1.f) * x); };
@@ -320,6 +348,55 @@ int main(int argc, char *argv[]) {
                   .dispatch(make_uint3(volume_size))
            << make_sampler_states(seeds).dispatch(resolution);
 
+    Image<float> accum = device.create_image<float>(PixelStorage::FLOAT4, resolution);
+
+    float fov = 30.f;
+    float3 camera_pos = make_float3(2.f, -2.f, -2.f);
+
+    if (offline_mode) {
+        LUISA_INFO("Running in offline mode with {} samples", samples);
+        LUISA_INFO("Output file: {}", output_filename);
+        LUISA_INFO("Camera position: ({}, {}, {})", camera_pos.x, camera_pos.y, camera_pos.z);
+        LUISA_INFO("FOV: {}", fov);
+
+        Stream render_stream = device.create_stream(StreamTag::GRAPHICS);
+
+        render_stream << clear(accum).dispatch(resolution);
+
+        for (int i = 0; i < samples; ++i) {
+            render_stream << render(accum, bindless, camera_pos, seeds, fov).dispatch(resolution);
+        }
+
+        render_stream << synchronize();
+
+        std::vector<float> pixels(resolution.x * resolution.y * 4);
+        render_stream << accum.copy_to(pixels.data()) << synchronize();
+
+        std::vector<uint8_t> image_data;
+        image_data.reserve(resolution.x * resolution.y * 4);
+        for (uint y = 0; y < resolution.y; ++y) {
+            for (uint x = 0; x < resolution.x; ++x) {
+                uint idx = (y * resolution.x + x) * 4;
+                float r = std::clamp(pixels[idx], 0.f, 1.f);
+                float g = std::clamp(pixels[idx + 1], 0.f, 1.f);
+                float b = std::clamp(pixels[idx + 2], 0.f, 1.f);
+                image_data.emplace_back(static_cast<uint8_t>(r * 255.f));
+                image_data.emplace_back(static_cast<uint8_t>(g * 255.f));
+                image_data.emplace_back(static_cast<uint8_t>(b * 255.f));
+                image_data.emplace_back(static_cast<uint8_t>(255));
+            }
+        }
+
+        int success = stbi_write_png(output_filename.c_str(), resolution.x, resolution.y, 4, image_data.data(), resolution.x * 4);
+        if (success) {
+            LUISA_INFO("Saved output to {}", output_filename);
+        } else {
+            LUISA_ERROR("Failed to save output to {}", output_filename);
+        }
+
+        return 0;
+    }
+
     Window window{"Display", resolution};
     Swapchain swapchain = device.create_swapchain(
         stream,
@@ -331,12 +408,9 @@ int main(int argc, char *argv[]) {
             .wants_vsync = false,
             .back_buffer_count = 2,
         });
-    Image<float> accum = device.create_image<float>(PixelStorage::FLOAT4, resolution);
     Image<float> display = device.create_image<float>(swapchain.backend_storage(), resolution);
     bool dirty = true;
 
-    float fov = 30.f;
-    float3 camera_pos = make_float3(2.f, -2.f, -2.f);
     Clock clk;
     float2 last_mouse_pos{};
     float2 mouse_motion{};

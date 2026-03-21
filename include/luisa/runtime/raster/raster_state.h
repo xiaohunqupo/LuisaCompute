@@ -1,11 +1,19 @@
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
 #include <luisa/core/stl/optional.h>
+#include <luisa/core/stl/vector.h>
 #include <luisa/runtime/depth_format.h>
 #include <luisa/runtime/raster/vertex_attribute.h>
 #include <luisa/runtime/raster/viewport.h>
 
 namespace luisa::compute {
+
+// X11 headers define Always as a macro, undef it here
+#ifdef Always
+#undef Always
+#endif
 
 enum class Comparison : uint8_t {
     Never,
@@ -133,4 +141,3 @@ struct RasterState {
 static_assert(alignof(RasterState) == 1);
 
 }// namespace luisa::compute
-

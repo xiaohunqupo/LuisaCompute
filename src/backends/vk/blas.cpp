@@ -161,6 +161,9 @@ Blas::~Blas() {
     vkDestroyAccelerationStructureKHR(device()->logic_device(), _accel, Device::alloc_callbacks());
 }
 uint64_t Blas::get_accel_device_address() const {
+    if (!_accel) [[unlikely]] {
+        LUISA_ERROR("BLAS not initialized.");
+    }
     VkAccelerationStructureDeviceAddressInfoKHR acceleration_device_address_info{};
     acceleration_device_address_info.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
     acceleration_device_address_info.accelerationStructure = _accel;

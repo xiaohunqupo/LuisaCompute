@@ -2,7 +2,10 @@
 
 #define VMA_STATIC_VULKAN_FUNCTIONS 1
 #define VMA_IMPLEMENTATION 1
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnullability-completeness"
 #include "vk_mem_alloc.h"
+#pragma clang diagnostic pop
 #include "vk_allocator.h"
 #include "device.h"
 #include "log.h"

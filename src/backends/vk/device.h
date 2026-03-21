@@ -147,7 +147,7 @@ public:
     Device(Context &&ctx, DeviceConfig const *configs);
     ~Device();
     void *native_handle() const noexcept override;
-    BufferCreationInfo create_buffer(const Type *element, size_t elem_count, void *external_ptr) noexcept override;
+    BufferCreationInfo create_buffer(const luisa::compute::Type *element, size_t elem_count, void *external_ptr) noexcept override;
     BufferCreationInfo create_buffer(const ir::CArc<ir::Type> *element, size_t elem_count, void *external_ptr) noexcept override;
     void destroy_buffer(uint64_t handle) noexcept override;
     auto graphics_queue() const { return _graphics_queue; }
@@ -181,7 +181,7 @@ public:
     // kernel
     ShaderCreationInfo create_shader(const ShaderOption &option, Function kernel) noexcept override;
     ShaderCreationInfo create_shader(const ShaderOption &option, const ir::KernelModule *kernel) noexcept override;
-    ShaderCreationInfo load_shader(luisa::string_view name, luisa::span<const Type *const> arg_types) noexcept override;
+    ShaderCreationInfo load_shader(luisa::string_view name, luisa::span<const luisa::compute::Type *const> arg_types) noexcept override;
     Usage shader_argument_usage(uint64_t handle, size_t index) noexcept override;
     void destroy_shader(uint64_t handle) noexcept override;
 
@@ -214,7 +214,7 @@ public:
     void update_sparse_resources(
         uint64_t stream_handle,
         luisa::vector<SparseUpdateTile> &&textures_update) noexcept override;
-    SparseBufferCreationInfo create_sparse_buffer(const Type *element, size_t elem_count) noexcept override;
+    SparseBufferCreationInfo create_sparse_buffer(const luisa::compute::Type *element, size_t elem_count) noexcept override;
     SparseTextureCreationInfo create_sparse_texture(
         PixelFormat format, uint dimension,
         uint width, uint height, uint depth,

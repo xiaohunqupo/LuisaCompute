@@ -98,6 +98,8 @@ public:
     static constexpr auto llvm_bindless_array_slot_type_texture2d_handle_index = 2;
     static constexpr auto llvm_bindless_array_slot_type_texture3d_handle_index = 3;
 
+    static constexpr auto llvm_texture_object_sampler_offset = 48u;
+
     static constexpr auto llvm_accel_type_handle_index = 0;
     static constexpr auto llvm_accel_type_instances_index = 1;
 

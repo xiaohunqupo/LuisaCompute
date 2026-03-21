@@ -227,7 +227,8 @@ int main(int argc, char *argv[]) {
 
     // Adjust samples per dispatch based on backend capabilities
     auto spp_per_dispatch = device.backend_name() == "metal" || device.backend_name() == "cpu" || device.backend_name() == "fallback" ? 1u : 64u;
-    uint total_spp = user_spp > 0u ? user_spp : 1024u;
+    bool infinite_render = user_spp == 0u;
+    uint total_spp = infinite_render ? 0u : user_spp;
 
     // Main path tracing kernel
     // Implements unidirectional path tracing with NEE and MIS
@@ -403,7 +404,7 @@ int main(int argc, char *argv[]) {
     Clock clock;
 
     // Main render loop
-    while (frame_count < total_spp) {
+    while (infinite_render || frame_count < total_spp) {
         stream << raytracing_shader(framebuffer, seed_image, accel, resolution)
                       .dispatch(resolution)
                << accumulate_shader(accum_image, framebuffer)

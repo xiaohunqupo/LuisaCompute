@@ -8,6 +8,13 @@
 #include <new>
 #include "ir_common.h"
 
+// X11 headers may define these macros, which conflict with our enum values
+#ifdef Bool
+#undef Bool
+#endif
+#ifdef Always
+#undef Always
+#endif
 
 namespace luisa::compute::ir {
 
@@ -39,7 +46,7 @@ struct TransformPipeline;
 struct NodeRef {
     size_t _0;
 
-    bool operator==(const NodeRef& other) const {
+    bool operator==(const NodeRef &other) const {
         return _0 == other._0;
     }
 };
@@ -62,33 +69,33 @@ struct ModuleFlags {
         return !!bits;
     }
     ModuleFlags operator~() const {
-        return ModuleFlags { static_cast<decltype(bits)>(~bits) };
+        return ModuleFlags{static_cast<decltype(bits)>(~bits)};
     }
-    ModuleFlags operator|(const ModuleFlags& other) const {
-        return ModuleFlags { static_cast<decltype(bits)>(this->bits | other.bits) };
+    ModuleFlags operator|(const ModuleFlags &other) const {
+        return ModuleFlags{static_cast<decltype(bits)>(this->bits | other.bits)};
     }
-    ModuleFlags& operator|=(const ModuleFlags& other) {
+    ModuleFlags &operator|=(const ModuleFlags &other) {
         *this = (*this | other);
         return *this;
     }
-    ModuleFlags operator&(const ModuleFlags& other) const {
-        return ModuleFlags { static_cast<decltype(bits)>(this->bits & other.bits) };
+    ModuleFlags operator&(const ModuleFlags &other) const {
+        return ModuleFlags{static_cast<decltype(bits)>(this->bits & other.bits)};
     }
-    ModuleFlags& operator&=(const ModuleFlags& other) {
+    ModuleFlags &operator&=(const ModuleFlags &other) {
         *this = (*this & other);
         return *this;
     }
-    ModuleFlags operator^(const ModuleFlags& other) const {
-        return ModuleFlags { static_cast<decltype(bits)>(this->bits ^ other.bits) };
+    ModuleFlags operator^(const ModuleFlags &other) const {
+        return ModuleFlags{static_cast<decltype(bits)>(this->bits ^ other.bits)};
     }
-    ModuleFlags& operator^=(const ModuleFlags& other) {
+    ModuleFlags &operator^=(const ModuleFlags &other) {
         *this = (*this ^ other);
         return *this;
     }
 };
-static const ModuleFlags ModuleFlags_NONE = ModuleFlags{ /* .bits = */ (uint32_t)0 };
-static const ModuleFlags ModuleFlags_REQUIRES_REV_AD_TRANSFORM = ModuleFlags{ /* .bits = */ (uint32_t)1 };
-static const ModuleFlags ModuleFlags_REQUIRES_FWD_AD_TRANSFORM = ModuleFlags{ /* .bits = */ (uint32_t)2 };
+static const ModuleFlags ModuleFlags_NONE = ModuleFlags{/* .bits = */ (uint32_t)0};
+static const ModuleFlags ModuleFlags_REQUIRES_REV_AD_TRANSFORM = ModuleFlags{/* .bits = */ (uint32_t)1};
+static const ModuleFlags ModuleFlags_REQUIRES_FWD_AD_TRANSFORM = ModuleFlags{/* .bits = */ (uint32_t)2};
 
 struct CurveBasisSet {
     uint32_t bits;
@@ -97,35 +104,35 @@ struct CurveBasisSet {
         return !!bits;
     }
     CurveBasisSet operator~() const {
-        return CurveBasisSet { static_cast<decltype(bits)>(~bits) };
+        return CurveBasisSet{static_cast<decltype(bits)>(~bits)};
     }
-    CurveBasisSet operator|(const CurveBasisSet& other) const {
-        return CurveBasisSet { static_cast<decltype(bits)>(this->bits | other.bits) };
+    CurveBasisSet operator|(const CurveBasisSet &other) const {
+        return CurveBasisSet{static_cast<decltype(bits)>(this->bits | other.bits)};
     }
-    CurveBasisSet& operator|=(const CurveBasisSet& other) {
+    CurveBasisSet &operator|=(const CurveBasisSet &other) {
         *this = (*this | other);
         return *this;
     }
-    CurveBasisSet operator&(const CurveBasisSet& other) const {
-        return CurveBasisSet { static_cast<decltype(bits)>(this->bits & other.bits) };
+    CurveBasisSet operator&(const CurveBasisSet &other) const {
+        return CurveBasisSet{static_cast<decltype(bits)>(this->bits & other.bits)};
     }
-    CurveBasisSet& operator&=(const CurveBasisSet& other) {
+    CurveBasisSet &operator&=(const CurveBasisSet &other) {
         *this = (*this & other);
         return *this;
     }
-    CurveBasisSet operator^(const CurveBasisSet& other) const {
-        return CurveBasisSet { static_cast<decltype(bits)>(this->bits ^ other.bits) };
+    CurveBasisSet operator^(const CurveBasisSet &other) const {
+        return CurveBasisSet{static_cast<decltype(bits)>(this->bits ^ other.bits)};
     }
-    CurveBasisSet& operator^=(const CurveBasisSet& other) {
+    CurveBasisSet &operator^=(const CurveBasisSet &other) {
         *this = (*this ^ other);
         return *this;
     }
 };
-static const CurveBasisSet CurveBasisSet_NONE = CurveBasisSet{ /* .bits = */ (uint32_t)0 };
-static const CurveBasisSet CurveBasisSet_PIECEWISE_LINEAR = CurveBasisSet{ /* .bits = */ (uint32_t)1 };
-static const CurveBasisSet CurveBasisSet_CUBIC_BSPLINE = CurveBasisSet{ /* .bits = */ (uint32_t)2 };
-static const CurveBasisSet CurveBasisSet_CATMULL_ROM = CurveBasisSet{ /* .bits = */ (uint32_t)4 };
-static const CurveBasisSet CurveBasisSet_BEZIER = CurveBasisSet{ /* .bits = */ (uint32_t)8 };
+static const CurveBasisSet CurveBasisSet_NONE = CurveBasisSet{/* .bits = */ (uint32_t)0};
+static const CurveBasisSet CurveBasisSet_PIECEWISE_LINEAR = CurveBasisSet{/* .bits = */ (uint32_t)1};
+static const CurveBasisSet CurveBasisSet_CUBIC_BSPLINE = CurveBasisSet{/* .bits = */ (uint32_t)2};
+static const CurveBasisSet CurveBasisSet_CATMULL_ROM = CurveBasisSet{/* .bits = */ (uint32_t)4};
+static const CurveBasisSet CurveBasisSet_BEZIER = CurveBasisSet{/* .bits = */ (uint32_t)8};
 
 struct Module {
     ModuleKind kind;
@@ -170,7 +177,7 @@ template<typename T>
 struct CBoxedSlice {
     T *ptr;
     size_t len;
-    void (*destructor)(T*, size_t);
+    void (*destructor)(T *, size_t);
 };
 
 struct StructType {
@@ -291,8 +298,8 @@ struct Capture {
 struct CpuCustomOp {
     uint8_t *data;
     /// func(data, args); func should modify args in place
-    void (*func)(uint8_t*, uint8_t*);
-    void (*destructor)(uint8_t*);
+    void (*func)(uint8_t *, uint8_t *);
+    void (*destructor)(uint8_t *);
     CArc<Type> arg_type;
 };
 
@@ -736,7 +743,7 @@ struct BlockModule {
 struct UserData {
     uint64_t tag;
     const uint8_t *data;
-    bool (*eq)(const uint8_t*, const uint8_t*);
+    bool (*eq)(const uint8_t *, const uint8_t *);
 };
 
 struct Instruction {
@@ -885,13 +892,10 @@ struct Node {
 template<typename T>
 struct CBox {
     T *ptr;
-    void (*destructor)(T*);
+    void (*destructor)(T *);
 };
 
-
-
-static const NodeRef INVALID_REF = NodeRef{ /* ._0 = */ 0 };
-
+static const NodeRef INVALID_REF = NodeRef{/* ._0 = */ 0};
 
 extern "C" {
 
@@ -989,6 +993,6 @@ size_t luisa_compute_ir_type_alignment(const CArc<Type> *ty);
 
 size_t luisa_compute_ir_type_size(const CArc<Type> *ty);
 
-} // extern "C"
+}// extern "C"
 
-} // namespace luisa::compute::ir
+}// namespace luisa::compute::ir

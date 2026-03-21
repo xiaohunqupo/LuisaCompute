@@ -89,7 +89,6 @@ VulkanDevice::~VulkanDevice() {
     }
 }
 void VulkanDevice::forceFreeVolk() {
-    volkFinalize();
     volk_initer.vk_module.reset();
 }
 

@@ -186,6 +186,9 @@ void create_instance(bool enableValidation, bool &enableSurface, VkInstance &ins
             enableSurface &= emplace_instance_ext(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
 #elif defined(VK_USE_PLATFORM_XCB_KHR)
             enableSurface &= emplace_instance_ext(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
+#endif
+#if defined(VK_USE_PLATFORM_XLIB_KHR)
+            enableSurface &= emplace_instance_ext(VK_KHR_XLIB_SURFACE_EXTENSION_NAME);
 #elif defined(VK_USE_PLATFORM_IOS_MVK)
             enableSurface &= emplace_instance_ext(VK_MVK_IOS_SURFACE_EXTENSION_NAME);
 #elif defined(VK_USE_PLATFORM_MACOS_MVK)
@@ -261,7 +264,7 @@ ResourceCreationInfo Device::create_mesh(
     auto mesh = new Blas(this, option);
     return ResourceCreationInfo{
         .handle = reinterpret_cast<uint64_t>(mesh),
-        .native_handle = mesh->accel()};
+        .native_handle = nullptr};
 }
 void Device::destroy_mesh(uint64_t handle) noexcept {
     delete reinterpret_cast<Blas *>(handle);
@@ -287,7 +290,7 @@ ResourceCreationInfo Device::create_accel(const AccelOption &option) noexcept {
     auto accel = new Tlas(this, option);
     return ResourceCreationInfo{
         .handle = reinterpret_cast<uint64_t>(accel),
-        .native_handle = accel->accel()};
+        .native_handle = nullptr};
 }
 void Device::destroy_accel(uint64_t handle) noexcept {
     delete reinterpret_cast<Tlas *>(handle);
@@ -901,7 +904,7 @@ Device::~Device() {
     }
 }
 void *Device::native_handle() const noexcept { return _vk_device->logicalDevice; }
-BufferCreationInfo Device::create_buffer(const Type *element, size_t elem_count, void *external_ptr) noexcept {
+BufferCreationInfo Device::create_buffer(const luisa::compute::Type *element, size_t elem_count, void *external_ptr) noexcept {
     if (element && element->is_custom()) [[unlikely]] {
         LUISA_ERROR("Indirect buffer not supported.");
     }
@@ -995,13 +998,13 @@ SwapchainCreationInfo Device::create_swapchain(const SwapchainOption &option, ui
         option.window,
         option.size.x,
         option.size.y,
-        option.back_buffer_count + 1,
+        option.back_buffer_count,
         false,
         option.wants_hdr,
         option.wants_vsync, option.wants_transparent);
     SwapchainCreationInfo r{};
     r.handle = reinterpret_cast<uint64_t>(ptr);
-    r.storage = option.wants_hdr ? PixelStorage::HALF4 : PixelStorage::BYTE4;
+    r.storage = ptr->is_hdr() ? PixelStorage::HALF4 : PixelStorage::BYTE4;
     r.native_handle = ptr->swapchain();
     return r;
 }
@@ -1107,7 +1110,7 @@ ShaderCreationInfo Device::create_shader(const ShaderOption &option, Function ke
     return info;
 }
 ShaderCreationInfo Device::create_shader(const ShaderOption &option, const ir::KernelModule *kernel) noexcept { return ShaderCreationInfo::make_invalid(); }
-ShaderCreationInfo Device::load_shader(luisa::string_view name, luisa::span<const Type *const> arg_types) noexcept {
+ShaderCreationInfo Device::load_shader(luisa::string_view name, luisa::span<const luisa::compute::Type *const> arg_types) noexcept {
     ShaderCreationInfo info;
     auto deser_result = ShaderSerializer::try_deser_compute(this, {}, {}, name, SerdeType::ByteCode, _binary_io);
     if (!deser_result.shader) {
@@ -1215,6 +1218,7 @@ LUISA_EXPORT_API VkInstance init_vk_instance(bool enable_validation, bool &enabl
 #else
         constexpr bool enableValidation = true;
 #endif
+        (void)enableValidation;
         detail::create_instance(enable_validation, enable_surface, detail::vk_instance, custom_vk_lib_path ? luisa::filesystem::path{custom_vk_lib_path} : luisa::filesystem::path{}, custom_vk_lib_name ? luisa::string_view{custom_vk_lib_name} : luisa::string_view{}, luisa::span{extra_instance_exts, extra_instance_ext_count});
     }
     return detail::vk_instance;
@@ -1290,7 +1294,7 @@ void Device::update_sparse_resources(
     luisa::vector<SparseUpdateTile> &&textures_update) noexcept {
     reinterpret_cast<Stream *>(stream_handle)->update_sparse_resources(std::move(textures_update));
 }
-SparseBufferCreationInfo Device::create_sparse_buffer(const Type *element, size_t elem_count) noexcept {
+SparseBufferCreationInfo Device::create_sparse_buffer(const luisa::compute::Type *element, size_t elem_count) noexcept {
     if (element->is_custom()) [[unlikely]] {
         LUISA_ERROR("Indirect buffer not supported.");
     }

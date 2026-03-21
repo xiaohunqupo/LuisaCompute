@@ -425,6 +425,7 @@ private:
             device_create_info.enabledLayerCount = 0u;
         }
         LUISA_CHECK_VULKAN(vkCreateDevice(_physical_device, &device_create_info, nullptr, &_device));
+        volkLoadDevice(_device);
 
         // get the queue
         vkGetDeviceQueue(_device, *queue_family, 0u, &_queue);
@@ -957,7 +958,7 @@ private:
     uint2 _requested_size{};
     bool _requested_hdr{false};
     bool _requested_vsync{false};
-    bool _transparent {false};
+    bool _transparent{false};
 
 private:
     void _destroy_swapchain() noexcept {
