@@ -64,18 +64,17 @@ extern "C" __device__ void luisa_hiprt_trace_closest(
         hiprtSceneTraversalClosest traversal(scene, ray, static_cast<hiprtRayMask>(mask));
         hiprtHit hit = traversal.getNextHit();
 
+            *out_inst_id = static_cast<int32_t>(~0u);
+            *out_prim_id = static_cast<int32_t>(~0u);
+            *out_u = 0.0f;
+            *out_v = 0.0f;
+            *out_t = tmax;
         if (hit.hasHit()) {
             *out_inst_id = static_cast<int32_t>(hit.instanceID);
             *out_prim_id = static_cast<int32_t>(hit.primID);
             *out_u = hit.uv.x;
             *out_v = hit.uv.y;
             *out_t = hit.t;
-        } else {
-            *out_inst_id = static_cast<int32_t>(~0u);
-            *out_prim_id = static_cast<int32_t>(~0u);
-            *out_u = 0.0f;
-            *out_v = 0.0f;
-            *out_t = tmax;
         }
     }
 }
