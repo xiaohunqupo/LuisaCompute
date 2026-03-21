@@ -19,10 +19,11 @@
 
 [[noreturn]] static void print_usage_and_exit(const char *prog, int code) noexcept {
     std::cerr << "Usage: " << prog
-              << " -i <input.hip> -o <output.bc> [-I <include-dir>]...\n"
+              << " -i <input.hip> -o <output.bc> [-a <arch>] [-I <include-dir>]...\n"
               << "Options:\n"
               << "  -i, --input  <file>   Input .hip source file\n"
               << "  -o, --output <file>   Output LLVM bitcode file\n"
+              << "  -a, --arch   <arch>   Target GPU architecture (e.g., gfx1201)\n"
               << "  -I <dir>              Additional include directory (repeatable)\n"
               << "      --help            Show this help\n";
     std::exit(code);
@@ -31,6 +32,7 @@
 int main(int argc, char *argv[]) {
     std::filesystem::path input_file;
     std::filesystem::path output_file;
+    std::vector<std::string> archs;
     std::vector<std::string> include_dirs;
 
     for (int i = 1; i < argc; i++) {
@@ -46,6 +48,8 @@ int main(int argc, char *argv[]) {
             input_file = require_next();
         } else if (opt == "-o" || opt == "--output") {
             output_file = require_next();
+        } else if (opt == "-a" || opt == "--arch") {
+            archs.emplace_back(require_next());
         } else if (opt == "-I") {
             include_dirs.emplace_back(require_next());
         } else if (opt == "--help") {
@@ -92,6 +96,9 @@ int main(int argc, char *argv[]) {
     option_strings.emplace_back("-Xclang");
     option_strings.emplace_back("-mno-constructor-aliases");
     option_strings.emplace_back("-std=c++17");
+    for (auto &a : archs) {
+        option_strings.emplace_back("--offload-arch=" + a);
+    }
     for (auto &dir : include_dirs) {
         option_strings.emplace_back("-I" + dir);
     }

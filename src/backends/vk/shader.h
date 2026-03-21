@@ -11,7 +11,7 @@
 namespace lc::vk {
 using namespace luisa::compute;
 struct SavedArgument {
-    Type::Tag tag{};
+    luisa::compute::Type::Tag tag{};
     Usage varUsage{};
     uint structSize{};
     SavedArgument() = default;
@@ -21,7 +21,7 @@ struct SavedArgument {
     SavedArgument(Usage usage, Variable const &var) : SavedArgument(var.type()) {
         varUsage = usage;
     }
-    explicit SavedArgument(Type const *type);
+    explicit SavedArgument(luisa::compute::Type const *type);
 };
 class Shader : public Resource {
 public:
@@ -36,7 +36,7 @@ protected:
     vstd::vector<hlsl::Property> _binds;
     vstd::vector<Argument> _captured;
     vstd::vector<SavedArgument> _saved_arguments;
-    vstd::vector<std::pair<luisa::string, Type const *>> _printers;
+    vstd::vector<std::pair<luisa::string, luisa::compute::Type const *>> _printers;
     bool _use_tex2d_bindless;
     bool _use_tex3d_bindless;
     bool _use_buffer_bindless;
@@ -60,7 +60,7 @@ public:
         bool use_tex2d_bindless,
         bool use_tex3d_bindless,
         bool use_buffer_bindless,
-        vstd::vector<std::pair<luisa::string, Type const *>> &&printers);
+        vstd::vector<std::pair<luisa::string, luisa::compute::Type const *>> &&printers);
     virtual ~Shader();
     vstd::span<VkDescriptorSet> allocate_desc_set(VkDescriptorPool pool, vstd::vector<VkDescriptorSet> &descs) const;
     void update_desc_set(

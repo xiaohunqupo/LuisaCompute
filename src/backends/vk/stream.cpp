@@ -277,7 +277,7 @@ struct BindPropVisitor {
             buffer.vk_buffer(),
             0,
             buffer.byte_size()};
-        auto &a = cmdbuffer->write_desc_sets->emplace_back(VkWriteDescriptorSet{
+        cmdbuffer->write_desc_sets->emplace_back(VkWriteDescriptorSet{
             VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
             nullptr,
             desc_set,
@@ -299,7 +299,7 @@ struct BindPropVisitor {
                 tlas->instance_buffer()->vk_buffer(),
                 0,
                 tlas->instance_buffer()->byte_size()};
-            auto &a = cmdbuffer->write_desc_sets->emplace_back(VkWriteDescriptorSet{
+            cmdbuffer->write_desc_sets->emplace_back(VkWriteDescriptorSet{
                 VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                 nullptr,
                 desc_set,
@@ -318,7 +318,7 @@ struct BindPropVisitor {
                 accel_info->sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
                 accel_info->accelerationStructureCount = 1;
                 accel_info->pAccelerationStructures = &tlas->accel();
-                auto &a = cmdbuffer->write_desc_sets->emplace_back(VkWriteDescriptorSet{
+                cmdbuffer->write_desc_sets->emplace_back(VkWriteDescriptorSet{
                     VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                     accel_info,
                     desc_set,
@@ -338,7 +338,7 @@ struct BindPropVisitor {
                     tlas->instance_buffer()->vk_buffer(),
                     0,
                     tlas->instance_buffer()->byte_size()};
-                auto &a = cmdbuffer->write_desc_sets->emplace_back(VkWriteDescriptorSet{
+                cmdbuffer->write_desc_sets->emplace_back(VkWriteDescriptorSet{
                     VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                     nullptr,
                     desc_set,
@@ -588,8 +588,6 @@ void Stream::present(
         scratch_buffer_alloc_visitor.cmdbuffer = &cmdbuffer;
         scratch_buffer_alloc_visitor.device = device();
 
-        auto cb = cmdbuffer.cmdbuffer();
-
         cmdbuffer.resource_barrier = &resource_barrier;
         cmdbuffer.uniform_data = &uniform_data;
         cmdbuffer.desc_sets = &desc_sets;
@@ -620,6 +618,20 @@ void Stream::present(
         resource_barrier.restore_states(cmdbuffer.cmdbuffer());
         cmdbuffer.end();
 
+        // If fence is null, swapchain was recreated and we should skip this frame
+        if (vk_fence == nullptr) {
+            // Cleanup command buffer without submitting
+            cmdbuffer.states()->reset(this, *device());
+            // Update fence and enqueue notification to match normal completion path
+            _evt.update_fence(fence);
+            _mtx.lock();
+            _exec.enqueue(NotifyEvt{
+                .evt = &_evt,
+                .value = fence});
+            _mtx.unlock();
+            return;
+        }
+
         {
             VkSubmitInfo submit_info{};
             submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -628,9 +640,15 @@ void Stream::present(
             submit_info.pWaitDstStageMask = present_cmd.wait_stages.data();
             submit_info.signalSemaphoreCount = present_cmd.signal_semaphores.size();
             submit_info.pSignalSemaphores = present_cmd.signal_semaphores.data();
-            submit_info.commandBufferCount = 1;
             auto _cmdbuffer = cmdbuffer.cmdbuffer();
-            submit_info.pCommandBuffers = &_cmdbuffer;
+            // Check for external command buffer execution
+            if (device()->config_ext() && device()->config_ext()->execute_command_buffer(_cmdbuffer)) {
+                submit_info.commandBufferCount = 0;
+                submit_info.pCommandBuffers = nullptr;
+            } else {
+                submit_info.commandBufferCount = 1;
+                submit_info.pCommandBuffers = &_cmdbuffer;
+            }
             _queue_mtx->lock();
             VK_CHECK_RESULT(vkQueueSubmit(_queue, 1u, &submit_info, vk_fence));
             _queue_mtx->unlock();
@@ -645,8 +663,13 @@ void Stream::present(
             present_info.pWaitSemaphores = present_cmd.present_wait_semaphores.data();
             present_info.pImageIndices = present_cmd.image_indices.data();
             _queue_mtx->lock();
-            VK_CHECK_RESULT(vkQueuePresentKHR(_queue, &present_info));
+            auto result = vkQueuePresentKHR(_queue, &present_info);
             _queue_mtx->unlock();
+            if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+                swapchain->handle_present_error();
+            } else if (result != VK_SUCCESS) {
+                LUISA_ERROR_WITH_LOCATION("Failed to present swapchain image: {}.", luisa::to_string(result));
+            }
         }
         _evt.signal(*this, fence);
         _mtx.lock();
@@ -670,7 +693,7 @@ void Stream::dispatch(
     PresentCommand present_cmd;
     luisa::fixed_vector<VkSwapchainKHR, 1> vk_swapchains;
     temp_desc.clear();
-    if (cmds.empty() && callbacks.empty()) {
+    if (cmds.empty() && callbacks.empty() && presents.empty()) {
         return;
     }
     if (inqueue_limit) {
@@ -679,7 +702,7 @@ void Stream::dispatch(
         }
     }
     auto fence = _evt.last_fence() + 1;
-    if (!cmds.empty()) {
+    if (!cmds.empty() || !presents.empty()) {
         CommandBuffer cmdbuffer = [&]() {
             auto p = _cmdbuffers.dequeue();
             if (p) return std::move(*p);
@@ -718,6 +741,7 @@ void Stream::dispatch(
         cmdbuffer.scratch_buffer_alloc = &scratch_buffer_alloc;
         cmdbuffer.begin();
         cmdbuffer.execute(cmds);
+        bool present_failed = false;
         for (auto &i : presents) {
             auto swapchain = reinterpret_cast<lc::vk::Swapchain *>(i.chain->handle());
             auto tex = reinterpret_cast<Texture *>(i.frame.handle());
@@ -729,7 +753,6 @@ void Stream::dispatch(
             present_cmd.wait_stages.emplace_back();
             present_cmd.present_wait_semaphores.emplace_back();
             present_cmd.image_indices.emplace_back();
-            vk_swapchains.emplace_back(swapchain->swapchain());
 
             swapchain->present(
                 cmdbuffer,
@@ -740,10 +763,19 @@ void Stream::dispatch(
                 tex,
                 present_cmd.submit_fences.back(),
                 mip);
+
+            // If fence is null, swapchain was recreated - abort present batch
+            if (present_cmd.submit_fences.back() == nullptr) {
+                present_failed = true;
+                break;
+            }
+
+            vk_swapchains.emplace_back(swapchain->swapchain());
         }
         resource_barrier.restore_states(cmdbuffer.cmdbuffer());
         cmdbuffer.end();
-        if (!presents.empty()) {
+
+        if (!presents.empty() && !present_failed) {
             VkSubmitInfo submit_info{};
             submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
             submit_info.waitSemaphoreCount = present_cmd.submit_wait_semaphores.size();
@@ -751,17 +783,20 @@ void Stream::dispatch(
             submit_info.pWaitDstStageMask = present_cmd.wait_stages.data();
             submit_info.signalSemaphoreCount = present_cmd.signal_semaphores.size();
             submit_info.pSignalSemaphores = present_cmd.signal_semaphores.data();
-            submit_info.commandBufferCount = 1;
             if (device()->config_ext() && device()->config_ext()->execute_command_buffer(cb)) {
-                cb_ptr = nullptr;
+                // External execution - submit with 0 command buffers
+                submit_info.commandBufferCount = 0;
+                submit_info.pCommandBuffers = nullptr;
+            } else {
+                submit_info.commandBufferCount = 1;
+                submit_info.pCommandBuffers = &cb;
             }
-            submit_info.pCommandBuffers = cb_ptr;
             _queue_mtx->lock();
-            VK_CHECK_RESULT(vkQueueSubmit(_queue, 1u, &submit_info, present_cmd.submit_fences.back()));
-            _queue_mtx->unlock();
-            for (auto i : vstd::range(1, present_cmd.submit_fences.size())) {
+            VK_CHECK_RESULT(vkQueueSubmit(_queue, 1u, &submit_info, present_cmd.submit_fences[0]));
+            for (auto i : vstd::range(1u, present_cmd.submit_fences.size())) {
                 VK_CHECK_RESULT(vkQueueSubmit(_queue, 0, nullptr, present_cmd.submit_fences[i]));
             }
+            _queue_mtx->unlock();
 
             VkPresentInfoKHR present_info{};
             present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -771,8 +806,126 @@ void Stream::dispatch(
             present_info.pWaitSemaphores = present_cmd.present_wait_semaphores.data();
             present_info.pImageIndices = present_cmd.image_indices.data();
             _queue_mtx->lock();
-            VK_CHECK_RESULT(vkQueuePresentKHR(_queue, &present_info));
+            auto result = vkQueuePresentKHR(_queue, &present_info);
             _queue_mtx->unlock();
+            if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+                for (auto &i : presents) {
+                    auto swapchain = reinterpret_cast<lc::vk::Swapchain *>(i.chain->handle());
+                    swapchain->handle_present_error();
+                }
+            } else if (result != VK_SUCCESS) {
+                LUISA_ERROR_WITH_LOCATION("Failed to present swapchain image: {}.", luisa::to_string(result));
+            }
+        }
+        // If present failed, submit and present the successful prefix before returning
+        if (present_failed) {
+            // Remove the failed swapchain's entries (last element is null/invalid)
+            if (!present_cmd.submit_fences.empty()) {
+                present_cmd.submit_fences.pop_back();
+                present_cmd.submit_wait_semaphores.pop_back();
+                present_cmd.signal_semaphores.pop_back();
+                present_cmd.wait_stages.pop_back();
+                present_cmd.present_wait_semaphores.pop_back();
+                present_cmd.image_indices.pop_back();
+            }
+
+            // If there are successful swapchains, submit and present them
+            if (!present_cmd.submit_fences.empty()) {
+                VkSubmitInfo submit_info{};
+                submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+                submit_info.waitSemaphoreCount = present_cmd.submit_wait_semaphores.size();
+                submit_info.pWaitSemaphores = present_cmd.submit_wait_semaphores.data();
+                submit_info.pWaitDstStageMask = present_cmd.wait_stages.data();
+                submit_info.signalSemaphoreCount = present_cmd.signal_semaphores.size();
+                submit_info.pSignalSemaphores = present_cmd.signal_semaphores.data();
+                if (device()->config_ext() && device()->config_ext()->execute_command_buffer(cb)) {
+                    submit_info.commandBufferCount = 0;
+                    submit_info.pCommandBuffers = nullptr;
+                } else {
+                    submit_info.commandBufferCount = 1;
+                    submit_info.pCommandBuffers = &cb;
+                }
+                _queue_mtx->lock();
+                VK_CHECK_RESULT(vkQueueSubmit(_queue, 1u, &submit_info, present_cmd.submit_fences[0]));
+                for (auto i : vstd::range(1u, present_cmd.submit_fences.size())) {
+                    VK_CHECK_RESULT(vkQueueSubmit(_queue, 0, nullptr, present_cmd.submit_fences[i]));
+                }
+                _queue_mtx->unlock();
+
+                VkPresentInfoKHR present_info{};
+                present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+                present_info.pSwapchains = vk_swapchains.data();
+                present_info.swapchainCount = vk_swapchains.size();
+                present_info.waitSemaphoreCount = present_cmd.present_wait_semaphores.size();
+                present_info.pWaitSemaphores = present_cmd.present_wait_semaphores.data();
+                present_info.pImageIndices = present_cmd.image_indices.data();
+                _queue_mtx->lock();
+                auto result = vkQueuePresentKHR(_queue, &present_info);
+                _queue_mtx->unlock();
+                if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+                    // Only handle present errors for the successfully presented prefix
+                    for (size_t i = 0; i < vk_swapchains.size(); ++i) {
+                        auto swapchain = reinterpret_cast<lc::vk::Swapchain *>(presents[i].chain->handle());
+                        swapchain->handle_present_error();
+                    }
+                } else if (result != VK_SUCCESS) {
+                    LUISA_ERROR_WITH_LOCATION("Failed to present swapchain image: {}.", luisa::to_string(result));
+                }
+
+                // Use normal completion path for the submitted prefix
+                cb_ptr = nullptr;
+                _evt.signal(*this, fence, cb_ptr);
+                _mtx.lock();
+                _exec.enqueue(SyncExt{
+                    .evt = &_evt,
+                    .value = fence});
+                _exec.enqueue(std::move(cmdbuffer));
+            } else {
+                // No successful swapchains - if there are commands, submit them without present
+                if (!cmds.empty()) {
+                    // Check for external command buffer execution (same as normal path)
+                    auto cb_ptr = &cb;
+                    if (device()->config_ext() && device()->config_ext()->execute_command_buffer(cb)) {
+                        cb_ptr = nullptr;
+                    }
+                    _evt.signal(*this, fence, cb_ptr);
+                    _mtx.lock();
+                    _exec.enqueue(SyncExt{
+                        .evt = &_evt,
+                        .value = fence});
+                    _exec.enqueue(std::move(cmdbuffer));
+                } else {
+                    // No commands and no successful presents - cleanup without submitting
+                    cmdbuffer.states()->reset(this, *device());
+                    _mtx.lock();
+                    // Update fence to prevent reuse, then notify
+                    _evt.update_fence(fence);
+                }
+                // Enqueue callbacks and completion notification
+                if (!callbacks.empty()) {
+                    _exec.enqueue(std::move(callbacks));
+                }
+                _exec.enqueue(NotifyEvt{
+                    .evt = &_evt,
+                    .value = fence});
+                _mtx.unlock();
+                return;
+            }
+
+            // Enqueue callbacks and completion notification for successful prefix
+            if (!callbacks.empty()) {
+                _exec.enqueue(std::move(callbacks));
+            }
+            _exec.enqueue(NotifyEvt{
+                .evt = &_evt,
+                .value = fence});
+
+            _mtx.unlock();
+            return;
+        }
+        // Command buffer already submitted in present path, don't submit again
+        if (!presents.empty()) {
+            cb_ptr = nullptr;
         }
         if (cb_ptr && device()->config_ext() && device()->config_ext()->execute_command_buffer(cb)) {
             cb_ptr = nullptr;
@@ -971,9 +1124,9 @@ void CommandBuffer::end() {
 }
 CommandBuffer::CommandBuffer(CommandBuffer &&rhs) noexcept
     : Resource(std::move(rhs)),
-      stream(rhs.stream),               // NOLINT(bugprone-use-after-move)
-      _cmdbuffer(rhs._cmdbuffer),       // NOLINT(bugprone-use-after-move)
-      _state(std::move(rhs._state)) {   // NOLINT(bugprone-use-after-move)
+      stream(rhs.stream),            // NOLINT(bugprone-use-after-move)
+      _cmdbuffer(rhs._cmdbuffer),    // NOLINT(bugprone-use-after-move)
+      _state(std::move(rhs._state)) {// NOLINT(bugprone-use-after-move)
     rhs._cmdbuffer = nullptr;
 }
 void Stream::signal(Event *event, uint64_t value) {
@@ -1271,8 +1424,6 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
             offset_ptr++;
             visitor.desc_index = desc_index;
             visitor.img_views = &_state->img_views;
-            auto size = shader->saved_arguments().size();
-
             visitor.arg = shader->saved_arguments().data();
             DecodeCmd(shader->captured(), visitor);
             DecodeCmd(c->arguments(), visitor);
@@ -1453,7 +1604,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                                 count_buffer.buffer->vk_buffer(),
                                 count_buffer.offset,
                                 4};
-                            auto &a = write_desc_sets->emplace_back(VkWriteDescriptorSet{
+                            write_desc_sets->emplace_back(VkWriteDescriptorSet{
                                 VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                                 nullptr,
                                 visitor.desc_set,
@@ -1473,7 +1624,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                                 data_buffer.buffer->vk_buffer(),
                                 data_buffer.offset,
                                 max_printer_count};
-                            auto &a = write_desc_sets->emplace_back(VkWriteDescriptorSet{
+                            write_desc_sets->emplace_back(VkWriteDescriptorSet{
                                 VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                                 nullptr,
                                 visitor.desc_set,
@@ -1723,7 +1874,6 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                 case Command::Tag::EAccelBuildCommand: {
                     auto c = static_cast<AccelBuildCommand const *>(cmd);
                     reinterpret_cast<Tlas *>(c->handle())->build(*this, c->instance_count());
-                    auto &bf = *reinterpret_cast<Tlas *>(c->handle())->instance_buffer();
                     // resource_barrier->record(
                     //     BufferView{&bf},
                     //     ResourceBarrier::Usage::CopySource);
@@ -2082,7 +2232,7 @@ void Shader::update_desc_set(
     uint arg_idx = 0;
     VkDescriptorBufferInfo buffer_info;
     VkDescriptorImageInfo image_info;
-    auto make_desc = [&]<typename T>(T const &t) {
+    [[maybe_unused]] auto make_desc = [&]<typename T>(T const &t) {
         auto &v = write_buffer.emplace_back();
         v.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         v.dstSet = set;
@@ -2147,9 +2297,9 @@ void Shader::update_desc_set(
         }
         arg_idx++;
     };
-    for (auto i : vstd::range((int64_t)texs.size())) {
+    // for (auto i : vstd::range((int64_t)texs.size())) {
 
-        // v.descriptorType = view.index() ==
-    }
+    //     // v.descriptorType = view.index() ==
+    // }
 }
 }// namespace lc::vk

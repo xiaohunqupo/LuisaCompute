@@ -30,7 +30,7 @@ RasterShader::~RasterShader() {
     vkDestroyPipelineCache(device()->logic_device(), _pipe_cache, Device::alloc_callbacks());
 }
 auto RasterShader::_make_pipeline_key(
-    MeshFormat const &mesh_format,
+    luisa::compute::MeshFormat const &mesh_format,
     RasterState const &state,
     VkPipelineVertexInputStateCreateInfo &vertex_input_create_info) -> BinaryBlob {
     size_t key_size = 0;
@@ -87,7 +87,7 @@ auto RasterShader::_make_pipeline_key(
 auto RasterShader::create_pipeline(
     luisa::span<Argument::Texture const> rtv_textures,
     Argument::Texture dsv_textures,
-    MeshFormat const &mesh_format,
+    luisa::compute::MeshFormat const &mesh_format,
     RasterState const &state) -> Pipeline {
     VkPrimitiveTopology topo;
     VkCullModeFlags cull_mode;
@@ -130,7 +130,7 @@ auto RasterShader::create_pipeline(
         .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
         .depthClampEnable = state.depth_clip,
         .rasterizerDiscardEnable = false,
-        .polygonMode = state.fill_mode == FillMode::Solid ? VK_POLYGON_MODE_FILL : VK_POLYGON_MODE_LINE, // TO
+        .polygonMode = state.fill_mode == FillMode::Solid ? VK_POLYGON_MODE_FILL : VK_POLYGON_MODE_LINE,// TO
         .cullMode = cull_mode,
         .frontFace = state.front_counter_clockwise ? VK_FRONT_FACE_COUNTER_CLOCKWISE : VK_FRONT_FACE_CLOCKWISE,
         .depthBiasEnable = VK_FALSE,

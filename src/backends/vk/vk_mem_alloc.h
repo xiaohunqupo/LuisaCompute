@@ -287,6 +287,14 @@ extern "C" {
     #define VMA_LEN_IF_NOT_NULL(len)
 #endif
 
+#ifndef _Nullable
+#define _Nullable
+#endif
+
+#ifndef _Nonnull
+#define _Nonnull
+#endif
+
 // The VMA_NULLABLE macro is defined to be _Nullable when compiling with Clang.
 // see: https://clang.llvm.org/docs/AttributeReference.html#nullable
 #ifndef VMA_NULLABLE
@@ -2168,7 +2176,7 @@ or by manually passing it through VmaAllocatorCreateInfo::pVulkanFunctions.
 For more information, see chapter \ref vk_khr_external_memory_win32.
 */
 VMA_CALL_PRE VkResult VMA_CALL_POST vmaGetMemoryWin32Handle(VmaAllocator VMA_NOT_NULL allocator,
-    VmaAllocation VMA_NOT_NULL allocation, HANDLE hTargetProcess, HANDLE* VMA_NOT_NULL pHandle);
+    VmaAllocation VMA_NOT_NULL allocation, HANDLE VMA_NULLABLE hTargetProcess, HANDLE _Nullable * _Nonnull pHandle);
 #endif // VMA_EXTERNAL_MEMORY_WIN32
 
 /** \brief Maps memory represented by given allocation and returns pointer to it.
@@ -3063,12 +3071,12 @@ static void* vma_aligned_alloc(size_t alignment, size_t size)
     return VMA_NULL;
 }
 #elif defined(_WIN32)
-static void* vma_aligned_alloc(size_t alignment, size_t size)
+static void* _Nullable vma_aligned_alloc(size_t alignment, size_t size)
 {
     return _aligned_malloc(size, alignment);
 }
 #elif __cplusplus >= 201703L || _MSVC_LANG >= 201703L // C++17
-static void* vma_aligned_alloc(size_t alignment, size_t size)
+static void* _Nullable vma_aligned_alloc(size_t alignment, size_t size)
 {
     return aligned_alloc(alignment, size);
 }
@@ -3081,7 +3089,7 @@ static void* vma_aligned_alloc(size_t alignment, size_t size)
 #endif
 
 #if defined(_WIN32)
-static void vma_aligned_free(void* ptr)
+static void vma_aligned_free(void* VMA_NULLABLE ptr)
 {
     _aligned_free(ptr);
 }
@@ -3179,7 +3187,7 @@ static void vma_aligned_free(void* VMA_NULLABLE ptr)
     {
         snprintf(outStr, strLen, "%" PRIu64, num);
     }
-    static inline void VmaPtrToStr(char* VMA_NOT_NULL outStr, size_t strLen, const void* ptr)
+    static inline void VmaPtrToStr(char* VMA_NOT_NULL outStr, size_t strLen, const void* VMA_NULLABLE ptr)
     {
         snprintf(outStr, strLen, "%p", ptr);
     }
@@ -3401,7 +3409,7 @@ static const uint32_t VMA_VENDOR_ID_AMD = 4098;
 
 #if VMA_STATS_STRING_ENABLED
 // Correspond to values of enum VmaSuballocationType.
-static const char* const VMA_SUBALLOCATION_TYPE_NAMES[] =
+static const char* _Nonnull const VMA_SUBALLOCATION_TYPE_NAMES[] =
 {
     "FREE",
     "UNKNOWN",
@@ -3740,7 +3748,7 @@ static inline uint64_t VmaPrevPow2(uint64_t v)
     return v;
 }
 
-static inline bool VmaStrIsEmpty(const char* pStr)
+static inline bool VmaStrIsEmpty(const char* VMA_NULLABLE pStr)
 {
     return pStr == VMA_NULL || *pStr == '\0';
 }
@@ -3807,7 +3815,7 @@ static inline bool VmaIsBufferImageGranularityConflict(
     }
 }
 
-static void VmaWriteMagicValue(void* pData, VkDeviceSize offset)
+static void VmaWriteMagicValue(void* VMA_NOT_NULL pData, VkDeviceSize offset)
 {
 #if VMA_DEBUG_MARGIN > 0 && VMA_DEBUG_DETECT_CORRUPTION
     uint32_t* pDst = (uint32_t*)((char*)pData + offset);
@@ -3821,7 +3829,7 @@ static void VmaWriteMagicValue(void* pData, VkDeviceSize offset)
 #endif
 }
 
-static bool VmaValidateMagicValue(const void* pData, VkDeviceSize offset)
+static bool VmaValidateMagicValue(const void* VMA_NOT_NULL pData, VkDeviceSize offset)
 {
 #if VMA_DEBUG_MARGIN > 0 && VMA_DEBUG_DETECT_CORRUPTION
     const uint32_t* pSrc = (const uint32_t*)((const char*)pData + offset);
@@ -3898,7 +3906,7 @@ Warning! O(n^2) complexity. Use only inside VMA_HEAVY_ASSERT.
 T must be pointer type, e.g. VmaAllocation, VmaPool.
 */
 template<typename T>
-static bool VmaValidatePointerArray(uint32_t count, const T* arr)
+static bool VmaValidatePointerArray(uint32_t count, const T* VMA_NULLABLE arr)
 {
     for (uint32_t i = 0; i < count; ++i)
     {
@@ -3919,7 +3927,7 @@ static bool VmaValidatePointerArray(uint32_t count, const T* arr)
 }
 
 template<typename MainT, typename NewT>
-static inline void VmaPnextChainPushFront(MainT* mainStruct, NewT* newStruct)
+static inline void VmaPnextChainPushFront(MainT* VMA_NOT_NULL mainStruct, NewT* VMA_NOT_NULL newStruct)
 {
     newStruct->pNext = mainStruct->pNext;
     mainStruct->pNext = newStruct;
@@ -3927,7 +3935,7 @@ static inline void VmaPnextChainPushFront(MainT* mainStruct, NewT* newStruct)
 // Finds structure with s->sType == sType in mainStruct->pNext chain.
 // Returns pointer to it. If not found, returns null.
 template<typename FindT, typename MainT>
-static inline const FindT* VmaPnextChainFind(const MainT* mainStruct, VkStructureType sType)
+static inline const FindT* VMA_NULLABLE VmaPnextChainFind(const MainT* VMA_NOT_NULL mainStruct, VkStructureType sType)
 {
     for(const VkBaseInStructure* s = (const VkBaseInStructure*)mainStruct->pNext;
         s != VMA_NULL; s = s->pNext)
@@ -4154,7 +4162,7 @@ static bool FindMemoryPreferences(
 ////////////////////////////////////////////////////////////////////////////////
 // Memory allocation
 
-static void* VmaMalloc(const VkAllocationCallbacks* pAllocationCallbacks, size_t size, size_t alignment)
+static void* VMA_NULLABLE VmaMalloc(const VkAllocationCallbacks* VMA_NULLABLE pAllocationCallbacks, size_t size, size_t alignment)
 {
     void* result = VMA_NULL;
     if ((pAllocationCallbacks != VMA_NULL) &&
@@ -4174,7 +4182,7 @@ static void* VmaMalloc(const VkAllocationCallbacks* pAllocationCallbacks, size_t
     return result;
 }
 
-static void VmaFree(const VkAllocationCallbacks* pAllocationCallbacks, void* ptr)
+static void VmaFree(const VkAllocationCallbacks* VMA_NULLABLE pAllocationCallbacks, void* VMA_NULLABLE ptr)
 {
     if ((pAllocationCallbacks != VMA_NULL) &&
         (pAllocationCallbacks->pfnFree != VMA_NULL))
@@ -4188,13 +4196,13 @@ static void VmaFree(const VkAllocationCallbacks* pAllocationCallbacks, void* ptr
 }
 
 template<typename T>
-static T* VmaAllocate(const VkAllocationCallbacks* pAllocationCallbacks)
+static T* VMA_NULLABLE VmaAllocate(const VkAllocationCallbacks* VMA_NULLABLE pAllocationCallbacks)
 {
     return (T*)VmaMalloc(pAllocationCallbacks, sizeof(T), VMA_ALIGN_OF(T));
 }
 
 template<typename T>
-static T* VmaAllocateArray(const VkAllocationCallbacks* pAllocationCallbacks, size_t count)
+static T* VMA_NULLABLE VmaAllocateArray(const VkAllocationCallbacks* VMA_NULLABLE pAllocationCallbacks, size_t count)
 {
     return (T*)VmaMalloc(pAllocationCallbacks, sizeof(T) * count, VMA_ALIGN_OF(T));
 }
@@ -4204,14 +4212,14 @@ static T* VmaAllocateArray(const VkAllocationCallbacks* pAllocationCallbacks, si
 #define vma_new_array(allocator, type, count)   new(VmaAllocateArray<type>((allocator), (count)))(type)
 
 template<typename T>
-static void vma_delete(const VkAllocationCallbacks* pAllocationCallbacks, T* ptr)
+static void vma_delete(const VkAllocationCallbacks* VMA_NULLABLE pAllocationCallbacks, T* VMA_NULLABLE ptr)
 {
     ptr->~T();
     VmaFree(pAllocationCallbacks, ptr);
 }
 
 template<typename T>
-static void vma_delete_array(const VkAllocationCallbacks* pAllocationCallbacks, T* ptr, size_t count)
+static void vma_delete_array(const VkAllocationCallbacks* VMA_NULLABLE pAllocationCallbacks, T* VMA_NULLABLE ptr, size_t count)
 {
     if (ptr != VMA_NULL)
     {
@@ -4223,7 +4231,7 @@ static void vma_delete_array(const VkAllocationCallbacks* pAllocationCallbacks, 
     }
 }
 
-static char* VmaCreateStringCopy(const VkAllocationCallbacks* allocs, const char* srcStr)
+static char* VMA_NULLABLE VmaCreateStringCopy(const VkAllocationCallbacks* VMA_NULLABLE allocs, const char* VMA_NULLABLE srcStr)
 {
     if (srcStr != VMA_NULL)
     {
@@ -4236,7 +4244,7 @@ static char* VmaCreateStringCopy(const VkAllocationCallbacks* allocs, const char
 }
 
 #if VMA_STATS_STRING_ENABLED
-static char* VmaCreateStringCopy(const VkAllocationCallbacks* allocs, const char* srcStr, size_t strLen)
+static char* VMA_NULLABLE VmaCreateStringCopy(const VkAllocationCallbacks* VMA_NULLABLE allocs, const char* VMA_NULLABLE srcStr, size_t strLen)
 {
     if (srcStr != VMA_NULL)
     {
@@ -4249,7 +4257,7 @@ static char* VmaCreateStringCopy(const VkAllocationCallbacks* allocs, const char
 }
 #endif // VMA_STATS_STRING_ENABLED
 
-static void VmaFreeString(const VkAllocationCallbacks* allocs, char* str)
+static void VmaFreeString(const VkAllocationCallbacks* VMA_NULLABLE allocs, char* VMA_NULLABLE str)
 {
     if (str != VMA_NULL)
     {
@@ -4358,7 +4366,7 @@ public:
     ~VmaMutexLock() {  if (m_pMutex) { m_pMutex->Unlock(); } }
 
 private:
-    VMA_MUTEX* m_pMutex;
+    VMA_MUTEX* _Nullable m_pMutex;
 };
 
 // Helper RAII class to lock a RW mutex in constructor and unlock it in destructor (at the end of scope), for reading.
@@ -4374,7 +4382,7 @@ public:
     ~VmaMutexLockRead() { if (m_pMutex) { m_pMutex->UnlockRead(); } }
 
 private:
-    VMA_RW_MUTEX* m_pMutex;
+    VMA_RW_MUTEX* _Nullable m_pMutex;
 };
 
 // Helper RAII class to lock a RW mutex in constructor and unlock it in destructor (at the end of scope), for writing.
@@ -4390,7 +4398,7 @@ public:
     ~VmaMutexLockWrite() { if (m_pMutex) { m_pMutex->UnlockWrite(); } }
 
 private:
-    VMA_RW_MUTEX* m_pMutex;
+    VMA_RW_MUTEX* _Nullable m_pMutex;
 };
 
 #if VMA_DEBUG_GLOBAL_MUTEX
@@ -4416,14 +4424,14 @@ public:
     }
 
     void Commit() { m_Atomic = VMA_NULL; }
-    T Increment(AtomicT* atomic)
+    T Increment(AtomicT* VMA_NOT_NULL atomic)
     {
         m_Atomic = atomic;
         return m_Atomic->fetch_add(1);
     }
 
 private:
-    AtomicT* m_Atomic = VMA_NULL;
+    AtomicT* _Nullable m_Atomic = VMA_NULL;
 };
 #endif // _VMA_ATOMIC_TRANSACTIONAL_INCREMENT
 
@@ -4432,17 +4440,17 @@ private:
 template<typename T>
 struct VmaStlAllocator
 {
-    const VkAllocationCallbacks* const m_pCallbacks;
+    const VkAllocationCallbacks* _Nullable const m_pCallbacks;
     typedef T value_type;
 
-    explicit VmaStlAllocator(const VkAllocationCallbacks* pCallbacks) : m_pCallbacks(pCallbacks) {}
+    explicit VmaStlAllocator(const VkAllocationCallbacks* VMA_NULLABLE pCallbacks) : m_pCallbacks(pCallbacks) {}
     template<typename U>
     explicit VmaStlAllocator(const VmaStlAllocator<U>& src) : m_pCallbacks(src.m_pCallbacks) {}
     VmaStlAllocator(const VmaStlAllocator&) = default;
     VmaStlAllocator& operator=(const VmaStlAllocator&) = delete;
 
-    T* allocate(size_t n) { return VmaAllocateArray<T>(m_pCallbacks, n); }
-    void deallocate(T* p, size_t n) { VmaFree(m_pCallbacks, p); }
+    T* VMA_NULLABLE allocate(size_t n) { return VmaAllocateArray<T>(m_pCallbacks, n); }
+    void deallocate(T* VMA_NULLABLE p, size_t n) { VmaFree(m_pCallbacks, p); }
 
     template<typename U>
     bool operator==(const VmaStlAllocator<U>& rhs) const
@@ -4466,8 +4474,8 @@ class VmaVector
 {
 public:
     typedef T value_type;
-    typedef T* iterator;
-    typedef const T* const_iterator;
+    typedef T* _Nullable iterator;
+    typedef const T* _Nullable const_iterator;
 
     explicit VmaVector(const AllocatorT& allocator);
     VmaVector(size_t count, const AllocatorT& allocator);
@@ -4480,10 +4488,10 @@ public:
 
     bool empty() const { return m_Count == 0; }
     size_t size() const { return m_Count; }
-    T* data() { return m_pArray; }
+    T* _Nullable data() { return m_pArray; }
     T& front() { VMA_HEAVY_ASSERT(m_Count > 0); return m_pArray[0]; }
     T& back() { VMA_HEAVY_ASSERT(m_Count > 0); return m_pArray[m_Count - 1]; }
-    const T* data() const { return m_pArray; }
+    const T* _Nullable data() const { return m_pArray; }
     const T& front() const { VMA_HEAVY_ASSERT(m_Count > 0); return m_pArray[0]; }
     const T& back() const { VMA_HEAVY_ASSERT(m_Count > 0); return m_pArray[m_Count - 1]; }
 
@@ -4511,7 +4519,7 @@ public:
 
 private:
     AllocatorT m_Allocator;
-    T* m_pArray;
+    T* _Nullable m_pArray;
     size_t m_Count;
     size_t m_Capacity;
 };
@@ -4683,7 +4691,7 @@ class VmaSmallVector
 {
 public:
     typedef T value_type;
-    typedef T* iterator;
+    typedef T* _Nullable iterator;
 
     explicit VmaSmallVector(const AllocatorT& allocator);
     VmaSmallVector(size_t count, const AllocatorT& allocator);
@@ -4695,10 +4703,10 @@ public:
 
     bool empty() const { return m_Count == 0; }
     size_t size() const { return m_Count; }
-    T* data() { return m_Count > N ? m_DynamicArray.data() : m_StaticArray; }
+    T* _Nullable data() { return m_Count > N ? m_DynamicArray.data() : m_StaticArray; }
     T& front() { VMA_HEAVY_ASSERT(m_Count > 0); return data()[0]; }
     T& back() { VMA_HEAVY_ASSERT(m_Count > 0); return data()[m_Count - 1]; }
-    const T* data() const { return m_Count > N ? m_DynamicArray.data() : m_StaticArray; }
+    const T* _Nullable data() const { return m_Count > N ? m_DynamicArray.data() : m_StaticArray; }
     const T& front() const { VMA_HEAVY_ASSERT(m_Count > 0); return data()[0]; }
     const T& back() const { VMA_HEAVY_ASSERT(m_Count > 0); return data()[m_Count - 1]; }
 
@@ -6837,7 +6845,7 @@ void VmaBlockMetadata::DebugLogAllocation(VkDeviceSize offset, VkDeviceSize size
         VmaAllocation allocation = reinterpret_cast<VmaAllocation>(userData);
 
         userData = allocation->GetUserData();
-        const char* name = allocation->GetName();
+        [[maybe_unused]] const char* name = allocation->GetName();
 
 #if VMA_STATS_STRING_ENABLED
         VMA_LEAK_LOG_FORMAT("UNFREED ALLOCATION; Offset: %" PRIu64 "; Size: %" PRIu64 "; UserData: %p; Name: %s; Type: %s; Usage: %" PRIu64,

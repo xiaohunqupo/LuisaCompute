@@ -56,6 +56,12 @@ void GetStaticAABBGeometryDesc(
 bool BottomAccel::RequireCompact() const {
     return (((uint)hint & (uint)D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_COMPACTION) != 0) && !update;
 }
+Buffer const *BottomAccel::GetAccelBuffer() const {
+    if (!accelBuffer) [[unlikely]] {
+        LUISA_ERROR("BLAS not initialized.");
+    }
+    return accelBuffer.get();
+}
 BottomAccel::BottomAccel(
     Device *device,
     AccelOption const &option)

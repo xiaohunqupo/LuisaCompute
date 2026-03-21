@@ -229,14 +229,16 @@ int main(int argc, char *argv[]) {
             }));
     }
     static constexpr uint interval = 4u;
-    uint total_spp = user_spp > 0u ? user_spp : 16384u;
+    bool infinite_render = user_spp == 0u;
+    uint total_spp = infinite_render ? 0u : user_spp;
     Image<float> ldr_image = device.create_image<float>(
         (!force_offline && swap_chain.has_value()) ? swap_chain->backend_storage() : PixelStorage::BYTE4,
         width, height);
 #else
     Stream stream = device.create_stream(StreamTag::COMPUTE);
     static constexpr uint interval = 64u;
-    uint total_spp = user_spp > 0u ? user_spp : 16384u;
+    bool infinite_render = user_spp == 0u;
+    uint total_spp = infinite_render ? 0u : user_spp;
     Image<float> ldr_image = device.create_image<float>(PixelStorage::BYTE4, width, height);
 #endif
     Callable linear_to_srgb = [](Var<float3> x) noexcept {
@@ -254,14 +256,16 @@ int main(int argc, char *argv[]) {
     auto hdr2ldr_shader = device.compile(hdr2ldr_kernel);
     double t0 = clock.toc();
     uint spp_count = 0u;
-    for (uint spp = 0u; spp < total_spp; spp += interval) {
+    uint spp = 0u;
+    while (infinite_render || spp < total_spp) {
 
         // render
         CommandList command_list = CommandList::create();
-        for (uint frame = spp; frame < spp + interval && frame < total_spp; frame++) {
-            command_list << render(seed_image, accum_image, frame).dispatch(width, height);
+        for (uint frame = 0u; frame < interval && (infinite_render || spp + frame < total_spp); frame++) {
+            command_list << render(seed_image, accum_image, spp + frame).dispatch(width, height);
             spp_count++;
         }
+        spp += interval;
 
 #if ENABLE_DISPLAY
         if (!force_offline && swap_chain.has_value()) {

@@ -247,7 +247,7 @@ auto ShaderSerializer::try_deser_raster(
     vstd::vector<uint> pixel_spv;
     RasterDeserResult result{
         .shader = nullptr};
-    uint3 block_size;
+    [[maybe_unused]] uint3 block_size;
     using namespace detail;
     RasterSerHeader header;
     vstd::vector<std::pair<luisa::string, Type const *>> printers;
@@ -284,7 +284,7 @@ auto ShaderSerializer::try_deser_raster(
             read_stream->read({reinterpret_cast<std::byte *>(printer_data.data()),
                                printer_data.size()});
             auto ptr = printer_data.data();
-            for (auto i : vstd::range(header.printer_count)) {
+            for (auto _ : vstd::range(header.printer_count)) {
                 auto printer_len = strlen(ptr);
                 luisa::string_view printer_val{ptr, printer_len};
                 ptr += printer_len + 1;
@@ -353,7 +353,7 @@ ShaderSerializer::DeserResult ShaderSerializer::try_deser_compute(
             read_stream->read({reinterpret_cast<std::byte *>(printer_data.data()),
                                printer_data.size()});
             auto ptr = printer_data.data();
-            for (auto i : vstd::range(header.printer_count)) {
+            for (auto _ : vstd::range(header.printer_count)) {
                 auto printer_len = strlen(ptr);
                 luisa::string_view printer_val{ptr, printer_len};
                 ptr += printer_len + 1;

@@ -142,13 +142,13 @@ void EnhancedBarrierTracker::SetRes(
     D3D12_BARRIER_SYNC sync,
     D3D12_BARRIER_ACCESS access,
     D3D12_BARRIER_LAYOUT layout) {
-    ResourceStates::Type type;
     using SubResource = vstd::variant<
         BufferAfterRange,
         uint /*tex level*/>;
     Resource const *d3d12Res;
     size_t size;
     bool allow_simul_access = true;
+    ResourceStates::Type type{};
     auto resRange = res.multi_visit_or(
         vstd::UndefEval<SubResource>{},
         [&](BufferView const &bufferView) -> SubResource {
@@ -229,12 +229,10 @@ void EnhancedBarrierTracker::Record(
     D3D12_BARRIER_SYNC sync,
     D3D12_BARRIER_ACCESS access,
     D3D12_BARRIER_LAYOUT layout) {
-    ResourceStates::Type type;
     switch (res->GetTag()) {
         case Resource::Tag::DefaultBuffer:
         case Resource::Tag::SparseBuffer:
         case Resource::Tag::ExternalBuffer:
-            type = ResourceStates::Type::Buffer;
             if (range == Range()) {
                 auto b = static_cast<Buffer const *>(res);
                 range = Range(0, b->GetByteSize());
@@ -251,7 +249,6 @@ void EnhancedBarrierTracker::Record(
         case Resource::Tag::DepthBuffer:
         case Resource::Tag::ExternalTexture:
         case Resource::Tag::ExternalDepth:
-            type = ResourceStates::Type::Texture;
             if (range == Range()) {
                 auto b = static_cast<TextureBase const *>(res);
                 range = Range(0, b->Mip());
@@ -264,7 +261,6 @@ void EnhancedBarrierTracker::Record(
             }
             break;
         case Resource::Tag::SwapChain:
-            type = ResourceStates::Type::Texture;
             Record(ResourceView(static_cast<SwapChain const *>(res)), sync, access, layout);
             break;
         default:
@@ -446,7 +442,7 @@ void EnhancedBarrierTracker::Record(
     using SubResource = vstd::variant<
         BufferAfterRange,
         uint /*tex level*/>;
-    ResourceStates::Type type;
+    ResourceStates::Type type{};
     Resource const *d3d12Res;
     size_t size;
     bool allow_simul_access = true;

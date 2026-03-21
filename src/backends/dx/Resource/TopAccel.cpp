@@ -180,7 +180,7 @@ void TopAccel::ProcessSetDesc(EnhancedBarrierTracker &tracker) {
         }
         if (updateMesh) {
             auto mesh = reinterpret_cast<BottomAccel *>(m.primitive);
-            tracker.Record(mesh->accelBuffer.get(), EnhancedBarrierTracker::Usage::AccelInstanceBuffer);
+            tracker.Record(mesh->GetAccelBuffer(), EnhancedBarrierTracker::Usage::AccelInstanceBuffer);
             SetMesh(mesh, m.index);
             m.primitive = mesh->GetAccelBuffer()->GetAddress();
             update = false;

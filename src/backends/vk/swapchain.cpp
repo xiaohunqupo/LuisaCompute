@@ -150,6 +150,9 @@ void _create_surface(
         create_info.dpy = display_handle ? reinterpret_cast<Display *>(display_handle) : XOpenDisplay(nullptr);
         create_info.window = static_cast<Window>(window_handle);
         auto vkCreateXlibSurfaceKHR = (PFN_vkCreateXlibSurfaceKHR)vkGetInstanceProcAddr(instance, "vkCreateXlibSurfaceKHR");
+        if (!vkCreateXlibSurfaceKHR) {
+            LUISA_ERROR_WITH_LOCATION("vkCreateXlibSurfaceKHR is not available - VK_KHR_xlib_surface extension not enabled");
+        }
         VK_CHECK_RESULT(vkCreateXlibSurfaceKHR(instance, &create_info, Device::alloc_callbacks(), &surface));
     };
 #if LUISA_ENABLE_WAYLAND
@@ -625,15 +628,21 @@ void Swapchain::create_swapchain(
     _window_handle = window_handle;
     _requested_size = uint2(width, height);
     _requested_hdr = allow_hdr;
-    _requested_vsync = allow_hdr;
-    _create_surface(
-        display_handle,
-        window_handle,
-        _surface,
-        Device::instance());
+    _requested_vsync = vsync;
+
+    // Only create surface on first creation, not during recreation
+    // Surface is destroyed in destructor
+    if (!is_recreation) {
+        _create_surface(
+            display_handle,
+            window_handle,
+            _surface,
+            Device::instance());
+    }
+
     auto support = _query_swapchain_support(
         device()->physical_device(), _surface);
-    if (support.capabilities.maxImageCount == 0u) { support.capabilities.maxImageCount = back_buffers; }
+    if (support.capabilities.maxImageCount == 0u) { support.capabilities.maxImageCount = std::max(back_buffers, support.capabilities.minImageCount); }
     if (!is_recreation) {// only allow change back buffer count and swapchain format on first creation
         back_buffers = std::clamp(
             back_buffers,
@@ -692,6 +701,7 @@ void Swapchain::create_swapchain(
         }();
     }
 
+    _requested_transparent = transparent;
     _swapchain_extent = [&capabilities = support.capabilities, width, height] {
         if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max() &&
             capabilities.currentExtent.height != std::numeric_limits<uint32_t>::max()) {
@@ -742,16 +752,22 @@ void Swapchain::create_swapchain(
         create_info.compositeAlpha = choose_composite_alpha(device()->physical_device(), _surface);
     }
     auto logic_device = device()->logic_device();
+    if (!vkCreateSwapchainKHR) {
+        LUISA_ERROR_WITH_LOCATION("vkCreateSwapchainKHR is null - volkLoadDevice not called or VK_KHR_swapchain not enabled");
+    }
     VK_CHECK_RESULT(vkCreateSwapchainKHR(logic_device, &create_info, Device::alloc_callbacks(), &_swapchain));
 
-    // get the swapchain images
-    auto image_count = back_buffers;
+    // get the swapchain images - first query count, then resize, then fetch
+    uint32_t image_count = 0;
+    VK_CHECK_RESULT(vkGetSwapchainImagesKHR(logic_device, _swapchain, &image_count, nullptr));
+    if (image_count == 0) {
+        LUISA_ERROR_WITH_LOCATION("Swapchain image count is zero");
+    }
+    if (image_count != back_buffers) {
+        LUISA_WARNING_WITH_LOCATION("Swapchain image count mismatch: requested = {}, actual = {}.", back_buffers, image_count);
+    }
     _swapchain_images.resize(image_count);
     VK_CHECK_RESULT(vkGetSwapchainImagesKHR(logic_device, _swapchain, &image_count, _swapchain_images.data()));
-    if (image_count != back_buffers) {
-        LUISA_WARNING_WITH_LOCATION("Swapchain image count mismatch: required = {}, actual = {}.", back_buffers, image_count);
-        back_buffers = image_count;
-    }
 
     // create the swapchain image views
     _swapchain_image_views.resize(image_count);
@@ -769,32 +785,52 @@ void Swapchain::create_swapchain(
         VK_CHECK_RESULT(vkCreateImageView(logic_device, &image_view_create_info, Device::alloc_callbacks(), &_swapchain_image_views[i]));
     }
     LUISA_INFO("Created swapchain: {}x{} with {} back buffer(s) in {} (format = {}, mode = {}).",
-               _swapchain_extent.width, _swapchain_extent.height, back_buffers,
+               _swapchain_extent.width, _swapchain_extent.height, _swapchain_images.size(),
                _colorspace_name(_swapchain_format.colorSpace),
                luisa::to_string(_swapchain_format.format),
                luisa::to_string(present_mode));
-    _create_render_pass(_swapchain_format, device()->logic_device(), _render_pass);
-    _create_descriptor_set_layout(device()->logic_device(), _texture_sampler, _descriptor_set_layout);
-    _create_pipeline(device()->logic_device(), _pipeline_layout, _descriptor_set_layout, _graphics_pipeline, _render_pass);
+
+    // Only create persistent resources on first creation, not during recreation
+    if (!is_recreation) {
+        _create_render_pass(_swapchain_format, device()->logic_device(), _render_pass);
+        _create_descriptor_set_layout(device()->logic_device(), _texture_sampler, _descriptor_set_layout);
+        _create_pipeline(device()->logic_device(), _pipeline_layout, _descriptor_set_layout, _graphics_pipeline, _render_pass);
+    }
+
+    if (_image_available_semaphores.size() != _swapchain_images.size()) {
+        for (auto &sem : _image_available_semaphores) {
+            vkDestroySemaphore(device()->logic_device(), sem, Device::alloc_callbacks());
+        }
+        for (auto &sem : _render_finished_semaphores) {
+            vkDestroySemaphore(device()->logic_device(), sem, Device::alloc_callbacks());
+        }
+        for (auto &f : _in_flight_fences) {
+            vkDestroyFence(device()->logic_device(), f, Device::alloc_callbacks());
+        }
+
+        _image_available_semaphores.resize(_swapchain_images.size());
+        _render_finished_semaphores.resize(_swapchain_images.size());
+        _in_flight_fences.resize(_swapchain_images.size());
+
+        VkSemaphoreCreateInfo semaphore_info{};
+        semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+        VkFenceCreateInfo fence_info{};
+        fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        fence_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+        for (auto i : vstd::range((int64_t)_swapchain_images.size())) {
+            VK_CHECK_RESULT(vkCreateFence(device()->logic_device(), &fence_info, Device::alloc_callbacks(), &_in_flight_fences[i]));
+            VK_CHECK_RESULT(vkCreateSemaphore(device()->logic_device(), &semaphore_info, Device::alloc_callbacks(), &_image_available_semaphores[i]));
+            VK_CHECK_RESULT(vkCreateSemaphore(device()->logic_device(), &semaphore_info, Device::alloc_callbacks(), &_render_finished_semaphores[i]));
+        }
+    }
+
+    // Framebuffers are always recreated (they depend on swapchain images)
     _create_framebuffers(
         device()->logic_device(),
         _swapchain_image_views,
         _swapchain_framebuffers,
         _render_pass,
         _swapchain_extent);
-    _image_available_semaphores.resize(_swapchain_images.size());
-    _render_finished_semaphores.resize(_swapchain_images.size());
-    _in_flight_fences.resize(_swapchain_images.size());
-    VkSemaphoreCreateInfo semaphore_info{};
-    semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-    VkFenceCreateInfo fence_info{};
-    fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fence_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-    for (auto i : vstd::range((int64_t)_swapchain_images.size())) {
-        VK_CHECK_RESULT(vkCreateFence(device()->logic_device(), &fence_info, Device::alloc_callbacks(), &_in_flight_fences[i]));
-        VK_CHECK_RESULT(vkCreateSemaphore(device()->logic_device(), &semaphore_info, Device::alloc_callbacks(), &_image_available_semaphores[i]));
-        VK_CHECK_RESULT(vkCreateSemaphore(device()->logic_device(), &semaphore_info, Device::alloc_callbacks(), &_render_finished_semaphores[i]));
-    }
 }
 
 Swapchain::Swapchain(Device *device)
@@ -814,24 +850,27 @@ void Swapchain::_recreate_swapchain() {
         _display_handle, _window_handle,
         _requested_size.x, _requested_size.y,
         back_buffers, true,
-        _requested_hdr, _requested_vsync);
-    _create_framebuffers(
-        device,
-        _swapchain_image_views,
-        _swapchain_framebuffers,
-        _render_pass,
-        _swapchain_extent);
+        _requested_hdr, _requested_vsync,
+        _requested_transparent);
+
+    _current_frame = 0;
 }
+
+bool Swapchain::is_hdr() const noexcept {
+    return _is_hdr_colorspace(_swapchain_format.colorSpace);
+}
+
 void Swapchain::_destroy_swapchain() {
     auto device = this->device()->logic_device();
+    // Destroy framebuffers BEFORE image views (framebuffers depend on views)
+    for (auto &i : _swapchain_framebuffers) {
+        vkDestroyFramebuffer(device, i, Device::alloc_callbacks());
+    }
     for (auto &i : _swapchain_image_views) {
         vkDestroyImageView(
             device,
             i,
             Device::alloc_callbacks());
-    }
-    for (auto &i : _swapchain_framebuffers) {
-        vkDestroyFramebuffer(device, i, Device::alloc_callbacks());
     }
     _swapchain_framebuffers.clear();
     _swapchain_image_views.clear();
@@ -841,6 +880,7 @@ void Swapchain::_destroy_swapchain() {
 
 Swapchain::~Swapchain() {
     auto device = this->device()->logic_device();
+    vkDeviceWaitIdle(device);
     _destroy_swapchain();
     vkDestroySurfaceKHR(
         Device::instance(),
@@ -864,6 +904,11 @@ Swapchain::~Swapchain() {
     vkDestroyDescriptorSetLayout(device, _descriptor_set_layout, Device::alloc_callbacks());
     vkDestroyRenderPass(device, _render_pass, Device::alloc_callbacks());
 }
+
+void Swapchain::handle_present_error() {
+    _recreate_swapchain();
+}
+
 void Swapchain::present(
     CommandBuffer &cmdbuffer,
     VkSemaphore &wait, VkSemaphore &signal,
@@ -875,17 +920,6 @@ void Swapchain::present(
     VkFence &fence,
     uint mip) {
     fence = nullptr;
-    if (!_vertex_buffer) {
-        _create_vertex_buffer(cmdbuffer, cmdbuffer.states()->_callbacks, device()->physical_device(), device()->logic_device(), _vertex_buffer, _vertex_buffer_memory);
-    }
-    VkDescriptorSet descriptor_set;
-    _create_descriptor_sets(
-        device()->logic_device(),
-        _swapchain_images,
-        descriptor_set,
-        _descriptor_set_layout,
-        cmdbuffer.states()->_desc_pool);
-
     image_index = 0u;
     VK_CHECK_RESULT(vkWaitForFences(
         device()->logic_device(), 1, &_in_flight_fences[_current_frame],
@@ -903,6 +937,17 @@ void Swapchain::present(
             luisa::to_string(ret));
     }
     VK_CHECK_RESULT(vkResetFences(device()->logic_device(), 1, &_in_flight_fences[_current_frame]));
+    // Create vertex buffer only after successful acquisition
+    if (!_vertex_buffer) {
+        _create_vertex_buffer(cmdbuffer, cmdbuffer.states()->_callbacks, device()->physical_device(), device()->logic_device(), _vertex_buffer, _vertex_buffer_memory);
+    }
+    VkDescriptorSet descriptor_set;
+    _create_descriptor_sets(
+        device()->logic_device(),
+        _swapchain_images,
+        descriptor_set,
+        _descriptor_set_layout,
+        cmdbuffer.states()->_desc_pool);
     auto image = tex->vk_image();
     auto image_format = Texture::to_vk_format(tex->format());
     cmdbuffer.resource_barrier->record(

@@ -13,7 +13,7 @@ on_load(function(target)
     if target:is_plat("windows") then
         target:add("defines", "VK_USE_PLATFORM_WIN32_KHR")
     elseif target:is_plat("linux") then
-        target:add("defines", "VK_USE_PLATFORM_XCB_KHR")
+        target:add("defines", "VK_USE_PLATFORM_XCB_KHR", "VK_USE_PLATFORM_XLIB_KHR")
     end
     local function rela(p)
         return path.normalize(path.join(os.scriptdir(), p))

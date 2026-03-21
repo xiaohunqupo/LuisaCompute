@@ -1175,7 +1175,7 @@ void CUDACodegenAST::visit(const CallExpr *expr) {
         }
             return;
         case CallOp::COOPERATIVE_OUTER_PRODUCT_ACCUMULATE: {
-            auto matrix_dimension = args[1]->type()->coop_matrix_dimension();// weight is KxN
+            [[maybe_unused]] auto matrix_dimension = args[1]->type()->coop_matrix_dimension();// weight is KxN
             _scratch << "optixCoopVecOuterProductAccumulate<";
             _emit_type_name(args[2]->type());
             _scratch << ",";

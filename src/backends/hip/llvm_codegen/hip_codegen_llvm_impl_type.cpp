@@ -3,8 +3,32 @@
 //
 
 #include "hip_codegen_llvm_impl.h"
+#include "../hip_bindless_array.h"
 
 namespace luisa::compute::hip {
+
+namespace detail {
+
+static void luisa_check_llvm_type_size_and_alignment(
+    const llvm::DataLayout &data_layout, llvm::Type *type,
+    size_t expected_size, size_t expected_alignment) noexcept {
+    auto llvm_size = data_layout.getTypeAllocSize(type);
+    auto llvm_align = data_layout.getABITypeAlign(type);
+    auto type_str = [&]() noexcept {
+        std::string str;
+        llvm::raw_string_ostream os{str};
+        type->print(os);
+        return str;
+    };
+    LUISA_ASSERT(llvm_size.getFixedValue() == expected_size && llvm_align.value() <= expected_alignment,
+                 "Type '{}' size or alignment mismatch: "
+                 "expected size {}, alignment {}; "
+                 "actual size {}, alignment {}.",
+                 type_str(), expected_size, expected_alignment,
+                 llvm_size.getFixedValue(), llvm_align.value());
+}
+
+}// namespace detail
 
 size_t HIPCodegenLLVMImpl::_get_type_alignment(const Type *type) noexcept {
     if (type->is_basic() || type->is_array() || type->is_structure()) {
@@ -223,7 +247,7 @@ llvm::Type *HIPCodegenLLVMImpl::_get_llvm_bindless_array_slot_type() noexcept {
     if (_llvm_bindless_array_slot_type == nullptr) {
         auto llvm_ptr_type = llvm::PointerType::get(_llvm_context, amdgpu_address_space_global);
         auto llvm_i64_type = llvm::Type::getInt64Ty(_llvm_context);
-        _llvm_bindless_array_slot_type = llvm::StructType::get(
+        _llvm_bindless_array_slot_type = llvm::StructType::create(
             _llvm_context,
             {
                 llvm_ptr_type,// buffer
@@ -231,7 +255,11 @@ llvm::Type *HIPCodegenLLVMImpl::_get_llvm_bindless_array_slot_type() noexcept {
                 llvm_i64_type,// tex2d
                 llvm_i64_type // tex3d
             },
-            false);
+            "luisa.bindless.slot");
+        detail::luisa_check_llvm_type_size_and_alignment(
+            _llvm_module->getDataLayout(), _llvm_bindless_array_slot_type,
+            sizeof(HIPBindlessArray::Slot),
+            alignof(HIPBindlessArray::Slot));
     }
     return _llvm_bindless_array_slot_type;
 }
