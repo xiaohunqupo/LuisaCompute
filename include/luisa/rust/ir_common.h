@@ -144,3 +144,11 @@ typedef struct VectorType VectorType;
 typedef struct Type Type;
 
 #endif
+
+// X11 headers may define these macros, which conflict with our enum values
+#ifdef Bool
+#undef Bool
+#endif
+#ifdef Always
+#undef Always
+#endif
