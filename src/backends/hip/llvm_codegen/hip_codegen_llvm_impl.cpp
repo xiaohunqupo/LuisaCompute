@@ -2,11 +2,8 @@
 // Created by mike on 3/18/26.
 //
 
-#include "hip_codegen_llvm_impl.h"
-#include "hip_codegen_llvm_device_bitcode.h"
 #include <llvm/Bitcode/BitcodeWriter.h>
 #include <llvm/IR/DebugInfo.h>
-#include <llvm/IR/LegacyPassManager.h>
 #include <llvm/Analysis/TargetTransformInfo.h>
 #include <llvm/Analysis/TargetLibraryInfo.h>
 #include <llvm/Support/TargetSelect.h>
@@ -17,22 +14,18 @@
 #include <llvm/Analysis/LoopAnalysisManager.h>
 #include <llvm/Passes/PassBuilder.h>
 #include <llvm/IR/Dominators.h>
-#include <llvm/Analysis/AssumptionCache.h>
-#include <llvm/Transforms/Utils/CodeExtractor.h>
-#include <llvm/MC/MCAsmInfo.h>
-#include <llvm/Support/FileOutputBuffer.h>
 #include <llvm/IR/Module.h>
-#include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Constants.h>
-#include <llvm/AsmParser/Parser.h>
 #include <llvm/Bitcode/BitcodeReader.h>
-#include <llvm/Bitcode/BitcodeWriter.h>
 #include <llvm/Linker/Linker.h>
 #include <llvm/Support/SourceMgr.h>
 #include <llvm/Support/MemoryBuffer.h>
 #include <llvm/Support/raw_ostream.h>
 
 #include <luisa/core/clock.h>
+#include "hip_codegen_llvm_impl.h"
+#include "hip_rt_device_wrapper.hip"
+#include "hip_codegen_llvm_device_bitcode.h"
 #include "hip_rt_wrapper_bitcode_embedded.h"
 
 #undef None
@@ -196,10 +189,9 @@ void HIPCodegenLLVMImpl::_postprocess_rt_kernel() noexcept {
     // Replace the extern __shared__ declaration of luisa_hiprt_shared_stack_cache
     // with a sized definition based on the actual kernel block size.
     {
-        static constexpr auto SHARED_STACK_SIZE = 32u;
         auto block_size = _config.block_size[0] * _config.block_size[1] * _config.block_size[2];
         LUISA_ASSERT(block_size > 0u, "Block size must be greater than zero.");
-        auto shared_array_size = SHARED_STACK_SIZE * block_size;
+        auto shared_array_size = LUISA_HIPRT_SHARED_STACK_SIZE * block_size;
         if (auto old_gv = _llvm_module->getGlobalVariable("luisa_hiprt_shared_stack_cache")) {
             auto i32_ty = llvm::Type::getInt32Ty(_llvm_context);
             auto array_ty = llvm::ArrayType::get(i32_ty, shared_array_size);
@@ -330,7 +322,7 @@ luisa::string HIPCodegenLLVMImpl::generate(const xir::Module &xir_module) noexce
 
     for (auto f : xir_module.function_list()) {
         if (auto def = f->definition()) {
-            _translate_function(def);
+            static_cast<void>(_translate_function(def));
         }
     }
 
