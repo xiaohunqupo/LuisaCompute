@@ -24,14 +24,11 @@ if (hip_FOUND)
     )
     luisa_compute_add_backend(hip SOURCES ${LUISA_HIP_SOURCES})
 
-# Add LLVM codegen for HIP
-add_subdirectory(llvm_codegen)
-
-target_link_libraries(luisa-compute-backend-hip PRIVATE
-        luisa-compute-ast
-        luisa-compute-runtime
-        hip::host
-)
+    target_link_libraries(luisa-compute-backend-hip PRIVATE
+            luisa-compute-ast
+            luisa-compute-runtime
+            hip::host
+    )
     if (TARGET hiprtc::hiprtc)
         target_link_libraries(luisa-compute-backend-hip PRIVATE hiprtc::hiprtc)
     elseif (TARGET hip::hiprtc)
@@ -66,71 +63,22 @@ target_link_libraries(luisa-compute-backend-hip PRIVATE
 
     set(LUISA_COMPUTE_HIPRT_SDK_INCLUDE_DIR ${HIPRT_FROM_SOURCE_INCLUDE_DIR})
 
-    # compile HIPRT wrapper .hip -> .bc at build time
-    set(LUISA_HIP_RT_WRAPPER_SOURCE ${CMAKE_CURRENT_LIST_DIR}/hip_rt_device_wrapper.hip)
-    set(LUISA_HIP_RT_WRAPPER_BC ${CMAKE_CURRENT_LIST_DIR}/hip_rt_wrapper.bc)
-    # Include both the generated header dir and the source tree
-    set(_HIPRT_WRAPPER_INCLUDE_ARGS -I ${LUISA_COMPUTE_HIPRT_SDK_INCLUDE_DIR} -I ${HIPRT_SOURCE_DIR})
-    # Detect target GPU architecture from environment or use default
-    if(DEFINED ENV{HIPRT_GPU_ARCH} AND NOT "$ENV{HIPRT_GPU_ARCH}" STREQUAL "")
-        set(_hip_wrapper_arch "$ENV{HIPRT_GPU_ARCH}")
-    elseif(DEFINED HIPRT_GPU_ARCH AND NOT "${HIPRT_GPU_ARCH}" STREQUAL "")
-        set(_hip_wrapper_arch "${HIPRT_GPU_ARCH}")
-    else()
-        # Default: compile for common RDNA architectures
-        # This enables RTIP auto-detection via __gfxNNNN__ macros
-        set(_hip_wrapper_arch "gfx1030;gfx1100;gfx1200;gfx1201")
-    endif()
-    # Build arch flags
-    set(_hip_arch_flags "")
-    foreach(_arch ${_hip_wrapper_arch})
-        list(APPEND _hip_arch_flags "-a" "${_arch}")
-    endforeach()
-    add_custom_target(luisa-compute-backend-hip-compile-wrapper
-            COMMAND $<TARGET_FILE:luisa_hip_compile_wrapper>
-                -i ${LUISA_HIP_RT_WRAPPER_SOURCE}
-                -o ${LUISA_HIP_RT_WRAPPER_BC}
-                ${_hip_arch_flags}
-                ${_HIPRT_WRAPPER_INCLUDE_ARGS}
-            BYPRODUCTS ${LUISA_HIP_RT_WRAPPER_BC}
-            DEPENDS luisa_hip_compile_wrapper ${LUISA_HIP_RT_WRAPPER_SOURCE}
-            WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
-            COMMENT "Compiling HIPRT wrapper to LLVM bitcode for arch ${_hip_wrapper_arch}..."
-            VERBATIM)
-
-    # embed .bc -> .cpp/.h via luisa_embed_device_lib
-    add_custom_target(luisa-compute-backend-hip-embed-wrapper
-            COMMAND $<TARGET_FILE:luisa_embed_device_lib>
-                ${LUISA_HIP_RT_WRAPPER_BC}
-                --unsigned --prefix luisa_compute_hip_
-                -o hip_rt_wrapper_bitcode_embedded.cpp
-                -h hip_rt_wrapper_bitcode_embedded.h
-            BYPRODUCTS
-                ${CMAKE_CURRENT_LIST_DIR}/hip_rt_wrapper_bitcode_embedded.cpp
-                ${CMAKE_CURRENT_LIST_DIR}/hip_rt_wrapper_bitcode_embedded.h
-            DEPENDS luisa_embed_device_lib luisa-compute-backend-hip-compile-wrapper
-            WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
-            COMMENT "Embedding HIPRT wrapper bitcode..."
-            VERBATIM)
-
-    target_sources(luisa-compute-backend-hip PRIVATE
-            hip_rt_wrapper_bitcode_embedded.cpp
-            hip_rt_wrapper_bitcode_embedded.h)
-    add_dependencies(luisa-compute-backend-hip luisa-compute-backend-hip-embed-wrapper)
-
     # copy HIPRT runtime files to binary output directory
     # Copy the from-source built shared library and bitcode artifacts
     add_custom_command(TARGET luisa-compute-backend-hip POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                $<TARGET_FILE:hiprt_from_source>
-                $<TARGET_FILE_DIR:luisa-compute-backend-hip>)
+            $<TARGET_FILE:hiprt_from_source>
+            $<TARGET_FILE_DIR:luisa-compute-backend-hip>)
     # Copy bitcode/hipfb artifacts needed at runtime
     add_custom_command(TARGET luisa-compute-backend-hip POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${HIPRT_FROM_SOURCE_BITCODE_DIR}/${HIPRT_FROM_SOURCE_LIB_NAME}_${HIP_VERSION_STR}_amd_lib_linux.bc"
-                "${HIPRT_FROM_SOURCE_BITCODE_DIR}/${HIPRT_FROM_SOURCE_LIB_NAME}_${HIP_VERSION_STR}_amd.hipfb"
-                "${HIPRT_FROM_SOURCE_BITCODE_DIR}/oro_compiled_kernels.hipfb"
-                $<TARGET_FILE_DIR:luisa-compute-backend-hip>)
+            "${HIPRT_FROM_SOURCE_BITCODE_DIR}/${HIPRT_FROM_SOURCE_LIB_NAME}_${HIP_VERSION_STR}_amd_lib_linux.bc"
+            "${HIPRT_FROM_SOURCE_BITCODE_DIR}/${HIPRT_FROM_SOURCE_LIB_NAME}_${HIP_VERSION_STR}_amd.hipfb"
+            "${HIPRT_FROM_SOURCE_BITCODE_DIR}/oro_compiled_kernels.hipfb"
+            $<TARGET_FILE_DIR:luisa-compute-backend-hip>)
+
+    # Add LLVM codegen for HIP
+    add_subdirectory(llvm_codegen)
 
 elseif (NOT LUISA_COMPUTE_CHECK_BACKEND_DEPENDENCIES)
     message(FATAL_ERROR "HIP not found. The HIP backend will not be built.")
