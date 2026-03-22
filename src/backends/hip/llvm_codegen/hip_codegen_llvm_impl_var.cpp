@@ -16,7 +16,7 @@ llvm::Value *HIPCodegenLLVMImpl::_translate_alloca_inst(IB &b, FunctionContext &
     auto llvm_global = new llvm::GlobalVariable{
         *_llvm_module, llvm_type, false, llvm::GlobalValue::PrivateLinkage,
         llvm::UndefValue::get(llvm_type), inst->name().value_or("shared"), nullptr,
-        llvm::GlobalValue::NotThreadLocal, amdgpu_address_space_local, false};
+        llvm::GlobalValue::NotThreadLocal, amdgpu_address_space_shared, false};
     llvm_global->setAlignment(llvm::Align{_get_type_alignment(inst->type())});
     llvm_global->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
     return llvm_global;

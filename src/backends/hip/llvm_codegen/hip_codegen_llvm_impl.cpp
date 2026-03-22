@@ -115,42 +115,34 @@ void HIPCodegenLLVMImpl::_initialize() noexcept {
     }
 
     // provide OCLC configuration globals that OCML depends on
-    auto i8_type = llvm::Type::getInt8Ty(_llvm_context);
-    auto create_oclc_i8 = [&](llvm::StringRef name, uint8_t value) {
+    auto set_oclc_option = [&](llvm::StringRef name, llvm::Value *value) {
         if (auto gv = _llvm_module->getGlobalVariable(name)) {
-            gv->setInitializer(llvm::ConstantInt::get(i8_type, value));
-            gv->setLinkage(llvm::GlobalValue::PrivateLinkage);
-            gv->setConstant(true);
-        } else {
-            auto g = new llvm::GlobalVariable(*_llvm_module, i8_type, true,
-                                              llvm::GlobalValue::PrivateLinkage,
-                                              llvm::ConstantInt::get(i8_type, value), name);
-            g->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
+            llvm::SmallVector<llvm::LoadInst*, 8> loads;
+            for (auto user : gv->users()) {
+                if (auto load = llvm::dyn_cast<llvm::LoadInst>(user)) {
+                    loads.emplace_back(load);
+                }
+            }
+            for (auto load : loads) {
+                load->replaceAllUsesWith(value);
+                load->eraseFromParent();
+            }
+            if (gv->use_empty()) {
+                gv->eraseFromParent();
+            }
         }
     };
-    create_oclc_i8("__oclc_finite_only_opt", 0);
-    create_oclc_i8("__oclc_unsafe_math_opt", _config.enable_fast_math ? 1 : 0);
-    create_oclc_i8("__oclc_correctly_rounded_sqrt32", 1);
-    create_oclc_i8("__oclc_daz_opt", 0);
-    // ISA version: e.g., 1201 for gfx1201
-    if (auto gv = _llvm_module->getGlobalVariable("__oclc_ISA_version")) {
-        gv->setInitializer(llvm::ConstantInt::get(llvm::Type::getInt32Ty(_llvm_context), _config.amdgpu_arch));
-        gv->setLinkage(llvm::GlobalValue::PrivateLinkage);
-        gv->setConstant(true);
-    } else {
-        auto g = new llvm::GlobalVariable(*_llvm_module, llvm::Type::getInt32Ty(_llvm_context), true,
-                                          llvm::GlobalValue::PrivateLinkage,
-                                          llvm::ConstantInt::get(llvm::Type::getInt32Ty(_llvm_context), _config.amdgpu_arch),
-                                          "__oclc_ISA_version");
-        g->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
-    }
+    auto llvm_i8_type = llvm::Type::getInt8Ty(_llvm_context);
+    auto llvm_i32_type = llvm::Type::getInt32Ty(_llvm_context);
+    set_oclc_option("__oclc_finite_only_opt", llvm::ConstantInt::get(llvm_i8_type, _config.enable_fast_math ? 1 : 0));
+    set_oclc_option("__oclc_unsafe_math_opt", llvm::ConstantInt::get(llvm_i8_type, _config.enable_fast_math ? 1 : 0));
+    set_oclc_option("__oclc_ISA_version", llvm::ConstantInt::get(llvm_i8_type, _config.amdgpu_arch));
 
-    auto i32_type = llvm::Type::getInt32Ty(_llvm_context);
     auto &llvm_ctx = _llvm_context;
     auto module_flags = _llvm_module->getOrInsertNamedMetadata("llvm.module.flags");
-    module_flags->addOperand(llvm::MDNode::get(llvm_ctx, {llvm::ConstantAsMetadata::get(llvm::Constant::getIntegerValue(i32_type, llvm::APInt(32, 1))),
+    module_flags->addOperand(llvm::MDNode::get(llvm_ctx, {llvm::ConstantAsMetadata::get(llvm::Constant::getIntegerValue(llvm_i32_type, llvm::APInt(32, 1))),
                                                           llvm::MDString::get(llvm_ctx, "amdhsa_code_object_version"),
-                                                          llvm::ConstantAsMetadata::get(llvm::Constant::getIntegerValue(i32_type, llvm::APInt(32, 600)))}));
+                                                          llvm::ConstantAsMetadata::get(llvm::Constant::getIntegerValue(llvm_i32_type, llvm::APInt(32, 600)))}));
 
     _llvm_buffer_type = _get_llvm_buffer_type();
     _llvm_texture_type = _get_llvm_texture_type();
@@ -232,13 +224,7 @@ void HIPCodegenLLVMImpl::_run_optimization_passes() noexcept {
             for (auto &bb : f) {
                 for (auto &inst : bb) {
                     if (llvm::isa<llvm::FPMathOperator>(inst)) {
-                        if (inst.getOpcode() == llvm::Instruction::FAdd) {
-                            auto flags = llvm::FastMathFlags::getFast();
-                            flags.setNoInfs(false);
-                            inst.setFastMathFlags(flags);
-                        } else {
-                            inst.setFast(true);
-                        }
+                        inst.setFast(true);
                     }
                 }
             }
