@@ -61,7 +61,7 @@ void HIPCodegenLLVMImpl::_initialize() noexcept {
 
     static auto target = [] {
         std::string error;
-        if (auto t = llvm::TargetRegistry::lookupTarget(amdgpu_target_triple, error)) {
+        if (auto t = llvm::TargetRegistry::lookupTarget(llvm::Triple{amdgpu_target_triple}, error)) {
             return t;
         }
         LUISA_ERROR_WITH_LOCATION("Failed to lookup target '{}': {}", amdgpu_target_triple, error);
@@ -71,8 +71,6 @@ void HIPCodegenLLVMImpl::_initialize() noexcept {
     options.NoTrappingFPMath = true;
     if (_config.enable_fast_math) {
         options.AllowFPOpFusion = llvm::FPOpFusion::Fast;
-    } else {
-        options.AllowFPOpFusion = llvm::FPOpFusion::Strict;
     }
 
     auto opt_level = llvm::CodeGenOptLevel::Default;
@@ -136,13 +134,8 @@ void HIPCodegenLLVMImpl::_initialize() noexcept {
     auto llvm_i32_type = llvm::Type::getInt32Ty(_llvm_context);
     set_oclc_option("__oclc_finite_only_opt", llvm::ConstantInt::get(llvm_i8_type, _config.enable_fast_math ? 1 : 0));
     set_oclc_option("__oclc_unsafe_math_opt", llvm::ConstantInt::get(llvm_i8_type, _config.enable_fast_math ? 1 : 0));
-    set_oclc_option("__oclc_ISA_version", llvm::ConstantInt::get(llvm_i8_type, _config.amdgpu_arch));
-
-    auto &llvm_ctx = _llvm_context;
-    auto module_flags = _llvm_module->getOrInsertNamedMetadata("llvm.module.flags");
-    module_flags->addOperand(llvm::MDNode::get(llvm_ctx, {llvm::ConstantAsMetadata::get(llvm::Constant::getIntegerValue(llvm_i32_type, llvm::APInt(32, 1))),
-                                                          llvm::MDString::get(llvm_ctx, "amdhsa_code_object_version"),
-                                                          llvm::ConstantAsMetadata::get(llvm::Constant::getIntegerValue(llvm_i32_type, llvm::APInt(32, 600)))}));
+    auto isa_version = (_config.amdgpu_arch / 100) * 1000 + (_config.amdgpu_arch % 100) * 10;
+    set_oclc_option("__oclc_ISA_version", llvm::ConstantInt::get(llvm_i32_type, isa_version));
 
     _llvm_buffer_type = _get_llvm_buffer_type();
     _llvm_texture_type = _get_llvm_texture_type();
@@ -234,6 +227,7 @@ void HIPCodegenLLVMImpl::_run_optimization_passes() noexcept {
     for (auto &&func : *_llvm_module) {
         if (!func.isDeclaration() && func.getCallingConv() != llvm::CallingConv::AMDGPU_KERNEL) {
             func.setLinkage(llvm::Function::PrivateLinkage);
+            func.addFnAttr(llvm::Attribute::AlwaysInline);
         }
     }
 
