@@ -35,16 +35,16 @@ void HIPMesh::build(HIPCommandEncoder &encoder, MeshBuildCommand *command) noexc
         _geometry == nullptr ||
         !_option.allow_update ||
         command->request() == AccelBuildRequest::FORCE_BUILD ||
-        vertex_buffer->handle() + command->vertex_buffer_offset() != _vertex_buffer ||
+        static_cast<std::byte *>(vertex_buffer->handle()) + command->vertex_buffer_offset() != _vertex_buffer ||
         command->vertex_buffer_size() != _vertex_buffer_size ||
         command->vertex_stride() != _vertex_stride ||
-        triangle_buffer->handle() + command->triangle_buffer_offset() != _triangle_buffer ||
+        static_cast<std::byte *>(triangle_buffer->handle()) + command->triangle_buffer_offset() != _triangle_buffer ||
         command->triangle_buffer_size() != _triangle_buffer_size;
 
-    _vertex_buffer = vertex_buffer->handle() + command->vertex_buffer_offset();
+    _vertex_buffer = static_cast<std::byte *>(vertex_buffer->handle()) + command->vertex_buffer_offset();
     _vertex_buffer_size = command->vertex_buffer_size();
     _vertex_stride = command->vertex_stride();
-    _triangle_buffer = triangle_buffer->handle() + command->triangle_buffer_offset();
+    _triangle_buffer = static_cast<std::byte *>(triangle_buffer->handle()) + command->triangle_buffer_offset();
     _triangle_buffer_size = command->triangle_buffer_size();
 
     auto vertex_count = static_cast<uint32_t>(_vertex_buffer_size / _vertex_stride);

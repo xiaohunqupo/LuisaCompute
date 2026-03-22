@@ -21,8 +21,19 @@
 #include <llvm/Transforms/Utils/CodeExtractor.h>
 #include <llvm/MC/MCAsmInfo.h>
 #include <llvm/Support/FileOutputBuffer.h>
+#include <llvm/IR/Module.h>
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/Constants.h>
+#include <llvm/AsmParser/Parser.h>
+#include <llvm/Bitcode/BitcodeReader.h>
+#include <llvm/Bitcode/BitcodeWriter.h>
+#include <llvm/Linker/Linker.h>
+#include <llvm/Support/SourceMgr.h>
+#include <llvm/Support/MemoryBuffer.h>
+#include <llvm/Support/raw_ostream.h>
 
 #include <luisa/core/clock.h>
+#include "hip_rt_wrapper_bitcode_embedded.h"
 
 #undef None
 
@@ -161,6 +172,57 @@ void HIPCodegenLLVMImpl::_initialize() noexcept {
     _llvm_ray_query_type = _get_llvm_ray_query_type();
 }
 
+void HIPCodegenLLVMImpl::_postprocess_rt_kernel() noexcept {
+
+    if (!_rt_analysis.uses_ray_tracing) { return; }
+
+    llvm::StringRef wrapper_bc{
+        reinterpret_cast<const char *>(luisa_compute_hip_hip_rt_wrapper),
+        luisa_compute_hip_hip_rt_wrapper_size};
+    auto wrapper_buf = llvm::MemoryBuffer::getMemBuffer(wrapper_bc, "hip_rt_wrapper", false);
+    auto wrapper_module = llvm::parseBitcodeFile(*wrapper_buf, _llvm_context);
+    if (!wrapper_module) {
+        LUISA_ERROR_WITH_LOCATION("Failed to parse HIPRT wrapper bitcode.");
+    }
+
+    if (auto *wrapper_flags = (*wrapper_module)->getNamedMetadata("llvm.module.flags")) {
+        wrapper_flags->eraseFromParent();
+    }
+
+    if (llvm::Linker::linkModules(*_llvm_module, std::move(*wrapper_module))) {
+        LUISA_ERROR_WITH_LOCATION("Failed to link kernel module with HIPRT wrapper bitcode.");
+    }
+
+    // Replace the extern __shared__ declaration of luisa_hiprt_shared_stack_cache
+    // with a sized definition based on the actual kernel block size.
+    {
+        static constexpr auto SHARED_STACK_SIZE = 32u;
+        auto block_size = _config.block_size[0] * _config.block_size[1] * _config.block_size[2];
+        LUISA_ASSERT(block_size > 0u, "Block size must be greater than zero.");
+        auto shared_array_size = SHARED_STACK_SIZE * block_size;
+        if (auto old_gv = _llvm_module->getGlobalVariable("luisa_hiprt_shared_stack_cache")) {
+            auto i32_ty = llvm::Type::getInt32Ty(_llvm_context);
+            auto array_ty = llvm::ArrayType::get(i32_ty, shared_array_size);
+            auto new_gv = new llvm::GlobalVariable(
+                *_llvm_module, array_ty, false,
+                llvm::GlobalValue::InternalLinkage,
+                llvm::UndefValue::get(array_ty),
+                "luisa_hiprt_shared_stack_cache_tmp",
+                nullptr,
+                llvm::GlobalValue::NotThreadLocal,
+                3u);// addrspace(3) = shared/LDS
+            new_gv->setAlignment(llvm::Align(4));
+            LUISA_INFO("Replacing shared stack cache: {} uses, old type = [0 x i32], new type = [{} x i32]",
+                       old_gv->getNumUses(), shared_array_size);
+            old_gv->replaceAllUsesWith(new_gv);
+            old_gv->eraseFromParent();
+            new_gv->setName("luisa_hiprt_shared_stack_cache");
+        } else {
+            LUISA_ERROR_WITH_LOCATION("Could not find luisa_hiprt_shared_stack_cache in linked module!");
+        }
+    }
+}
+
 void HIPCodegenLLVMImpl::_dump_module(const std::filesystem::path &path) const noexcept {
     std::error_code ec;
     llvm::raw_fd_ostream out{path.string(), ec};
@@ -172,6 +234,7 @@ void HIPCodegenLLVMImpl::_dump_module(const std::filesystem::path &path) const n
 }
 
 void HIPCodegenLLVMImpl::_run_optimization_passes() noexcept {
+
     if (_config.enable_fast_math) {
         for (auto &f : *_llvm_module) {
             for (auto &bb : f) {
@@ -187,6 +250,12 @@ void HIPCodegenLLVMImpl::_run_optimization_passes() noexcept {
                     }
                 }
             }
+        }
+    }
+
+    for (auto &&func : *_llvm_module) {
+        if (!func.isDeclaration() && func.getCallingConv() != llvm::CallingConv::AMDGPU_KERNEL) {
+            func.setLinkage(llvm::Function::PrivateLinkage);
         }
     }
 
@@ -226,6 +295,24 @@ void HIPCodegenLLVMImpl::_run_optimization_passes() noexcept {
     }
     llvm::ModulePassManager MPM = PB.buildPerModuleDefaultPipeline(opt_level);
     MPM.run(*_llvm_module, MAM);
+
+    // make hiprt/hiprtc happy
+    for (auto &func : *_llvm_module) {
+        auto attrs = func.getAttributes().removeAttributeAtIndex(
+            func.getContext(), llvm::AttributeList::FunctionIndex,
+            llvm::Attribute::NoCreateUndefOrPoison);
+        func.setAttributes(attrs);
+        for (auto &bb : func) {
+            for (auto &inst : bb) {
+                if (auto *cb = llvm::dyn_cast<llvm::CallBase>(&inst)) {
+                    auto cb_attrs = cb->getAttributes().removeAttributeAtIndex(
+                        cb->getContext(), llvm::AttributeList::FunctionIndex,
+                        llvm::Attribute::NoCreateUndefOrPoison);
+                    cb->setAttributes(cb_attrs);
+                }
+            }
+        }
+    }
 }
 
 luisa::string HIPCodegenLLVMImpl::_generate_code() const noexcept {
@@ -246,6 +333,8 @@ luisa::string HIPCodegenLLVMImpl::generate(const xir::Module &xir_module) noexce
             _translate_function(def);
         }
     }
+
+    _postprocess_rt_kernel();
 
     if (llvm::verifyModule(*_llvm_module, &llvm::errs())) {
         _dump_module("debug_bad_module.ll");

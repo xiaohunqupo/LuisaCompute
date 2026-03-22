@@ -10,20 +10,6 @@
 #include "hip_shader.h"
 #include "hip_shader_native.h"
 #include "hip_check.h"
-#include "hip_rt_wrapper_bitcode_embedded.h"
-
-#ifdef LUISA_COMPUTE_ENABLE_LLVM
-#include <llvm/IR/Module.h>
-#include <llvm/IR/LLVMContext.h>
-#include <llvm/IR/Constants.h>
-#include <llvm/AsmParser/Parser.h>
-#include <llvm/Bitcode/BitcodeReader.h>
-#include <llvm/Bitcode/BitcodeWriter.h>
-#include <llvm/Linker/Linker.h>
-#include <llvm/Support/SourceMgr.h>
-#include <llvm/Support/MemoryBuffer.h>
-#include <llvm/Support/raw_ostream.h>
-#endif
 
 namespace luisa::compute::hip {
 
@@ -88,85 +74,6 @@ HIPShaderNative::HIPShaderNative(HIPDevice *device, luisa::string code,
       _device{device},
       _is_rt{true} {
 
-    llvm::LLVMContext llvm_ctx;
-    llvm::SMDiagnostic diag;
-    auto kernel_module = llvm::parseAssemblyString(
-        llvm::StringRef{code.data(), code.size()}, diag, llvm_ctx);
-    if (!kernel_module) {
-        LUISA_ERROR_WITH_LOCATION("Failed to parse LLVM IR for RT kernel: {}",
-                                  diag.getMessage().str());
-    }
-
-    llvm::StringRef wrapper_bc{
-        reinterpret_cast<const char *>(luisa_compute_hip_hip_rt_wrapper),
-        luisa_compute_hip_hip_rt_wrapper_size};
-    auto wrapper_buf = llvm::MemoryBuffer::getMemBuffer(wrapper_bc, "hip_rt_wrapper", false);
-    auto wrapper_module = llvm::parseBitcodeFile(*wrapper_buf, llvm_ctx);
-    if (!wrapper_module) {
-        LUISA_ERROR_WITH_LOCATION("Failed to parse HIPRT wrapper bitcode.");
-    }
-
-    if (auto *wrapper_flags = (*wrapper_module)->getNamedMetadata("llvm.module.flags")) {
-        wrapper_flags->eraseFromParent();
-    }
-
-    if (llvm::Linker::linkModules(*kernel_module, std::move(*wrapper_module))) {
-        LUISA_ERROR_WITH_LOCATION("Failed to link kernel module with HIPRT wrapper bitcode.");
-    }
-
-    // Replace the extern __shared__ declaration of luisa_hiprt_shared_stack_cache
-    // with a sized definition based on the actual kernel block size.
-    {
-        static constexpr auto SHARED_STACK_SIZE = 32u;
-        auto block_size = metadata.block_size.x * metadata.block_size.y * metadata.block_size.z;
-        auto shared_array_size = SHARED_STACK_SIZE * block_size;
-        auto *old_gv = kernel_module->getGlobalVariable("luisa_hiprt_shared_stack_cache");
-        if (old_gv) {
-            auto *i32_ty = llvm::Type::getInt32Ty(llvm_ctx);
-            auto *array_ty = llvm::ArrayType::get(i32_ty, shared_array_size);
-            auto *new_gv = new llvm::GlobalVariable(
-                *kernel_module, array_ty, false,
-                llvm::GlobalValue::InternalLinkage,
-                llvm::UndefValue::get(array_ty),
-                "luisa_hiprt_shared_stack_cache_tmp",
-                nullptr,
-                llvm::GlobalValue::NotThreadLocal,
-                3u);// addrspace(3) = shared/LDS
-            new_gv->setAlignment(llvm::Align(4));
-            LUISA_INFO("Replacing shared stack cache: {} uses, old type = [0 x i32], new type = [{} x i32]",
-                       old_gv->getNumUses(), shared_array_size);
-            old_gv->replaceAllUsesWith(new_gv);
-            old_gv->eraseFromParent();
-            new_gv->setName("luisa_hiprt_shared_stack_cache");
-        } else {
-            LUISA_WARNING("Could not find luisa_hiprt_shared_stack_cache in linked module!");
-        }
-    }
-
-    for (auto &func : *kernel_module) {
-        auto attrs = func.getAttributes().removeAttributeAtIndex(
-            func.getContext(), llvm::AttributeList::FunctionIndex,
-            llvm::Attribute::NoCreateUndefOrPoison);
-        func.setAttributes(attrs);
-        for (auto &bb : func) {
-            for (auto &inst : bb) {
-                if (auto *cb = llvm::dyn_cast<llvm::CallBase>(&inst)) {
-                    auto cb_attrs = cb->getAttributes().removeAttributeAtIndex(
-                        cb->getContext(), llvm::AttributeList::FunctionIndex,
-                        llvm::Attribute::NoCreateUndefOrPoison);
-                    cb->setAttributes(cb_attrs);
-                }
-            }
-        }
-    }
-
-    std::string bitcode_str;
-    llvm::raw_string_ostream bitcode_os{bitcode_str};
-    llvm::WriteBitcodeToFile(*kernel_module, bitcode_os);
-    bitcode_os.flush();
-
-    LUISA_INFO("Combined kernel+wrapper linked to {} bytes of bitcode.", bitcode_str.size());
-
     const char *func_name = entry;
     hiprtApiFunction api_func = nullptr;
     auto hiprt_err = hiprtBuildTraceKernelsFromBitcode(
@@ -174,20 +81,21 @@ HIPShaderNative::HIPShaderNative(HIPDevice *device, luisa::string code,
         1u,
         &func_name,
         "rt_module",
-        bitcode_str.data(),
-        bitcode_str.size(),
+        code.data(),
+        code.size(),
         0u,
         1u,
         nullptr,
         &api_func,
         false);
+
     if (hiprt_err != hiprtSuccess) {
         LUISA_ERROR_WITH_LOCATION(
             "hiprtBuildTraceKernelsFromBitcode failed with error code {}.",
             static_cast<int>(hiprt_err));
     }
 
-    _function = reinterpret_cast<hipFunction_t>(api_func);
+    _function = static_cast<hipFunction_t>(api_func);
     _module = nullptr;
 
     LUISA_INFO("RT shader compiled successfully via HIPRT.");
