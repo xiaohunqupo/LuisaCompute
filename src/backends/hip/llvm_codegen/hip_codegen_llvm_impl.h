@@ -194,6 +194,7 @@ private:
 
 private:
     void _initialize() noexcept;
+    void _postprocess_rt_kernel() noexcept;
     void _run_optimization_passes() noexcept;
     void _dump_module(const std::filesystem::path &path) const noexcept;
     [[nodiscard]] luisa::string _generate_code() const noexcept;
