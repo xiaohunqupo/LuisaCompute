@@ -45,4 +45,57 @@ if (LUISA_COMPUTE_HIP_LINKED_LLVM)
             hip_codegen_llvm_impl_phi.cpp
             hip_codegen_llvm_impl_cta.cpp
     )
+
+    # compile HIPRT wrapper .hip -> .bc at build time
+    set(LUISA_HIP_RT_WRAPPER_SOURCE ${CMAKE_CURRENT_LIST_DIR}/hip_rt_device_wrapper.hip)
+    set(LUISA_HIP_RT_WRAPPER_BC ${CMAKE_CURRENT_LIST_DIR}/hip_rt_wrapper.bc)
+    # Include both the generated header dir and the source tree
+    set(_HIPRT_WRAPPER_INCLUDE_ARGS -I ${LUISA_COMPUTE_HIPRT_SDK_INCLUDE_DIR} -I ${HIPRT_SOURCE_DIR})
+    # Detect target GPU architecture from environment or use default
+    if (DEFINED ENV{HIPRT_GPU_ARCH} AND NOT "$ENV{HIPRT_GPU_ARCH}" STREQUAL "")
+        set(_hip_wrapper_arch "$ENV{HIPRT_GPU_ARCH}")
+    elseif (DEFINED HIPRT_GPU_ARCH AND NOT "${HIPRT_GPU_ARCH}" STREQUAL "")
+        set(_hip_wrapper_arch "${HIPRT_GPU_ARCH}")
+    else ()
+        # Default: compile for common RDNA architectures
+        # This enables RTIP auto-detection via __gfxNNNN__ macros
+        set(_hip_wrapper_arch "gfx1030;gfx1100;gfx1200;gfx1201")
+    endif ()
+    # Build arch flags
+    set(_hip_arch_flags "")
+    foreach (_arch ${_hip_wrapper_arch})
+        list(APPEND _hip_arch_flags "-a" "${_arch}")
+    endforeach ()
+    add_custom_target(luisa-compute-backend-hip-compile-wrapper
+            COMMAND $<TARGET_FILE:luisa_hip_compile_wrapper>
+            -i ${LUISA_HIP_RT_WRAPPER_SOURCE}
+            -o ${LUISA_HIP_RT_WRAPPER_BC}
+            ${_hip_arch_flags}
+            ${_HIPRT_WRAPPER_INCLUDE_ARGS}
+            BYPRODUCTS ${LUISA_HIP_RT_WRAPPER_BC}
+            DEPENDS luisa_hip_compile_wrapper ${LUISA_HIP_RT_WRAPPER_SOURCE}
+            WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
+            COMMENT "Compiling HIPRT wrapper to LLVM bitcode for arch ${_hip_wrapper_arch}..."
+            VERBATIM)
+
+    # embed .bc -> .cpp/.h via luisa_embed_device_lib
+    add_custom_target(luisa-compute-backend-hip-embed-wrapper
+            COMMAND $<TARGET_FILE:luisa_embed_device_lib>
+            ${LUISA_HIP_RT_WRAPPER_BC}
+            --unsigned --prefix luisa_compute_hip_
+            -o hip_rt_wrapper_bitcode_embedded.cpp
+            -h hip_rt_wrapper_bitcode_embedded.h
+            BYPRODUCTS
+            ${CMAKE_CURRENT_LIST_DIR}/hip_rt_wrapper_bitcode_embedded.cpp
+            ${CMAKE_CURRENT_LIST_DIR}/hip_rt_wrapper_bitcode_embedded.h
+            DEPENDS luisa_embed_device_lib luisa-compute-backend-hip-compile-wrapper
+            WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
+            COMMENT "Embedding HIPRT wrapper bitcode..."
+            VERBATIM)
+
+    target_sources(luisa-compute-backend-hip PRIVATE
+            hip_rt_wrapper_bitcode_embedded.cpp
+            hip_rt_wrapper_bitcode_embedded.h)
+    add_dependencies(luisa-compute-backend-hip luisa-compute-backend-hip-embed-wrapper)
+
 endif ()
