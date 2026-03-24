@@ -66,7 +66,7 @@ BottomAccel::BottomAccel(
     Device *device,
     AccelOption const &option)
     : Resource(device), compactSize(0) {
-    if (!device->support_raytracing) [[unlikely]] {
+    if (!device->feature_check.raytracing_supported()) [[unlikely]] {
         LUISA_ERROR("RayTracing not supported on this device.");
     }
     auto GetPreset = [&] {

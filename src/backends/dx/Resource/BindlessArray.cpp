@@ -14,6 +14,9 @@ BindlessArray::BindlessArray(
     BindlessSlotType type)
     : Resource(device),
       buffer(device, type != BindlessSlotType::MULTIPLE ? sizeof(uint) : (arraySize * sizeof(BindlessStruct)), device->defaultAllocator.get()) {
+    if (!device->feature_check.bindless_binding_supported()) [[unlikely]] {
+        LUISA_ERROR("Current device not support bindless.");
+    }
     switch (type) {
         case BindlessSlotType::MULTIPLE:
             typed_binded.reset_as<vstd::vector<std::pair<BindlessStruct, MapIndicies>>>(arraySize);

@@ -9,7 +9,7 @@ namespace lc::dx {
 
 TopAccel::TopAccel(Device *device, AccelOption const &option)
     : Resource(device) {
-    if (!device->support_raytracing) [[unlikely]] {
+    if (!device->feature_check.raytracing_supported()) [[unlikely]] {
         LUISA_ERROR("RayTracing not supported on this device.");
     }
     //TODO: allow_compact not supported

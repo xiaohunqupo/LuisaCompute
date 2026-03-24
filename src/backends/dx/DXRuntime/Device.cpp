@@ -356,30 +356,13 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
                 globalHeap->GetHeap(),
                 samplerHeap->GetHeap());
         }
-        // Test device
+        feature_check.check(this);
         {
-            D3D12_FEATURE_DATA_D3D12_OPTIONS5 options5 = {};
-            HRESULT hr = device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &options5, sizeof(options5));
 
-            if (SUCCEEDED(hr) && options5.RaytracingTier != D3D12_RAYTRACING_TIER_NOT_SUPPORTED) {
-                support_raytracing = true;
+            if (useExperimental && (!feature_check.flags().cooperative_vector_supported)) {
+                LUISA_ERROR("Experimental not supported.");
             }
-        }
-        {
-            D3D12_FEATURE_DATA_D3D12_OPTIONS12 options12 = {};
-            if (SUCCEEDED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS12, &options12, sizeof(options12)))) {
-                use_enhanced_barrier = options12.EnhancedBarriersSupported;
-            }
-            if (useExperimental) {
-                D3D12_FEATURE_DATA_D3D12_OPTIONS_EXPERIMENTAL FeatureDataTier = {};
-                ThrowIfFailed(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS_EXPERIMENTAL,
-                                                          &FeatureDataTier,
-                                                          sizeof(FeatureDataTier)));
-                if (FeatureDataTier.CooperativeVectorTier < D3D12_COOPERATIVE_VECTOR_TIER_1_0) {
-                    LUISA_ERROR("Experimental not supported.");
-                }
-            }
-            use_enhanced_barrier = (deviceSettings && deviceSettings->UseEnhancedBarrier()) && use_enhanced_barrier;
+            feature_check.flags().enhanced_barriers_supported = (deviceSettings && deviceSettings->UseEnhancedBarrier()) && feature_check.flags().enhanced_barriers_supported;
         }
     } else {
         if (deviceSettings) {
@@ -434,9 +417,7 @@ LUISA_EXPORT_API void backend_device_names(luisa::vector<luisa::string> &r) {
     }
 }
 uint Device::waveSize() const {
-    D3D12_FEATURE_DATA_D3D12_OPTIONS1 waveOption;
-    ThrowIfFailed(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS1, &waveOption, sizeof(waveOption)));
-    return waveOption.WaveLaneCountMax;
+    return feature_check.wave_lane_count_max();
 }
 void process_dxgi_error(HRESULT hr) {
     // Should match all values from D3D12_AUTO_BREADCRUMB_OP

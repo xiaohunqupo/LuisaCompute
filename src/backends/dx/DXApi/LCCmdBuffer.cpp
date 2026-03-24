@@ -1218,7 +1218,7 @@ void LCCmdBuffer::Execute(
         auto cmdBuilder = cmdBuffer->Build();
         GraphicsCmdlistBarrierCallback barrier_callback(cmdBuilder);
         if (!tracker) {
-            if (device->use_enhanced_barrier) {
+            if (device->feature_check.enhanced_barriers_supported()) {
                 tracker = luisa::make_unique<EnhancedBarrierTrackerImpl>();
             } else {
                 tracker = luisa::make_unique<EnhancedBarrierTrackerBackup>();
@@ -1519,7 +1519,7 @@ void LCCmdBuffer::CompressBC(
     GpuAllocator *allocator,
     size_t maxAlloc) {
     if (!tracker) {
-        if (device->use_enhanced_barrier) {
+        if (device->feature_check.enhanced_barriers_supported()) {
             tracker = luisa::make_unique<EnhancedBarrierTrackerImpl>();
         } else {
             tracker = luisa::make_unique<EnhancedBarrierTrackerBackup>();

@@ -9,6 +9,7 @@
 #include <DXRuntime/DxPtr.h>
 #include "../../common/default_binary_io.h"
 #include <luisa/backends/ext/dx_config_ext.h>
+#include <Resource/FeatureCheck.h>
 
 namespace luisa {
 class BinaryIO;
@@ -99,8 +100,7 @@ public:
     vstd::unique_ptr<ComputeShader> bc7_1;
     vstd::unique_ptr<ComputeShader> bc7_2;
     vstd::unique_ptr<ComputeShader> bc7_3;*/
-    bool support_raytracing{false};// for older system like win-10
-    bool use_enhanced_barrier{false};// for older system like win-10
+    FeatureCheck feature_check;
     Device(luisa::compute::Context &&ctx, luisa::compute::DeviceConfig const *settings);
     Device(Device const &) = delete;
     Device(Device &&) = delete;
