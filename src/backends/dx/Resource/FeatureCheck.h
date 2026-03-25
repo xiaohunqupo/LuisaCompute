@@ -24,6 +24,8 @@ public:
         bool enhanced_barriers_supported : 1;
         // Mesh shader support (D3D12_OPTIONS7)
         bool mesh_shader_supported : 1;
+        // Work graph support (D3D12_OPTIONS21)
+        bool work_graph_supported : 1;
         // Optional: additional flags for future expansion
     };
 
@@ -33,6 +35,7 @@ private:
     uint _wave_lane_count_max{0};
     D3D12_RAYTRACING_TIER _raytracing_tier{D3D12_RAYTRACING_TIER_NOT_SUPPORTED};
     D3D12_COOPERATIVE_VECTOR_TIER _cooperative_vector_tier{D3D12_COOPERATIVE_VECTOR_TIER_NOT_SUPPORTED};
+    D3D12_WORK_GRAPHS_TIER _work_graphs_tier{D3D12_WORK_GRAPHS_TIER_NOT_SUPPORTED};
 
 public:
     /// Constructor - initializes and queries all feature support from the device
@@ -71,6 +74,11 @@ public:
         return _flags.mesh_shader_supported;
     }
 
+    /// Check if work graph is supported
+    [[nodiscard]] bool work_graph_supported() const noexcept {
+        return _flags.work_graph_supported;
+    }
+
     /// Get minimum wave lane count
     [[nodiscard]] uint wave_lane_count_min() const noexcept {
         return _wave_lane_count_min;
@@ -89,6 +97,11 @@ public:
     /// Get cooperative vector tier level
     [[nodiscard]] D3D12_COOPERATIVE_VECTOR_TIER cooperative_vector_tier() const noexcept {
         return _cooperative_vector_tier;
+    }
+
+    /// Get work graphs tier level
+    [[nodiscard]] D3D12_WORK_GRAPHS_TIER work_graphs_tier() const noexcept {
+        return _work_graphs_tier;
     }
 
     /// Get all feature flags as a struct

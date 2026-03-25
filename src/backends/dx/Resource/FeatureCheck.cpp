@@ -87,6 +87,19 @@ void FeatureCheck::check(Device const *device) {
             _flags.cooperative_vector_supported = false;
         }
     }
+
+    // Check Work Graph support (D3D12_OPTIONS21)
+    {
+        D3D12_FEATURE_DATA_D3D12_OPTIONS21 options21 = {};
+        HRESULT hr = d3d_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS21, &options21, sizeof(options21));
+        if (SUCCEEDED(hr)) {
+            _work_graphs_tier = options21.WorkGraphsTier;
+            _flags.work_graph_supported = (options21.WorkGraphsTier >= D3D12_WORK_GRAPHS_TIER_1_0);
+        } else {
+            _work_graphs_tier = D3D12_WORK_GRAPHS_TIER_NOT_SUPPORTED;
+            _flags.work_graph_supported = false;
+        }
+    }
 }
 
 }// namespace lc::dx
