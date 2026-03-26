@@ -12,7 +12,7 @@ local function lc_add_app(appname, folder, name, deps)
         inherit = false,
         links = false
     })
-    set_pcxxheader("lc_test_pch.h")
+    lc_set_pcxxheader("lc_test_pch.h")
     add_files("common/test_main.cpp")
     add_files("common/test_math_util.cpp")
     add_includedirs("./", {
@@ -254,7 +254,7 @@ if not is_mode("debug") then
     if has_config("lc_enable_clangcxx") then
         test_proj("test_path_tracing_clangcxx", true, function()
             add_deps("lc-clangcxx")
-            set_pcxxheader("lc_test_pch.h")
+            lc_set_pcxxheader("lc_test_pch.h")
         end)
     end
 end
@@ -334,7 +334,7 @@ if has_config("lc_dx_backend") and (enable_fsr2 or enable_xess) then
 end
 if has_config("lc_dx_backend") and enable_fsr3 then
     test_proj("test_fsr3", true, function()
-        set_pcxxheader("lc_test_pch.h")
+        lc_set_pcxxheader("lc_test_pch.h")
         on_load(function(target)
             local function rela(p)
                 return path.relative(path.absolute(p, os.scriptdir()), os.projectdir())

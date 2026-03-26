@@ -32,5 +32,5 @@ on_load(function(target)
         target:add('deps', '_lc_cuda_base')
     end
 end)
-set_pcxxheader("lc_dx_pch.h")
+lc_set_pcxxheader("lc_dx_pch.h")
 target_end()

@@ -17,7 +17,7 @@ name: cmake
 cmake -S . -B build -G Ninja -D CMAKE_BUILD_TYPE=Release
 
 # Build
-cmake --build build -j $(nproc)
+cmake --build build
 
 # Install
 cmake --install build --prefix dist

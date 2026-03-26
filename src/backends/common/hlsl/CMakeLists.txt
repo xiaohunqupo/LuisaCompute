@@ -51,7 +51,14 @@ if (LUISA_COMPUTE_ENABLE_DX OR LUISA_COMPUTE_ENABLE_VULKAN)
             dxcapi.h
             hlsl_codegen.cpp
             hlsl_codegen.h
-            hlsl_codegen_util.cpp
+            codegen_utils/cbuffer.cpp
+            codegen_utils/constant.cpp
+            codegen_utils/entry_points.cpp
+            codegen_utils/function_codegen.cpp
+            codegen_utils/property.cpp
+            codegen_utils/resource.cpp
+            codegen_utils/type_system.cpp
+            codegen_utils/variable.cpp
             lc_hlsl_pch.h
             shader_compiler.cpp
             shader_compiler.h

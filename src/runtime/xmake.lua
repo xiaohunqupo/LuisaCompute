@@ -5,7 +5,7 @@ _config_project({
     batch_size = 8
 })
 add_deps("lc-core", "lc-vstl")
-set_pcxxheader("lc_runtime_pch.h")
+lc_set_pcxxheader("lc_runtime_pch.h")
 add_defines("LUISA_RUNTIME_EXPORT_DLL", "LUISA_AST_EXPORT_DLL", "LUISA_XIR_EXPORT_DLL")
 add_headerfiles("../../include/luisa/runtime/**.h", "../../include/luisa/ast/**.h")
 on_load(function(target)

@@ -7,7 +7,7 @@ _config_project({
 add_deps("lc-runtime", "lc-vstl", "lc-hlsl-codegen")
 add_headerfiles("*.h")
 add_files("*.cpp")
-set_pcxxheader("lc_vk_pch.h")
+lc_set_pcxxheader("lc_vk_pch.h")
 
 on_load(function(target)
     if target:is_plat("windows") then

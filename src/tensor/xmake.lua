@@ -3,7 +3,7 @@ set_basename("luisa-tensor")
 _config_project({
 	project_kind = "shared"
 })
-set_pcxxheader("lc_tensor_pch.h")
+lc_set_pcxxheader("lc_tensor_pch.h")
 add_deps("lc-runtime", "lc-vstl", "lc-dsl")
 add_headerfiles("../../include/luisa/tensor/**.h")
 add_files("**.cpp")

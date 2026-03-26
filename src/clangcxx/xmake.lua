@@ -4,7 +4,7 @@ if not is_mode("debug") then
     _config_project({
         project_kind = "shared"
     })
-    set_pcxxheader("src/lc_clangcxx_pch.h")
+    lc_set_pcxxheader("src/lc_clangcxx_pch.h")
     add_files("src/**.cpp")
     on_load(function(target, opt)
         target:add("headerfiles", path.normalize(path.join(os.scriptdir(), "../common/default_binary_io.h")))

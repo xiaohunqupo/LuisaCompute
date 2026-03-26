@@ -9,6 +9,8 @@ option("lc_enable_mimalloc", {default = true})
 option("lc_enable_custom_malloc", {default = false})
 -- enable unity(jumbo) build, enable this option will optimize compile speed
 option("lc_enable_unity_build", {default = true})
+-- enable Pre-Compile header, enable this option will optimize compile speed
+option("lc_enable_pch", {default = true})
 -- enable sse and sse2 SIMD
 option("lc_enable_simd", {default = true})
 -- enable DirectX-12 backend
@@ -93,6 +95,13 @@ option("lc_glfw_use_xrepo", {default = false})
 option("lc_yyjson_use_xrepo", {default = false})
 -- internal: xmake scripts directory path
 option("lc_scripts_path")
+
+function lc_set_pcxxheader(...)
+    if get_config('lc_enable_pch') then
+        set_pcxxheader(...)
+    end
+end
+
 set_showmenu(false)
 set_default(false)
 after_check(function(option)

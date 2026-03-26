@@ -33,7 +33,7 @@ _config_project({
 add_deps("lc-runtime", "lc-cuda-backend-base", 'lc-cuda-backend-builtin')
 
 add_rules('lc_llvm')
-set_pcxxheader("lc_cuda_pch.h")
+lc_set_pcxxheader("lc_cuda_pch.h")
 add_headerfiles("*.h")
 add_defines('LUISA_BIN_2_OBJ')
 on_load(function(target)

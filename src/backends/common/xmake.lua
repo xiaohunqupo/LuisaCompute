@@ -31,7 +31,7 @@ if has_config("lc_toy_c_backend") then
     })
     add_deps("lc-core", "lc-runtime", "lc-vstl")
     add_files("c_codegen/*.cpp", "hlsl/string_builder.cpp")
-    set_pcxxheader("c_codegen/lc_ccodegen_pch.h")
+    lc_set_pcxxheader("c_codegen/lc_ccodegen_pch.h")
     target_end()
 end
 

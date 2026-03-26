@@ -13,7 +13,7 @@ else
 end
 _config_project(config_tb)
 add_deps("lc-core")
-set_pcxxheader("lc_vstl_pch.h")
+lc_set_pcxxheader("lc_vstl_pch.h")
 add_headerfiles("../../include/luisa/vstl/**.h")
 add_files("**.cpp")
 on_load(function(target)

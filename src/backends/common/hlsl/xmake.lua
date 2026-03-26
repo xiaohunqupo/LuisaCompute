@@ -14,7 +14,7 @@ on_load(function(target)
     end
 end)
 add_files("*.cpp", 'codegen_utils/*.cpp')
-set_pcxxheader("lc_hlsl_pch.h")
+lc_set_pcxxheader("lc_hlsl_pch.h")
 add_headerfiles("*.h")
 add_rules("utils.bin2obj", {extensions = {".bytes", ".dxil"}})
 add_defines('LUISA_BIN_2_OBJ')

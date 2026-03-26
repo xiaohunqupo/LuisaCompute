@@ -6,7 +6,7 @@
 #ifndef LC_NO_HLSL_BUILTIN
 #include "../builtin/hlsl_builtin.hpp"
 #endif
-static bool shown_buffer_warning = false;
+bool shown_buffer_warning = false;
 #ifdef LC_NO_HLSL_BUILTIN
 namespace lc_hlsl {
 struct HLSLCompressedHeader {
