@@ -1,0 +1,94 @@
+Functions in src\backends\common\hlsl\hlsl_codegen_util.cpp:
+
+CodegenUtility Functions:
+
+### 1. **Resource & Utility Management**
+| # | Function | Purpose |
+|---|----------|---------|
+| 11 | `ReadInternalHLSLFile` | Read internal HLSL file content |
+| 13 | `GetNewTempVarName` | Generate unique temporary variable names |
+| 36 | `CodegenUtility()` | Constructor |
+| 37 | `~CodegenUtility()` | Destructor |
+
+### 2. **Type System & Type Names**
+| # | Function | Purpose |
+|---|----------|---------|
+| 12 | `IsBool` | Check if type is boolean |
+| 14 | `RegistStructType` | Register struct type for codegen |
+| 18 | `GetTypeName` | Generate HLSL type name |
+| 40 | `TypeIsAliased` | Check if type has alias |
+| 41 | `VectorShouldBeAliased` | Check if vector should use aliased type |
+| 42 | `OriginToAliased` | Convert original type to aliased representation |
+| 43 | `AliasedToOrigin` | Convert aliased type back to original |
+| 33-35 | `GetTypeMD5` (3 overloads) | Compute MD5 hash for type identification |
+
+### 3. **Variable Naming**
+| # | Function | Purpose |
+|---|----------|---------|
+| 15 | `GetVariableName` (Function, Tag, id) | Get variable name by components |
+| 16 | `GetVariableName` (Function, Variable) | Get variable name from variable object |
+
+### 4. **Constant Handling**
+| # | Function | Purpose |
+|---|----------|---------|
+| 17 | `GetConstName` | Get/generate constant name |
+
+### 5. **Function Code Generation**
+| # | Function | Purpose |
+|---|----------|---------|
+| 19 | `GetFunctionDecl` | Generate function declaration |
+| 20 | `GetFunctionName` (callable) | Get callable function name |
+| 21 | `GetFunctionName` (CallExpr) | Get function name from call expression |
+| 22 | `CodegenFunction` | Generate full function code |
+| 23 | `CodegenVertex` | Generate vertex shader function |
+| 24 | `CodegenPixel` | Generate pixel shader function |
+
+### 6. **CBuffer (Constant Buffer) Management**
+| # | Function | Purpose |
+|---|----------|---------|
+| 25 | `IsCBufferNonEmpty` (init_list) | Check if CBuffer has data (multiple ranges) |
+| 26 | `IsCBufferNonEmpty` (Function) | Check if CBuffer has data (single function) |
+| 27 | `GenerateCBuffer` | Generate CBuffer declaration |
+
+### 7. **Bindless Resources & Register Management**
+| # | Function | Purpose |
+|---|----------|---------|
+| 28 | `GenerateBindless` | Generate bindless resource bindings |
+| 29 | `PreprocessCodegenProperties` | Preprocess properties before codegen |
+| 30 | `PostprocessCodegenProperties` | Postprocess final result |
+| 32 | `CodegenProperties` | Generate property bindings |
+| 31 | `AddPrinter` | Add debug printer for struct types |
+
+### 8. **Main Codegen Entry Points**
+| # | Function | Purpose |
+|---|----------|---------|
+| 38 | `Codegen` | **Main compute kernel codegen** |
+| 39 | `RasterCodegen` | **Main rasterization pipeline codegen** |
+
+---
+
+### Supporting Structures (Non-CodegenUtility)
+
+**Register Indexers (for register allocation):**
+- `RegisterIndexer` (base virtual interface)
+- `DXILRegisterIndexer` (DXIL-specific register indexing)
+- `SpirVRegisterIndexer` (SPIR-V-specific register indexing)
+
+**Type Name Templates:**
+- `TypeNameStruct<T>` - Generic type name generator
+- `TypeNameStruct<luisa::Vector<T, t>>` - Vector specialization
+- `TypeNameStruct<luisa::Matrix<float, t>>` - Matrix specialization
+
+**Constant Value Printing (CodegenConstantPrinter):**
+- All `_decode_*` methods for primitive types (bool, char, short, int, long, half, float, double, etc.)
+- `_vector_separator`, `_matrix_separator`, `_struct_separator`, `_array_separator`
+- `_decode_vector`, `_decode_matrix`
+
+**SPIR-V Matrix Packing:**
+- `SpirvMatrixPack` constructor/destructor
+
+**Free Functions:**
+- `glob_variables_with_grad` - Collect gradient variables
+- `AddHeader` - Add HLSL header/includes
+- `IsCBuffer` - Check variable tag for CBuffer
+- `can_accum_grad` - Check if type can accumulate gradients

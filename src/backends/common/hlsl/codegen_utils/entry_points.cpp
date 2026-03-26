@@ -1,0 +1,438 @@
+// Main Codegen Entry Points
+
+#include "../hlsl_codegen.h"
+#include "../codegen_stack_data.h"
+#include "../register_indexer.h"
+#ifndef LC_NO_HLSL_BUILTIN
+#include "../builtin/hlsl_builtin.hpp"
+#endif
+static bool shown_buffer_warning = false;
+#ifdef LC_NO_HLSL_BUILTIN
+namespace lc_hlsl {
+struct HLSLCompressedHeader {
+    void const *ptr{};
+    size_t size{};
+};
+static HLSLCompressedHeader get_hlsl_builtin(luisa::string_view ss) { return {}; }
+}// namespace lc_hlsl
+#endif
+namespace lc::hlsl {
+#ifdef LUISA_ENABLE_IR
+static void glob_variables_with_grad(Function f, vstd::unordered_set<Variable> &gradient_variables) noexcept {
+    if (f.requires_autodiff())
+        traverse_expressions<true>(
+            f.body(),
+            [&](auto expr) noexcept {
+                if (expr->tag() == Expression::Tag::CALL) {
+                    if (auto call = static_cast<const CallExpr *>(expr);
+                        call->op() == CallOp::GRADIENT ||
+                        call->op() == CallOp::GRADIENT_MARKER ||
+                        call->op() == CallOp::REQUIRES_GRADIENT) {
+                        LUISA_ASSERT(!call->arguments().empty() &&
+                                         call->arguments().front()->tag() == Expression::Tag::REF,
+                                     "Invalid gradient function call.");
+                        auto v = static_cast<const RefExpr *>(call->arguments().front())->variable();
+                        gradient_variables.emplace(v);
+                    }
+                }
+            },
+            [](auto) noexcept {},
+            [](auto) noexcept {});
+}
+#endif
+vstd::string_view CodegenUtility::ReadInternalHLSLFile(vstd::string_view name) {
+    auto data = lc_hlsl::get_hlsl_builtin(name);
+    return {static_cast<char const *>(data.ptr), data.size};
+}
+vstd::MD5 CodegenUtility::GetTypeMD5(vstd::span<Type const *const> types) {
+    vstd::vector<uint64_t> typeDescs;
+    typeDescs.reserve(types.size());
+    for (auto &&i : types) {
+        if ((i->is_buffer() || i->is_texture()) && !i->member_attributes().empty())
+            if (i->is_buffer())
+                typeDescs.emplace_back(Type::buffer(i->element())->hash());
+            else
+                typeDescs.emplace_back(Type::texture(i->element(), i->dimension())->hash());
+        else
+            typeDescs.emplace_back(i->hash());
+    }
+    return {vstd::span<uint8_t const>(reinterpret_cast<uint8_t const *>(typeDescs.data()), luisa::size_bytes(typeDescs))};
+}
+vstd::MD5 CodegenUtility::GetTypeMD5(std::initializer_list<vstd::IRange<Variable> *> f) {
+    vstd::vector<uint64_t> typeDescs;
+    for (auto &&rg : f) {
+        for (auto &&i : *rg) {
+            auto type = i.type();
+            if ((type->is_buffer() || type->is_texture()) && !type->member_attributes().empty())
+                if (type->is_buffer())
+                    typeDescs.emplace_back(Type::buffer(type->element())->hash());
+                else
+                    typeDescs.emplace_back(Type::texture(type->element(), type->dimension())->hash());
+            else
+                typeDescs.emplace_back(type->hash());
+        }
+    }
+    return {vstd::span<uint8_t const>(reinterpret_cast<uint8_t const *>(typeDescs.data()), luisa::size_bytes(typeDescs))};
+}
+vstd::MD5 CodegenUtility::GetTypeMD5(Function func) {
+    vstd::vector<uint64_t> typeDescs;
+    auto args = func.arguments();
+    typeDescs.reserve(args.size());
+    for (auto &&i : args) {
+        auto type = i.type();
+        if ((type->is_buffer() || type->is_texture()) && !type->member_attributes().empty())
+            if (type->is_buffer())
+                typeDescs.emplace_back(Type::buffer(type->element())->hash());
+            else
+                typeDescs.emplace_back(Type::texture(type->element(), type->dimension())->hash());
+        else
+            typeDescs.emplace_back(type->hash());
+    }
+    return {vstd::span<uint8_t const>(reinterpret_cast<uint8_t const *>(typeDescs.data()), luisa::size_bytes(typeDescs))};
+}
+
+namespace detail {
+size_t AddHeader(CallOpSet const &ops, vstd::StringBuilder &builder, bool isRaster, bool is_spirv, bool fallback, bool linalg) {
+    builder << CodegenUtility::ReadInternalHLSLFile(fallback ? "hlsl_header_fallback" : "hlsl_header");
+    size_t immutable_size = builder.size();
+    if (ops.uses_raytracing()) {
+        builder << CodegenUtility::ReadInternalHLSLFile("raytracing_header");
+    }
+    if (is_spirv) {
+        builder << CodegenUtility::ReadInternalHLSLFile("spv_alias");
+    }
+    if (ops.test(CallOp::DETERMINANT)) {
+        builder << CodegenUtility::ReadInternalHLSLFile("determinant");
+    }
+    if (ops.test(CallOp::INVERSE)) {
+        builder << CodegenUtility::ReadInternalHLSLFile("inverse");
+    }
+    if (ops.test(CallOp::INDIRECT_SET_DISPATCH_KERNEL) || ops.test(CallOp::INDIRECT_SET_DISPATCH_COUNT)) {
+        builder << CodegenUtility::ReadInternalHLSLFile("indirect");
+    }
+    if (ops.test(CallOp::BUFFER_SIZE) || ops.test(CallOp::TEXTURE_SIZE) || ops.test(CallOp::BYTE_BUFFER_SIZE)) {
+        builder << CodegenUtility::ReadInternalHLSLFile("resource_size");
+    }
+    if (linalg || ops.uses_cooperative()) {
+        if (!is_spirv) {
+            builder << CodegenUtility::ReadInternalHLSLFile("dx_linalg");
+        } else {
+            LUISA_ERROR("Vulkan tensor not supported yet.");
+        }
+    }
+    bool useBindless = false;
+    for (auto i : vstd::range(
+             luisa::to_underlying(CallOp::BINDLESS_TEXTURE2D_SAMPLE),
+             luisa::to_underlying(CallOp::TYPED_BINDLESS_BUFFER_ADDRESS) + 1)) {
+        if (ops.test(static_cast<CallOp>(i))) {
+            useBindless = true;
+            break;
+        }
+    }
+    if (
+        ops.test(CallOp::BINDLESS_COOPERATIVE_MUL_ADD) ||
+        ops.test(CallOp::TYPED_BINDLESS_COOPERATIVE_MUL_ADD) ||
+        ops.test(CallOp::BINDLESS_COOPERATIVE_MUL) ||
+        ops.test(CallOp::TYPED_BINDLESS_COOPERATIVE_MUL)) {
+        useBindless = true;
+    }
+    if (useBindless) {
+        builder << CodegenUtility::ReadInternalHLSLFile("bindless_common");
+    }
+    if (ops.test(CallOp::RAY_TRACING_INSTANCE_TRANSFORM) ||
+        ops.test(CallOp::RAY_TRACING_INSTANCE_USER_ID) ||
+        ops.test(CallOp::RAY_TRACING_INSTANCE_VISIBILITY_MASK) ||
+        ops.test(CallOp::RAY_TRACING_SET_INSTANCE_TRANSFORM) ||
+        ops.test(CallOp::RAY_TRACING_SET_INSTANCE_OPACITY) ||
+        ops.test(CallOp::RAY_TRACING_SET_INSTANCE_USER_ID) ||
+        ops.test(CallOp::RAY_TRACING_SET_INSTANCE_VISIBILITY)) {
+        builder << CodegenUtility::ReadInternalHLSLFile("accel_header");
+    }
+    if (ops.test(CallOp::COPYSIGN)) {
+        builder << CodegenUtility::ReadInternalHLSLFile("copy_sign");
+    }
+    if (!isRaster && (ops.test(CallOp::DDX) || ops.test(CallOp::DDY))) {
+        builder << CodegenUtility::ReadInternalHLSLFile("compute_quad");
+    }
+    if (ops.uses_autodiff()) {
+        builder << CodegenUtility::ReadInternalHLSLFile("auto_diff");
+    }
+    if (ops.test(CallOp::REDUCE_MAX) ||
+        ops.test(CallOp::REDUCE_MIN) ||
+        ops.test(CallOp::REDUCE_PRODUCT) ||
+        ops.test(CallOp::REDUCE_SUM) ||
+        ops.test(CallOp::OUTER_PRODUCT) ||
+        ops.test(CallOp::MATRIX_COMPONENT_WISE_MULTIPLICATION)) {
+        builder << CodegenUtility::ReadInternalHLSLFile("reduce");
+    }
+    return immutable_size;
+}
+bool IsCBuffer(Variable::Tag t);
+}// namespace detail
+
+// Main compute kernel codegen
+CodegenResult CodegenUtility::Codegen(Function kernel, luisa::string_view native_code, uint custom_mask, bool isSpirV, bool noRegister) {
+    opt = CodegenStackData::Allocate(this);
+    opt->isSpirv = isSpirV;
+    opt->noRegister = noRegister;
+    opt->atomicFloatToInt = isSpirV && kernel.propagated_builtin_callables().uses_atomic();
+    auto disposeOpt = vstd::scope_exit([&] {
+        CodegenStackData::DeAllocate(std::move(opt));
+    });
+    // CodegenStackData::ThreadLocalSpirv() = false;
+    opt->kernel = kernel;
+    bool nonEmptyCbuffer = IsCBufferNonEmpty(kernel);
+
+    vstd::StringBuilder codegenData;
+    vstd::StringBuilder varData;
+    vstd::StringBuilder incrementalFunc;
+    vstd::StringBuilder finalResult;
+    opt->incrementalFunc = &incrementalFunc;
+    finalResult.reserve(65500);
+    uint64 immutableHeaderSize = detail::AddHeader(kernel.propagated_builtin_callables(), finalResult, false, isSpirV, noRegister, kernel.use_cooperative_operations());
+    finalResult << native_code << "\n//"sv;
+    static_cast<void>(vstd::to_string(custom_mask));
+    finalResult << '\n';
+    CodegenFunction(kernel, codegenData, nonEmptyCbuffer, true);
+
+    opt->funcType = CodegenStackData::FuncType::Callable;
+    auto argRange = vstd::make_ite_range(kernel.arguments()).i_range();
+    uint bind_count = 2;
+    if (nonEmptyCbuffer) {
+        GenerateCBuffer({&argRange}, varData);
+    }
+    if (isSpirV) {
+        if (opt->noRegister) {
+            varData << R"(
+struct _CBType{
+uint4 v;
+};
+[[vk::push_constant]] ConstantBuffer<_CBType> dsp_c;
+)"sv;
+        } else {
+            varData << R"(
+struct _CBType{
+uint4 v;
+};
+[[vk::push_constant]] ConstantBuffer<_CBType> dsp_c:register(b0);
+)"sv;
+        }
+        bind_count += 2;
+    } else {
+        if (opt->noRegister) {
+            varData << "uint4 dsp_c;\n"sv;
+        } else {
+            varData << "uint4 dsp_c:register(b0);\n"sv;
+        }
+        bind_count += 2;
+    }
+    CodegenResult::Properties properties;
+    DXILRegisterIndexer dxilRegisters;
+    SpirVRegisterIndexer spvRegisters;
+    RegisterIndexer &indexer = isSpirV ? static_cast<RegisterIndexer &>(spvRegisters) : static_cast<RegisterIndexer &>(dxilRegisters);
+    PreprocessCodegenProperties(properties, varData, indexer, nonEmptyCbuffer, false, isSpirV, bind_count);
+    CodegenProperties(properties, varData, kernel, 0, indexer, bind_count);
+    PostprocessCodegenProperties(finalResult, kernel.requires_autodiff());
+    finalResult << varData << incrementalFunc << codegenData;
+    if (!isSpirV) {
+        // https://learn.microsoft.com/en-us/windows/win32/direct3d12/root-signature-limits
+        if (bind_count >= 64) [[unlikely]] {
+            LUISA_ERROR("Arguments binding size: {} exceeds 64 32-bit units not supported by hardware device. Try to use bindless instead.", bind_count);
+        }
+    }
+    return {
+        std::move(finalResult),
+        std::move(opt->printer),
+        std::move(properties),
+        opt->useTex2DBindless,
+        opt->useTex3DBindless,
+        opt->useBufferBindless,
+        immutableHeaderSize,
+        GetTypeMD5(kernel)};
+}
+
+// Main rasterization pipeline codegen
+CodegenResult CodegenUtility::RasterCodegen(
+    Function vertFunc,
+    Function pixelFunc,
+    luisa::string_view native_code,
+    uint custom_mask,
+    bool isSpirV,
+    bool noRegister) {
+    opt = CodegenStackData::Allocate(this);
+    opt->isSpirv = isSpirV;
+    // CodegenStackData::ThreadLocalSpirv() = false;
+    opt->kernel = vertFunc;
+    opt->noRegister = noRegister;
+    opt->isRaster = true;
+    opt->atomicFloatToInt = isSpirV && (vertFunc.propagated_builtin_callables().uses_atomic() || pixelFunc.propagated_builtin_callables().uses_atomic());
+    auto disposeOpt = vstd::scope_exit([&] {
+        opt->isRaster = false;
+        CodegenStackData::DeAllocate(std::move(opt));
+    });
+    vstd::StringBuilder codegenData;
+    vstd::StringBuilder varData;
+    vstd::StringBuilder finalResult;
+    vstd::StringBuilder incrementalFunc;
+    opt->incrementalFunc = &incrementalFunc;
+    finalResult.reserve(65500);
+    auto opSet = vertFunc.propagated_builtin_callables();
+    opSet.propagate(pixelFunc.propagated_builtin_callables());
+    uint64 immutableHeaderSize = detail::AddHeader(opSet, finalResult, true, isSpirV, noRegister, vertFunc.use_cooperative_operations() || pixelFunc.use_cooperative_operations());
+    finalResult << native_code << "\n//"sv;
+    static_cast<void>(vstd::to_string(custom_mask));
+    finalResult << '\n';
+    // Vertex
+    codegenData << "struct v2p{\n"sv;
+    auto v2pType = vertFunc.return_type();
+    if (v2pType->is_structure()) {
+        opt->internalStruct.emplace(v2pType, "v2p");
+        if (v2pType->members().size() != v2pType->member_attributes().size()) [[unlikely]] {
+            LUISA_ERROR("Vertex-to-pixel structure's attribute size is illegal.");
+        }
+        size_t memberIdx = 0;
+        bool pos = false;
+        for (auto &&i : v2pType->members()) {
+            bool is_sv_pos = v2pType->member_attributes()[memberIdx].key == "position"sv;
+            if (!is_sv_pos && opt->isSpirv) {
+                codegenData << luisa::format("[[vk::location({})]] ", memberIdx - 1);
+            }
+            GetTypeName(*i, codegenData, Usage::READ);
+            codegenData << " v"sv << vstd::to_string(memberIdx);
+            if (is_sv_pos) {
+                if (pos) [[unlikely]] {
+                    LUISA_ERROR("Vertex-to-pixel structure can only have one position.");
+                }
+                codegenData << ":SV_POSITION;\n"sv;
+                pos = true;
+                if (!i->is_vector() || i->dimension() != 4) [[unlikely]] {
+                    LUISA_ERROR("Position must be float4.");
+                }
+            } else {
+                codegenData << ":TEXCOORD"sv << vstd::to_string(memberIdx - 1) << ";\n"sv;
+            }
+            ++memberIdx;
+        }
+        if (!pos) [[unlikely]] {
+            LUISA_ERROR("Vertex-to-pixel structure should contained position.");
+        }
+    } else {
+        LUISA_ERROR("Illegal vertex return type!");
+    }
+    uint bind_count = 2;
+    if (isSpirV) {
+        codegenData << R"(};
+struct _CBType{
+uint v;
+};
+[[vk::push_constant]] ConstantBuffer<_CBType> obj_id:register(b0);
+)"sv;
+        bind_count += 2;
+    } else {
+        if (opt->noRegister) {
+            codegenData << R"(};
+uint obj_id;
+)"sv;
+        } else {
+            codegenData << R"(};
+uint obj_id:register(b0);
+)"sv;
+        }
+        bind_count += 2;
+    }
+    codegenData << "#ifdef VS\n";
+    auto vert_args = vertFunc.arguments();
+    if (vert_args.empty()) [[unlikely]] {
+        LUISA_ERROR("Vertex arguments illegal.");
+    }
+    auto appdataType = vert_args[0].type();
+    if (appdataType->is_structure()) {
+        auto appdataAttris = appdataType->member_attributes();
+        auto appdataMems = appdataType->members();
+        if (appdataAttris.size() != appdataMems.size()) [[unlikely]] {
+            LUISA_ERROR("Mesh-to-vertex structure must have attributes.");
+        }
+        opt->internalStruct.try_emplace(appdataType, "_mesh");
+        codegenData << "struct _mesh{\n"sv;
+        for (auto i : vstd::range(appdataAttris.size())) {
+            auto member = appdataMems[static_cast<size_t>(i)];
+            auto &attr = appdataAttris[static_cast<size_t>(i)];
+            if (attr.key.empty()) [[unlikely]] {
+                LUISA_ERROR("Mesh-to-vertex structure member {} miss attributes.", static_cast<int64_t>(i));
+            }
+            if (!(member->is_scalar() || member->is_vector())) [[unlikely]] {
+                LUISA_ERROR("Mesh-to-vertex structure do not support type {}", member->description());
+            }
+
+            auto iter = attributes.find(attr.key);
+            if (iter == attributes.end()) [[unlikely]] {
+                LUISA_ERROR("Invalid attribute: {}", attr.key);
+            }
+
+            if (iter->second.second && iter->second.second != member) [[unlikely]] {
+                LUISA_ERROR("Attribute {} type {} mismatch with {}", attr.key, iter->second.second->description(), member->description());
+            }
+            if (opt->isSpirv) {
+                codegenData << luisa::format("[[vk::location({})]] ", i);
+            }
+            GetTypeName(*member, codegenData, Usage::READ);
+            codegenData
+                << " v"sv << vstd::to_string(i) << ':'
+                << iter->second.first
+                << ";\n"sv;
+        }
+        codegenData << "};\n";
+    } else {
+        LUISA_ERROR("Mesh-to-vertex must be a structure");
+    }
+
+    auto vertRange = vstd::make_ite_range(vert_args.subspan(1)).i_range();
+    auto pixelRange = vstd::make_ite_range(pixelFunc.arguments().subspan(1)).i_range();
+    std::initializer_list<vstd::IRange<Variable> *> funcs = {&vertRange, &pixelRange};
+
+    bool nonEmptyCbuffer = IsCBufferNonEmpty(funcs);
+    opt->appdataId = vert_args[0].uid();
+    CodegenVertex(vertFunc, codegenData, nonEmptyCbuffer);
+    opt->appdataId = -1;
+    // TODO: gen vertex data
+    codegenData << "#elif defined(PS)\n"sv;
+    size_t vert_arg_offset = 0;
+    for (auto &i : vert_args.subspan(1)) {
+        if (detail::IsCBuffer(i.tag())) {
+            vert_arg_offset += 1;
+        }
+    }
+    opt->argOffset = vert_arg_offset;
+    // TODO: gen pixel data
+    CodegenPixel(pixelFunc, codegenData, nonEmptyCbuffer);
+    codegenData << "#endif\n"sv;
+
+    opt->funcType = CodegenStackData::FuncType::Callable;
+    if (nonEmptyCbuffer) {
+        GenerateCBuffer(funcs, varData);
+    }
+    CodegenResult::Properties properties;
+    DXILRegisterIndexer dxilRegisters;
+    SpirVRegisterIndexer spvRegisters;
+    RegisterIndexer &indexer = isSpirV ? static_cast<RegisterIndexer &>(spvRegisters) : static_cast<RegisterIndexer &>(dxilRegisters);
+    PreprocessCodegenProperties(properties, varData, indexer, nonEmptyCbuffer, true, isSpirV, bind_count);
+    CodegenProperties(properties, varData, vertFunc, 1, indexer, bind_count);
+    CodegenProperties(properties, varData, pixelFunc, 1, indexer, bind_count);
+    PostprocessCodegenProperties(finalResult, false);
+    finalResult << varData << incrementalFunc << codegenData;
+    // https://learn.microsoft.com/en-us/windows/win32/direct3d12/root-signature-limits
+    if (bind_count >= 64) [[unlikely]] {
+        LUISA_ERROR("Arguments binding size: {} exceeds 64 32-bit units not supported by hardware device. Try to use bindless instead.", bind_count);
+    }
+    return {
+        std::move(finalResult),
+        std::move(opt->printer),
+        std::move(properties),
+        opt->useTex2DBindless,
+        opt->useTex3DBindless,
+        opt->useBufferBindless,
+        immutableHeaderSize,
+        GetTypeMD5(funcs)};
+}
+
+}// namespace lc::hlsl

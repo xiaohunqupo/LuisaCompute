@@ -13,7 +13,7 @@ on_load(function(target)
         })
     end
 end)
-add_files("*.cpp")
+add_files("*.cpp", 'codegen_utils/*.cpp')
 set_pcxxheader("lc_hlsl_pch.h")
 add_headerfiles("*.h")
 add_rules("utils.bin2obj", {extensions = {".bytes", ".dxil"}})
