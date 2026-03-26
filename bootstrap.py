@@ -535,11 +535,13 @@ def find_llvm(version):
     return os.path.dirname(clang_exe[-1])
 
 
-def prepare_msvc_environment(toolchain_version: int):
+def prepare_msvc_environment(toolchain_version: int | None = None):
     vcvars_bat = find_msvc(toolchain_version, '**/Auxiliary/Build/vcvars64.bat')
     if not vcvars_bat:
         return None
     try:
+        if type(vcvars_bat) == list:
+            vcvars_bat = vcvars_bat[0]
         env_vars = check_output([vcvars_bat, '&&', sys.executable, '-c',
                                  'import os; import json; print("[[ENVIRON]] =", json.dumps(dict(os.environ)))'])
     except Exception as e:

@@ -61,6 +61,16 @@ cmake -S . -B build -G Ninja -D CMAKE_BUILD_TYPE=Release
 ```
 
 ### Windows
+
+**Using bootstrap (Recommended):**
+The bootstrap script automatically detects and sets up the MSVC environment:
+```python
+import bootstrap
+bootstrap.prepare_msvc_environment()
+```
+
+**Manual CMake:**
+Requires running from VS Developer Command Prompt:
 ```cmd
 # From VS Developer Command Prompt
 cmake -S . -B build -G Ninja -D CMAKE_BUILD_TYPE=Release
