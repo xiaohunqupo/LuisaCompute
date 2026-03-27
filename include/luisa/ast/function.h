@@ -54,6 +54,8 @@ public:
         RASTER_STAGE
     };
 
+    using FunctionAttribute = detail::LiteralValueVariant;
+
     using Constant = ConstantData;
 
     /**
@@ -189,7 +191,7 @@ public:
     /// Cast to bool, true if builder is not nullptr
     [[nodiscard]] explicit operator bool() const noexcept { return _builder != nullptr; }
     [[nodiscard]] luisa::string_view get_variable_name(uint32_t uid) const noexcept;
-
+    [[nodiscard]] luisa::unordered_map<luisa::string, Function::FunctionAttribute> const &func_attributes() const noexcept;
 };
 
 }// namespace luisa::compute
