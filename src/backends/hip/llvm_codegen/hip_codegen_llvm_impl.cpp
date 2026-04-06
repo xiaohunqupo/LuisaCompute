@@ -115,7 +115,7 @@ void HIPCodegenLLVMImpl::_initialize() noexcept {
     // provide OCLC configuration globals that OCML depends on
     auto set_oclc_option = [&](llvm::StringRef name, llvm::Value *value) {
         if (auto gv = _llvm_module->getGlobalVariable(name)) {
-            llvm::SmallVector<llvm::LoadInst*, 8> loads;
+            llvm::SmallVector<llvm::LoadInst *, 8> loads;
             for (auto user : gv->users()) {
                 if (auto load = llvm::dyn_cast<llvm::LoadInst>(user)) {
                     loads.emplace_back(load);
@@ -290,7 +290,8 @@ void HIPCodegenLLVMImpl::_run_optimization_passes() noexcept {
 luisa::string HIPCodegenLLVMImpl::_generate_code() const noexcept {
     std::string code;
     llvm::raw_string_ostream os{code};
-    _llvm_module->print(os, nullptr);
+    llvm::WriteBitcodeToFile(*_llvm_module, os);
+    os.flush();
     return luisa::string{code};
 }
 
@@ -318,18 +319,48 @@ luisa::string HIPCodegenLLVMImpl::generate(const xir::Module &xir_module) noexce
         auto env = getenv("LUISA_DUMP_LLVM_IR");
         return env != nullptr && env == "1"sv;
     }();
+    static std::atomic<uint32_t> dump_counter{0u};
+    uint32_t dump_idx = 0u;
     if (dump_ir) {
-        _dump_module("hip_kernel_before_opt.ll");
+        dump_idx = dump_counter.fetch_add(1u);
+        auto filename = fmt::format("hip_kernel_before_opt_{}.ll", dump_idx);
+        _dump_module(filename);
+        LUISA_INFO("Dumped LLVM IR to: {}", filename);
     }
 
     _run_optimization_passes();
 
+    if (dump_ir) {
+        auto after_opt_filename = fmt::format("hip_kernel_after_opt_{}.ll", dump_idx);
+        _dump_module(after_opt_filename);
+        LUISA_INFO("Dumped post-optimization LLVM IR to: {}", after_opt_filename);
+    }
+
     auto target_cpu = _target_machine->getTargetCPU();
     auto target_features = _target_machine->getTargetFeatureString();
     for (auto &func : *_llvm_module) {
+        // Collect amdgpu-no-* string attributes from kernel_main before stripping.
+        // These are added by AMDGPUAttributor during optimization and are critical
+        // for correct kernarg segment layout: without them, the AMDGPU backend
+        // assumes 256 bytes of implicit arguments, which can cause memory faults.
+        llvm::SmallVector<llvm::StringRef, 24> amdgpu_no_attrs;
+        if (func.getName() == "kernel_main") {
+            for (auto &attr : func.getAttributes().getFnAttrs()) {
+                if (attr.isStringAttribute() &&
+                    attr.getKindAsString().starts_with("amdgpu-no-")) {
+                    amdgpu_no_attrs.push_back(attr.getKindAsString());
+                }
+            }
+        }
+
         func.setAttributes(llvm::AttributeList{});
+
         if (func.getName() == "kernel_main") {
             func.addFnAttr(llvm::Attribute::NoInline);
+            // Restore amdgpu-no-* attributes that the optimizer determined are safe.
+            for (auto &attr_name : amdgpu_no_attrs) {
+                func.addFnAttr(attr_name);
+            }
         }
         // Re-add target CPU and features so that downstream consumers
         // (e.g., HIPRT bitcode compiler) know the GPU architecture.
