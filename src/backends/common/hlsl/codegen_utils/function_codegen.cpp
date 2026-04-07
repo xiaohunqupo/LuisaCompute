@@ -11,11 +11,15 @@
 #include <luisa/core/logging.h>
 #include <luisa/ast/external_function.h>
 
-
 // External declaration for shared variable from hlsl_codegen_util.cpp
 extern bool shown_buffer_warning;
 
 namespace lc::hlsl {
+
+#ifdef LUISA_ENABLE_IR
+// Defined in entry_points.cpp — collects gradient variables from a function body.
+void glob_variables_with_grad(Function f, vstd::unordered_set<Variable> &gradient_variables) noexcept;
+#endif
 
 // SpirvMatrixPack helper struct (also defined in hlsl_codegen_util.cpp)
 struct SpirvMatrixPack {
