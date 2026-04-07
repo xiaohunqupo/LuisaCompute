@@ -24,22 +24,15 @@
 
 #include <luisa/core/clock.h>
 #include "hip_codegen_llvm_impl.h"
-#include "hip_rt_device_wrapper.hip"
+#include "hiprt_device_wrapper.hip"
 #include "hip_codegen_llvm_device_bitcode.h"
 
 // Per-arch HIPRT wrapper bitcode (compiled per-arch so arch-specific features
 // like the hardware BVH stack on gfx1200/1201 are correctly compiled).
-#include "hip_rt_wrapper_gfx1030_embedded.h"
-#include "hip_rt_wrapper_gfx1100_embedded.h"
-#include "hip_rt_wrapper_gfx1200_embedded.h"
-#include "hip_rt_wrapper_gfx1201_embedded.h"
-
-// Per-arch HIPRT library bitcode (extracted from the HIPRT bundle at build time).
-// Each provides luisa_compute_hip_hiprt_library_gfxNNNN[] and _size.
-#include "hiprt_library_gfx1030_embedded.h"
-#include "hiprt_library_gfx1100_embedded.h"
-#include "hiprt_library_gfx1200_embedded.h"
-#include "hiprt_library_gfx1201_embedded.h"
+#include "hiprt_wrapper_gfx1030_embedded.h"
+#include "hiprt_wrapper_gfx1100_embedded.h"
+#include "hiprt_wrapper_gfx1200_embedded.h"
+#include "hiprt_wrapper_gfx1201_embedded.h"
 
 #undef None
 
@@ -173,20 +166,20 @@ void HIPCodegenLLVMImpl::_postprocess_rt_kernel() noexcept {
     unsigned long long wrapper_size = 0;
     switch (_config.amdgpu_arch) {
         case 1030:
-            wrapper_data = luisa_compute_hip_hip_rt_wrapper_gfx1030;
-            wrapper_size = luisa_compute_hip_hip_rt_wrapper_gfx1030_size;
+            wrapper_data = luisa_compute_hip_hiprt_wrapper_gfx1030;
+            wrapper_size = luisa_compute_hip_hiprt_wrapper_gfx1030_size;
             break;
         case 1100:
-            wrapper_data = luisa_compute_hip_hip_rt_wrapper_gfx1100;
-            wrapper_size = luisa_compute_hip_hip_rt_wrapper_gfx1100_size;
+            wrapper_data = luisa_compute_hip_hiprt_wrapper_gfx1100;
+            wrapper_size = luisa_compute_hip_hiprt_wrapper_gfx1100_size;
             break;
         case 1200:
-            wrapper_data = luisa_compute_hip_hip_rt_wrapper_gfx1200;
-            wrapper_size = luisa_compute_hip_hip_rt_wrapper_gfx1200_size;
+            wrapper_data = luisa_compute_hip_hiprt_wrapper_gfx1200;
+            wrapper_size = luisa_compute_hip_hiprt_wrapper_gfx1200_size;
             break;
         case 1201:
-            wrapper_data = luisa_compute_hip_hip_rt_wrapper_gfx1201;
-            wrapper_size = luisa_compute_hip_hip_rt_wrapper_gfx1201_size;
+            wrapper_data = luisa_compute_hip_hiprt_wrapper_gfx1201;
+            wrapper_size = luisa_compute_hip_hiprt_wrapper_gfx1201_size;
             break;
         default:
             LUISA_ERROR_WITH_LOCATION("Unsupported AMDGPU arch {} for HIPRT wrapper.", _config.amdgpu_arch);
@@ -196,7 +189,7 @@ void HIPCodegenLLVMImpl::_postprocess_rt_kernel() noexcept {
 
     llvm::StringRef wrapper_bc{reinterpret_cast<const char *>(wrapper_data),
                                static_cast<size_t>(wrapper_size)};
-    auto wrapper_buf = llvm::MemoryBuffer::getMemBuffer(wrapper_bc, "hip_rt_wrapper", false);
+    auto wrapper_buf = llvm::MemoryBuffer::getMemBuffer(wrapper_bc, "hiprt_wrapper", false);
     auto wrapper_module = llvm::parseBitcodeFile(*wrapper_buf, _llvm_context);
     if (!wrapper_module) {
         LUISA_ERROR_WITH_LOCATION("Failed to parse HIPRT wrapper bitcode.");
@@ -245,69 +238,7 @@ void HIPCodegenLLVMImpl::_postprocess_rt_kernel() noexcept {
         }
     }
 
-    // Step 3: Link arch-specific HIPRT library bitcode for full LTO inlining.
-    // This replaces HIPRT's orortcLinkComplete which only links without optimizing.
-    {
-        const unsigned char *hiprt_lib_data = nullptr;
-        unsigned long long hiprt_lib_size = 0;
-        switch (_config.amdgpu_arch) {
-            case 1030:
-                hiprt_lib_data = luisa_compute_hip_hiprt_library_gfx1030;
-                hiprt_lib_size = luisa_compute_hip_hiprt_library_gfx1030_size;
-                break;
-            case 1100:
-                hiprt_lib_data = luisa_compute_hip_hiprt_library_gfx1100;
-                hiprt_lib_size = luisa_compute_hip_hiprt_library_gfx1100_size;
-                break;
-            case 1200:
-                hiprt_lib_data = luisa_compute_hip_hiprt_library_gfx1200;
-                hiprt_lib_size = luisa_compute_hip_hiprt_library_gfx1200_size;
-                break;
-            case 1201:
-                hiprt_lib_data = luisa_compute_hip_hiprt_library_gfx1201;
-                hiprt_lib_size = luisa_compute_hip_hiprt_library_gfx1201_size;
-                break;
-            default:
-                LUISA_ERROR_WITH_LOCATION("Unsupported AMDGPU arch {} for HIPRT LTO.", _config.amdgpu_arch);
-        }
-        LUISA_ASSERT(hiprt_lib_data != nullptr && hiprt_lib_size > 0,
-                     "HIPRT library bitcode is empty for arch gfx{}.", _config.amdgpu_arch);
-
-        llvm::StringRef hiprt_bc{reinterpret_cast<const char *>(hiprt_lib_data),
-                                 static_cast<size_t>(hiprt_lib_size)};
-        auto hiprt_buf = llvm::MemoryBuffer::getMemBuffer(hiprt_bc, "hiprt_library", false);
-        auto hiprt_module = llvm::parseBitcodeFile(*hiprt_buf, _llvm_context);
-        if (!hiprt_module) {
-            LUISA_ERROR_WITH_LOCATION("Failed to parse HIPRT library bitcode for gfx{}.", _config.amdgpu_arch);
-        }
-
-        if (auto *flags = (*hiprt_module)->getNamedMetadata("llvm.module.flags")) {
-            flags->eraseFromParent();
-        }
-
-        LUISA_INFO("Linking HIPRT library bitcode ({} bytes, {} functions) for gfx{}.",
-                   hiprt_lib_size,
-                   std::distance((*hiprt_module)->begin(), (*hiprt_module)->end()),
-                   _config.amdgpu_arch);
-
-        if (llvm::Linker::linkModules(*_llvm_module, std::move(*hiprt_module),
-                                      llvm::Linker::Flags::OverrideFromSrc)) {
-            LUISA_ERROR_WITH_LOCATION("Failed to link HIPRT library bitcode.");
-        }
-
-        // HIPRT bitcode uses "comdat any" which prevents LLVM from inlining
-        // even with alwaysinline — strip to enable full inlining into kernel.
-        for (auto &func : *_llvm_module) {
-            func.setComdat(nullptr);
-        }
-        for (auto &gv : _llvm_module->globals()) {
-            gv.setComdat(nullptr);
-        }
-        _llvm_module->getComdatSymbolTable().clear();
-        LUISA_INFO("Stripped comdat groups from HIPRT library functions.");
-    }
-
-    // Step 4: Provide trivial intersectFunc/filterFunc definitions.
+    // Step 3: Provide trivial intersectFunc/filterFunc definitions.
     // HIPRT library calls these for custom geometry/filter callbacks.
     // We use numGeomTypes=0, numRayTypes=1, funcNameSets=nullptr, so both always return false.
     {

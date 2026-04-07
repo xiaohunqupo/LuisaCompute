@@ -51,7 +51,7 @@ if (LUISA_COMPUTE_HIP_LINKED_LLVM)
     # Each architecture gets its own bitcode so arch-specific features
     # (e.g., hardware BVH stack on gfx1200/1201) are correctly compiled.
     # -----------------------------------------------------------------------
-    set(LUISA_HIP_RT_WRAPPER_SOURCE ${CMAKE_CURRENT_LIST_DIR}/hip_rt_device_wrapper.hip)
+    set(LUISA_HIP_RT_WRAPPER_SOURCE ${CMAKE_CURRENT_LIST_DIR}/hiprt_device_wrapper.hip)
     # Include both the generated header dir and the source tree
     set(_HIPRT_WRAPPER_INCLUDE_ARGS -I ${LUISA_COMPUTE_HIPRT_SDK_INCLUDE_DIR} -I ${HIPRT_SOURCE_DIR})
     # Detect target GPU architecture from environment or use default
@@ -70,9 +70,9 @@ if (LUISA_COMPUTE_HIP_LINKED_LLVM)
     set(_wrapper_all_embedded_sources "")
 
     foreach (_arch ${_hip_wrapper_arch})
-        set(_wrapper_bc "${_wrapper_bc_dir}/hip_rt_wrapper_${_arch}.bc")
-        set(_wrapper_cpp "${_wrapper_bc_dir}/hip_rt_wrapper_${_arch}_embedded.cpp")
-        set(_wrapper_h "${_wrapper_bc_dir}/hip_rt_wrapper_${_arch}_embedded.h")
+        set(_wrapper_bc "${_wrapper_bc_dir}/hiprt_wrapper_${_arch}.bc")
+        set(_wrapper_cpp "${_wrapper_bc_dir}/hiprt_wrapper_${_arch}_embedded.cpp")
+        set(_wrapper_h "${_wrapper_bc_dir}/hiprt_wrapper_${_arch}_embedded.h")
 
         # Compile wrapper for this arch
         add_custom_command(
@@ -121,65 +121,5 @@ if (LUISA_COMPUTE_HIP_LINKED_LLVM)
             DEPENDS ${_wrapper_all_bcs} ${_wrapper_all_embedded_sources})
     add_dependencies(luisa-compute-backend-hip luisa-compute-backend-hip-embed-wrapper)
     target_sources(luisa-compute-backend-hip PRIVATE ${_wrapper_all_embedded_sources})
-
-    # -----------------------------------------------------------------------
-    # Extract per-arch HIPRT library bitcode from the bundled .bc and embed.
-    # This allows our LLVM codegen to link the HIPRT traversal functions
-    # directly into the kernel module for full LTO inlining, bypassing
-    # HIPRT's orortcLinkComplete which does not optimize across modules.
-    # -----------------------------------------------------------------------
-    find_program(CLANG_OFFLOAD_BUNDLER clang-offload-bundler
-            HINTS /opt/rocm/llvm/bin $ENV{ROCM_PATH}/llvm/bin /usr/bin)
-    if (NOT CLANG_OFFLOAD_BUNDLER)
-        message(FATAL_ERROR "clang-offload-bundler not found; required for HIPRT LTO")
-    endif ()
-
-    set(_hiprt_bundle_bc "${HIPRT_FROM_SOURCE_BITCODE_DIR}/${HIPRT_FROM_SOURCE_LIB_NAME}_${HIP_VERSION_STR}_amd_lib_linux.bc")
-    set(_hiprt_lib_bc_dir "${CMAKE_CURRENT_LIST_DIR}")
-
-    # Collect per-arch extracted bitcode files and embedded source files
-    set(_hiprt_lib_extracted_bcs "")
-    set(_hiprt_lib_embedded_sources "")
-    set(_hiprt_lib_embed_targets "")
-
-    foreach (_arch ${_hip_wrapper_arch})
-        set(_extracted_bc "${_hiprt_lib_bc_dir}/hiprt_library_${_arch}.bc")
-        set(_embedded_cpp "${_hiprt_lib_bc_dir}/hiprt_library_${_arch}_embedded.cpp")
-        set(_embedded_h   "${_hiprt_lib_bc_dir}/hiprt_library_${_arch}_embedded.h")
-
-        # Extract single-arch bitcode from the HIPRT bundle
-        add_custom_command(
-                OUTPUT "${_extracted_bc}"
-                COMMAND ${CLANG_OFFLOAD_BUNDLER}
-                --unbundle
-                "--input=${_hiprt_bundle_bc}"
-                "--output=${_extracted_bc}"
-                --type=bc
-                "--targets=hip-amdgcn-amd-amdhsa--${_arch}"
-                DEPENDS hiprt_compile_bitcodes "${_hiprt_bundle_bc}"
-                COMMENT "[HIPRT LTO] Extracting ${_arch} bitcode from HIPRT bundle..."
-                VERBATIM)
-
-        # Embed the extracted bitcode into C++ source
-        add_custom_command(
-                OUTPUT "${_embedded_cpp}" "${_embedded_h}"
-                COMMAND $<TARGET_FILE:luisa_embed_device_lib>
-                "${_extracted_bc}"
-                --unsigned --prefix luisa_compute_hip_
-                -o "${_embedded_cpp}"
-                -h "${_embedded_h}"
-                DEPENDS luisa_embed_device_lib "${_extracted_bc}"
-                WORKING_DIRECTORY "${_hiprt_lib_bc_dir}"
-                COMMENT "[HIPRT LTO] Embedding ${_arch} HIPRT library bitcode..."
-                VERBATIM)
-
-        list(APPEND _hiprt_lib_extracted_bcs "${_extracted_bc}")
-        list(APPEND _hiprt_lib_embedded_sources "${_embedded_cpp}" "${_embedded_h}")
-    endforeach ()
-
-    add_custom_target(luisa-compute-backend-hip-embed-hiprt-lib
-            DEPENDS ${_hiprt_lib_extracted_bcs} ${_hiprt_lib_embedded_sources})
-    add_dependencies(luisa-compute-backend-hip luisa-compute-backend-hip-embed-hiprt-lib)
-    target_sources(luisa-compute-backend-hip PRIVATE ${_hiprt_lib_embedded_sources})
 
 endif ()
