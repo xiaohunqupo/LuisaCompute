@@ -128,9 +128,6 @@ void HIPShaderNative::_launch(HIPCommandEncoder &encoder, ShaderDispatchCommand 
                 auto buffer = reinterpret_cast<const HIPBuffer *>(arg.buffer.handle);
                 auto binding = buffer->binding(arg.buffer.offset, arg.buffer.size);
                 auto ptr = allocate_argument(sizeof(binding));
-                LUISA_VERBOSE("  BUFFER arg: device_ptr={}, size={}, packed at offset={}",
-                              binding.ptr, binding.size_bytes,
-                              static_cast<size_t>(ptr - argument_buffer.data()));
                 std::memcpy(ptr, &binding, sizeof(binding));
                 break;
             }
@@ -167,8 +164,6 @@ void HIPShaderNative::_launch(HIPCommandEncoder &encoder, ShaderDispatchCommand 
     };
 
     for (auto &&arg : _bound_arguments) { encode_argument(arg); }
-    LUISA_VERBOSE("Encoding kernel dispatch arguments (bound={}, command={}):",
-                  _bound_arguments.size(), command->arguments().size());
     for (auto &&arg : command->arguments()) { encode_argument(arg); }
 
     auto ptr = allocate_argument(sizeof(uint4));
@@ -208,12 +203,6 @@ void HIPShaderNative::_launch(HIPCommandEncoder &encoder, ShaderDispatchCommand 
                           hipGetErrorString(ret));
         }
     });
-
-    LUISA_VERBOSE("Launch: dispatch=({},{},{}), block=({},{},{}), blocks=({},{},{}), arg_buffer_size={}",
-                  dispatch_size.x, dispatch_size.y, dispatch_size.z,
-                  block_size.x, block_size.y, block_size.z,
-                  blocks.x, blocks.y, blocks.z,
-                  argument_buffer_offset);
 
     auto arg_size = argument_buffer_offset;
     void *extra[] = {

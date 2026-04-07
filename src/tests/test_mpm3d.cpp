@@ -347,6 +347,8 @@ int main(int argc, char *argv[]) {
                 static_cast<uint8_t>(std::clamp(pixel.w, 0.f, 1.f) * 255.f + 0.5f),
             };
         }
+        stbi_write_png("test_mpm3d.png", resolution, resolution, 4, host_image.data(), 0);
+        LUISA_INFO("Saved offline rendering to test_mpm3d.png ({} frames)", user_frames);
     } else {
         Framerate fps;
         while (!window->should_close()) {
