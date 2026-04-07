@@ -93,7 +93,7 @@ void HIPStream::_shutdown_callback_thread() noexcept {
 HIPStream::HIPStream(HIPDevice *device) noexcept
     : _device{device}, _stream{},
       _upload_pool{64_M, true},
-      _download_pool{32_M, false} {
+      _download_pool{64_M, false} {
     LUISA_CHECK_HIP(hipStreamCreate(&_stream));
     _create_callback_semaphore();
     _spawn_callback_thread();

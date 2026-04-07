@@ -194,7 +194,6 @@ void HIPShaderNative::_launch(HIPCommandEncoder &encoder, ShaderDispatchCommand 
     auto hip_stream = encoder.stream()->handle();
     auto block_size = make_uint3(_block_size[0], _block_size[1], _block_size[2]);
     auto blocks = (dispatch_size + block_size - 1u) / block_size;
-    void *arguments = argument_buffer.data();
 
     static std::once_flag stack_limit_flag;
     std::call_once(stack_limit_flag, [] {
@@ -205,11 +204,16 @@ void HIPShaderNative::_launch(HIPCommandEncoder &encoder, ShaderDispatchCommand 
         }
     });
 
+    auto arg_size = argument_buffer_offset;
+    void *extra[] = {
+        HIP_LAUNCH_PARAM_BUFFER_POINTER, argument_buffer.data(),
+        HIP_LAUNCH_PARAM_BUFFER_SIZE, &arg_size,
+        HIP_LAUNCH_PARAM_END};
     LUISA_CHECK_HIP(hipModuleLaunchKernel(
         _function,
         blocks.x, blocks.y, blocks.z,
         block_size.x, block_size.y, block_size.z,
-        0u, hip_stream, &arguments, nullptr));
+        0u, hip_stream, nullptr, extra));
 }
 
 }// namespace luisa::compute::hip
