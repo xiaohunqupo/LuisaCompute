@@ -110,8 +110,6 @@ extern "C" __device__ bool luisa_hiprt_trace_any(
 
 #if HIPRT_RTIP >= 31 && ( defined( __gfx1200__ ) || defined( __gfx1201__ ) )
 
-static constexpr unsigned int LUISA_HIPRT_HWSTACK_SIZE = hiprt::HwBvhStack::StackSize;
-
 extern "C" __device__ void luisa_hiprt_trace_closest_hwstack(
     uint64_t scene_handle,
     float ox, float oy, float oz,

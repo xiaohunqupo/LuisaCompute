@@ -210,9 +210,60 @@ void HIPCodegenLLVMImpl::_postprocess_rt_kernel() noexcept {
         LUISA_ASSERT(block_size > 0u, "Block size must be greater than zero.");
         uint32_t shared_array_size;
         if (_config.amdgpu_arch >= 1200) {
-            constexpr uint32_t lds_dwords_per_wave32 = 1024u;
+            // lds_per_wave32 = max_entries * 32 (stride) * 2 (TLAS+BLAS regions)
+            constexpr uint32_t hw_stack_max_entries = 8u;
+            constexpr uint32_t lds_dwords_per_wave32 = hw_stack_max_entries * 32u * 2u;
             auto num_waves = (block_size + 31u) / 32u;
             shared_array_size = num_waves * lds_dwords_per_wave32;
+
+            if (auto *gv = _llvm_module->getGlobalVariable("luisa_hiprt_hw_stack_max_entries")) {
+                auto *i32_ty = llvm::Type::getInt32Ty(_llvm_context);
+                auto *const_val = llvm::ConstantInt::get(i32_ty, hw_stack_max_entries);
+                auto *new_gv = new llvm::GlobalVariable(
+                    *_llvm_module, i32_ty, true,
+                    llvm::GlobalValue::InternalLinkage,
+                    const_val,
+                    "luisa_hiprt_hw_stack_max_entries_tmp",
+                    nullptr,
+                    llvm::GlobalValue::NotThreadLocal,
+                    0u);
+                gv->replaceAllUsesWith(new_gv);
+                gv->eraseFromParent();
+                new_gv->setName("luisa_hiprt_hw_stack_max_entries");
+            }
+
+            // dummy: <2 x i32> (i32, i32, <8 x i32>)  →  real: {i32, i32} (i32, i32, <8 x i32>, i32 immarg)
+            if (auto *dummy_func = _llvm_module->getFunction("luisa_amdgcn_ds_bvh_stack_push8_pop1_rtn")) {
+                auto *i32_ty = llvm::Type::getInt32Ty(_llvm_context);
+                auto *intrinsic = llvm::Intrinsic::getOrInsertDeclaration(
+                    _llvm_module.get(), llvm::Intrinsic::amdgcn_ds_bvh_stack_push8_pop1_rtn);
+                auto *immarg = llvm::ConstantInt::get(i32_ty, hw_stack_max_entries);
+
+                llvm::SmallVector<llvm::CallInst *, 16> calls_to_replace;
+                for (auto *user : dummy_func->users()) {
+                    if (auto *call = llvm::dyn_cast<llvm::CallInst>(user)) {
+                        calls_to_replace.push_back(call);
+                    }
+                }
+                for (auto *call : calls_to_replace) {
+                    IB builder(call);
+                    auto *real_call = builder.CreateCall(
+                        intrinsic, {call->getArgOperand(0), call->getArgOperand(1),
+                                    call->getArgOperand(2), immarg});
+                    auto *elem0 = builder.CreateExtractValue(real_call, {0});
+                    auto *elem1 = builder.CreateExtractValue(real_call, {1});
+                    auto *vec = llvm::UndefValue::get(llvm::FixedVectorType::get(i32_ty, 2));
+                    auto *vec0 = builder.CreateInsertElement(vec, elem0, builder.getInt32(0));
+                    auto *vec1 = builder.CreateInsertElement(vec0, elem1, builder.getInt32(1));
+                    call->replaceAllUsesWith(vec1);
+                    call->eraseFromParent();
+                }
+                if (dummy_func->use_empty()) {
+                    dummy_func->eraseFromParent();
+                }
+                LUISA_INFO("Replaced {} ds_bvh_stack dummy calls with intrinsic (MaxStackEntries={})",
+                           calls_to_replace.size(), hw_stack_max_entries);
+            }
         } else {
             shared_array_size = LUISA_HIPRT_SHARED_STACK_SIZE * block_size;
         }
