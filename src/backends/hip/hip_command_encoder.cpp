@@ -75,13 +75,18 @@ void HIPCommandEncoder::visit(BufferDownloadCommand *command) noexcept {
     auto binding = buffer->binding(command->offset(), command->size());
     auto data = command->data();
     auto size = command->size();
-    with_download_pool(size, [&](auto download_buffer) noexcept {
-        LUISA_CHECK_HIP(hipMemcpyDtoHAsync(
-            download_buffer->address(), binding.ptr,
-            size, _stream->handle()));
-        LUISA_CHECK_HIP(hipMemcpyAsync(
-            data, download_buffer->address(),
-            size, hipMemcpyHostToHost, _stream->handle()));
+    with_download_pool_no_fallback(size, [&](auto download_buffer) noexcept {
+        if (download_buffer) {
+            LUISA_CHECK_HIP(hipMemcpyDtoHAsync(
+                download_buffer->address(), binding.ptr,
+                size, _stream->handle()));
+            LUISA_CHECK_HIP(hipMemcpyAsync(
+                data, download_buffer->address(),
+                size, hipMemcpyHostToHost, _stream->handle()));
+        } else {
+            LUISA_CHECK_HIP(hipMemcpyDtoHAsync(
+                data, binding.ptr, size, _stream->handle()));
+        }
     });
 }
 
@@ -173,12 +178,17 @@ void HIPCommandEncoder::visit(TextureDownloadCommand *command) noexcept {
     copy.dstMemoryType = hipMemoryTypeHost;
     copy.dstPitch = pitch;
     copy.dstHeight = height;
-    with_download_pool(size_bytes, [&](auto download_buffer) noexcept {
-        copy.dstHost = download_buffer->address();
-        LUISA_CHECK_HIP(hipDrvMemcpy3DAsync(&copy, _stream->handle()));
-        LUISA_CHECK_HIP(hipMemcpyAsync(
-            command->data(), download_buffer->address(),
-            size_bytes, hipMemcpyHostToHost, _stream->handle()));
+    with_download_pool_no_fallback(size_bytes, [&](auto download_buffer) noexcept {
+        if (download_buffer) {
+            copy.dstHost = download_buffer->address();
+            LUISA_CHECK_HIP(hipDrvMemcpy3DAsync(&copy, _stream->handle()));
+            LUISA_CHECK_HIP(hipMemcpyAsync(
+                command->data(), download_buffer->address(),
+                size_bytes, hipMemcpyHostToHost, _stream->handle()));
+        } else {
+            copy.dstHost = command->data();
+            LUISA_CHECK_HIP(hipDrvMemcpy3DAsync(&copy, _stream->handle()));
+        }
     });
 }
 

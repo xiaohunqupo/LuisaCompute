@@ -28,6 +28,13 @@
 #include "hip_codegen_llvm_device_bitcode.h"
 #include "hip_rt_wrapper_bitcode_embedded.h"
 
+// Per-arch HIPRT library bitcode (extracted from the HIPRT bundle at build time).
+// Each provides luisa_compute_hip_hiprt_library_gfxNNNN[] and _size.
+#include "hiprt_library_gfx1030_embedded.h"
+#include "hiprt_library_gfx1100_embedded.h"
+#include "hiprt_library_gfx1200_embedded.h"
+#include "hiprt_library_gfx1201_embedded.h"
+
 #undef None
 
 namespace luisa::compute::hip {
@@ -154,6 +161,7 @@ void HIPCodegenLLVMImpl::_postprocess_rt_kernel() noexcept {
 
     if (!_rt_analysis.uses_ray_tracing) { return; }
 
+    // Step 1: Link the RT wrapper bitcode (hiprt traversal wrappers)
     llvm::StringRef wrapper_bc{
         reinterpret_cast<const char *>(luisa_compute_hip_hip_rt_wrapper),
         luisa_compute_hip_hip_rt_wrapper_size};
@@ -171,7 +179,7 @@ void HIPCodegenLLVMImpl::_postprocess_rt_kernel() noexcept {
         LUISA_ERROR_WITH_LOCATION("Failed to link kernel module with HIPRT wrapper bitcode.");
     }
 
-    // Replace the extern __shared__ declaration of luisa_hiprt_shared_stack_cache
+    // Step 2: Replace the extern __shared__ declaration of luisa_hiprt_shared_stack_cache
     // with a sized definition based on the actual kernel block size.
     {
         auto block_size = _config.block_size[0] * _config.block_size[1] * _config.block_size[2];
@@ -196,6 +204,84 @@ void HIPCodegenLLVMImpl::_postprocess_rt_kernel() noexcept {
             new_gv->setName("luisa_hiprt_shared_stack_cache");
         } else {
             LUISA_ERROR_WITH_LOCATION("Could not find luisa_hiprt_shared_stack_cache in linked module!");
+        }
+    }
+
+    // Step 3: Link arch-specific HIPRT library bitcode for full LTO inlining.
+    // This replaces HIPRT's orortcLinkComplete which only links without optimizing.
+    {
+        const unsigned char *hiprt_lib_data = nullptr;
+        unsigned long long hiprt_lib_size = 0;
+        switch (_config.amdgpu_arch) {
+            case 1030:
+                hiprt_lib_data = luisa_compute_hip_hiprt_library_gfx1030;
+                hiprt_lib_size = luisa_compute_hip_hiprt_library_gfx1030_size;
+                break;
+            case 1100:
+                hiprt_lib_data = luisa_compute_hip_hiprt_library_gfx1100;
+                hiprt_lib_size = luisa_compute_hip_hiprt_library_gfx1100_size;
+                break;
+            case 1200:
+                hiprt_lib_data = luisa_compute_hip_hiprt_library_gfx1200;
+                hiprt_lib_size = luisa_compute_hip_hiprt_library_gfx1200_size;
+                break;
+            case 1201:
+                hiprt_lib_data = luisa_compute_hip_hiprt_library_gfx1201;
+                hiprt_lib_size = luisa_compute_hip_hiprt_library_gfx1201_size;
+                break;
+            default:
+                LUISA_ERROR_WITH_LOCATION("Unsupported AMDGPU arch {} for HIPRT LTO.", _config.amdgpu_arch);
+        }
+        LUISA_ASSERT(hiprt_lib_data != nullptr && hiprt_lib_size > 0,
+                     "HIPRT library bitcode is empty for arch gfx{}.", _config.amdgpu_arch);
+
+        llvm::StringRef hiprt_bc{reinterpret_cast<const char *>(hiprt_lib_data),
+                                 static_cast<size_t>(hiprt_lib_size)};
+        auto hiprt_buf = llvm::MemoryBuffer::getMemBuffer(hiprt_bc, "hiprt_library", false);
+        auto hiprt_module = llvm::parseBitcodeFile(*hiprt_buf, _llvm_context);
+        if (!hiprt_module) {
+            LUISA_ERROR_WITH_LOCATION("Failed to parse HIPRT library bitcode for gfx{}.", _config.amdgpu_arch);
+        }
+
+        if (auto *flags = (*hiprt_module)->getNamedMetadata("llvm.module.flags")) {
+            flags->eraseFromParent();
+        }
+
+        LUISA_INFO("Linking HIPRT library bitcode ({} bytes, {} functions) for gfx{}.",
+                   hiprt_lib_size,
+                   std::distance((*hiprt_module)->begin(), (*hiprt_module)->end()),
+                   _config.amdgpu_arch);
+
+        if (llvm::Linker::linkModules(*_llvm_module, std::move(*hiprt_module),
+                                      llvm::Linker::Flags::OverrideFromSrc)) {
+            LUISA_ERROR_WITH_LOCATION("Failed to link HIPRT library bitcode.");
+        }
+
+        // HIPRT bitcode uses "comdat any" which prevents LLVM from inlining
+        // even with alwaysinline — strip to enable full inlining into kernel.
+        for (auto &func : *_llvm_module) {
+            func.setComdat(nullptr);
+        }
+        for (auto &gv : _llvm_module->globals()) {
+            gv.setComdat(nullptr);
+        }
+        _llvm_module->getComdatSymbolTable().clear();
+        LUISA_INFO("Stripped comdat groups from HIPRT library functions.");
+    }
+
+    // Step 4: Provide trivial intersectFunc/filterFunc definitions.
+    // HIPRT library calls these for custom geometry/filter callbacks.
+    // We use numGeomTypes=0, numRayTypes=1, funcNameSets=nullptr, so both always return false.
+    {
+        for (auto &func : *_llvm_module) {
+            if (!func.isDeclaration()) { continue; }
+            auto name = func.getName();
+            if (!name.contains("intersectFunc") && !name.contains("filterFunc")) { continue; }
+            if (func.getReturnType() != llvm::Type::getInt1Ty(_llvm_context)) { continue; }
+            auto *entry_bb = llvm::BasicBlock::Create(_llvm_context, "entry", &func);
+            IB builder{entry_bb};
+            builder.CreateRet(builder.getFalse());
+            LUISA_INFO("Provided trivial definition for HIPRT function: {}", name.str());
         }
     }
 }
@@ -228,6 +314,43 @@ void HIPCodegenLLVMImpl::_run_optimization_passes() noexcept {
         if (!func.isDeclaration() && func.getCallingConv() != llvm::CallingConv::AMDGPU_KERNEL) {
             func.setLinkage(llvm::Function::PrivateLinkage);
             func.addFnAttr(llvm::Attribute::AlwaysInline);
+        }
+    }
+
+    // Resolve aliases to actual functions so they get PrivateLinkage + AlwaysInline.
+    // HIPRT bitcode has C++ ctor/dtor delegation aliases (C1→C2, D1→D2) which the
+    // function iterator above doesn't visit — leaving 18 functions un-inlined.
+    {
+        llvm::SmallVector<llvm::GlobalAlias *, 32> aliases_to_resolve;
+        for (auto &alias : _llvm_module->aliases()) {
+            aliases_to_resolve.push_back(&alias);
+        }
+        for (auto *alias : aliases_to_resolve) {
+            auto *aliasee = alias->getAliasee();
+            auto *fn = llvm::dyn_cast<llvm::Function>(aliasee);
+            if (!fn) { continue; }
+            auto *new_fn = llvm::Function::Create(
+                fn->getFunctionType(), llvm::Function::PrivateLinkage,
+                alias->getName() + ".resolved", _llvm_module.get());
+            new_fn->copyAttributesFrom(fn);
+            new_fn->setLinkage(llvm::Function::PrivateLinkage);
+            new_fn->addFnAttr(llvm::Attribute::AlwaysInline);
+            auto *entry = llvm::BasicBlock::Create(_llvm_context, "entry", new_fn);
+            IB builder{entry};
+            llvm::SmallVector<llvm::Value *, 8> args;
+            for (auto &arg : new_fn->args()) {
+                args.push_back(&arg);
+            }
+            auto *call = builder.CreateCall(fn, args);
+            call->setCallingConv(fn->getCallingConv());
+            call->setTailCall(true);
+            if (fn->getReturnType()->isVoidTy()) {
+                builder.CreateRetVoid();
+            } else {
+                builder.CreateRet(call);
+            }
+            alias->replaceAllUsesWith(new_fn);
+            alias->eraseFromParent();
         }
     }
 
