@@ -132,6 +132,9 @@ add_custom_command(
         -DHIPRT_BITCODE_LINKING -DHIPCC_OS_LINUX
         -o "${_hiprt_bc_file}"
     DEPENDS "${HIPRT_SOURCE_DIR}/hiprt/impl/hiprt_kernels_bitcode.h"
+            "${HIPRT_SOURCE_DIR}/hiprt/impl/hiprt_device_impl.h"
+            "${HIPRT_SOURCE_DIR}/hiprt/hiprt_device.h"
+            "${HIPRT_SOURCE_DIR}/hiprt/hiprt_common.h"
     WORKING_DIRECTORY "${HIPRT_SOURCE_DIR}"
     COMMENT "[HIPRT] Compiling bitcode bundle: ${HIPRT_LIB_NAME}_${HIP_VERSION_STR}_amd_lib_linux.bc"
     VERBATIM)

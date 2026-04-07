@@ -793,8 +793,9 @@ llvm::Value *HIPCodegenLLVMImpl::_accel_trace_closest(IB &b, const FunctionConte
     auto tmax = b.CreateExtractValue(ray, llvm_ray_type_t_max_index);
     mask = b.CreateAnd(b.CreateZExtOrTrunc(mask, b.getInt32Ty()), 0xffu);
 
+    auto use_hwstack = _config.amdgpu_arch >= 1200;
     using namespace std::string_view_literals;
-    auto wrapper_name = "luisa_hiprt_trace_closest"sv;
+    auto wrapper_name = use_hwstack ? "luisa_hiprt_trace_closest_hwstack"sv : "luisa_hiprt_trace_closest"sv;
     auto wrapper_f = _llvm_module->getFunction(wrapper_name);
     if (wrapper_f == nullptr) {
         auto void_type = llvm::Type::getVoidTy(_llvm_context);
@@ -802,11 +803,19 @@ llvm::Value *HIPCodegenLLVMImpl::_accel_trace_closest(IB &b, const FunctionConte
         auto i32 = b.getInt32Ty();
         auto i64 = b.getInt64Ty();
         auto generic_ptr = b.getPtrTy(0);
-        auto f_type = llvm::FunctionType::get(void_type,
-                                              {i64, f32, f32, f32, f32, f32, f32, f32, f32, i32,
-                                               i32, i32, generic_ptr,
-                                               generic_ptr, generic_ptr, generic_ptr, generic_ptr, generic_ptr},
-                                              false);
+        llvm::FunctionType *f_type;
+        if (use_hwstack) {
+            f_type = llvm::FunctionType::get(void_type,
+                                             {i64, f32, f32, f32, f32, f32, f32, f32, f32, i32,
+                                              generic_ptr, generic_ptr, generic_ptr, generic_ptr, generic_ptr},
+                                             false);
+        } else {
+            f_type = llvm::FunctionType::get(void_type,
+                                             {i64, f32, f32, f32, f32, f32, f32, f32, f32, i32,
+                                              i32, i32, generic_ptr,
+                                              generic_ptr, generic_ptr, generic_ptr, generic_ptr, generic_ptr},
+                                             false);
+        }
         wrapper_f = llvm::Function::Create(f_type, llvm::Function::ExternalLinkage, wrapper_name, *_llvm_module);
     }
 
@@ -823,9 +832,14 @@ llvm::Value *HIPCodegenLLVMImpl::_accel_trace_closest(IB &b, const FunctionConte
     auto cast_v = b.CreateAddrSpaceCast(alloca_v, generic_ptr_type);
     auto cast_t = b.CreateAddrSpaceCast(alloca_t, generic_ptr_type);
 
-    b.CreateCall(wrapper_f, {handle, ox, oy, oz, dx, dy, dz, tmin, tmax, mask,
-                             func_ctx.llvm_rt_stack_size, func_ctx.llvm_rt_stack_count, func_ctx.llvm_rt_stack_data,
-                             cast_inst_id, cast_prim_id, cast_u, cast_v, cast_t});
+    if (use_hwstack) {
+        b.CreateCall(wrapper_f, {handle, ox, oy, oz, dx, dy, dz, tmin, tmax, mask,
+                                 cast_inst_id, cast_prim_id, cast_u, cast_v, cast_t});
+    } else {
+        b.CreateCall(wrapper_f, {handle, ox, oy, oz, dx, dy, dz, tmin, tmax, mask,
+                                 func_ctx.llvm_rt_stack_size, func_ctx.llvm_rt_stack_count, func_ctx.llvm_rt_stack_data,
+                                 cast_inst_id, cast_prim_id, cast_u, cast_v, cast_t});
+    }
 
     auto inst_id = b.CreateLoad(b.getInt32Ty(), alloca_inst_id);
     auto prim_id = b.CreateLoad(b.getInt32Ty(), alloca_prim_id);
@@ -856,8 +870,9 @@ llvm::Value *HIPCodegenLLVMImpl::_accel_trace_any(IB &b, const FunctionContext &
     auto tmax = b.CreateExtractValue(ray, llvm_ray_type_t_max_index);
     mask = b.CreateAnd(b.CreateZExtOrTrunc(mask, b.getInt32Ty()), 0xffu);
 
+    auto use_hwstack = _config.amdgpu_arch >= 1200;
     using namespace std::string_view_literals;
-    auto wrapper_name = "luisa_hiprt_trace_any"sv;
+    auto wrapper_name = use_hwstack ? "luisa_hiprt_trace_any_hwstack"sv : "luisa_hiprt_trace_any"sv;
     auto wrapper_f = _llvm_module->getFunction(wrapper_name);
     if (wrapper_f == nullptr) {
         auto f32 = b.getFloatTy();
@@ -865,15 +880,26 @@ llvm::Value *HIPCodegenLLVMImpl::_accel_trace_any(IB &b, const FunctionContext &
         auto i64 = b.getInt64Ty();
         auto i1 = b.getInt1Ty();
         auto generic_ptr = b.getPtrTy(0);
-        auto f_type = llvm::FunctionType::get(i1,
-                                              {i64, f32, f32, f32, f32, f32, f32, f32, f32, i32,
-                                               i32, i32, generic_ptr},
-                                              false);
+        llvm::FunctionType *f_type;
+        if (use_hwstack) {
+            f_type = llvm::FunctionType::get(i1,
+                                             {i64, f32, f32, f32, f32, f32, f32, f32, f32, i32},
+                                             false);
+        } else {
+            f_type = llvm::FunctionType::get(i1,
+                                             {i64, f32, f32, f32, f32, f32, f32, f32, f32, i32,
+                                              i32, i32, generic_ptr},
+                                             false);
+        }
         wrapper_f = llvm::Function::Create(f_type, llvm::Function::ExternalLinkage, wrapper_name, *_llvm_module);
     }
 
-    return b.CreateCall(wrapper_f, {handle, ox, oy, oz, dx, dy, dz, tmin, tmax, mask,
-                                    func_ctx.llvm_rt_stack_size, func_ctx.llvm_rt_stack_count, func_ctx.llvm_rt_stack_data});
+    if (use_hwstack) {
+        return b.CreateCall(wrapper_f, {handle, ox, oy, oz, dx, dy, dz, tmin, tmax, mask});
+    } else {
+        return b.CreateCall(wrapper_f, {handle, ox, oy, oz, dx, dy, dz, tmin, tmax, mask,
+                                        func_ctx.llvm_rt_stack_size, func_ctx.llvm_rt_stack_count, func_ctx.llvm_rt_stack_data});
+    }
 }
 
 }// namespace luisa::compute::hip

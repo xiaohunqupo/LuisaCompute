@@ -26,7 +26,13 @@
 #include "hip_codegen_llvm_impl.h"
 #include "hip_rt_device_wrapper.hip"
 #include "hip_codegen_llvm_device_bitcode.h"
-#include "hip_rt_wrapper_bitcode_embedded.h"
+
+// Per-arch HIPRT wrapper bitcode (compiled per-arch so arch-specific features
+// like the hardware BVH stack on gfx1200/1201 are correctly compiled).
+#include "hip_rt_wrapper_gfx1030_embedded.h"
+#include "hip_rt_wrapper_gfx1100_embedded.h"
+#include "hip_rt_wrapper_gfx1200_embedded.h"
+#include "hip_rt_wrapper_gfx1201_embedded.h"
 
 // Per-arch HIPRT library bitcode (extracted from the HIPRT bundle at build time).
 // Each provides luisa_compute_hip_hiprt_library_gfxNNNN[] and _size.
@@ -162,10 +168,34 @@ void HIPCodegenLLVMImpl::_postprocess_rt_kernel() noexcept {
 
     if (!_rt_analysis.uses_ray_tracing) { return; }
 
-    // Step 1: Link the RT wrapper bitcode (hiprt traversal wrappers)
-    llvm::StringRef wrapper_bc{
-        reinterpret_cast<const char *>(luisa_compute_hip_hip_rt_wrapper),
-        luisa_compute_hip_hip_rt_wrapper_size};
+    // Step 1: Link the per-arch RT wrapper bitcode (hiprt traversal wrappers)
+    const unsigned char *wrapper_data = nullptr;
+    unsigned long long wrapper_size = 0;
+    switch (_config.amdgpu_arch) {
+        case 1030:
+            wrapper_data = luisa_compute_hip_hip_rt_wrapper_gfx1030;
+            wrapper_size = luisa_compute_hip_hip_rt_wrapper_gfx1030_size;
+            break;
+        case 1100:
+            wrapper_data = luisa_compute_hip_hip_rt_wrapper_gfx1100;
+            wrapper_size = luisa_compute_hip_hip_rt_wrapper_gfx1100_size;
+            break;
+        case 1200:
+            wrapper_data = luisa_compute_hip_hip_rt_wrapper_gfx1200;
+            wrapper_size = luisa_compute_hip_hip_rt_wrapper_gfx1200_size;
+            break;
+        case 1201:
+            wrapper_data = luisa_compute_hip_hip_rt_wrapper_gfx1201;
+            wrapper_size = luisa_compute_hip_hip_rt_wrapper_gfx1201_size;
+            break;
+        default:
+            LUISA_ERROR_WITH_LOCATION("Unsupported AMDGPU arch {} for HIPRT wrapper.", _config.amdgpu_arch);
+    }
+    LUISA_ASSERT(wrapper_data != nullptr && wrapper_size > 0,
+                 "HIPRT wrapper bitcode is empty for arch gfx{}.", _config.amdgpu_arch);
+
+    llvm::StringRef wrapper_bc{reinterpret_cast<const char *>(wrapper_data),
+                               static_cast<size_t>(wrapper_size)};
     auto wrapper_buf = llvm::MemoryBuffer::getMemBuffer(wrapper_bc, "hip_rt_wrapper", false);
     auto wrapper_module = llvm::parseBitcodeFile(*wrapper_buf, _llvm_context);
     if (!wrapper_module) {
@@ -185,7 +215,14 @@ void HIPCodegenLLVMImpl::_postprocess_rt_kernel() noexcept {
     {
         auto block_size = _config.block_size[0] * _config.block_size[1] * _config.block_size[2];
         LUISA_ASSERT(block_size > 0u, "Block size must be greater than zero.");
-        auto shared_array_size = LUISA_HIPRT_SHARED_STACK_SIZE * block_size;
+        uint32_t shared_array_size;
+        if (_config.amdgpu_arch >= 1200) {
+            constexpr uint32_t lds_dwords_per_wave32 = 1024u;
+            auto num_waves = (block_size + 31u) / 32u;
+            shared_array_size = num_waves * lds_dwords_per_wave32;
+        } else {
+            shared_array_size = LUISA_HIPRT_SHARED_STACK_SIZE * block_size;
+        }
         if (auto old_gv = _llvm_module->getGlobalVariable("luisa_hiprt_shared_stack_cache")) {
             auto i32_ty = llvm::Type::getInt32Ty(_llvm_context);
             auto array_ty = llvm::ArrayType::get(i32_ty, shared_array_size);
