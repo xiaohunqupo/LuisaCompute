@@ -89,8 +89,9 @@ void HIPCodegenLLVMImpl::_initialize() noexcept {
     }
 
     auto cpu_name = fmt::format("gfx{}", _config.amdgpu_arch);
+    auto features = _config.wave_size == 64 ? llvm::StringRef{"+wavefrontsize64"} : llvm::StringRef{};
     _target_machine = target->createTargetMachine(
-        llvm::Triple{amdgpu_target_triple}, llvm::StringRef{cpu_name}, {},
+        llvm::Triple{amdgpu_target_triple}, llvm::StringRef{cpu_name}, features,
         options, llvm::Reloc::Static, llvm::CodeModel::Small, opt_level);
 
     _data_layout = std::make_unique<llvm::DataLayout>(_target_machine->createDataLayout());
@@ -467,11 +468,20 @@ luisa::string HIPCodegenLLVMImpl::generate(const xir::Module &xir_module) noexce
         // for correct kernarg segment layout: without them, the AMDGPU backend
         // assumes 256 bytes of implicit arguments, which can cause memory faults.
         llvm::SmallVector<llvm::StringRef, 24> amdgpu_no_attrs;
+        llvm::SmallVector<std::pair<llvm::StringRef, llvm::StringRef>, 8> amdgpu_codegen_attrs;
         if (func.getName() == "kernel_main") {
             for (auto &attr : func.getAttributes().getFnAttrs()) {
-                if (attr.isStringAttribute() &&
-                    attr.getKindAsString().starts_with("amdgpu-no-")) {
-                    amdgpu_no_attrs.push_back(attr.getKindAsString());
+                if (attr.isStringAttribute()) {
+                    auto key = attr.getKindAsString();
+                    if (key.starts_with("amdgpu-no-")) {
+                        amdgpu_no_attrs.push_back(key);
+                    } else if (key == "amdgpu-waves-per-eu" ||
+                               key == "amdgpu-flat-work-group-size" ||
+                               key == "amdgpu-unsafe-fp-atomics" ||
+                               key == "amdgpu-num-vgpr" ||
+                               key == "amdgpu-num-sgpr") {
+                        amdgpu_codegen_attrs.emplace_back(key, attr.getValueAsString());
+                    }
                 }
             }
         }
@@ -480,9 +490,11 @@ luisa::string HIPCodegenLLVMImpl::generate(const xir::Module &xir_module) noexce
 
         if (func.getName() == "kernel_main") {
             func.addFnAttr(llvm::Attribute::NoInline);
-            // Restore amdgpu-no-* attributes that the optimizer determined are safe.
             for (auto &attr_name : amdgpu_no_attrs) {
                 func.addFnAttr(attr_name);
+            }
+            for (auto &[key, val] : amdgpu_codegen_attrs) {
+                func.addFnAttr(key, val);
             }
         }
         // Re-add target CPU and features so that downstream consumers

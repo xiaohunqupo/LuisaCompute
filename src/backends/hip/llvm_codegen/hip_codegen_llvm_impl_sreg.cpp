@@ -69,7 +69,7 @@ llvm::Value *HIPCodegenLLVMImpl::_read_dispatch_id(IB &b, const FunctionContext 
 }
 
 llvm::Value *HIPCodegenLLVMImpl::_read_warp_size(IB &b, const FunctionContext &) const noexcept {
-    return b.getInt32(32);
+    return b.getInt32(_config.wave_size);
 }
 
 llvm::Value *HIPCodegenLLVMImpl::_read_warp_lane_id(IB &b, const FunctionContext &) const noexcept {
@@ -83,20 +83,21 @@ llvm::Value *HIPCodegenLLVMImpl::_read_kernel_id(IB &, const FunctionContext &fu
 }
 
 llvm::Value *HIPCodegenLLVMImpl::_read_warp_active_lane_mask(IB &b) const noexcept {
-    // On AMDGPU wave32 (RDNA), ballot(true) returns the EXEC mask as i32
-    // On wave64 (CDNA), this returns i64; we assume wave32 for RDNA targets
     auto llvm_true = b.getInt1(true);
-    auto mask = b.CreateIntrinsic(b.getInt32Ty(), llvm::Intrinsic::amdgcn_ballot, {llvm_true});
+    auto mask_type = _config.wave_size == 64 ? b.getInt64Ty() : b.getInt32Ty();
+    auto mask = b.CreateIntrinsic(mask_type, llvm::Intrinsic::amdgcn_ballot, {llvm_true});
     mask->setName("sreg.warp.active.mask");
     return mask;
 }
 
 llvm::Value *HIPCodegenLLVMImpl::_read_warp_prefix_lane_mask(IB &b, const FunctionContext &func_ctx) const noexcept {
-    // On AMDGPU, the prefix lane mask (lanes with ID < current lane) is computed
-    // using mbcnt_lo(active_mask, 0) which counts the number of set bits in
-    // active_mask for lanes below the current lane. But we actually need the MASK
-    // not the count. The mask is: (1 << lane_id) - 1
     auto lane_id = _read_warp_lane_id(b, func_ctx);
+    if (_config.wave_size == 64) {
+        auto lane_id_64 = b.CreateZExt(lane_id, b.getInt64Ty());
+        auto one = b.getInt64(1);
+        auto lane_mask = b.CreateSub(b.CreateShl(one, lane_id_64), one, "sreg.warp.prefix.lane.mask");
+        return lane_mask;
+    }
     auto one = b.getInt32(1);
     auto lane_mask = b.CreateSub(b.CreateShl(one, lane_id), one, "sreg.warp.prefix.lane.mask");
     return lane_mask;

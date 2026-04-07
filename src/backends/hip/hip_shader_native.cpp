@@ -1,6 +1,8 @@
 #include <luisa/runtime/rhi/command.h>
 #include <hip/hiprtc.h>
 #include <hiprt/hiprt.h>
+#include <cstdlib>
+#include <fstream>
 #include "hip_device.h"
 #include "hip_buffer.h"
 #include "hip_texture.h"
@@ -54,6 +56,15 @@ HIPShaderNative::HIPShaderNative(HIPDevice *device, luisa::string code,
     }
 
     auto ret = hipModuleLoadData(&_module, linked_binary);
+
+    if (auto dump_dir = std::getenv("LUISA_DUMP_HIP_ISA")) {
+        static int _isa_counter = 0;
+        auto path = fmt::format("{}/hip_isa_{}.co", dump_dir, _isa_counter++);
+        std::ofstream ofs(path, std::ios::binary);
+        ofs.write(static_cast<const char *>(linked_binary), linked_binary_size);
+        LUISA_INFO("Dumped HIP code object ({} bytes) to: {}", linked_binary_size, path);
+    }
+
     hiprtcLinkDestroy(link_state);
     if (ret != hipSuccess) {
         LUISA_ERROR_WITH_LOCATION("Failed to load HIP module: {}", hipGetErrorString(ret));
@@ -105,6 +116,15 @@ HIPShaderNative::HIPShaderNative(HIPDevice *device, luisa::string code,
     }
 
     auto ret = hipModuleLoadData(&_module, linked_binary);
+
+    if (auto dump_dir = std::getenv("LUISA_DUMP_HIP_ISA")) {
+        static int _rt_isa_counter = 0;
+        auto path = fmt::format("{}/hip_rt_isa_{}.co", dump_dir, _rt_isa_counter++);
+        std::ofstream ofs(path, std::ios::binary);
+        ofs.write(static_cast<const char *>(linked_binary), linked_binary_size);
+        LUISA_INFO("Dumped HIP RT code object ({} bytes) to: {}", linked_binary_size, path);
+    }
+
     hiprtcLinkDestroy(link_state);
     if (ret != hipSuccess) {
         LUISA_ERROR_WITH_LOCATION("Failed to load HIP RT module: {}", hipGetErrorString(ret));

@@ -161,24 +161,25 @@ int main(int argc, char *argv[]) {
         Float3 vp = v->read(p);
 
         // Scatter to 3x3x3 neighboring cells
-        for (uint ii = 0; ii < 27; ii++) {
-            int3 offset = make_int3(ii % 3, ii / 3 % 3, ii / 3 / 3);
-            int i = offset.x;
-            int j = offset.y;
-            int k = offset.z;
+        $for (ii, 27u) {
+            UInt i = ii % 3u;
+            UInt j = ii / 3u % 3u;
+            UInt k = ii / 3u / 3u;
+            Int3 offset = make_int3(cast<int>(i), cast<int>(j), cast<int>(k));
 
             Float3 dpos = (make_float3(offset) - fx) * dx;
-            Float weight = w[i].x * w[j].y * w[k].z;
+            Float wi = ite(i == 0u, w[0].x, ite(i == 1u, w[1].x, w[2].x));
+            Float wj = ite(j == 0u, w[0].y, ite(j == 1u, w[1].y, w[2].y));
+            Float wk = ite(k == 0u, w[0].z, ite(k == 1u, w[1].z, w[2].z));
+            Float weight = wi * wj * wk;
             Float3 vadd = weight * (p_mass * vp + affine * dpos);
             UInt idx = index(base + offset);
 
-            // Atomic add velocity components
-            for (int i = 0; i < 3; ++i) {
-                grid->atomic(idx * 4 + i).fetch_add(vadd[i]);
+            for (int c = 0; c < 3; ++c) {
+                grid->atomic(idx * 4u + c).fetch_add(vadd[c]);
             }
-            // Atomic add mass
-            grid->atomic(idx * 4 + 3).fetch_add(weight * p_mass);
-        }
+            grid->atomic(idx * 4u + 3u).fetch_add(weight * p_mass);
+        };
     });
 
     // Kernel: Grid velocity update

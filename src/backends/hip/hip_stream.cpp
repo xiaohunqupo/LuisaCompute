@@ -7,6 +7,7 @@
 #include <luisa/core/stl/memory.h>
 #include <luisa/core/logging.h>
 #include <luisa/core/pool.h>
+#include <luisa/runtime/rhi/command.h>
 
 #include "hip_check.h"
 #include "hip_device.h"
@@ -127,28 +128,60 @@ void HIPStream::dispatch(CommandList &&command_list) noexcept {
         auto callbacks = command_list.steal_callbacks();
         std::scoped_lock lock{_dispatch_mutex};
 
-        hipEvent_t start_event{}, stop_event{};
         if (_profiling_enabled) {
-            LUISA_CHECK_HIP(hipEventCreate(&start_event));
-            LUISA_CHECK_HIP(hipEventCreate(&stop_event));
-            LUISA_CHECK_HIP(hipEventRecord(start_event, _stream));
-        }
+            struct EventPair {
+                hipEvent_t start{};
+                hipEvent_t stop{};
+                Command::Tag tag{};
+                uint64_t shader_handle{0u};
+                uint3 dispatch_size{};
+            };
+            luisa::vector<EventPair> event_pairs;
+            event_pairs.reserve(commands.size());
 
-        for (auto &cmd : commands) {
-            cmd->accept(encoder);
-        }
+            for (auto &cmd : commands) {
+                auto &ep = event_pairs.emplace_back();
+                ep.tag = cmd->tag();
+                if (ep.tag == Command::Tag::EShaderDispatchCommand) {
+                    auto shader_cmd = static_cast<ShaderDispatchCommand *>(cmd.get());
+                    ep.shader_handle = shader_cmd->handle();
+                    if (!shader_cmd->is_indirect() && !shader_cmd->is_multiple_dispatch()) {
+                        ep.dispatch_size = shader_cmd->dispatch_size();
+                    }
+                }
+                LUISA_CHECK_HIP(hipEventCreate(&ep.start));
+                LUISA_CHECK_HIP(hipEventCreate(&ep.stop));
+                LUISA_CHECK_HIP(hipEventRecord(ep.start, _stream));
+                cmd->accept(encoder);
+                LUISA_CHECK_HIP(hipEventRecord(ep.stop, _stream));
+            }
 
-        if (_profiling_enabled) {
-            LUISA_CHECK_HIP(hipEventRecord(stop_event, _stream));
-            LUISA_CHECK_HIP(hipEventSynchronize(stop_event));
-            float gpu_ms = 0.f;
-            LUISA_CHECK_HIP(hipEventElapsedTime(&gpu_ms, start_event, stop_event));
-            _total_gpu_time_ms += gpu_ms;
+            LUISA_CHECK_HIP(hipStreamSynchronize(_stream));
+
             _dispatch_count++;
+            auto batch_total_ms = 0.0;
+            for (size_t i = 0u; i < event_pairs.size(); i++) {
+                auto &ep = event_pairs[i];
+                float gpu_ms = 0.f;
+                LUISA_CHECK_HIP(hipEventElapsedTime(&gpu_ms, ep.start, ep.stop));
+                batch_total_ms += gpu_ms;
+                if (ep.tag == Command::Tag::EShaderDispatchCommand) {
+                    LUISA_INFO("  HIP dispatch #{} cmd[{}]: ShaderDispatch handle={:#x} "
+                               "size=({},{},{}) GPU time = {:.3f} ms",
+                               _dispatch_count, i, ep.shader_handle,
+                               ep.dispatch_size.x, ep.dispatch_size.y, ep.dispatch_size.z,
+                               gpu_ms);
+                }
+                LUISA_CHECK_HIP(hipEventDestroy(ep.start));
+                LUISA_CHECK_HIP(hipEventDestroy(ep.stop));
+            }
+            _total_gpu_time_ms += batch_total_ms;
             LUISA_INFO("HIP dispatch #{}: {} cmd(s), GPU time = {:.3f} ms (total = {:.3f} ms)",
-                       _dispatch_count, commands.size(), gpu_ms, _total_gpu_time_ms);
-            LUISA_CHECK_HIP(hipEventDestroy(start_event));
-            LUISA_CHECK_HIP(hipEventDestroy(stop_event));
+                       _dispatch_count, commands.size(), batch_total_ms, _total_gpu_time_ms);
+        } else {
+            for (auto &cmd : commands) {
+                cmd->accept(encoder);
+            }
         }
 
         encoder.commit(std::move(callbacks));

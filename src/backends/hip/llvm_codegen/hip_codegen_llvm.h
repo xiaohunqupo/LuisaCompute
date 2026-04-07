@@ -26,6 +26,7 @@ struct HIPCodegenLLVMConfig {
     luisa::span<const Function::Binding> bindings{};
     std::array<uint32_t, 3> block_size{};
     uint32_t amdgpu_arch{};
+    uint32_t wave_size{32};// 32 for RDNA wave32, 64 for wave64
     OptLevel opt_level{OptLevel::LEVEL_AGGRESSIVE};
     bool enable_fast_math{true};
     bool enable_debug_info{false};

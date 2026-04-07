@@ -398,11 +398,16 @@ ShaderCreationInfo HIPDevice::create_shader(const ShaderOption &option, Function
     xir_module->set_name(luisa::format("kernel_{:016x}", kernel.hash()));
     LUISA_VERBOSE("AST to XIR translation done in {} ms.", translate_clk.toc());
 
+    auto wave_size = 32u;
+    if (auto env = std::getenv("LUISA_HIP_WAVE64"); env && std::string_view{env} == "1") {
+        wave_size = 64u;
+    }
     HIPCodegenLLVMConfig config{
         .source_file = option.name,
         .bindings = kernel.bound_arguments(),
         .block_size = {kernel.block_size().x, kernel.block_size().y, kernel.block_size().z},
         .amdgpu_arch = 1201,
+        .wave_size = wave_size,
         .opt_level = HIPCodegenLLVMConfig::OptLevel::LEVEL_AGGRESSIVE,
         .enable_fast_math = option.enable_fast_math,
         .enable_debug_info = option.enable_debug_info,
