@@ -196,41 +196,26 @@ static __device__ void luisa_hiprt_hw_trace_closest(
 
             if (inst.m_mask & mask)
             {
-                bool validTransform = true;
-                if (inst.m_identity == 0)
-                {
-                    if (inst.m_static != 0)
-                    {
-                        hip_float3 origin, direction;
-                        auto xformResult = __builtin_amdgcn_image_bvh8_intersect_ray(
-                            encodeBaseAddr(instanceNodes),
-                            ray.maxT,
-                            0xff,
-                            {ray.origin.x, ray.origin.y, ray.origin.z},
-                            {ray.direction.x, ray.direction.y, ray.direction.z},
-                            nodeIndex,
-                            {descriptor.x, descriptor.y, descriptor.z, descriptor.w},
-                            &origin,
-                            &direction);
+                // Always use HW BVH8 instance transform (static transforms only).
+                // LuisaCompute uses hiprtFrameTypeMatrix with frameCount=1,
+                // so m_static is always set. Dynamic transformRay path removed.
+                hip_float3 origin, direction;
+                auto xformResult = __builtin_amdgcn_image_bvh8_intersect_ray(
+                    encodeBaseAddr(instanceNodes),
+                    ray.maxT,
+                    0xff,
+                    {ray.origin.x, ray.origin.y, ray.origin.z},
+                    {ray.direction.x, ray.direction.y, ray.direction.z},
+                    nodeIndex,
+                    {descriptor.x, descriptor.y, descriptor.z, descriptor.w},
+                    &origin,
+                    &direction);
 
-                        if (xformResult[7] == InvalidValue)
-                        {
-                            validTransform = false;
-                        }
-                        else
-                        {
-                            ray.origin    = {origin.x, origin.y, origin.z};
-                            ray.direction = {direction.x, direction.y, direction.z};
-                        }
-                    }
-                    else
-                    {
-                        ray = inst.transformRay(ray);
-                    }
-                }
-
-                if (validTransform)
+                if (xformResult[7] != InvalidValue)
                 {
+                    ray.origin    = {origin.x, origin.y, origin.z};
+                    ray.direction = {direction.x, direction.y, direction.z};
+
                     instanceId = inst.m_primIndex;
 
                     GeomHeader* geom = inst.m_geometry;
@@ -255,8 +240,6 @@ static __device__ void luisa_hiprt_hw_trace_closest(
 
             while (true)
             {
-                const TrianglePacketNode& packetNode = primNodes[leafAddr];
-
                 hip_float3 dummy0, dummy1;
                 auto triResult = __builtin_amdgcn_image_bvh8_intersect_ray(
                     encodeBaseAddr(primNodes),
@@ -279,7 +262,6 @@ static __device__ void luisa_hiprt_hw_trace_closest(
                         result.uv.x      = __int_as_float(triResult[1]);
                         result.uv.y      = __int_as_float(triResult[2]);
                         result.primID    = triResult[3] >> 1;
-                        result.normal    = packetNode.getNormal(triPairIndex, 0);
                         result.instanceID = instanceId;
                     }
                 }
@@ -294,7 +276,6 @@ static __device__ void luisa_hiprt_hw_trace_closest(
                         result.uv.x      = __int_as_float(triResult[5]);
                         result.uv.y      = __int_as_float(triResult[6]);
                         result.primID    = triResult[7] >> 1;
-                        result.normal    = packetNode.getNormal(triPairIndex, 1);
                         result.instanceID = instanceId;
                     }
                 }
@@ -374,41 +355,23 @@ static __device__ bool luisa_hiprt_hw_trace_any(
 
             if (inst.m_mask & mask)
             {
-                bool validTransform = true;
-                if (inst.m_identity == 0)
-                {
-                    if (inst.m_static != 0)
-                    {
-                        hip_float3 origin, direction;
-                        auto xformResult = __builtin_amdgcn_image_bvh8_intersect_ray(
-                            encodeBaseAddr(instanceNodes),
-                            ray.maxT,
-                            0xff,
-                            {ray.origin.x, ray.origin.y, ray.origin.z},
-                            {ray.direction.x, ray.direction.y, ray.direction.z},
-                            nodeIndex,
-                            {descriptor.x, descriptor.y, descriptor.z, descriptor.w},
-                            &origin,
-                            &direction);
+                hip_float3 origin, direction;
+                auto xformResult = __builtin_amdgcn_image_bvh8_intersect_ray(
+                    encodeBaseAddr(instanceNodes),
+                    ray.maxT,
+                    0xff,
+                    {ray.origin.x, ray.origin.y, ray.origin.z},
+                    {ray.direction.x, ray.direction.y, ray.direction.z},
+                    nodeIndex,
+                    {descriptor.x, descriptor.y, descriptor.z, descriptor.w},
+                    &origin,
+                    &direction);
 
-                        if (xformResult[7] == InvalidValue)
-                        {
-                            validTransform = false;
-                        }
-                        else
-                        {
-                            ray.origin    = {origin.x, origin.y, origin.z};
-                            ray.direction = {direction.x, direction.y, direction.z};
-                        }
-                    }
-                    else
-                    {
-                        ray = inst.transformRay(ray);
-                    }
-                }
-
-                if (validTransform)
+                if (xformResult[7] != InvalidValue)
                 {
+                    ray.origin    = {origin.x, origin.y, origin.z};
+                    ray.direction = {direction.x, direction.y, direction.z};
+
                     instanceId = inst.m_primIndex;
 
                     GeomHeader* geom = inst.m_geometry;
