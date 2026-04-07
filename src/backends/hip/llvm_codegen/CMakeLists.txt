@@ -86,6 +86,16 @@ if (LUISA_COMPUTE_HIP_LINKED_LLVM)
                         ${HIPRT_SOURCE_DIR}/hiprt/impl/hiprt_device_impl.h
                         ${HIPRT_SOURCE_DIR}/hiprt/hiprt_device.h
                         ${HIPRT_SOURCE_DIR}/hiprt/hiprt_common.h
+                        ${HIPRT_SOURCE_DIR}/hiprt/hiprt_vec.h
+                        ${HIPRT_SOURCE_DIR}/hiprt/hiprt_math.h
+                        ${HIPRT_SOURCE_DIR}/hiprt/impl/Aabb.h
+                        ${HIPRT_SOURCE_DIR}/hiprt/impl/BvhNode.h
+                        ${HIPRT_SOURCE_DIR}/hiprt/impl/Header.h
+                        ${HIPRT_SOURCE_DIR}/hiprt/impl/Instance.h
+                        ${HIPRT_SOURCE_DIR}/hiprt/impl/QrDecomposition.h
+                        ${HIPRT_SOURCE_DIR}/hiprt/impl/Quaternion.h
+                        ${HIPRT_SOURCE_DIR}/hiprt/impl/Transform.h
+                        ${HIPRT_SOURCE_DIR}/hiprt/impl/Triangle.h
                 WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
                 COMMENT "[HIPRT wrapper] Compiling for ${_arch}..."
                 VERBATIM)

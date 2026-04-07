@@ -1,2 +1,3 @@
 *.bc
 *_embedded.cpp
+hip_codegen_llvm_device_bitcode.cpp
