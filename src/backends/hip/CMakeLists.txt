@@ -13,6 +13,8 @@ if (hip_FOUND)
             hip_command_encoder.cpp hip_command_encoder.h
             hip_event.cpp hip_event.h
             hip_mesh.cpp hip_mesh.h
+            hip_geometry.h
+            hip_procedural_primitive.cpp hip_procedural_primitive.h
             hip_shader.h hip_shader.cpp
             hip_shader_metadata.h
             hip_shader_native.h hip_shader_native.cpp

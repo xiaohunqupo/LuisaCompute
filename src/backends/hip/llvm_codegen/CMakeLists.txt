@@ -44,6 +44,7 @@ if (LUISA_COMPUTE_HIP_LINKED_LLVM)
             hip_codegen_llvm_impl_debug.cpp
             hip_codegen_llvm_impl_phi.cpp
             hip_codegen_llvm_impl_cta.cpp
+            hip_codegen_llvm_impl_rq.cpp
     )
 
     # -----------------------------------------------------------------------

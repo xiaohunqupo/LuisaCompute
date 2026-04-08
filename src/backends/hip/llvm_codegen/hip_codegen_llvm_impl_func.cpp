@@ -124,6 +124,13 @@ llvm::Function *HIPCodegenLLVMImpl::_translate_kernel_function(const xir::Kernel
         func_ctx.llvm_rt_stack_count = b.getInt32(0);
         func_ctx.llvm_rt_stack_data = llvm::ConstantPointerNull::get(b.getPtrTy(0));
     }
+    if (_rt_analysis.uses_ray_query) {
+        auto llvm_rq_state_type = llvm::ArrayType::get(b.getInt8Ty(), 512);
+        IB alloca_b{func_ctx.llvm_alloca_block->getTerminator()};
+        auto alloca_inst = alloca_b.CreateAlloca(llvm_rq_state_type, nullptr, "rq.state");
+        alloca_inst->setAlignment(llvm::Align(16));
+        func_ctx.llvm_rq_state = alloca_inst;
+    }
     auto llvm_body = _translate_function_definition(func_ctx, func);
     auto llvm_dispatch_id = _read_dispatch_id(b, func_ctx);
     auto llvm_dispatch_id_in_bounds = b.CreateICmpULT(llvm_dispatch_id, func_ctx.llvm_dispatch_size, "dispatch.id.in.bounds");
@@ -159,6 +166,13 @@ llvm::Function *HIPCodegenLLVMImpl::_translate_callable_function(const xir::Call
         func_ctx.llvm_rt_stack_count->setName("rt.stack.count");
         func_ctx.llvm_rt_stack_data = llvm_arg_iter++;
         func_ctx.llvm_rt_stack_data->setName("rt.stack.data");
+    }
+    if (_rt_analysis.uses_ray_query) {
+        auto llvm_rq_state_type = llvm::ArrayType::get(llvm::Type::getInt8Ty(_llvm_context), 512);
+        IB alloca_b{func_ctx.llvm_alloca_block->getTerminator()};
+        auto alloca_inst = alloca_b.CreateAlloca(llvm_rq_state_type, nullptr, "rq.state");
+        alloca_inst->setAlignment(llvm::Align(16));
+        func_ctx.llvm_rq_state = alloca_inst;
     }
     auto body = _translate_function_definition(func_ctx, func);
     IB b{func_ctx.llvm_entry_block};

@@ -104,13 +104,470 @@ extern "C" __device__ bool luisa_hiprt_trace_any(
 }
 
 // ---------------------------------------------------------------------------
+// Ray query state structure — stored per-thread, passed via pointer from codegen.
+// Holds the traversal object and all per-query state in-place to avoid heap allocation.
+// ---------------------------------------------------------------------------
+
+struct LuisaRayQueryState {
+    using Traversal = hiprtSceneTraversalAnyHitCustomStack<hiprtGlobalStack, hiprtEmptyInstanceStack>;
+    using Stack     = hiprtGlobalStack;
+    using InstanceStack = hiprtEmptyInstanceStack;
+
+    // In-place storage for HIPRT objects (sizes from hiprt_common.h enums)
+    alignas(alignof(Traversal))     uint8_t traversal_storage[sizeof(Traversal)];
+    alignas(alignof(Stack))         uint8_t global_stack_storage[sizeof(Stack)];
+    alignas(alignof(InstanceStack)) uint8_t instance_stack_storage[sizeof(InstanceStack)];
+
+    // Dummy func table: header + one funcDataSet.  The header's funcDataSets
+    // pointer points at func_data_set below so that useFilter == true inside
+    // HIPRT's testLeafNode, which gates filterFunc/intersectFunc calls.
+    hiprtFuncDataSet     func_data_set;
+    hiprtFuncTableHeader func_table_header;
+
+    // Ray stored for world_space_ray queries
+    hiprtRay ray;
+
+    // Current candidate hit (set by getNextHit + filterFunc/intersectFunc)
+    hiprtHit candidate_hit;
+
+    // Best committed hit so far
+    hiprtHit committed_hit;
+
+    // State: 0=terminated, 1=surface_candidate, 2=procedural_candidate
+    uint8_t state;
+    // Kind of the committed hit: 0=miss, 1=surface, 2=procedural
+    uint8_t committed_kind;
+    bool    has_committed;
+    bool    terminated;
+    // bit 0: any-hit mode (terminate after first commit)
+    uint32_t flags;
+};
+
+// State constants — must match llvm_ray_query_state_* in hip_codegen_llvm_impl.h
+static constexpr uint8_t RQ_STATE_TERMINATED          = 0;
+static constexpr uint8_t RQ_STATE_SURFACE_CANDIDATE   = 1;
+static constexpr uint8_t RQ_STATE_PROCEDURAL_CANDIDATE = 2;
+
+// Sentinel value written into hit.normal by intersectFunc to tag procedural hits.
+// proceed() reads hit.normal after getNextHit() to distinguish triangle from
+// procedural — this avoids the AMDGPU addrspace aliasing problem because
+// hit passes through HIPRT by reference, not through the payload pointer.
+// We use a NaN sentinel; triangle normals computed by HIPRT are always finite.
+static __device__ __forceinline__ bool _is_procedural_sentinel(hiprtFloat3 n) {
+    return __isnanf(n.x);
+}
+static constexpr float _PROCEDURAL_NAN = __builtin_nanf("");
+
+// ---------------------------------------------------------------------------
+// intersectFunc / filterFunc — called by HIPRT traversal for custom geometry
+// and triangle filtering respectively.  When payload != nullptr the call is
+// from a ray query (payload == LuisaRayQueryState*); when payload == nullptr
+// it is a plain trace call and these behave identically to the trivial stubs.
+// ---------------------------------------------------------------------------
+
+HIPRT_DEVICE bool intersectFunc(
+    uint32_t                    geomType,
+    uint32_t                    rayType,
+    const hiprtFuncTableHeader& tableHeader,
+    const hiprtRay&             ray,
+    void*                       payload,
+    hiprtHit&                   hit) {
+    if (payload) {
+        // Ray-query mode: record that we have a procedural candidate and
+        // accept the hit so getNextHit() returns to the caller.
+        //
+        // We tag the hit as procedural by writing a NaN sentinel into
+        // hit.normal.  proceed() checks this after getNextHit() returns.
+        // This avoids the AMDGPU addrspace aliasing problem: hit passes
+        // through HIPRT by reference (not through the payload pointer),
+        // so writes here are always visible to the caller.
+        hit.normal = hiprtFloat3{_PROCEDURAL_NAN, _PROCEDURAL_NAN, _PROCEDURAL_NAN};
+        // Use ray.maxT as a placeholder distance; the user shader will
+        // override this via luisa_ray_query_commit_procedural_hit(t).
+        hit.t = ray.maxT;
+        return true;
+    }
+    // Plain trace mode: no custom geometry support, report no hit.
+    return false;
+}
+
+HIPRT_DEVICE bool filterFunc(
+    uint32_t                    geomType,
+    uint32_t                    rayType,
+    const hiprtFuncTableHeader& tableHeader,
+    const hiprtRay&             ray,
+    void*                       payload,
+    const hiprtHit&             hit) {
+    // For ray-query mode: accept the triangle hit unconditionally.
+    // proceed() will detect it as a surface candidate because hit.normal
+    // is a valid (non-NaN) geometric normal set by HIPRT's triangle
+    // intersection code — no sentinel, so it's not procedural.
+    //
+    // We no longer write to payload->state here; doing so through a
+    // generic pointer is unreliable due to AMDGPU addrspace aliasing
+    // (generic stores may not be visible through private-address reads).
+    return false; // false = do NOT filter out = accept the hit
+}
+
+// ---------------------------------------------------------------------------
+// Ray query wrapper functions
+// ---------------------------------------------------------------------------
+
+// HitType values matching luisa::compute::HitType enum
+static constexpr uint32_t HIT_TYPE_MISS       = 0;
+static constexpr uint32_t HIT_TYPE_SURFACE    = 1;
+static constexpr uint32_t HIT_TYPE_PROCEDURAL = 2;
+
+extern "C" __device__ __attribute__((used, noinline)) void
+luisa_ray_query_initialize(
+    void*    state_ptr,
+    uint64_t scene_handle,
+    float ox, float oy, float oz,
+    float dx, float dy, float dz,
+    float tmin, float tmax,
+    uint32_t mask, uint32_t flags,
+    uint32_t stack_size, uint32_t stack_count, void* stack_data) {
+
+    auto* s = reinterpret_cast<LuisaRayQueryState*>(state_ptr);
+
+    // Store ray
+    s->ray.origin    = hiprtFloat3{ox, oy, oz};
+    s->ray.minT      = tmin;
+    s->ray.direction = hiprtFloat3{dx, dy, dz};
+    s->ray.maxT      = tmax;
+
+    // Initialise hit sentinels
+    s->candidate_hit.primID     = ~0u;
+    s->candidate_hit.instanceID = ~0u;
+    s->candidate_hit.t          = tmax;
+    s->committed_hit.primID     = ~0u;
+    s->committed_hit.instanceID = ~0u;
+    s->committed_hit.uv         = hiprtFloat2{0.0f, 0.0f};
+    s->committed_hit.t          = tmax;
+
+    // Initialise state fields
+    s->state         = RQ_STATE_TERMINATED;
+    s->committed_kind = HIT_TYPE_MISS;
+    s->has_committed  = false;
+    s->terminated     = false;
+    s->flags          = flags;
+
+    // Set up the dummy func table so that HIPRT's useFilter == true
+    // and filterFunc/intersectFunc are called during traversal.
+    s->func_data_set = hiprtFuncDataSet{nullptr, nullptr};
+    s->func_table_header = hiprtFuncTableHeader{1, 1, &s->func_data_set};
+
+    // Construct stacks in-place inside the state
+    hiprtGlobalStackBuffer  globalStackBuffer{stack_size, stack_count, stack_data};
+    hiprtSharedStackBuffer  sharedStackBuffer{LUISA_HIPRT_SHARED_STACK_SIZE, luisa_hiprt_shared_stack_cache};
+
+    auto* stack = new (s->global_stack_storage)
+        LuisaRayQueryState::Stack(globalStackBuffer, sharedStackBuffer);
+    new (s->instance_stack_storage) LuisaRayQueryState::InstanceStack();
+
+    // Construct traversal object in-place, passing 'state_ptr' as payload so
+    // intersectFunc/filterFunc can identify ray-query mode.
+    hiprtScene scene = reinterpret_cast<hiprtScene>(scene_handle);
+    new (s->traversal_storage) LuisaRayQueryState::Traversal(
+        scene,
+        s->ray,
+        *stack,
+        *reinterpret_cast<LuisaRayQueryState::InstanceStack*>(s->instance_stack_storage),
+        static_cast<hiprtRayMask>(mask),
+        hiprtTraversalHintDefault,
+        state_ptr,  // payload — non-null signals ray-query mode
+        reinterpret_cast<hiprtFuncTable>(&s->func_table_header),  // funcTable — enables filterFunc
+        0u,         // rayType
+        0.0f        // time
+    );
+}
+
+extern "C" __device__ __attribute__((used, noinline)) void
+luisa_ray_query_proceed(void* state_ptr) {
+    auto* s = reinterpret_cast<LuisaRayQueryState*>(state_ptr);
+    if (s->terminated) {
+        s->state = RQ_STATE_TERMINATED;
+        return;
+    }
+
+    // Get the in-place traversal and call getNextHit().
+    // Since we use AnyHit traversal with filterFunc enabled, getNextHit()
+    // returns at each triangle/procedural hit after filterFunc accepts it.
+    auto* traversal = reinterpret_cast<LuisaRayQueryState::Traversal*>(s->traversal_storage);
+    hiprtHit hit = traversal->getNextHit();
+
+    if (hit.hasHit()) {
+        s->candidate_hit = hit;
+        // Determine whether this is a triangle or procedural hit.
+        //
+        // We CANNOT rely on filterFunc/intersectFunc having written to
+        // s->state through the payload pointer — AMDGPU's alias analysis
+        // treats generic-pointer stores and private-pointer loads as
+        // non-aliasing, so those writes are invisible here.
+        //
+        // Instead, we use hit.normal as the communication channel:
+        //   - For triangle hits, HIPRT always sets hit.normal to the
+        //     geometric normal (a finite float3).
+        //   - For procedural hits, our intersectFunc sets hit.normal to
+        //     {NaN, NaN, NaN} as a sentinel.
+        // The hit struct passes through HIPRT by reference (not through
+        // the payload pointer), so these writes are always visible.
+        if (_is_procedural_sentinel(hit.normal)) {
+            s->state = RQ_STATE_PROCEDURAL_CANDIDATE;
+        } else {
+            s->state = RQ_STATE_SURFACE_CANDIDATE;
+        }
+    } else {
+        // No more hits — traversal is done.
+        s->state = RQ_STATE_TERMINATED;
+        s->terminated = true;
+    }
+}
+
+extern "C" __device__ __attribute__((used, noinline)) uint8_t
+luisa_ray_query_state(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryState*>(state_ptr)->state;
+}
+
+extern "C" __device__ __attribute__((used, noinline)) void
+luisa_ray_query_world_space_ray(
+    void*  state_ptr,
+    float* out_ox, float* out_oy, float* out_oz, float* out_tmin,
+    float* out_dx, float* out_dy, float* out_dz, float* out_tmax) {
+    auto* s = reinterpret_cast<LuisaRayQueryState*>(state_ptr);
+    *out_ox   = s->ray.origin.x;
+    *out_oy   = s->ray.origin.y;
+    *out_oz   = s->ray.origin.z;
+    *out_tmin = s->ray.minT;
+    *out_dx   = s->ray.direction.x;
+    *out_dy   = s->ray.direction.y;
+    *out_dz   = s->ray.direction.z;
+    *out_tmax = s->ray.maxT;
+}
+
+extern "C" __device__ __attribute__((used, noinline)) void
+luisa_ray_query_surface_candidate_hit(
+    void*    state_ptr,
+    int32_t* out_inst_id, int32_t* out_prim_id,
+    float*   out_u, float* out_v, float* out_t) {
+    auto* s = reinterpret_cast<LuisaRayQueryState*>(state_ptr);
+    *out_inst_id = static_cast<int32_t>(s->candidate_hit.instanceID);
+    *out_prim_id = static_cast<int32_t>(s->candidate_hit.primID);
+    *out_u       = s->candidate_hit.uv.x;
+    *out_v       = s->candidate_hit.uv.y;
+    *out_t       = s->candidate_hit.t;
+}
+
+extern "C" __device__ __attribute__((used, noinline)) void
+luisa_ray_query_procedural_candidate_hit(
+    void*    state_ptr,
+    int32_t* out_inst_id, int32_t* out_prim_id) {
+    auto* s = reinterpret_cast<LuisaRayQueryState*>(state_ptr);
+    *out_inst_id = static_cast<int32_t>(s->candidate_hit.instanceID);
+    *out_prim_id = static_cast<int32_t>(s->candidate_hit.primID);
+}
+
+extern "C" __device__ __attribute__((used, noinline)) void
+luisa_ray_query_committed_hit(
+    void*    state_ptr,
+    int32_t* out_inst_id, int32_t* out_prim_id,
+    float*   out_u, float* out_v,
+    int32_t* out_hit_kind, float* out_t) {
+    auto* s = reinterpret_cast<LuisaRayQueryState*>(state_ptr);
+    // Unconditionally read — sentinel values from initialization are returned
+    // when !has_committed, which is fine since the kernel checks hit_kind==MISS.
+    *out_inst_id  = static_cast<int32_t>(s->committed_hit.instanceID);
+    *out_prim_id  = static_cast<int32_t>(s->committed_hit.primID);
+    *out_u        = s->committed_hit.uv.x;
+    *out_v        = s->committed_hit.uv.y;
+    *out_hit_kind = static_cast<int32_t>(s->committed_kind);
+    *out_t        = s->committed_hit.t;
+}
+
+extern "C" __device__ __attribute__((used, noinline)) bool
+luisa_ray_query_is_surface_candidate(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryState*>(state_ptr)->state == RQ_STATE_SURFACE_CANDIDATE;
+}
+
+extern "C" __device__ __attribute__((used, noinline)) bool
+luisa_ray_query_is_procedural_candidate(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryState*>(state_ptr)->state == RQ_STATE_PROCEDURAL_CANDIDATE;
+}
+
+extern "C" __device__ __attribute__((used, noinline)) bool
+luisa_ray_query_is_terminated(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryState*>(state_ptr)->state == RQ_STATE_TERMINATED;
+}
+
+// Scalar-returning accessors for candidate hit fields
+extern "C" __device__ __attribute__((used, noinline)) int32_t
+luisa_ray_query_candidate_inst_id(void* state_ptr) {
+    return static_cast<int32_t>(reinterpret_cast<LuisaRayQueryState*>(state_ptr)->candidate_hit.instanceID);
+}
+extern "C" __device__ __attribute__((used, noinline)) int32_t
+luisa_ray_query_candidate_prim_id(void* state_ptr) {
+    return static_cast<int32_t>(reinterpret_cast<LuisaRayQueryState*>(state_ptr)->candidate_hit.primID);
+}
+// Read float fields via memcpy through char* to force "omnipotent char" TBAA on the
+// resulting loads.  Direct struct member access (e.g. hit.uv.x) emits typed TBAA
+// metadata (HIP_vector_base<float,2>) which LLVM considers non-aliasing with the
+// untyped memcpy/stores in proceed()/commit_surface_hit(), causing the optimizer to
+// treat these loads as reading their initial (zero) values.
+//
+// hiprtHit layout (sizeof=48, alignas(16)):
+//   offset  0: instanceIDs[4] (uint32_t[MaxInstanceLevels=4], union with instanceID)
+//   offset 16: primID         (uint32_t)
+//   offset 20: (4 bytes padding for hiprtFloat2 alignment)
+//   offset 24: uv.x           (float, within hiprtFloat2)
+//   offset 28: uv.y           (float, within hiprtFloat2)
+//   offset 32: normal.x       (float, within hiprtFloat3)
+//   offset 36: normal.y       (float)
+//   offset 40: normal.z       (float)
+//   offset 44: t              (float)
+static_assert(sizeof(hiprtHit) == 48, "hiprtHit layout changed — verify UV/T offsets");
+
+extern "C" __device__ __attribute__((used, noinline)) float
+luisa_ray_query_candidate_bary_u(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryState*>(state_ptr)->candidate_hit.uv.x;
+}
+extern "C" __device__ __attribute__((used, noinline)) float
+luisa_ray_query_candidate_bary_v(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryState*>(state_ptr)->candidate_hit.uv.y;
+}
+extern "C" __device__ __attribute__((used, noinline)) float
+luisa_ray_query_candidate_hit_t(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryState*>(state_ptr)->candidate_hit.t;
+}
+
+// Scalar-returning accessors for committed hit fields
+// No has_committed guard — unconditionally read the field.  The kernel checks
+// committed_hit_kind == MISS before using the values, so reading the sentinel
+// (0xFFFFFFFF from initialization) when !has_committed is harmless.
+// This also prevents LLVM from proving the default-return path and constant-
+// folding the function, which caused Bug 10 (committed float values eliminated).
+extern "C" __device__ __attribute__((used, noinline)) int32_t
+luisa_ray_query_committed_inst_id(void* state_ptr) {
+    return static_cast<int32_t>(reinterpret_cast<LuisaRayQueryState*>(state_ptr)->committed_hit.instanceID);
+}
+extern "C" __device__ __attribute__((used, noinline)) int32_t
+luisa_ray_query_committed_prim_id(void* state_ptr) {
+    return static_cast<int32_t>(reinterpret_cast<LuisaRayQueryState*>(state_ptr)->committed_hit.primID);
+}
+extern "C" __device__ __attribute__((used, noinline)) float
+luisa_ray_query_committed_bary_u(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryState*>(state_ptr)->committed_hit.uv.x;
+}
+extern "C" __device__ __attribute__((used, noinline)) float
+luisa_ray_query_committed_bary_v(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryState*>(state_ptr)->committed_hit.uv.y;
+}
+extern "C" __device__ __attribute__((used, noinline)) int32_t
+luisa_ray_query_committed_hit_kind(void* state_ptr) {
+    return static_cast<int32_t>(reinterpret_cast<LuisaRayQueryState*>(state_ptr)->committed_kind);
+}
+extern "C" __device__ __attribute__((used, noinline)) float
+luisa_ray_query_committed_hit_t(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryState*>(state_ptr)->committed_hit.t;
+}
+
+// Scalar-returning accessors for world-space ray fields
+extern "C" __device__ __attribute__((used, noinline)) float
+luisa_ray_query_ray_origin_x(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryState*>(state_ptr)->ray.origin.x;
+}
+extern "C" __device__ __attribute__((used, noinline)) float
+luisa_ray_query_ray_origin_y(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryState*>(state_ptr)->ray.origin.y;
+}
+extern "C" __device__ __attribute__((used, noinline)) float
+luisa_ray_query_ray_origin_z(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryState*>(state_ptr)->ray.origin.z;
+}
+extern "C" __device__ __attribute__((used, noinline)) float
+luisa_ray_query_ray_tmin(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryState*>(state_ptr)->ray.minT;
+}
+extern "C" __device__ __attribute__((used, noinline)) float
+luisa_ray_query_ray_direction_x(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryState*>(state_ptr)->ray.direction.x;
+}
+extern "C" __device__ __attribute__((used, noinline)) float
+luisa_ray_query_ray_direction_y(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryState*>(state_ptr)->ray.direction.y;
+}
+extern "C" __device__ __attribute__((used, noinline)) float
+luisa_ray_query_ray_direction_z(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryState*>(state_ptr)->ray.direction.z;
+}
+extern "C" __device__ __attribute__((used, noinline)) float
+luisa_ray_query_ray_tmax(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryState*>(state_ptr)->ray.maxT;
+}
+
+extern "C" __device__ __attribute__((used, noinline)) void
+luisa_ray_query_commit_surface_hit(void* state_ptr) {
+    auto* s = reinterpret_cast<LuisaRayQueryState*>(state_ptr);
+    s->committed_hit  = s->candidate_hit;
+    s->committed_kind = HIT_TYPE_SURFACE;
+    s->has_committed  = true;
+
+    // For ANY-mode queries, terminate immediately after first commit.
+    if (s->flags & 1u) {
+        s->terminated = true;
+    } else {
+        // For ALL-mode queries, update the traversal's internal m_ray.maxT
+        // so subsequent getNextHit() calls cull farther hits.
+        // TraversalBase::m_ray is the first data member of SceneTraversal,
+        // which is stored inside the pimpl's aligned_storage inside m_impl.
+        // The pimpl wrapper class has exactly one data member (the storage),
+        // and SceneTraversal inherits TraversalBase whose first member is m_ray.
+        // Access: traversal_storage -> hiprtSceneTraversalAnyHitCustomStack
+        //   -> m_impl (hiprtPimpl) -> data (aligned_storage, offset 0)
+        //   -> SceneTraversal : TraversalBase -> m_ray (offset 0 in TraversalBase)
+        //   -> hiprtRay -> maxT at offset 12 (after origin float3)
+        // So m_ray starts at the beginning of the pimpl storage.
+        auto* traversal = reinterpret_cast<LuisaRayQueryState::Traversal*>(s->traversal_storage);
+        // Use operator* to get the SceneTraversal, which exposes m_ray at offset 0
+        // Actually — the outer wrapper's m_impl starts at offset 0 of the wrapper,
+        // and the pimpl's storage starts at offset 0 of the pimpl.
+        // The SceneTraversal inherits TraversalBase, m_ray at offset 0.
+        // So the hiprtRay is at the start of traversal_storage.
+        auto* m_ray_ptr = reinterpret_cast<hiprtRay*>(s->traversal_storage);
+        m_ray_ptr->maxT = s->candidate_hit.t;
+    }
+}
+
+extern "C" __device__ __attribute__((used, noinline)) void
+luisa_ray_query_commit_procedural_hit(void* state_ptr, float t) {
+    auto* s = reinterpret_cast<LuisaRayQueryState*>(state_ptr);
+    s->committed_hit   = s->candidate_hit;
+    s->committed_hit.t = t;
+    s->committed_kind  = HIT_TYPE_PROCEDURAL;
+    s->has_committed   = true;
+
+    // Update the traversal's internal m_ray.maxT so subsequent calls
+    // to getNextHit() cull hits farther than this procedural hit.
+    auto* m_ray_ptr = reinterpret_cast<hiprtRay*>(s->traversal_storage);
+    m_ray_ptr->maxT = t;
+    // Also update user-visible ray
+    s->ray.maxT = t;
+
+    if (s->flags & 1u) {
+        s->terminated = true;
+    }
+}
+
+extern "C" __device__ __attribute__((used, noinline)) void
+luisa_ray_query_terminate(void* state_ptr) {
+    reinterpret_cast<LuisaRayQueryState*>(state_ptr)->terminated = true;
+}
+
+// ---------------------------------------------------------------------------
 // HwBvhStack-based traversal (RDNA 4: gfx1200/gfx1201 only)
 // Uses the ds_bvh_stack_push8_pop1_rtn hardware instruction for BVH traversal.
 // ---------------------------------------------------------------------------
 
 #if HIPRT_RTIP >= 31 && ( defined( __gfx1200__ ) || defined( __gfx1201__ ) )
-
-static constexpr unsigned int LUISA_HIPRT_HWSTACK_SIZE = hiprt::HwBvhStack::StackSize;
 
 extern "C" __device__ void luisa_hiprt_trace_closest_hwstack(
     uint64_t scene_handle,

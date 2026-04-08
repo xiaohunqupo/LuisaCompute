@@ -10,6 +10,7 @@
 #include "hip_bindless_array.h"
 #include "hip_command_encoder.h"
 #include "hip_mesh.h"
+#include "hip_procedural_primitive.h"
 #include "hip_accel.h"
 #include "hip_shader.h"
 
@@ -247,7 +248,9 @@ void HIPCommandEncoder::visit(MeshBuildCommand *command) noexcept {
 void HIPCommandEncoder::visit(CurveBuildCommand *) noexcept {
 }
 
-void HIPCommandEncoder::visit(ProceduralPrimitiveBuildCommand *) noexcept {
+void HIPCommandEncoder::visit(ProceduralPrimitiveBuildCommand *command) noexcept {
+    auto prim = reinterpret_cast<HIPProceduralPrimitive *>(command->handle());
+    prim->build(*this, command);
 }
 
 void HIPCommandEncoder::visit(MotionInstanceBuildCommand *) noexcept {

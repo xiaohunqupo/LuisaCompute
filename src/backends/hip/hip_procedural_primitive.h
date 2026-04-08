@@ -1,5 +1,5 @@
 //
-// Created by mike on 1/30/26.
+// Created by mike on 4/8/26.
 //
 
 #pragma once
@@ -8,7 +8,7 @@
 #include <hiprt/hiprt.h>
 
 #include <luisa/core/spin_mutex.h>
-#include <luisa/runtime/rtx/mesh.h>
+#include <luisa/runtime/rtx/procedural_primitive.h>
 
 #include "hip_geometry.h"
 
@@ -16,23 +16,20 @@ namespace luisa::compute::hip {
 
 class HIPCommandEncoder;
 
-class HIPMesh : public HIPGeometry {
+class HIPProceduralPrimitive : public HIPGeometry {
 
 private:
     AccelOption _option;
     hiprtContext _hiprt_ctx{nullptr};
     hiprtGeometry _geometry{nullptr};
-    hipDeviceptr_t _vertex_buffer{};
-    size_t _vertex_buffer_size{};
-    size_t _vertex_stride{};
-    hipDeviceptr_t _triangle_buffer{};
-    size_t _triangle_buffer_size{};
+    hipDeviceptr_t _aabb_buffer{};
+    size_t _aabb_buffer_size{};
     mutable spin_mutex _mutex;
 
 public:
-    explicit HIPMesh(hiprtContext ctx, const AccelOption &option) noexcept;
-    ~HIPMesh() noexcept;
-    void build(HIPCommandEncoder &encoder, MeshBuildCommand *command) noexcept;
+    explicit HIPProceduralPrimitive(hiprtContext ctx, const AccelOption &option) noexcept;
+    ~HIPProceduralPrimitive() noexcept;
+    void build(HIPCommandEncoder &encoder, ProceduralPrimitiveBuildCommand *command) noexcept;
     [[nodiscard]] hiprtGeometry handle() const noexcept override {
         std::scoped_lock lock{_mutex};
         return _geometry;

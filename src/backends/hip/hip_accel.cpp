@@ -3,7 +3,7 @@
 //
 
 #include "hip_check.h"
-#include "hip_mesh.h"
+#include "hip_geometry.h"
 #include "hip_command_encoder.h"
 #include "hip_stream.h"
 #include "hip_device.h"
@@ -59,7 +59,14 @@ void HIPAccel::_build(HIPCommandEncoder &encoder) noexcept {
     build_input.instanceMasks = nullptr;
 
     hiprtBuildOptions build_options{};
-    build_options.buildFlags = hiprtBuildFlagBitPreferHighQualityBuild;
+    if (_option.allow_update) {
+        // Spatial splits and oriented bounding boxes prevent scene updates
+        build_options.buildFlags = hiprtBuildFlagBitPreferHighQualityBuild |
+                                   hiprtBuildFlagBitDisableSpatialSplits |
+                                   hiprtBuildFlagBitDisableOrientedBoundingBoxes;
+    } else {
+        build_options.buildFlags = hiprtBuildFlagBitPreferHighQualityBuild;
+    }
 
     LUISA_CHECK_HIPRT(hiprtCreateScene(_hiprt_ctx, build_input, build_options, _scene));
 
@@ -111,7 +118,9 @@ void HIPAccel::_update(HIPCommandEncoder &encoder) noexcept {
     build_input.instanceMasks = nullptr;
 
     hiprtBuildOptions build_options{};
-    build_options.buildFlags = hiprtBuildFlagBitPreferHighQualityBuild;
+    build_options.buildFlags = hiprtBuildFlagBitPreferHighQualityBuild |
+                               hiprtBuildFlagBitDisableSpatialSplits |
+                               hiprtBuildFlagBitDisableOrientedBoundingBoxes;
 
     LUISA_CHECK_HIPRT(hiprtBuildScene(_hiprt_ctx, hiprtBuildOperationUpdate,
                                       build_input, build_options,
@@ -158,8 +167,8 @@ void HIPAccel::build(HIPCommandEncoder &encoder, AccelBuildCommand *command) noe
 
         if (m.flags & AccelBuildCommand::Modification::flag_primitive) {
             _requires_rebuild = true;
-            auto mesh = reinterpret_cast<const HIPMesh *>(m.primitive);
-            auto geom_handle = mesh->handle();
+            auto geom = reinterpret_cast<const HIPGeometry *>(m.primitive);
+            auto geom_handle = geom->handle();
             hiprt_inst.type = hiprtInstanceTypeGeometry;
             hiprt_inst.geometry = geom_handle;
             inst.mesh_handle = reinterpret_cast<uint64_t>(geom_handle);

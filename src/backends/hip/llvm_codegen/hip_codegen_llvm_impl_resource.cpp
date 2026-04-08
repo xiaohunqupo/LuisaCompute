@@ -383,6 +383,36 @@ llvm::Value *HIPCodegenLLVMImpl::_translate_resource_query_inst(IB &b, FunctionC
             auto llvm_mask = _get_llvm_value(b, func_ctx, inst->operand(2));
             return _accel_trace_any(b, func_ctx, llvm_accel, llvm_ray, llvm_mask);
         }
+        case xir::ResourceQueryOp::RAY_TRACING_QUERY_ALL: [[fallthrough]];
+        case xir::ResourceQueryOp::RAY_TRACING_QUERY_ANY: {
+            auto is_any = (op == xir::ResourceQueryOp::RAY_TRACING_QUERY_ANY);
+            auto llvm_accel = _get_llvm_value(b, func_ctx, inst->operand(0));
+            auto llvm_ray = _get_llvm_value(b, func_ctx, inst->operand(1));
+            auto llvm_mask = _get_llvm_value(b, func_ctx, inst->operand(2));
+            auto llvm_accel_handle = b.CreateExtractValue(llvm_accel, llvm_accel_type_handle_index);
+            auto llvm_ray_origin = b.CreateExtractValue(llvm_ray, llvm_ray_type_origin_index);
+            auto llvm_ray_t_min = b.CreateExtractValue(llvm_ray, llvm_ray_type_t_min_index);
+            auto llvm_ray_direction = b.CreateExtractValue(llvm_ray, llvm_ray_type_direction_index);
+            auto llvm_ray_t_max = b.CreateExtractValue(llvm_ray, llvm_ray_type_t_max_index);
+            auto llvm_ox = b.CreateExtractValue(llvm_ray, {llvm_ray_type_origin_index, 0u});
+            auto llvm_oy = b.CreateExtractValue(llvm_ray, {llvm_ray_type_origin_index, 1u});
+            auto llvm_oz = b.CreateExtractValue(llvm_ray, {llvm_ray_type_origin_index, 2u});
+            auto llvm_dx = b.CreateExtractValue(llvm_ray, {llvm_ray_type_direction_index, 0u});
+            auto llvm_dy = b.CreateExtractValue(llvm_ray, {llvm_ray_type_direction_index, 1u});
+            auto llvm_dz = b.CreateExtractValue(llvm_ray, {llvm_ray_type_direction_index, 2u});
+            // flags: 1 = terminate-on-first-hit (for "any" queries)
+            auto llvm_flags = b.getInt32(is_any ? 1u : 0u);
+            _call_ray_query_intrinsic(b, func_ctx, llvm_ray_query_intrinsic_name_initialize, b.getVoidTy(),
+                                      {llvm_accel_handle,
+                                       llvm_ox, llvm_oy, llvm_oz,
+                                       llvm_dx, llvm_dy, llvm_dz,
+                                       llvm_ray_t_min, llvm_ray_t_max,
+                                       llvm_mask, llvm_flags,
+                                       func_ctx.llvm_rt_stack_size,
+                                       func_ctx.llvm_rt_stack_count,
+                                       func_ctx.llvm_rt_stack_data});
+            return llvm::Constant::getNullValue(_get_llvm_ray_query_type());
+        }
         default: LUISA_NOT_IMPLEMENTED();
     }
     LUISA_NOT_IMPLEMENTED();

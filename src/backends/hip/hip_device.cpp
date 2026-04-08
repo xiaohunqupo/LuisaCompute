@@ -15,6 +15,7 @@
 #include "hip_shader.h"
 #include "hip_shader_native.h"
 #include "hip_mesh.h"
+#include "hip_procedural_primitive.h"
 #include "hip_accel.h"
 #include "hip_device.h"
 
@@ -412,6 +413,7 @@ ShaderCreationInfo HIPDevice::create_shader(const ShaderOption &option, Function
         .enable_fast_math = option.enable_fast_math,
         .enable_debug_info = option.enable_debug_info,
         .requires_ray_tracing = kernel.requires_raytracing(),
+        .requires_ray_query = kernel.propagated_builtin_callables().uses_ray_query(),
     };
 
     auto code = hip_codegen_llvm(*xir_module, config);
@@ -570,11 +572,18 @@ void HIPDevice::destroy_mesh(uint64_t handle) noexcept {
 }
 
 ResourceCreationInfo HIPDevice::create_procedural_primitive(const AccelOption &option) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    auto prim = with_device([&] {
+        return luisa::new_with_allocator<HIPProceduralPrimitive>(_hiprt_context, option);
+    });
+    return {.handle = reinterpret_cast<uint64_t>(prim),
+            .native_handle = prim};
 }
 
 void HIPDevice::destroy_procedural_primitive(uint64_t handle) noexcept {
-    LUISA_NOT_IMPLEMENTED();
+    with_device([=] {
+        auto prim = reinterpret_cast<HIPProceduralPrimitive *>(handle);
+        luisa::delete_with_allocator(prim);
+    });
 }
 
 ResourceCreationInfo HIPDevice::create_accel(const AccelOption &option) noexcept {

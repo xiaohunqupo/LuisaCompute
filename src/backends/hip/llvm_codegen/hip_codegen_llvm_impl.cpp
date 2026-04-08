@@ -21,6 +21,7 @@
 #include <llvm/Support/SourceMgr.h>
 #include <llvm/Support/MemoryBuffer.h>
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/Support/ModRef.h>
 
 #include <luisa/core/clock.h>
 #include "hip_codegen_llvm_impl.h"
@@ -279,10 +280,79 @@ void HIPCodegenLLVMImpl::_run_optimization_passes() noexcept {
         }
     }
 
+    // Strip all TBAA metadata from the module when ray queries are in use.
+    // The HIPRT bitcode (proceed, commit_surface_hit, etc.) emits typed TBAA
+    // metadata on stores to hiprtHit fields (e.g. uv, t), while our noinline
+    // wrapper functions read those same fields through a flat pointer.  LLVM's
+    // interprocedural alias analysis uses the TBAA trees to conclude that the
+    // stores and loads access non-aliasing memory, which lets it eliminate the
+    // wrapper calls entirely.  Stripping TBAA forces the optimizer to assume
+    // all memory accesses may alias, which is correct for our use case.
+    if (_config.requires_ray_query) {
+        uint32_t tbaa_count = 0, tbaa_struct_count = 0;
+        for (auto &func : *_llvm_module) {
+            for (auto &bb : func) {
+                for (auto &inst : bb) {
+                    if (inst.getMetadata(llvm::LLVMContext::MD_tbaa)) {
+                        inst.setMetadata(llvm::LLVMContext::MD_tbaa, nullptr);
+                        tbaa_count++;
+                    }
+                    if (inst.getMetadata(llvm::LLVMContext::MD_tbaa_struct)) {
+                        inst.setMetadata(llvm::LLVMContext::MD_tbaa_struct, nullptr);
+                        tbaa_struct_count++;
+                    }
+                }
+            }
+        }
+        LUISA_INFO("Stripped {} TBAA and {} TBAA_STRUCT metadata entries from module.",
+                   tbaa_count, tbaa_struct_count);
+
+        // Widen memory effects of ray query wrapper functions to prevent the
+        // optimizer from performing interprocedural dead-store/load elimination.
+        // The HIP compiler infers precise memory attributes (e.g. memory(argmem: read))
+        // on the compiled wrapper functions, which - combined with nosync/willreturn/
+        // norecurse - allows LLVM to prove certain reads are dead and eliminate calls.
+        // Setting memory(readwrite) and removing purity-related attributes forces the
+        // optimizer to assume these functions may have arbitrary side effects.
+        for (auto &func : *_llvm_module) {
+            if (func.getName().starts_with("luisa_ray_query_")) {
+                func.setMemoryEffects(llvm::MemoryEffects::unknown());
+                func.removeFnAttr(llvm::Attribute::NoSync);
+                func.removeFnAttr(llvm::Attribute::WillReturn);
+                func.removeFnAttr(llvm::Attribute::NoRecurse);
+                func.removeFnAttr(llvm::Attribute::MustProgress);
+                func.removeFnAttr(llvm::Attribute::NoFree);
+                func.removeFnAttr(llvm::Attribute::ReadOnly);
+                func.removeFnAttr(llvm::Attribute::ReadNone);
+                // Also strip readonly/readnone from parameters to prevent
+                // the optimizer from inferring restricted aliasing on the pointer arg.
+                for (unsigned i = 0; i < func.arg_size(); ++i) {
+                    func.removeParamAttr(i, llvm::Attribute::ReadOnly);
+                    func.removeParamAttr(i, llvm::Attribute::ReadNone);
+                    func.removeParamAttr(i, llvm::Attribute::NoAlias);
+                }
+            }
+        }
+    }
+
     for (auto &&func : *_llvm_module) {
         if (!func.isDeclaration() && func.getCallingConv() != llvm::CallingConv::AMDGPU_KERNEL) {
             func.setLinkage(llvm::Function::PrivateLinkage);
-            func.addFnAttr(llvm::Attribute::AlwaysInline);
+            // Ray-query wrapper functions (luisa_ray_query_*) must NOT be inlined.
+            // They access the ray-query state struct through a generic/flat pointer
+            // (addrspace 0), while the kernel holds the struct in private memory
+            // (addrspace 5).  If these functions are inlined, the InferAddressSpaces
+            // pass may lift some flat-pointer accesses back to addrspace 5 while
+            // leaving others as flat, causing LLVM's AMDGPU alias analysis to treat
+            // stores (flat) and loads (private) to the SAME address as non-aliasing.
+            // Keeping them noinline preserves the function-call barrier so the
+            // optimizer cannot see through the address-space boundary.
+            if (func.getName().starts_with("luisa_ray_query_")) {
+                func.removeFnAttr(llvm::Attribute::AlwaysInline);
+                func.addFnAttr(llvm::Attribute::NoInline);
+            } else {
+                func.addFnAttr(llvm::Attribute::AlwaysInline);
+            }
         }
     }
 
@@ -391,7 +461,8 @@ luisa::string HIPCodegenLLVMImpl::generate(const xir::Module &xir_module) noexce
     Clock clk;
     _initialize();
 
-    _rt_analysis.uses_ray_tracing = _config.requires_ray_tracing;
+    _rt_analysis.uses_ray_tracing = _config.requires_ray_tracing || _config.requires_ray_query;
+    _rt_analysis.uses_ray_query = _config.requires_ray_query;
 
     for (auto f : xir_module.function_list()) {
         if (auto def = f->definition()) {

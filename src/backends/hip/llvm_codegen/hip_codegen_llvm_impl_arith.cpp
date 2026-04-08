@@ -737,14 +737,17 @@ llvm::Value *HIPCodegenLLVMImpl::_translate_matrix_transpose(IB &b, llvm::Value 
     auto col_type = llvm::FixedVectorType::get(b.getFloatTy(), dim);
     auto result_type = llvm::ArrayType::get(col_type, dim);
     auto result = static_cast<llvm::Value *>(llvm::PoisonValue::get(result_type));
-    for (auto c = 0; c < dim; c++) {
-        auto col = b.CreateExtractValue(m, c);
+    for (auto c = 0u; c < dim; c++) {
         auto transposed_col = static_cast<llvm::Value *>(llvm::PoisonValue::get(col_type));
-        for (auto r = 0; r < dim; r++) {
-            auto elem = b.CreateExtractElement(col, r);
-            transposed_col = b.CreateInsertElement(transposed_col, elem, c);
+        for (auto r = 0u; r < dim; r++) {
+            auto src_col = b.CreateExtractValue(m, r);
+            auto elem = b.CreateExtractElement(src_col, c);
+            transposed_col = b.CreateInsertElement(transposed_col, elem, r);
         }
-        auto transposed_row = b.CreateShuffleVector(transposed_col, llvm::ArrayRef<int>{0, 1, 2, 3});
+        // build identity shuffle mask for the actual dimension
+        llvm::SmallVector<int, 4> mask(dim);
+        std::iota(mask.begin(), mask.end(), 0);
+        auto transposed_row = b.CreateShuffleVector(transposed_col, mask);
         result = b.CreateInsertValue(result, transposed_row, c);
     }
     return result;

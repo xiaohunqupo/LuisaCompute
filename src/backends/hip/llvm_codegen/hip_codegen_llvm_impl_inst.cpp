@@ -63,6 +63,11 @@ void HIPCodegenLLVMImpl::_translate_instruction(IB &b, FunctionContext &func_ctx
         LUISA_HIP_LLVM_TRANSLATE_INST_CASE(AssertInst, assert)
         LUISA_HIP_LLVM_TRANSLATE_INST_CASE(AssumeInst, assume)
         LUISA_HIP_LLVM_TRANSLATE_INST_CASE(OutlineInst, outline)
+        LUISA_HIP_LLVM_TRANSLATE_INST_CASE(RayQueryLoopInst, ray_query_loop)
+        LUISA_HIP_LLVM_TRANSLATE_INST_CASE(RayQueryDispatchInst, ray_query_dispatch)
+        LUISA_HIP_LLVM_TRANSLATE_INST_CASE(RayQueryObjectReadInst, ray_query_object_read)
+        LUISA_HIP_LLVM_TRANSLATE_INST_CASE(RayQueryObjectWriteInst, ray_query_object_write)
+        LUISA_HIP_LLVM_TRANSLATE_INST_CASE(RayQueryPipelineInst, ray_query_pipeline)
         default: LUISA_ERROR("Unknown instruction tag {}.", xir::to_string(inst->derived_instruction_tag()));
     }
 #undef LUISA_HIP_LLVM_TRANSLATE_INST_CASE
