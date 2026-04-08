@@ -199,8 +199,18 @@ void HIPCodegenLLVMImpl::_postprocess_rt_kernel() noexcept {
     if (auto *wrapper_flags = (*wrapper_module)->getNamedMetadata("llvm.module.flags")) {
         wrapper_flags->eraseFromParent();
     }
+    // Strip llvm.used and llvm.compiler.used from the wrapper module so that
+    // __attribute__((used)) on ray query functions doesn't force them to survive
+    // DCE when linked with LinkOnlyNeeded.
+    if (auto *used = (*wrapper_module)->getNamedGlobal("llvm.used")) {
+        used->eraseFromParent();
+    }
+    if (auto *compiler_used = (*wrapper_module)->getNamedGlobal("llvm.compiler.used")) {
+        compiler_used->eraseFromParent();
+    }
 
-    if (llvm::Linker::linkModules(*_llvm_module, std::move(*wrapper_module))) {
+    if (llvm::Linker::linkModules(*_llvm_module, std::move(*wrapper_module),
+                                  llvm::Linker::Flags::LinkOnlyNeeded)) {
         LUISA_ERROR_WITH_LOCATION("Failed to link kernel module with HIPRT wrapper bitcode.");
     }
 
@@ -211,9 +221,16 @@ void HIPCodegenLLVMImpl::_postprocess_rt_kernel() noexcept {
         LUISA_ASSERT(block_size > 0u, "Block size must be greater than zero.");
         uint32_t shared_array_size;
         if (_config.amdgpu_arch >= 1200) {
-            // lds_per_wave32 = max_entries * 32 (stride) * 2 (TLAS+BLAS regions)
             constexpr uint32_t hw_stack_max_entries = 8u;
-            constexpr uint32_t lds_dwords_per_wave32 = hw_stack_max_entries * 32u * 2u;
+            // HwBvhStack (flat trace): max_entries * 32 (stride) * 2 (TLAS+BLAS)
+            constexpr uint32_t hw_lds_dwords_per_wave32 = hw_stack_max_entries * 32u * 2u;
+            // GlobalStack (ray query): LUISA_HIPRT_SHARED_STACK_SIZE * 32 (stride)
+            constexpr uint32_t gs_lds_dwords_per_wave32 = LUISA_HIPRT_SHARED_STACK_SIZE * 32u;
+            // Ray query kernels use GlobalStack which needs more LDS than HwBvhStack.
+            // Check if ray query functions were linked in after LinkOnlyNeeded.
+            auto *rq_func = _llvm_module->getFunction("luisa_ray_query_initialize");
+            bool uses_ray_query = rq_func != nullptr && !rq_func->isDeclaration();
+            auto lds_dwords_per_wave32 = uses_ray_query ? std::max(hw_lds_dwords_per_wave32, gs_lds_dwords_per_wave32) : hw_lds_dwords_per_wave32;
             auto num_waves = (block_size + 31u) / 32u;
             shared_array_size = num_waves * lds_dwords_per_wave32;
 
