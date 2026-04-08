@@ -569,6 +569,341 @@ luisa_ray_query_terminate(void* state_ptr) {
 
 #if HIPRT_RTIP >= 31 && ( defined( __gfx1200__ ) || defined( __gfx1201__ ) )
 
+// ---------------------------------------------------------------------------
+// Flat traversal functions — no templates, no virtual dispatch.
+// These replace HIPRT's deep template hierarchy to minimize ISA instruction
+// count and close the performance gap with RADV's driver-generated traversal.
+// ---------------------------------------------------------------------------
+
+// hip_float3 already defined in hiprt_device_impl.h for RTIP >= 31
+
+static __device__ __forceinline__ uint4 luisa_hiprt_pack_descriptor(uint32_t boxSortHeuristic)
+{
+    boxSortHeuristic &= 0x3;
+    uint64_t baseAddress          = 0x0;
+    uint64_t size                 = 0x3ffffffffffull;
+    uint32_t boxGrowUlp           = 0x6;
+    uint32_t boxSortEnable        = 0x1;
+    uint32_t triangleReturnMode   = 0x1;
+    uint32_t type                 = 0x8;
+    uint32_t compressFormatEnable = 0x1;
+    uint32_t instanceEnable       = 0x1;
+    uint32_t sortTrianglesFirst   = 0x1;
+    uint32_t wideSortEnable       = 0x1;
+
+    uint4 desc;
+    desc.x = baseAddress & 0xffffffff;
+    desc.y = (baseAddress >> 32ull) | (boxSortEnable << 31u) | (boxGrowUlp << 23u) |
+             (boxSortHeuristic << 21u) | (sortTrianglesFirst << 20u);
+    desc.z = size & 0xffffffff;
+    desc.w = (size >> 32ull) | (triangleReturnMode << 24u) | (type << 28u) |
+             (instanceEnable << 22u) | (wideSortEnable << 21u) | (compressFormatEnable << 19u);
+    return desc;
+}
+
+static __device__ void luisa_hiprt_hw_trace_closest(
+    hiprtScene scene_handle, const hiprtRay& in_ray, uint32_t mask, uint32_t hint, hiprtHit& result)
+{
+    using namespace hiprt;
+
+    const uint4 descriptor = luisa_hiprt_pack_descriptor(hint & 0x3);
+
+    SceneHeader* sceneHeader   = reinterpret_cast<SceneHeader*>(scene_handle);
+    BoxNode*     tlasBoxNodes  = sceneHeader->m_boxNodes;
+    InstanceNode* instanceNodes = sceneHeader->m_primNodes;
+
+    BoxNode*            boxNodes  = tlasBoxNodes;
+    TrianglePacketNode* primNodes = nullptr;
+    uint32_t            instanceId = InvalidValue;
+
+    hiprtRay ray = in_ray;
+
+    HwBvhStack stack(luisa_hiprt_shared_stack_cache);
+
+    uint32_t nodeIndex = RootIndex;
+    result = hiprtHit();
+
+    while (nodeIndex != InvalidValue)
+    {
+        const uint32_t nodeType = getNodeType(nodeIndex);
+
+        if (nodeType == BoxType)
+        {
+            hip_float3 dummy0, dummy1;
+            auto childResults = __builtin_amdgcn_image_bvh8_intersect_ray(
+                encodeBaseAddr(boxNodes),
+                ray.maxT,
+                0xff,
+                {ray.origin.x, ray.origin.y, ray.origin.z},
+                {ray.direction.x, ray.direction.y, ray.direction.z},
+                nodeIndex,
+                {descriptor.x, descriptor.y, descriptor.z, descriptor.w},
+                &dummy0,
+                &dummy1);
+
+            uint32_t children[8] = {
+                childResults[0], childResults[1], childResults[2], childResults[3],
+                childResults[4], childResults[5], childResults[6], childResults[7]};
+            nodeIndex = stack.pushChildrenAndPopClosest(InvalidValue, children);
+            goto try_exit_instance;
+        }
+
+        if (nodeType == InstanceType)
+        {
+            const uint32_t instanceAddr = getNodeAddr(nodeIndex);
+            const InstanceNode& inst = instanceNodes[instanceAddr];
+
+            if (inst.m_mask & mask)
+            {
+                // Always use HW BVH8 instance transform (static transforms only).
+                // LuisaCompute uses hiprtFrameTypeMatrix with frameCount=1,
+                // so m_static is always set. Dynamic transformRay path removed.
+                hip_float3 origin, direction;
+                auto xformResult = __builtin_amdgcn_image_bvh8_intersect_ray(
+                    encodeBaseAddr(instanceNodes),
+                    ray.maxT,
+                    0xff,
+                    {ray.origin.x, ray.origin.y, ray.origin.z},
+                    {ray.direction.x, ray.direction.y, ray.direction.z},
+                    nodeIndex,
+                    {descriptor.x, descriptor.y, descriptor.z, descriptor.w},
+                    &origin,
+                    &direction);
+
+                if (xformResult[7] != InvalidValue)
+                {
+                    ray.origin    = {origin.x, origin.y, origin.z};
+                    ray.direction = {direction.x, direction.y, direction.z};
+
+                    instanceId = inst.m_primIndex;
+
+                    GeomHeader* geom = inst.m_geometry;
+                    boxNodes  = geom->m_boxNodes;
+                    primNodes = reinterpret_cast<TrianglePacketNode*>(geom->m_primNodes);
+
+                    stack.enterInstance();
+                    nodeIndex = RootIndex;
+                    continue;
+                }
+            }
+
+            nodeIndex = stack.pop();
+            goto try_exit_instance;
+        }
+
+        // --- Triangle leaf ---
+        if (instanceId != InvalidValue)
+        {
+            uint32_t leafAddr    = getNodeAddr(nodeIndex);
+            uint32_t triPairIndex = typeToTriPairIndex(nodeType);
+
+            while (true)
+            {
+                hip_float3 dummy0, dummy1;
+                auto triResult = __builtin_amdgcn_image_bvh8_intersect_ray(
+                    encodeBaseAddr(primNodes),
+                    ray.maxT,
+                    0xff,
+                    {ray.origin.x, ray.origin.y, ray.origin.z},
+                    {ray.direction.x, ray.direction.y, ray.direction.z},
+                    encodeNodeIndex(leafAddr, triPairIndexToType(triPairIndex)),
+                    {descriptor.x, descriptor.y, descriptor.z, descriptor.w},
+                    &dummy0,
+                    &dummy1);
+
+                // Triangle 0
+                {
+                    float t = __int_as_float(triResult[0]);
+                    if (ray.minT <= t && t <= ray.maxT)
+                    {
+                        ray.maxT         = t;
+                        result.t         = t;
+                        result.uv.x      = __int_as_float(triResult[1]);
+                        result.uv.y      = __int_as_float(triResult[2]);
+                        result.primID    = triResult[3] >> 1;
+                        result.instanceID = instanceId;
+                    }
+                }
+
+                // Triangle 1
+                {
+                    float t = __int_as_float(triResult[4]);
+                    if (ray.minT <= t && t <= ray.maxT)
+                    {
+                        ray.maxT         = t;
+                        result.t         = t;
+                        result.uv.x      = __int_as_float(triResult[5]);
+                        result.uv.y      = __int_as_float(triResult[6]);
+                        result.primID    = triResult[7] >> 1;
+                        result.instanceID = instanceId;
+                    }
+                }
+
+                uint32_t status = triResult[8] & 3;
+                if (status == 3) break;
+                triPairIndex++;
+                if (status == 1) { triPairIndex = 0; leafAddr++; }
+            }
+        }
+
+        nodeIndex = stack.pop();
+
+    try_exit_instance:
+        if (nodeIndex == InvalidValue && stack.insideInstance())
+        {
+            stack.exitInstance();
+            instanceId = InvalidValue;
+            boxNodes = tlasBoxNodes;
+            ray.origin    = in_ray.origin;
+            ray.direction = in_ray.direction;
+            nodeIndex = stack.pop();
+        }
+    }
+}
+
+static __device__ bool luisa_hiprt_hw_trace_any(
+    hiprtScene scene_handle, const hiprtRay& in_ray, uint32_t mask, uint32_t hint)
+{
+    using namespace hiprt;
+
+    const uint4 descriptor = luisa_hiprt_pack_descriptor(hint & 0x3);
+
+    SceneHeader*  sceneHeader   = reinterpret_cast<SceneHeader*>(scene_handle);
+    BoxNode*      tlasBoxNodes  = sceneHeader->m_boxNodes;
+    InstanceNode* instanceNodes = sceneHeader->m_primNodes;
+
+    BoxNode*            boxNodes  = tlasBoxNodes;
+    TrianglePacketNode* primNodes = nullptr;
+    uint32_t            instanceId = InvalidValue;
+
+    hiprtRay ray = in_ray;
+
+    HwBvhStack stack(luisa_hiprt_shared_stack_cache);
+
+    uint32_t nodeIndex = RootIndex;
+
+    while (nodeIndex != InvalidValue)
+    {
+        const uint32_t nodeType = getNodeType(nodeIndex);
+
+        if (nodeType == BoxType)
+        {
+            hip_float3 dummy0, dummy1;
+            auto childResults = __builtin_amdgcn_image_bvh8_intersect_ray(
+                encodeBaseAddr(boxNodes),
+                ray.maxT,
+                0xff,
+                {ray.origin.x, ray.origin.y, ray.origin.z},
+                {ray.direction.x, ray.direction.y, ray.direction.z},
+                nodeIndex,
+                {descriptor.x, descriptor.y, descriptor.z, descriptor.w},
+                &dummy0,
+                &dummy1);
+
+            uint32_t children[8] = {
+                childResults[0], childResults[1], childResults[2], childResults[3],
+                childResults[4], childResults[5], childResults[6], childResults[7]};
+            nodeIndex = stack.pushChildrenAndPopClosest(InvalidValue, children);
+            goto try_exit_instance_any;
+        }
+
+        if (nodeType == InstanceType)
+        {
+            const uint32_t instanceAddr = getNodeAddr(nodeIndex);
+            const InstanceNode& inst = instanceNodes[instanceAddr];
+
+            if (inst.m_mask & mask)
+            {
+                hip_float3 origin, direction;
+                auto xformResult = __builtin_amdgcn_image_bvh8_intersect_ray(
+                    encodeBaseAddr(instanceNodes),
+                    ray.maxT,
+                    0xff,
+                    {ray.origin.x, ray.origin.y, ray.origin.z},
+                    {ray.direction.x, ray.direction.y, ray.direction.z},
+                    nodeIndex,
+                    {descriptor.x, descriptor.y, descriptor.z, descriptor.w},
+                    &origin,
+                    &direction);
+
+                if (xformResult[7] != InvalidValue)
+                {
+                    ray.origin    = {origin.x, origin.y, origin.z};
+                    ray.direction = {direction.x, direction.y, direction.z};
+
+                    instanceId = inst.m_primIndex;
+
+                    GeomHeader* geom = inst.m_geometry;
+                    boxNodes  = geom->m_boxNodes;
+                    primNodes = reinterpret_cast<TrianglePacketNode*>(geom->m_primNodes);
+
+                    stack.enterInstance();
+                    nodeIndex = RootIndex;
+                    continue;
+                }
+            }
+
+            nodeIndex = stack.pop();
+            goto try_exit_instance_any;
+        }
+
+        // Triangle leaf — any hit
+        if (instanceId != InvalidValue)
+        {
+            uint32_t leafAddr     = getNodeAddr(nodeIndex);
+            uint32_t triPairIndex = typeToTriPairIndex(nodeType);
+
+            while (true)
+            {
+                hip_float3 dummy0, dummy1;
+                auto triResult = __builtin_amdgcn_image_bvh8_intersect_ray(
+                    encodeBaseAddr(primNodes),
+                    ray.maxT,
+                    0xff,
+                    {ray.origin.x, ray.origin.y, ray.origin.z},
+                    {ray.direction.x, ray.direction.y, ray.direction.z},
+                    encodeNodeIndex(leafAddr, triPairIndexToType(triPairIndex)),
+                    {descriptor.x, descriptor.y, descriptor.z, descriptor.w},
+                    &dummy0,
+                    &dummy1);
+
+                {
+                    float t = __int_as_float(triResult[0]);
+                    if (ray.minT <= t && t <= ray.maxT) return true;
+                }
+                {
+                    float t = __int_as_float(triResult[4]);
+                    if (ray.minT <= t && t <= ray.maxT) return true;
+                }
+
+                uint32_t status = triResult[8] & 3;
+                if (status == 3) break;
+                triPairIndex++;
+                if (status == 1) { triPairIndex = 0; leafAddr++; }
+            }
+        }
+
+        nodeIndex = stack.pop();
+
+    try_exit_instance_any:
+        if (nodeIndex == InvalidValue && stack.insideInstance())
+        {
+            stack.exitInstance();
+            instanceId = InvalidValue;
+            boxNodes = tlasBoxNodes;
+            ray.origin    = in_ray.origin;
+            ray.direction = in_ray.direction;
+            nodeIndex = stack.pop();
+        }
+    }
+
+    return false;
+}
+
+// ---------------------------------------------------------------------------
+// Wrapper entry points calling flat traversal functions above
+// ---------------------------------------------------------------------------
+
 extern "C" __device__ void luisa_hiprt_trace_closest_hwstack(
     uint64_t scene_handle,
     float ox, float oy, float oz,
@@ -589,13 +924,8 @@ extern "C" __device__ void luisa_hiprt_trace_closest_hwstack(
 
     hiprtScene scene = reinterpret_cast<hiprtScene>(scene_handle);
 
-    hiprt::HwBvhStack stack(luisa_hiprt_shared_stack_cache);
-    hiprtEmptyInstanceStack instanceStack;
-
-    hiprtSceneTraversalClosestCustomStack<hiprt::HwBvhStack, hiprtEmptyInstanceStack>
-        traversal(scene, ray, stack, instanceStack, static_cast<hiprtRayMask>(mask),
-                  hiprtTraversalHintReflectionRays);
-    hiprtHit hit = traversal.getNextHit();
+    hiprtHit hit;
+    luisa_hiprt_hw_trace_closest(scene, ray, mask, static_cast<uint32_t>(hiprtTraversalHintReflectionRays), hit);
 
     if (hit.hasHit()) {
         *out_inst_id = static_cast<int32_t>(hit.instanceID);
@@ -627,15 +957,7 @@ extern "C" __device__ bool luisa_hiprt_trace_any_hwstack(
 
     hiprtScene scene = reinterpret_cast<hiprtScene>(scene_handle);
 
-    hiprt::HwBvhStack stack(luisa_hiprt_shared_stack_cache);
-    hiprtEmptyInstanceStack instanceStack;
-
-    hiprtSceneTraversalAnyHitCustomStack<hiprt::HwBvhStack, hiprtEmptyInstanceStack>
-        traversal(scene, ray, stack, instanceStack, static_cast<hiprtRayMask>(mask),
-                  hiprtTraversalHintShadowRays);
-    hiprtHit hit = traversal.getNextHit();
-
-    return hit.hasHit();
+    return luisa_hiprt_hw_trace_any(scene, ray, mask, static_cast<uint32_t>(hiprtTraversalHintShadowRays));
 }
 
 #endif // HIPRT_RTIP >= 31 && gfx12
