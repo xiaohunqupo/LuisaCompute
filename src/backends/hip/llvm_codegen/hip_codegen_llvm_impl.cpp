@@ -222,15 +222,10 @@ void HIPCodegenLLVMImpl::_postprocess_rt_kernel() noexcept {
         uint32_t shared_array_size;
         if (_config.amdgpu_arch >= 1200) {
             constexpr uint32_t hw_stack_max_entries = 8u;
-            // HwBvhStack (flat trace): max_entries * 32 (stride) * 2 (TLAS+BLAS)
+            // HwBvhStack: max_entries * 32 (stride) * 2 (TLAS+BLAS regions)
+            // Both flat trace and ray query use HwBvhStack on gfx12.
             constexpr uint32_t hw_lds_dwords_per_wave32 = hw_stack_max_entries * 32u * 2u;
-            // GlobalStack (ray query): LUISA_HIPRT_SHARED_STACK_SIZE * 32 (stride)
-            constexpr uint32_t gs_lds_dwords_per_wave32 = LUISA_HIPRT_SHARED_STACK_SIZE * 32u;
-            // Ray query kernels use GlobalStack which needs more LDS than HwBvhStack.
-            // Check if ray query functions were linked in after LinkOnlyNeeded.
-            auto *rq_func = _llvm_module->getFunction("luisa_ray_query_initialize");
-            bool uses_ray_query = rq_func != nullptr && !rq_func->isDeclaration();
-            auto lds_dwords_per_wave32 = uses_ray_query ? std::max(hw_lds_dwords_per_wave32, gs_lds_dwords_per_wave32) : hw_lds_dwords_per_wave32;
+            auto lds_dwords_per_wave32 = hw_lds_dwords_per_wave32;
             auto num_waves = (block_size + 31u) / 32u;
             shared_array_size = num_waves * lds_dwords_per_wave32;
 

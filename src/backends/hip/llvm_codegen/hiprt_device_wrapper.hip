@@ -106,7 +106,12 @@ extern "C" __device__ bool luisa_hiprt_trace_any(
 // ---------------------------------------------------------------------------
 // Ray query state structure — stored per-thread, passed via pointer from codegen.
 // Holds the traversal object and all per-query state in-place to avoid heap allocation.
+//
+// On gfx12 (RDNA 4), ray query uses the flat HwBvhStack-based traversal
+// instead of HIPRT's GlobalStack template hierarchy. The gfx12 version is
+// defined later in the file inside the #if HIPRT_RTIP >= 31 block.
 // ---------------------------------------------------------------------------
+#if !(HIPRT_RTIP >= 31 && ( defined( __gfx1200__ ) || defined( __gfx1201__ ) ))
 
 struct LuisaRayQueryState {
     using Traversal = hiprtSceneTraversalAnyHitCustomStack<hiprtGlobalStack, hiprtEmptyInstanceStack>;
@@ -562,6 +567,8 @@ luisa_ray_query_terminate(void* state_ptr) {
     reinterpret_cast<LuisaRayQueryState*>(state_ptr)->terminated = true;
 }
 
+#endif // !(HIPRT_RTIP >= 31 && gfx12) — end of GlobalStack ray query
+
 // ---------------------------------------------------------------------------
 // HwBvhStack-based traversal (RDNA 4: gfx1200/gfx1201 only)
 // Uses the ds_bvh_stack_push8_pop1_rtn hardware instruction for BVH traversal.
@@ -694,7 +701,7 @@ static __device__ void luisa_hiprt_hw_trace_closest(
         // --- Triangle leaf ---
         if (instanceId != InvalidValue)
         {
-            uint32_t leafAddr    = getNodeAddr(nodeIndex);
+            uint32_t leafAddr     = getNodeAddr(nodeIndex);
             uint32_t triPairIndex = typeToTriPairIndex(nodeType);
 
             while (true)
@@ -958,6 +965,617 @@ extern "C" __device__ bool luisa_hiprt_trace_any_hwstack(
     hiprtScene scene = reinterpret_cast<hiprtScene>(scene_handle);
 
     return luisa_hiprt_hw_trace_any(scene, ray, mask, static_cast<uint32_t>(hiprtTraversalHintShadowRays));
+}
+
+// ---------------------------------------------------------------------------
+// Flat ray query implementation for gfx12 (HwBvhStack + HW BVH8 intrinsics)
+//
+// Replaces the GlobalStack-based HIPRT template ray query with direct HW
+// intrinsic calls, mirroring the flat trace functions above but with
+// proceed/commit/yield semantics for ray query callbacks.
+// ---------------------------------------------------------------------------
+
+// State constants — must match llvm_ray_query_state_* in hip_codegen_llvm_impl.h
+static constexpr uint8_t RQ_STATE_TERMINATED           = 0;
+static constexpr uint8_t RQ_STATE_SURFACE_CANDIDATE    = 1;
+static constexpr uint8_t RQ_STATE_PROCEDURAL_CANDIDATE = 2;
+
+// HitType values matching luisa::compute::HitType enum
+static constexpr uint32_t HIT_TYPE_MISS       = 0;
+static constexpr uint32_t HIT_TYPE_SURFACE    = 1;
+static constexpr uint32_t HIT_TYPE_PROCEDURAL = 2;
+
+// Pending triangle hit from a BVH8 tri-pair intersection.
+// A single BVH8 intersect call tests two triangles; we must report each
+// individually for alpha-cutout filtering. When both hit, we report the
+// first immediately and buffer the second here.
+struct PendingTriHit {
+    float    t;
+    float    u;
+    float    v;
+    uint32_t primID;
+    bool     valid;
+};
+
+struct LuisaRayQueryStateHw {
+    // --- Traversal position (saved/restored between proceed() calls) ---
+    uint32_t nodeIndex;
+
+    // HwBvhStack live state (3 members)
+    uint32_t hw_addr;
+    uint32_t hw_savedAddr;
+
+    // Scene pointers (set once in initialize)
+    hiprt::SceneHeader*        sceneHeader;
+    hiprt::BoxNode*            tlasBoxNodes;
+    hiprt::InstanceNode*       instanceNodes;
+
+    // Current traversal context (TLAS or BLAS)
+    hiprt::BoxNode*            boxNodes;
+    hiprt::TrianglePacketNode* primNodes;
+    uint32_t                   instanceId;
+
+    // Leaf resume state: when yielding mid-leaf, save position for next proceed()
+    uint32_t leafAddr;
+    uint32_t triPairIndex;
+    uint32_t leafStatus;     // last triResult[8] & 3 from BVH8 intersect
+    bool     inLeaf;         // true if we need to resume inside a leaf
+
+    // Pending second triangle hit from a tri-pair
+    PendingTriHit pending;
+
+    // Ray state
+    hiprtRay ray;            // current ray (may be BLAS-transformed)
+    hiprtRay original_ray;   // world-space ray (for exitInstance restore)
+
+    // Hit state
+    hiprtHit candidate_hit;
+    hiprtHit committed_hit;
+
+    // Control state
+    uint8_t  state;
+    uint8_t  committed_kind;
+    bool     has_committed;
+    bool     terminated;
+    uint32_t flags;          // bit 0: any-hit mode (terminate on first commit)
+    uint32_t mask;
+
+    // Precomputed descriptor for BVH8 intersect
+    uint4    descriptor;
+};
+
+// Verify the state fits in the 512-byte alloca from codegen
+static_assert(sizeof(LuisaRayQueryStateHw) <= 512,
+    "LuisaRayQueryStateHw exceeds 512-byte codegen alloca");
+
+extern "C" __device__ __attribute__((used, noinline)) void
+luisa_ray_query_initialize(
+    void*    state_ptr,
+    uint64_t scene_handle,
+    float ox, float oy, float oz,
+    float dx, float dy, float dz,
+    float tmin, float tmax,
+    uint32_t mask, uint32_t flags,
+    uint32_t stack_size, uint32_t stack_count, void* stack_data) {
+
+    auto* s = reinterpret_cast<LuisaRayQueryStateHw*>(state_ptr);
+
+    // Store ray
+    s->ray.origin    = hiprtFloat3{ox, oy, oz};
+    s->ray.minT      = tmin;
+    s->ray.direction = hiprtFloat3{dx, dy, dz};
+    s->ray.maxT      = tmax;
+    s->original_ray  = s->ray;
+
+    // Scene pointers
+    s->sceneHeader   = reinterpret_cast<hiprt::SceneHeader*>(scene_handle);
+    s->tlasBoxNodes  = s->sceneHeader->m_boxNodes;
+    s->instanceNodes = s->sceneHeader->m_primNodes;
+    s->boxNodes      = s->tlasBoxNodes;
+    s->primNodes     = nullptr;
+    s->instanceId    = hiprt::InvalidValue;
+
+    // Traversal position
+    s->nodeIndex     = hiprt::RootIndex;
+
+    // HwBvhStack: construct a fresh stack to get properly initialized fields,
+    // then snapshot its state. The LDS is initialized by the constructor.
+    {
+        hiprt::HwBvhStack stack(luisa_hiprt_shared_stack_cache);
+        s->hw_addr      = stack.m_addr;
+        s->hw_savedAddr = stack.m_savedAddr;
+    }
+
+    // Leaf resume state
+    s->inLeaf        = false;
+    s->leafAddr      = 0;
+    s->triPairIndex  = 0;
+    s->leafStatus    = 0;
+    s->pending.valid = false;
+
+    // Hit state
+    s->candidate_hit           = hiprtHit();
+    s->candidate_hit.primID    = ~0u;
+    s->candidate_hit.instanceID = ~0u;
+    s->committed_hit           = hiprtHit();
+    s->committed_hit.primID    = ~0u;
+    s->committed_hit.instanceID = ~0u;
+    s->committed_hit.uv        = hiprtFloat2{0.0f, 0.0f};
+    s->committed_hit.t         = tmax;
+
+    // Control state
+    s->state          = RQ_STATE_TERMINATED;
+    s->committed_kind = HIT_TYPE_MISS;
+    s->has_committed  = false;
+    s->terminated     = false;
+    s->flags          = flags;
+    s->mask           = mask;
+
+    // Precompute descriptor
+    s->descriptor = luisa_hiprt_pack_descriptor(
+        static_cast<uint32_t>(hiprtTraversalHintDefault) & 0x3);
+}
+
+extern "C" __device__ __attribute__((used, noinline)) void
+luisa_ray_query_proceed(void* state_ptr) {
+    using namespace hiprt;
+
+    auto* s = reinterpret_cast<LuisaRayQueryStateHw*>(state_ptr);
+    if (s->terminated) {
+        s->state = RQ_STATE_TERMINATED;
+        return;
+    }
+
+    // Check for pending buffered triangle hit first
+    if (s->pending.valid) {
+        // Check if still in range after possible commit
+        if (s->ray.minT <= s->pending.t && s->pending.t <= s->ray.maxT) {
+            s->candidate_hit.t          = s->pending.t;
+            s->candidate_hit.uv.x       = s->pending.u;
+            s->candidate_hit.uv.y       = s->pending.v;
+            s->candidate_hit.primID     = s->pending.primID;
+            s->candidate_hit.instanceID = s->instanceId;
+            s->pending.valid = false;
+            s->state = RQ_STATE_SURFACE_CANDIDATE;
+            return;
+        }
+        s->pending.valid = false;
+    }
+
+    hiprt::HwBvhStack stack(luisa_hiprt_shared_stack_cache);
+    stack.m_addr      = s->hw_addr;
+    stack.m_savedAddr = s->hw_savedAddr;
+
+    const uint4& descriptor = s->descriptor;
+    BoxNode*            boxNodes      = s->boxNodes;
+    TrianglePacketNode* primNodes     = s->primNodes;
+    uint32_t            instanceId    = s->instanceId;
+    hiprtRay            ray           = s->ray;
+    uint32_t            nodeIndex     = s->nodeIndex;
+    uint32_t            nodeType      = 0;
+    uint32_t            leafAddr      = 0;
+    uint32_t            triPairIndex  = 0;
+
+    if (s->inLeaf) {
+        s->inLeaf = false;
+        leafAddr      = s->leafAddr;
+        triPairIndex  = s->triPairIndex;
+        uint32_t lastStatus = s->leafStatus;
+
+        if (lastStatus != 3) {
+            triPairIndex++;
+            if (lastStatus == 1) { triPairIndex = 0; leafAddr++; }
+            goto resume_leaf;
+        }
+        goto after_leaf;
+    }
+
+    while (nodeIndex != InvalidValue)
+    {
+        nodeType = getNodeType(nodeIndex);
+
+        if (nodeType == BoxType)
+        {
+            hip_float3 dummy0, dummy1;
+            auto childResults = __builtin_amdgcn_image_bvh8_intersect_ray(
+                encodeBaseAddr(boxNodes),
+                ray.maxT,
+                0xff,
+                {ray.origin.x, ray.origin.y, ray.origin.z},
+                {ray.direction.x, ray.direction.y, ray.direction.z},
+                nodeIndex,
+                {descriptor.x, descriptor.y, descriptor.z, descriptor.w},
+                &dummy0,
+                &dummy1);
+
+            uint32_t children[8] = {
+                childResults[0], childResults[1], childResults[2], childResults[3],
+                childResults[4], childResults[5], childResults[6], childResults[7]};
+            nodeIndex = stack.pushChildrenAndPopClosest(InvalidValue, children);
+            goto try_exit_instance_rq;
+        }
+
+        if (nodeType == InstanceType)
+        {
+            const uint32_t instanceAddr = getNodeAddr(nodeIndex);
+            const InstanceNode& inst = s->instanceNodes[instanceAddr];
+
+            if (inst.m_mask & s->mask)
+            {
+                hip_float3 origin, direction;
+                auto xformResult = __builtin_amdgcn_image_bvh8_intersect_ray(
+                    encodeBaseAddr(s->instanceNodes),
+                    ray.maxT,
+                    0xff,
+                    {ray.origin.x, ray.origin.y, ray.origin.z},
+                    {ray.direction.x, ray.direction.y, ray.direction.z},
+                    nodeIndex,
+                    {descriptor.x, descriptor.y, descriptor.z, descriptor.w},
+                    &origin,
+                    &direction);
+
+                if (xformResult[7] != InvalidValue)
+                {
+                    ray.origin    = {origin.x, origin.y, origin.z};
+                    ray.direction = {direction.x, direction.y, direction.z};
+
+                    instanceId = inst.m_primIndex;
+
+                    GeomHeader* geom = inst.m_geometry;
+                    boxNodes  = geom->m_boxNodes;
+                    primNodes = reinterpret_cast<TrianglePacketNode*>(geom->m_primNodes);
+
+                    stack.enterInstance();
+                    nodeIndex = RootIndex;
+                    continue;
+                }
+            }
+
+            nodeIndex = stack.pop();
+            goto try_exit_instance_rq;
+        }
+
+        // --- Triangle leaf ---
+        if (instanceId != InvalidValue)
+        {
+            leafAddr     = getNodeAddr(nodeIndex);
+            triPairIndex = typeToTriPairIndex(nodeType);
+
+        resume_leaf:
+            while (true)
+            {
+                hip_float3 dummy0, dummy1;
+                auto triResult = __builtin_amdgcn_image_bvh8_intersect_ray(
+                    encodeBaseAddr(primNodes),
+                    ray.maxT,
+                    0xff,
+                    {ray.origin.x, ray.origin.y, ray.origin.z},
+                    {ray.direction.x, ray.direction.y, ray.direction.z},
+                    encodeNodeIndex(leafAddr, triPairIndexToType(triPairIndex)),
+                    {descriptor.x, descriptor.y, descriptor.z, descriptor.w},
+                    &dummy0,
+                    &dummy1);
+
+                uint32_t status = triResult[8] & 3;
+
+                // Check triangle 0
+                float t0 = __int_as_float(triResult[0]);
+                bool hit0 = (ray.minT <= t0 && t0 <= ray.maxT);
+
+                // Check triangle 1
+                float t1 = __int_as_float(triResult[4]);
+                bool hit1 = (ray.minT <= t1 && t1 <= ray.maxT);
+
+                if (hit0 && hit1) {
+                    // Both triangles hit — report tri0 now, buffer tri1
+                    s->candidate_hit.t          = t0;
+                    s->candidate_hit.uv.x       = __int_as_float(triResult[1]);
+                    s->candidate_hit.uv.y       = __int_as_float(triResult[2]);
+                    s->candidate_hit.primID     = triResult[3] >> 1;
+                    s->candidate_hit.instanceID = instanceId;
+
+                    s->pending.valid  = true;
+                    s->pending.t      = t1;
+                    s->pending.u      = __int_as_float(triResult[5]);
+                    s->pending.v      = __int_as_float(triResult[6]);
+                    s->pending.primID = triResult[7] >> 1;
+
+                    // Save leaf resume state
+                    s->leafAddr     = leafAddr;
+                    s->triPairIndex = triPairIndex;
+                    s->leafStatus   = status;
+                    s->inLeaf       = true;
+
+                    // Save traversal state
+                    s->nodeIndex  = nodeIndex;
+                    s->hw_addr    = stack.m_addr;
+                    s->hw_savedAddr = stack.m_savedAddr;
+                    s->boxNodes   = boxNodes;
+                    s->primNodes  = primNodes;
+                    s->instanceId = instanceId;
+                    s->ray        = ray;
+
+                    s->state = RQ_STATE_SURFACE_CANDIDATE;
+                    return;
+                }
+                else if (hit0) {
+                    // Only tri0 hit
+                    s->candidate_hit.t          = t0;
+                    s->candidate_hit.uv.x       = __int_as_float(triResult[1]);
+                    s->candidate_hit.uv.y       = __int_as_float(triResult[2]);
+                    s->candidate_hit.primID     = triResult[3] >> 1;
+                    s->candidate_hit.instanceID = instanceId;
+
+                    // Save leaf resume state
+                    s->leafAddr     = leafAddr;
+                    s->triPairIndex = triPairIndex;
+                    s->leafStatus   = status;
+                    s->inLeaf       = true;
+
+                    // Save traversal state
+                    s->nodeIndex  = nodeIndex;
+                    s->hw_addr    = stack.m_addr;
+                    s->hw_savedAddr = stack.m_savedAddr;
+                    s->boxNodes   = boxNodes;
+                    s->primNodes  = primNodes;
+                    s->instanceId = instanceId;
+                    s->ray        = ray;
+
+                    s->state = RQ_STATE_SURFACE_CANDIDATE;
+                    return;
+                }
+                else if (hit1) {
+                    // Only tri1 hit
+                    s->candidate_hit.t          = t1;
+                    s->candidate_hit.uv.x       = __int_as_float(triResult[5]);
+                    s->candidate_hit.uv.y       = __int_as_float(triResult[6]);
+                    s->candidate_hit.primID     = triResult[7] >> 1;
+                    s->candidate_hit.instanceID = instanceId;
+
+                    // Save leaf resume state
+                    s->leafAddr     = leafAddr;
+                    s->triPairIndex = triPairIndex;
+                    s->leafStatus   = status;
+                    s->inLeaf       = true;
+
+                    // Save traversal state
+                    s->nodeIndex  = nodeIndex;
+                    s->hw_addr    = stack.m_addr;
+                    s->hw_savedAddr = stack.m_savedAddr;
+                    s->boxNodes   = boxNodes;
+                    s->primNodes  = primNodes;
+                    s->instanceId = instanceId;
+                    s->ray        = ray;
+
+                    s->state = RQ_STATE_SURFACE_CANDIDATE;
+                    return;
+                }
+
+                // Neither triangle hit — advance in leaf
+                if (status == 3) break;
+                triPairIndex++;
+                if (status == 1) { triPairIndex = 0; leafAddr++; }
+            }
+        }
+
+    after_leaf:
+        nodeIndex = stack.pop();
+
+    try_exit_instance_rq:
+        if (nodeIndex == InvalidValue && stack.insideInstance())
+        {
+            stack.exitInstance();
+            instanceId = InvalidValue;
+            boxNodes   = s->tlasBoxNodes;
+            ray.origin    = s->original_ray.origin;
+            ray.direction = s->original_ray.direction;
+            nodeIndex = stack.pop();
+        }
+    }
+
+    // Traversal complete
+    s->state      = RQ_STATE_TERMINATED;
+    s->terminated = true;
+
+    // Save final state
+    s->nodeIndex  = nodeIndex;
+    s->hw_addr    = stack.m_addr;
+    s->hw_savedAddr = stack.m_savedAddr;
+    s->instanceId = instanceId;
+    s->ray        = ray;
+}
+
+extern "C" __device__ __attribute__((used, noinline)) uint8_t
+luisa_ray_query_state(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryStateHw*>(state_ptr)->state;
+}
+
+extern "C" __device__ __attribute__((used, noinline)) void
+luisa_ray_query_world_space_ray(
+    void*  state_ptr,
+    float* out_ox, float* out_oy, float* out_oz, float* out_tmin,
+    float* out_dx, float* out_dy, float* out_dz, float* out_tmax) {
+    auto* s = reinterpret_cast<LuisaRayQueryStateHw*>(state_ptr);
+    *out_ox   = s->original_ray.origin.x;
+    *out_oy   = s->original_ray.origin.y;
+    *out_oz   = s->original_ray.origin.z;
+    *out_tmin = s->original_ray.minT;
+    *out_dx   = s->original_ray.direction.x;
+    *out_dy   = s->original_ray.direction.y;
+    *out_dz   = s->original_ray.direction.z;
+    *out_tmax = s->original_ray.maxT;
+}
+
+extern "C" __device__ __attribute__((used, noinline)) void
+luisa_ray_query_surface_candidate_hit(
+    void*    state_ptr,
+    int32_t* out_inst_id, int32_t* out_prim_id,
+    float*   out_u, float* out_v, float* out_t) {
+    auto* s = reinterpret_cast<LuisaRayQueryStateHw*>(state_ptr);
+    *out_inst_id = static_cast<int32_t>(s->candidate_hit.instanceID);
+    *out_prim_id = static_cast<int32_t>(s->candidate_hit.primID);
+    *out_u       = s->candidate_hit.uv.x;
+    *out_v       = s->candidate_hit.uv.y;
+    *out_t       = s->candidate_hit.t;
+}
+
+extern "C" __device__ __attribute__((used, noinline)) void
+luisa_ray_query_procedural_candidate_hit(
+    void*    state_ptr,
+    int32_t* out_inst_id, int32_t* out_prim_id) {
+    auto* s = reinterpret_cast<LuisaRayQueryStateHw*>(state_ptr);
+    *out_inst_id = static_cast<int32_t>(s->candidate_hit.instanceID);
+    *out_prim_id = static_cast<int32_t>(s->candidate_hit.primID);
+}
+
+extern "C" __device__ __attribute__((used, noinline)) void
+luisa_ray_query_committed_hit(
+    void*    state_ptr,
+    int32_t* out_inst_id, int32_t* out_prim_id,
+    float*   out_u, float* out_v,
+    int32_t* out_hit_kind, float* out_t) {
+    auto* s = reinterpret_cast<LuisaRayQueryStateHw*>(state_ptr);
+    *out_inst_id  = static_cast<int32_t>(s->committed_hit.instanceID);
+    *out_prim_id  = static_cast<int32_t>(s->committed_hit.primID);
+    *out_u        = s->committed_hit.uv.x;
+    *out_v        = s->committed_hit.uv.y;
+    *out_hit_kind = static_cast<int32_t>(s->committed_kind);
+    *out_t        = s->committed_hit.t;
+}
+
+extern "C" __device__ __attribute__((used, noinline)) bool
+luisa_ray_query_is_surface_candidate(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryStateHw*>(state_ptr)->state == RQ_STATE_SURFACE_CANDIDATE;
+}
+
+extern "C" __device__ __attribute__((used, noinline)) bool
+luisa_ray_query_is_procedural_candidate(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryStateHw*>(state_ptr)->state == RQ_STATE_PROCEDURAL_CANDIDATE;
+}
+
+extern "C" __device__ __attribute__((used, noinline)) bool
+luisa_ray_query_is_terminated(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryStateHw*>(state_ptr)->state == RQ_STATE_TERMINATED;
+}
+
+extern "C" __device__ __attribute__((used, noinline)) int32_t
+luisa_ray_query_candidate_inst_id(void* state_ptr) {
+    return static_cast<int32_t>(reinterpret_cast<LuisaRayQueryStateHw*>(state_ptr)->candidate_hit.instanceID);
+}
+extern "C" __device__ __attribute__((used, noinline)) int32_t
+luisa_ray_query_candidate_prim_id(void* state_ptr) {
+    return static_cast<int32_t>(reinterpret_cast<LuisaRayQueryStateHw*>(state_ptr)->candidate_hit.primID);
+}
+extern "C" __device__ __attribute__((used, noinline)) float
+luisa_ray_query_candidate_bary_u(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryStateHw*>(state_ptr)->candidate_hit.uv.x;
+}
+extern "C" __device__ __attribute__((used, noinline)) float
+luisa_ray_query_candidate_bary_v(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryStateHw*>(state_ptr)->candidate_hit.uv.y;
+}
+extern "C" __device__ __attribute__((used, noinline)) float
+luisa_ray_query_candidate_hit_t(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryStateHw*>(state_ptr)->candidate_hit.t;
+}
+
+extern "C" __device__ __attribute__((used, noinline)) int32_t
+luisa_ray_query_committed_inst_id(void* state_ptr) {
+    return static_cast<int32_t>(reinterpret_cast<LuisaRayQueryStateHw*>(state_ptr)->committed_hit.instanceID);
+}
+extern "C" __device__ __attribute__((used, noinline)) int32_t
+luisa_ray_query_committed_prim_id(void* state_ptr) {
+    return static_cast<int32_t>(reinterpret_cast<LuisaRayQueryStateHw*>(state_ptr)->committed_hit.primID);
+}
+extern "C" __device__ __attribute__((used, noinline)) float
+luisa_ray_query_committed_bary_u(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryStateHw*>(state_ptr)->committed_hit.uv.x;
+}
+extern "C" __device__ __attribute__((used, noinline)) float
+luisa_ray_query_committed_bary_v(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryStateHw*>(state_ptr)->committed_hit.uv.y;
+}
+extern "C" __device__ __attribute__((used, noinline)) int32_t
+luisa_ray_query_committed_hit_kind(void* state_ptr) {
+    return static_cast<int32_t>(reinterpret_cast<LuisaRayQueryStateHw*>(state_ptr)->committed_kind);
+}
+extern "C" __device__ __attribute__((used, noinline)) float
+luisa_ray_query_committed_hit_t(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryStateHw*>(state_ptr)->committed_hit.t;
+}
+
+extern "C" __device__ __attribute__((used, noinline)) float
+luisa_ray_query_ray_origin_x(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryStateHw*>(state_ptr)->original_ray.origin.x;
+}
+extern "C" __device__ __attribute__((used, noinline)) float
+luisa_ray_query_ray_origin_y(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryStateHw*>(state_ptr)->original_ray.origin.y;
+}
+extern "C" __device__ __attribute__((used, noinline)) float
+luisa_ray_query_ray_origin_z(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryStateHw*>(state_ptr)->original_ray.origin.z;
+}
+extern "C" __device__ __attribute__((used, noinline)) float
+luisa_ray_query_ray_tmin(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryStateHw*>(state_ptr)->original_ray.minT;
+}
+extern "C" __device__ __attribute__((used, noinline)) float
+luisa_ray_query_ray_direction_x(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryStateHw*>(state_ptr)->original_ray.direction.x;
+}
+extern "C" __device__ __attribute__((used, noinline)) float
+luisa_ray_query_ray_direction_y(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryStateHw*>(state_ptr)->original_ray.direction.y;
+}
+extern "C" __device__ __attribute__((used, noinline)) float
+luisa_ray_query_ray_direction_z(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryStateHw*>(state_ptr)->original_ray.direction.z;
+}
+extern "C" __device__ __attribute__((used, noinline)) float
+luisa_ray_query_ray_tmax(void* state_ptr) {
+    return reinterpret_cast<LuisaRayQueryStateHw*>(state_ptr)->original_ray.maxT;
+}
+
+extern "C" __device__ __attribute__((used, noinline)) void
+luisa_ray_query_commit_surface_hit(void* state_ptr) {
+    auto* s = reinterpret_cast<LuisaRayQueryStateHw*>(state_ptr);
+    s->committed_hit  = s->candidate_hit;
+    s->committed_kind = HIT_TYPE_SURFACE;
+    s->has_committed  = true;
+
+    // Tighten ray.maxT for closest-hit traversal
+    s->ray.maxT = s->candidate_hit.t;
+
+    // For ANY-mode queries, terminate immediately after first commit.
+    if (s->flags & 1u) {
+        s->terminated = true;
+        s->pending.valid = false; // discard buffered hit
+    }
+}
+
+extern "C" __device__ __attribute__((used, noinline)) void
+luisa_ray_query_commit_procedural_hit(void* state_ptr, float t) {
+    auto* s = reinterpret_cast<LuisaRayQueryStateHw*>(state_ptr);
+    s->committed_hit   = s->candidate_hit;
+    s->committed_hit.t = t;
+    s->committed_kind  = HIT_TYPE_PROCEDURAL;
+    s->has_committed   = true;
+
+    s->ray.maxT = t;
+    s->original_ray.maxT = t;
+
+    if (s->flags & 1u) {
+        s->terminated = true;
+        s->pending.valid = false;
+    }
+}
+
+extern "C" __device__ __attribute__((used, noinline)) void
+luisa_ray_query_terminate(void* state_ptr) {
+    auto* s = reinterpret_cast<LuisaRayQueryStateHw*>(state_ptr);
+    s->terminated = true;
+    s->pending.valid = false;
 }
 
 #endif // HIPRT_RTIP >= 31 && gfx12
