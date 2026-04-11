@@ -242,7 +242,8 @@ protected:
     Resource(DeviceInterface *device, Tag tag, const ResourceCreationInfo &info) noexcept;
     Resource(Resource &&) noexcept;
     // protected destructor for derived classes
-
+    // give out the ownership of the resource without destroying it
+    [[nodiscard]] ResourceCreationInfo release() noexcept;
 public:
     virtual ~Resource() noexcept;
     Resource(const Resource &) noexcept = delete;
@@ -256,9 +257,6 @@ public:
     [[nodiscard]] auto valid() const noexcept { return _info.valid(); }
     [[nodiscard]] explicit operator bool() const noexcept { return valid(); }
     void set_name(luisa::string_view name) const noexcept;
-
-    // give out the ownership of the resource without destroying it
-    [[nodiscard]] ResourceCreationInfo release() noexcept;
 };
 
 }// namespace luisa::compute
