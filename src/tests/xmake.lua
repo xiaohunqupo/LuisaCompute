@@ -250,6 +250,7 @@ end
 
 -- Raytracing weekend test (uses main.cpp subdirectory)
 test_proj("test_manual_ast")
+test_proj("test_builtin_kernel")
 if not is_mode("debug") then
     if has_config("lc_enable_clangcxx") then
         test_proj("test_path_tracing_clangcxx", true, function()

@@ -18,31 +18,36 @@ This project uses XMake as its primary build system.
 
 ```bash
 # Configure and build with default options
-xmake f -c -y
+xmake f -m debug -c
 xmake build
 
 # Build with specific configuration
-xmake f -m release -y
+xmake f -m release -c
 xmake build
+```
+
+## Update compile_commands.json
+```bash
+xmake project -k compile_commands --lsp=clangd .vscode
 ```
 
 ## Configuration Commands
 
 ```bash
 # Linux with GCC
-xmake f -p linux -a x86_64 --toolchain=gcc -m release -y
+xmake f -p linux -a x86_64 --toolchain=gcc -m release -c
 
 # Linux with Clang
-xmake f -p linux -a x86_64 --toolchain=clang -m release -y
+xmake f -p linux -a x86_64 --toolchain=clang -m release -c
 
 # Windows with MSVC
-xmake f -p windows -a x64 --toolchain=msvc -m release -y
+xmake f -p windows -a x64 --toolchain=msvc -m release -c
 
 # Windows with Clang-CL
-xmake f -p windows -a x64 --toolchain=clang-cl -m release -y
+xmake f -p windows -a x64 --toolchain=clang-cl -m release -c
 
 # Windows with LLVM
-xmake f -p windows -a x64 --toolchain=llvm --sdk="C:/Program Files/LLVM" -m release -y
+xmake f -p windows -a x64 --toolchain=llvm --sdk="C:/Program Files/LLVM" -m release -c
 ```
 
 ## Common Flags
@@ -50,7 +55,6 @@ xmake f -p windows -a x64 --toolchain=llvm --sdk="C:/Program Files/LLVM" -m rele
 | Flag | Description |
 |------|-------------|
 | `-c` | Clean configuration cache |
-| `-y` | Yes to all prompts |
 | `--check` | Check flags before building |
 | `-m <mode>` | Build mode: release, debug, releasedbg |
 | `-p <plat>` | Platform: linux, windows, macosx |
@@ -114,7 +118,7 @@ xmake f -p linux -m release \
   --lc_enable_gui=true \
   --lc_enable_tests=true \
   --lc_enable_unity_build=false \
-  -c -y
+  -c
 xmake
 
 # Minimal build (no tests, no GUI)
@@ -122,11 +126,11 @@ xmake f -m release \
   --lc_enable_tests=false \
   --lc_enable_gui=false \
   --lc_enable_dsl=false \
-  -c -y
+  -c
 xmake
 
 # Debug build with tests
-xmake f -m debug --lc_enable_tests=true -c -y
+xmake f -m debug --lc_enable_tests=true -c
 xmake
 ```
 
@@ -148,3 +152,27 @@ xmake -l
 # Install to directory
 xmake install -o <dir>
 ```
+
+## Common Mistakes to Avoid
+
+### Invalid Flags
+- `-v`, `-D`, `--diagnosis` are **NOT** valid xmake flags. The verbose flag is `--verbose` or `-v` (in newer versions), but use with caution.
+- The project uses xmake 3.0.6+ with standard xmake syntax.
+
+### Correct Build Commands
+```bash
+# Wrong (invalid flags)
+xmake f -v -c -m debug
+
+# Correct
+xmake f -c -m debug
+xmake build
+
+# Verbose output (if needed)
+xmake build --verbose
+```
+
+### Configuration Options
+- Boolean options use `=true` or `=false` format: `--lc_enable_xir=true`
+- Use `-c` flag to clean configuration cache before reconfiguring
+- Use `-m` for build mode: `debug`, `release`, or `releasedbg`
