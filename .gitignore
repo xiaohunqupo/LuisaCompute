@@ -350,3 +350,5 @@ agents.*
 AGENTS.*
 /*agent.py
 /agent*.py
+build-check/
+build-verify/

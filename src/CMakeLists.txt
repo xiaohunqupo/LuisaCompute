@@ -81,6 +81,7 @@ function(luisa_compute_add_executable name)
 endfunction()
 
 if (LUISA_COMPUTE_BUILD_TESTS)
+    enable_testing()
     message(STATUS "Building tests")
     add_subdirectory(tests)
 endif ()

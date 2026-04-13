@@ -206,3 +206,9 @@ endif ()
 
 add_subdirectory(utils)
 add_subdirectory(src)
+
+if (LUISA_COMPUTE_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(examples)
+    add_subdirectory(tutorials)
+endif()
