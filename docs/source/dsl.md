@@ -464,7 +464,7 @@ Kernel2D render = [&](ImageFloat image) noexcept {
     UInt2 block = block_id().xy();
     
     // Block size (threads per block)
-    UInt2 block_size = block_size().xy();
+    UInt2 blk_dims = block_size().xy();
     
     // Normalized UV coordinates
     Float2 uv = (make_float2(coord) + 0.5f) / make_float2(size);
@@ -546,7 +546,6 @@ Float dot_prod = dot(a, b);
 Float3 cross_prod = cross(a, b);
 Float dist = distance(a, b);
 Float3 refl = reflect(incident, normal);
-Float3 refr = refract(incident, normal, eta);
 
 // Component-wise operations
 Float3 c = fma(a, b, c);          // a*b + c (fused multiply-add)
@@ -635,6 +634,541 @@ Kernel1D compute_grad = [&](BufferFloat x_buf, BufferFloat y_buf,
 **Limitations:**
 - Loops with dynamic iteration counts must be unrolled manually
 - Some operations may not be differentiable
+
+## Shared Memory
+
+`Shared<T>` provides on-chip (threadgroup/workgroup) shared memory, allowing threads within the same block to communicate through fast scratchpad storage. This is much faster than global memory but limited in size (typically 32–48 KB depending on hardware).
+
+### Declaring Shared Memory
+
+```cpp
+Kernel2D reduce = [&](BufferFloat data, BufferFloat output) noexcept {
+    set_block_size(256u, 1u);
+    
+    // Allocate shared memory for 256 elements
+    Shared<float> shared{256};
+    
+    Var tid = thread_id().x;
+    Var gid = dispatch_id().x;
+    
+    // Load from global to shared memory
+    shared[tid] = data.read(gid);
+    
+    // Synchronize all threads in the block
+    sync_block();
+    
+    // Now all threads can safely read from shared memory
+    // ... perform reduction ...
+};
+```
+
+### Indexed Access
+
+Shared memory supports read/write through `operator[]`, `.read()`, and `.write()`:
+
+```cpp
+Shared<float3> positions{128};
+
+// Bracket access (returns a Var<T>& reference)
+positions[tid] = make_float3(1.0f, 2.0f, 3.0f);
+Float3 p = positions[tid];
+
+// Named methods
+Float3 val = positions.read(tid);
+positions.write(tid, make_float3(0.0f));
+```
+
+### Atomic Operations on Shared Memory
+
+For scalar types (`int`, `uint`, `float`), shared memory supports atomic operations via `.atomic()`:
+
+```cpp
+Shared<int> histogram{256};
+
+// Zero-initialize
+histogram[tid] = 0;
+sync_block();
+
+// Atomically increment a histogram bin
+auto bin = cast<uint>(value * 255.0f);
+histogram.atomic(bin).fetch_add(1);
+```
+
+> **Important:** Always call `sync_block()` between write and read phases to ensure all threads have completed their writes before any thread reads.
+
+## Atomic Operations
+
+`AtomicRef<T>` provides atomic read-modify-write operations on buffer elements and shared memory. Atomic operations are essential when multiple threads need to update the same memory location without data races.
+
+### Obtaining an AtomicRef
+
+Atomic references are obtained from buffers or shared memory — you never construct one directly:
+
+```cpp
+// From a buffer element
+BufferVar<int> buf;
+auto ref = buf.atomic(index);  // AtomicRef<int>
+
+// From shared memory
+Shared<uint> shared{256};
+auto ref = shared.atomic(index);  // AtomicRef<uint>
+```
+
+### Available Operations
+
+For **integer types** (`int`, `uint`):
+
+| Method | Effect | Returns |
+|--------|--------|---------|
+| `exchange(desired)` | Stores `desired` | Old value |
+| `compare_exchange(expected, desired)` | If `old == expected`, stores `desired` | Old value |
+| `fetch_add(val)` | `old + val` | Old value |
+| `fetch_sub(val)` | `old - val` | Old value |
+| `fetch_and(val)` | `old & val` | Old value |
+| `fetch_or(val)` | `old \| val` | Old value |
+| `fetch_xor(val)` | `old ^ val` | Old value |
+| `fetch_min(val)` | `min(old, val)` | Old value |
+| `fetch_max(val)` | `max(old, val)` | Old value |
+
+For **float**:
+
+| Method | Effect | Returns |
+|--------|--------|---------|
+| `exchange(desired)` | Stores `desired` | Old value |
+| `compare_exchange(expected, desired)` | If `old == expected`, stores `desired` | Old value |
+| `fetch_add(val)` | `old + val` | Old value |
+| `fetch_sub(val)` | `old - val` | Old value |
+| `fetch_min(val)` | `min(old, val)` | Old value |
+| `fetch_max(val)` | `max(old, val)` | Old value |
+
+> **Note:** Float atomics do **not** support bitwise operations (`fetch_and`, `fetch_or`, `fetch_xor`).
+
+### Vector and Aggregate Atomics
+
+For vector types, atomic references expose per-component sub-references:
+
+```cpp
+BufferVar<int3> buf;
+auto ref = buf.atomic(index);  // AtomicRef<int3>
+ref.x.fetch_add(1);            // Atomic on x component
+ref.y.fetch_max(val);          // Atomic on y component
+```
+
+For arrays, use `operator[]` to index into the atomic reference:
+
+```cpp
+BufferVar<std::array<int, 4>> buf;
+auto ref = buf.atomic(index);  // AtomicRef<std::array<int, 4>>
+ref[2].fetch_add(1);           // Atomic on element 2
+```
+
+## Structure-of-Arrays (SOA)
+
+`SOA<T>` provides a Structure-of-Arrays memory layout that splits composite types (vectors, matrices, structs) into separate contiguous arrays for each component. This layout improves GPU memory coalescing — threads in a warp access adjacent addresses rather than strided ones.
+
+### Why SOA?
+
+With a regular `Buffer<float3>`, element `i` occupies bytes `[12*i, 12*i+12)`. Adjacent threads access addresses 12 bytes apart, wasting memory bandwidth. An SOA layout stores all `.x` values contiguously, then all `.y`, then all `.z`, so adjacent threads read adjacent addresses.
+
+### Creating SOA Storage
+
+```cpp
+// Create SOA storage for 1024 float3 elements
+SOA<float3> positions{device, 1024};
+
+// SOA works with any supported type
+SOA<float>  scalars{device, 4096};
+SOA<float4> colors{device, 2048};
+SOA<float4x4> transforms{device, 512};
+```
+
+### Reading and Writing in Kernels
+
+Pass SOA as a kernel argument and use `.read()` / `.write()`:
+
+```cpp
+Kernel1D update = [&](Var<SOA<float3>> pos, Float dt) noexcept {
+    Var idx = dispatch_id().x;
+    Float3 p = pos.read(idx);
+    p += make_float3(0.0f, -9.8f, 0.0f) * dt;
+    pos.write(idx, p);
+};
+
+auto shader = device.compile(update);
+stream << shader(positions, 0.016f).dispatch(1024);
+```
+
+### Component-Level Access
+
+For vector SOA types (where each component is at least 4 bytes), the DSL expression splits into per-component SOA views. This allows reading or writing individual components without touching the others:
+
+```cpp
+Kernel1D kernel = [&](Var<SOA<float3>> positions) noexcept {
+    Var idx = dispatch_id().x;
+    
+    // Access individual components
+    Float x = positions.x.read(idx);
+    Float y = positions.y.read(idx);
+    
+    // Write only the y component (x and z untouched)
+    positions.y.write(idx, y + 1.0f);
+};
+```
+
+### Subviews
+
+`SOAView<T>` provides a non-owning view into a subset of an SOA's elements:
+
+```cpp
+// Create a subview starting at element 100 with 200 elements
+auto sub = positions.subview(100, 200);
+
+// Use it like the full SOA
+stream << shader(sub, dt).dispatch(200);
+```
+
+## Ray Queries
+
+Ray queries provide fine-grained traversal control over acceleration structures, allowing you to inspect and filter each intersection candidate during traversal. This is essential for implementing custom intersection logic, alpha-tested transparency, multi-layer hit processing, and procedural geometry.
+
+### Query Types
+
+| Type | Description |
+|------|-------------|
+| `RayQueryAll` | Visits **all** candidates (closest-hit traversal) |
+| `RayQueryAny` | Terminates on the **first** committed hit (any-hit / shadow ray) |
+
+Both are created from an `Accel` via `.traverse()` or `.traverse_any()`:
+
+```cpp
+auto query = accel.traverse(ray, AccelTraceOptions{});        // RayQueryAll
+auto query_any = accel.traverse_any(ray, AccelTraceOptions{}); // RayQueryAny
+```
+
+### Builder-Pattern API
+
+Ray queries use a chained builder pattern. Register candidate handlers, then call `.trace()` to execute the traversal and get the final hit:
+
+```cpp
+Var<CommittedHit> hit = accel
+    .traverse(ray, AccelTraceOptions{})
+    .on_surface_candidate([&](SurfaceCandidate &c) {
+        // Inspect this triangle/curve candidate
+        Var<TriangleHit> h = c.hit();
+        Float2 bary = h.bary();
+        UInt inst = h.inst;
+        UInt prim = h.prim;
+        
+        // Accept or reject
+        $if (should_accept(inst, prim, bary)) {
+            c.commit();  // Accept this hit
+        };
+        // If not committed, the candidate is discarded
+    })
+    .on_procedural_candidate([&](ProceduralCandidate &c) {
+        // Custom intersection test for AABB primitives
+        Var<Ray> r = c.ray();
+        Var<ProceduralHit> h = c.hit();
+        
+        Float t = intersect_sphere(r, h.inst, h.prim);
+        $if (t > 0.0f) {
+            c.commit(t);  // Accept with custom distance
+        };
+    })
+    .trace();  // Execute traversal, returns CommittedHit
+```
+
+### SurfaceCandidate
+
+A `SurfaceCandidate` represents a potential triangle or curve intersection:
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `.ray()` | `Var<Ray>` | The ray being traced |
+| `.hit()` | `Var<TriangleHit>` | Candidate hit info (instance, primitive, barycentric coords, distance) |
+| `.commit()` | — | Accept this candidate as a valid hit |
+| `.terminate()` | — | Stop traversal immediately |
+
+### ProceduralCandidate
+
+A `ProceduralCandidate` represents a potential intersection with a procedural (AABB) primitive:
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `.ray()` | `Var<Ray>` | The ray being traced |
+| `.hit()` | `Var<ProceduralHit>` | Candidate info (instance, primitive) |
+| `.commit(distance)` | — | Accept with a custom intersection distance |
+| `.terminate()` | — | Stop traversal immediately |
+
+### Example: Alpha-Tested Shadows
+
+```cpp
+Callable shadow_test = [&](Var<Accel> accel, Var<Ray> ray,
+                            BufferVar<float> alpha_map) noexcept {
+    auto hit = accel
+        .traverse_any(ray, AccelTraceOptions{})
+        .on_surface_candidate([&](SurfaceCandidate &c) {
+            auto h = c.hit();
+            Float alpha = alpha_map.read(h.prim);
+            $if (alpha > 0.5f) {
+                c.commit();  // Opaque — shadow is blocked
+            };
+            // Else: transparent — continue traversal
+        })
+        .trace();
+    return hit.miss();  // true if no opaque hit found
+};
+```
+
+### Handler Ordering
+
+You can register handlers in any order — either `.on_surface_candidate()` first or `.on_procedural_candidate()` first. You may also omit a handler entirely if your scene only contains triangles or only procedural geometry.
+
+## Runtime Polymorphism
+
+`Polymorphic<T>` provides tag-based runtime dispatch, enabling virtual-function-like behavior in GPU kernels. Since GPUs don't support C++ virtual dispatch, `Polymorphic<T>` generates a `$switch` over integer tags at kernel tracing time, routing each tag to its registered implementation.
+
+### Defining Implementations
+
+First, define a base interface and concrete implementations on the host side:
+
+```cpp
+// Base interface
+struct Material {
+    virtual ~Material() = default;
+    virtual void shade(Float3 &color, Expr<float3> normal,
+                       Expr<float3> wo) const noexcept = 0;
+};
+
+// Concrete implementations
+struct Diffuse : Material {
+    void shade(Float3 &color, Expr<float3> normal,
+               Expr<float3> wo) const noexcept override {
+        color = make_float3(0.8f) * max(dot(normal, wo), 0.0f);
+    }
+};
+
+struct Mirror : Material {
+    void shade(Float3 &color, Expr<float3> normal,
+               Expr<float3> wo) const noexcept override {
+        color = make_float3(1.0f);
+    }
+};
+```
+
+### Registering Implementations
+
+```cpp
+Polymorphic<Material> materials;
+
+// create<Impl>(...) allocates the implementation and returns its tag
+uint diffuse_tag = materials.create<Diffuse>();  // tag = 0
+uint mirror_tag  = materials.create<Mirror>();   // tag = 1
+```
+
+### Dispatching in Kernels
+
+Use `dispatch()` with a device-side tag expression to invoke the correct implementation:
+
+```cpp
+Kernel1D shade_kernel = [&](BufferVar<uint> material_tags,
+                            BufferVar<float3> normals,
+                            BufferVar<float3> directions,
+                            BufferVar<float3> colors) noexcept {
+    Var idx = dispatch_id().x;
+    UInt tag = material_tags.read(idx);
+    Float3 normal = normals.read(idx);
+    Float3 wo = directions.read(idx);
+    Float3 color;
+    
+    // Dispatch by tag — generates a switch over all registered implementations
+    materials.dispatch(tag, [&](const Material *impl) {
+        impl->shade(color, normal, wo);
+    });
+    
+    colors.write(idx, color);
+};
+```
+
+### Dispatch Variants
+
+| Method | Description |
+|--------|-------------|
+| `dispatch(tag, f)` | Dispatch over **all** registered implementations |
+| `dispatch_range(tag, lo, hi, f)` | Dispatch only for tags in `[lo, hi)` |
+| `dispatch_group(tag, group, f)` | Dispatch only for tags in the given collection |
+| `dispatch_with_default(tag, f, default_f)` | Like `dispatch`, with a custom default case |
+
+`dispatch_range` and `dispatch_group` are useful for partial dispatch when you know only a subset of material types are present in a particular pass:
+
+```cpp
+// Only dispatch tags 0..3 (skip expensive materials)
+materials.dispatch_range(tag, 0u, 3u, [&](const Material *impl) {
+    impl->shade(color, normal, wo);
+});
+
+// Dispatch only specific tags
+luisa::vector<uint> opaque_tags = {diffuse_tag, mirror_tag};
+materials.dispatch_group(tag, opaque_tags, [&](const Material *impl) {
+    impl->shade(color, normal, wo);
+});
+```
+
+> **Note:** The callback receives a `const T *` pointer to the host-side implementation object. The implementation's methods should contain DSL code that gets traced into the kernel.
+
+## Binding Groups
+
+`LUISA_BINDING_GROUP` bundles multiple resources into a single struct that can be passed as one kernel argument. This reduces parameter count and keeps related resources together.
+
+### Defining a Binding Group
+
+```cpp
+// Declare the struct with resource members
+struct GBufferData {
+    Image<float> albedo;
+    Image<float> normal;
+    Image<float> depth;
+    Buffer<uint> material_ids;
+};
+
+// Register as a binding group (must be in global namespace)
+LUISA_BINDING_GROUP(GBufferData, albedo, normal, depth, material_ids) {
+    // Optional: device-side member functions using the DSL
+};
+```
+
+### Using in Kernels
+
+A binding group can be passed as a single kernel parameter. Inside the kernel, access individual resources as members:
+
+```cpp
+Kernel2D deferred_shade = [&](Var<GBufferData> gbuffer, ImageFloat output) noexcept {
+    Var coord = dispatch_id().xy();
+    
+    // Access individual resources through the binding group
+    Float4 albedo = gbuffer.albedo.read(coord);
+    Float4 normal = gbuffer.normal.read(coord);
+    Float4 depth_val = gbuffer.depth.read(coord);
+    UInt mat_id = gbuffer.material_ids.read(
+        coord.y * dispatch_size().x + coord.x);
+    
+    // ... shade ...
+    output.write(coord, result);
+};
+```
+
+### Dispatching
+
+Bind the host-side resources and dispatch normally:
+
+```cpp
+GBufferData gbuffer{
+    .albedo = albedo_image,
+    .normal = normal_image,
+    .depth = depth_image,
+    .material_ids = material_id_buffer
+};
+
+auto shader = device.compile(deferred_shade);
+stream << shader(gbuffer, output_image).dispatch(width, height);
+```
+
+### Template Binding Groups
+
+For generic binding groups, use `LUISA_BINDING_GROUP_TEMPLATE`:
+
+```cpp
+template<typename T>
+struct PingPong {
+    Buffer<T> read_buf;
+    Buffer<T> write_buf;
+};
+
+#define MY_TEMPLATE() template<typename T>
+LUISA_BINDING_GROUP_TEMPLATE(MY_TEMPLATE, PingPong<T>, read_buf, write_buf) {};
+#undef MY_TEMPLATE
+```
+
+## Local Arrays
+
+`Local<T>` provides per-thread local arrays stored in registers or local memory. Unlike `Shared<T>`, local arrays are private to each thread and don't require synchronization.
+
+```cpp
+Kernel1D sort_kernel = [&](BufferFloat data) noexcept {
+    // Each thread gets its own local array of 8 elements
+    Local<float> local_data{8};
+    
+    // Load
+    $for (i, 8) {
+        local_data[i] = data.read(dispatch_id().x * 8u + i);
+    };
+    
+    // Sort in local memory (private to this thread)
+    // ... sorting logic ...
+    
+    // Store back
+    $for (i, 8) {
+        data.write(dispatch_id().x * 8u + i, local_data[i]);
+    };
+};
+```
+
+`Local<T>` supports `.read(index)`, `.write(index, value)`, and `operator[]`. It also supports autodiff via `.requires_grad()`, `.backward()`, `.grad()`, and `.detach()`.
+
+## Custom Structures
+
+### LUISA_STRUCT
+
+To use a C++ struct in the DSL, it must be registered with `LUISA_STRUCT`. This reflects the member layout so the DSL can construct `Var<T>` and `Expr<T>` wrappers:
+
+```cpp
+// Define a plain C++ struct
+struct Particle {
+    float3 position;
+    float3 velocity;
+    float  mass;
+};
+
+// Register it for DSL use (must be in global namespace)
+LUISA_STRUCT(Particle, position, velocity, mass) {
+    // Optional: device-side member functions
+    [[nodiscard]] auto kinetic_energy() const noexcept {
+        return 0.5f * mass * dot(velocity, velocity);
+    }
+};
+```
+
+After registration, you can use `Var<Particle>` in kernels and access members naturally:
+
+```cpp
+Kernel1D step = [&](BufferVar<Particle> particles, Float dt) noexcept {
+    Var idx = dispatch_id().x;
+    Var<Particle> p = particles.read(idx);
+    p.position += p.velocity * dt;
+    particles.write(idx, p);
+};
+```
+
+**Rules:**
+- `LUISA_STRUCT` must be placed in the **global namespace**
+- The struct may only contain scalar, vector, matrix, array, and other registered struct types
+- Whole-struct `alignas` up to 16 bytes is reflected; per-member `alignas` is not supported
+
+### LUISA_TEMPLATE_STRUCT
+
+For template structs:
+
+```cpp
+template<typename T>
+struct Pair {
+    T first;
+    T second;
+};
+
+LUISA_TEMPLATE_STRUCT(Pair, first, second) {
+    [[nodiscard]] auto sum() const noexcept { return first + second; }
+};
+```
 
 ## Best Practices
 

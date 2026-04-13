@@ -391,9 +391,9 @@ Kernel2D trace = [&](ImageFloat image, Accel accel) noexcept {
     Var coord = dispatch_id().xy();
     
     Ray ray = ...;
-    Var<hit> hit = accel.intersect(ray, {});
+    Var<SurfaceHit> hit = accel.intersect(ray, {});
     
-    $if (hit->hit()) {
+    $if (!hit->miss()) {
         // Process hit
     };
 };
@@ -557,6 +557,237 @@ stream << buf.write(data)            // Write to buf
        << buf.copy_to(result)        // Read buf - waits for kernel
        << synchronize();
 ```
+
+## Shaders
+
+Shaders are compiled kernels ready for dispatch on the device. The `Shader<N, Args...>` type captures both the dimensionality (1D/2D/3D) and the argument types at compile time.
+
+### Compiling Kernels
+
+```cpp
+// Define a kernel
+Kernel2D my_kernel = [&](ImageFloat image, Float time) noexcept {
+    Var coord = dispatch_id().xy();
+    // ...
+};
+
+// Compile into a shader
+auto shader = device.compile(my_kernel);
+```
+
+> **Note:** Compilation blocks the calling thread. For large kernels this can take a significant amount of time. You may compile multiple kernels concurrently using thread pools.
+
+### Shader Options
+
+```cpp
+ShaderOption option{
+    .enable_cache = true,         // Cache compiled shader on disk
+    .enable_fast_math = true,     // Allow fast math optimizations
+    .enable_debug_info = false,   // Include debug symbols
+    .name = "my_shader"           // Name for profiling/debugging
+};
+
+auto shader = device.compile(my_kernel, option);
+```
+
+### Dispatching Shaders
+
+Invoke `operator()` with arguments, then call `.dispatch()` with the grid size:
+
+```cpp
+// 1D dispatch
+Shader1D<Buffer<float>, float> s1d = device.compile(kernel1d);
+stream << s1d(buffer, 3.14f).dispatch(1024);
+
+// 2D dispatch
+Shader2D<Image<float>> s2d = device.compile(kernel2d);
+stream << s2d(image).dispatch(width, height);
+// or with uint2:
+stream << s2d(image).dispatch(make_uint2(width, height));
+
+// 3D dispatch
+Shader3D<Volume<float>> s3d = device.compile(kernel3d);
+stream << s3d(volume).dispatch(64, 64, 64);
+```
+
+### Indirect Dispatch
+
+Dispatch sizes can be determined on the GPU via `IndirectDispatchBuffer`:
+
+```cpp
+// Create indirect dispatch buffer (capacity = max dispatches)
+auto indirect = device.create_indirect_dispatch_buffer(16);
+
+// A kernel writes dispatch parameters to the buffer
+Kernel1D prepare = [&](IndirectDispatchBuffer buf) noexcept {
+    // Set dispatch 0 to (256, 256, 1)
+    buf->set_dispatch_count(1u);
+    buf->set_kernel(dispatch_id().x, make_uint3(256u, 256u, 1u));
+};
+
+// Dispatch using indirect buffer
+stream << prepare_shader(indirect).dispatch(1)
+       << compute_shader(args...).dispatch(indirect);
+```
+
+### Shader Caching
+
+Most backends cache compiled shaders at `<build-folder>/bin/.cache`. On subsequent runs, compilation is skipped if the kernel hasn't changed. You can control caching via `ShaderOption::enable_cache`.
+
+### Shader Aliases
+
+```cpp
+template<typename... Args>
+using Shader1D = Shader<1, Args...>;
+
+template<typename... Args>
+using Shader2D = Shader<2, Args...>;
+
+template<typename... Args>
+using Shader3D = Shader<3, Args...>;
+```
+
+## Swapchain
+
+A `Swapchain` represents a presentable surface (window) for displaying rendered images.
+
+### Creating a Swapchain
+
+```cpp
+auto swapchain = device.create_swapchain(
+    stream,
+    SwapchainOption{
+        .display = window_native_display_handle,
+        .window = window_native_handle,
+        .size = make_uint2(width, height),
+        .wants_hdr = false,
+        .wants_vsync = true,
+        .back_buffer_count = 2
+    }
+);
+```
+
+### Presenting Frames
+
+Use the `.present()` method to display an image to the window:
+
+```cpp
+Image<float> framebuffer = device.create_image<float>(
+    PixelStorage::BYTE4, width, height);
+
+// Render loop
+while (running) {
+    stream << render_shader(framebuffer).dispatch(width, height)
+           << swapchain.present(framebuffer);
+}
+```
+
+### Querying Backend Storage
+
+```cpp
+// Get the pixel format the swapchain uses internally
+PixelStorage storage = swapchain.backend_storage();
+```
+
+## Sampler
+
+`Sampler` configures how textures are filtered and addressed when sampled in shaders. Samplers are used with bindless arrays to bind images/volumes with specific sampling behavior.
+
+### Filter Modes
+
+| Filter | Description |
+|--------|-------------|
+| `POINT` | Nearest-neighbor (no interpolation) |
+| `LINEAR_POINT` | Bilinear filtering, point mipmap selection |
+| `LINEAR_LINEAR` | Bilinear filtering, linear mipmap interpolation (trilinear) |
+| `ANISOTROPIC` | Anisotropic filtering (highest quality) |
+
+### Address Modes
+
+| Address | Description |
+|---------|-------------|
+| `EDGE` | Clamp to edge pixels |
+| `REPEAT` | Tile/wrap around |
+| `MIRROR` | Mirror at boundaries |
+| `ZERO` | Return zero outside [0, 1] |
+
+### Construction
+
+Samplers are lightweight value types. Use the constructor or convenience factory methods:
+
+```cpp
+// Constructor
+Sampler s{Sampler::Filter::LINEAR_LINEAR, Sampler::Address::REPEAT};
+
+// Factory methods (filter_address pattern)
+auto s1 = Sampler::point_edge();
+auto s2 = Sampler::linear_point_repeat();
+auto s3 = Sampler::linear_linear_mirror();
+auto s4 = Sampler::anisotropic_repeat();
+```
+
+All 16 combinations of 4 filters × 4 address modes have dedicated factory methods following the `filter_address()` naming pattern.
+
+## Depth Buffer
+
+`DepthBuffer` provides a depth/stencil buffer for rasterization.
+
+```cpp
+// Create depth buffer
+auto depth = device.create_depth_buffer(DepthFormat::D32, make_uint2(width, height));
+
+// Clear to a specific depth value
+stream << depth.clear(1.0f);
+
+// Query properties
+uint2 size = depth.size();
+DepthFormat fmt = depth.format();
+
+// Convert to ImageView for reading in compute shaders
+// (writing to this image in compute kernels is illegal)
+ImageView<float> depth_img = depth.to_img();
+```
+
+### Depth Formats
+
+| Format | Description |
+|--------|-------------|
+| `D16` | 16-bit depth |
+| `D24S8` | 24-bit depth + 8-bit stencil |
+| `D32` | 32-bit float depth |
+
+## Raster Pipeline
+
+LuisaCompute provides an experimental rasterization pipeline for rendering triangle meshes with programmable vertex and pixel shaders. The raster pipeline requires a **graphics stream** (`StreamTag::GRAPHICS`).
+
+### Overview
+
+The raster pipeline consists of:
+- **`RasterShader<Args...>`** — Compiled vertex + pixel shader pair
+- **`DepthBuffer`** — Depth/stencil attachment
+- **`RasterState`** — Pipeline state (cull mode, fill mode, blend, etc.)
+- **`MeshFormat`** — Vertex attribute layout description
+- **`Viewport`** — Render target region
+
+### Basic Raster Usage
+
+```cpp
+// Create a graphics stream
+Stream graphics = device.create_stream(StreamTag::GRAPHICS);
+
+// Create render targets
+Image<float> color = device.create_image<float>(PixelStorage::BYTE4, width, height);
+auto depth = device.create_depth_buffer(DepthFormat::D32, make_uint2(width, height));
+
+// Compile a raster shader (vertex + pixel)
+auto raster = device.compile_raster_shader(vertex_kernel, pixel_kernel, option);
+
+// Draw
+graphics << raster(args...)
+    .draw(scene_meshes, mesh_format, viewport, raster_state, &depth, color);
+```
+
+> **Note:** The raster pipeline is not available on all backends. Check your backend's documentation for support status.
 
 ## Best Practices
 

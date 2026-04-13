@@ -136,14 +136,13 @@ int main(int argc, char *argv[]) {
     
     // Step 5: Define a callable (reusable function)
     Callable linear_to_srgb = [](Float4 linear) noexcept {
-        Float3 rgb = linear.xyz();
-        // Apply gamma correction
-        $if (rgb <= 0.00031308f) {
-            rgb = 12.92f * rgb;
-        } $else {
-            rgb = 1.055f * pow(rgb, 1.0f / 2.4f) - 0.055f;
-        };
-        return make_float4(rgb, linear.w);
+        auto x = linear.xyz();
+        // Apply gamma correction using component-wise select
+        return make_float4(
+            select(1.055f * pow(x, 1.0f / 2.4f) - 0.055f,
+                   12.92f * x,
+                   x <= 0.00031308f),
+            linear.w);
     };
     
     // Step 6: Define a 2D kernel (entry point for GPU execution)
@@ -331,6 +330,319 @@ Kernel2D render_kernel = [&](ImageFloat image, BufferFloat4 colors) noexcept {
 auto shader = device.compile(render_kernel);
 stream << shader(image, colors).dispatch(1024, 1024);
 ```
+
+## Python Frontend
+
+LuisaCompute also provides a Python frontend that exposes the same GPU computing capabilities with Pythonic syntax. The Python frontend uses the `@func` decorator (analogous to C++ `Kernel`/`Callable`) to define device-side functions and traces them into the same IR as the C++ DSL.
+
+### Installation
+
+Install the pre-built package from PyPI (Python 3.10+ required):
+
+```bash
+python -m pip install luisa-python
+```
+
+Or build from source:
+
+```bash
+python -m pip wheel <path-to-LuisaCompute> -w <output-dir>
+```
+
+### Hello World in Python
+
+The following program fills an image with a gradient color — the same task as the C++ example above:
+
+```python
+from luisa import *
+from luisa.types import *
+
+# Initialize the runtime (auto-selects the best available backend)
+init()
+
+# Create a 1024x1024 image with 4-channel 8-bit storage
+res = 1024, 1024
+img = Image2D(*res, 4, float, storage="BYTE")
+
+# Define a kernel using the @func decorator
+@func
+def fill():
+    coord = dispatch_id().xy
+    size = dispatch_size().xy
+    uv = (float2(coord) + 0.5) / float2(size)
+    img.write(coord, float4(uv, 0.5, 1.0))
+
+# Dispatch the kernel and save the result
+fill(dispatch_size=(*res, 1))
+img.to_image("gradient.png")
+```
+
+To specify a particular backend, pass its name to `init()`:
+
+```python
+init(backend_name="cuda")   # NVIDIA GPU
+init(backend_name="dx")     # DirectX (Windows)
+init(backend_name="metal")  # Metal (macOS)
+init(backend_name="cpu")    # CPU fallback
+```
+
+You can also set the `LUISA_BACKEND` environment variable to select the backend without modifying code.
+
+### Key Differences from C++
+
+The Python frontend mirrors the C++ DSL but follows Python idioms:
+
+| Concept | C++ | Python |
+|---------|-----|--------|
+| Kernel definition | `Kernel2D k = [&](...) { ... };` | `@func` decorator |
+| Variable declaration | `Float x = 1.0f;` | `x = 1.0` (traced automatically) |
+| Vector construction | `make_float2(1.0f, 2.0f)` | `float2(1.0, 2.0)` |
+| Swizzling | `v.xy()` | `v.xy` (property, no parentheses) |
+| Control flow | `$if`, `$while`, `$for` | `if`, `while`, `for` (Python native) |
+| Device init | `Context ctx{argv[0]}; Device d = ctx.create_device("cuda");` | `init()` |
+| Dispatch | `stream << shader(args).dispatch(w, h);` | `kernel(dispatch_size=(w, h, 1))` |
+| Synchronization | `stream << synchronize();` | `synchronize()` |
+| Resource capture | Captured by reference in lambda | Captured by closure automatically |
+
+> **Note**: In the Python frontend, structures and arrays are passed by **reference** to `@func`, while scalar, vector, and matrix types are passed by **value**. This follows Python's convention where mutable objects are reference types.
+
+### Buffers and Data Transfer
+
+Use `Buffer` for linear device memory. Data transfers use NumPy arrays:
+
+```python
+import numpy as np
+from luisa import *
+from luisa.types import *
+
+init()
+
+# Create a buffer of 1024 float values
+buf = Buffer(1024, float)
+
+# Upload data from a NumPy array
+host_data = np.arange(1024, dtype=np.float32)
+buf.copy_from(host_data)
+
+# Run a kernel that modifies the buffer
+@func
+def double_values():
+    i = dispatch_id().x
+    val = buf.read(i)
+    buf.write(i, val * 2.0)
+
+double_values(dispatch_size=1024)
+
+# Download results back to the host
+result = np.zeros(1024, dtype=np.float32)
+buf.copy_to(result)
+synchronize()
+```
+
+### Custom Structures
+
+Define custom data structures with `StructType`:
+
+```python
+from luisa import *
+from luisa.types import *
+
+init()
+
+# Define a struct type with named fields
+Particle = StructType(position=float3, velocity=float3, mass=float)
+
+# Create a buffer of structs
+particles = Buffer(256, Particle)
+
+@func
+def update_particles(dt: float):
+    i = dispatch_id().x
+    p = particles.read(i)
+    p.position = p.position + p.velocity * dt
+    particles.write(i, p)
+
+update_particles(0.016, dispatch_size=256)
+```
+
+### Images and the GUI Window
+
+The Python frontend provides `Image2D` for texture operations and a built-in `GUI` for real-time display:
+
+```python
+from luisa import *
+from luisa.types import *
+
+init()
+
+res = 512, 512
+display = Image2D(*res, 4, float, storage="BYTE")
+
+@func
+def render(time: float):
+    coord = dispatch_id().xy
+    size = dispatch_size().xy
+    uv = (float2(coord) + 0.5) / float2(size)
+    # Animated color pattern
+    r = sin(uv.x * 6.28 + time) * 0.5 + 0.5
+    g = sin(uv.y * 6.28 + time * 1.3) * 0.5 + 0.5
+    display.write(coord, float4(r, g, 0.5, 1.0))
+
+gui = GUI("My Window", res)
+t = 0.0
+while gui.running():
+    render(t, dispatch_size=(*res, 1))
+    gui.set_image(display)
+    dt = gui.show()
+    t += dt / 1000.0
+synchronize()
+```
+
+### Automatic Differentiation
+
+The Python frontend supports reverse-mode automatic differentiation using the `autodiff` context manager:
+
+```python
+from luisa import *
+from luisa.autodiff import *
+from luisa.types import *
+import numpy as np
+
+init()
+
+N = 1024
+x_buf = Buffer(N, float)
+dx_buf = Buffer(N, float)
+
+x_values = np.arange(N, dtype=np.float32)
+x_buf.copy_from(x_values)
+
+@func
+def compute_grad():
+    i = dispatch_id().x
+    x = x_buf.read(i)
+    with autodiff():
+        requires_grad(x)
+        y = x * x + sin(x)  # f(x) = x² + sin(x)
+        backward(y)          # compute dy/dx
+        dx = grad(x)         # retrieve gradient
+    dx_buf.write(i, dx)
+
+compute_grad(dispatch_size=N)
+
+result = np.zeros(N, dtype=np.float32)
+dx_buf.copy_to(result)
+synchronize()
+# result[i] ≈ 2*x[i] + cos(x[i])
+```
+
+### Ray Tracing
+
+The Python frontend supports hardware-accelerated ray tracing via `Accel`:
+
+```python
+from luisa import *
+from luisa.builtin import *
+from luisa.types import *
+import numpy as np
+
+init()
+
+res = 512, 512
+image = Image2D(*res, 4, float, storage="BYTE")
+
+# Create geometry
+vertex_buffer = Buffer(3, float3)
+index_buffer = Buffer(3, int)
+vertex_buffer.copy_from([
+    float3(-0.5, -0.5, -2.0),
+    float3( 0.5, -0.5, -1.5),
+    float3( 0.0,  0.5, -1.0),
+])
+index_buffer.copy_from(np.array([0, 1, 2], dtype=np.int32))
+
+# Build acceleration structure
+accel = Accel()
+accel.add(vertex_buffer, index_buffer)
+accel.update()
+
+@func
+def raytrace(image, accel):
+    coord = dispatch_id().xy
+    p = (float2(coord) + 0.5) / float2(dispatch_size().xy) * 2.0 - 1.0
+    ray = make_ray(
+        float3(p * float2(1.0, -1.0), 0.0),  # origin
+        float3(0.0, 0.0, -1.0),               # direction
+        0.0, 1000.0)                           # t_min, t_max
+    hit = accel.trace_closest(ray, -1)
+    color = float3(0.3, 0.5, 0.7)  # sky
+    if hit.hitted():
+        color = hit.interpolate(
+            float3(1, 0, 0),  # vertex 0 color
+            float3(0, 1, 0),  # vertex 1 color
+            float3(0, 0, 1))  # vertex 2 color
+    image.write(coord, float4(color, 1.0))
+
+raytrace(image, accel, dispatch_size=(*res, 1))
+image.to_image("raytrace.png")
+```
+
+### Shared Memory and Block Synchronization
+
+The Python frontend supports shared (threadgroup) memory via `SharedArrayType` and block synchronization via `sync_block()`:
+
+```python
+from luisa import *
+from luisa.builtin import *
+from luisa.types import *
+
+init()
+
+block_size = 256
+SharedArray = SharedArrayType(float, block_size)
+
+buf = Buffer(1024, float)
+
+@func
+def reduce_kernel():
+    set_block_size(block_size, 1, 1)
+    shared = SharedArray()
+    tid = thread_id().x
+    gid = dispatch_id().x
+    shared[tid] = buf.read(gid)
+    sync_block()
+    # Parallel reduction within the block
+    s = block_size // 2
+    while s > 0:
+        if tid < s:
+            shared[tid] = shared[tid] + shared[tid + s]
+        sync_block()
+        s = s // 2
+    if tid == 0:
+        buf.write(block_id().x, shared[0])
+
+reduce_kernel(dispatch_size=1024)
+```
+
+### Python Example Programs
+
+Many more examples are available in `src/tests/python/`:
+
+| File | Description |
+|------|-------------|
+| `test-helloworld.py` | Gradient image (minimal example) |
+| `test-buffer.py` | Buffer read/write with custom structs |
+| `test-texture.py` | Image loading, flipping, and GUI display |
+| `test-rtx.py` | Real-time ray tracing with animated geometry |
+| `test-game-of-life.py` | Conway's Game of Life simulation |
+| `test-autodiff.py` | Reverse-mode automatic differentiation |
+| `test-path-tracing.py` | Full path tracer with multiple bounces |
+| `test-sdf-renderer.py` | Signed distance field renderer |
+| `test-shadertoy.py` | ShaderToy-style procedural rendering |
+| `test-mpm.py` | Material Point Method simulation |
+| `test-indirect.py` | GPU-driven indirect dispatch |
+| `test-pytorch-interop.py` | Interoperability with PyTorch tensors |
+| `test-bindless.py` | Bindless resource arrays |
 
 ## Next Steps
 
