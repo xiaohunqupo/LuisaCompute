@@ -43,6 +43,7 @@ int main(int argc, char *argv[]) {
             force_offline = true;
         } else if (std::string_view{argv[i]} == "--update-reference") {
             update_reference = true;
+            force_offline = true;
         }
     }
 
@@ -137,7 +138,7 @@ int main(int argc, char *argv[]) {
         seed_image.write(p, make_uint4(state));
     };
 
-    Lambda make_onb = [](const Float3 &normal) noexcept {
+    auto make_onb = [](const Float3 &normal) noexcept {
         Float3 binormal = normalize(ite(
             abs(normal.x) > abs(normal.z),
             make_float3(-normal.y, normal.x, 0.0f),
@@ -222,19 +223,19 @@ int main(int argc, char *argv[]) {
                 };
 
                 // sample light
-                luisa::optional<Float3> pp;
-                luisa::optional<Float3> albedo;
+                Float3 pp = def(make_float3(0.0f));
+                Float3 albedo = def(make_float3(0.0f));
                 $lambda({
                     Float ux_light = lcg();
                     Float uy_light = lcg();
                     Float3 p_light = light_position + ux_light * light_u + uy_light * light_v;
                     Float3 pp_light = offset_ray_origin(p_light, light_normal);
-                    pp.emplace(offset_ray_origin(p, n));
-                    albedo.emplace(materials.read(hit.inst));
-                    Float d_light = distance(*pp, pp_light);
-                    Float3 wi_light = normalize(pp_light - *pp);
+                    pp = offset_ray_origin(p, n);
+                    albedo = materials.read(hit.inst);
+                    Float d_light = distance(pp, pp_light);
+                    Float3 wi_light = normalize(pp_light - pp);
                     $lambda({
-                        Var<Ray> shadow_ray = make_ray(offset_ray_origin(*pp, n), wi_light, 0.f, d_light);
+                        Var<Ray> shadow_ray = make_ray(offset_ray_origin(pp, n), wi_light, 0.f, d_light);
                         Bool occluded = accel.intersect_any(shadow_ray, {});
                         Float cos_wi_light = dot(wi_light, n);
                         Float cos_light = -dot(light_normal, wi_light);
@@ -242,7 +243,7 @@ int main(int argc, char *argv[]) {
                             Float pdf_light = (d_light * d_light) / (light_area * cos_light);
                             Float pdf_bsdf = cos_wi_light * inv_pi;
                             Float mis_weight = balanced_heuristic(pdf_light, pdf_bsdf);
-                            Float3 bsdf = *albedo * inv_pi * cos_wi_light;
+                            Float3 bsdf = albedo * inv_pi * cos_wi_light;
                             radiance += beta * bsdf * mis_weight * light_emission / max(pdf_light, 1e-4f);
                         };
                     })();
@@ -254,9 +255,9 @@ int main(int argc, char *argv[]) {
                     Float3 wi_local = cosine_sample_hemisphere(make_float2(u.x, u.y));
                     Float cos_wi = abs(wi_local.z);
                     Float3 new_direction = onb.to_world(wi_local);
-                    ray = make_ray(*pp, new_direction);
+                    ray = make_ray(pp, new_direction);
                     pdf_bsdf = cos_wi * inv_pi;
-                    beta *= *albedo;// * cos_wi * inv_pi / pdf_bsdf => * 1.f
+                    beta *= albedo;// * cos_wi * inv_pi / pdf_bsdf => * 1.f
                 });
 
                 $lambda({
@@ -300,13 +301,10 @@ int main(int argc, char *argv[]) {
         image.write(dispatch_id().xy(), make_float4(0.0f));
     };
 
-    Kernel2D hdr2ldr_kernel = [&](ImageFloat hdr_image, ImageFloat ldr_image, Float scale, Bool is_hdr) noexcept {
+    Kernel2D hdr2ldr_kernel = [&](ImageFloat hdr_image, ImageFloat ldr_image, Float scale) noexcept {
         UInt2 coord = dispatch_id().xy();
         Float4 hdr = hdr_image.read(coord);
-        Float3 ldr = hdr.xyz() / hdr.w * scale;
-        $if (!is_hdr) {
-            ldr = linear_to_srgb(ldr);
-        };
+        Float3 ldr = linear_to_srgb(clamp(hdr.xyz() / hdr.w * scale, 0.f, 1.f));
         ldr_image.write(coord, make_float4(ldr, 1.0f));
     };
 
@@ -360,7 +358,7 @@ int main(int argc, char *argv[]) {
                  << accumulate_shader(accum_image, framebuffer)
                         .dispatch(resolution);
         if (!force_offline && swap_chain.has_value()) {
-            cmd_list << hdr2ldr_shader(accum_image, ldr_image, 1.0f, swap_chain->backend_storage() != PixelStorage::BYTE4).dispatch(resolution);
+            cmd_list << hdr2ldr_shader(accum_image, ldr_image, 2.f).dispatch(resolution);
             stream << cmd_list.commit()
                    << swap_chain->present(ldr_image) << synchronize();
             window->poll_events();
@@ -373,7 +371,7 @@ int main(int argc, char *argv[]) {
         LUISA_INFO("spp: {}, time: {} ms, spp/s: {}",
                    frame_count, dt, spp_per_dispatch / dt * 1000);
     }
-    stream << hdr2ldr_shader(accum_image, ldr_image, 1.0f, false).dispatch(resolution)
+    stream << hdr2ldr_shader(accum_image, ldr_image, 2.f).dispatch(resolution)
            << ldr_image.copy_to(host_image.data())
            << synchronize();
 

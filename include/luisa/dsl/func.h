@@ -679,6 +679,12 @@ public:
                 if (!_comment.empty()) { detail::comment(_comment); }
                 _f(std::forward<Args>(args)...);
             });
+        } else if constexpr (is_dsl_v<Ret>) {
+            auto callable = Callable{[&]() noexcept {
+                if (!_comment.empty()) { detail::comment(_comment); }
+                return _f(std::forward<Args>(args)...);
+            }};
+            return callable();
         } else {
             luisa::optional<Ret> ret;
             outline([&] {

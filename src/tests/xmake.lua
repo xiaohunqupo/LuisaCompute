@@ -82,6 +82,7 @@ test_proj("test_soa", "unit/dsl/test_soa.cpp")
 test_proj("test_soa_subview", "unit/dsl/test_soa_subview.cpp")
 test_proj("test_soa_simple", "unit/dsl/test_soa_simple.cpp")
 test_proj("test_device_math", "unit/dsl/test_device_math.cpp")
+test_proj("test_nested_callable", "unit/dsl/test_nested_callable.cpp")
 
 -- unit/runtime
 test_proj("test_atomic", "unit/runtime/test_atomic.cpp")

@@ -81,6 +81,7 @@ luisa_compute_add_test(test_soa                    unit/dsl/test_soa.cpp)
 luisa_compute_add_test(test_soa_subview            unit/dsl/test_soa_subview.cpp)
 luisa_compute_add_test(test_soa_simple             unit/dsl/test_soa_simple.cpp)
 luisa_compute_add_test(test_device_math            unit/dsl/test_device_math.cpp)
+luisa_compute_add_test(test_nested_callable         unit/dsl/test_nested_callable.cpp)
 luisa_compute_add_test(test_normal_encoding        unit/dsl/test_normal_encoding.cpp)
 
 # --- unit/dsl: shared test_main tests ---
