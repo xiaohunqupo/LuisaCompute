@@ -5,7 +5,8 @@
  * @brief test shared memory
 */
 
-#include "config.h"
+#include "ut/ut.hpp"
+#include "test_device.h"
 
 #include <luisa/runtime/device.h>
 #include <luisa/runtime/context.h>
@@ -15,8 +16,10 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
-namespace luisa::test {
+namespace {
 
 int test_shared_mem(Device &device) {
     uint block_size = 32u;
@@ -47,6 +50,16 @@ int test_shared_mem(Device &device) {
     return 0;
 }
 
-}// namespace luisa::test
+}// namespace
 
-LUISA_TEST_CASE_WITH_DEVICE("shared_memory", luisa::test::test_shared_mem(device) == 0);
+static inline const auto _luisa_reg_shared_memory = [] {
+    "shared_memory"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) { return; }
+        auto &device = dc->device;
+        boost::ut::expect(test_shared_mem(device) == 0);
+    };
+    return 0;
+}();
+
+int main() {}

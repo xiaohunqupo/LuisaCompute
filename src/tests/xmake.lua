@@ -1,31 +1,5 @@
 local lc_enable_gui = has_config("lc_enable_gui")
 
-target("test_main")
-    _config_project({project_kind = "binary"})
-    add_deps("lc-backends-dummy", {inherit = false, links = false})
-    lc_set_pcxxheader("lc_test_pch.h")
-    add_files("test_main.cpp")
-    add_files("test_math_util.cpp")
-    add_includedirs("./", {public = true})
-    add_deps("lc-runtime", "lc-dsl", "lc-vstl", "stb-image")
-    add_files("unit/ast/test_ast_basic.cpp")
-    add_files("unit/dsl/test_calc.cpp")
-    add_files("unit/dsl/test_matrix.cpp")
-    add_files("unit/dsl/test_var.cpp")
-    add_files("unit/runtime/test_buffer_io.cpp")
-    add_files("unit/runtime/test_buffer.cpp")
-    add_files("unit/runtime/test_buffer_view.cpp")
-    add_files("unit/runtime/test_device.cpp")
-    add_files("unit/runtime/test_external_buffer.cpp")
-    add_files("unit/runtime/test_gemm.cpp")
-    add_files("unit/runtime/test_shared_mem.cpp")
-    if has_config("lc_cuda_backend") then
-        if has_config("lc_cuda_ext_lcub") then
-            add_deps("lc-compute-cuda-ext-lcub")
-        end
-    end
-target_end()
-
 local function test_proj(name, source, gui_dep, callable, kind)
     if gui_dep and not lc_enable_gui then
         return
@@ -65,6 +39,7 @@ test_proj("test_normal_encoding", "unit/dsl/test_normal_encoding.cpp", true)
 
 -- unit/ast
 test_proj("test_ast", "unit/ast/test_ast.cpp")
+test_proj("test_ast_basic", "unit/ast/test_ast_basic.cpp")
 test_proj("test_builtin_kernel", "unit/ast/test_builtin_kernel.cpp", false, function()
     add_includedirs("$(projectdir)/src/runtime")
 end)
@@ -83,6 +58,9 @@ test_proj("test_soa_subview", "unit/dsl/test_soa_subview.cpp")
 test_proj("test_soa_simple", "unit/dsl/test_soa_simple.cpp")
 test_proj("test_device_math", "unit/dsl/test_device_math.cpp")
 test_proj("test_nested_callable", "unit/dsl/test_nested_callable.cpp")
+test_proj("test_calc", "unit/dsl/test_calc.cpp")
+test_proj("test_dsl_matrix", "unit/dsl/test_matrix.cpp")
+test_proj("test_var", "unit/dsl/test_var.cpp")
 
 -- unit/runtime
 test_proj("test_atomic", "unit/runtime/test_atomic.cpp")
@@ -106,6 +84,13 @@ test_proj("test_texture_compress", "unit/runtime/test_texture_compress.cpp")
 test_proj("test_texture_io", "unit/runtime/test_texture_io.cpp")
 test_proj("test_warp", "unit/runtime/test_warp.cpp")
 test_proj("test_warp_prefix_scan", "unit/runtime/test_warp_prefix_scan.cpp")
+test_proj("test_buffer_io", "unit/runtime/test_buffer_io.cpp")
+test_proj("test_buffer", "unit/runtime/test_buffer.cpp")
+test_proj("test_buffer_view", "unit/runtime/test_buffer_view.cpp")
+test_proj("test_device_test", "unit/runtime/test_device.cpp")
+test_proj("test_external_buffer", "unit/runtime/test_external_buffer.cpp")
+test_proj("test_gemm", "unit/runtime/test_gemm.cpp")
+test_proj("test_shared_mem", "unit/runtime/test_shared_mem.cpp")
 
 -- unit/xir
 if has_config("lc_enable_xir") then

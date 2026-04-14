@@ -1,3 +1,5 @@
+#include "ut/ut.hpp"
+#include "test_device.h"
 #include <luisa/core/logging.h>
 #include <luisa/runtime/context.h>
 #include <luisa/runtime/stream.h>
@@ -8,6 +10,8 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
 struct Arguments {
     Image<float> image;
@@ -43,18 +47,10 @@ LUISA_BINDING_GROUP(NestedArguments, args, image) {
     }
 };
 
-int main(int argc, char *argv[]) {
+void test_binding_group(Device &device) {
 
     log_level_verbose();
 
-    Context context{argv[0]};
-
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-
-    auto device = context.create_device(argv[1]);
     auto stream = device.create_stream();
 
     Callable color = [](UInt2 coord, Var<Arguments> args) noexcept {
@@ -124,3 +120,15 @@ int main(int argc, char *argv[]) {
                    args.resolution.x, args.resolution.y, 4,
                    host_image.data(), 0);
 }
+
+static inline const auto reg = [] {
+    "dsl_binding_group"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) { return; }
+        auto &device = dc->device;
+        test_binding_group(device);
+    };
+    return 0;
+}();
+
+int main() {}

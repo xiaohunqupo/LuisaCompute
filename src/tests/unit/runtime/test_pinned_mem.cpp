@@ -1,3 +1,5 @@
+#include "ut/ut.hpp"
+#include "test_device.h"
 #include <luisa/runtime/context.h>
 #include <luisa/runtime/device.h>
 #include <luisa/runtime/stream.h>
@@ -6,12 +8,11 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
-int main(int argc, char *argv[]) {
-    Context context{argv[0]};
-    if (argc <= 1) { exit(1); }
+void test_pinned_mem(Device &device) {
     constexpr uint buffer_size = 32;
-    Device device = context.create_device(argv[1]);
     Stream stream = device.create_stream();
     auto ext = device.extension<PinnedMemoryExt>();
     // These buffer map memory in host, can directly copy data from host to device, or copy data from device to host.
@@ -41,9 +42,21 @@ int main(int argc, char *argv[]) {
         << synchronize();
     memcpy(data.data(), readback_buffer.native_handle(), luisa::size_bytes(data));
     luisa::string result;
-    for(auto & i : data){
+    for (auto &i : data) {
         result += std::to_string(i);
         result += " ";
     }
     LUISA_INFO("Result: {}", result);
 }
+
+static inline const auto reg = [] {
+    "pinned_mem"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_pinned_mem(device);
+    };
+    return 0;
+}();
+
+int main() {}

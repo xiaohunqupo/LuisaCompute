@@ -1,3 +1,5 @@
+#include "ut/ut.hpp"
+#include "test_device.h"
 // Test for matrix multiplication using the Tensor interface.
 // This test demonstrates the high-level Tensor API for performing
 // general matrix multiplication (GEMM) with fused ReLU activation.
@@ -16,19 +18,18 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
-int main(int argc, char *argv[]) {
+void test_tensor(Device &device) {
     // Create tensor builder for defining the computation graph
     TensorBuilder builder;
-    
-    // Initialize the compute context and create a DirectX device
-    auto ctx = Context(argv[0]);
-    auto device = ctx.create_device("dx");
+
     auto stream = device.create_stream();
-    
+
     // Create fallback tensor interface backend for executing tensor operations
     auto interface = TensorInterface::create_fallback_backend(device);
-    
+
     // Define first 4x4 matrix (column-major order)
     // Layout: [col0_row0, col0_row1, col0_row2, col0_row3, col1_row0, ...]
     float4x4 sb = make_float4x4(
@@ -36,17 +37,17 @@ int main(int argc, char *argv[]) {
         5, 6, 7, 8,
         9, 10, 11, 12,
         13, 14, 15, 16);
-    
+
     // Define second 4x4 matrix for multiplication
     float4x4 sb1 = make_float4x4(
         10, 20, 30, 40,
         50, 60, 70, 80,
         1, 2, 3, 4,
         1, 2, 3, 4);
-    
+
     // Build command list for GPU operations
     CommandList cmdlist;
-    
+
     // Create GPU buffers and upload matrix data
     auto b0 = device.create_buffer<float>(16);
     auto b1 = device.create_buffer<float>(16);
@@ -74,7 +75,19 @@ int main(int argc, char *argv[]) {
     auto bout = outs[0];
     cmdlist << bout.copy_to(&result);
     stream << cmdlist.commit() << synchronize();
-    
+
     // Log the resulting matrix
     LUISA_INFO("{}", result);
 }
+
+static inline const auto reg = [] {
+    "tensor"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_tensor(device);
+    };
+    return 0;
+}();
+
+int main() {}

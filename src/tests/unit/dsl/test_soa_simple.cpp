@@ -1,19 +1,15 @@
 #include <random>
 #include <luisa/luisa-compute.h>
+#include "ut/ut.hpp"
+#include "test_device.h"
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
-int main(int argc, char *argv[]) {
-
+int test_soa_simple(Device &device) {
     luisa::log_level_verbose();
-
-    auto context = Context{argv[0]};
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-    auto device = context.create_device(argv[1]);
     auto soa = device.create_soa<float3>(1024u);
 
     auto rand = [](auto &engine) noexcept {
@@ -59,4 +55,18 @@ int main(int argc, char *argv[]) {
     } else {
         LUISA_INFO("SOA upload/download test passed.");
     }
+
+    return 0;
 }
+
+static inline const auto reg = [] {
+    "soa_simple"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_soa_simple(device);
+    };
+    return 0;
+}();
+
+int main() {}

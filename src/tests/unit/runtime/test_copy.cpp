@@ -1,3 +1,5 @@
+#include "ut/ut.hpp"
+#include "test_device.h"
 #include <random>
 #include <array>
 #include <numeric>
@@ -6,6 +8,8 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
 struct Test {
     int a;
@@ -63,9 +67,9 @@ void test_buffer(Device &device, size_t size, const Generate &g) noexcept {
            << buffer.copy_to(host_output.data())
            << synchronize();
     for (auto i = 0u; i < size; i++) {
-        LUISA_ASSERT(host_input[i] == host_output[i],
-                     "Element {} mismatch: {} != {}",
-                     i, host_input[i], host_output[i]);
+        boost::ut::expect(static_cast<bool>(host_input[i] == host_output[i]))
+            << luisa::format("Element {} mismatch: {} != {}",
+                             i, host_input[i], host_output[i]);
     }
 }
 
@@ -101,21 +105,13 @@ void test_texture(Device &device, PixelStorage storage, Size size, std::mt19937 
            << texture.copy_to(host_output.data())
            << synchronize();
     for (auto i = 0u; i < size_bytes; i++) {
-        LUISA_ASSERT(host_input[i] == host_output[i],
-                     "Element {} mismatch: {} != {}",
-                     i, host_input[i], host_output[i]);
+        boost::ut::expect(static_cast<bool>(host_input[i] == host_output[i]))
+            << luisa::format("Element {} mismatch: {} != {}",
+                             i, host_input[i], host_output[i]);
     }
 }
 
-int main(int argc, char *argv[]) {
-
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-
-    Context context{argv[0]};
-    Device device = context.create_device(argv[1]);
+void test_copy(Device &device) {
 
     std::array sizes{static_cast<size_t>(1u),
                      static_cast<size_t>(233u),
@@ -204,3 +200,15 @@ int main(int argc, char *argv[]) {
     test_texture<float>(device, PixelStorage::BC6, make_uint2(256u, 512u), rand);
     test_texture<float>(device, PixelStorage::BC7, make_uint2(256u, 512u), rand);
 }
+
+static inline const auto reg = [] {
+    "copy"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_copy(device);
+    };
+    return 0;
+}();
+
+int main() {}

@@ -1,3 +1,5 @@
+#include "ut/ut.hpp"
+#include "test_device.h"
 #include <stb/stb_image.h>
 #include <stb/stb_image_write.h>
 #include <stb/stb_image_resize2.h>
@@ -11,18 +13,12 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
-int main(int argc, char *argv[]) {
+void test_sampler(Device &device) {
 
     log_level_verbose();
-
-    Context context{argv[0]};
-
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-    Device device = context.create_device(argv[1]);
 
     Callable sample = [](BindlessVar heap, Float2 uv, Float mip) noexcept {
         return heap.tex2d(0u).sample(uv, mip);
@@ -32,7 +28,7 @@ int main(int argc, char *argv[]) {
         Var coord = dispatch_id().xy();
         Var uv = make_float2(coord) * 2.f / make_float2(dispatch_size().xy());
         Var r = length(uv - 0.5f);
-        Var t = log(sin(sqrt(r) * 100.0f - constants::pi_over_two) + 2.0f);
+        Var t = luisa::compute::log(sin(sqrt(r) * 100.0f - constants::pi_over_two) + 2.0f);
         image.write(coord, sample(heap, 2.0f * uv - make_float2(0.5f), t * 7.0f));
     };
 
@@ -81,3 +77,15 @@ int main(int argc, char *argv[]) {
 
     stbi_write_png("result.png", 1024u, 1024u, 4u, host_image.data(), 0u);
 }
+
+static inline const auto reg = [] {
+    "sampler"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_sampler(device);
+    };
+    return 0;
+}();
+
+int main() {}

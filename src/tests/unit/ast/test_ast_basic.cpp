@@ -5,7 +5,8 @@
  * @brief the calculation in ast shaders
 */
 
-#include "config.h"
+#include "ut/ut.hpp"
+#include "test_device.h"
 #include <luisa/runtime/device.h>
 #include <luisa/runtime/stream.h>
 #include <luisa/runtime/buffer.h>
@@ -13,7 +14,8 @@
 
 using namespace luisa;
 using namespace luisa::compute;
-namespace luisa::test {
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
 int test_ast(Device &device) {
     Stream stream = device.create_stream();
@@ -31,14 +33,23 @@ int test_ast(Device &device) {
 
     for (auto i = 0u; i < 10u; i++) {
         if (i == 1) {
-            boost::ut::expect(static_cast<bool>(v[i] == 42));
+            expect(static_cast<bool>(v[i] == 42));
         } else {
-            boost::ut::expect(static_cast<bool>(v[i] == 0));
+            expect(static_cast<bool>(v[i] == 0));
         }
     }
 
     return 0;
 }
-}// namespace luisa::test
 
-LUISA_TEST_CASE_WITH_DEVICE("ast_basic", luisa::test::test_ast(device) == 0);
+static inline const auto reg = [] {
+    "ast_basic"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) { return; }
+        auto &device = dc->device;
+        expect(test_ast(device) == 0);
+    };
+    return 0;
+}();
+
+int main() {}

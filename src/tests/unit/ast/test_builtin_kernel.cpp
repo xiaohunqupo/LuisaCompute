@@ -1,22 +1,20 @@
 #include <iostream>
 #include <vector>
+#include <exception>
 #include <luisa/luisa-compute.h>
+#include "ut/ut.hpp"
+#include "test_device.h"
 #include "builtin_kernel.h"
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
-int main(int argc, char *argv[]) {
+int test_builtin_kernel(Device &device) {
 
     log_level_verbose();
 
-    Context context{argv[0]};
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend> [--offline] [--spp N]. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-
-    Device device = context.create_device(argv[1]);
     Stream stream = device.create_stream();
 
     BuiltinKernel builtin{&device};
@@ -118,3 +116,22 @@ int main(int argc, char *argv[]) {
     std::cout << "\nAll tests passed!" << std::endl;
     return 0;
 }
+
+static inline const auto reg = [] {
+    "builtin_kernel"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        try {
+            test_builtin_kernel(device);
+            expect(true);
+        } catch (const std::exception &e) {
+            expect(false) << e.what();
+        } catch (...) {
+            expect(false) << "unknown exception";
+        }
+    };
+    return 0;
+}();
+
+int main() {}

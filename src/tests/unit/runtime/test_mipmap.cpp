@@ -1,3 +1,5 @@
+#include "ut/ut.hpp"
+#include "test_device.h"
 // Test for mipmap generation using compute shaders.
 //
 // This test implements parallel mipmap generation using the
@@ -26,30 +28,24 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
-int main(int argc, char *argv[]) {
-    // Initialize compute context
-    Context context{argv[0]};
-
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-    Device device = context.create_device(argv[1]);
+void test_mipmap(Device &device) {
     Stream stream = device.create_stream();
-    
+
     // Load input image
     auto image_width = 0;
     auto image_height = 0;
     auto image_channels = 0;
     auto image_pixels = stbi_load("logo.png", &image_width, &image_height, &image_channels, 4);
-    
+
     // Create texture with 6 mipmap levels
     auto texture = device.create_image<float>(PixelStorage::BYTE4, uint2(image_width, image_height), 6u);
-    
+
     // Block size for compute kernel
     constexpr uint32_t block_size = 32;
-    
+
     // Helper to write to specific mipmap level using switch
     auto WriteTex = [&](ImageVar<float> **levels, UInt2 pixel, Float4 value, UInt index) {
         switch_(index)
@@ -72,7 +68,7 @@ int main(int argc, char *argv[]) {
                 levels[5]->write(pixel, value);
             });
     };
-    
+
     // Mipmap generation kernel
     // Uses shared memory for efficient 2x2 averaging across multiple levels
     Kernel2D generate_mip_levels =
@@ -83,11 +79,11 @@ int main(int argc, char *argv[]) {
             ImageVar<float> level4,
             ImageVar<float> level5) {
             set_block_size(block_size, block_size, 1);
-            
+
             // Shared memory for hierarchical reduction
             // Stores intermediate results during 2x2 averaging
             Shared<float3> shared_array{block_size * block_size};
-            
+
             // Array of mipmap level views
             ImageVar<float> *levels[] = {
                 std::addressof(level0),
@@ -96,53 +92,53 @@ int main(int argc, char *argv[]) {
                 std::addressof(level3),
                 std::addressof(level4),
                 std::addressof(level5)};
-            
+
             Var block_coord = block_id().xy();
             Var local_coord = thread_id().xy();
             Var tex_size = dispatch_size().xy();
-            
+
             // Read source pixel with clamping to handle borders
             Var col = level0.read(clamp(dispatch_id().xy(), make_uint2(0u), tex_size - 1u)).xyz();
-            
+
             Var lefted_block = block_size;
             Var ite = 0u;
-            
+
             // Hierarchical reduction loop
             // Each iteration halves the resolution by averaging 2x2 blocks
-            $while(lefted_block > 0) {
+            $while (lefted_block > 0) {
                 Var next_block = lefted_block / 2;
-                
+
                 // Store current values to shared memory
-                $if(all(local_coord < make_uint2(lefted_block))) {
+                $if (all(local_coord < make_uint2(lefted_block))) {
                     shared_array[lefted_block * local_coord.y + local_coord.x] = col;
                 };
                 sync_block();
-                
+
                 // Average 2x2 blocks for next mipmap level
-                $if(all(local_coord < make_uint2(next_block))) {
+                $if (all(local_coord < make_uint2(next_block))) {
                     Var last_coord = local_coord * make_uint2(2);
                     // Box filter: average 4 neighboring pixels
                     col = shared_array[lefted_block * last_coord.y + last_coord.x] +
                           shared_array[lefted_block * (last_coord.y + 1) + last_coord.x] +
                           shared_array[lefted_block * last_coord.y + (last_coord.x + 1)] +
                           shared_array[lefted_block * (last_coord.y + 1) + (last_coord.x + 1)];
-                    col *= 0.25f;  // Divide by 4
-                    
+                    col *= 0.25f;// Divide by 4
+
                     ite += 1u;
                     Var level_coord = block_coord * next_block + local_coord;
-                    
+
                     // Write to appropriate mipmap level if within bounds
-                    $if(all(level_coord < tex_size)) {
+                    $if (all(level_coord < tex_size)) {
                         WriteTex(levels, level_coord, make_float4(col, 1.0f), ite);
                     };
                 };
-                
+
                 // Prepare for next iteration (half resolution)
                 lefted_block = next_block;
                 tex_size /= 2u;
             };
         };
-    
+
     // Compile and execute kernel
     auto shader = device.compile(generate_mip_levels);
     stream << texture.copy_from(image_pixels)
@@ -154,7 +150,7 @@ int main(int argc, char *argv[]) {
                   texture.view(4),
                   texture.view(5))
                   .dispatch(texture.size());
-    
+
     // Save generated mipmap levels
     for (int i = 1; i < 6; ++i) {
         auto view = texture.view(i);
@@ -164,5 +160,16 @@ int main(int argc, char *argv[]) {
         auto size = view.size();
         stbi_write_png(name.c_str(), size.x, size.y, 4, host_image.data(), 0);
     }
-    return 0;
 }
+
+static inline const auto reg = [] {
+    "mipmap"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_mipmap(device);
+    };
+    return 0;
+}();
+
+int main() {}

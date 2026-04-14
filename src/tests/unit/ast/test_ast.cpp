@@ -2,33 +2,47 @@
 // This test verifies the creation of buffer types with custom attributes.
 
 #include <luisa/luisa-compute.h>
+#include <exception>
+#include "ut/ut.hpp"
+#include "test_device.h"
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
-int main(int argc, char *argv[]) {
+int test_ast(Device &device) {
+    static_cast<void>(device);
     // Enable verbose logging for debugging
     luisa::log_level_verbose();
-    
-    // Initialize the compute context with the executable path
-    Context context{argv[0]};
-    
-    // Check if backend argument is provided
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-    
-    // Create a compute device with the specified backend
-    Device device = context.create_device(argv[1]);
-    
+
     // Create a list of custom attributes for the buffer type
     luisa::vector<Attribute> attris;
     attris.emplace_back("attr0", "attr1");
-    
+
     // Create a buffer type with float elements and custom attributes
     auto t = Type::buffer(Type::of<float>(), attris);
-    
+
     // Print the type description to verify attribute handling
     LUISA_INFO("{}", t->description());
+    return 0;
 }
+
+static inline const auto reg = [] {
+    "ast"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        try {
+            test_ast(device);
+            expect(true);
+        } catch (const std::exception &e) {
+            expect(false) << e.what();
+        } catch (...) {
+            expect(false) << "unknown exception";
+        }
+    };
+    return 0;
+}();
+
+int main() {}

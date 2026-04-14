@@ -5,7 +5,8 @@
  * @brief test import_external_buffer
 */
 
-#include "config.h"
+#include "ut/ut.hpp"
+#include "test_device.h"
 
 #include <luisa/runtime/device.h>
 #include <luisa/runtime/context.h>
@@ -15,8 +16,10 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
-namespace luisa::test {
+namespace {
 
 int test_external_buffer(Device &device) {
     constexpr uint n = 10u;
@@ -40,13 +43,16 @@ int test_external_buffer(Device &device) {
     return 0;
 }
 
-}// namespace luisa::test
+}// namespace
 
 static inline const auto _luisa_reg_external_buffer = [] {
-    boost::ut::detail::test{"test", "external_buffer"} = [] {
-        Context context{luisa::test::argv()[0]};
-        Device device = context.create_device("dx");
-        boost::ut::expect(static_cast<bool>(luisa::test::test_external_buffer(device) == 0));
+    "external_buffer"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) { return; }
+        auto &device = dc->device;
+        boost::ut::expect(test_external_buffer(device) == 0);
     };
     return 0;
 }();
+
+int main() {}

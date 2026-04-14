@@ -5,7 +5,8 @@
  * @brief the var of dsl 
 */
 
-#include "config.h"
+#include "ut/ut.hpp"
+#include "test_device.h"
 #include <luisa/runtime/device.h>
 #include <luisa/runtime/stream.h>
 #include <luisa/runtime/buffer.h>
@@ -14,7 +15,8 @@
 
 using namespace luisa;
 using namespace luisa::compute;
-namespace luisa::test {
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
 int test_var(Device &device) {
     uint64_t a = 1;
@@ -41,6 +43,14 @@ int test_var(Device &device) {
     return 0;
 }
 
-}// namespace luisa::test
+static inline const auto reg = [] {
+    "dsl_var"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) { return; }
+        auto &device = dc->device;
+        test_var(device);
+    };
+    return 0;
+}();
 
-LUISA_TEST_CASE_WITH_DEVICE("dsl_var", luisa::test::test_var(device) == 0);
+int main() {}

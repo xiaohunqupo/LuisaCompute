@@ -1,3 +1,5 @@
+#include "ut/ut.hpp"
+#include "test_device.h"
 // Decoupled look-back parallel primitive test demonstrating
 // efficient parallel prefix sum (scan) algorithms using GPU warp operations.
 
@@ -364,21 +366,15 @@ LUISA_TEMPLATE_STRUCT(LUISA_T_TEMPLATE, LUISA_TILEPREFIXTEMPSTORAGE_NAME, exclus
 using namespace luisa;
 using namespace luisa::compute;
 using namespace luisa::parallel_primitive;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
 static size_t ceil_div(size_t a, size_t b) {
     return (a + b - 1) / b;
 }
 
-int main(int argc, char **argv) {
+void test_decoupled_look_back(Device &device) {
     log_level_verbose();
-
-    // Initialize compute context
-    Context context{argv[0]};
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-    Device device = context.create_device(argv[1]);
 
     CommandList cmdlist;
     Stream stream = device.create_stream();
@@ -482,3 +478,15 @@ int main(int argc, char **argv) {
     }
     LUISA_INFO("Decoupled look-back scan passed.");
 }
+
+static inline const auto reg = [] {
+    "decoupled_look_back"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_decoupled_look_back(device);
+    };
+    return 0;
+}();
+
+int main() {}

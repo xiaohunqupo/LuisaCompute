@@ -13,6 +13,8 @@
 #include <numeric>
 #include <iostream>
 
+#include "ut/ut.hpp"
+#include "test_device.h"
 #include <luisa/core/clock.h>
 #include <luisa/core/logging.h>
 #include <luisa/runtime/device.h>
@@ -24,6 +26,8 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
 // Test structure with array member
 struct Test {
@@ -35,18 +39,11 @@ struct Test {
 // Register the structure with the DSL
 LUISA_STRUCT(Test, a, b, array) {};
 
-int main(int argc, char *argv[]) {
+void test_callable(Device &device) {
 
     log_level_verbose();
 
-    // Initialize context and device
-    Context context{argv[0]};
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
     static constexpr uint n = 1024u * 1024u;
-    Device device = context.create_device(argv[1]);
     Buffer<float> buffer = device.create_buffer<float>(n);
 
     // Callable for loading values from buffer
@@ -106,3 +103,15 @@ int main(int argc, char *argv[]) {
     //     LUISA_ASSERT(results[i] == data[i] + 3.0f, "Results mismatch.");
     // }
 }
+
+static inline const auto reg = [] {
+    "dsl_callable"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) { return; }
+        auto &device = dc->device;
+        test_callable(device);
+    };
+    return 0;
+}();
+
+int main() {}

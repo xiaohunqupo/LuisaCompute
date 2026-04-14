@@ -5,7 +5,8 @@
  * @brief the buffer view test case
 */
 
-#include "config.h"
+#include "ut/ut.hpp"
+#include "test_device.h"
 
 #include <luisa/runtime/device.h>
 #include <luisa/runtime/context.h>
@@ -15,8 +16,8 @@
 
 using namespace luisa;
 using namespace luisa::compute;
-
-namespace luisa::test {
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
 template<typename T_FloatX>
 int test_buffer_view(Device &device, size_t literal_size, size_t align_size = 4) {
@@ -75,6 +76,14 @@ int test_buffer_view(Device &device, size_t literal_size, size_t align_size = 4)
 
     return 0;
 }
-}// namespace luisa::test
+static inline const auto reg = [] {
+    "buffer_view"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_buffer_view<float4>(device, 4, 4);
+    };
+    return 0;
+}();
 
-LUISA_TEST_CASE_WITH_DEVICE("buffer_view", luisa::test::test_buffer_view<float4>(device, 4, 4) == 0);
+int main() {}

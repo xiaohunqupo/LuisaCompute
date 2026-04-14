@@ -7,6 +7,8 @@
 // 1. Batch softmax: For large arrays that don't fit in a single block
 // 2. Single-pass softmax: For smaller arrays using shared memory reduction
 
+#include "ut/ut.hpp"
+#include "test_device.h"
 #include <luisa/runtime/context.h>
 #include <luisa/runtime/device.h>
 #include <luisa/runtime/stream.h>
@@ -19,6 +21,8 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
 // Dispatch pack for single-pass softmax
 template<typename T>
@@ -30,8 +34,8 @@ struct DispatchPack {
 // Batch dispatch pack for two-pass softmax
 template<typename T>
 struct BatchDispatchPack {
-    Kernel1D<void(Buffer<T>, Buffer<T>, uint, bool)> calc_sum;  // First pass: compute partial sums
-    Kernel1D<void(Buffer<T>, Buffer<T>)> final;                // Second pass: normalize
+    Kernel1D<void(Buffer<T>, Buffer<T>, uint, bool)> calc_sum;// First pass: compute partial sums
+    Kernel1D<void(Buffer<T>, Buffer<T>)> final;               // Second pass: normalize
 };
 
 // Batch softmax kernel for large arrays
@@ -48,7 +52,7 @@ BatchDispatchPack<T> batch_softmax_kernel(uint2 size) {
         auto thd_id = thread_id().x;
         Float value;
         auto id = dispatch_id().x;
-        
+
         // Load and compute exp(x) or just x
         $if (id < size) {
             $if (compute_exp) {
@@ -62,7 +66,7 @@ BatchDispatchPack<T> batch_softmax_kernel(uint2 size) {
             value = 0.0f;
         };
         shared_arr[thd_id] = value;
-        
+
         // Parallel reduction: sum all values in block
         UInt thd_size = block_size / 2u;
         sync_block();
@@ -77,19 +81,19 @@ BatchDispatchPack<T> batch_softmax_kernel(uint2 size) {
             thd_size /= 2u;
             sync_block();
         };
-        
+
         // Write block sum to output
         $if (thd_id == 0) {
             output.write(block_id().x, shared_arr[0]);
         };
     });
-    
+
     // Second pass: normalize by total sum
     auto final = Kernel1D([=](BufferVar<T> buffer, BufferVar<T> sum_buffer) {
         auto id = dispatch_id().x;
         buffer.write(id, exp(buffer.read(id)) / sum_buffer.read(0u));
     });
-    
+
     return BatchDispatchPack<T>{
         std::move(batch),
         std::move(final)};
@@ -105,18 +109,18 @@ DispatchPack<T> softmax_kernel(uint2 size) {
     if (any(size == 0u)) {
         LUISA_ERROR("Softmax size can not be 0");
     }
-    
+
     // Round up to next power of 2 for efficient reduction
     auto block_size = next_pow2(size.x);
     block_size = std::max<uint>(block_size, 32u);
-    
+
     auto kernel = Kernel1D([=](BufferVar<T> input) {
         set_block_size(block_size, 1, 1);
         Shared<float> shared_arr(block_size);
         auto thd_id = thread_id().x;
         Float value;
         auto id = dispatch_id().x;
-        
+
         // Load and compute exp(x), padding with 0 if out of bounds
         $if (id < size.x) {
             value = exp(Float(input.read(id)));
@@ -125,7 +129,7 @@ DispatchPack<T> softmax_kernel(uint2 size) {
             value = 0.0f;
         };
         shared_arr[thd_id] = value;
-        
+
         // Parallel reduction to compute sum of exp(x)
         UInt thd_size = block_size / 2u;
         sync_block();
@@ -140,24 +144,22 @@ DispatchPack<T> softmax_kernel(uint2 size) {
             thd_size /= 2u;
             sync_block();
         };
-        
+
         // Normalize and write output
         $if (id < size.x) {
             auto write_id = id;
             input.write(write_id, (exp(Float(input.read(write_id))) / shared_arr[0]).template cast<T>());
         };
     });
-    
+
     return DispatchPack{
         .kernel = std::move(kernel),
         .dispatch_size = (size.x + block_size - 1u) & (~(block_size - 1u))};
 }
 
-int main(int argc, char *argv[]) {
-    auto ctx = Context(argv[0]);
-    auto device = ctx.create_device("dx");
+void test_softmax(Device &device) {
     auto stream = device.create_stream();
-    
+
     // Test with array larger than block size
     const auto size = 1024 * 3;
     auto pack = batch_softmax_kernel<float>(uint2(size, 1));
@@ -165,13 +167,13 @@ int main(int argc, char *argv[]) {
     auto final_shader = device.compile(pack.final);
     auto buffer = device.create_buffer<float>(size);
     auto temp_buffer = device.create_buffer<float>(size / 1024);
-    
+
     // Initialize input with all ones (softmax should produce uniform distribution)
     luisa::vector<float> f(size);
     for (auto &i : f) {
         i = 1.0f;
     }
-    
+
     // Execute softmax computation
     float sum;
     stream << buffer.copy_from(f.data())
@@ -183,8 +185,19 @@ int main(int argc, char *argv[]) {
            << final_shader(buffer, temp_buffer).dispatch(size)
            << buffer.view(0, 1).copy_to(&sum)
            << synchronize();
-    
+
     // For uniform input of ones, softmax output should be 1/size
     LUISA_INFO("sum {}", sum);
-    return 0;
 }
+
+static inline const auto reg = [] {
+    "softmax"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_softmax(device);
+    };
+    return 0;
+}();
+
+int main() {}

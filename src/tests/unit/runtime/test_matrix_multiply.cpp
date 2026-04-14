@@ -1,3 +1,5 @@
+#include "ut/ut.hpp"
+#include "test_device.h"
 // Test for batched matrix multiplication with neural network training.
 //
 // This test implements:
@@ -19,6 +21,8 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
 // Dispatch pack containing compiled kernel and dispatch dimensions
 template<typename T>
@@ -383,9 +387,7 @@ Kernel2D<void(Buffer<float>, Buffer<float>, Buffer<float>)> last_layer_err(uint 
     };
 }
 
-int main(int argc, char *argv[]) {
-    auto ctx = Context(argv[0]);
-    auto device = ctx.create_device("dx");
+void test_matrix_multiply(Device &device) {
     auto stream = device.create_stream();
 
     // Network architecture: 1 input -> 32 hidden -> 1 output
@@ -497,3 +499,15 @@ int main(int argc, char *argv[]) {
         << synchronize();
     LUISA_INFO("{}", out_val);
 }
+
+static inline const auto reg = [] {
+    "matrix_multiply"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_matrix_multiply(device);
+    };
+    return 0;
+}();
+
+int main() {}

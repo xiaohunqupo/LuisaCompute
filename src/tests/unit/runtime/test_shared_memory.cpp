@@ -1,9 +1,13 @@
+#include "ut/ut.hpp"
+#include "test_device.h"
 #include <random>
 #include <numeric>
 #include <luisa/luisa-compute.h>
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
 template<typename T>
 class AtomicQueue {
@@ -42,16 +46,9 @@ public:
     [[nodiscard]] auto reset() noexcept { return _reset().dispatch(1u); }
 };
 
-int main(int argc, char *argv[]) {
+void test_shared_memory(Device &device) {
 
     log_level_verbose();
-
-    Context context{argv[0]};
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-    Device device = context.create_device(argv[1]);
 
     static constexpr auto queue_size = 8_M;
     AtomicQueue<float> q{device, queue_size};
@@ -94,3 +91,15 @@ int main(int argc, char *argv[]) {
     LUISA_INFO("count = {} (expected {}), mean = {} (expected ~0.5)",
                n, queue_size, mean);
 }
+
+static inline const auto reg = [] {
+    "shared_memory"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_shared_memory(device);
+    };
+    return 0;
+}();
+
+int main() {}

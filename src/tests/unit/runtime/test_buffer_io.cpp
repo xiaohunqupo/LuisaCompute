@@ -10,11 +10,14 @@
 // - Command list creation and commit
 // - Data verification between iterations
 
-#include "config.h"
+#include "ut/ut.hpp"
+#include "test_device.h"
 #include <luisa/luisa-compute.h>
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
 // Test function for buffer I/O operations
 void test_buffer_io(Device &device) noexcept {
@@ -91,15 +94,14 @@ void test_buffer_io(Device &device) noexcept {
     }
 }
 
-// Main test case
-static inline const auto _luisa_reg_buffer_io = [] {
-    boost::ut::detail::test{"test", "buffer_io"} = [] {
-        auto argv = luisa::test::argv();
-        Context context{argv[0]};
-        for (auto &&backend : context.installed_backends()) {
-            Device device = context.create_device(backend);
-            test_buffer_io(device);
-        }
+static inline const auto reg = [] {
+    "buffer_io"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_buffer_io(device);
     };
     return 0;
 }();
+
+int main() {}

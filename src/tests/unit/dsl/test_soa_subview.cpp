@@ -1,8 +1,12 @@
 #include <random>
 #include <luisa/luisa-compute.h>
+#include "ut/ut.hpp"
+#include "test_device.h"
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
 struct RayRecord {
     Ray ray;
@@ -33,16 +37,8 @@ LUISA_STRUCT(RayRecord, ray, t, d1, d2, d3) {};
            lhs.d3 == rhs.d3;
 }
 
-int main(int argc, char *argv[]) {
-
+int test_soa_subview(Device &device) {
     luisa::log_level_verbose();
-
-    auto context = Context{argv[0]};
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-    auto device = context.create_device(argv[1]);
 
     constexpr auto n = 1024u * 1024u;
     auto soa = device.create_soa<RayRecord>(n);
@@ -134,4 +130,18 @@ int main(int argc, char *argv[]) {
     } else {
         LUISA_INFO("SOA subview download test passed.");
     }
+
+    return 0;
 }
+
+static inline const auto reg = [] {
+    "soa_subview"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_soa_subview(device);
+    };
+    return 0;
+}();
+
+int main() {}

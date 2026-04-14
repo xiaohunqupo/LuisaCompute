@@ -4,21 +4,14 @@
 
 #include <luisa/core/logging.h>
 #include <luisa/runtime/context.h>
-#include "config.h"
-
-namespace luisa::test {
-
-[[nodiscard]] int argc() noexcept { return boost::ut::detail::cfg::largc; }
-[[nodiscard]] const char *const *argv() noexcept { return boost::ut::detail::cfg::largv; }
-[[nodiscard]] int backends_to_test_count() noexcept { return 0; }
-[[nodiscard]] const char *const *backends_to_test() noexcept { return nullptr; }
-
-}// namespace luisa::test
+#include "ut/ut.hpp"
+#include "test_device.h"
 
 static inline const auto _luisa_reg_context = [] {
     boost::ut::detail::test{"test", "context"} = [] {
+        auto argv = boost::ut::detail::cfg::largv;
         // Initialize context with the test executable path
-        luisa::compute::Context context{luisa::test::argv()[0]};
+        luisa::compute::Context context{argv[0]};
 
         // Iterate over all installed backends
         for (auto &&backend : context.installed_backends()) {

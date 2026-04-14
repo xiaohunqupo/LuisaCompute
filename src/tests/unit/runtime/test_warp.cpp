@@ -1,3 +1,5 @@
+#include "ut/ut.hpp"
+#include "test_device.h"
 // Test for warp-level matrix multiplication.
 //
 // This test demonstrates optimized matrix multiplication using warp-level
@@ -17,17 +19,12 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
-int main(int argc, char *argv[]) {
-    // Initialize compute context
-    Context ctx(argv[0]);
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-    Device device = ctx.create_device(argv[1]);
+void test_warp(Device &device) {
     auto stream = device.create_stream();
-    
+
     // Helper lambdas for matrix element access in row-major layout
     // buffer[y * size.x + x] stores element at (x, y)
     auto get_matrix = [&](BufferVar<float> const &buffer, UInt2 const &size, UInt2 const &idx) {
@@ -36,10 +33,10 @@ int main(int argc, char *argv[]) {
     auto set_matrix = [&](BufferVar<float> const &buffer, UInt2 const &size, UInt2 const &idx, Float const &value) {
         return buffer.write(size.x * idx.y + idx.x, value);
     };
-    
+
     // Warp size constant (32 for NVIDIA/AMD, 64 for AMD in some cases)
     constexpr uint k_warp_size = 32;
-    
+
     // Warp-level matrix multiplication kernel
     // Computes: result = lhs * rhs where lhs is [M x K] and rhs is [K x N]
     // Each warp computes a tile of the output matrix
@@ -51,16 +48,16 @@ int main(int argc, char *argv[]) {
         // Note: Requires Shader Model 6.6 (DirectX) or CUDA
         // The warp size is implementation-defined for modern GPUs
         set_warp_size(k_warp_size);
-        
+
         // Calculate matrix dimensions from dispatch size
         UInt2 lhs_matrix_size = make_uint2(lhs_row_size, dispatch_size().y);
         UInt2 rhs_matrix_size = make_uint2(dispatch_size().x / k_warp_size, lhs_row_size);
-        
+
         // Each warp processes one output tile
-        UInt lhs_y = dispatch_id().x / k_warp_size;  // Row in output
-        UInt rhs_x = dispatch_id().y;                // Column in output
-        UInt warp_local_id = warp_lane_id();         // Thread index within warp (0-31)
-        
+        UInt lhs_y = dispatch_id().x / k_warp_size;// Row in output
+        UInt rhs_x = dispatch_id().y;              // Column in output
+        UInt warp_local_id = warp_lane_id();       // Thread index within warp (0-31)
+
         // Calculate number of tiles along K dimension
         UInt lhs_row_batch_count = (lhs_matrix_size.x + k_warp_size - 1) / k_warp_size;
         Float curr_lane_value = 0.f;
@@ -70,7 +67,7 @@ int main(int argc, char *argv[]) {
         for (auto lhs_row_batch : dynamic_range(lhs_row_batch_count)) {
             // Index within current tile
             UInt lhs_x = lhs_row_batch * k_warp_size + warp_local_id;
-            
+
             // Load and multiply if within bounds
             $if (lhs_x < lhs_matrix_size.x) {
                 local_v = get_matrix(lhs_buffer, lhs_matrix_size, make_uint2(lhs_x, lhs_y));
@@ -79,26 +76,26 @@ int main(int argc, char *argv[]) {
             $else {
                 local_v = 0.f;
             };
-            
+
             // Warp-level sum reduction: all 32 threads contribute
             // This is more efficient than shared memory reduction
             curr_lane_value += warp_active_sum(local_v);
         }
-        
+
         // Only thread 0 in each warp writes the result
         $if (warp_local_id == 0) {
             set_matrix(result_buffer, make_uint2(rhs_matrix_size.x, lhs_matrix_size.y), make_uint2(rhs_x, lhs_y), curr_lane_value);
         };
     };
-    
+
     // Compile the kernel
     auto mat_mul_shader = device.compile<2>(std::move(mat_mul_kernel));
-    
+
     // Initialize random data for testing
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_real_distribution<float> dist(0.5, 1.5);
-    
+
     // Matrix dimensions
     constexpr uint k_matrix_size = 256;
     luisa::vector<float> lhs_matrix;
@@ -107,24 +104,24 @@ int main(int argc, char *argv[]) {
     lhs_matrix.resize(k_matrix_size * k_matrix_size);
     rhs_matrix.resize(k_matrix_size * k_matrix_size);
     result_matrix.resize(k_matrix_size * k_matrix_size);
-    
+
     // Helper for row-major index calculation
     auto idx = [](auto x, auto y) {
         return y * k_matrix_size + x;
     };
-    
+
     // Fill matrices with random values
     for (int x = 0; x < k_matrix_size; ++x)
         for (int y = 0; y < k_matrix_size; ++y) {
             lhs_matrix[idx(x, y)] = dist(gen);
             rhs_matrix[idx(x, y)] = dist(gen);
         }
-    
+
     // Create GPU buffers
     auto lhs_buffer = device.create_buffer<float>(lhs_matrix.size());
     auto rhs_buffer = device.create_buffer<float>(rhs_matrix.size());
     auto result_buffer = device.create_buffer<float>(result_matrix.size());
-    
+
     // Execute kernel
     stream
         << lhs_buffer.copy_from(lhs_matrix.data())
@@ -133,7 +130,7 @@ int main(int argc, char *argv[]) {
         << mat_mul_shader(lhs_buffer, rhs_buffer, result_buffer, k_matrix_size).dispatch(k_matrix_size * k_warp_size, k_matrix_size)
         << result_buffer.copy_to(result_matrix.data())
         << synchronize();
-    
+
     // Host-side validation
     for (int x = 0; x < k_matrix_size; ++x) {
         for (int y = 0; y < k_matrix_size; ++y) {
@@ -149,3 +146,15 @@ int main(int argc, char *argv[]) {
         }
     }
 }
+
+static inline const auto reg = [] {
+    "warp"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_warp(device);
+    };
+    return 0;
+}();
+
+int main() {}

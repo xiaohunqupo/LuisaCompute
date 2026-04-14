@@ -7,25 +7,6 @@
 # --- CTest integration ---
 enable_testing()
 
-# --- Shared test_main binary (for config.h-based tests) ---
-# Files using LUISA_TEST_CASE_WITH_DEVICE link into this binary.
-set(test_main_sources
-        test_main.cpp
-        config.h
-        cornell_box.h
-        tiny_obj_loader.h
-        tinyexr.h
-        test_math_util.h
-        test_math_util.cpp)
-
-luisa_compute_add_executable(test_main ${test_main_sources})
-target_include_directories(test_main PRIVATE ./)
-
-# Helper: add a source file to the shared test_main binary
-function(luisa_compute_add_shared_test file)
-    target_sources(test_main PRIVATE ${file})
-endfunction()
-
 # Helper: add a standalone test executable, include path, AND register with CTest.
 # Usage: luisa_compute_add_test(name source LABELS label1;label2 [ARGS arg1 ...])
 # Tests without LABELS compile but are NOT registered with CTest.
@@ -62,12 +43,10 @@ endif ()
 
 # --- unit/ast: standalone tests (need backend, NOT auto-run via CTest) ---
 luisa_compute_add_test(test_ast             unit/ast/test_ast.cpp)
+luisa_compute_add_test(test_ast_basic       unit/ast/test_ast_basic.cpp)
 luisa_compute_add_test(test_builtin_kernel  unit/ast/test_builtin_kernel.cpp)
 target_include_directories(test_builtin_kernel PRIVATE ${CMAKE_SOURCE_DIR}/src/runtime)
 luisa_compute_add_test(test_manual_ast      unit/ast/test_manual_ast.cpp)
-
-# --- unit/ast: shared test_main tests ---
-luisa_compute_add_shared_test(unit/ast/test_ast_basic.cpp)
 
 # --- unit/dsl: standalone tests (need backend, NOT auto-run via CTest) ---
 luisa_compute_add_test(test_binding_group          unit/dsl/test_binding_group.cpp)
@@ -83,11 +62,9 @@ luisa_compute_add_test(test_soa_simple             unit/dsl/test_soa_simple.cpp)
 luisa_compute_add_test(test_device_math            unit/dsl/test_device_math.cpp)
 luisa_compute_add_test(test_nested_callable         unit/dsl/test_nested_callable.cpp)
 luisa_compute_add_test(test_normal_encoding        unit/dsl/test_normal_encoding.cpp)
-
-# --- unit/dsl: shared test_main tests ---
-luisa_compute_add_shared_test(unit/dsl/test_calc.cpp)
-luisa_compute_add_shared_test(unit/dsl/test_matrix.cpp)
-luisa_compute_add_shared_test(unit/dsl/test_var.cpp)
+luisa_compute_add_test(test_calc                   unit/dsl/test_calc.cpp)
+luisa_compute_add_test(test_dsl_matrix             unit/dsl/test_matrix.cpp)
+luisa_compute_add_test(test_var                    unit/dsl/test_var.cpp)
 
 # --- unit/runtime: standalone tests (need backend, NOT auto-run via CTest) ---
 luisa_compute_add_test(test_atomic              unit/runtime/test_atomic.cpp)
@@ -112,22 +89,16 @@ luisa_compute_add_test(test_texture_compress    unit/runtime/test_texture_compre
 luisa_compute_add_test(test_texture_io          unit/runtime/test_texture_io.cpp)
 luisa_compute_add_test(test_warp                unit/runtime/test_warp.cpp)
 luisa_compute_add_test(test_warp_prefix_scan    unit/runtime/test_warp_prefix_scan.cpp)
-
-# --- unit/runtime: shared test_main tests ---
-luisa_compute_add_shared_test(unit/runtime/test_buffer_io.cpp)
-luisa_compute_add_shared_test(unit/runtime/test_buffer.cpp)
-luisa_compute_add_shared_test(unit/runtime/test_buffer_view.cpp)
-luisa_compute_add_shared_test(unit/runtime/test_device.cpp)
-luisa_compute_add_shared_test(unit/runtime/test_external_buffer.cpp)
-luisa_compute_add_shared_test(unit/runtime/test_gemm.cpp)
-luisa_compute_add_shared_test(unit/runtime/test_shared_mem.cpp)
+luisa_compute_add_test(test_buffer_io           unit/runtime/test_buffer_io.cpp)
+luisa_compute_add_test(test_buffer              unit/runtime/test_buffer.cpp)
+luisa_compute_add_test(test_buffer_view         unit/runtime/test_buffer_view.cpp)
+luisa_compute_add_test(test_device_test         unit/runtime/test_device.cpp)
+luisa_compute_add_test(test_external_buffer     unit/runtime/test_external_buffer.cpp)
+luisa_compute_add_test(test_gemm                unit/runtime/test_gemm.cpp)
+luisa_compute_add_test(test_shared_mem          unit/runtime/test_shared_mem.cpp)
 
 # --- unit/xir: standalone tests (no backend needed, auto-run via CTest) ---
 luisa_compute_add_test(test_ast_to_xir unit/xir/test_ast_to_xir.cpp LABELS "unit;unit_xir")
-
-# --- test_main: shared binary (needs backend, NOT auto-run via CTest) ---
-# test_main contains shared tests that require a backend argument.
-# Run manually: ./test_main <backend>
 
 # =============================================================================
 # Integration Tests (require GPU backends, NOT auto-run via CTest)

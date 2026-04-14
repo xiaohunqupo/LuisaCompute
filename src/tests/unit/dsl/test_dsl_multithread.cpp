@@ -19,9 +19,13 @@
 #include <luisa/ast/interface.h>
 #include <luisa/dsl/syntax.h>
 #include <luisa/runtime/context.h>
+#include "ut/ut.hpp"
+#include "test_device.h"
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
 // Test structure for DSL struct handling
 struct Test {
@@ -32,16 +36,7 @@ struct Test {
 // Register the structure with the DSL
 LUISA_STRUCT(Test, something, a) {};
 
-int main(int argc, char *argv[]) {
-
-    // Initialize context and device
-    Context ctx{argv[0]};
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-    Device device = ctx.create_device(argv[1]);
-    
+int test_dsl_multithread(Device &device) {
     // Create buffers for kernel operations
     Buffer<float4> buffer = device.create_buffer<float4>(1024u);
     Buffer<float> float_buffer = device.create_buffer<float>(1024u);
@@ -63,11 +58,11 @@ int main(int argc, char *argv[]) {
     for (size_t i = 0u; i < 8u; i++) {
         threads.emplace_back([&, worker = i] {
             Clock clock;
-            
+
             // Define constants for kernel
             Constant float_consts = {1.0f, 2.0f};
             Constant int_consts = const_vector;
-            
+
             // Define kernel with various DSL operations
             Kernel1D kernel_def = [&](BufferVar<float> buffer_float, Var<uint> count) noexcept {
                 // Shared memory allocation
@@ -152,4 +147,18 @@ int main(int argc, char *argv[]) {
 
     // Wait for all threads to complete
     for (std::thread &t : threads) { t.join(); }
+
+    return 0;
 }
+
+static inline const auto reg = [] {
+    "dsl_multithread"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_dsl_multithread(device);
+    };
+    return 0;
+}();
+
+int main() {}

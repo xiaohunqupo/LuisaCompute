@@ -12,6 +12,7 @@ using namespace luisa;
 using namespace luisa::compute;
 using namespace luisa::compute::dsl;
 using namespace boost::ut;
+using namespace boost::ut::literals;
 
 enum Slot : uint {
     SIN_0,
@@ -327,8 +328,7 @@ enum Slot : uint {
     SLOT_COUNT
 };
 
-int main(int argc, char *argv[]) {
-    auto [context, device] = luisa::test::create_device(argc, argv);
+int test_device_math(Device &device) {
     Stream stream = device.create_stream();
 
     Buffer<float> result_buf = device.create_buffer<float>(SLOT_COUNT);
@@ -719,9 +719,12 @@ int main(int argc, char *argv[]) {
 
     auto check_exact = [&](Slot s, float expected, const char *name) {
         bool ok = false;
-        if (std::isnan(results[s]) && std::isnan(expected)) ok = true;
-        else if (std::isinf(results[s]) && std::isinf(expected) && (results[s] > 0) == (expected > 0)) ok = true;
-        else ok = (results[s] == expected);
+        if (std::isnan(results[s]) && std::isnan(expected))
+            ok = true;
+        else if (std::isinf(results[s]) && std::isinf(expected) && (results[s] > 0) == (expected > 0))
+            ok = true;
+        else
+            ok = (results[s] == expected);
         expect(static_cast<bool>(ok))
             << name << ": got " << results[s] << " expected " << expected;
     };
@@ -1040,3 +1043,15 @@ int main(int argc, char *argv[]) {
     LUISA_INFO("All device math tests passed!");
     return 0;
 }
+
+static inline const auto reg = [] {
+    "device_math"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_device_math(device);
+    };
+    return 0;
+}();
+
+int main() {}

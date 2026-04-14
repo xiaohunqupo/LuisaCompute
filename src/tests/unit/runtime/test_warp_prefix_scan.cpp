@@ -1,3 +1,5 @@
+#include "ut/ut.hpp"
+#include "test_device.h"
 // Test for warp-level prefix scan operations.
 //
 // Prefix scan (parallel prefix sum) is a fundamental parallel primitive
@@ -16,16 +18,11 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
-int main(int argc, char *argv[]) {
+void test_warp_prefix_scan(Device &device) {
 
-    // Initialize compute context
-    Context ctx(argv[0]);
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-    Device device = ctx.create_device(argv[1]);
     auto stream = device.create_stream();
 
     // Simple kernel demonstrating warp prefix sum
@@ -47,3 +44,15 @@ int main(int argc, char *argv[]) {
     // Execute with 1024 threads
     stream << shader().dispatch(1024u) << synchronize();
 }
+
+static inline const auto reg = [] {
+    "warp_prefix_scan"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_warp_prefix_scan(device);
+    };
+    return 0;
+}();
+
+int main() {}

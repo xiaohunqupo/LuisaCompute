@@ -16,6 +16,8 @@
 
 #include <iostream>
 
+#include "ut/ut.hpp"
+#include "test_device.h"
 #include <luisa/core/logging.h>
 #include <luisa/runtime/device.h>
 #include <luisa/dsl/sugar.h>
@@ -23,6 +25,8 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
 // Test structure for DSL struct handling
 struct Test {
@@ -36,16 +40,8 @@ LUISA_STRUCT(Test, something, a) {};
 // Type alias using the $ sugar syntax
 using $Test = Var<Test>;
 
-int main(int argc, char *argv[]) {
+void test_dsl_sugar(Device &device) {
 
-    // Initialize context and device
-    Context context{argv[0]};
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-    Device device = context.create_device(argv[1]);
-    
     // Create buffers for testing
     Buffer<float4> buffer = device.create_buffer<float4>(1024u);
     Buffer<float> float_buffer = device.create_buffer<float>(1024u);
@@ -140,3 +136,15 @@ int main(int argc, char *argv[]) {
     luisa::unique_ptr<Command> command = shader(float_buffer, 12u).dispatch(1024u);
     ShaderDispatchCommand *launch_command = static_cast<ShaderDispatchCommand *>(command.get());
 }
+
+static inline const auto reg = [] {
+    "dsl_sugar"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) { return; }
+        auto &device = dc->device;
+        test_dsl_sugar(device);
+    };
+    return 0;
+}();
+
+int main() {}

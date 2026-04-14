@@ -1,3 +1,5 @@
+#include "ut/ut.hpp"
+#include "test_device.h"
 #include <stb/stb_image_write.h>
 
 #include <luisa/core/logging.h>
@@ -9,17 +11,13 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
-int main(int argc, char *argv[]) {
+void test_texture_io(Device &device) {
 
     log_level_verbose();
 
-    Context context{argv[0]};
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-    Device device = context.create_device(argv[1]);
     Image<float> device_image = device.create_image<float>(PixelStorage::BYTE4, 1024u, 1024u, 1u);
 
     Callable linear_to_srgb = [](Float4 linear) noexcept {
@@ -56,3 +54,15 @@ int main(int argc, char *argv[]) {
 
     Volume<float> volume = device.create_volume<float>(PixelStorage::FLOAT4, 64u, 64u, 64u);
 }
+
+static inline const auto reg = [] {
+    "texture_io"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_texture_io(device);
+    };
+    return 0;
+}();
+
+int main() {}

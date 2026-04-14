@@ -34,9 +34,13 @@
 #include <luisa/runtime/buffer.h>
 #include <luisa/dsl/syntax.h>
 #include <luisa/dsl/sugar.h>
+#include "ut/ut.hpp"
+#include "test_device.h"
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
 static constexpr uint N = 1024u;
 
@@ -80,16 +84,8 @@ static float host_lcg_value(uint s) {
     return static_cast<float>(s & 0x00ffffffu) * (1.0f / static_cast<float>(0x01000000u));
 }
 
-int main(int argc, char *argv[]) {
-
+int test_nested_callable(Device &device) {
     log_level_verbose();
-
-    Context context{argv[0]};
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-    Device device = context.create_device(argv[1]);
     Stream stream = device.create_stream();
 
     // ── buffers ──────────────────────────────────────────────────────
@@ -742,3 +738,15 @@ int main(int argc, char *argv[]) {
     LUISA_INFO("All nested callable tests completed.");
     return 0;
 }
+
+static inline const auto reg = [] {
+    "nested_callable"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_nested_callable(device);
+    };
+    return 0;
+}();
+
+int main() {}

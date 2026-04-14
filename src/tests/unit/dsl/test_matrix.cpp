@@ -5,7 +5,8 @@
  * @brief the dsl matrix-relevant operations
 */
 
-#include "config.h"
+#include "ut/ut.hpp"
+#include "test_device.h"
 
 #include <cmath>
 #include <luisa/runtime/device.h>
@@ -16,8 +17,8 @@
 
 using namespace luisa;
 using namespace luisa::compute;
-
-namespace luisa::test {
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
 int test_matrix2x2(Device &device) {
     auto m = make_float2x2(1.f, 2.f, 3.f, 4.f);
@@ -74,6 +75,15 @@ int test_matrix2x2(Device &device) {
 
     return 0;
 }
-}// namespace luisa::test
 
-LUISA_TEST_CASE_WITH_DEVICE("dsl_matrix_float2x2", luisa::test::test_matrix2x2(device) == 0);
+static inline const auto reg = [] {
+    "dsl_matrix_float2x2"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) { return; }
+        auto &device = dc->device;
+        test_matrix2x2(device);
+    };
+    return 0;
+}();
+
+int main() {}

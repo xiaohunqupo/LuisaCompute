@@ -3,6 +3,8 @@
 int main() {
 }
 #else
+#include "ut/ut.hpp"
+#include "test_device.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
 
 #include <memory>
@@ -14,6 +16,8 @@ int main() {
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
 struct MyStruct {
     float2 a;
@@ -32,16 +36,9 @@ LUISA_STRUCT(MyStruct, a, b) {};
 #define DEVICE_WARNING_WITH_LOCATION(FMT, ...) device_log(luisa::format("W{} [{}:{}:dispatch{{}}]", FMT, __FILE__, __LINE__), __VA_ARGS__, $dispatch_id)
 #define DEVICE_ERROR_WITH_LOCATION(FMT, ...) device_log(luisa::format("E{} [{}:{}:dispatch{{}}]", FMT, __FILE__, __LINE__), __VA_ARGS__, $dispatch_id)
 
-int main(int argc, char *argv[]) {
+void test_printer_custom_callback(Device &device) {
 
     log_level_verbose();
-
-    Context context{argv[0]};
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-    Device device = context.create_device(argv[1]);
 
     Kernel2D kernel = [&]() noexcept {
         UInt2 coord = dispatch_id().xy();
@@ -79,4 +76,16 @@ int main(int argc, char *argv[]) {
     stream << shader().dispatch(128u, 128u)
            << synchronize();
 }
+
+static inline const auto reg = [] {
+    "printer_custom_callback"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_printer_custom_callback(device);
+    };
+    return 0;
+}();
+
+int main() {}
 #endif

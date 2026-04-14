@@ -1,3 +1,5 @@
+#include "ut/ut.hpp"
+#include "test_device.h"
 #include <luisa/runtime/context.h>
 #include <luisa/runtime/device.h>
 #include <luisa/runtime/stream.h>
@@ -10,6 +12,8 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
 struct SortArgs {
     uint64_t buffer_ptr;
@@ -19,12 +23,9 @@ struct SortArgs {
 
 LUISA_STRUCT(SortArgs, buffer_ptr, begin, end) {};
 
-int main(int argc, char *argv[]) {
+void test_cpu_callable(Device &device) {
 
     log_level_verbose();
-
-    Context context{argv[0]};
-    Device device = context.create_device("cpu");
     constexpr size_t batch = 16;
     constexpr size_t count = 1024;
     Stream stream = device.create_stream();
@@ -99,3 +100,15 @@ int main(int argc, char *argv[]) {
         std::cout << '\n';
     }
 }
+
+static inline const auto reg = [] {
+    "cpu_callable"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_cpu_callable(device);
+    };
+    return 0;
+}();
+
+int main() {}

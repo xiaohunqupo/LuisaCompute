@@ -1,3 +1,5 @@
+#include "ut/ut.hpp"
+#include "test_device.h"
 #include <luisa/runtime/context.h>
 #include <luisa/runtime/device.h>
 #include <luisa/runtime/stream.h>
@@ -6,6 +8,8 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
 struct MyStruct {
     float2 a;
@@ -14,16 +18,9 @@ struct MyStruct {
 
 LUISA_STRUCT(MyStruct, a, b) {};
 
-int main(int argc, char *argv[]) {
+void test_printer(Device &device) {
 
     log_level_verbose();
-
-    Context context{argv[0]};
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-    Device device = context.create_device(argv[1]);
 
     Kernel2D kernel = [&]() noexcept {
         UInt2 coord = dispatch_id().xy();
@@ -48,3 +45,15 @@ int main(int argc, char *argv[]) {
     stream << shader().dispatch(128u, 128u)
            << synchronize();
 }
+
+static inline const auto reg = [] {
+    "printer"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_printer(device);
+    };
+    return 0;
+}();
+
+int main() {}

@@ -9,6 +9,8 @@
 // - Bindless array access
 
 #include "luisa/dsl/struct.h"
+#include "ut/ut.hpp"
+#include "test_device.h"
 #include <iostream>
 #include <chrono>
 #include <numeric>
@@ -24,6 +26,8 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
 // Test structure with int3 vector and float member
 struct Test1 {
@@ -82,19 +86,11 @@ struct KeyValuePair {
 // Register template structure with the DSL
 LUISA_TEMPLATE_STRUCT(LUISA_KEY_VALUE_PAIR_TEMPLATE, LUISA_KEY_VALUE_PAIR, key, value){};
 
-int main(int argc, char *argv[]) {
+void test_dsl(Device &device) {
 
     constexpr auto f = 10;
 
     luisa::log_level_verbose();
-
-    // Initialize context and device
-    Context context{argv[0]};
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-    Device device = context.create_device(argv[1]);
 
     // Create buffers for testing
     auto buffer = device.create_buffer<float4>(1024u);
@@ -284,3 +280,15 @@ int main(int argc, char *argv[]) {
     // auto command = kernel(float_buffer, 12u).dispatch(1024u);
     // auto launch_command = static_cast<ShaderDispatchCommand *>(command.get());
 }
+
+static inline const auto reg = [] {
+    "dsl"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) { return; }
+        auto &device = dc->device;
+        test_dsl(device);
+    };
+    return 0;
+}();
+
+int main() {}

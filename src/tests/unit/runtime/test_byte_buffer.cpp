@@ -10,6 +10,8 @@
 // - Command list creation and commit
 // - Data verification between iterations
 
+#include "ut/ut.hpp"
+#include "test_device.h"
 #include <stb/stb_image_write.h>
 
 #include <luisa/core/logging.h>
@@ -22,17 +24,12 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
-int main(int argc, char *argv[]) {
+void test_byte_buffer(Device &device) {
 
     log_level_verbose();
-
-    Context context{argv[0]};
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-    Device device = context.create_device(argv[1]);
     constexpr uint BUFFER_SIZE = 4;
     auto byte_buffer = device.create_byte_buffer(BUFFER_SIZE * sizeof(uint));
     auto buffer_float = device.create_buffer<float>(BUFFER_SIZE);
@@ -57,3 +54,15 @@ int main(int argc, char *argv[]) {
         LUISA_INFO("{}", i);
     }
 }
+
+static inline const auto reg = [] {
+    "byte_buffer"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_byte_buffer(device);
+    };
+    return 0;
+}();
+
+int main() {}

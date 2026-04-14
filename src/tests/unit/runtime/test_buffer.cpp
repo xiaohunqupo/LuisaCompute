@@ -5,7 +5,8 @@
  * @brief the buffer test suite
 */
 
-#include "config.h"
+#include "ut/ut.hpp"
+#include "test_device.h"
 
 #include <luisa/runtime/device.h>
 #include <luisa/runtime/context.h>
@@ -15,8 +16,8 @@
 
 using namespace luisa;
 using namespace luisa::compute;
-
-namespace luisa::test {
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
 template<typename T_FloatX>
 int test_floatx(Device &device, int literal_size = 1, int align_size = 4) {
@@ -208,11 +209,44 @@ int test_float4x4(Device &device) {
     return 0;
 }
 
-}// namespace luisa::test
+static inline const auto reg = [] {
+    "buffer_float3x3"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_float3x3(device);
+    };
+    "buffer_float3x3_order"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_float3x3_order(device);
+    };
+    "buffer_float4x4"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_float4x4(device);
+    };
+    "buffer_float4"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_floatx<float4>(device, 4, 4);
+    };
+    "buffer_float3"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_floatx<float3>(device, 3, 4);
+    };
+    "buffer_float2"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_floatx<float2>(device, 2, 2);
+    };
+    return 0;
+}();
 
-LUISA_TEST_CASE_WITH_DEVICE("buffer_float3x3", luisa::test::test_float3x3(device) == 0);
-LUISA_TEST_CASE_WITH_DEVICE("buffer_float3x3_order", luisa::test::test_float3x3_order(device) == 0);
-LUISA_TEST_CASE_WITH_DEVICE("buffer_float4x4", luisa::test::test_float4x4(device) == 0);
-LUISA_TEST_CASE_WITH_DEVICE("buffer_float4", luisa::test::test_floatx<float4>(device, 4, 4) == 0);
-LUISA_TEST_CASE_WITH_DEVICE("buffer_float3", luisa::test::test_floatx<float3>(device, 3, 4) == 0);
-LUISA_TEST_CASE_WITH_DEVICE("buffer_float2", luisa::test::test_floatx<float2>(device, 2, 2) == 0);
+int main() {}

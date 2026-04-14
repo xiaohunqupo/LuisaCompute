@@ -10,6 +10,8 @@
 // items within a block using shared memory, then performing a single
 // global atomic allocation per block.
 
+#include "ut/ut.hpp"
+#include "test_device.h"
 #include <random>
 #include <iostream>
 
@@ -18,6 +20,8 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
 // Placeholder class for queue counter (not fully implemented)
 class AtomicQueueCounter {
@@ -33,9 +37,9 @@ template<typename T>
 class AtomicQueue {
 
 private:
-    Buffer<T> _buffer;       // Storage buffer
-    Buffer<uint> _counter;   // Global item counter
-    Shader1D<> _reset;       // Reset kernel
+    Buffer<T> _buffer;    // Storage buffer
+    Buffer<uint> _counter;// Global item counter
+    Shader1D<> _reset;    // Reset kernel
 
 public:
     AtomicQueue(Device &device, size_t capacity) noexcept
@@ -53,16 +57,16 @@ public:
     void push_if(Expr<bool> pred, Expr<T> value) noexcept {
         // Shared counter for block-local counting
         Shared<uint> index{1};
-        
+
         // Initialize shared counter
         $if (thread_x() == 0u) { index.write(0u, 0u); };
         sync_block();
-        
+
         // Each thread that satisfies predicate gets local index
         auto local_index = def(0u);
         $if (pred) { local_index = index.atomic(0).fetch_add(1u); };
         sync_block();
-        
+
         // Thread 0 allocates global space for entire block
         $if (thread_x() == 0u) {
             auto local_count = index.read(0u);
@@ -70,7 +74,7 @@ public:
             index.write(0u, global_offset);
         };
         sync_block();
-        
+
         // Write items to their allocated positions
         $if (pred) {
             auto global_index = index.read(0u) + local_index;
@@ -87,16 +91,9 @@ public:
     }
 };
 
-int main(int argc, char *argv[]) {
+void test_atomic_queue(Device &device) {
 
     log_level_verbose();
-
-    Context context{argv[0]};
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-    Device device = context.create_device(argv[1]);
 
     // Queue capacity: 16 million elements
     static constexpr auto queue_size = 16_M;
@@ -184,3 +181,15 @@ int main(int argc, char *argv[]) {
     do_test(test_double, "double", 1024u);
     do_test(test_select, "select", 1024u);
 }
+
+static inline const auto reg = [] {
+    "atomic_queue"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_atomic_queue(device);
+    };
+    return 0;
+}();
+
+int main() {}

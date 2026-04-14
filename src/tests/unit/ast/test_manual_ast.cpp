@@ -8,25 +8,26 @@
 #include <luisa/runtime/shader.h>
 #include <luisa/ast/function_builder.h>
 #include <luisa/dsl/func.h>
+#include <exception>
 #include <stb/stb_image_write.h>
+#include "ut/ut.hpp"
+#include "test_device.h"
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
-int main(int argc, char *argv[]) {
-    // Initialize context and create device
-    Context context{argv[0]};
-    if (argc <= 1) { exit(1); }
-    Device device = context.create_device(argv[1]);
+int test_manual_ast(Device &device) {
     Stream stream = device.create_stream();
-    
+
     // Set up image dimensions
     constexpr uint2 resolution = make_uint2(1024, 1024);
     Image<float> image{device.create_image<float>(PixelStorage::BYTE4, resolution)};
     luisa::vector<std::byte> host_image(image.view().size_bytes());
-    
+
     using FuncBuilder = luisa::compute::detail::FunctionBuilder;
-    
+
     // Define a callable that writes to a texture: callable(tex: tex2d, coord: inout uint2, color: float3)
     shared_ptr<FuncBuilder const> callable_builder = FuncBuilder::define_callable([&]() {
         auto &cur = *FuncBuilder::current();
@@ -50,7 +51,7 @@ int main(int argc, char *argv[]) {
              arg1,
              value});
     });
-    
+
     // Generate AST for kernel that creates a gradient image
     auto generate_ast = [&](Expression const *arg0) {
         auto &cur = *FuncBuilder::current();
@@ -92,14 +93,14 @@ int main(int argc, char *argv[]) {
                                                     coord,
                                                     color});
     };
-    
+
     // Define kernel using DSL syntax that wraps the manual AST generation
     Kernel2D<Image<float>> kernel{[&](ImageVar<float> img) {
         auto arg0 = img.expression();
         generate_ast(arg0);
     }};
     auto shader = device.compile(kernel);
-    
+
     // Alternative approach using pure manual AST construction (commented out):
     // shared_ptr<FuncBuilder const> kernel = FuncBuilder::define_kernel([&]() {
     //     // manually define arguments
@@ -119,3 +120,22 @@ int main(int argc, char *argv[]) {
     stbi_write_png("test_manual_ast.png", resolution.x, resolution.y, 4, host_image.data(), 0);
     return 0;
 }
+
+static inline const auto reg = [] {
+    "manual_ast"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        try {
+            test_manual_ast(device);
+            expect(true);
+        } catch (const std::exception &e) {
+            expect(false) << e.what();
+        } catch (...) {
+            expect(false) << "unknown exception";
+        }
+    };
+    return 0;
+}();
+
+int main() {}
