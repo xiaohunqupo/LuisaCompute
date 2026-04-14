@@ -1,6 +1,9 @@
 // Device debugger test demonstrating programmable breakpoints
 // and custom trap functions for GPU debugging.
 
+#include "ut/ut.hpp"
+#include "test_device.h"
+
 #include <luisa/runtime/context.h>
 #include <luisa/runtime/device.h>
 #include <luisa/runtime/stream.h>
@@ -9,6 +12,8 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
 // Test structure with vector types
 struct MyStruct {
@@ -30,17 +35,9 @@ void foo() {
     // Please place a break point here with your IDE
 }
 
-int main(int argc, char *argv[]) {
+void test_device_debugger(Device &device) {
 
     log_level_verbose();
-
-    // Create context and device (using fallback for debugging)
-    Context context{argv[0]};
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-    Device device = context.create_device(argv[1]);
 
     // Define a kernel with debug breakpoints
     Kernel2D kernel = [&]() noexcept {
@@ -70,3 +67,15 @@ int main(int argc, char *argv[]) {
     stream << shader().dispatch(128u, 128u)
            << synchronize();
 }
+
+static inline const auto reg = [] {
+    "test_device_debugger"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_device_debugger(device);
+    };
+    return 0;
+}();
+
+int main() {}

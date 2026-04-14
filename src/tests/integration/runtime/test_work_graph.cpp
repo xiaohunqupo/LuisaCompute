@@ -1,3 +1,6 @@
+#include "ut/ut.hpp"
+#include "test_device.h"
+
 #include <luisa/luisa-compute.h>
 #include <luisa/dsl/work_graph/work_graph.h>
 #include <luisa/dsl/work_graph/work_graph_kernel.h>
@@ -12,6 +15,8 @@ extern "C" __declspec(dllexport) LPCSTR D3D12SDKPath = ".\\D3D12\\";
 #endif
 
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
 struct ConsumerRecord {
     uint index;
@@ -61,7 +66,7 @@ void basic_work_graph_test(Device &device, Stream &stream) {
     stream << d_buffer.copy_to(h_buffer.data()) << synchronize();
 
     for (size_t i = 0; i < h_buffer.size(); i += 1) {
-        LUISA_ASSERT(h_buffer[i] == i, "expected {}, got {}", i, h_buffer[i]);
+        boost::ut::expect(static_cast<bool>(h_buffer[i] == i)) << "basic_work_graph output mismatch.";
     }
 }
 
@@ -118,9 +123,9 @@ void dynamic_dispatch_grid_test(Device &device, Stream &stream) {
         stream << d_buffer.copy_to(h_buffer.data()) << synchronize();
         const uint count = groups * threads_per_group;
         for (uint i = 0; i < count; i++)
-            LUISA_ASSERT(h_buffer[i] == i, "groups={}: expected {} at [{}], got {}", groups, i, i, h_buffer[i]);
+            boost::ut::expect(static_cast<bool>(h_buffer[i] == i)) << "dynamic_dispatch_grid output mismatch.";
         for (uint i = count; i < buffer_size; i++)
-            LUISA_ASSERT(h_buffer[i] == 0u, "groups={}: unexpected write at [{}] = {}", groups, i, h_buffer[i]);
+            boost::ut::expect(static_cast<bool>(h_buffer[i] == 0u)) << "dynamic_dispatch_grid unexpected write.";
         LUISA_INFO("dynamic_dispatch_grid: {} groups ({} threads) passed", groups, count);
     };
 
@@ -178,7 +183,7 @@ void node_array_test(Device &device, Stream &stream) {
     stream << d_buffer.copy_to(h_buffer.data()) << synchronize();
 
     for (uint i = 0u; i < array_size; i++)
-        LUISA_ASSERT(h_buffer[i] == i, "consumer[{}]: expected {}, got {}", i, i, h_buffer[i]);
+        boost::ut::expect(static_cast<bool>(h_buffer[i] == i)) << "node_array output mismatch.";
     LUISA_INFO("node_array: passed");
 }
 
@@ -248,8 +253,7 @@ void bindless_array_work_graph_test(Device &device, Stream &stream) {
     stream << d_out.copy_to(h_out.data()) << synchronize();
 
     for (uint i = 0u; i < N; i++)
-        LUISA_ASSERT(h_out[i] == values[i],
-                     "slot {}: expected {}, got {}", i, values[i], h_out[i]);
+        boost::ut::expect(static_cast<bool>(h_out[i] == values[i])) << "bindless_array_work_graph output mismatch.";
     LUISA_INFO("bindless_array_work_graph: passed");
 }
 
@@ -328,14 +332,16 @@ void accel_work_graph_test(Device &device, Stream &stream) {
     stream << program().dispatch(1, 0, nullptr) << synchronize();
     stream << d_out.copy_to(h_out.data()) << synchronize();
 
-    LUISA_ASSERT(h_out[0] == 1u, "ray 0 should hit, got {}", h_out[0]);
-    LUISA_ASSERT(h_out[1] == 0u, "ray 1 should miss, got {}", h_out[1]);
+    boost::ut::expect(static_cast<bool>(h_out[0] == 1u)) << "ray 0 should hit.";
+    boost::ut::expect(static_cast<bool>(h_out[1] == 0u)) << "ray 1 should miss.";
     LUISA_INFO("accel_work_graph: passed");
 }
 
-int main(int argc, char **argv) {
-    Context ctx{argv[0]};
-    Device device = ctx.create_device("dx", nullptr, true);
+void test_work_graph(Device &device) {
+    boost::ut::expect(static_cast<bool>(device.backend_name() == "dx")) << "test_work_graph requires dx backend.";
+    if (device.backend_name() != "dx") {
+        return;
+    }
     Stream stream = device.create_stream(StreamTag::COMPUTE);
 
     basic_work_graph_test(device, stream);
@@ -343,6 +349,16 @@ int main(int argc, char **argv) {
     node_array_test(device, stream);
     bindless_array_work_graph_test(device, stream);
     accel_work_graph_test(device, stream);
-
-    return 0;
 }
+
+static inline const auto reg = [] {
+    "test_work_graph"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_work_graph(device);
+    };
+    return 0;
+}();
+
+int main() {}

@@ -7,6 +7,9 @@
 // - Statistical analysis of frame times
 // - Empty frame presentation
 
+#include "ut/ut.hpp"
+#include "test_device.h"
+
 #include <iostream>
 
 #include <luisa/core/clock.h>
@@ -22,21 +25,19 @@
 #include <luisa/ast/ast2json.h>
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
-int main(int argc, char *argv[]) {
+void test_present(Device &device) {
 
     log_level_verbose();
 
-    Context context{argv[0]};
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-    auto opts = luisa::test::ImageTestOptions::parse(argc, argv);
+    auto opts = luisa::test::ImageTestOptions::parse(
+        boost::ut::detail::cfg::largc,
+        boost::ut::detail::cfg::largv);
     (void)opts;
     // Note: test_present directly tests swapchain presentation timing, offline mode not applicable
     static constexpr uint2 resolution = make_uint2(1024u);
-    Device device = context.create_device(argv[1]);
     Stream stream = device.create_stream(StreamTag::GRAPHICS);
 
     // Create window and swapchain
@@ -73,3 +74,15 @@ int main(int argc, char *argv[]) {
         LUISA_INFO("mean: {}, var:{}", mean_dt / cnt, -(mean_dt * mean_dt / cnt - mean_dt2));
     }
 }
+
+static inline const auto reg = [] {
+    "test_present"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_present(device);
+    };
+    return 0;
+}();
+
+int main() {}

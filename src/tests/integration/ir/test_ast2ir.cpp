@@ -7,6 +7,17 @@
 // - Control flow (loops, conditionals, switches)
 // - JSON and binary serialization of IR
 
+#if __has_include("ut/ut.hpp")
+#include "ut/ut.hpp"
+#else
+#include "../../ut/ut.hpp"
+#endif
+#if __has_include("test_device.h")
+#include "test_device.h"
+#else
+#include "../../test_device.h"
+#endif
+
 #include <iostream>
 #include <chrono>
 #include <numeric>
@@ -24,6 +35,8 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
 // Test structure for struct type testing in kernels
 struct Test {
@@ -33,21 +46,11 @@ struct Test {
 
 LUISA_STRUCT(Test, something, a) {};
 
-int main(int argc, char *argv[]) {
+void test_ast2ir(Device &device) {
     constexpr auto f = 10;
 
     // Enable verbose logging for debugging
     luisa::log_level_verbose();
-
-    // Initialize the compute context with the executable path
-    Context context{argv[0]};
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-    
-    // Create a compute device with the specified backend
-    Device device = context.create_device(argv[1]);
 
     // Create test buffers for kernel capture testing
     auto buffer = device.create_buffer<float4>(1024u);
@@ -221,3 +224,15 @@ int main(int argc, char *argv[]) {
                       static_cast<std::streamsize>(binary.len));
     }
 }
+
+static inline const auto reg = [] {
+    "test_ast2ir"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_ast2ir(device);
+    };
+    return 0;
+}();
+
+int main() {}

@@ -1,3 +1,5 @@
+#include "ut/ut.hpp"
+#include "test_device.h"
 #include <fstream>
 
 #include <luisa/runtime/context.h>
@@ -17,19 +19,16 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
-int main(int argc, char *argv[]) {
+void test_dstorage(Device &device) {
 
-    Context context{argv[0]};
-
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-    auto opts = luisa::test::ImageTestOptions::parse(argc, argv);
-    auto device = context.create_device(argv[1]);
+    auto opts = luisa::test::ImageTestOptions::parse(
+        boost::ut::detail::cfg::largc,
+        boost::ut::detail::cfg::largv);
     auto dstorage_ext = device.extension<DStorageExt>();
-    auto ref_dir = luisa::test::find_reference_dir(std::filesystem::path{argv[0]}.parent_path());
+    auto ref_dir = luisa::test::find_reference_dir(std::filesystem::path{boost::ut::detail::cfg::largv[0]}.parent_path());
     auto comparison_failed = false;
     static constexpr uint32_t width = 4096;
     static constexpr uint32_t height = 4096;
@@ -52,7 +51,8 @@ int main(int argc, char *argv[]) {
         DStorageFile file = dstorage_ext->open_file("test_dstorage_file.txt");
         if (!file) {
             LUISA_WARNING("Buffer file not found.");
-            exit(1);
+            boost::ut::expect(static_cast<bool>(file)) << "Buffer file not found.";
+            return;
         }
         luisa::string file_text;
         file_text.resize(file.size_bytes());
@@ -192,9 +192,22 @@ int main(int argc, char *argv[]) {
     if (comparison_failed) {
         if (opts.offline) {
             LUISA_ERROR("One or more reference image comparisons failed in test_dstorage.");
-            return 1;
+            boost::ut::expect(false) << "One or more reference image comparisons failed in test_dstorage.";
+            return;
         }
-        return 1;
+        boost::ut::expect(false) << "One or more reference image comparisons failed in test_dstorage.";
+        return;
     }
-    return 0;
 }
+
+static inline const auto reg = [] {
+    "test_dstorage"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_dstorage(device);
+    };
+    return 0;
+}();
+
+int main() {}

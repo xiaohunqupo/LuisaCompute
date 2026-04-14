@@ -2,6 +2,11 @@
 // Tests HIPRT scene traversal directly on the current GPU
 // to isolate whether HIPRT SDK works on gfx1200 (RDNA 4)
 
+#include "ut/ut.hpp"
+#include "test_device.h"
+
+#if __has_include(<hip/hip_runtime.h>) && __has_include(<hip/hiprtc.h>) && __has_include(<hiprt/hiprt.h>)
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -11,6 +16,9 @@
 #include <hip/hip_runtime.h>
 #include <hip/hiprtc.h>
 #include <hiprt/hiprt.h>
+
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
 #define CHECK_HIP(call)                                               \
     do {                                                              \
@@ -107,7 +115,9 @@ extern "C" __global__ void TestSceneKernel(
 }
 )";
 
-int main(int argc, char **argv) {
+void test_hiprt_standalone(luisa::compute::Device &device) {
+    (void)device;
+
     printf("=== Standalone HIPRT Test ===\n");
 
     // Init HIP
@@ -369,5 +379,41 @@ int main(int argc, char **argv) {
     hiprtcDestroyProgram(&prog);
 
     printf("=== Test Complete ===\n");
-    return 0;
+    return;
 }
+
+static inline const auto reg = [] {
+    "test_hiprt_standalone"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_hiprt_standalone(device);
+    };
+    return 0;
+}();
+
+int main() {}
+
+#else
+
+using namespace boost::ut;
+using namespace boost::ut::literals;
+
+void test_hiprt_standalone(luisa::compute::Device &device) {
+    (void)device;
+    return;
+}
+
+static inline const auto reg = [] {
+    "test_hiprt_standalone"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_hiprt_standalone(device);
+    };
+    return 0;
+}();
+
+int main() {}
+
+#endif

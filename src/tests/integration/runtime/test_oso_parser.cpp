@@ -1,15 +1,24 @@
 // OSL (Open Shading Language) parser test demonstrating parsing
 // of .oso shader bytecode files.
 
+#include "ut/ut.hpp"
+#include "test_device.h"
+
 #include <cstdio>
 
 #include <luisa/osl/shader.h>
 #include <luisa/osl/oso_parser.h>
 
-int main(int argc, char *argv[]) {
+using namespace boost::ut;
+using namespace boost::ut::literals;
+
+void test_oso_parser(luisa::compute::Device &device) {
+    (void)device;
+    auto argc = boost::ut::detail::cfg::largc;
+    auto argv = boost::ut::detail::cfg::largv;
 
     luisa::unique_ptr<luisa::compute::osl::Shader> shader;
-    
+
     // Use embedded shader code if no file argument provided
     if (argc < 2) {
         static constexpr auto code = R"oso(
@@ -173,3 +182,15 @@ end
     // Dump parsed shader information
     puts(shader->dump().c_str());
 }
+
+static inline const auto reg = [] {
+    "test_oso_parser"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_oso_parser(device);
+    };
+    return 0;
+}();
+
+int main() {}

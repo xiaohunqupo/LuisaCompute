@@ -1,6 +1,9 @@
 // Native include test demonstrating how to embed backend-specific
 // code (HLSL, CUDA, Metal) directly in kernels.
 
+#include "ut/ut.hpp"
+#include "test_device.h"
+
 #include <luisa/runtime/context.h>
 #include <luisa/runtime/stream.h>
 #include <luisa/runtime/image.h>
@@ -13,14 +16,15 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
-int main(int argc, char *argv[]) {
-    Context context{argv[0]};
-    if (argc <= 1) { exit(1); }
-
+void test_native_include(Device &device) {
+    auto argv = boost::ut::detail::cfg::largv;
     luisa::string device_name = argv[1];
-    auto opts = luisa::test::ImageTestOptions::parse(argc, argv);
-    Device device = context.create_device(device_name);
+    auto opts = luisa::test::ImageTestOptions::parse(
+        boost::ut::detail::cfg::largc,
+        boost::ut::detail::cfg::largv);
     Stream stream = device.create_stream();
 
     // Set image resolution
@@ -76,8 +80,19 @@ float2 get_uv(float2 coord, float2 size){
     LUISA_INFO("Reference comparison: {} ({})", result.passed ? "PASSED" : "FAILED", result.message);
     if (!result.passed) {
         LUISA_ERROR("Reference comparison failed for test_native_code: {}", result.message);
-        if (opts.offline) { return 1; }
-        return 1;
+        boost::ut::expect(false) << result.message;
+        return;
     }
-    return 0;
 }
+
+static inline const auto reg = [] {
+    "test_native_include"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_native_include(device);
+    };
+    return 0;
+}();
+
+int main() {}

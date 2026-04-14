@@ -8,6 +8,9 @@
 // - Real-time rendering loop
 // - Stream statistics and profiling
 
+#include "ut/ut.hpp"
+#include "test_device.h"
+
 #include <numeric>
 
 #include "../../reference_image.h"
@@ -31,26 +34,26 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
-int main(int argc, char *argv[]) {
+void test_runtime(Device &device_from_ut) {
     luisa::log_level_verbose();
 
-    // Initialize context
-    Context context{argv[0]};
-
+    auto argv = boost::ut::detail::cfg::largv;
+    (void)device_from_ut;
     Buffer<float> buffer;
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-    auto opts = luisa::test::ImageTestOptions::parse(argc, argv);
+    auto opts = luisa::test::ImageTestOptions::parse(
+        boost::ut::detail::cfg::largc,
+        boost::ut::detail::cfg::largv);
 
     // Configure device with explicit settings
+    Context context{argv[0]};
     DeviceConfig device_config{
         .device_index = 0,
-        // To avoid memory overflows, the backend automatically waits 2 - 3 frames before committing,
-        // set .inqueue_buffer_limit to false when multi-stream interactions are involved
         .inqueue_buffer_limit = false};
+    // To avoid memory overflows, the backend automatically waits 2 - 3 frames before committing,
+    // set .inqueue_buffer_limit to false when multi-stream interactions are involved
     Device device = context.create_device(argv[1], &device_config, true /*use validation layer for debug*/);
 
     // Get statistics extension for profiling
@@ -164,7 +167,7 @@ int main(int argc, char *argv[]) {
         // Final synchronization
         compute_stream << synchronize();
         graphics_stream << synchronize();
-        return 0;
+        return;
     } else {
         Image<float> ldr_image = device.create_image<float>(PixelStorage::BYTE4, resolution);
         ldr_image.set_name("present");
@@ -197,8 +200,21 @@ int main(int argc, char *argv[]) {
         LUISA_INFO("Reference comparison: {} ({})", result.passed ? "PASSED" : "FAILED", result.message);
         if (!result.passed) {
             LUISA_ERROR("Reference comparison failed for test_runtime: {}", result.message);
-            return 1;
+            boost::ut::expect(false) << result.message;
+            return;
         }
-        return 0;
+        return;
     }
 }
+
+static inline const auto reg = [] {
+    "test_runtime"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_runtime(device);
+    };
+    return 0;
+}();
+
+int main() {}

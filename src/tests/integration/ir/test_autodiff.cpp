@@ -11,6 +11,17 @@
 // Autodiff uses reverse-mode automatic differentiation to compute gradients
 // efficiently in a single forward and backward pass.
 
+#if __has_include("ut/ut.hpp")
+#include "ut/ut.hpp"
+#else
+#include "../../ut/ut.hpp"
+#endif
+#if __has_include("test_device.h")
+#include "test_device.h"
+#else
+#include "../../test_device.h"
+#endif
+
 #include <fstream>
 #include <luisa/luisa-compute.h>
 #include <luisa/ir/ast2ir.h>
@@ -18,19 +29,13 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
-int main(int argc, char *argv[]) {
+void test_autodiff(Device &device) {
 
     // Enable verbose logging for debugging
     luisa::log_level_verbose();
-
-    // Initialize compute context
-    auto context = Context{argv[0]};
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-    auto device = context.create_device(argv[1]);
 
     // Number of test elements
     constexpr auto n = 1024u;
@@ -68,29 +73,29 @@ int main(int argc, char *argv[]) {
         auto i = dispatch_x();
         auto x = x_buffer.read(i);
         auto y = y_buffer.read(i);
-        
+
         // Define a callable that uses autodiff to compute gradients
         Callable callable = [](ArrayFloat<3> a) noexcept {
             auto x_grad = def(0.f);
             auto y_grad = def(make_float2(0.f));
-            
+
             // Autodiff block: mark inputs as requiring gradients,
             // compute output, then propagate gradients backward
             $autodiff {
                 requires_grad(a);
                 auto z = f(a[0], make_float2(a[1], a[2]));
-                backward(z);  // Backpropagate gradients from output
+                backward(z);// Backpropagate gradients from output
                 auto a_grad = grad(a);
                 x_grad = a_grad[0];
                 y_grad = make_float2(a_grad[1], a_grad[2]);
             };
             return make_float3(x_grad, y_grad);
         };
-        
+
         // Pack inputs into array for autodiff
         ArrayFloat<3> a{x, y.x, y.y};
         auto grad = callable(a);
-        
+
         // Write gradients to output buffers
         x_grad_buffer.write(i, grad.x);
         y_grad_buffer.write(i, grad.yz());
@@ -132,3 +137,15 @@ int main(int argc, char *argv[]) {
                    fd_x[i], fd_y[i].x, fd_y[i].y);
     }
 }
+
+static inline const auto reg = [] {
+    "test_autodiff"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_autodiff(device);
+    };
+    return 0;
+}();
+
+int main() {}

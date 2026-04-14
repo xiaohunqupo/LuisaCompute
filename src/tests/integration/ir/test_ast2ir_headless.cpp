@@ -1,3 +1,14 @@
+#if __has_include("ut/ut.hpp")
+#include "ut/ut.hpp"
+#else
+#include "../../ut/ut.hpp"
+#endif
+#if __has_include("test_device.h")
+#include "test_device.h"
+#else
+#include "../../test_device.h"
+#endif
+
 #include <iostream>
 #include <chrono>
 #include <numeric>
@@ -15,15 +26,19 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
 struct Test {
     int3 something;
     float a;
 };
 
-LUISA_STRUCT(Test, something, a){};
+LUISA_STRUCT(Test, something, a) {};
 
-int main(int argc, char *argv[]) {
+void test_ast2ir_headless(Device &device) {
+
+    (void)device;
 
     constexpr auto f = 10;
 
@@ -142,3 +157,14 @@ int main(int argc, char *argv[]) {
     }
 }
 
+static inline const auto reg = [] {
+    "test_ast2ir_headless"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_ast2ir_headless(device);
+    };
+    return 0;
+}();
+
+int main() {}

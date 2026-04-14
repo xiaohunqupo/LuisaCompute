@@ -1,3 +1,6 @@
+#include "ut/ut.hpp"
+#include "test_device.h"
+
 #include <vector>
 #include <cmath>
 
@@ -19,6 +22,8 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
 class DXConfigExtImpl final : public DirectXDeviceConfigExt {
 public:
@@ -39,14 +44,9 @@ public:
 };
 #endif
 
-int main(int argc, char *argv[]) {
-    Context context{argv[0]};
-
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: dx, vk", argv[0]);
-        exit(1);
-    }
-
+void test_memory_compact(Device &device_from_ut) {
+    auto argv = boost::ut::detail::cfg::largv;
+    (void)device_from_ut;
     luisa::string backend = argv[1];
     bool use_dx = false;
 
@@ -57,13 +57,13 @@ int main(int argc, char *argv[]) {
         use_dx = false;
 #else
         LUISA_WARNING("Vulkan support not available (headers missing)");
-        exit(0);
+        return;
 #endif
     } else {
         LUISA_WARNING("This test requires the dx or vk backend");
-        exit(0);
+        return;
     }
-
+    Context context{argv[0]};
     DeviceConfig config;
     luisa::move_only_function<void()> *defragment_func;
 
@@ -78,7 +78,6 @@ int main(int argc, char *argv[]) {
         config.extension = std::move(vk_config_ext);
 #endif
     }
-
     Device device = context.create_device(backend, &config);
     Stream stream = device.create_stream();
 
@@ -145,5 +144,17 @@ int main(int argc, char *argv[]) {
         LUISA_INFO("Memory compact test passed!");
     }
 
-    return success ? 0 : 1;
+    boost::ut::expect(success) << "Memory compact test failed.";
 }
+
+static inline const auto reg = [] {
+    "test_memory_compact"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_memory_compact(device);
+    };
+    return 0;
+}();
+
+int main() {}

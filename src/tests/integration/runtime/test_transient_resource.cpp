@@ -1,3 +1,6 @@
+#include "ut/ut.hpp"
+#include "test_device.h"
+
 #include "transient_resource_device/transient_resource_device.h"
 #include "../../reference_image.h"
 #include <filesystem>
@@ -7,16 +10,17 @@
 #include <luisa/gui/window.h>
 using namespace luisa;
 using namespace luisa::compute;
-int main(int argc, char *argv[]) {
+using namespace boost::ut;
+using namespace boost::ut::literals;
+
+void test_transient_resource(Device &device) {
     log_level_verbose();
 
+    auto argv = boost::ut::detail::cfg::largv;
     Context context{argv[0]};
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-    auto opts = luisa::test::ImageTestOptions::parse(argc, argv);
-    Device device = context.create_device(argv[1]);
+    auto opts = luisa::test::ImageTestOptions::parse(
+        boost::ut::detail::cfg::largc,
+        boost::ut::detail::cfg::largv);
     Stream stream = device.create_stream(StreamTag::GRAPHICS);
     auto write_shader = device.compile<2>([](ImageVar<float> img, UInt2 offset, Float z_value) {
         auto uv = (make_float2(dispatch_id().xy()) + 0.5f) / make_float2(dispatch_size().xy());
@@ -83,7 +87,7 @@ int main(int argc, char *argv[]) {
             stream << swap_chain.present(dst_tex);
         }
         stream.synchronize();
-        return 0;
+        return;
     } else {
         luisa::compute::Device transient_res_device{luisa::make_unique<utils::TransientResourceDevice>(Context{context}, device.impl())};
         auto storage = PixelStorage::BYTE4;
@@ -122,8 +126,21 @@ int main(int argc, char *argv[]) {
         LUISA_INFO("Reference comparison: {} ({})", result.passed ? "PASSED" : "FAILED", result.message);
         if (!result.passed) {
             LUISA_ERROR("Reference comparison failed for test_transient_resource: {}", result.message);
-            return 1;
+            boost::ut::expect(false) << result.message;
+            return;
         }
-        return 0;
+        return;
     }
 }
+
+static inline const auto reg = [] {
+    "test_transient_resource"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_transient_resource(device);
+    };
+    return 0;
+}();
+
+int main() {}

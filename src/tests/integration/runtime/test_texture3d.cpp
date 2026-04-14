@@ -1,6 +1,9 @@
 //
 // Created by Mike on 5/24/2023.
 //
+#include "ut/ut.hpp"
+#include "test_device.h"
+
 #include <cstdlib>
 #include <cstring>
 #include "../../reference_image.h"
@@ -16,6 +19,8 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
 struct PerlinSettings {
     int octave;
@@ -38,9 +43,10 @@ LUISA_STRUCT(TRay, origin, direction) {};
 LUISA_STRUCT(Bbox, min, max) {};
 
 // credit: https://github.com/nvpro-samples/vk_mini_samples/tree/main/samples/texture_3d/shaders (Apache License 2.0)
-int main(int argc, char *argv[]) {
+void test_texture3d(Device &device) {
 
-    Context context{argv[0]};
+    auto argc = boost::ut::detail::cfg::largc;
+    auto argv = boost::ut::detail::cfg::largv;
 
     bool offline_mode = false;
     luisa::string output_filename = "texture3d_output.png";
@@ -70,8 +76,6 @@ int main(int argc, char *argv[]) {
         LUISA_INFO("  --samples <n>      Number of samples per pixel (default: 64)");
         exit(1);
     }
-    Device device = context.create_device(argv[device_arg_index]);
-
     static constexpr auto mod289 = [](auto x) noexcept { return x - floor(x * (1.f / 289.f)) * 289.f; };
     static constexpr auto permute = [](auto x) noexcept { return mod289(((x * 34.f) + 1.f) * x); };
     static constexpr auto taylor_inv_sqrt = [](auto r) noexcept { return 1.79284291400159f - 0.85373472095314f * r; };
@@ -387,6 +391,11 @@ int main(int argc, char *argv[]) {
         }
 
         int success = stbi_write_png(output_filename.c_str(), resolution.x, resolution.y, 4, image_data.data(), resolution.x * 4);
+        boost::ut::expect(static_cast<bool>(success != 0)) << "Failed to save output image.";
+        if (!success) {
+            LUISA_ERROR("Failed to save output to {}", output_filename);
+            return;
+        }
         if (success) {
             LUISA_INFO("Saved output to {}", output_filename);
         } else {
@@ -398,12 +407,13 @@ int main(int argc, char *argv[]) {
             image_data.data(), static_cast<int>(resolution.x), static_cast<int>(resolution.y), 4,
             "test_texture3d", ref_dir, false);
         LUISA_INFO("Reference comparison: {} ({})", result.passed ? "PASSED" : "FAILED", result.message);
+        boost::ut::expect(static_cast<bool>(result.passed)) << result.message;
         if (!result.passed) {
             LUISA_ERROR("Reference comparison failed for test_texture3d: {}", result.message);
-            return 1;
+            return;
         }
 
-        return 0;
+        return;
     }
 
     Window window{"Display", resolution};
@@ -504,3 +514,15 @@ int main(int argc, char *argv[]) {
     }
     stream << synchronize();
 }
+
+static inline const auto reg = [] {
+    "test_texture3d"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_texture3d(device);
+    };
+    return 0;
+}();
+
+int main() {}

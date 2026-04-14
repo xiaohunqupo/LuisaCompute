@@ -1,3 +1,6 @@
+#include "ut/ut.hpp"
+#include "test_device.h"
+
 #include <luisa/luisa-compute.h>
 #include <luisa/dsl/sugar.h>
 #include <luisa/gui/window.h>
@@ -7,17 +10,17 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
 // contributed by @swifly in issue #67
-int main(int argc, char *argv[]) {
+void test_bindless_buffer(Device &device) {
 
-    Context context{argv[0]};
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-    auto opts = luisa::test::ImageTestOptions::parse(argc, argv);
-    Device device = context.create_device(argv[1]);
+    auto argv = boost::ut::detail::cfg::largv;
+
+    auto opts = luisa::test::ImageTestOptions::parse(
+        boost::ut::detail::cfg::largc,
+        boost::ut::detail::cfg::largv);
 
     constexpr uint2 resolution = make_uint2(1280, 720);
 
@@ -63,7 +66,6 @@ int main(int argc, char *argv[]) {
                    << swapchain.present(device_image1);
             window.poll_events();
         }
-        return 0;
     } else {
         luisa::vector<std::byte> pixels(device_image1.view().size_bytes());
         stream << s(0.0f).dispatch(resolution.x, resolution.y)
@@ -75,8 +77,19 @@ int main(int argc, char *argv[]) {
         LUISA_INFO("Reference comparison: {} ({})", result.passed ? "PASSED" : "FAILED", result.message);
         if (!result.passed) {
             LUISA_ERROR("Reference comparison failed for test_bindless_buffer: {}", result.message);
-            return 1;
         }
-        return 0;
+        expect(result.passed) << result.message;
     }
 }
+
+static inline const auto reg = [] {
+    "test_bindless_buffer"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_bindless_buffer(device);
+    };
+    return 0;
+}();
+
+int main() {}

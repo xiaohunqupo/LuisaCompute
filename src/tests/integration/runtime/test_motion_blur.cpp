@@ -12,6 +12,8 @@
 // Created by Mike Smith on 2024/9/20.
 //
 
+#include "ut/ut.hpp"
+#include "test_device.h"
 #include "../../reference_image.h"
 
 #include <filesystem>
@@ -20,18 +22,16 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
-int main(int argc, char *argv[]) {
+void test_motion_blur(Device &device) {
 
     log_level_verbose();
 
-    Context context{argv[0]};
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-    auto opts = luisa::test::ImageTestOptions::parse(argc, argv);
-    Device device = context.create_device(argv[1]);
+    auto opts = luisa::test::ImageTestOptions::parse(
+        boost::ut::detail::cfg::largc,
+        boost::ut::detail::cfg::largv);
 
     static constexpr uint width = 512u;
     static constexpr uint height = 512u;
@@ -251,14 +251,26 @@ int main(int argc, char *argv[]) {
     double time = clock.toc();
     LUISA_INFO("Time: {} ms", time);
     stbi_write_png("test_motion_blur.png", width, height, 4, pixels.data(), 0);
-    auto ref_dir = luisa::test::find_reference_dir(std::filesystem::path{argv[0]}.parent_path());
+    auto ref_dir = luisa::test::find_reference_dir(std::filesystem::path{boost::ut::detail::cfg::largv[0]}.parent_path());
     auto result = luisa::test::save_and_compare(
         pixels.data(), static_cast<int>(width), static_cast<int>(height), 4,
         "test_motion_blur", opts.output_dir, ref_dir, opts.update_reference);
     LUISA_INFO("Reference comparison: {} ({})", result.passed ? "PASSED" : "FAILED", result.message);
     if (!result.passed) {
         LUISA_ERROR("Reference comparison failed for test_motion_blur: {}", result.message);
-        return 1;
+        boost::ut::expect(static_cast<bool>(result.passed)) << result.message;
+        return;
     }
-    return 0;
 }
+
+static inline const auto reg = [] {
+    "test_motion_blur"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_motion_blur(device);
+    };
+    return 0;
+}();
+
+int main() {}

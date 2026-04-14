@@ -3,6 +3,17 @@
 // and Intermediate Representation (IR), ensuring that IR can be converted back to AST
 // while preserving semantics.
 
+#if __has_include("ut/ut.hpp")
+#include "ut/ut.hpp"
+#else
+#include "../../ut/ut.hpp"
+#endif
+#if __has_include("test_device.h")
+#include "test_device.h"
+#else
+#include "../../test_device.h"
+#endif
+
 #include <iostream>
 #include <chrono>
 #include <numeric>
@@ -21,6 +32,8 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
 // Test structure for struct type testing in kernels
 struct Test {
@@ -28,16 +41,14 @@ struct Test {
     float a;
 };
 
-LUISA_STRUCT(Test, something, a){};
+LUISA_STRUCT(Test, something, a) {};
 
-int main(int argc, char *argv[]) {
+void test_ast2ir_ir2ast(Device &device) {
+    (void)device;
     constexpr auto f = 10;
 
     // Enable verbose logging for debugging
     luisa::log_level_verbose();
-
-    // Initialize context without creating device
-    Context context{argv[0]};
 
     // Create constant vector data
     std::vector<int> const_vector(128u);
@@ -154,3 +165,15 @@ int main(int argc, char *argv[]) {
     auto ast = luisa::compute::IR2AST::build(ir.get()->get());
     LUISA_INFO("IR2AST done in {} ms.", clock.toc());
 }
+
+static inline const auto reg = [] {
+    "test_ast2ir_ir2ast"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_ast2ir_ir2ast(device);
+    };
+    return 0;
+}();
+
+int main() {}

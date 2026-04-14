@@ -1,3 +1,6 @@
+#include "ut/ut.hpp"
+#include "test_device.h"
+
 #include <iostream>
 
 #include "../../reference_image.h"
@@ -15,6 +18,8 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
 struct Onb {
     float3 tangent;
@@ -28,17 +33,16 @@ LUISA_STRUCT(Onb, tangent, binormal, normal) {
     }
 };
 
-int main(int argc, char *argv[]) {
+void test_denoiser(Device &device) {
+
+    auto argc = boost::ut::detail::cfg::largc;
+    auto argv = boost::ut::detail::cfg::largv;
 
     log_level_verbose();
 
-    Context context{argv[0]};
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-    auto opts = luisa::test::ImageTestOptions::parse(argc, argv);
-    Device device = context.create_device(argv[1]);
+    auto opts = luisa::test::ImageTestOptions::parse(
+        boost::ut::detail::cfg::largc,
+        boost::ut::detail::cfg::largv);
 
     // load the Cornell Box scene
     tinyobj::ObjReaderConfig obj_reader_config;
@@ -423,7 +427,7 @@ int main(int argc, char *argv[]) {
 
         LUISA_INFO("FPS: {}", frame_count / clock.toc() * 1000);
         stbi_write_png("test_path_tracing.png", resolution.x, resolution.y, 4, host_image.data(), 0);
-        return 0;
+        return;
     } else {
         Image<float> offline_image = device.create_image<float>(PixelStorage::BYTE4, resolution);
         stream << clear_shader(accum_image).dispatch(resolution);
@@ -447,10 +451,23 @@ int main(int argc, char *argv[]) {
             reinterpret_cast<const uint8_t *>(host_image.data()), static_cast<int>(resolution.x), static_cast<int>(resolution.y), 4,
             "test_denoiser", opts.output_dir, ref_dir, opts.update_reference);
         LUISA_INFO("Reference comparison: {} ({})", result.passed ? "PASSED" : "FAILED", result.message);
+        boost::ut::expect(static_cast<bool>(result.passed)) << result.message;
         if (!result.passed) {
             LUISA_ERROR("Reference comparison failed for test_denoiser: {}", result.message);
-            return 1;
+            return;
         }
-        return 0;
+        return;
     }
 }
+
+static inline const auto reg = [] {
+    "test_denoiser"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_denoiser(device);
+    };
+    return 0;
+}();
+
+int main() {}

@@ -1,3 +1,6 @@
+#include "ut/ut.hpp"
+#include "test_device.h"
+
 #include "../../reference_image.h"
 
 #include <filesystem>
@@ -20,6 +23,8 @@
 #include <luisa/backends/ext/raster_ext.hpp>
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 struct v2p {
     float4 pos;
     float2 uv;
@@ -33,7 +38,8 @@ struct Vertex {
     float2 uv1;
     uint color;
 };
-int main(int argc, char *argv[]) {
+void test_raster(Device &device) {
+    auto argv = boost::ut::detail::cfg::largv;
 
     // RasterStageKernel vert = [&](Var<AppData> var, Float time) {
     //     Var<v2p> o;
@@ -55,13 +61,9 @@ int main(int argc, char *argv[]) {
         image.write(dispatch_id().xy(), make_float4(0.1f));
     };
     // RasterKernel<decltype(vert), decltype(pixel)> kernel{vert, pixel};
-    Context context{argv[0]};
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-    auto opts = luisa::test::ImageTestOptions::parse(argc, argv);
-    Device device = context.create_device(argv[1], nullptr);
+    auto opts = luisa::test::ImageTestOptions::parse(
+        boost::ut::detail::cfg::largc,
+        boost::ut::detail::cfg::largv);
     Stream stream = device.create_stream(StreamTag::GRAPHICS);
     static constexpr uint width = 1024;
     static constexpr uint height = 1024;
@@ -135,7 +137,7 @@ int main(int argc, char *argv[]) {
             window.poll_events();
         }
         stream << synchronize();
-        return 0;
+        return;
     } else {
         Image<float> out_img = device.create_image<float>(PixelStorage::BYTE4, width, height, 1, false, true);
         luisa::vector<std::byte> pixels(out_img.view().size_bytes());
@@ -154,8 +156,21 @@ int main(int argc, char *argv[]) {
         LUISA_INFO("Reference comparison: {} ({})", result.passed ? "PASSED" : "FAILED", result.message);
         if (!result.passed) {
             LUISA_ERROR("Reference comparison failed for test_raster: {}", result.message);
-            return 1;
+            boost::ut::expect(false) << result.message;
+            return;
         }
-        return 0;
+        return;
     }
 }
+
+static inline const auto reg = [] {
+    "test_raster"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_raster(device);
+    };
+    return 0;
+}();
+
+int main() {}

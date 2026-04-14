@@ -11,6 +11,9 @@
 // - Shadow rays for direct lighting
 // - Interactive camera control
 
+#include "ut/ut.hpp"
+#include "test_device.h"
+
 #include <fstream>
 #include "../../reference_image.h"
 #include <filesystem>
@@ -18,6 +21,8 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
 constexpr static float PI = 3.14159265358979323846f;
 
@@ -164,7 +169,7 @@ public:
         Float a = cosTheta_i * cosTheta_o / v, b = sinTheta_i * sinTheta_o / v;
         // Use log-space computation for numerical stability with small v
         Float mp = ite(v <= .1f,
-                       (exp(log10(a) - b - 1.f / v + 0.6931f + log(1.f / (2.f * v)))),
+                       (exp(luisa::compute::log10(a) - b - 1.f / v + 0.6931f + luisa::compute::log(1.f / (2.f * v)))),
                        (exp(-b) * I0(a)) / (sinh(1.f / v) * 2.f * v));
         return mp;
     }
@@ -297,18 +302,16 @@ public:
     // Parser helper functions
     auto eof = [&] { return file.peek() == EOF; };
     auto peek = [&] {
-        LUISA_ASSERT(!eof(), "Unexpected EOF.");
+        boost::ut::expect(static_cast<bool>(!eof())) << "Unexpected EOF.";
         return static_cast<char>(file.peek());
     };
     auto pop = [&] {
-        LUISA_ASSERT(!eof(), "Unexpected EOF.");
+        boost::ut::expect(static_cast<bool>(!eof())) << "Unexpected EOF.";
         return static_cast<char>(file.get());
     };
     auto match = [&](char c) noexcept {
         auto x = pop();
-        LUISA_ASSERT(x == c,
-                     "Unexpected character: {} (expected {})",
-                     x, c);
+        boost::ut::expect(static_cast<bool>(x == c)) << "Unexpected character.";
     };
     auto skip_whitespaces = [&] {
         while (!eof() && std::isspace(peek())) { pop(); }
@@ -339,7 +342,7 @@ public:
         while (!eof() && is_digit(peek())) { s.push_back(pop()); }
         auto p = static_cast<size_t>(0u);
         auto x = std::stof(s, &p);
-        LUISA_ASSERT(p == s.size(), "Failed to parse float: {}", s);
+        boost::ut::expect(static_cast<bool>(p == s.size())) << "Failed to parse float.";
         return x;
     };
 
@@ -348,8 +351,8 @@ public:
         skip_whitespaces();
         if (eof()) { return false; }
         auto token = read_token();
-        LUISA_ASSERT(token == "Shape", "Unexpected token: {}", token);
-        LUISA_ASSERT(read_string() == "curve", "Unexpected shape: {}", token);
+        boost::ut::expect(static_cast<bool>(token == "Shape")) << "Unexpected token.";
+        boost::ut::expect(static_cast<bool>(read_string() == "curve")) << "Unexpected shape.";
         static luisa::vector<float3> vertices;
         vertices.clear();
         auto radius_max = 0.;
@@ -382,8 +385,8 @@ public:
             match(']');
             skip_whitespaces();
         }
-        LUISA_ASSERT(!vertices.empty(), "Empty curve.");
-        LUISA_ASSERT(radius_max > 0.f, "Invalid curve radius: {}", radius_max);
+        boost::ut::expect(static_cast<bool>(!vertices.empty())) << "Empty curve.";
+        boost::ut::expect(static_cast<bool>(radius_max > 0.f)) << "Invalid curve radius.";
         auto offset = static_cast<uint>(control_points.size());
         auto n = static_cast<double>(vertices.size() - 1u);
         for (auto i = 0u; i < vertices.size(); i++) {
@@ -400,21 +403,24 @@ public:
     return std::make_tuple(std::move(control_points), std::move(segments), aabb_min, aabb_max);
 }
 
-int main(int argc, char *argv[]) {
+void test_curve_pbrt(Device &device) {
+
+    auto argc = boost::ut::detail::cfg::largc;
+    auto argv = boost::ut::detail::cfg::largv;
 
     log_level_verbose();
-    Context context{argv[0]};
 
     if (argc < 3) {
         LUISA_INFO("Usage: {} <backend> <pbrt-curve-file>. "
                    "<backend>: cuda, dx, cpu, metal",
                    argv[0]);
-        exit(1);
+        return;
     }
-    auto opts = luisa::test::ImageTestOptions::parse(argc, argv);
+    auto opts = luisa::test::ImageTestOptions::parse(
+        boost::ut::detail::cfg::largc,
+        boost::ut::detail::cfg::largv);
 
     // Create device and parse curve file
-    auto device = context.create_device(argv[1]);
     auto [control_points, segments, aabb_min, aabb_max] = parse_pbrt_curve_file(argv[2]);
     auto control_point_count = static_cast<uint>(control_points.size());
     auto segment_count = static_cast<uint>(segments.size());
@@ -683,7 +689,7 @@ int main(int argc, char *argv[]) {
                << ldr_image.copy_to(pixels.data())
                << synchronize();
         stbi_write_png("test_curve_pbrt.png", resolution.x, resolution.y, 4, pixels.data(), 0);
-        return 0;
+        return;
     } else {
         auto viewing_angle = PI;
         luisa::vector<std::byte> pixels(ldr_image.view().size_bytes());
@@ -699,10 +705,23 @@ int main(int argc, char *argv[]) {
             reinterpret_cast<const uint8_t *>(pixels.data()), static_cast<int>(resolution.x), static_cast<int>(resolution.y), 4,
             "test_curve_pbrt", opts.output_dir, ref_dir, opts.update_reference);
         LUISA_INFO("Reference comparison: {} ({})", result.passed ? "PASSED" : "FAILED", result.message);
+        boost::ut::expect(static_cast<bool>(result.passed)) << result.message;
         if (!result.passed) {
             LUISA_ERROR("Reference comparison failed for test_curve_pbrt: {}", result.message);
-            return 1;
+            return;
         }
-        return 0;
+        return;
     }
 }
+
+static inline const auto reg = [] {
+    "test_curve_pbrt"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_curve_pbrt(device);
+    };
+    return 0;
+}();
+
+int main() {}

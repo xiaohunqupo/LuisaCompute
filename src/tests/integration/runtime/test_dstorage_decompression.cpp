@@ -1,3 +1,6 @@
+#include "ut/ut.hpp"
+#include "test_device.h"
+
 #include <fstream>
 
 #include <luisa/runtime/context.h>
@@ -15,17 +18,16 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
-int main(int argc, char *argv[]) {
+void test_dstorage_decompression(Device &device) {
 
-    Context context{argv[0]};
+    auto argv = boost::ut::detail::cfg::largv;
 
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-    auto opts = luisa::test::ImageTestOptions::parse(argc, argv);
-    auto device = context.create_device(argv[1]);
+    auto opts = luisa::test::ImageTestOptions::parse(
+        boost::ut::detail::cfg::largc,
+        boost::ut::detail::cfg::largv);
     auto dstorage_ext = device.extension<DStorageExt>();
 
     auto dstorage_stream = dstorage_ext->create_stream();
@@ -45,8 +47,18 @@ int main(int argc, char *argv[]) {
     LUISA_INFO("Reference comparison: {} ({})", result.passed ? "PASSED" : "FAILED", result.message);
     if (!result.passed) {
         LUISA_ERROR("Reference comparison failed for test_dstorage_decompression: {}", result.message);
-        if (opts.offline) { return 1; }
-        return 1;
     }
-    return 0;
+    expect(result.passed) << result.message;
 }
+
+static inline const auto reg = [] {
+    "test_dstorage_decompression"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_dstorage_decompression(device);
+    };
+    return 0;
+}();
+
+int main() {}

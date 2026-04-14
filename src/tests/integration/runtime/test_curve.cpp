@@ -10,6 +10,8 @@
 // The curve is defined by control points and rendered using ray tracing
 // with a simple camera model.
 
+#include "ut/ut.hpp"
+#include "test_device.h"
 #include <luisa/luisa-compute.h>
 #include "../../reference_image.h"
 
@@ -17,20 +19,17 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
 
-int main(int argc, char *argv[]) {
+void test_curve(Device &device) {
 
     // Enable verbose logging
     log_level_verbose();
 
-    // Initialize compute context
-    Context context{argv[0]};
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
-        exit(1);
-    }
-    auto opts = luisa::test::ImageTestOptions::parse(argc, argv);
-    Device device = context.create_device(argv[1]);
+    auto opts = luisa::test::ImageTestOptions::parse(
+        boost::ut::detail::cfg::largc,
+        boost::ut::detail::cfg::largv);
 
     // Curve configuration
     static constexpr auto control_point_count = 50u;
@@ -214,7 +213,7 @@ int main(int argc, char *argv[]) {
         };
         ldr_image.write(coord, make_float4(ldr, 1.0f));
     });
-    auto ref_dir = luisa::test::find_reference_dir(std::filesystem::path{argv[0]}.parent_path());
+    auto ref_dir = luisa::test::find_reference_dir(std::filesystem::path{boost::ut::detail::cfg::largv[0]}.parent_path());
 
     // Setup window
     if (!opts.offline) {
@@ -239,7 +238,7 @@ int main(int argc, char *argv[]) {
                    << swap_chain.present(ldr_image);
             window.poll_events();
         }
-        return 0;
+        return;
     } else {
         luisa::vector<std::byte> pixels(ldr_image.view().size_bytes());
         stream << clear(hdr_image).dispatch(resolution)
@@ -256,8 +255,21 @@ int main(int argc, char *argv[]) {
         LUISA_INFO("Reference comparison: {} ({})", result.passed ? "PASSED" : "FAILED", result.message);
         if (!result.passed) {
             LUISA_ERROR("Reference comparison failed for test_curve: {}", result.message);
-            return 1;
+            boost::ut::expect(static_cast<bool>(result.passed)) << result.message;
+            return;
         }
-        return 0;
+        return;
     }
 }
+
+static inline const auto reg = [] {
+    "test_curve"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_curve(device);
+    };
+    return 0;
+}();
+
+int main() {}
