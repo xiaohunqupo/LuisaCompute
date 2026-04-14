@@ -1,6 +1,6 @@
 #include <luisa/luisa-compute.h>
 #include <luisa/dsl/sugar.h>
-#include <stb/stb_image_write.h>
+#include "../../reference_image.h"
 #include <iostream>
 
 using namespace luisa;
@@ -22,6 +22,7 @@ int main(int argc, char *argv[]) {
         LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
         exit(1);
     }
+    auto opts = luisa::test::ImageTestOptions::parse(argc, argv);
     Device device = context.create_device(argv[1]);
     Stream stream = device.create_stream();
     Image<float> device_image1 = device.create_image<float>(PixelStorage::FLOAT4, width, height);
@@ -167,4 +168,15 @@ int main(int argc, char *argv[]) {
            << ldr_image.copy_to(pixels.data())
            << synchronize();
     stbi_write_png("test_procedural.png", width, height, 4, pixels.data(), 0);
+    auto ref_dir = luisa::test::find_reference_dir(std::filesystem::path{argv[0]}.parent_path());
+    auto result = luisa::test::save_and_compare(
+        reinterpret_cast<const uint8_t *>(pixels.data()), static_cast<int>(width), static_cast<int>(height), 4,
+        "test_procedural", opts.output_dir, ref_dir, opts.update_reference);
+    LUISA_INFO("Reference comparison: {} ({})", result.passed ? "PASSED" : "FAILED", result.message);
+    if (!result.passed) {
+        LUISA_ERROR("Reference comparison failed for test_procedural: {}", result.message);
+        if (opts.offline) { return 1; }
+        return 1;
+    }
+    return 0;
 }

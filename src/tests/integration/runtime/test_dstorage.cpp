@@ -10,8 +10,10 @@
 #include <luisa/vstl/common.h>
 #include <luisa/backends/ext/dstorage_ext.hpp>
 #include <luisa/backends/ext/pinned_memory_ext.hpp>
-#include <stb/stb_image_write.h>
+#include "../../reference_image.h"
 #include <luisa/core/clock.h>
+
+#include <filesystem>
 
 using namespace luisa;
 using namespace luisa::compute;
@@ -24,8 +26,11 @@ int main(int argc, char *argv[]) {
         LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
         exit(1);
     }
+    auto opts = luisa::test::ImageTestOptions::parse(argc, argv);
     auto device = context.create_device(argv[1]);
     auto dstorage_ext = device.extension<DStorageExt>();
+    auto ref_dir = luisa::test::find_reference_dir(std::filesystem::path{argv[0]}.parent_path());
+    auto comparison_failed = false;
     static constexpr uint32_t width = 4096;
     static constexpr uint32_t height = 4096;
     static constexpr size_t staging_buffer_size = 32ull * 1024ull * 1024ull;
@@ -67,8 +72,8 @@ int main(int argc, char *argv[]) {
 
         // wait for disk reading and read back to memory.
         copy_stream << event.wait(1)
-                       << buffer.copy_to(buffer_data.data())
-                       << event.signal(2);
+                    << buffer.copy_to(buffer_data.data())
+                    << event.signal(2);
         event.synchronize(2);
         for (size_t i = file.size_bytes(); i < buffer_data.size(); ++i) {
             buffer_data[i] = 0;
@@ -127,6 +132,14 @@ int main(int argc, char *argv[]) {
         LUISA_INFO("Texture read time: {} ms", time);
         copy_stream << img.copy_to(out_pixels.data()) << synchronize();
         stbi_write_png("test_dstorage_texture.png", width, height / 2, 4, out_pixels.data(), 0);
+        auto result = luisa::test::save_and_compare(
+            out_pixels.data(), static_cast<int>(width), static_cast<int>(height / 2), 4,
+            "test_dstorage_texture", opts.output_dir, ref_dir, opts.update_reference);
+        LUISA_INFO("Reference comparison: {} ({})", result.passed ? "PASSED" : "FAILED", result.message);
+        if (!result.passed) {
+            LUISA_ERROR("Reference comparison failed for test_dstorage_texture: {}", result.message);
+            comparison_failed = true;
+        }
     }
     LUISA_INFO("Texture result written to test_dstorage_texture.png.");
     LUISA_INFO("Start test texture compress and decompress.");
@@ -153,11 +166,35 @@ int main(int argc, char *argv[]) {
         LUISA_INFO("Texture decompress time: {} ms", decompress_time);
         copy_stream << img.copy_to(out_pixels.data()) << synchronize();
         stbi_write_png("test_dstorage_texture_decompressed.png", width, height / 2, 4, out_pixels.data(), 0);
+        auto decompressed_result = luisa::test::save_and_compare(
+            reinterpret_cast<const uint8_t *>(out_pixels.data()), static_cast<int>(width), static_cast<int>(height / 2), 4,
+            "test_dstorage_texture_decompressed", opts.output_dir, ref_dir, opts.update_reference);
+        LUISA_INFO("Reference comparison: {} ({})", decompressed_result.passed ? "PASSED" : "FAILED", decompressed_result.message);
+        if (!decompressed_result.passed) {
+            LUISA_ERROR("Reference comparison failed for test_dstorage_texture_decompressed: {}", decompressed_result.message);
+            comparison_failed = true;
+        }
         decompress_clock.tic();
         dstorage_memory_stream << pinned_pixels.copy_to(luisa::span{out_pixels}, compression)
                                << synchronize();
         decompress_time = decompress_clock.toc();
         LUISA_INFO("Memory decompress time: {} ms", decompress_time);
         stbi_write_png("test_dstorage_texture_decompressed_memory.png", width, height / 2, 4, out_pixels.data(), 0);
+        auto memory_result = luisa::test::save_and_compare(
+            reinterpret_cast<const uint8_t *>(out_pixels.data()), static_cast<int>(width), static_cast<int>(height / 2), 4,
+            "test_dstorage_texture_decompressed_memory", opts.output_dir, ref_dir, opts.update_reference);
+        LUISA_INFO("Reference comparison: {} ({})", memory_result.passed ? "PASSED" : "FAILED", memory_result.message);
+        if (!memory_result.passed) {
+            LUISA_ERROR("Reference comparison failed for test_dstorage_texture_decompressed_memory: {}", memory_result.message);
+            comparison_failed = true;
+        }
     }
+    if (comparison_failed) {
+        if (opts.offline) {
+            LUISA_ERROR("One or more reference image comparisons failed in test_dstorage.");
+            return 1;
+        }
+        return 1;
+    }
+    return 0;
 }

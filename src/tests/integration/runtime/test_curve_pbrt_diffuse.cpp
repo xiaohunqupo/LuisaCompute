@@ -10,7 +10,8 @@
 // - Interactive camera control
 
 #include <fstream>
-#include <stb/stb_image_write.h>
+#include "../../reference_image.h"
+#include <filesystem>
 #include <luisa/luisa-compute.h>
 
 using namespace luisa;
@@ -165,6 +166,7 @@ int main(int argc, char *argv[]) {
                    argv[0]);
         exit(1);
     }
+    auto opts = luisa::test::ImageTestOptions::parse(argc, argv);
 
     // Create device and parse curve file
     auto device = context.create_device(argv[1]);
@@ -281,7 +283,7 @@ int main(int argc, char *argv[]) {
             auto ray = generate_ray(pixel, view_angle);
             auto color = def(make_float3());
             auto beta = def(make_float3(1.f));
-            
+
             // Path tracing loop
             $for (depth, 10u) {
                 auto hit = accel.intersect(ray, {.curve_bases = {curve_basis}});
@@ -289,27 +291,27 @@ int main(int argc, char *argv[]) {
                 auto light_color = make_float3(100.f);
                 auto u = hit->curve_parameter();
                 auto i0 = hit->prim;
-                
+
                 // Read curve control points
                 auto p0 = control_point_buffer->read(i0 + 0u);
                 auto p1 = control_point_buffer->read(i0 + 1u);
                 auto p2 = control_point_buffer->read(i0 + 2u);
                 auto p3 = control_point_buffer->read(i0 + 3u);
                 auto c = CurveEvaluator::create(curve_basis, p0, p1, p2, p3);
-                
+
                 // Compute intersection point and normal
                 auto ps_local = ray->origin() + hit->distance() * ray->direction();
                 auto ps = make_float3(invM * make_float4(ps_local, 1.f));
                 auto eval = c->evaluate(u, ps_local);
                 auto p = make_float3(M * make_float4(eval.position, 1.f));
-                
+
                 // Transform normal to world space
                 auto n = normalize(N * eval.normal);
                 auto onb = make_onb(n);
                 auto wo = -ray->direction();
                 auto wo_local = onb->to_local(wo);
                 auto albedo = .8f;
-                
+
                 // Direct lighting with shadow rays
                 {
                     auto light_dir = make_float3(-0.376047f, 0.758426f, 0.532333f);
@@ -321,11 +323,11 @@ int main(int argc, char *argv[]) {
                     color += beta * ite(dsl::isnan(reduce_sum(direct)), 0.f, direct) *
                              ite(occluded, 0.f, 1.f);
                 }
-                
+
                 // Indirect lighting: cosine-weighted sampling
                 {
                     auto wi_local = cosine_sample_hemisphere(make_float2(lcg(state), lcg(state)));
-                    beta = beta * albedo;  // Multiply by albedo
+                    beta = beta * albedo;// Multiply by albedo
                     $if (all(beta <= 1e-3f) | dsl::isnan(reduce_sum(beta))) { $break; };
                     auto wi = onb->to_world(wi_local);
                     ray = make_ray(p + n * 1e-4f, wi);
@@ -360,57 +362,81 @@ int main(int argc, char *argv[]) {
         };
         ldr_image.write(coord, make_float4(ldr, 1.0f));
     });
+    auto ref_dir = luisa::test::find_reference_dir(std::filesystem::path{argv[0]}.parent_path());
 
-    Window window{"Display", resolution};
-    auto swap_chain = device.create_swapchain(
-        stream,
-        SwapchainOption{
-            .display = window.native_display(),
-            .window = window.native_handle(),
-            .size = resolution,
-            .wants_hdr = false,
-            .wants_vsync = false,
-            .back_buffer_count = 2,
-        });
+    if (!opts.offline) {
+        Window window{"Display", resolution};
+        auto swap_chain = device.create_swapchain(
+            stream,
+            SwapchainOption{
+                .display = window.native_display(),
+                .window = window.native_handle(),
+                .size = resolution,
+                .wants_hdr = false,
+                .wants_vsync = false,
+                .back_buffer_count = 2,
+            });
 
-    // Interactive render loop
-    Clock clock;
-    auto viewing_angle = pi;
-    auto dirty = true;
-    auto last_time = 0.;
-    stream << make_sampler_kernel(seed_image).dispatch(resolution);
-    Framerate framerate;
-    while (!window.should_close()) {
-        if (dirty) {
-            stream << clear(hdr_image).dispatch(resolution);
-            dirty = false;
+        // Interactive render loop
+        Clock clock;
+        auto viewing_angle = pi;
+        auto dirty = true;
+        auto last_time = 0.;
+        stream << make_sampler_kernel(seed_image).dispatch(resolution);
+        Framerate framerate;
+        while (!window.should_close()) {
+            if (dirty) {
+                stream << clear(hdr_image).dispatch(resolution);
+                dirty = false;
+            }
+            stream << render(accel, hdr_image, seed_image, viewing_angle).dispatch(resolution)
+                   << hdr2ldr(hdr_image, ldr_image, false).dispatch(resolution)
+                   << swap_chain.present(ldr_image);
+            window.poll_events();
+            static constexpr auto speed = 1e-3f;
+            auto curr_time = clock.toc();
+            auto delta_time = curr_time - last_time;
+            last_time = curr_time;
+            if (window.is_key_down(KEY_LEFT)) {
+                viewing_angle = static_cast<float>(viewing_angle - speed * delta_time);
+                dirty = true;
+            } else if (window.is_key_down(KEY_RIGHT)) {
+                viewing_angle = static_cast<float>(viewing_angle + speed * delta_time);
+                dirty = true;
+            } else if (window.is_key_down(KEY_ESCAPE) ||
+                       window.is_key_down(KEY_Q)) {
+                window.set_should_close(true);
+            }
+            framerate.record();
+            LUISA_INFO("FPS: {}", framerate.report());
         }
-        stream << render(accel, hdr_image, seed_image, viewing_angle).dispatch(resolution)
-               << hdr2ldr(hdr_image, ldr_image, false).dispatch(resolution)
-               << swap_chain.present(ldr_image);
-        window.poll_events();
-        static constexpr auto speed = 1e-3f;
-        auto curr_time = clock.toc();
-        auto delta_time = curr_time - last_time;
-        last_time = curr_time;
-        if (window.is_key_down(KEY_LEFT)) {
-            viewing_angle = static_cast<float>(viewing_angle - speed * delta_time);
-            dirty = true;
-        } else if (window.is_key_down(KEY_RIGHT)) {
-            viewing_angle = static_cast<float>(viewing_angle + speed * delta_time);
-            dirty = true;
-        } else if (window.is_key_down(KEY_ESCAPE) ||
-                   window.is_key_down(KEY_Q)) {
-            window.set_should_close(true);
+
+        // Save final image
+        luisa::vector<std::byte> pixels(ldr_image.view().size_bytes());
+        stream << hdr2ldr(hdr_image, ldr_image, false).dispatch(resolution)
+               << ldr_image.copy_to(pixels.data())
+               << synchronize();
+        stbi_write_png("test_curve_pbrt.png", resolution.x, resolution.y, 4, pixels.data(), 0);
+        return 0;
+    } else {
+        auto viewing_angle = pi;
+        luisa::vector<std::byte> pixels(ldr_image.view().size_bytes());
+        stream << make_sampler_kernel(seed_image).dispatch(resolution)
+               << clear(hdr_image).dispatch(resolution);
+        for (auto i = 0u; i < 256u; i++) {
+            stream << render(accel, hdr_image, seed_image, viewing_angle).dispatch(resolution);
         }
-        framerate.record();
-        LUISA_INFO("FPS: {}", framerate.report());
+        stream << hdr2ldr(hdr_image, ldr_image, false).dispatch(resolution)
+               << ldr_image.copy_to(pixels.data())
+               << synchronize();
+        auto result = luisa::test::save_and_compare(
+            reinterpret_cast<const uint8_t *>(pixels.data()), static_cast<int>(resolution.x), static_cast<int>(resolution.y), 4,
+            "test_curve_pbrt_diffuse", opts.output_dir, ref_dir, opts.update_reference);
+        LUISA_INFO("Reference comparison: {} ({})", result.passed ? "PASSED" : "FAILED", result.message);
+        if (!result.passed) {
+            LUISA_ERROR("Reference comparison failed for test_curve_pbrt_diffuse: {}", result.message);
+            return 1;
+        }
+        return 0;
     }
-
-    // Save final image
-    luisa::vector<std::byte> pixels(ldr_image.view().size_bytes());
-    stream << hdr2ldr(hdr_image, ldr_image, false).dispatch(resolution)
-           << ldr_image.copy_to(pixels.data())
-           << synchronize();
-    stbi_write_png("test_curve_pbrt.png", resolution.x, resolution.y, 4, pixels.data(), 0);
 }

@@ -1,6 +1,9 @@
 #include <luisa/luisa-compute.h>
 #include <luisa/dsl/sugar.h>
 #include <luisa/gui/window.h>
+#include "../../reference_image.h"
+
+#include <filesystem>
 
 using namespace luisa;
 using namespace luisa::compute;
@@ -13,6 +16,7 @@ int main(int argc, char *argv[]) {
         LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
         exit(1);
     }
+    auto opts = luisa::test::ImageTestOptions::parse(argc, argv);
     Device device = context.create_device(argv[1]);
 
     constexpr uint2 resolution = make_uint2(1280, 720);
@@ -38,24 +42,41 @@ int main(int argc, char *argv[]) {
         device_image1->write(coord, make_float4(p));
     };
     auto s = device.compile(kernel);
+    auto ref_dir = luisa::test::find_reference_dir(std::filesystem::path{argv[0]}.parent_path());
+    if (!opts.offline) {
+        Window window{"Display", resolution};
 
-    Window window{"Display", resolution};
-
-    Swapchain swapchain = device.create_swapchain(
-        stream,
-        SwapchainOption{
-            .display = window.native_display(),
-            .window = window.native_handle(),
-            .size = resolution,
-            .wants_hdr = false,
-            .wants_vsync = false,
-            .back_buffer_count = 2,
-        });
-    Clock clk;
-    while (!window.should_close()) {
-        stream << s(static_cast<float>(clk.toc() * .05f))
-                      .dispatch(1280, 720)
-               << swapchain.present(device_image1);
-        window.poll_events();
+        Swapchain swapchain = device.create_swapchain(
+            stream,
+            SwapchainOption{
+                .display = window.native_display(),
+                .window = window.native_handle(),
+                .size = resolution,
+                .wants_hdr = false,
+                .wants_vsync = false,
+                .back_buffer_count = 2,
+            });
+        Clock clk;
+        while (!window.should_close()) {
+            stream << s(static_cast<float>(clk.toc() * .05f))
+                          .dispatch(1280, 720)
+                   << swapchain.present(device_image1);
+            window.poll_events();
+        }
+        return 0;
+    } else {
+        luisa::vector<std::byte> pixels(device_image1.view().size_bytes());
+        stream << s(0.0f).dispatch(resolution.x, resolution.y)
+               << device_image1.copy_to(pixels.data())
+               << synchronize();
+        auto result = luisa::test::save_and_compare(
+            reinterpret_cast<const uint8_t *>(pixels.data()), static_cast<int>(resolution.x), static_cast<int>(resolution.y), 4,
+            "test_bindless_buffer", opts.output_dir, ref_dir, opts.update_reference);
+        LUISA_INFO("Reference comparison: {} ({})", result.passed ? "PASSED" : "FAILED", result.message);
+        if (!result.passed) {
+            LUISA_ERROR("Reference comparison failed for test_bindless_buffer: {}", result.message);
+            return 1;
+        }
+        return 0;
     }
 }

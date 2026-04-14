@@ -1,6 +1,8 @@
 #include <iostream>
 
-#include <stb/stb_image_write.h>
+#include "../../reference_image.h"
+
+#include <filesystem>
 
 #include <luisa/luisa-compute.h>
 #include <luisa/dsl/sugar.h>
@@ -35,6 +37,7 @@ int main(int argc, char *argv[]) {
         LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
         exit(1);
     }
+    auto opts = luisa::test::ImageTestOptions::parse(argc, argv);
     Device device = context.create_device(argv[1]);
 
     // load the Cornell Box scene
@@ -342,81 +345,112 @@ int main(int argc, char *argv[]) {
     luisa::vector<std::array<uint8_t, 4u>> host_image(resolution.x * resolution.y);
     Image<uint> seed_image = device.create_image<uint>(PixelStorage::INT1, resolution);
     stream << make_sampler_shader(seed_image).dispatch(resolution);
-
-    Window window{"path tracing", resolution};
-    auto compare_x = resolution.x / 2u;
-    auto mouse_down = false;
-    auto component = 0;// 0 for radiance, 1 for albedo, 2 for normal
-    window
-        .set_mouse_callback([&compare_x, &mouse_down](MouseButton, Action a, float2 p) noexcept {
-            if (a == Action::ACTION_PRESSED || a == Action::ACTION_REPEATED) {
-                mouse_down = true;
-            } else {
-                mouse_down = false;
-            }
-            compare_x = static_cast<uint>(std::clamp(p.x, 0.f, static_cast<float>(resolution.x - 1)));
-        })
-        .set_cursor_position_callback([&compare_x, &mouse_down](float2 p) noexcept {
-            if (mouse_down) {
-                compare_x = static_cast<uint>(std::clamp(p.x, 0.f, static_cast<float>(resolution.x - 1)));
-            }
-        })
-        .set_key_callback([&component](Key key, KeyModifiers, Action a) noexcept {
-            if (a != Action::ACTION_RELEASED) {
-                if (key == Key::KEY_TAB) {
-                    component = (component + 1) % 3;
+    auto ref_dir = luisa::test::find_reference_dir(std::filesystem::path{argv[0]}.parent_path());
+    if (!opts.offline) {
+        Window window{"path tracing", resolution};
+        auto compare_x = resolution.x / 2u;
+        auto mouse_down = false;
+        auto component = 0;// 0 for radiance, 1 for albedo, 2 for normal
+        window
+            .set_mouse_callback([&compare_x, &mouse_down](MouseButton, Action a, float2 p) noexcept {
+                if (a == Action::ACTION_PRESSED || a == Action::ACTION_REPEATED) {
+                    mouse_down = true;
+                } else {
+                    mouse_down = false;
                 }
+                compare_x = static_cast<uint>(std::clamp(p.x, 0.f, static_cast<float>(resolution.x - 1)));
+            })
+            .set_cursor_position_callback([&compare_x, &mouse_down](float2 p) noexcept {
+                if (mouse_down) {
+                    compare_x = static_cast<uint>(std::clamp(p.x, 0.f, static_cast<float>(resolution.x - 1)));
+                }
+            })
+            .set_key_callback([&component](Key key, KeyModifiers, Action a) noexcept {
+                if (a != Action::ACTION_RELEASED) {
+                    if (key == Key::KEY_TAB) {
+                        component = (component + 1) % 3;
+                    }
+                }
+            });
+        Swapchain swap_chain = device.create_swapchain(
+            stream,
+            SwapchainOption{
+                .display = window.native_display(),
+                .window = window.native_handle(),
+                .size = resolution,
+                .wants_hdr = false,
+                .wants_vsync = false,
+                .back_buffer_count = 2,
+            });
+        Image<float> ldr_image = device.create_image<float>(swap_chain.backend_storage(), resolution);
+        double last_time = 0.0;
+        uint frame_count = 0u;
+        Clock clock;
+        while (!window.should_close()) {
+            if (window.is_key_down(Key::KEY_R)) {
+                stream << clear_shader(accum_image).dispatch(resolution);
             }
-        });
-    Swapchain swap_chain = device.create_swapchain(
-        stream,
-        SwapchainOption{
-            .display = window.native_display(),
-            .window = window.native_handle(),
-            .size = resolution,
-            .wants_hdr = false,
-            .wants_vsync = false,
-            .back_buffer_count = 2,
-        });
-    Image<float> ldr_image = device.create_image<float>(swap_chain.backend_storage(), resolution);
-    double last_time = 0.0;
-    uint frame_count = 0u;
-    Clock clock;
-    while (!window.should_close()) {
-        if (window.is_key_down(Key::KEY_R)) {
-            stream << clear_shader(accum_image).dispatch(resolution);
+            stream << raytracing_shader(framebuffer, albedo_image, normal_image, seed_image, accel, resolution)
+                          .dispatch(resolution)
+                   << accumulate_shader(accum_image, framebuffer)
+                          .dispatch(resolution)
+                   << noisy_image_shader(noisy_image, accum_image)
+                          .dispatch(resolution)
+                   << noisy_image.copy_to(color_buf)
+                   << albedo_image.copy_to(albedo_buf)
+                   << normal_image.copy_to(normal_buf);
+            denoiser->execute(true);
+            auto before = component == 0 ?
+                              noisy_image.view() :
+                          component == 1 ? albedo_image.view() :
+                                           normal_image.view();
+            stream << beauty_image.copy_from(output_buf)
+                   << hdr2ldr_shader(compare_x, before, beauty_image, ldr_image,
+                                     swap_chain.backend_storage() != PixelStorage::BYTE4,
+                                     component == 2)
+                          .dispatch(resolution)
+                   << swap_chain.present(ldr_image) << synchronize();
+            window.poll_events();
+            double dt = clock.toc() - last_time;
+            last_time = clock.toc();
+            frame_count += spp_per_dispatch;
+            LUISA_INFO("spp: {}, time: {} ms, spp/s: {}",
+                       frame_count, dt, spp_per_dispatch / dt * 1000);
         }
-        stream << raytracing_shader(framebuffer, albedo_image, normal_image, seed_image, accel, resolution)
-                      .dispatch(resolution)
-               << accumulate_shader(accum_image, framebuffer)
-                      .dispatch(resolution)
-               << noisy_image_shader(noisy_image, accum_image)
-                      .dispatch(resolution)
-               << noisy_image.copy_to(color_buf)
-               << albedo_image.copy_to(albedo_buf)
-               << normal_image.copy_to(normal_buf);
-        denoiser->execute(true);
-        auto before = component == 0 ?
-                          noisy_image.view() :
-                      component == 1 ? albedo_image.view() :
-                                       normal_image.view();
-        stream << beauty_image.copy_from(output_buf)
-               << hdr2ldr_shader(compare_x, before, beauty_image, ldr_image,
-                                 swap_chain.backend_storage() != PixelStorage::BYTE4,
-                                 component == 2)
-                      .dispatch(resolution)
-               << swap_chain.present(ldr_image) << synchronize();
-        window.poll_events();
-        double dt = clock.toc() - last_time;
-        last_time = clock.toc();
-        frame_count += spp_per_dispatch;
-        LUISA_INFO("spp: {}, time: {} ms, spp/s: {}",
-                   frame_count, dt, spp_per_dispatch / dt * 1000);
-    }
-    stream
-        << ldr_image.copy_to(host_image.data())
-        << synchronize();
+        stream
+            << ldr_image.copy_to(host_image.data())
+            << synchronize();
 
-    LUISA_INFO("FPS: {}", frame_count / clock.toc() * 1000);
-    stbi_write_png("test_path_tracing.png", resolution.x, resolution.y, 4, host_image.data(), 0);
+        LUISA_INFO("FPS: {}", frame_count / clock.toc() * 1000);
+        stbi_write_png("test_path_tracing.png", resolution.x, resolution.y, 4, host_image.data(), 0);
+        return 0;
+    } else {
+        Image<float> offline_image = device.create_image<float>(PixelStorage::BYTE4, resolution);
+        stream << clear_shader(accum_image).dispatch(resolution);
+        for (auto i = 0u; i < 64u; i++) {
+            stream << raytracing_shader(framebuffer, albedo_image, normal_image, seed_image, accel, resolution)
+                          .dispatch(resolution)
+                   << accumulate_shader(accum_image, framebuffer)
+                          .dispatch(resolution)
+                   << noisy_image_shader(noisy_image, accum_image)
+                          .dispatch(resolution)
+                   << noisy_image.copy_to(color_buf)
+                   << albedo_image.copy_to(albedo_buf)
+                   << normal_image.copy_to(normal_buf);
+            denoiser->execute(true);
+            stream << beauty_image.copy_from(output_buf);
+        }
+        stream << hdr2ldr_shader(resolution.x, beauty_image, beauty_image, offline_image, false, false).dispatch(resolution)
+               << offline_image.copy_to(host_image.data())
+               << synchronize();
+        auto result = luisa::test::save_and_compare(
+            reinterpret_cast<const uint8_t *>(host_image.data()), static_cast<int>(resolution.x), static_cast<int>(resolution.y), 4,
+            "test_denoiser", opts.output_dir, ref_dir, opts.update_reference);
+        LUISA_INFO("Reference comparison: {} ({})", result.passed ? "PASSED" : "FAILED", result.message);
+        if (!result.passed) {
+            LUISA_ERROR("Reference comparison failed for test_denoiser: {}", result.message);
+            return 1;
+        }
+        return 0;
+    }
 }

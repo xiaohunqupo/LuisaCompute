@@ -8,8 +8,9 @@
 #include <numbers>
 #include <numeric>
 #include <algorithm>
+#include <filesystem>
 
-#include <stb/stb_image_write.h>
+#include "../../reference_image.h"
 
 #include <luisa/core/clock.h>
 #include <luisa/core/logging.h>
@@ -48,6 +49,7 @@ int main(int argc, char *argv[]) {
         LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
         exit(1);
     }
+    auto opts = luisa::test::ImageTestOptions::parse(argc, argv);
     Device device = context.create_device(argv[1]);
 
     // Build kernel IR from AST
@@ -59,27 +61,45 @@ int main(int argc, char *argv[]) {
     static constexpr auto width = 1280u;
     static constexpr auto height = 720u;
     auto image = device.create_image<float>(PixelStorage::BYTE4, width, height);
+    auto ref_dir = luisa::test::find_reference_dir(std::filesystem::path{argv[0]}.parent_path());
 
     // Create graphics stream and window
     Stream stream = device.create_stream(StreamTag::GRAPHICS);
-    Window window{"Display", width, height};
-    auto swap_chain{device.create_swapchain(
-        stream,
-        SwapchainOption{
-            .display = window.native_display(),
-            .window = window.native_handle(),
-            .size = make_uint2(width, height),
-            .wants_hdr = false,
-            .wants_vsync = false,
-            .back_buffer_count = 2,
-        })};
+    if (!opts.offline) {
+        Window window{"Display", width, height};
+        auto swap_chain{device.create_swapchain(
+            stream,
+            SwapchainOption{
+                .display = window.native_display(),
+                .window = window.native_handle(),
+                .size = make_uint2(width, height),
+                .wants_hdr = false,
+                .wants_vsync = false,
+                .back_buffer_count = 2,
+            })};
 
-    // Main render loop
-    while (!window.should_close()) {
+        // Main render loop
+        while (!window.should_close()) {
+            stream << render(image).dispatch(width, height)
+                   << swap_chain.present(image);
+            window.poll_events();
+        }
+
+        stream << synchronize();
+        return 0;
+    } else {
+        luisa::vector<std::byte> pixels(image.view().size_bytes());
         stream << render(image).dispatch(width, height)
-               << swap_chain.present(image);
-        window.poll_events();
+               << image.copy_to(pixels.data())
+               << synchronize();
+        auto result = luisa::test::save_and_compare(
+            reinterpret_cast<const uint8_t *>(pixels.data()), static_cast<int>(width), static_cast<int>(height), 4,
+            "test_kernel_ir", opts.output_dir, ref_dir, opts.update_reference);
+        LUISA_INFO("Reference comparison: {} ({})", result.passed ? "PASSED" : "FAILED", result.message);
+        if (!result.passed) {
+            LUISA_ERROR("Reference comparison failed for test_kernel_ir: {}", result.message);
+            return 1;
+        }
+        return 0;
     }
-
-    stream << synchronize();
 }

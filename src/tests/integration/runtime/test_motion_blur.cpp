@@ -12,7 +12,9 @@
 // Created by Mike Smith on 2024/9/20.
 //
 
-#include <stb/stb_image_write.h>
+#include "../../reference_image.h"
+
+#include <filesystem>
 #include <luisa/luisa-compute.h>
 #include <luisa/dsl/sugar.h>
 
@@ -28,6 +30,7 @@ int main(int argc, char *argv[]) {
         LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
         exit(1);
     }
+    auto opts = luisa::test::ImageTestOptions::parse(argc, argv);
     Device device = context.create_device(argv[1]);
 
     static constexpr uint width = 512u;
@@ -199,7 +202,8 @@ int main(int argc, char *argv[]) {
             constexpr auto green = make_float3(0.0f, 1.0f, 0.0f);
             constexpr auto blue = make_float3(0.0f, 0.0f, 1.0f);
             color = triangle_interpolate(hit.bary, red, green, blue);
-        } $elif (hit->is_curve()) {
+        }
+        $elif (hit->is_curve()) {
             // Curve hit - color by parameter
             color = lerp(make_float3(0.f), make_float3(1.f), hit->curve_parameter());
         };
@@ -247,4 +251,14 @@ int main(int argc, char *argv[]) {
     double time = clock.toc();
     LUISA_INFO("Time: {} ms", time);
     stbi_write_png("test_motion_blur.png", width, height, 4, pixels.data(), 0);
+    auto ref_dir = luisa::test::find_reference_dir(std::filesystem::path{argv[0]}.parent_path());
+    auto result = luisa::test::save_and_compare(
+        pixels.data(), static_cast<int>(width), static_cast<int>(height), 4,
+        "test_motion_blur", opts.output_dir, ref_dir, opts.update_reference);
+    LUISA_INFO("Reference comparison: {} ({})", result.passed ? "PASSED" : "FAILED", result.message);
+    if (!result.passed) {
+        LUISA_ERROR("Reference comparison failed for test_motion_blur: {}", result.message);
+        return 1;
+    }
+    return 0;
 }

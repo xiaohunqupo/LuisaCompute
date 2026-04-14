@@ -12,7 +12,8 @@
 // - Interactive camera control
 
 #include <fstream>
-#include <stb/stb_image_write.h>
+#include "../../reference_image.h"
+#include <filesystem>
 #include <luisa/luisa-compute.h>
 
 using namespace luisa;
@@ -124,16 +125,16 @@ LUISA_STRUCT(Onb, tangent, binormal, normal) {
 // Hair BSDF based on PBRT-v4 implementation
 // Implements the Marschner model with R, TT, TRT, and higher-order lobes
 class HairBsdf {
-    static constexpr int pMax = 3;  // Maximum scattering order to explicitly compute
-    Float h;    // Offset from hair center (-1 to 1)
-    Float eta;  // Index of refraction
-    Float3 sigma_a;  // Absorption coefficient
-    Float beta_m;    // Longitudinal roughness
-    Float beta_n;    // Azimuthal roughness
-    Float alpha;     // Scale tilt angle
-    Float s;         // Azimuthal logistic scale
-    std::array<Float, pMax> sin2kAlpha{}, cos2kAlpha{};  // Precomputed tilt angles
-    std::array<Float, pMax + 1> v{};  // Longitudinal variance for each lobe
+    static constexpr int pMax = 3;                     // Maximum scattering order to explicitly compute
+    Float h;                                           // Offset from hair center (-1 to 1)
+    Float eta;                                         // Index of refraction
+    Float3 sigma_a;                                    // Absorption coefficient
+    Float beta_m;                                      // Longitudinal roughness
+    Float beta_n;                                      // Azimuthal roughness
+    Float alpha;                                       // Scale tilt angle
+    Float s;                                           // Azimuthal logistic scale
+    std::array<Float, pMax> sin2kAlpha{}, cos2kAlpha{};// Precomputed tilt angles
+    std::array<Float, pMax + 1> v{};                   // Longitudinal variance for each lobe
 public:
     HairBsdf(Float h, Float eta, Float3 sigma_a, Float beta_m, Float beta_n, Float alpha)
         : h{h}, eta{eta}, sigma_a{sigma_a}, beta_m{beta_m}, beta_n{beta_n}, alpha{alpha} {
@@ -156,7 +157,7 @@ public:
             cos2kAlpha[i] = sqr(cos2kAlpha[i - 1]) - sqr(sin2kAlpha[i - 1]);
         }
     }
-    
+
     // Longitudinal scattering function (M_p in Marschner paper)
     static Float Mp(Float cosTheta_i, Float cosTheta_o, Float sinTheta_i,
                     Float sinTheta_o, Float v) {
@@ -230,8 +231,7 @@ public:
             if (p == 0) {
                 sinThetap_o = sinTheta_o * cos2kAlpha[1] - cosTheta_o * sin2kAlpha[1];
                 cosThetap_o = cosTheta_o * cos2kAlpha[1] + sinTheta_o * sin2kAlpha[1];
-            }
-            else if (p == 1) {
+            } else if (p == 1) {
                 sinThetap_o = sinTheta_o * cos2kAlpha[0] + cosTheta_o * sin2kAlpha[0];
                 cosThetap_o = cosTheta_o * cos2kAlpha[0] - sinTheta_o * sin2kAlpha[0];
             } else if (p == 2) {
@@ -259,7 +259,7 @@ public:
 
         return fsum;
     }
-    
+
     // Azimuthal scattering phase function
     static inline Float Phi(int p, Float gamma_o, Float gamma_t) noexcept {
         return static_cast<float>(2 * p) * gamma_t - 2.f * gamma_o + static_cast<float>(p) * PI;
@@ -411,6 +411,7 @@ int main(int argc, char *argv[]) {
                    argv[0]);
         exit(1);
     }
+    auto opts = luisa::test::ImageTestOptions::parse(argc, argv);
 
     // Create device and parse curve file
     auto device = context.create_device(argv[1]);
@@ -510,7 +511,7 @@ int main(int argc, char *argv[]) {
             auto ray = generate_ray(pixel, view_angle);
             auto color = def(make_float3());
             auto beta = def(make_float3(1.f));
-            
+
             // Path tracing loop
             $for (depth, 10u) {
                 auto hit = accel.intersect(ray, {.curve_bases = {curve_basis}});
@@ -518,24 +519,24 @@ int main(int argc, char *argv[]) {
                 auto light_color = make_float3(100.f);
                 auto u = hit->curve_parameter();
                 auto i0 = hit->prim;
-                
+
                 // Read curve control points
                 auto p0 = control_point_buffer->read(i0 + 0u);
                 auto p1 = control_point_buffer->read(i0 + 1u);
                 auto p2 = control_point_buffer->read(i0 + 2u);
                 auto p3 = control_point_buffer->read(i0 + 3u);
                 auto c = CurveEvaluator::create(curve_basis, p0, p1, p2, p3);
-                
+
                 // Compute intersection point and surface properties
                 auto ps_local = ray->origin() + hit->distance() * ray->direction();
                 auto ps = make_float3(invM * make_float4(ps_local, 1.f));
                 auto eval = c->evaluate(u, ps_local);
                 auto t_local = c->tangent(u);
-                
+
                 // Transform to world space
                 auto n = normalize(N * eval.normal);
                 auto t = normalize(N * t_local);
-                
+
                 // Build orthonormal basis
                 Callable make_onb = [](Float3 normal, Float3 tangent) noexcept {
                     auto binormal = normalize(cross(normal, tangent));
@@ -544,16 +545,16 @@ int main(int argc, char *argv[]) {
                 auto onb = make_onb(n, t);
                 auto wo = -ray->direction();
                 auto wo_local = onb->to_local(wo);
-                
+
                 // Compute hair offset parameter
                 Float h = eval.h(wo_local);
-                
+
                 // Hair BSDF parameters
                 Float eta = 1.55f;
                 Float beta_m = 0.3f;
                 Float beta_n = 0.3f;
                 Float alpha = 2.0f;
-                
+
                 // Melanin absorption coefficients
                 Float3 sigma_a = ([&] {
                     auto eumelaninSigma_a = make_float3(0.419f, 0.697f, 1.37f);
@@ -562,10 +563,10 @@ int main(int argc, char *argv[]) {
                     auto cp = 0.2f;
                     return ce * eumelaninSigma_a + cp * pheomelaninSigma_a;
                 })();
-                
+
                 auto bsdf = HairBsdf(h, eta, sigma_a, beta_m, beta_n, alpha);
                 auto p_curve = c->position(u);
-                
+
                 // Direct lighting with shadow rays
                 {
                     auto light_dir = make_float3(-0.376047f, 0.758426f, 0.532333f);
@@ -579,7 +580,7 @@ int main(int argc, char *argv[]) {
                     color += beta * ite(dsl::isnan(reduce_sum(direct)), 0.f, direct) *
                              ite(occluded, 0.f, 1.f);
                 }
-                
+
                 // Indirect lighting: sample BSDF uniformly
                 {
                     auto wi_local = [&]() noexcept {
@@ -627,57 +628,81 @@ int main(int argc, char *argv[]) {
         };
         ldr_image.write(coord, make_float4(ldr, 1.0f));
     });
+    auto ref_dir = luisa::test::find_reference_dir(std::filesystem::path{argv[0]}.parent_path());
 
-    Window window{"Display", resolution};
-    auto swap_chain = device.create_swapchain(
-        stream,
-        SwapchainOption{
-            .display = window.native_display(),
-            .window = window.native_handle(),
-            .size = resolution,
-            .wants_hdr = false,
-            .wants_vsync = false,
-            .back_buffer_count = 2,
-        });
+    if (!opts.offline) {
+        Window window{"Display", resolution};
+        auto swap_chain = device.create_swapchain(
+            stream,
+            SwapchainOption{
+                .display = window.native_display(),
+                .window = window.native_handle(),
+                .size = resolution,
+                .wants_hdr = false,
+                .wants_vsync = false,
+                .back_buffer_count = 2,
+            });
 
-    // Interactive render loop
-    Clock clock;
-    auto viewing_angle = PI;
-    auto dirty = true;
-    auto last_time = 0.;
-    stream << make_sampler_kernel(seed_image).dispatch(resolution);
-    Framerate framerate;
-    while (!window.should_close()) {
-        if (dirty) {
-            stream << clear(hdr_image).dispatch(resolution);
-            dirty = false;
+        // Interactive render loop
+        Clock clock;
+        auto viewing_angle = PI;
+        auto dirty = true;
+        auto last_time = 0.;
+        stream << make_sampler_kernel(seed_image).dispatch(resolution);
+        Framerate framerate;
+        while (!window.should_close()) {
+            if (dirty) {
+                stream << clear(hdr_image).dispatch(resolution);
+                dirty = false;
+            }
+            stream << render(accel, hdr_image, seed_image, viewing_angle).dispatch(resolution)
+                   << hdr2ldr(hdr_image, ldr_image, false).dispatch(resolution)
+                   << swap_chain.present(ldr_image);
+            window.poll_events();
+            static constexpr auto speed = 1e-3f;
+            auto curr_time = clock.toc();
+            auto delta_time = curr_time - last_time;
+            last_time = curr_time;
+            if (window.is_key_down(KEY_LEFT)) {
+                viewing_angle = static_cast<float>(viewing_angle - speed * delta_time);
+                dirty = true;
+            } else if (window.is_key_down(KEY_RIGHT)) {
+                viewing_angle = static_cast<float>(viewing_angle + speed * delta_time);
+                dirty = true;
+            } else if (window.is_key_down(KEY_ESCAPE) ||
+                       window.is_key_down(KEY_Q)) {
+                window.set_should_close(true);
+            }
+            framerate.record();
+            LUISA_INFO("FPS: {}", framerate.report());
         }
-        stream << render(accel, hdr_image, seed_image, viewing_angle).dispatch(resolution)
-               << hdr2ldr(hdr_image, ldr_image, false).dispatch(resolution)
-               << swap_chain.present(ldr_image);
-        window.poll_events();
-        static constexpr auto speed = 1e-3f;
-        auto curr_time = clock.toc();
-        auto delta_time = curr_time - last_time;
-        last_time = curr_time;
-        if (window.is_key_down(KEY_LEFT)) {
-            viewing_angle = static_cast<float>(viewing_angle - speed * delta_time);
-            dirty = true;
-        } else if (window.is_key_down(KEY_RIGHT)) {
-            viewing_angle = static_cast<float>(viewing_angle + speed * delta_time);
-            dirty = true;
-        } else if (window.is_key_down(KEY_ESCAPE) ||
-                   window.is_key_down(KEY_Q)) {
-            window.set_should_close(true);
+
+        // Save final image
+        luisa::vector<std::byte> pixels(ldr_image.view().size_bytes());
+        stream << hdr2ldr(hdr_image, ldr_image, false).dispatch(resolution)
+               << ldr_image.copy_to(pixels.data())
+               << synchronize();
+        stbi_write_png("test_curve_pbrt.png", resolution.x, resolution.y, 4, pixels.data(), 0);
+        return 0;
+    } else {
+        auto viewing_angle = PI;
+        luisa::vector<std::byte> pixels(ldr_image.view().size_bytes());
+        stream << make_sampler_kernel(seed_image).dispatch(resolution)
+               << clear(hdr_image).dispatch(resolution);
+        for (auto i = 0u; i < 256u; i++) {
+            stream << render(accel, hdr_image, seed_image, viewing_angle).dispatch(resolution);
         }
-        framerate.record();
-        LUISA_INFO("FPS: {}", framerate.report());
+        stream << hdr2ldr(hdr_image, ldr_image, false).dispatch(resolution)
+               << ldr_image.copy_to(pixels.data())
+               << synchronize();
+        auto result = luisa::test::save_and_compare(
+            reinterpret_cast<const uint8_t *>(pixels.data()), static_cast<int>(resolution.x), static_cast<int>(resolution.y), 4,
+            "test_curve_pbrt", opts.output_dir, ref_dir, opts.update_reference);
+        LUISA_INFO("Reference comparison: {} ({})", result.passed ? "PASSED" : "FAILED", result.message);
+        if (!result.passed) {
+            LUISA_ERROR("Reference comparison failed for test_curve_pbrt: {}", result.message);
+            return 1;
+        }
+        return 0;
     }
-
-    // Save final image
-    luisa::vector<std::byte> pixels(ldr_image.view().size_bytes());
-    stream << hdr2ldr(hdr_image, ldr_image, false).dispatch(resolution)
-           << ldr_image.copy_to(pixels.data())
-           << synchronize();
-    stbi_write_png("test_curve_pbrt.png", resolution.x, resolution.y, 4, pixels.data(), 0);
 }

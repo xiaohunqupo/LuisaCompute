@@ -3,8 +3,7 @@
 //
 #include <cstdlib>
 #include <cstring>
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "../ext/stb/stb/stb_image_write.h"
+#include "../../reference_image.h"
 #include <luisa/core/logging.h>
 #include <luisa/core/clock.h>
 #include <luisa/runtime/context.h>
@@ -392,6 +391,16 @@ int main(int argc, char *argv[]) {
             LUISA_INFO("Saved output to {}", output_filename);
         } else {
             LUISA_ERROR("Failed to save output to {}", output_filename);
+        }
+
+        auto ref_dir = luisa::test::find_reference_dir(std::filesystem::path{argv[0]}.parent_path());
+        auto result = luisa::test::compare_with_reference(
+            image_data.data(), static_cast<int>(resolution.x), static_cast<int>(resolution.y), 4,
+            "test_texture3d", ref_dir, false);
+        LUISA_INFO("Reference comparison: {} ({})", result.passed ? "PASSED" : "FAILED", result.message);
+        if (!result.passed) {
+            LUISA_ERROR("Reference comparison failed for test_texture3d: {}", result.message);
+            return 1;
         }
 
         return 0;

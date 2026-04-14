@@ -11,6 +11,9 @@
 // with a simple camera model.
 
 #include <luisa/luisa-compute.h>
+#include "../../reference_image.h"
+
+#include <filesystem>
 
 using namespace luisa;
 using namespace luisa::compute;
@@ -26,6 +29,7 @@ int main(int argc, char *argv[]) {
         LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
         exit(1);
     }
+    auto opts = luisa::test::ImageTestOptions::parse(argc, argv);
     Device device = context.create_device(argv[1]);
 
     // Curve configuration
@@ -47,7 +51,7 @@ int main(int argc, char *argv[]) {
         auto r = .03f + .03f * sin(t * 10.f * pi - .5f * pi);
         control_points.emplace_back(make_float4(x, y, z, r));
     }
-    
+
     // Create segment indices (each segment references consecutive control points)
     luisa::vector<uint> segments;
     segments.reserve(segment_count);
@@ -131,25 +135,25 @@ int main(int argc, char *argv[]) {
             set_block_size(16u, 16u, 1u);
             auto coord = dispatch_id().xy();
             auto state = seed_image.read(coord).x;
-            
+
             // Jitter for anti-aliasing
             auto ux = lcg(state);
             auto uy = lcg(state);
             seed_image.write(coord, make_uint4(state));
             auto pixel = make_float2(coord) + make_float2(ux, uy);
-            
+
             // Generate ray
             auto ray = generate_ray(pixel);
-            
+
             // Intersect with curve
             auto hit = accel.intersect(ray, {.curve_bases = {curve_basis}});
             auto color = def(make_float3());
-            
+
             // Shade hit point
             $if (hit->is_curve()) {
                 auto u = hit->curve_parameter();
                 auto i0 = hit->prim;
-                
+
                 // Evaluate curve at intersection
                 auto c = [&] {
                     if constexpr (curve_basis == CurveBasis::PIECEWISE_LINEAR) {
@@ -166,18 +170,18 @@ int main(int argc, char *argv[]) {
                         return CurveEvaluator::create(curve_basis, p0, p1, p2, p3);
                     }
                 }();
-                
+
                 // Compute hit point position
                 auto ps = ray->origin() + hit->distance() * ray->direction();
-                
+
                 // Evaluate curve surface properties
                 auto eval = c->evaluate(u, ps);
-                
+
                 // Visualize curve parameter and surface properties
                 // Red: curve parameter u, Green: v coordinate, Blue: constant
                 color = make_float3(hit->curve_parameter(), eval.v(-ray->direction()), .5f);
             };
-            
+
             // Accumulate samples
             auto old = image.read(coord);
             image.write(coord, old + make_float4(color, 1.f));
@@ -204,33 +208,56 @@ int main(int argc, char *argv[]) {
     auto hdr2ldr = device.compile<2>([&](ImageFloat hdr_image, ImageFloat ldr_image, Bool is_hdr) noexcept {
         UInt2 coord = dispatch_id().xy();
         Float4 hdr = hdr_image.read(coord);
-        Float3 ldr = hdr.xyz() / hdr.w;  // Average accumulated samples
+        Float3 ldr = hdr.xyz() / hdr.w;// Average accumulated samples
         $if (!is_hdr) {
-            ldr = linear_to_srgb(ldr);   // Convert to sRGB if not HDR
+            ldr = linear_to_srgb(ldr);// Convert to sRGB if not HDR
         };
         ldr_image.write(coord, make_float4(ldr, 1.0f));
     });
+    auto ref_dir = luisa::test::find_reference_dir(std::filesystem::path{argv[0]}.parent_path());
 
     // Setup window
-    Window window{"Display", resolution, true};
-    auto swap_chain = device.create_swapchain(
-        stream,
-        SwapchainOption{
-            .display = window.native_display(),
-            .window = window.native_handle(),
-            .size = resolution,
-            .wants_hdr = false,
-            .wants_vsync = false,
-            .back_buffer_count = 2,
-        });
+    if (!opts.offline) {
+        Window window{"Display", resolution, true};
+        auto swap_chain = device.create_swapchain(
+            stream,
+            SwapchainOption{
+                .display = window.native_display(),
+                .window = window.native_handle(),
+                .size = resolution,
+                .wants_hdr = false,
+                .wants_vsync = false,
+                .back_buffer_count = 2,
+            });
 
-    // Render loop
-    stream << clear(hdr_image).dispatch(resolution)
-           << make_sampler_kernel(seed_image).dispatch(resolution);
-    while (!window.should_close()) {
-        stream << render(accel, hdr_image, seed_image).dispatch(resolution)
-               << hdr2ldr(hdr_image, ldr_image, false).dispatch(resolution)
-               << swap_chain.present(ldr_image);
-        window.poll_events();
+        // Render loop
+        stream << clear(hdr_image).dispatch(resolution)
+               << make_sampler_kernel(seed_image).dispatch(resolution);
+        while (!window.should_close()) {
+            stream << render(accel, hdr_image, seed_image).dispatch(resolution)
+                   << hdr2ldr(hdr_image, ldr_image, false).dispatch(resolution)
+                   << swap_chain.present(ldr_image);
+            window.poll_events();
+        }
+        return 0;
+    } else {
+        luisa::vector<std::byte> pixels(ldr_image.view().size_bytes());
+        stream << clear(hdr_image).dispatch(resolution)
+               << make_sampler_kernel(seed_image).dispatch(resolution);
+        for (auto i = 0u; i < 256u; i++) {
+            stream << render(accel, hdr_image, seed_image).dispatch(resolution);
+        }
+        stream << hdr2ldr(hdr_image, ldr_image, false).dispatch(resolution)
+               << ldr_image.copy_to(pixels.data())
+               << synchronize();
+        auto result = luisa::test::save_and_compare(
+            reinterpret_cast<const uint8_t *>(pixels.data()), static_cast<int>(resolution.x), static_cast<int>(resolution.y), 4,
+            "test_curve", opts.output_dir, ref_dir, opts.update_reference);
+        LUISA_INFO("Reference comparison: {} ({})", result.passed ? "PASSED" : "FAILED", result.message);
+        if (!result.passed) {
+            LUISA_ERROR("Reference comparison failed for test_curve: {}", result.message);
+            return 1;
+        }
+        return 0;
     }
 }

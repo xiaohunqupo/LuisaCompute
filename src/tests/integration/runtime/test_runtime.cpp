@@ -10,6 +10,10 @@
 
 #include <numeric>
 
+#include "../../reference_image.h"
+
+#include <filesystem>
+
 #include <luisa/core/clock.h>
 #include <luisa/core/logging.h>
 #include <luisa/core/dynamic_module.h>
@@ -39,122 +43,162 @@ int main(int argc, char *argv[]) {
         LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
         exit(1);
     }
-    
+    auto opts = luisa::test::ImageTestOptions::parse(argc, argv);
+
     // Configure device with explicit settings
     DeviceConfig device_config{
         .device_index = 0,
-        // To avoid memory overflows, the backend automatically waits 2 - 3 frames before committing, 
+        // To avoid memory overflows, the backend automatically waits 2 - 3 frames before committing,
         // set .inqueue_buffer_limit to false when multi-stream interactions are involved
         .inqueue_buffer_limit = false};
     Device device = context.create_device(argv[1], &device_config, true /*use validation layer for debug*/);
-    
+
     // Get statistics extension for profiling
     auto stats = device.extension<StatsExt>();
-    
+
     // Create graphics stream for presentation
     Stream graphics_stream = device.create_stream(StreamTag::GRAPHICS);
     // Create compute stream for kernel execution
     Stream compute_stream = device.create_stream(StreamTag::COMPUTE);
-    
+
     // Event to let graphics stream wait for compute stream
     Event compute_event = device.create_event();
-    
+
     // Triple-buffer implementation
     static constexpr uint32_t framebuffer_count = 3;
     // Event to let host wait for kernel before 3 frames
     TimelineEvent graphics_event = device.create_timeline_event();
-    
+
     static constexpr uint2 resolution = make_uint2(1024u);
-    Window window{"test runtime", resolution.x, resolution.x};
-    
-    // Create swapchain with configuration
-    Swapchain swap_chain{device.create_swapchain(
-        graphics_stream,
-        SwapchainOption{
-            .display = window.native_display(),
-            .window = window.native_handle(),
-            .size = resolution,
-            .wants_hdr = false,
-            .wants_vsync = false,
-            .back_buffer_count = framebuffer_count - 1u})};
-    
-    // Create image for rendering
-    Image<float> ldr_image = device.create_image<float>(swap_chain.backend_storage(), resolution);
-    ldr_image.set_name("present");
-    compute_stream.set_name("my compute");
-    graphics_stream.set_name("my present");
-    
-    // Kernel that renders a time-varying pattern
-    Kernel2D kernel = [&](Float time, UInt2 offset, Float z_axis) {
-        UInt2 coord = dispatch_id().xy();
-        Float2 uv = (make_float2(coord) + 0.5f) / make_float2(dispatch_size().xy());
-        ldr_image->write(coord + offset, make_float4(uv, sin(time + z_axis) * 0.5f + 0.5f, 1.0f));
-    };
-    auto shader = device.compile(kernel);
+    auto ref_dir = luisa::test::find_reference_dir(std::filesystem::path{argv[0]}.parent_path());
+    if (!opts.offline) {
+        Window window{"test runtime", resolution.x, resolution.x};
 
-    Clock clk;
-    clk.tic();
-    // Fence index is a self-incremental integer
-    uint64_t frame_index = 0;
-    
-    // Main rendering loop
-    while (!window.should_close()) {
-        // current frame's index
-        uint64_t this_frame = frame_index;
-        // next frame's index
-        frame_index += 1;
-        
-        // Wait for last cycle
-        if (this_frame >= framebuffer_count) {
-            graphics_event.synchronize(this_frame - (framebuffer_count - 1));
-        }
+        // Create swapchain with configuration
+        Swapchain swap_chain{device.create_swapchain(
+            graphics_stream,
+            SwapchainOption{
+                .display = window.native_display(),
+                .window = window.native_handle(),
+                .size = resolution,
+                .wants_hdr = false,
+                .wants_vsync = false,
+                .back_buffer_count = framebuffer_count - 1u})};
 
-        // Try this: without synchronize, texture will be used by multiple streams simultaneously, this is illegal.
-        // If you REALLY want to access one resource with multiple streams simultaneously, you should mark 
-        // simultaneously_access = true in create_image<T> and create_volume<T>, this may cause performance loss in some backends.
-        // Buffer is always simultaneously_accessible
+        // Create image for rendering
+        Image<float> ldr_image = device.create_image<float>(swap_chain.backend_storage(), resolution);
+        ldr_image.set_name("present");
+        compute_stream.set_name("my compute");
+        graphics_stream.set_name("my present");
 
-        // #define NO_SYNC_ERROR
+        // Kernel that renders a time-varying pattern
+        Kernel2D kernel = [&](Float time, UInt2 offset, Float z_axis) {
+            UInt2 coord = dispatch_id().xy();
+            Float2 uv = (make_float2(coord) + 0.5f) / make_float2(dispatch_size().xy());
+            ldr_image->write(coord + offset, make_float4(uv, sin(time + z_axis) * 0.5f + 0.5f, 1.0f));
+        };
+        auto shader = device.compile(kernel);
+
+        Clock clk;
+        clk.tic();
+        // Fence index is a self-incremental integer
+        uint64_t frame_index = 0;
+
+        // Main rendering loop
+        while (!window.should_close()) {
+            // current frame's index
+            uint64_t this_frame = frame_index;
+            // next frame's index
+            frame_index += 1;
+
+            // Wait for last cycle
+            if (this_frame >= framebuffer_count) {
+                graphics_event.synchronize(this_frame - (framebuffer_count - 1));
+            }
+
+            // Try this: without synchronize, texture will be used by multiple streams simultaneously, this is illegal.
+            // If you REALLY want to access one resource with multiple streams simultaneously, you should mark
+            // simultaneously_access = true in create_image<T> and create_volume<T>, this may cause performance loss in some backends.
+            // Buffer is always simultaneously_accessible
+
+            // #define NO_SYNC_ERROR
 // compute stream must wait last frame's graphics stream
 #ifndef NO_SYNC_ERROR
-        if (this_frame > 0) {
-            compute_stream << graphics_event.wait(this_frame);
-        }
+            if (this_frame > 0) {
+                compute_stream << graphics_event.wait(this_frame);
+            }
 #endif
-        // Begin statistics collection
-        if (frame_index == 5) {
-            stats->begin_stats();
-        }
-        
-        // Dispatch compute task
-        stats->set_next_dispatch_name("Compute Task");
-        compute_stream
-            << shader(clk.toc() / 200.0f, uint2(0), pi).dispatch(resolution.x, resolution.y / 2)
-            // make a signal after compute_stream's tasks
-            << compute_event.signal();
-        
-        // Update frame - graphics stream waits for compute
-        stats->set_next_dispatch_name("Graphics Task");
-        graphics_stream
-            // wait compute_stream's tasks
-            << compute_event.wait()
-            << shader(clk.toc() / 200.0f, uint2(0, resolution.y / 2), 0.0f).dispatch(resolution.x, resolution.y / 2)
-            << swap_chain.present(ldr_image)
-            // let host wait here
-            << graphics_event.signal(frame_index);
-        window.poll_events();
-        
-        // End statistics collection and print results
-        if (frame_index == 5) {
-            auto &streams = stats->end_stats();
-            for (auto &i : streams) {
-                for (auto &j : i.second.stream_scopes) {
-                    LUISA_INFO("Stream {} task {} from time {} to time {}", luisa::to_string(i.second.stream_tag), j->name, j->start_time, j->finished_time);
+            // Begin statistics collection
+            if (frame_index == 5) {
+                stats->begin_stats();
+            }
+
+            // Dispatch compute task
+            stats->set_next_dispatch_name("Compute Task");
+            compute_stream
+                << shader(clk.toc() / 200.0f, uint2(0), pi).dispatch(resolution.x, resolution.y / 2)
+                // make a signal after compute_stream's tasks
+                << compute_event.signal();
+
+            // Update frame - graphics stream waits for compute
+            stats->set_next_dispatch_name("Graphics Task");
+            graphics_stream
+                // wait compute_stream's tasks
+                << compute_event.wait()
+                << shader(clk.toc() / 200.0f, uint2(0, resolution.y / 2), 0.0f).dispatch(resolution.x, resolution.y / 2)
+                << swap_chain.present(ldr_image)
+                // let host wait here
+                << graphics_event.signal(frame_index);
+            window.poll_events();
+
+            // End statistics collection and print results
+            if (frame_index == 5) {
+                auto &streams = stats->end_stats();
+                for (auto &i : streams) {
+                    for (auto &j : i.second.stream_scopes) {
+                        LUISA_INFO("Stream {} task {} from time {} to time {}", luisa::to_string(i.second.stream_tag), j->name, j->start_time, j->finished_time);
+                    }
                 }
             }
         }
+        // Final synchronization
+        compute_stream << synchronize();
+        graphics_stream << synchronize();
+        return 0;
+    } else {
+        Image<float> ldr_image = device.create_image<float>(PixelStorage::BYTE4, resolution);
+        ldr_image.set_name("present");
+        compute_stream.set_name("my compute");
+        graphics_stream.set_name("my present");
+
+        Kernel2D kernel = [&](Float time, UInt2 offset, Float z_axis) {
+            UInt2 coord = dispatch_id().xy();
+            Float2 uv = (make_float2(coord) + 0.5f) / make_float2(dispatch_size().xy());
+            ldr_image->write(coord + offset, make_float4(uv, sin(time + z_axis) * 0.5f + 0.5f, 1.0f));
+        };
+        auto shader = device.compile(kernel);
+        luisa::vector<std::byte> pixels(ldr_image.view().size_bytes());
+
+        stats->set_next_dispatch_name("Compute Task");
+        compute_stream
+            << shader(0.0f, uint2(0), pi).dispatch(resolution.x, resolution.y / 2)
+            << compute_event.signal();
+
+        stats->set_next_dispatch_name("Graphics Task");
+        graphics_stream
+            << compute_event.wait()
+            << shader(0.0f, uint2(0, resolution.y / 2), 0.0f).dispatch(resolution.x, resolution.y / 2)
+            << ldr_image.copy_to(pixels.data())
+            << synchronize();
+
+        auto result = luisa::test::save_and_compare(
+            reinterpret_cast<const uint8_t *>(pixels.data()), static_cast<int>(resolution.x), static_cast<int>(resolution.y), 4,
+            "test_runtime", opts.output_dir, ref_dir, opts.update_reference);
+        LUISA_INFO("Reference comparison: {} ({})", result.passed ? "PASSED" : "FAILED", result.message);
+        if (!result.passed) {
+            LUISA_ERROR("Reference comparison failed for test_runtime: {}", result.message);
+            return 1;
+        }
+        return 0;
     }
-    // Final synchronization
-    compute_stream << synchronize();
-    graphics_stream << synchronize();
 }

@@ -1,3 +1,7 @@
+#include "../../reference_image.h"
+
+#include <filesystem>
+
 #include <luisa/runtime/rhi/command.h>
 #include <luisa/runtime/raster/raster_shader.h>
 #include <luisa/dsl/raster/raster_kernel.h>
@@ -56,6 +60,7 @@ int main(int argc, char *argv[]) {
         LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
         exit(1);
     }
+    auto opts = luisa::test::ImageTestOptions::parse(argc, argv);
     Device device = context.create_device(argv[1], nullptr);
     Stream stream = device.create_stream(StreamTag::GRAPHICS);
     static constexpr uint width = 1024;
@@ -73,21 +78,8 @@ int main(int argc, char *argv[]) {
         {VertexAttributeType::Color, PixelFormat::RG32F},
     };
     mesh_format.emplace_vertex_stream(attributes);
+    auto ref_dir = luisa::test::find_reference_dir(std::filesystem::path{argv[0]}.parent_path());
 
-    Window window{"Test raster", width, height};
-    Swapchain swap_chain = device.create_swapchain(
-        stream,
-        SwapchainOption{
-            .display = window.native_display(),
-            .window = window.native_handle(),
-            .size = make_uint2(width, height),
-            .wants_hdr = false,
-            .wants_vsync = false,
-            .back_buffer_count = 2,
-        });
-    Image<float> out_img = device.create_image<float>(swap_chain.backend_storage(), width, height, 1, false, true);
-    PixelFormat img_format = out_img.format();
-    
     Vertex vertices[6];
     vertices[0].pos = {-0.5f, 0.5f, 0.5f};
     vertices[1].pos = {0.5f, 0.5f, 0.5f};
@@ -113,20 +105,57 @@ int main(int argc, char *argv[]) {
             .comparison = Comparison::Less,
             .write = true},
         .conservative = true};
-    while (!window.should_close()) {
-        float time = clock.toc() / 1000.0f;
-        // add triangle mesh
+    if (!opts.offline) {
+        Window window{"Test raster", width, height};
+        Swapchain swap_chain = device.create_swapchain(
+            stream,
+            SwapchainOption{
+                .display = window.native_display(),
+                .window = window.native_handle(),
+                .size = make_uint2(width, height),
+                .wants_hdr = false,
+                .wants_vsync = false,
+                .back_buffer_count = 2,
+            });
+        Image<float> out_img = device.create_image<float>(swap_chain.backend_storage(), width, height, 1, false, true);
+        PixelFormat img_format = out_img.format();
+        (void)img_format;
+        while (!window.should_close()) {
+            float time = clock.toc() / 1000.0f;
+            // add triangle mesh
+            luisa::vector<RasterMesh> meshes;
+            meshes.emplace_back(luisa::span<VertexBufferView const>{&vert_buffer_view, 1}, idx_buffer, 1, 114514);
+            meshes.emplace_back(luisa::span<VertexBufferView const>{&vert_buffer_view, 1}, idx_buffer, 1, 1919810, 3);
+            stream
+                // clear depth buffer
+                << clear_shader(out_img).dispatch(width, height)
+                << depth_buffer.clear(1.0)
+                << shader(time, time * 5).draw(std::move(meshes), mesh_format, Viewport{0, 0, width, height}, state, &depth_buffer, out_img)
+                << swap_chain.present(out_img);
+            window.poll_events();
+        }
+        stream << synchronize();
+        return 0;
+    } else {
+        Image<float> out_img = device.create_image<float>(PixelStorage::BYTE4, width, height, 1, false, true);
+        luisa::vector<std::byte> pixels(out_img.view().size_bytes());
         luisa::vector<RasterMesh> meshes;
         meshes.emplace_back(luisa::span<VertexBufferView const>{&vert_buffer_view, 1}, idx_buffer, 1, 114514);
         meshes.emplace_back(luisa::span<VertexBufferView const>{&vert_buffer_view, 1}, idx_buffer, 1, 1919810, 3);
         stream
-            // clear depth buffer
             << clear_shader(out_img).dispatch(width, height)
             << depth_buffer.clear(1.0)
-            << shader(time, time * 5).draw(std::move(meshes), mesh_format, Viewport{0, 0, width, height}, state, &depth_buffer, out_img)
-            << swap_chain.present(out_img);
-        window.poll_events();
+            << shader(0.0f, 0.0f).draw(std::move(meshes), mesh_format, Viewport{0, 0, width, height}, state, &depth_buffer, out_img)
+            << out_img.copy_to(pixels.data())
+            << synchronize();
+        auto result = luisa::test::save_and_compare(
+            reinterpret_cast<const uint8_t *>(pixels.data()), static_cast<int>(width), static_cast<int>(height), 4,
+            "test_raster", opts.output_dir, ref_dir, opts.update_reference);
+        LUISA_INFO("Reference comparison: {} ({})", result.passed ? "PASSED" : "FAILED", result.message);
+        if (!result.passed) {
+            LUISA_ERROR("Reference comparison failed for test_raster: {}", result.message);
+            return 1;
+        }
+        return 0;
     }
-    stream << synchronize();
-    return 0;
 }

@@ -12,8 +12,9 @@
 //
 // Created by Mike Smith on 2021/6/23.
 //
-#include <stb/stb_image_write.h>
+#include "../../reference_image.h"
 
+#include <filesystem>
 #include <luisa/core/clock.h>
 #include <luisa/core/logging.h>
 #include <luisa/runtime/context.h>
@@ -37,6 +38,7 @@ int main(int argc, char *argv[]) {
         LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
         exit(1);
     }
+    auto opts = luisa::test::ImageTestOptions::parse(argc, argv);
     Device device = context.create_device(argv[1]);
 
     // Simple triangle vertices
@@ -194,4 +196,15 @@ int main(int argc, char *argv[]) {
     double time = clock.toc();
     LUISA_INFO("Time: {} ms", time);
     stbi_write_png("test_indirect_rtx.png", width, height, 4, pixels.data(), 0);
+    auto ref_dir = luisa::test::find_reference_dir(std::filesystem::path{argv[0]}.parent_path());
+    auto result = luisa::test::save_and_compare(
+        pixels.data(), static_cast<int>(width), static_cast<int>(height), 4,
+        "test_indirect_rtx", opts.output_dir, ref_dir, opts.update_reference);
+    LUISA_INFO("Reference comparison: {} ({})", result.passed ? "PASSED" : "FAILED", result.message);
+    if (!result.passed) {
+        LUISA_ERROR("Reference comparison failed for test_indirect_rtx: {}", result.message);
+        if (opts.offline) { return 1; }
+        return 1;
+    }
+    return 0;
 }

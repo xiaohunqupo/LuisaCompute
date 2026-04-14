@@ -17,7 +17,7 @@
 #include <luisa/runtime/event.h>
 #include <luisa/runtime/swapchain.h>
 #include <luisa/dsl/sugar.h>
-#include <stb/stb_image_write.h>
+#include "../../reference_image.h"
 #include <luisa/gui/window.h>
 #include <luisa/ast/ast2json.h>
 using namespace luisa;
@@ -32,6 +32,9 @@ int main(int argc, char *argv[]) {
         LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
         exit(1);
     }
+    auto opts = luisa::test::ImageTestOptions::parse(argc, argv);
+    (void)opts;
+    // Note: test_present directly tests swapchain presentation timing, offline mode not applicable
     static constexpr uint2 resolution = make_uint2(1024u);
     Device device = context.create_device(argv[1]);
     Stream stream = device.create_stream(StreamTag::GRAPHICS);

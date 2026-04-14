@@ -8,8 +8,9 @@
 // - TEA (Tiny Encryption Algorithm) for random number generation
 // - Dynamic mesh updates and transforms
 
-#include <stb/stb_image_write.h>
+#include "../../reference_image.h"
 
+#include <filesystem>
 #include <luisa/luisa-compute.h>
 #include <luisa/dsl/sugar.h>
 
@@ -25,6 +26,7 @@ int main(int argc, char *argv[]) {
         LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
         exit(1);
     }
+    auto opts = luisa::test::ImageTestOptions::parse(argc, argv);
     Device device = context.create_device(argv[1]);
 
     // Define a simple triangle mesh (3 vertices)
@@ -180,4 +182,15 @@ int main(int argc, char *argv[]) {
     double time = clock.toc();
     LUISA_INFO("Time: {} ms", time);
     stbi_write_png("test_rtx.png", width, height, 4, pixels.data(), 0);
+    auto ref_dir = luisa::test::find_reference_dir(std::filesystem::path{argv[0]}.parent_path());
+    auto result = luisa::test::save_and_compare(
+        pixels.data(), static_cast<int>(width), static_cast<int>(height), 4,
+        "test_rtx", opts.output_dir, ref_dir, opts.update_reference);
+    LUISA_INFO("Reference comparison: {} ({})", result.passed ? "PASSED" : "FAILED", result.message);
+    if (!result.passed) {
+        LUISA_ERROR("Reference comparison failed for test_rtx: {}", result.message);
+        if (opts.offline) { return 1; }
+        return 1;
+    }
+    return 0;
 }
