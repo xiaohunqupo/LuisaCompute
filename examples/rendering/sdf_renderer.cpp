@@ -235,16 +235,16 @@ int main(int argc, char *argv[]) {
             }));
     }
     static constexpr uint interval = 4u;
-    bool infinite_render = user_spp == 0u;
-    uint total_spp = infinite_render ? 0u : user_spp;
+    bool infinite_render = user_spp == 0u && !force_offline;
+    uint total_spp = infinite_render ? 0u : (user_spp == 0u ? 1024u : user_spp);
     Image<float> ldr_image = device.create_image<float>(
         (!force_offline && swap_chain.has_value()) ? swap_chain->backend_storage() : PixelStorage::BYTE4,
         width, height);
 #else
     Stream stream = device.create_stream(StreamTag::COMPUTE);
     static constexpr uint interval = 64u;
-    bool infinite_render = user_spp == 0u;
-    uint total_spp = infinite_render ? 0u : user_spp;
+    bool infinite_render = user_spp == 0u && !force_offline;
+    uint total_spp = infinite_render ? 0u : (user_spp == 0u ? 1024u : user_spp);
     Image<float> ldr_image = device.create_image<float>(PixelStorage::BYTE4, width, height);
 #endif
     Callable linear_to_srgb = [](Var<float3> x) noexcept {

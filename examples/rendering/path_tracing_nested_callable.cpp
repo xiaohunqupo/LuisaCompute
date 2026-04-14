@@ -74,7 +74,7 @@ int main(int argc, char *argv[]) {
         obj_reader.GetShapes().size(), vertices.size());
 
     BindlessArray heap = device.create_bindless_array();
-    Stream stream = device.create_stream(StreamTag::GRAPHICS);
+    Stream stream = device.create_stream(force_offline ? StreamTag::COMPUTE : StreamTag::GRAPHICS);
     Buffer<float3> vertex_buffer = device.create_buffer<float3>(vertices.size());
     stream << vertex_buffer.copy_from(vertices.data());
     luisa::vector<Mesh> meshes;
@@ -331,39 +331,51 @@ int main(int argc, char *argv[]) {
     cmd_list << clear_shader(accum_image).dispatch(resolution)
              << make_sampler_shader(seed_image).dispatch(resolution);
 
-    Window window{"path tracing", resolution};
-    Swapchain swap_chain = device.create_swapchain(
-        stream,
-        SwapchainOption{
-            .display = window.native_display(),
-            .window = window.native_handle(),
-            .size = resolution,
-            .wants_hdr = false,
-            .wants_vsync = false,
-            .back_buffer_count = 2,
-        });
-    Image<float> ldr_image = device.create_image<float>(swap_chain.backend_storage(), resolution);
+    // Setup window and swapchain conditionally
+    std::unique_ptr<Window> window;
+    std::optional<Swapchain> swap_chain;
+    if (!force_offline) {
+        window = std::make_unique<Window>("path tracing", resolution);
+        swap_chain.emplace(device.create_swapchain(
+            stream,
+            SwapchainOption{
+                .display = window->native_display(),
+                .window = window->native_handle(),
+                .size = resolution,
+                .wants_hdr = false,
+                .wants_vsync = false,
+                .back_buffer_count = 2,
+            }));
+    }
+    Image<float> ldr_image = device.create_image<float>(
+        (!force_offline && swap_chain.has_value()) ? swap_chain->backend_storage() : PixelStorage::BYTE4,
+        resolution);
     double last_time = 0.0;
     uint frame_count = 0u;
     Clock clock;
-    while (!window.should_close()) {
+    static constexpr uint offline_total_spp = 1024u;
+    while (force_offline ? (frame_count < offline_total_spp) : !window->should_close()) {
         cmd_list << raytracing_shader(framebuffer, seed_image, accel, resolution)
                         .dispatch(resolution)
                  << accumulate_shader(accum_image, framebuffer)
                         .dispatch(resolution);
-        cmd_list << hdr2ldr_shader(accum_image, ldr_image, 1.0f, swap_chain.backend_storage() != PixelStorage::BYTE4).dispatch(resolution);
-        stream << cmd_list.commit()
-               << swap_chain.present(ldr_image) << synchronize();
-        window.poll_events();
+        if (!force_offline && swap_chain.has_value()) {
+            cmd_list << hdr2ldr_shader(accum_image, ldr_image, 1.0f, swap_chain->backend_storage() != PixelStorage::BYTE4).dispatch(resolution);
+            stream << cmd_list.commit()
+                   << swap_chain->present(ldr_image) << synchronize();
+            window->poll_events();
+        } else {
+            stream << cmd_list.commit() << synchronize();
+        }
         double dt = clock.toc() - last_time;
         last_time = clock.toc();
         frame_count += spp_per_dispatch;
         LUISA_INFO("spp: {}, time: {} ms, spp/s: {}",
                    frame_count, dt, spp_per_dispatch / dt * 1000);
     }
-    stream
-        << ldr_image.copy_to(host_image.data())
-        << synchronize();
+    stream << hdr2ldr_shader(accum_image, ldr_image, 1.0f, false).dispatch(resolution)
+           << ldr_image.copy_to(host_image.data())
+           << synchronize();
 
     LUISA_INFO("FPS: {}", frame_count / clock.toc() * 1000);
     stbi_write_png("test_path_tracing.png", resolution.x, resolution.y, 4, host_image.data(), 0);

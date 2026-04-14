@@ -165,7 +165,7 @@ int main(int argc, char *argv[]) {
 
     // Setup bindless array and build meshes
     BindlessArray heap = device.create_bindless_array();
-    Stream stream = device.create_stream(StreamTag::GRAPHICS);
+    Stream stream = device.create_stream(force_offline ? StreamTag::COMPUTE : StreamTag::GRAPHICS);
     Buffer<float3> vertex_buffer = device.create_buffer<float3>(vertices.size());
     stream << vertex_buffer.copy_from(vertices.data());
     luisa::vector<Mesh> meshes;
@@ -416,20 +416,25 @@ int main(int argc, char *argv[]) {
         .right = make_float3(1.f, 0.f, 0.f),
         .fov = 27.8f};
     FPVCameraController camera_controller{camera, 1.f, 20.f, .5f};
-    Window window{"path tracing", resolution};
 
-    // Setup swapchain
-    Swapchain swap_chain = device.create_swapchain(
-        stream,
-        SwapchainOption{
-            .display = window.native_display(),
-            .window = window.native_handle(),
-            .size = resolution,
-            .wants_hdr = false,
-            .wants_vsync = false,
-            .back_buffer_count = 2,
-        });
-    Image<float> ldr_image = device.create_image<float>(swap_chain.backend_storage(), resolution);
+    std::unique_ptr<Window> window;
+    std::optional<Swapchain> swap_chain;
+    if (!force_offline) {
+        window = std::make_unique<Window>("path tracing", resolution);
+        swap_chain.emplace(device.create_swapchain(
+            stream,
+            SwapchainOption{
+                .display = window->native_display(),
+                .window = window->native_handle(),
+                .size = resolution,
+                .wants_hdr = false,
+                .wants_vsync = false,
+                .back_buffer_count = 2,
+            }));
+    }
+    Image<float> ldr_image = device.create_image<float>(
+        (!force_offline && swap_chain.has_value()) ? swap_chain->backend_storage() : PixelStorage::BYTE4,
+        resolution);
 
     double last_time = 0.0;
     uint frame_count = 0u;
@@ -439,9 +444,8 @@ int main(int argc, char *argv[]) {
     CommandList cmd_list;
     cmd_list << make_sampler_shader(seed_image).dispatch(resolution);
 
-    // Main loop with camera controls
-    while (!window.should_close()) {
-        // Clear accumulation when camera moves
+    static constexpr uint offline_total_spp = 1024u;
+    while (force_offline ? (frame_count < offline_total_spp) : !window->should_close()) {
         if (is_dirty) {
             cmd_list << clear_shader(accum_image).dispatch(resolution);
             is_dirty = false;
@@ -450,76 +454,80 @@ int main(int argc, char *argv[]) {
                         .dispatch(resolution)
                  << accumulate_shader(accum_image, framebuffer)
                         .dispatch(resolution);
-        cmd_list << hdr2ldr_shader(accum_image, ldr_image, 1.0f, swap_chain.backend_storage() != PixelStorage::BYTE4).dispatch(resolution);
-        stream << cmd_list.commit()
-               << swap_chain.present(ldr_image);
-        window.poll_events();
-        delta_time = clock.toc() - last_time;
-        last_time = clock.toc();
-        frame_count++;
-        auto dt = static_cast<float>(delta_time / 1000.0);
+        if (!force_offline && swap_chain.has_value()) {
+            cmd_list << hdr2ldr_shader(accum_image, ldr_image, 1.0f, swap_chain->backend_storage() != PixelStorage::BYTE4).dispatch(resolution);
+            stream << cmd_list.commit()
+                   << swap_chain->present(ldr_image);
+            window->poll_events();
+            delta_time = clock.toc() - last_time;
+            last_time = clock.toc();
+            frame_count++;
+            auto dt = static_cast<float>(delta_time / 1000.0);
 
-        // Handle camera input
-        if (window.is_key_down(KEY_W)) {
-            camera_controller.rotate_pitch(dt);
-            is_dirty = true;
-        }
-        if (window.is_key_down(KEY_S)) {
-            camera_controller.rotate_pitch(-dt);
-            is_dirty = true;
-        }
-        if (window.is_key_down(KEY_A)) {
-            camera_controller.rotate_yaw(dt);
-            is_dirty = true;
-        }
-        if (window.is_key_down(KEY_D)) {
-            camera_controller.rotate_yaw(-dt);
-            is_dirty = true;
-        }
-        if (window.is_key_down(KEY_Q)) {
-            camera_controller.rotate_roll(-dt);
-            is_dirty = true;
-        }
-        if (window.is_key_down(KEY_E)) {
-            camera_controller.rotate_roll(dt);
-            is_dirty = true;
-        }
-        if (window.is_key_down(KEY_MINUS)) {
-            camera_controller.zoom(-dt);
-            is_dirty = true;
-        }
-        if (window.is_key_down(KEY_EQUAL)) {
-            camera_controller.zoom(dt);
-            is_dirty = true;
-        }
-        if (window.is_key_down(KEY_UP)) {
-            if (window.is_key_down(KEY_LEFT_SHIFT) || window.is_key_down(KEY_RIGHT_SHIFT)) {
-                camera_controller.move_forward(dt);
-            } else {
-                camera_controller.move_up(dt);
+            if (window->is_key_down(KEY_W)) {
+                camera_controller.rotate_pitch(dt);
+                is_dirty = true;
             }
-            is_dirty = true;
-        }
-        if (window.is_key_down(KEY_DOWN)) {
-            if (window.is_key_down(KEY_LEFT_SHIFT) || window.is_key_down(KEY_RIGHT_SHIFT)) {
-                camera_controller.move_forward(-dt);
-            } else {
-                camera_controller.move_up(-dt);
+            if (window->is_key_down(KEY_S)) {
+                camera_controller.rotate_pitch(-dt);
+                is_dirty = true;
             }
-            is_dirty = true;
-        }
-        if (window.is_key_down(KEY_LEFT)) {
-            camera_controller.move_right(-dt);
-            is_dirty = true;
-        }
-        if (window.is_key_down(KEY_RIGHT)) {
-            camera_controller.move_right(dt);
-            is_dirty = true;
+            if (window->is_key_down(KEY_A)) {
+                camera_controller.rotate_yaw(dt);
+                is_dirty = true;
+            }
+            if (window->is_key_down(KEY_D)) {
+                camera_controller.rotate_yaw(-dt);
+                is_dirty = true;
+            }
+            if (window->is_key_down(KEY_Q)) {
+                camera_controller.rotate_roll(-dt);
+                is_dirty = true;
+            }
+            if (window->is_key_down(KEY_E)) {
+                camera_controller.rotate_roll(dt);
+                is_dirty = true;
+            }
+            if (window->is_key_down(KEY_MINUS)) {
+                camera_controller.zoom(-dt);
+                is_dirty = true;
+            }
+            if (window->is_key_down(KEY_EQUAL)) {
+                camera_controller.zoom(dt);
+                is_dirty = true;
+            }
+            if (window->is_key_down(KEY_UP)) {
+                if (window->is_key_down(KEY_LEFT_SHIFT) || window->is_key_down(KEY_RIGHT_SHIFT)) {
+                    camera_controller.move_forward(dt);
+                } else {
+                    camera_controller.move_up(dt);
+                }
+                is_dirty = true;
+            }
+            if (window->is_key_down(KEY_DOWN)) {
+                if (window->is_key_down(KEY_LEFT_SHIFT) || window->is_key_down(KEY_RIGHT_SHIFT)) {
+                    camera_controller.move_forward(-dt);
+                } else {
+                    camera_controller.move_up(-dt);
+                }
+                is_dirty = true;
+            }
+            if (window->is_key_down(KEY_LEFT)) {
+                camera_controller.move_right(-dt);
+                is_dirty = true;
+            }
+            if (window->is_key_down(KEY_RIGHT)) {
+                camera_controller.move_right(dt);
+                is_dirty = true;
+            }
+        } else {
+            stream << cmd_list.commit() << synchronize();
+            frame_count++;
         }
     }
-    stream
-        << ldr_image.copy_to(host_image.data())
-        << synchronize();
+    stream << hdr2ldr_shader(accum_image, ldr_image, 1.0f, false).dispatch(resolution)
+           << ldr_image.copy_to(host_image.data())
+           << synchronize();
 
     LUISA_INFO("FPS: {}", frame_count / clock.toc() * 1000);
     stbi_write_png("test_path_tracing.png", resolution.x, resolution.y, 4, host_image.data(), 0);

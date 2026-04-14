@@ -77,7 +77,7 @@ int main(int argc, char *argv[]) {
         obj_reader.GetShapes().size(), vertices.size());
 
     BindlessArray heap = device.create_bindless_array();
-    Stream stream = device.create_stream(StreamTag::GRAPHICS);
+    Stream stream = device.create_stream(force_offline ? StreamTag::COMPUTE : StreamTag::GRAPHICS);
     Buffer<float3> vertex_buffer = device.create_buffer<float3>(vertices.size());
     stream << vertex_buffer.copy_from(vertices.data());
     luisa::vector<Mesh> meshes;
@@ -371,65 +371,78 @@ int main(int argc, char *argv[]) {
     cmd_list << clear_shader(accum_image).dispatch(resolution)
              << make_sampler_shader(seed_image).dispatch(resolution);
 
-    Window window{"path tracing", resolution};
-    Swapchain swap_chain;
+    std::unique_ptr<Window> window;
+    std::optional<Swapchain> swap_chain;
     bool use_aces = false;
     float3 white_point{1.0f};
     float scale = 1.0f;
 
-    if (device.backend_name() == "dx") {
-        constexpr bool use_hdr10 = true;
-        constexpr PixelStorage hdr_storage = use_hdr10 ? PixelStorage::R10G10B10A2 : PixelStorage::HALF4;
-        constexpr DXHDRExt::ColorSpace hdr_color_space = use_hdr10 ? DXHDRExt::ColorSpace::RGB_FULL_G2084_NONE_P2020 : DXHDRExt::ColorSpace::RGB_FULL_G10_NONE_P709;
-        auto dx_hdr_ext = device.extension<DXHDRExt>();
-        swap_chain = dx_hdr_ext->create_swapchain(
-            stream,
-            DXHDRExt::DXSwapchainOption{
-                .window = window.native_handle(),
-                .size = make_uint2(resolution),
-                .storage = dx_hdr_ext->device_support_hdr() ? hdr_storage : PixelStorage::BYTE4,
-                .wants_vsync = false,
-            });
-        dx_hdr_ext->set_color_space(swap_chain, dx_hdr_ext->device_support_hdr() ? hdr_color_space : DXHDRExt::ColorSpace::RGB_FULL_G22_NONE_P709);
-        if (dx_hdr_ext->device_support_hdr()) {
-            auto display_data = dx_hdr_ext->get_display_data(window.native_handle());
-            LUISA_INFO("Display data: \nbits_per_color: {}\ncolor_space: {}\nred_primary: {}\ngreen_primary: {}\nblue_primary: {}\nwhite_point: {}\nmin_luminance: {}\nmax_luminance: {}\nmax_full_frame_luminance: {}", display_data.bits_per_color, luisa::to_string(display_data.color_space), display_data.red_primary, display_data.green_primary, display_data.blue_primary, display_data.white_point, display_data.min_luminance, display_data.max_luminance, display_data.max_full_frame_luminance);
-            white_point = make_float3(display_data.max_full_frame_luminance / 80.0f);
-            use_aces = true;
+    if (!force_offline) {
+        window = std::make_unique<Window>("path tracing", resolution);
+
+        if (device.backend_name() == "dx") {
+            constexpr bool use_hdr10 = true;
+            constexpr PixelStorage hdr_storage = use_hdr10 ? PixelStorage::R10G10B10A2 : PixelStorage::HALF4;
+            constexpr DXHDRExt::ColorSpace hdr_color_space = use_hdr10 ? DXHDRExt::ColorSpace::RGB_FULL_G2084_NONE_P2020 : DXHDRExt::ColorSpace::RGB_FULL_G10_NONE_P709;
+            auto dx_hdr_ext = device.extension<DXHDRExt>();
+            swap_chain.emplace(dx_hdr_ext->create_swapchain(
+                stream,
+                DXHDRExt::DXSwapchainOption{
+                    .window = window->native_handle(),
+                    .size = make_uint2(resolution),
+                    .storage = dx_hdr_ext->device_support_hdr() ? hdr_storage : PixelStorage::BYTE4,
+                    .wants_vsync = false,
+                }));
+            dx_hdr_ext->set_color_space(*swap_chain, dx_hdr_ext->device_support_hdr() ? hdr_color_space : DXHDRExt::ColorSpace::RGB_FULL_G22_NONE_P709);
+            if (dx_hdr_ext->device_support_hdr()) {
+                auto display_data = dx_hdr_ext->get_display_data(window->native_handle());
+                LUISA_INFO("Display data: \nbits_per_color: {}\ncolor_space: {}\nred_primary: {}\ngreen_primary: {}\nblue_primary: {}\nwhite_point: {}\nmin_luminance: {}\nmax_luminance: {}\nmax_full_frame_luminance: {}", display_data.bits_per_color, luisa::to_string(display_data.color_space), display_data.red_primary, display_data.green_primary, display_data.blue_primary, display_data.white_point, display_data.min_luminance, display_data.max_luminance, display_data.max_full_frame_luminance);
+                white_point = make_float3(display_data.max_full_frame_luminance / 80.0f);
+                use_aces = true;
+            }
+        } else {
+            swap_chain.emplace(device.create_swapchain(
+                stream,
+                SwapchainOption{
+                    .display = window->native_display(),
+                    .window = window->native_handle(),
+                    .size = make_uint2(resolution),
+                    .wants_hdr = true,
+                    .wants_vsync = false,
+                    .back_buffer_count = 8,
+                }));
         }
-    } else {
-        swap_chain = device.create_swapchain(
-            stream,
-            SwapchainOption{
-                .display = window.native_display(),
-                .window = window.native_handle(),
-                .size = make_uint2(resolution),
-                .wants_hdr = true,
-                .wants_vsync = false,
-                .back_buffer_count = 8,
-            });
     }
 
-    Image<float> ldr_image = device.create_image<float>(swap_chain.backend_storage(), resolution);
+    Image<float> ldr_image = device.create_image<float>(
+        (!force_offline && swap_chain.has_value()) ? swap_chain->backend_storage() : PixelStorage::BYTE4,
+        resolution);
     double last_time = 0.0;
     uint frame_count = 0u;
     Clock clock;
 
-    while (!window.should_close()) {
+    static constexpr uint offline_total_spp = 1024u;
+    while (force_offline ? (frame_count < offline_total_spp) : !window->should_close()) {
         int mode = 0;
-        if (swap_chain.backend_storage() == PixelStorage::R10G10B10A2) {
-            mode = 1;
-        } else if (swap_chain.backend_storage() == PixelStorage::HALF4) {
-            mode = 2;
+        if (!force_offline && swap_chain.has_value()) {
+            if (swap_chain->backend_storage() == PixelStorage::R10G10B10A2) {
+                mode = 1;
+            } else if (swap_chain->backend_storage() == PixelStorage::HALF4) {
+                mode = 2;
+            }
         }
         cmd_list << raytracing_shader(framebuffer, seed_image, accel, resolution)
                         .dispatch(resolution)
                  << accumulate_shader(accum_image, framebuffer)
                         .dispatch(resolution);
-        cmd_list << hdr2ldr_shader(accum_image, ldr_image, scale, mode, white_point, use_aces).dispatch(resolution);
-        stream << cmd_list.commit()
-               << swap_chain.present(ldr_image) << synchronize();
-        window.poll_events();
+        if (!force_offline && swap_chain.has_value()) {
+            cmd_list << hdr2ldr_shader(accum_image, ldr_image, scale, mode, white_point, use_aces).dispatch(resolution);
+            stream << cmd_list.commit()
+                   << swap_chain->present(ldr_image) << synchronize();
+            window->poll_events();
+        } else {
+            stream << cmd_list.commit() << synchronize();
+        }
         double dt = clock.toc() - last_time;
         LUISA_INFO("dt = {:.2f}ms ({:.2f} spp/s)", dt, spp_per_dispatch / dt * 1000);
         last_time = clock.toc();

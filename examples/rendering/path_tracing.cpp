@@ -233,8 +233,8 @@ int main(int argc, char *argv[]) {
 
     // Adjust samples per dispatch based on backend capabilities
     auto spp_per_dispatch = device.backend_name() == "metal" || device.backend_name() == "cpu" || device.backend_name() == "fallback" ? 1u : 64u;
-    bool infinite_render = user_spp == 0u;
-    uint total_spp = infinite_render ? 0u : user_spp;
+    bool infinite_render = user_spp == 0u && !force_offline;
+    uint total_spp = infinite_render ? 0u : (user_spp == 0u ? 1024u : user_spp);
 
     // Main path tracing kernel
     // Implements unidirectional path tracing with NEE and MIS
