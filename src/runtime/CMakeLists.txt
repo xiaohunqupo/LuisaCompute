@@ -23,6 +23,7 @@ set(LUISA_COMPUTE_RUNTIME_REMOTE_SOURCES
 set(LUISA_COMPUTE_RUNTIME_SOURCES
         bindless_array.cpp
         buffer.cpp
+        builtin_kernel.cpp
         byte_buffer.cpp
         command_list.cpp
         context.cpp
