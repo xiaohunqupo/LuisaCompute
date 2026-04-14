@@ -72,17 +72,47 @@ int main(int argc, char *argv[]) {
 
     log_level_verbose();
 
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend> [--offline]", argv[0]);
-        return 1;
-    }
-
-    auto backend = string_view{argv[1]};
+    luisa::string backend;
     auto offline = false;
-    for (auto i = 2; i < argc; i++) {
+    for (auto i = 1; i < argc; i++) {
         if (string_view{argv[i]} == "--offline") {
             offline = true;
+        } else if (backend.empty()) {
+            backend = argv[i];
         }
+    }
+
+    Context context{argv[0]};
+    if (backend.empty()) {
+        auto const &backends = context.installed_backends();
+        if (backends.empty()) {
+            LUISA_ERROR("No backends installed.");
+            return 1;
+        }
+        static constexpr luisa::string_view preferred_backends[] = {
+            "cuda", "dx", "metal", "vk", "fallback", "cpu", "remote"};
+        for (auto preferred : preferred_backends) {
+            for (auto const &candidate : backends) {
+                if (candidate == preferred && !context.backend_device_names(candidate).empty()) {
+                    backend = candidate;
+                    break;
+                }
+            }
+            if (!backend.empty()) { break; }
+        }
+        if (backend.empty()) {
+            for (auto const &candidate : backends) {
+                if (!context.backend_device_names(candidate).empty()) {
+                    backend = candidate;
+                    break;
+                }
+            }
+        }
+        if (backend.empty()) {
+            LUISA_ERROR("No usable backends installed.");
+            return 1;
+        }
+        LUISA_INFO("No backend specified, auto-selected: {}", backend);
     }
 
 #ifndef LUISA_ENABLE_GUI
@@ -91,7 +121,6 @@ int main(int argc, char *argv[]) {
     }
 #endif
 
-    Context context{argv[0]};
     Device device = context.create_device(backend);
     Stream stream = offline ? device.create_stream() : device.create_stream(StreamTag::GRAPHICS);
 

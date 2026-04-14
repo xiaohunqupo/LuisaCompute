@@ -70,17 +70,49 @@ int main(int argc, char *argv[]) {
 
     log_level_verbose();
 
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend> [--offline]", argv[0]);
-        return 1;
+    auto offline = has_flag(argc, argv, "--offline") || (argc > 1 && std::string_view{argv[1]} == "--offline");
+    luisa::string backend;
+    for (int i = 1; i < argc; i++) {
+        if (std::string_view{argv[i]} != "--offline" && backend.empty()) {
+            backend = argv[i];
+        }
     }
-
-    auto offline = has_flag(argc, argv, "--offline");
 
     // Step 1: Set up the LuisaCompute runtime.
     // We use a graphics stream so the same stream can both compute the simulation and present it.
     Context context{argv[0]};
-    Device device = context.create_device(argv[1]);
+    if (backend.empty()) {
+        auto const &backends = context.installed_backends();
+        if (backends.empty()) {
+            LUISA_ERROR("No backends installed.");
+            return 1;
+        }
+        static constexpr luisa::string_view preferred_backends[] = {
+            "cuda", "dx", "metal", "vk", "fallback", "cpu", "remote"};
+        for (auto preferred : preferred_backends) {
+            for (auto const &candidate : backends) {
+                if (candidate == preferred && !context.backend_device_names(candidate).empty()) {
+                    backend = candidate;
+                    break;
+                }
+            }
+            if (!backend.empty()) { break; }
+        }
+        if (backend.empty()) {
+            for (auto const &candidate : backends) {
+                if (!context.backend_device_names(candidate).empty()) {
+                    backend = candidate;
+                    break;
+                }
+            }
+        }
+        if (backend.empty()) {
+            LUISA_ERROR("No usable backends installed.");
+            return 1;
+        }
+        LUISA_INFO("No backend specified, auto-selected: {}", backend);
+    }
+    Device device = context.create_device(backend);
     Stream stream = device.create_stream(StreamTag::GRAPHICS);
 
     static constexpr auto grid_resolution = make_uint2(512u, 512u);
@@ -93,7 +125,7 @@ int main(int argc, char *argv[]) {
     static_assert(c2dt2 < 0.5f);
 
     LUISA_INFO("Tutorial 05 - 2D Wave Equation");
-    LUISA_INFO("Backend: {}", argv[1]);
+    LUISA_INFO("Backend: {}", backend);
     LUISA_INFO("Mode: {}", offline ? "offline" : "interactive");
     LUISA_INFO("CFL check: c^2 * dt^2 = {} (< 0.5)", c2dt2);
     if (!offline) {

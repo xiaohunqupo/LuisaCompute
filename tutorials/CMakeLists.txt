@@ -10,7 +10,7 @@ endfunction()
 # Helper: register a CTest target for a tutorial executable (offline mode).
 function(luisa_compute_register_tutorial_ctest name)
     add_test(NAME ${name}
-             COMMAND ${name} ${LUISA_COMPUTE_TEST_BACKEND} --offline)
+             COMMAND ${name} --offline)
     set_tests_properties(${name} PROPERTIES LABELS "tutorial")
 endfunction()
 

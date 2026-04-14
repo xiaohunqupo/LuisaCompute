@@ -51,21 +51,54 @@ int main(int argc, char *argv[]) {
     // Step 1: Create the Context and Device.
     // Why: just like the previous tutorials, the Context locates backends and the Device owns the
     // resources and shaders used by this simulation.
-    Context context{argv[0]};
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend> [--offline] [--frames N]. <backend>: cuda, dx, metal, cpu", argv[0]);
-        return 1;
-    }
-
+    // Parse command-line: any non-flag argument is the backend name.
+    // If no backend is given, the first installed backend is selected automatically.
+    luisa::string backend;
     bool offline = false;
     uint frame_limit = 0u;
-    for (int i = 2; i < argc; i++) {
+    for (int i = 1; i < argc; i++) {
         if (std::string_view{argv[i]} == "--offline") {
             offline = true;
         } else if (std::string_view{argv[i]} == "--frames" && i + 1 < argc) {
             frame_limit = static_cast<uint>(std::atoi(argv[++i]));
+        } else if (backend.empty()) {
+            backend = argv[i];
         }
     }
+
+    Context context{argv[0]};
+    if (backend.empty()) {
+        auto const &backends = context.installed_backends();
+        if (backends.empty()) {
+            LUISA_ERROR("No backends installed.");
+            return 1;
+        }
+        static constexpr luisa::string_view preferred_backends[] = {
+            "cuda", "dx", "metal", "vk", "fallback", "cpu", "remote"};
+        for (auto preferred : preferred_backends) {
+            for (auto const &candidate : backends) {
+                if (candidate == preferred && !context.backend_device_names(candidate).empty()) {
+                    backend = candidate;
+                    break;
+                }
+            }
+            if (!backend.empty()) { break; }
+        }
+        if (backend.empty()) {
+            for (auto const &candidate : backends) {
+                if (!context.backend_device_names(candidate).empty()) {
+                    backend = candidate;
+                    break;
+                }
+            }
+        }
+        if (backend.empty()) {
+            LUISA_ERROR("No usable backends installed.");
+            return 1;
+        }
+        LUISA_INFO("No backend specified, auto-selected: {}", backend);
+    }
+
     if (offline && frame_limit == 0u) {
         frame_limit = 100u;
     }
@@ -75,7 +108,7 @@ int main(int argc, char *argv[]) {
         offline = true;
     }
 
-    Device device = context.create_device(argv[1]);
+    Device device = context.create_device(backend);
     Stream stream = device.create_stream(offline ? StreamTag::COMPUTE : StreamTag::GRAPHICS);
 
     // Step 2: Define simulation constants.

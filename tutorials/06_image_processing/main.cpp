@@ -51,22 +51,54 @@ int main(int argc, char *argv[]) {
 
     log_level_verbose();
 
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend> [--offline]", argv[0]);
-        return 1;
+    auto offline = has_flag(argc, argv, "--offline") || (argc > 1 && std::string_view{argv[1]} == "--offline");
+    luisa::string backend;
+    for (int i = 1; i < argc; i++) {
+        if (std::string_view{argv[i]} != "--offline" && backend.empty()) {
+            backend = argv[i];
+        }
     }
-
-    auto offline = has_flag(argc, argv, "--offline");
 
     // Step 1: Create the runtime objects that own all GPU resources and compiled shaders.
     Context context{argv[0]};
-    Device device = context.create_device(argv[1]);
+    if (backend.empty()) {
+        auto const &backends = context.installed_backends();
+        if (backends.empty()) {
+            LUISA_ERROR("No backends installed.");
+            return 1;
+        }
+        static constexpr luisa::string_view preferred_backends[] = {
+            "cuda", "dx", "metal", "vk", "fallback", "cpu", "remote"};
+        for (auto preferred : preferred_backends) {
+            for (auto const &candidate : backends) {
+                if (candidate == preferred && !context.backend_device_names(candidate).empty()) {
+                    backend = candidate;
+                    break;
+                }
+            }
+            if (!backend.empty()) { break; }
+        }
+        if (backend.empty()) {
+            for (auto const &candidate : backends) {
+                if (!context.backend_device_names(candidate).empty()) {
+                    backend = candidate;
+                    break;
+                }
+            }
+        }
+        if (backend.empty()) {
+            LUISA_ERROR("No usable backends installed.");
+            return 1;
+        }
+        LUISA_INFO("No backend specified, auto-selected: {}", backend);
+    }
+    Device device = context.create_device(backend);
     Stream stream = device.create_stream(StreamTag::GRAPHICS);
 
     static constexpr auto resolution = make_uint2(1024u, 1024u);
 
     LUISA_INFO("Tutorial 06 - Multi-Pass Image Processing");
-    LUISA_INFO("Backend: {}", argv[1]);
+    LUISA_INFO("Backend: {}", backend);
     LUISA_INFO("Mode: {}", offline ? "offline" : "interactive");
 
     // Step 2: Define the procedural source generator.

@@ -60,9 +60,36 @@ on_load(function(target)
             public = true
         })
         target:add("defines", "MARL_BUILDING_DLL")
-        target:add("files", path.join(marl_path, "src/*.c"), path.join(marl_path, "src/build.marl.cpp"))
+        target:add("files", path.join(marl_path, "src/build.marl.cpp"))
+        -- Only include architecture-specific osfiber sources for the target arch.
+        -- Globbing all *.c and *.S causes cross-arch compile errors (e.g. -mfpu= on ARM64 macOS).
         if not target:is_plat("windows") then
-            target:add("files", path.join(marl_path, "src/*.S"))
+            local arch = target:arch()
+            if arch == "arm64" or arch == "aarch64" or arch == "arm64-v8a" then
+                target:add("files", path.join(marl_path, "src/osfiber_aarch64.c"))
+                target:add("files", path.join(marl_path, "src/osfiber_asm_aarch64.S"))
+            elseif arch == "x86_64" or arch == "x64" then
+                target:add("files", path.join(marl_path, "src/osfiber_x64.c"))
+                target:add("files", path.join(marl_path, "src/osfiber_asm_x64.S"))
+            elseif arch == "x86" or arch == "i386" then
+                target:add("files", path.join(marl_path, "src/osfiber_x86.c"))
+                target:add("files", path.join(marl_path, "src/osfiber_asm_x86.S"))
+            elseif arch == "arm" or arch == "armv7" or arch == "armeabi-v7a" then
+                target:add("files", path.join(marl_path, "src/osfiber_arm.c"))
+                target:add("files", path.join(marl_path, "src/osfiber_asm_arm.S"))
+            elseif arch == "mips64" or arch == "mips64el" then
+                target:add("files", path.join(marl_path, "src/osfiber_mips64.c"))
+                target:add("files", path.join(marl_path, "src/osfiber_asm_mips64.S"))
+            elseif arch == "loongarch64" then
+                target:add("files", path.join(marl_path, "src/osfiber_loongarch64.c"))
+                target:add("files", path.join(marl_path, "src/osfiber_asm_loongarch64.S"))
+            elseif arch == "riscv64" or arch == "rv64" then
+                target:add("files", path.join(marl_path, "src/osfiber_rv64.c"))
+                target:add("files", path.join(marl_path, "src/osfiber_asm_rv64.S"))
+            elseif arch == "ppc64" or arch == "ppc64le" then
+                target:add("files", path.join(marl_path, "src/osfiber_ppc64.c"))
+                target:add("files", path.join(marl_path, "src/osfiber_asm_ppc64.S"))
+            end
         end
         target:add("includedirs", path.join(marl_path, "include"), {
             public = true

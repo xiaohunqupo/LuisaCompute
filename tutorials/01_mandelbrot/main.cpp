@@ -47,17 +47,49 @@ int main(int argc, char *argv[]) {
     // Step 1: Create the runtime context and pick a backend.
     // Why: the Context knows where LuisaCompute backends live, and the Device is the object that
     // creates GPU resources and compiles kernels for the chosen backend.
-    Context context{argv[0]};
-    if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend> [--offline]. <backend>: cuda, dx, metal, cpu", argv[0]);
-        return 1;
-    }
-
+    // Parse command-line: any non-flag argument is the backend name.
+    // If no backend is given, the first installed backend is selected automatically.
+    luisa::string backend;
     bool offline = false;
-    for (int i = 2; i < argc; i++) {
+    for (int i = 1; i < argc; i++) {
         if (std::string_view{argv[i]} == "--offline") {
             offline = true;
+        } else if (backend.empty()) {
+            backend = argv[i];
         }
+    }
+
+    Context context{argv[0]};
+    if (backend.empty()) {
+        auto const &backends = context.installed_backends();
+        if (backends.empty()) {
+            LUISA_ERROR("No backends installed.");
+            return 1;
+        }
+        static constexpr luisa::string_view preferred_backends[] = {
+            "cuda", "dx", "metal", "vk", "fallback", "cpu", "remote"};
+        for (auto preferred : preferred_backends) {
+            for (auto const &candidate : backends) {
+                if (candidate == preferred && !context.backend_device_names(candidate).empty()) {
+                    backend = candidate;
+                    break;
+                }
+            }
+            if (!backend.empty()) { break; }
+        }
+        if (backend.empty()) {
+            for (auto const &candidate : backends) {
+                if (!context.backend_device_names(candidate).empty()) {
+                    backend = candidate;
+                    break;
+                }
+            }
+        }
+        if (backend.empty()) {
+            LUISA_ERROR("No usable backends installed.");
+            return 1;
+        }
+        LUISA_INFO("No backend specified, auto-selected: {}", backend);
     }
 
     if (!offline && !ENABLE_DISPLAY) {
@@ -65,7 +97,7 @@ int main(int argc, char *argv[]) {
         offline = true;
     }
 
-    Device device = context.create_device(argv[1]);
+    Device device = context.create_device(backend);
     Stream stream = device.create_stream(offline ? StreamTag::COMPUTE : StreamTag::GRAPHICS);
 
     static constexpr uint2 resolution = make_uint2(1024u, 1024u);
