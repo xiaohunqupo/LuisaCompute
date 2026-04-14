@@ -9,6 +9,9 @@ lc_set_pcxxheader("lc_runtime_pch.h")
 add_defines("LUISA_RUNTIME_EXPORT_DLL", "LUISA_AST_EXPORT_DLL", "LUISA_XIR_EXPORT_DLL")
 add_headerfiles("../../include/luisa/runtime/**.h", "../../include/luisa/ast/**.h")
 on_load(function(target)
+    if has_config('lc_safe_mode') then
+        target:add('defines', 'LUISA_ENABLE_SAFE_MODE', {public = true})
+    end
     if has_config("lc_enable_xir") then
         if has_config("lc_yyjson_use_xrepo") then
             target:add("packages", "yyjson")

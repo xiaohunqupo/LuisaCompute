@@ -1,5 +1,4 @@
-#include "builtin_kernel.h"
-
+#include <luisa/runtime/builtin_kernel.h>
 #include <luisa/ast/function_builder.h>
 #include <luisa/ast/op.h>
 #include <luisa/runtime/device.h>

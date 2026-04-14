@@ -1,7 +1,7 @@
 #include <iostream>
 #include <vector>
 #include <luisa/luisa-compute.h>
-#include "../runtime/builtin_kernel.h"
+#include <luisa/runtime/builtin_kernel.h>
 
 using namespace luisa;
 using namespace luisa::compute;
