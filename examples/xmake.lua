@@ -45,7 +45,9 @@ example_proj("example_wave_equation", "simulation/wave_equation.cpp", true)
 
 -- gui
 example_proj("example_imgui", "gui/imgui.cpp", true)
-example_proj("example_mnist", "gui/mnist.cpp", true)
+if has_config("lc_cuda_backend") then
+    example_proj("example_mnist", "gui/mnist.cpp", true, nil, "shared")
+end
 example_proj("example_swapchain", "gui/swapchain.cpp", true)
 example_proj("example_swapchain_static", "gui/swapchain_static.cpp", true)
 example_proj("example_win_hdr", "gui/win_hdr.cpp", true)
@@ -55,13 +57,12 @@ example_proj("example_helloworld", "compute/helloworld.cpp", false)
 example_proj("example_image_processing", "compute/image_processing.cpp", true)
 
 -- extension
-example_proj("example_dstorage", "extension/dstorage.cpp", false)
-example_proj("example_supersampling", "extension/supersampling.cpp", false)
-
 if has_config("lc_dx_backend") then
     example_proj("example_dml", "extension/dml.cpp", false)
+    example_proj("example_dstorage", "extension/dstorage.cpp", false)
     example_proj("example_dx_supersampling", "extension/dx_supersampling.cpp", true)
     example_proj("example_fsr3", "extension/fsr3.cpp", true)
+    example_proj("example_supersampling", "extension/supersampling.cpp", true)
 end
 
 if has_config("lc_cuda_ext_lcub") then

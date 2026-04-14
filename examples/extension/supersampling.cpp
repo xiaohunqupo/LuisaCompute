@@ -1,5 +1,3 @@
-#ifdef LUISA_TEST_DX_BACKEND
-
 #include <luisa/core/clock.h>
 #include <luisa/core/logging.h>
 #include <luisa/runtime/context.h>
@@ -27,11 +25,3 @@ int main(int argc, char *argv[]) {
     LUISA_INFO("Supersampling example: not yet implemented.");
     return 0;
 }
-
-#else
-
-int main() {
-    return 0;
-}
-
-#endif

@@ -50,7 +50,7 @@ int main(int argc, char *argv[]) {
     } else if (backend == "vk") {
         use_dx = false;
     } else {
-        LUISA_WARNING("This test requires either LUISA_TEST_DX_BACKEND or LUISA_TEST_VK_BACKEND to be defined");
+        LUISA_WARNING("This test requires the dx or vk backend");
         exit(0);
     }
 

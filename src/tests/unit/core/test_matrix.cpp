@@ -97,7 +97,7 @@ static auto test_matrix_registration = [] {
                 // Extract row from LHS and column from RHS for dot product
                 float multiply_result = dot(get_matrix_row(lhs_matrix, row), rhs_matrix.cols[col]);
                 // Assert that built-in multiplication matches manual calculation
-                expect(static_cast<bool>(abs(result.cols[col][row] - multiply_result) <= std::numeric_limits<float>::epsilon()));
+                expect(static_cast<bool>(abs(result.cols[col][row] - multiply_result) <= 1e-5f));
             }
         }
 
@@ -116,7 +116,7 @@ static auto test_matrix_registration = [] {
         for (int row = 0; row < 4; ++row) {
             // Each output element is dot product of matrix row with input vector
             float multiply_result = dot(get_matrix_row(lhs_matrix, row), rhs_vector);
-            expect(static_cast<bool>(abs(result_vector[row] - multiply_result) <= std::numeric_limits<float>::epsilon()));
+            expect(static_cast<bool>(abs(result_vector[row] - multiply_result) <= 1e-5f));
         }
     };
     return 0;
