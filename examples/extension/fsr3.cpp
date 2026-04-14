@@ -1,3 +1,10 @@
+#if !__has_include(<FidelityFX/host/ffx_fsr3.h>)
+#include <cstdio>
+int main(int argc, char *argv[]) {
+    fprintf(stderr, "fsr3: FidelityFX SDK not found. Skipping.\n");
+    return 0;
+}
+#else
 #include <luisa/core/clock.h>
 #include <luisa/core/logging.h>
 #include <luisa/core/dynamic_module.h>
@@ -227,7 +234,7 @@ class FSRCommand : public DXCustomCmd {
     FfxFsr3Context *context;
     mutable FfxFsr3DispatchUpscaleDescription dispatch_params{};
 
-    [[nodiscard]] luisa::span< ResourceUsage> get_resource_usages()  noexcept override {
+    [[nodiscard]] luisa::span<ResourceUsage> get_resource_usages() noexcept override {
         return resource_usages;
     }
     template<typename T>
@@ -701,3 +708,4 @@ int main(int argc, char *argv[]) {
 }
 #undef LOAD_FUNCPTR
 #undef DEFINE_FUNCPTR
+#endif

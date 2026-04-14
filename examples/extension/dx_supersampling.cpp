@@ -1,3 +1,17 @@
+#ifdef ENABLE_FSR
+#define ENABLE_SUPERSAMPLING
+#elif __has_include(<xess/xess_d3d12.h>)
+#define ENABLE_SUPERSAMPLING
+#define ENABLE_XESS
+#endif
+
+#ifndef ENABLE_SUPERSAMPLING
+#include <cstdio>
+int main(int argc, char *argv[]) {
+    fprintf(stderr, "dx_supersampling: Neither FSR (ENABLE_FSR) nor Intel XeSS SDK found. Skipping.\n");
+    return 0;
+}
+#else
 #include <luisa/core/clock.h>
 #include <luisa/core/logging.h>
 #include <luisa/runtime/context.h>
@@ -10,7 +24,6 @@
 #include <luisa/runtime/rtx/accel.h>
 #include <luisa/gui/window.h>
 #include <luisa/backends/ext/dx_custom_cmd.h>
-// Make sure FSR2 is under this dir
 #include <luisa/core/magic_enum.h>
 #ifdef ENABLE_FSR
 #include <ffx_fsr2.h>
@@ -650,3 +663,4 @@ int main(int argc, char *argv[]) {
     xess_assert(xessDestroyContext(xess_context));
 #endif
 }
+#endif// !defined(ENABLE_FSR) && !defined(ENABLE_XESS)
