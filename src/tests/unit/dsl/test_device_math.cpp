@@ -10,6 +10,7 @@
 
 using namespace luisa;
 using namespace luisa::compute;
+using namespace luisa::compute::dsl;
 using namespace boost::ut;
 
 enum Slot : uint {
@@ -681,13 +682,13 @@ int main(int argc, char *argv[]) {
         Float ninf_val = def(-1.0f) / def(0.0f);
         Float nan_val = sqrt(def(-1.0f));
         Float normal_val = def(1.0f);
-        write(ISINF_INF, ite(isinf(inf_val), 1.0f, 0.0f));
-        write(ISINF_NINF, ite(isinf(ninf_val), 1.0f, 0.0f));
-        write(ISINF_NORMAL, ite(isinf(normal_val), 1.0f, 0.0f));
-        write(ISINF_NAN, ite(isinf(nan_val), 1.0f, 0.0f));
-        write(ISNAN_NAN, ite(isnan(nan_val), 1.0f, 0.0f));
-        write(ISNAN_NORMAL, ite(isnan(normal_val), 1.0f, 0.0f));
-        write(ISNAN_INF, ite(isnan(inf_val), 1.0f, 0.0f));
+        write(ISINF_INF, ite(dsl::isinf(inf_val), 1.0f, 0.0f));
+        write(ISINF_NINF, ite(dsl::isinf(ninf_val), 1.0f, 0.0f));
+        write(ISINF_NORMAL, ite(dsl::isinf(normal_val), 1.0f, 0.0f));
+        write(ISINF_NAN, ite(dsl::isinf(nan_val), 1.0f, 0.0f));
+        write(ISNAN_NAN, ite(dsl::isnan(nan_val), 1.0f, 0.0f));
+        write(ISNAN_NORMAL, ite(dsl::isnan(normal_val), 1.0f, 0.0f));
+        write(ISNAN_INF, ite(dsl::isnan(inf_val), 1.0f, 0.0f));
         write(SELECT_T, select(def(1.0f), def(2.0f), def(true)));
         write(SELECT_F, select(def(1.0f), def(2.0f), def(false)));
         write(ITE_T, ite(def(true), def(2.0f), def(1.0f)));

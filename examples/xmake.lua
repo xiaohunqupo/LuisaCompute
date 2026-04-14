@@ -1,10 +1,10 @@
 local lc_enable_gui = has_config("lc_enable_gui")
 
-local function example_proj(name, source, gui_dep, callable)
+local function example_proj(name, source, gui_dep, callable, project_kind)
     if gui_dep and not lc_enable_gui then return end
     target(name)
     add_deps("lc-backends-dummy", {inherit = false, links = false})
-    _config_project({project_kind = "binary"})
+    _config_project({project_kind = project_kind or "binary"})
     add_files(source)
     add_includedirs("$(projectdir)/src/tests/", "$(projectdir)/examples/")
     add_deps("lc-runtime", "lc-dsl", "lc-vstl", "stb-image")
@@ -60,8 +60,7 @@ example_proj("example_image_processing", "compute/image_processing.cpp", true)
 if has_config("lc_dx_backend") then
     example_proj("example_dml", "extension/dml.cpp", false)
     example_proj("example_dstorage", "extension/dstorage.cpp", false)
-    example_proj("example_dx_supersampling", "extension/dx_supersampling.cpp", true)
-    example_proj("example_fsr3", "extension/fsr3.cpp", true)
+    -- example_proj("example_dx_supersampling", "extension/dx_supersampling.cpp", true)
     example_proj("example_supersampling", "extension/supersampling.cpp", true)
 end
 
