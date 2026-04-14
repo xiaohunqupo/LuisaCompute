@@ -65,7 +65,10 @@ test_proj("test_normal_encoding", "unit/dsl/test_normal_encoding.cpp", true)
 
 -- unit/ast
 test_proj("test_ast", "unit/ast/test_ast.cpp")
-test_proj("test_builtin_kernel", "unit/ast/test_builtin_kernel.cpp")
+test_proj("test_builtin_kernel", "unit/ast/test_builtin_kernel.cpp", false, function()
+    add_files("$(projectdir)/src/runtime/builtin_kernel.cpp")
+    add_includedirs("$(projectdir)/src/runtime")
+end)
 test_proj("test_manual_ast", "unit/ast/test_manual_ast.cpp")
 
 -- unit/dsl
