@@ -12,7 +12,10 @@
 #include <luisa/dsl/syntax.h>
 
 #include <luisa/backends/ext/dx_config_ext.h>
+#if __has_include(<vulkan/vulkan_core.h>)
 #include <luisa/backends/ext/vk_config_ext.h>
+#define HAS_VULKAN 1
+#endif
 
 using namespace luisa;
 using namespace luisa::compute;
@@ -25,6 +28,7 @@ public:
         this->defragment_func = std::move(defragment_func);
     }
 };
+#ifdef HAS_VULKAN
 class VKConfigExtImpl final : public VulkanDeviceConfigExt {
 public:
     luisa::move_only_function<void()> defragment_func;
@@ -33,6 +37,7 @@ public:
         this->defragment_func = std::move(defragment_func);
     }
 };
+#endif
 
 int main(int argc, char *argv[]) {
     Context context{argv[0]};
@@ -48,7 +53,12 @@ int main(int argc, char *argv[]) {
     if (backend == "dx") {
         use_dx = true;
     } else if (backend == "vk") {
+#ifdef HAS_VULKAN
         use_dx = false;
+#else
+        LUISA_WARNING("Vulkan support not available (headers missing)");
+        exit(0);
+#endif
     } else {
         LUISA_WARNING("This test requires the dx or vk backend");
         exit(0);
@@ -62,9 +72,11 @@ int main(int argc, char *argv[]) {
         defragment_func = &dx_config_ext->defragment_func;
         config.extension = std::move(dx_config_ext);
     } else {
+#ifdef HAS_VULKAN
         auto vk_config_ext = luisa::make_unique<VKConfigExtImpl>();
         defragment_func = &vk_config_ext->defragment_func;
         config.extension = std::move(vk_config_ext);
+#endif
     }
 
     Device device = context.create_device(backend, &config);
