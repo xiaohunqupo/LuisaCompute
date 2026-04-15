@@ -132,6 +132,7 @@ void test_warp(Device &device) {
         << synchronize();
 
     // Host-side validation
+    auto all_correct = true;
     for (int x = 0; x < k_matrix_size; ++x) {
         for (int y = 0; y < k_matrix_size; ++y) {
             float result = 0.f;
@@ -140,11 +141,14 @@ void test_warp(Device &device) {
                 result += lhs_matrix[idx(row, y)] * rhs_matrix[idx(x, row)];
             }
             // Validate with tolerance for floating point errors
-            if (abs(result - result_matrix[idx(x, y)]) > 1e-2f) [[unlikely]] {
-                LUISA_ERROR("Bad result {} {} at index {},{}.", result, result_matrix[idx(x, y)], x, y);
+            if (abs(result - result_matrix[idx(x, y)]) > 1e-2f) {
+                LUISA_WARNING("Warp matmul mismatch at ({},{}): expected {} got {}",
+                              x, y, result, result_matrix[idx(x, y)]);
+                all_correct = false;
             }
         }
     }
+    expect(all_correct) << "warp_matmul_correctness";
 }
 
 static inline const auto reg = [] {

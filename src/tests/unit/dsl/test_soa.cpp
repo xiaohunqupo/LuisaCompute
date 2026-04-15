@@ -112,18 +112,11 @@ int test_soa(Device &device) {
     auto any_wrong = false;
     for (auto i = 0u; i < n; i++) {
         if (host_upload[i] != host_download[i]) {
-            LUISA_WARNING("SOA upload/download mismatch at index {}\n"
-                          "  Expected: {}\n"
-                          "  Actual:   {}",
-                          i, host_upload[i], host_download[i]);
+            LUISA_WARNING("SOA upload/download mismatch at index {}", i);
             any_wrong = true;
         }
     }
-    if (any_wrong) {
-        LUISA_ERROR("SOA upload/download mismatch.");
-    } else {
-        LUISA_INFO("SOA upload/download test passed.");
-    }
+    expect(!any_wrong) << "soa_upload_download_roundtrip";
 
     return 0;
 }

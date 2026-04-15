@@ -43,16 +43,19 @@ void test_byte_buffer(Device &device) {
            << test_shader(byte_buffer, 514).dispatch(buffer_float.size())
            << buffer_float.copy_to(host_data.data())
            << synchronize();
-    LUISA_INFO("Buffer<float> as Buffer<uint>: ");
+    auto float_as_uint_ok = true;
     for (auto &i : host_data) {
-        LUISA_INFO("{}", i);
+        if (i != 114u) { float_as_uint_ok = false; }
     }
-    LUISA_INFO("ByteBuffer as Buffer<uint>: ");
+    expect(float_as_uint_ok) << "byte_buffer_float_as_uint_write";
+
     stream << byte_buffer.copy_to(host_data.data())
            << synchronize();
+    auto byte_buf_ok = true;
     for (auto &i : host_data) {
-        LUISA_INFO("{}", i);
+        if (i != 514u) { byte_buf_ok = false; }
     }
+    expect(byte_buf_ok) << "byte_buffer_direct_write";
 }
 
 static inline const auto reg = [] {

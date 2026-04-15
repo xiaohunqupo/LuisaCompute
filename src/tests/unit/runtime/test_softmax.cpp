@@ -187,7 +187,9 @@ void test_softmax(Device &device) {
            << synchronize();
 
     // For uniform input of ones, softmax output should be 1/size
-    LUISA_INFO("sum {}", sum);
+    // sum reads the first element: softmax(1.0) = exp(1.0) / (size * exp(1.0)) = 1/size
+    auto expected = 1.0f / static_cast<float>(size);
+    expect(std::abs(sum - expected) < 1e-5f) << "softmax_uniform_distribution";
 }
 
 static inline const auto reg = [] {

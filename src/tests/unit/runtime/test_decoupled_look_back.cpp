@@ -473,10 +473,9 @@ void test_decoupled_look_back(Device &device) {
                            exclusive_expected[i], inclusive_expected[i]);
             }
         }
-        LUISA_ERROR("Decoupled look-back scan failed (exclusive: {}, inclusive: {})",
-                    exclusive_ok ? "ok" : "fail", inclusive_ok ? "ok" : "fail");
     }
-    LUISA_INFO("Decoupled look-back scan passed.");
+    expect(exclusive_ok) << "decoupled_look_back_exclusive_scan";
+    expect(inclusive_ok) << "decoupled_look_back_inclusive_scan";
 }
 
 static inline const auto reg = [] {

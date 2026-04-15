@@ -49,7 +49,6 @@ static constexpr uint N = 1024u;
 static void check(const char *name,
                   const std::vector<float> &result,
                   const std::vector<float> &expected) {
-    bool ok = true;
     uint mismatch_count = 0u;
     for (uint i = 0u; i < result.size(); i++) {
         float diff = std::abs(result[i] - expected[i]);
@@ -59,18 +58,9 @@ static void check(const char *name,
                               name, i, result[i], expected[i], diff);
             }
             mismatch_count++;
-            ok = false;
         }
     }
-    if (!ok && mismatch_count > 5u) {
-        LUISA_WARNING("{}: ... and {} more mismatches (total {}/{})",
-                      name, mismatch_count - 5u, mismatch_count, (uint)result.size());
-    }
-    if (ok) {
-        LUISA_INFO("{}: PASSED", name);
-    } else {
-        LUISA_WARNING("{}: FAILED ({}/{} mismatches)", name, mismatch_count, (uint)result.size());
-    }
+    expect(mismatch_count == 0u) << name << ": " << mismatch_count << "/" << result.size() << " mismatches";
 }
 
 // ── LCG matching the path tracer ─────────────────────────────────────
@@ -431,7 +421,7 @@ int test_nested_callable(Device &device) {
                 state_ok = false;
             }
         }
-        LUISA_INFO("test12_lcg_state_writeback: {}", state_ok ? "PASSED" : "FAILED");
+        expect(state_ok) << "test12_lcg_state_writeback";
     }
 
     // ================================================================
@@ -732,7 +722,7 @@ int test_nested_callable(Device &device) {
                 state_ok = false;
             }
         }
-        LUISA_INFO("test20_lcg_state_final: {}", state_ok ? "PASSED" : "FAILED");
+        expect(state_ok) << "test20_lcg_state_final";
     }
 
     LUISA_INFO("All nested callable tests completed.");

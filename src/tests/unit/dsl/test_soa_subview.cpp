@@ -102,34 +102,20 @@ int test_soa_subview(Device &device) {
     auto any_wrong = false;
     for (auto i = 0u; i < n; i++) {
         if (host_upload[i] != host_download[i]) {
-            LUISA_WARNING("SOA upload/download mismatch at index {}\n"
-                          "  Expected: {}\n"
-                          "  Actual:   {}",
-                          i, host_upload[i], host_download[i]);
+            LUISA_WARNING("SOA upload/download mismatch at index {}", i);
             any_wrong = true;
         }
     }
-    if (any_wrong) {
-        LUISA_ERROR("SOA upload/download mismatch.");
-    } else {
-        LUISA_INFO("SOA upload/download test passed.");
-    }
+    expect(!any_wrong) << "soa_subview_upload_download_roundtrip";
 
     auto any_wrong_ray = false;
     for (auto i = 0u; i < subview_size; i++) {
         if (host_upload[i + subview_offset].ray != host_ray_download[i]) {
-            LUISA_WARNING("SOA subview download mismatch at index {}\n"
-                          "  Expected: {}\n"
-                          "  Actual:   {}",
-                          i, host_upload[i + subview_offset].ray, host_ray_download[i]);
+            LUISA_WARNING("SOA subview download mismatch at index {}", i);
             any_wrong_ray = true;
         }
     }
-    if (any_wrong_ray) {
-        LUISA_ERROR("SOA subview download mismatch.");
-    } else {
-        LUISA_INFO("SOA subview download test passed.");
-    }
+    expect(!any_wrong_ray) << "soa_subview_ray_download";
 
     return 0;
 }

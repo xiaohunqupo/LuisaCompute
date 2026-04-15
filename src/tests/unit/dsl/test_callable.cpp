@@ -99,9 +99,17 @@ void test_callable(Device &device) {
                results[0], results[1], results[2], results[3],
                results[n - 2u], results[n - 1u]);
 
-    // for (size_t i = 0u; i < n; i++) {
-    //     LUISA_ASSERT(results[i] == data[i] + 3.0f, "Results mismatch.");
-    // }
+    bool all_correct = true;
+    for (size_t i = 0u; i < n; i++) {
+        float expected = data[i] + 3.0f;
+        if (std::abs(results[i] - expected) > 1e-4f) {
+            if (all_correct) {
+                LUISA_WARNING("Callable result mismatch at [{}]: got {} expected {}", i, results[i], expected);
+            }
+            all_correct = false;
+        }
+    }
+    expect(all_correct) << "callable composition should produce correct results (data[i] + 3.0f)";
 }
 
 static inline const auto reg = [] {
