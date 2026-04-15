@@ -55,6 +55,9 @@ if (NOT LUISA_COMPUTE_USE_SYSTEM_LMDB)
 endif ()
 
 target_compile_definitions(luisa-compute-runtime PRIVATE LUISA_RUNTIME_EXPORT_DLL=1)
+if (LUISA_COMPUTE_ENABLE_SAFE_MODE)
+    target_compile_definitions(luisa-compute-runtime PUBLIC LUISA_ENABLE_SAFE_MODE=1)
+endif ()
 set_target_properties(luisa-compute-runtime PROPERTIES
         UNITY_BUILD ${LUISA_COMPUTE_ENABLE_UNITY_BUILD}
         OUTPUT_NAME luisa-runtime)

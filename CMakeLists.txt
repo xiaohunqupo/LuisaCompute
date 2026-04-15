@@ -60,6 +60,7 @@ else ()
     option(LUISA_COMPUTE_ENABLE_GUI "Enable GUI support" ON)
     option(LUISA_COMPUTE_ENABLE_CLANG_CXX "Enable ClangTooling-based C++ shading language" OFF)
     option(LUISA_COMPUTE_BUILD_TESTS "Build tests for LuisaCompute" ${LUISA_COMPUTE_MASTER_PROJECT})
+    option(LUISA_COMPUTE_ENABLE_SAFE_MODE "Enable safe mode for runtime" OFF)
     option(LUISA_COMPUTE_EMBREE_ZIP_PATH "Path to embree zip file. Use this if embree fails to download" "")
 endif ()
 
