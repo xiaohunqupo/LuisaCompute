@@ -106,6 +106,9 @@ luisa_compute_add_test(test_shared_mem          unit/runtime/test_shared_mem.cpp
 
 # --- unit/xir: standalone tests (no backend needed, auto-run via CTest) ---
 luisa_compute_add_test(test_ast_to_xir unit/xir/test_ast_to_xir.cpp LABELS "unit;unit_xir")
+luisa_compute_add_test(test_xir_module      unit/xir/test_xir_module.cpp      LABELS "unit;unit_xir")
+luisa_compute_add_test(test_xir_builder     unit/xir/test_xir_builder.cpp     LABELS "unit;unit_xir")
+luisa_compute_add_test(test_xir_translators unit/xir/test_xir_translators.cpp LABELS "unit;unit_xir")
 
 # =============================================================================
 # Integration Tests (require GPU backends, NOT auto-run via CTest)
