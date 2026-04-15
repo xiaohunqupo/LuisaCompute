@@ -95,8 +95,8 @@ void test_raster(Device &device) {
     Buffer<uint> idx_buffer = device.create_buffer<uint>(3);
     uint indices[3] = {
         0, 1, 2};
-    stream << vert_buffer.copy_from(vertices)
-           << idx_buffer.copy_from(indices);
+    stream << vert_buffer.copy_from(luisa::span{vertices, std::size(vertices)})
+           << idx_buffer.copy_from(luisa::span{indices, std::size(indices)});
     VertexBufferView vert_buffer_view{vert_buffer};
     Clock clock;
     clock.tic();

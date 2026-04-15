@@ -115,7 +115,7 @@ int test_manual_ast(Device &device) {
 
     // Execute kernel and save result to PNG
     stream << shader(image).dispatch(resolution)
-           << image.copy_to(host_image.data())
+           << image.copy_to(luisa::span{host_image})
            << synchronize();
     stbi_write_png("test_manual_ast.png", resolution.x, resolution.y, 4, host_image.data(), 0);
     return 0;

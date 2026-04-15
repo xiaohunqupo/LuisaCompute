@@ -145,8 +145,8 @@ void test_indirect_rtx(Device &device) {
     Stream stream = device.create_stream();
     Buffer<float3> vertex_buffer = device.create_buffer<float3>(3u);
     Buffer<Triangle> triangle_buffer = device.create_buffer<Triangle>(1u);
-    stream << vertex_buffer.copy_from(vertices.data())
-           << triangle_buffer.copy_from(indices.data());
+    stream << vertex_buffer.copy_from(luisa::span{vertices})
+           << triangle_buffer.copy_from(luisa::span{indices});
 
     Accel accel = device.create_accel();
     Mesh mesh = device.create_mesh(vertex_buffer, triangle_buffer);
@@ -176,7 +176,7 @@ void test_indirect_rtx(Device &device) {
                      rotation(float3(0.0f, 0.0f, 1.0f), 0.5f + t * 0.5f);
 
         // Use indirect dispatch for GPU-driven rendering
-        stream << vertex_buffer.copy_from(vertices.data())
+        stream << vertex_buffer.copy_from(luisa::span{vertices})
                << set_transform_shader(accel, m, 1u).dispatch(1)
                << mesh.build()
                << accel.build()
@@ -191,7 +191,7 @@ void test_indirect_rtx(Device &device) {
         }
     }
     stream << colorspace_shader(hdr_image, ldr_image).dispatch(width, height)
-           << ldr_image.copy_to(pixels.data())
+           << ldr_image.copy_to(luisa::span{pixels})
            << synchronize();
     double time = clock.toc();
     LUISA_INFO("Time: {} ms", time);

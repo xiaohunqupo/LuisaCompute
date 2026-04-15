@@ -153,7 +153,7 @@ void test_atomic_queue(Device &device) {
         auto name = luisa::string_view{name_in};
 
         shader.set_name(name);
-        stream << sampler_state_buffer.copy_from(sampler_seeds.data())
+        stream << sampler_state_buffer.copy_from(luisa::span{sampler_seeds})
                << synchronize();
 
         Clock clk;

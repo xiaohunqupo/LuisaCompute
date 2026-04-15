@@ -141,7 +141,7 @@ void test_mipmap(Device &device) {
 
     // Compile and execute kernel
     auto shader = device.compile(generate_mip_levels);
-    stream << texture.copy_from(image_pixels)
+    stream << texture.copy_from(luisa::span{image_pixels, static_cast<size_t>(image_width * image_height * 4)})
            << shader(
                   texture.view(0),
                   texture.view(1),
@@ -155,7 +155,7 @@ void test_mipmap(Device &device) {
     for (int i = 1; i < 6; ++i) {
         auto view = texture.view(i);
         luisa::vector<std::byte> host_image(view.size_bytes());
-        stream << view.copy_to(host_image.data()) << synchronize();
+        stream << view.copy_to(luisa::span{host_image}) << synchronize();
         auto name = luisa::string{"logo_mip"}.append(std::to_string(i)).append(".png");
         auto size = view.size();
         stbi_write_png(name.c_str(), size.x, size.y, 4, host_image.data(), 0);

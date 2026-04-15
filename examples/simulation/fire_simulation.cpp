@@ -111,7 +111,7 @@ int main(int argc, char *argv[]) {
             .size = (rng() / float(UINT32_MAX)) * 0.05f + 0.02f,
             .pad = {0.0f, 0.0f, 0.0f}};
     }
-    stream << particles.copy_from(host_particles.data()) << synchronize();
+    stream << particles.copy_from(luisa::span{host_particles}) << synchronize();
 
     // Particle update kernel
     Kernel1D update_kernel = [&](BufferVar<FireParticle> particle_buf, Float time, Float wind_strength) noexcept {
@@ -278,7 +278,7 @@ int main(int argc, char *argv[]) {
                    << render_shader(particles, display, time).dispatch(width, height);
         }
         luisa::vector<uint8_t> host_image(width * height * 4u);
-        stream << display.copy_to(host_image.data()) << synchronize();
+        stream << display.copy_to(luisa::span{host_image}) << synchronize();
         stbi_write_png("test_fire_simulation.png", width, height, 4, host_image.data(), 0);
         auto exe_dir = std::filesystem::path{argv[0]}.parent_path();
         auto ref_dir = luisa::ref::find_reference_dir(exe_dir);
@@ -304,7 +304,7 @@ int main(int argc, char *argv[]) {
             }
             if (window->is_key_down(KEY_R)) {
                 // Reset particles
-                stream << particles.copy_from(host_particles.data()) << synchronize();
+                stream << particles.copy_from(luisa::span{host_particles}) << synchronize();
             }
 
             float time = static_cast<float>(clock.toc() * 1e-3);

@@ -40,13 +40,13 @@ int test_floatx(Device &device, int literal_size = 1, int align_size = 4) {
     Stream stream = device.create_stream();
     luisa::vector<float> data_init(n * align_size, 1.f);
     luisa::vector<float> data_result(n * align_size, 0.f);
-    stream << a.copy_from(data_init.data());
-    stream << b.copy_from(data_init.data());
-    stream << c.copy_from(data_result.data());
+    stream << a.copy_from(luisa::span{data_init});
+    stream << b.copy_from(luisa::span{data_init});
+    stream << c.copy_from(luisa::span{data_result});
 
     stream << add(a, b, c).dispatch(n);
     stream << synchronize();
-    stream << c.copy_to(data_result.data());
+    stream << c.copy_to(luisa::span{data_result});
     stream << synchronize();
 
     for (uint idx = 0u; idx < n * align_size; idx++) {
@@ -99,13 +99,13 @@ int test_float3x3_order(Device &device) {
         }
     }
     luisa::vector<float> data_result(n * 12, 0.f);
-    stream << a.copy_from(data_init.data());
-    stream << b.copy_from(data_init.data());
-    stream << c.copy_from(data_result.data());
+    stream << a.copy_from(luisa::span{data_init});
+    stream << b.copy_from(luisa::span{data_init});
+    stream << c.copy_from(luisa::span{data_result});
 
     stream << add(a, b, c).dispatch(n);
     stream << synchronize();
-    stream << c.copy_to(data_result.data());
+    stream << c.copy_to(luisa::span{data_result});
     stream << synchronize();
 
     for (uint idx = 0u; idx < n * 12; idx++) {
@@ -144,13 +144,13 @@ int test_float3x3(Device &device) {
     Stream stream = device.create_stream();
     luisa::vector<float> data_init(n * 12, 1.f);
     luisa::vector<float> data_result(n * 12, 0.f);
-    stream << a.copy_from(data_init.data());
-    stream << b.copy_from(data_init.data());
-    stream << c.copy_from(data_result.data());
+    stream << a.copy_from(luisa::span{data_init});
+    stream << b.copy_from(luisa::span{data_init});
+    stream << c.copy_from(luisa::span{data_result});
 
     stream << add(a, b, c).dispatch(n);
     stream << synchronize();
-    stream << c.copy_to(data_result.data());
+    stream << c.copy_to(luisa::span{data_result});
     stream << synchronize();
 
     for (uint idx = 0u; idx < n * 12; idx++) {
@@ -188,13 +188,13 @@ int test_float4x4(Device &device) {
     Stream stream = device.create_stream();
     luisa::vector<float4x4> data_init(n, make_float4x4(1.f));
     luisa::vector<float> data_result(n * 16, 0.f);
-    stream << a.copy_from(data_init.data());
-    stream << b.copy_from(data_init.data());
-    stream << c.copy_from(data_result.data());
+    stream << a.copy_from(luisa::span{data_init});
+    stream << b.copy_from(luisa::span{data_init});
+    stream << c.copy_from(luisa::span{data_result});
 
     stream << add(a, b, c).dispatch(n);
     stream << synchronize();
-    stream << c.copy_to(data_result.data());
+    stream << c.copy_to(luisa::span{data_result});
     stream << synchronize();
 
     for (auto idx = 0u; idx < n * 16; idx++) {

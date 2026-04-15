@@ -159,7 +159,7 @@ int main(int argc, char *argv[]) {
         auto x = (rng() % 4u == 0u) * 255u;
         v = x * 0x00010101u | 0xff000000u;
     }
-    stream << image_pair.prev.copy_from(host_image.data()) << synchronize();
+    stream << image_pair.prev.copy_from(luisa::span{host_image}) << synchronize();
 
     if (force_offline) {
         static constexpr uint offline_frames = 100u;
@@ -169,7 +169,7 @@ int main(int argc, char *argv[]) {
             image_pair.swap();
         }
         luisa::vector<uint8_t> host_image(display_width * display_height * 4u);
-        stream << display.copy_to(host_image.data()) << synchronize();
+        stream << display.copy_to(luisa::span{host_image}) << synchronize();
         stbi_write_png("test_game_of_life.png", display_width, display_height, 4, host_image.data(), 0);
         auto exe_dir = std::filesystem::path{argv[0]}.parent_path();
         auto ref_dir = luisa::ref::find_reference_dir(exe_dir);

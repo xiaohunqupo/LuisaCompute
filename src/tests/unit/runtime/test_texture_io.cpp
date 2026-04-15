@@ -48,7 +48,7 @@ void test_texture_io(Device &device) {
     Stream stream = device.create_stream();
     stream << fill_image().dispatch(1024u, 1024u)
            << change_color().dispatch(512u, 512u)
-           << device_image.copy_to(download_image.data())
+           << device_image.copy_to(luisa::span{download_image})
            << synchronize();
     expect(true) << "texture io test completed";
     stbi_write_png("result.png", 1024u, 1024u, 4u, download_image.data(), 0u);

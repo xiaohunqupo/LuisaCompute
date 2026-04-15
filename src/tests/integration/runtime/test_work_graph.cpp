@@ -63,7 +63,7 @@ void basic_work_graph_test(Device &device, Stream &stream) {
     WorkGraphProgram basic_wg_program = device.compile(basic_wg);
 
     stream << basic_wg_program().dispatch(1, 0, nullptr) << synchronize();
-    stream << d_buffer.copy_to(h_buffer.data()) << synchronize();
+    stream << d_buffer.copy_to(luisa::span{h_buffer}) << synchronize();
 
     for (size_t i = 0; i < h_buffer.size(); i += 1) {
         boost::ut::expect(static_cast<bool>(h_buffer[i] == i)) << "basic_work_graph output mismatch.";
@@ -116,11 +116,11 @@ void dynamic_dispatch_grid_test(Device &device, Stream &stream) {
     WorkGraphProgram program = device.compile(wg);
 
     auto run = [&](uint groups) {
-        stream << d_buffer.copy_from(zeros.data()) << synchronize();
+        stream << d_buffer.copy_from(luisa::span{zeros}) << synchronize();
         ProducerRecord record{};
         record.size = uint3(groups, 1u, 1u);
         stream << program().dispatch(1, sizeof(ProducerRecord), &record) << synchronize();
-        stream << d_buffer.copy_to(h_buffer.data()) << synchronize();
+        stream << d_buffer.copy_to(luisa::span{h_buffer}) << synchronize();
         const uint count = groups * threads_per_group;
         for (uint i = 0; i < count; i++)
             boost::ut::expect(static_cast<bool>(h_buffer[i] == i)) << "dynamic_dispatch_grid output mismatch.";
@@ -178,9 +178,9 @@ void node_array_test(Device &device, Stream &stream) {
     WorkGraph wg = node_array(d_buffer);
     WorkGraphProgram program = device.compile(wg);
 
-    stream << d_buffer.copy_from(zeros.data()) << synchronize();
+    stream << d_buffer.copy_from(luisa::span{zeros}) << synchronize();
     stream << program().dispatch(1, 0, nullptr) << synchronize();
-    stream << d_buffer.copy_to(h_buffer.data()) << synchronize();
+    stream << d_buffer.copy_to(luisa::span{h_buffer}) << synchronize();
 
     for (uint i = 0u; i < array_size; i++)
         boost::ut::expect(static_cast<bool>(h_buffer[i] == i)) << "node_array output mismatch.";
@@ -243,14 +243,14 @@ void bindless_array_work_graph_test(Device &device, Stream &stream) {
     // Upload heap and backing buffer data
     stream << heap.update();
     for (uint i = 0u; i < N; i++)
-        stream << backing[i].copy_from(&values[i]);
+        stream << backing[i].copy_from(luisa::span{&values[i], 1});
     stream << synchronize();
 
     WorkGraph wg = bindless_array_work_graph(d_out, heap);
     WorkGraphProgram program = device.compile(wg);
 
     stream << program().dispatch(1, 0, nullptr) << synchronize();
-    stream << d_out.copy_to(h_out.data()) << synchronize();
+    stream << d_out.copy_to(luisa::span{h_out}) << synchronize();
 
     for (uint i = 0u; i < N; i++)
         boost::ut::expect(static_cast<bool>(h_out[i] == values[i])) << "bindless_array_work_graph output mismatch.";
@@ -314,8 +314,8 @@ void accel_work_graph_test(Device &device, Stream &stream) {
 
     auto vertex_buf = device.create_buffer<float3>(3u);
     auto triangle_buf = device.create_buffer<Triangle>(1u);
-    stream << vertex_buf.copy_from(vertices)
-           << triangle_buf.copy_from(triangles)
+    stream << vertex_buf.copy_from(luisa::span{vertices})
+           << triangle_buf.copy_from(luisa::span{triangles})
            << synchronize();
 
     auto mesh = device.create_mesh(vertex_buf, triangle_buf);
@@ -330,7 +330,7 @@ void accel_work_graph_test(Device &device, Stream &stream) {
     WorkGraphProgram program = device.compile(wg);
 
     stream << program().dispatch(1, 0, nullptr) << synchronize();
-    stream << d_out.copy_to(h_out.data()) << synchronize();
+    stream << d_out.copy_to(luisa::span{h_out}) << synchronize();
 
     boost::ut::expect(static_cast<bool>(h_out[0] == 1u)) << "ray 0 should hit.";
     boost::ut::expect(static_cast<bool>(h_out[1] == 0u)) << "ray 1 should miss.";

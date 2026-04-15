@@ -42,7 +42,8 @@ void test_texture_compress(Device &device) {
     Image<float> bc7_image{device.create_image<float>(PixelStorage::BC7, resolution)};
     Buffer<uint> bc6h_buffer{device.create_buffer<uint>(bc6h_image.view().size_bytes() / sizeof(uint))};
     Buffer<uint> bc7_buffer{device.create_buffer<uint>(bc7_image.view().size_bytes() / sizeof(uint))};
-    stream << byte4_image.copy_from(image_pixels) << synchronize();
+    stream << byte4_image.copy_from(luisa::span{image_pixels, static_cast<size_t>(image_width * image_height * 4)}) << synchronize();
+
 
     // Compress to BC6H format (HDR, no alpha)
     Clock clk;
@@ -78,13 +79,13 @@ void test_texture_compress(Device &device) {
     stream
         << bc7_image.copy_from(bc7_buffer.view())
         << present_shader(bc7_image_index).dispatch(resolution)
-        << byte4_image.copy_to(host_image.data())
+        << byte4_image.copy_to(luisa::span{host_image})
         << synchronize();
     stbi_write_png("test_bc7_compress.png", resolution.x, resolution.y, 4, host_image.data(), 0);
     stream
         << bc6h_image.copy_from(bc6h_buffer.view())
         << present_shader(bc6h_image_index).dispatch(resolution)
-        << byte4_image.copy_to(host_image.data())
+        << byte4_image.copy_to(luisa::span{host_image})
         << synchronize();
     expect(true) << "texture compress completed";
     stbi_write_png("test_bc6h_compress.png", resolution.x, resolution.y, 4, host_image.data(), 0);

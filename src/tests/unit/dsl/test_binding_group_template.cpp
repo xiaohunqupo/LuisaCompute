@@ -105,7 +105,7 @@ void test_binding_group_template(Device &device) {
 
     // simple binding group
     stream << shader(args).dispatch(args.resolution)
-           << args.image.copy_to(host_image.data())
+           << args.image.copy_to(luisa::span{host_image})
            << synchronize();
     stbi_write_png("test_binding_group.png",
                    args.resolution.x, args.resolution.y, 4,
@@ -113,7 +113,7 @@ void test_binding_group_template(Device &device) {
 
     // binding group with view
     stream << shader_with_view(args_view).dispatch(args_view.resolution)
-           << args.image.copy_to(host_image.data())
+           << args.image.copy_to(luisa::span{host_image})
            << synchronize();
     stbi_write_png("test_binding_group_with_view.png",
                    args.resolution.x, args.resolution.y, 4,
@@ -121,7 +121,7 @@ void test_binding_group_template(Device &device) {
 
     // nested binding group
     stream << shader_with_nested(args_nested).dispatch(args_nested.image.view().size())
-           << args_nested.image.copy_to(host_image.data())
+           << args_nested.image.copy_to(luisa::span{host_image})
            << synchronize();
     stbi_write_png("test_binding_group_nested.png",
                    args.resolution.x, args.resolution.y, 4,

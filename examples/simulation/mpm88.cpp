@@ -296,11 +296,11 @@ int main(int argc, char *argv[]) {
         luisa::vector<float2> v_init(n_particles, make_float2(0.f, -1.f));// Initial downward velocity
         luisa::vector<float> J_init(n_particles, 1.f);                    // Initial volume
         luisa::vector<float2x2> C_init(n_particles, make_float2x2(0.f));  // Initial affine momentum
-
-        stream << x.copy_from(x_init.data())
-               << v.copy_from(v_init.data())
-               << J.copy_from(J_init.data())
-               << C.copy_from(C_init.data())
+        
+        stream << x.copy_from(luisa::span{x_init})
+               << v.copy_from(luisa::span{v_init})
+               << J.copy_from(luisa::span{J_init})
+               << C.copy_from(luisa::span{C_init})
                << synchronize();
     };
 
@@ -336,7 +336,7 @@ int main(int argc, char *argv[]) {
             stream << cmd_list.commit();
         }
         luisa::vector<uint8_t> host_image(resolution * resolution * 4u);
-        stream << display.copy_to(host_image.data()) << synchronize();
+        stream << display.copy_to(luisa::span{host_image}) << synchronize();
         stbi_write_png("test_mpm88.png", resolution, resolution, 4, host_image.data(), 0);
         auto exe_dir = std::filesystem::path{argv[0]}.parent_path();
         auto ref_dir = luisa::ref::find_reference_dir(exe_dir);

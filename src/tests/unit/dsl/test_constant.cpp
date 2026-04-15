@@ -63,7 +63,7 @@ void test_constant(Device &device) {
     // Compile and execute kernel
     auto shader = device.compile(kernel);
     stream << shader().dispatch(resolution)
-           << image.copy_to(host_image.data())
+           << image.copy_to(luisa::span{host_image})
            << synchronize();
     expect(true) << "constant buffer kernel executed";
 

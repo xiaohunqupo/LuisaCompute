@@ -64,8 +64,8 @@ void test_curve(Device &device) {
 
     // Setup stream and upload data
     auto stream = device.create_stream(StreamTag::GRAPHICS);
-    stream << control_point_buffer.copy_from(control_points.data())
-           << segment_buffer.copy_from(segments.data());
+    stream << control_point_buffer.copy_from(luisa::span{control_points})
+           << segment_buffer.copy_from(luisa::span{segments});
 
     // Create curve geometry and acceleration structure
     auto curve = device.create_curve(curve_basis, control_point_buffer, segment_buffer);

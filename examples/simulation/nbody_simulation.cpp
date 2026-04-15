@@ -123,7 +123,7 @@ int main(int argc, char *argv[]) {
     }
 
     Stream stream = device.create_stream(force_offline ? StreamTag::COMPUTE : StreamTag::GRAPHICS);
-    stream << particles_read.copy_from(host_particles.data()) << synchronize();
+    stream << particles_read.copy_from(luisa::span{host_particles}) << synchronize();
 
     // N-Body computation kernel
     Kernel1D nbody_kernel = [&](BufferVar<Particle> read_buf, BufferVar<Particle> write_buf) noexcept {

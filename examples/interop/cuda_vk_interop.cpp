@@ -35,8 +35,8 @@ int main(int argc, char *argv[]) {
     auto cuda_buffer = cuda_device.import_external_buffer<uint>(reinterpret_cast<void *>(cuda_ptr), 1);
     uint input = 114514;
     uint output{};
-    vk_stream << interop_buffer.copy_from(&input) << interop_ext->vk_signal(interop_event);
-    cuda_stream << interop_event.wait() << cuda_buffer.copy_to(&output) << synchronize();
+    vk_stream << interop_buffer.copy_from(luisa::span{&input, 1}) << interop_ext->vk_signal(interop_event);
+    cuda_stream << interop_event.wait() << cuda_buffer.copy_to(luisa::span{&output, 1}) << synchronize();
     LUISA_INFO("Result: {}", output);
     interop_ext->unmap(reinterpret_cast<void *>(cuda_ptr), reinterpret_cast<void *>(cuda_handle));
 

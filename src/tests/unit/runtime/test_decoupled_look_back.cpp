@@ -450,8 +450,8 @@ void test_decoupled_look_back(Device &device) {
 
     luisa::vector<int> exclusive_result(NUM_TILES);
     luisa::vector<int> inclusive_result(NUM_TILES);
-    stream << exclusive_output.copy_to(exclusive_result.data())
-           << inclusive_output.copy_to(inclusive_result.data()) << synchronize();
+    stream << exclusive_output.copy_to(luisa::span{exclusive_result})
+           << inclusive_output.copy_to(luisa::span{inclusive_result}) << synchronize();
 
     luisa::vector<int> data(NUM_TILES, 1);
     luisa::vector<int> exclusive_expected(NUM_TILES);

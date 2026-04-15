@@ -385,7 +385,7 @@ int main(int argc, char *argv[]) {
         float time = 0.0f;
         stream << blackhole_shader(display, rot_x, rot_y, roll_angle, zoom, time).dispatch(width, height);
         luisa::vector<std::array<uint8_t, 4u>> host_image(width * height);
-        stream << display.copy_to(host_image.data())
+        stream << display.copy_to(luisa::span{host_image})
                << synchronize();
         stbi_write_png("test_blackhole.png", width, height, 4, host_image.data(), 0);
         auto exe_dir = std::filesystem::path{argv[0]}.parent_path();

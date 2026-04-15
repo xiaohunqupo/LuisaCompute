@@ -1,6 +1,7 @@
 #pragma once
 
 #include <luisa/runtime/rhi/command.h>
+#include <luisa/runtime/buffer.h>
 
 namespace luisa::compute {
 
@@ -41,10 +42,17 @@ public:
         return pixel_storage_size(_storage, _size);
     }
 
+    template<typename U>
+    [[nodiscard]] auto copy_from(luisa::span<U> data) const noexcept {
+        luisa::compute::detail::assert_same_size(data.size_bytes(), size_bytes(), "texture");
+        return luisa::make_unique<TextureUploadCommand>(_handle, _storage, _level, _size, data.data());
+    }
+#ifndef LUISA_ENABLE_SAFE_MODE
     [[nodiscard]] auto copy_from(const void *data) const noexcept {
         return luisa::make_unique<TextureUploadCommand>(
             _handle, _storage, _level, _size, data);
     }
+#endif
 
     template<typename T>
     [[nodiscard]] auto copy_from(const Image<T> &src) const noexcept {
@@ -98,10 +106,18 @@ public:
         return copy_to(buffer.view());
     }
 
+    template<typename T>
+    requires (!std::is_const_v<T>)
+    [[nodiscard]] auto copy_to(luisa::span<T> data) const noexcept {
+        luisa::compute::detail::assert_same_size(data.size_bytes(), size_bytes(), "texture");
+        return luisa::make_unique<TextureDownloadCommand>(_handle, _storage, _level, _size, data.data());
+    }
+#ifndef LUISA_ENABLE_SAFE_MODE
     [[nodiscard]] auto copy_to(void *data) const noexcept {
         return luisa::make_unique<TextureDownloadCommand>(
             _handle, _storage, _level, _size, data);
     }
+#endif
 
     template<typename T>
         requires requires(T t) { t.copy_from(std::declval<MipmapView>()); }

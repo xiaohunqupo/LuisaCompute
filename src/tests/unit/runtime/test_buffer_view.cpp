@@ -31,11 +31,11 @@ int test_buffer_view(Device &device, size_t literal_size, size_t align_size = 4)
     Stream stream = device.create_stream();
     luisa::vector<float> data_init(n * align_size, 1.f);
     luisa::vector<float> data_result(n * align_size, 0.f);
-    stream << buffer.copy_from(data_init.data());
+    stream << buffer.copy_from(luisa::span{data_init});
     stream << synchronize();
 
     // dispatch
-    stream << buffer.copy_to(data_result.data());
+    stream << buffer.copy_to(luisa::span{data_result});
     stream << synchronize();
     // check init value
     for (auto i = 0; i < n; i++) {
@@ -55,7 +55,7 @@ int test_buffer_view(Device &device, size_t literal_size, size_t align_size = 4)
     stream << synchronize();
 
     // dispatch
-    stream << buffer.copy_to(data_result.data());
+    stream << buffer.copy_to(luisa::span{data_result});
     stream << synchronize();
     // check byffer value
     for (auto i = 0; i < n; i++) {
@@ -67,7 +67,7 @@ int test_buffer_view(Device &device, size_t literal_size, size_t align_size = 4)
     stream << synchronize();
 
     // dispatch
-    stream << buffer.copy_to(data_result.data());
+    stream << buffer.copy_to(luisa::span{data_result});
     stream << synchronize();
     // check byffer value
     for (auto i = 0; i < n; i++) {

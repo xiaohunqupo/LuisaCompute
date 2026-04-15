@@ -80,11 +80,11 @@ void test_shared_memory(Device &device) {
     luisa::vector<float> values(queue_size);
 
     CommandList cmd_list;
-    cmd_list << sampler_state_buffer.copy_from(sampler_seeds.data())
+    cmd_list << sampler_state_buffer.copy_from(luisa::span{sampler_seeds})
              << q.reset()
              << test(sampler_state_buffer).dispatch(queue_size)
-             << q.buffer().copy_to(values.data())
-             << q.counter().copy_to(&n);
+             << q.buffer().copy_to(luisa::span{values})
+             << q.counter().copy_to(luisa::span{&n, 1});
     stream << cmd_list.commit() << synchronize();
     expect(true) << "shared memory test completed";
 

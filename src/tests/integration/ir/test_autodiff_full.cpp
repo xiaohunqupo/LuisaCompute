@@ -70,7 +70,7 @@ void test_ad_helper(luisa::string_view name, Device &device, F &&f_, AdCheckOpti
         auto inputs = luisa::vector<B>();
         for (auto i = 0; i < N; i++) {
             auto tmp = device.create_buffer<float>(options.repeats);
-            stream << tmp.copy_from(input_data[i].data()) << synchronize();
+            stream << tmp.copy_from(luisa::span{input_data[i]}) << synchronize();
             inputs.emplace_back(std::move(tmp));
         }
         return inputs;
@@ -170,7 +170,7 @@ void test_ad_helper(luisa::string_view name, Device &device, F &&f_, AdCheckOpti
         for (auto i = 0; i < N; i++) {
             luisa::vector<float> tmp;
             tmp.resize(options.repeats);
-            stream << dinputs_fd[i].copy_to(tmp.data()) << synchronize();
+            stream << dinputs_fd[i].copy_to(luisa::span{tmp}) << synchronize();
             fd_data.emplace_back(std::move(tmp));
         }
         return fd_data;
@@ -180,7 +180,7 @@ void test_ad_helper(luisa::string_view name, Device &device, F &&f_, AdCheckOpti
         for (auto i = 0; i < N; i++) {
             luisa::vector<float> tmp;
             tmp.resize(options.repeats);
-            stream << dinputs_ad[i].copy_to(tmp.data()) << synchronize();
+            stream << dinputs_ad[i].copy_to(luisa::span{tmp}) << synchronize();
             ad_data.emplace_back(std::move(tmp));
         }
         return ad_data;

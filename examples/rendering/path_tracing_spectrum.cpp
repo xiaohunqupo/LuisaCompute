@@ -291,7 +291,7 @@ int main(int argc, char *argv[]) {
         fmt::println("{}", s);
     });
     Buffer<float3> vertex_buffer = device.create_buffer<float3>(vertices.size());
-    stream << vertex_buffer.copy_from(vertices.data());
+    stream << vertex_buffer.copy_from(luisa::span{vertices});
     luisa::vector<Mesh> meshes;
     luisa::vector<Buffer<Triangle>> triangle_buffers;
     for (auto &&shape : obj_reader.GetShapes()) {
@@ -307,7 +307,7 @@ int main(int argc, char *argv[]) {
         Buffer<Triangle> &triangle_buffer = triangle_buffers.emplace_back(device.create_buffer<Triangle>(triangle_count));
         Mesh &mesh = meshes.emplace_back(device.create_mesh(vertex_buffer, triangle_buffer));
         heap.emplace_on_update(index, triangle_buffer);
-        stream << triangle_buffer.copy_from(indices.data())
+        stream << triangle_buffer.copy_from(luisa::span{indices})
                << mesh.build();
     }
 
@@ -341,7 +341,7 @@ int main(int argc, char *argv[]) {
         auto lut_data = std::make_unique_for_overwrite<char[]>(buffer_size);
         lut_file.read(reinterpret_cast<char *>(lut_data.get()), buffer_size);
         srgb_to_fourier_even = device.create_volume<float>(PixelStorage::R10G10B10A2, lut_resolution);
-        stream << lut_heap.emplace_on_update(SRGB_TO_FOURIER_EVEN, srgb_to_fourier_even, Sampler::linear_linear_mirror()).update() << srgb_to_fourier_even.copy_from(lut_data.get())
+        stream << lut_heap.emplace_on_update(SRGB_TO_FOURIER_EVEN, srgb_to_fourier_even, Sampler::linear_linear_mirror()).update() << srgb_to_fourier_even.copy_from(luisa::span{lut_data.get(), static_cast<size_t>(buffer_size)})
                << synchronize();
     }
 
@@ -367,7 +367,7 @@ int main(int argc, char *argv[]) {
             }
         }
         cie_xyz_cdfinv = device.create_image<float>(PixelStorage::FLOAT4, make_uint2(lut_resolution, 1));
-        stream << lut_heap.emplace_on_update(CIE_XYZ_CDFINV, cie_xyz_cdfinv, Sampler::linear_linear_mirror()).update() << cie_xyz_cdfinv.copy_from(lut_data.data())
+        stream << lut_heap.emplace_on_update(CIE_XYZ_CDFINV, cie_xyz_cdfinv, Sampler::linear_linear_mirror()).update() << cie_xyz_cdfinv.copy_from(luisa::span{lut_data})
                << synchronize();
     }
 
@@ -382,7 +382,7 @@ int main(int argc, char *argv[]) {
             lut_data[i] = (1.0f / 98.8900106203f) * test::spectrum::CIE_std_illum_D65[size_t(wavelength_min) - start.first + i * step].second;
         }
         illum_d65 = device.create_image<float>(PixelStorage::FLOAT1, make_uint2(lut_resolution, 1));
-        stream << lut_heap.emplace_on_update(ILLUM_D65, illum_d65, Sampler::linear_linear_mirror()).update() << illum_d65.copy_from(lut_data.data())
+        stream << lut_heap.emplace_on_update(ILLUM_D65, illum_d65, Sampler::linear_linear_mirror()).update() << illum_d65.copy_from(luisa::span{lut_data})
                << synchronize();
     }
 
@@ -396,7 +396,7 @@ int main(int argc, char *argv[]) {
             lut_data[i] = test::spectrum::BMESE_wavelength_to_phase[i].second;
         }
         bmese_phase = device.create_image<float>(PixelStorage::FLOAT1, make_uint2(lut_resolution, 1));
-        stream << lut_heap.emplace_on_update(BMESE_PHASE, bmese_phase, Sampler::linear_linear_mirror()).update() << bmese_phase.copy_from(lut_data.data())
+        stream << lut_heap.emplace_on_update(BMESE_PHASE, bmese_phase, Sampler::linear_linear_mirror()).update() << bmese_phase.copy_from(luisa::span{lut_data})
                << synchronize();
     }
 
@@ -421,7 +421,7 @@ int main(int argc, char *argv[]) {
         make_float3(0.000f, 0.000f, 0.000f),// light (emissive, not used directly)
     };
     auto materials = device.create_buffer<float3>(8);
-    stream << materials.copy_from(materials_array);
+    stream << materials.copy_from(luisa::span{materials_array, std::size(materials_array)});
     Callable lsrgb_to_lagrange = [&](Float3 x) noexcept {
         auto lut = lut_heap->tex3d(SRGB_TO_FOURIER_EVEN);
         auto size = make_float3(lut.size());
@@ -719,7 +719,7 @@ int main(int argc, char *argv[]) {
         frame_count += spp_per_dispatch;
     }
     stream
-        << ldr_image.copy_to(host_image.data())
+        << ldr_image.copy_to(luisa::span{host_image})
         << synchronize();
     LUISA_INFO("FPS: {}", frame_count / clock.toc() * 1000);
     stbi_write_png("test_path_tracing_spectrum.png", resolution.x, resolution.y, 4, host_image.data(), 0);

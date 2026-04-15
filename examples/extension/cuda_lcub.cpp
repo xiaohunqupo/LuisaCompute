@@ -28,7 +28,7 @@ void device_scan_test(Device &device, std::vector<int> &gt, std::vector<int> &ou
     // device
     auto stream = device.create_stream();
     auto d_in = device.create_buffer<int>(num_item);
-    stream << d_in.copy_from(input.data());
+    stream << d_in.copy_from(luisa::span{input});
     auto d_out = device.create_buffer<int>(num_item);
 
     Buffer<int> temp_storage;
@@ -36,7 +36,7 @@ void device_scan_test(Device &device, std::vector<int> &gt, std::vector<int> &ou
     DeviceScan::ExclusiveSum(temp_storage_size, d_in, d_out, num_item);
     temp_storage = device.create_buffer<int>(temp_storage_size);
     stream << DeviceScan::ExclusiveSum(temp_storage, d_in, d_out, num_item);
-    stream << d_out.copy_to(out.data()) << synchronize();
+    stream << d_out.copy_to(luisa::span{out}) << synchronize();
 
 	// check
     for (int i = 0; i < num_item; i++) {

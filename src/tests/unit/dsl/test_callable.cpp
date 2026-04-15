@@ -82,14 +82,14 @@ void test_callable(Device &device) {
 
     // Execute and time the kernel
     Clock clock;
-    stream << buffer.copy_from(data.data());
+    stream << buffer.copy_from(luisa::span{data});
     CommandList command_list = CommandList::create();
     // Dispatch kernel multiple times
     for (size_t i = 0; i < 10; i++) {
         command_list << kernel(buffer, result_buffer, 3).dispatch(n);
     }
     stream << command_list.commit()
-           << result_buffer.copy_to(results.data());
+           << result_buffer.copy_to(luisa::span{results});
     double t1 = clock.toc();
     stream << synchronize();
     double t2 = clock.toc();

@@ -32,6 +32,7 @@ template<typename T>
 struct buffer_element_impl {
     using type = T;
 };
+LUISA_RUNTIME_API void assert_same_size(size_t span_size, size_t buffer_size, luisa::string_view name) noexcept;
 
 }// namespace detail
 
@@ -141,6 +142,15 @@ public:
     [[nodiscard]] auto view(size_t offset, size_t count) const noexcept {
         return view().subview(offset, count);
     }
+    template<typename U>
+        requires(!std::is_const_v<U>)
+    [[nodiscard]] auto copy_to(luisa::span<U> data) const noexcept {
+        return this->view().copy_to(data);
+    }
+    template<typename U>
+    [[nodiscard]] auto copy_from(luisa::span<U> data) const noexcept {
+        return this->view().copy_to(data);
+    }
 #ifndef LUISA_ENABLE_SAFE_MODE
     // commands
     // copy buffer's data to pointer
@@ -180,8 +190,7 @@ public:
         return BufferCreationInfo{
             Resource::release(),
             _element_stride,
-            _size * sizeof(T)
-        };
+            _size * sizeof(T)};
     }
 };
 
@@ -261,9 +270,25 @@ public:
     }
     // commands
     // copy buffer's data to pointer
+    template<typename U>
+        requires(!std::is_const_v<U>)
+    [[nodiscard]] auto copy_to(luisa::span<U> data) const noexcept {
+        luisa::compute::detail::assert_same_size(data.size_bytes(), size_bytes(), "buffer");
+        return luisa::make_unique<BufferDownloadCommand>(_handle, offset_bytes(), size_bytes(), data.data());
+    }
+    template<typename U>
+    [[nodiscard]] auto copy_from(luisa::span<U> data) const noexcept {
+        luisa::compute::detail::assert_same_size(data.size_bytes(), size_bytes(), "buffer");
+        return luisa::make_unique<BufferUploadCommand>(this->handle(), this->offset_bytes(), this->size_bytes(), data.data());
+    }
+#ifndef LUISA_ENABLE_SAFE_MODE
     [[nodiscard]] auto copy_to(void *data) const noexcept {
         return luisa::make_unique<BufferDownloadCommand>(_handle, offset_bytes(), size_bytes(), data);
     }
+    [[nodiscard]] auto copy_from(const void *data) const noexcept {
+        return luisa::make_unique<BufferUploadCommand>(this->handle(), this->offset_bytes(), this->size_bytes(), data);
+    }
+#endif
     // copy buffer's data to another buffer
     [[nodiscard]] auto copy_to(BufferView<T> dst) const noexcept {
         return dst.copy_from(*this);
@@ -271,9 +296,7 @@ public:
     // copy buffer's data to a byte buffer
     [[nodiscard]] luisa::unique_ptr<BufferCopyCommand> copy_to(const ByteBufferView &dst) const noexcept;
     // copy pointer's data to buffer
-    [[nodiscard]] auto copy_from(const void *data) const noexcept {
-        return luisa::make_unique<BufferUploadCommand>(this->handle(), this->offset_bytes(), this->size_bytes(), data);
-    }
+
     // copy source buffer's data to buffer
     [[nodiscard]] auto copy_from(BufferView<T> source) const noexcept {
         if (source.size() != this->size()) [[unlikely]] {

@@ -55,10 +55,10 @@ void test_procedural(Device &device) {
     Buffer<Triangle> triangle_buffer = device.create_buffer<Triangle>(1u);
     Mesh mesh = device.create_mesh(vertex_buffer, triangle_buffer);
     accel.emplace_back(mesh, scaling(5.0f), 0xffu, false);
-    stream << aabb_buffer.copy_from(aabbs.data())
+    stream << aabb_buffer.copy_from(luisa::span{aabbs})
            << procedural_primitives.build()
-           << vertex_buffer.copy_from(vertices.data())
-           << triangle_buffer.copy_from(indices.data())
+           << vertex_buffer.copy_from(luisa::span{vertices})
+           << triangle_buffer.copy_from(luisa::span{indices})
            << mesh.build()
            << accel.build()
            << synchronize();
@@ -167,7 +167,7 @@ void test_procedural(Device &device) {
            << list.commit()
            << [&clk] { LUISA_INFO("Rendering finished in {} ms.", clk.toc()); }
            << blit(device_image1, ldr_image).dispatch(width, height)
-           << ldr_image.copy_to(pixels.data())
+           << ldr_image.copy_to(luisa::span{pixels})
            << synchronize();
     stbi_write_png("test_procedural.png", width, height, 4, pixels.data(), 0);
     auto ref_dir = luisa::test::find_reference_dir(std::filesystem::path{argv[0]}.parent_path());

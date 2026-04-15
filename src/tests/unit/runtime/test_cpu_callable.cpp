@@ -39,7 +39,7 @@ void test_cpu_callable(Device &device) {
         for (auto i = 0u; i < batch * count; i++) {
             host_buffer[i] = dist(gen);
         }
-        stream << buffer.copy_from(host_buffer.data()) << synchronize();
+        stream << buffer.copy_from(luisa::span{host_buffer}) << synchronize();
     }
     Kernel1D sort_kernel = [&]() noexcept {
         auto tid = dispatch_id().x;
@@ -77,7 +77,7 @@ void test_cpu_callable(Device &device) {
     auto sort = device.compile(sort_kernel);
     stream << sort().dispatch(count) << synchronize();
     std::vector<uint> host_buffer(batch * count);
-    stream << buffer.copy_to(host_buffer.data()) << synchronize();
+    stream << buffer.copy_to(luisa::span{host_buffer}) << synchronize();
     // print first 3 batches
     for (auto i = 0u; i < 3u; i++) {
         for (auto j = 0u; j < batch; j++) {
@@ -85,14 +85,14 @@ void test_cpu_callable(Device &device) {
         }
         std::cout << '\n';
     }
-    stream << sorted_locals.copy_to(host_buffer.data()) << synchronize();
+    stream << sorted_locals.copy_to(luisa::span{host_buffer}) << synchronize();
     for (auto i = 0u; i < 3u; i++) {
         for (auto j = 0u; j < batch; j++) {
             std::cout << host_buffer[i * batch + j] << ' ';
         }
         std::cout << '\n';
     }
-    stream << sorted_arr_vars.copy_to(host_buffer.data()) << synchronize();
+    stream << sorted_arr_vars.copy_to(luisa::span{host_buffer}) << synchronize();
     expect(true) << "cpu callable completed";
     for (auto i = 0u; i < 3u; i++) {
         for (auto j = 0u; j < batch; j++) {

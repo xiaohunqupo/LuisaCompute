@@ -127,7 +127,7 @@ void test_memory_compact(Device &device_from_ut) {
     // Verify resources still work after defragmentation
     // Read back some data to verify
     std::vector<float> buffer_data(1024 * 1024);
-    stream << buffer.copy_to(buffer_data.data())
+    stream << buffer.copy_to(luisa::span{buffer_data})
            << synchronize();
 
     // Check a few values

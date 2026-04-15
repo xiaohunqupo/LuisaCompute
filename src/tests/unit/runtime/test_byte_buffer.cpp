@@ -41,7 +41,7 @@ void test_byte_buffer(Device &device) {
     luisa::vector<uint> host_data(BUFFER_SIZE);
     stream << test_shader(ByteBufferView{buffer_float} /*Buffer<float> to Byte buffer*/, 114).dispatch(buffer_float.size())
            << test_shader(byte_buffer, 514).dispatch(buffer_float.size())
-           << buffer_float.copy_to(host_data.data())
+           << buffer_float.copy_to(luisa::span<uint>{host_data.data(), host_data.size()})
            << synchronize();
     auto float_as_uint_ok = true;
     for (auto &i : host_data) {

@@ -373,7 +373,7 @@ void test_texture3d(Device &device) {
         render_stream << synchronize();
 
         std::vector<float> pixels(resolution.x * resolution.y * 4);
-        render_stream << accum.copy_to(pixels.data()) << synchronize();
+        render_stream << accum.copy_to(luisa::span{pixels}) << synchronize();
 
         std::vector<uint8_t> image_data;
         image_data.reserve(resolution.x * resolution.y * 4);

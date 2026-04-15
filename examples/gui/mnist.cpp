@@ -270,7 +270,7 @@ struct MnistInterpreter {
         if (input_ptr != 0) {
             auto cuda_buffer = get_cuda_buffer(torch_device, render_device, draw_buffer, cuda_ptr, cuda_handle);
             auto torch_tensor_buffer = torch_device.import_external_buffer<float>((void *)input_ptr, draw_buffer.size());
-            cmdlist << cuda_buffer.copy_from(torch_tensor_buffer);
+            cmdlist << cuda_buffer.view().copy_from(torch_tensor_buffer);
             // Deferred deallocate external buffer and unmap memory after execution
             cmdlist.add_callback([this, cuda_buffer = std::move(cuda_buffer), cuda_ptr, cuda_handle]() {
                 unmap_interop_handle(render_device, cuda_ptr, cuda_handle);
@@ -317,7 +317,7 @@ struct MnistInterpreter {
             // Make interop buffer's CUDA view
             auto cuda_buffer = get_cuda_buffer(torch_device, render_device, draw_buffer, cuda_ptr, cuda_handle);
             // Copy interop buffer to tensor
-            cmdlist << torch_tensor_buffer.copy_from(cuda_buffer);
+            cmdlist << torch_tensor_buffer.view().copy_from(cuda_buffer);
             // Unmap memory range after execution
             cmdlist.add_callback([this, cuda_buffer = std::move(cuda_buffer), cuda_ptr, cuda_handle]() {
                 unmap_interop_handle(render_device, cuda_ptr, cuda_handle);

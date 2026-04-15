@@ -34,7 +34,8 @@ int main(int argc, char *argv[]) {
 
     // Create stream and dispatch kernel
     auto stream = device.create_stream();
-    stream << s().dispatch(1) << bf.copy_to(&t) << synchronize();
+    stream << s().dispatch(1) << bf.copy_to(luisa::span{&t, 1}) << synchronize();
+
 
     // Output results
     LUISA_INFO("{}, {}", (float)t.a, (int)t.b);

@@ -300,10 +300,10 @@ int main(int argc, char *argv[]) {
         luisa::vector<float3> v_init(n_particles, make_float3(0.f));
         luisa::vector<float> J_init(n_particles, 1.f);
         luisa::vector<float3x3> C_init(n_particles, make_float3x3(0.f));
-        stream << x.copy_from(x_init.data())
-               << v.copy_from(v_init.data())
-               << J.copy_from(J_init.data())
-               << C.copy_from(C_init.data())
+        stream << x.copy_from(luisa::span{x_init})
+               << v.copy_from(luisa::span{v_init})
+               << J.copy_from(luisa::span{J_init})
+               << C.copy_from(luisa::span{C_init})
                << synchronize();
     };
 
@@ -364,7 +364,7 @@ int main(int argc, char *argv[]) {
         Buffer<float4> readback_buffer = device.create_buffer<float4>(resolution * resolution);
         luisa::vector<float4> host_float_image(resolution * resolution);
         stream << save_display_shader(display, readback_buffer, resolution).dispatch(resolution, resolution)
-               << readback_buffer.copy_to(host_float_image.data())
+               << readback_buffer.copy_to(luisa::span{host_float_image})
                << synchronize();
         for (uint i = 0u; i < resolution * resolution; i++) {
             auto pixel = host_float_image[i];

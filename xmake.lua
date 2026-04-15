@@ -45,6 +45,8 @@ option("lc_cxx_standard", {default = 'cxx20'})
 option("lc_c_standard", {default = 'clatest'})
 -- enable C++ Run-Time Type Information (RTTI)
 option("lc_rtti", {default = false})
+-- enable safe mode for runtime
+option("lc_safe_mode", {default = false})
 
 -- Python include directory path
 option("lc_py_include", {default = false})

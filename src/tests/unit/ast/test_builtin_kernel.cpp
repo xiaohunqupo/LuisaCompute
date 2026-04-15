@@ -11,6 +11,13 @@ using namespace luisa::compute;
 using namespace boost::ut;
 using namespace boost::ut::literals;
 
+struct MyStruct {
+    uint a;
+    uint b;
+    uint c;
+    uint d;
+};
+
 int test_builtin_kernel(Device &device) {
 
     log_level_verbose();
@@ -18,11 +25,11 @@ int test_builtin_kernel(Device &device) {
     Stream stream = device.create_stream();
 
     BuiltinKernel builtin{&device};
+    builtin.compile_all(device);
 
     // Test Buffer fill
     {
-        auto builder = BuiltinKernel::fill_buffer();
-        auto shader = builtin.compile<1, Buffer<uint>, uint>(builder);
+        auto &shader = builtin._fill_buffer_uint;
 
         const size_t buffer_size = 1024;
         Buffer<uint> buffer = device.create_buffer<uint>(buffer_size);
@@ -31,7 +38,7 @@ int test_builtin_kernel(Device &device) {
                << synchronize();
 
         std::vector<uint> result(buffer_size);
-        stream << buffer.copy_to(result.data()) << synchronize();
+        stream << buffer.copy_to(luisa::span{result}) << synchronize();
 
         bool success = true;
         for (size_t i = 0; i < buffer_size; i++) {
@@ -43,10 +50,33 @@ int test_builtin_kernel(Device &device) {
         std::cout << "Buffer fill: " << (success ? "PASS" : "FAIL") << std::endl;
     }
 
+    // Test Buffer fill with custom struct
+    {
+        const size_t buffer_size = 256;
+        Buffer<MyStruct> buffer = device.create_buffer<MyStruct>(buffer_size);
+
+        CommandList cmdlist{};
+        MyStruct value{1u, 2u, 3u, 4u};
+        builtin.fill(cmdlist, buffer.view(), value);
+        stream << cmdlist.commit() << synchronize();
+
+        std::vector<MyStruct> result(buffer_size);
+        stream << buffer.copy_to(luisa::span{result}) << synchronize();
+
+        bool success = true;
+        for (size_t i = 0; i < buffer_size; i++) {
+            if (result[i].a != 1u || result[i].b != 2u ||
+                result[i].c != 3u || result[i].d != 4u) {
+                success = false;
+                break;
+            }
+        }
+        std::cout << "Buffer fill (custom struct): " << (success ? "PASS" : "FAIL") << std::endl;
+    }
+
     // Test Image2D fill (uint)
     {
-        auto builder = BuiltinKernel::fill_image_uint();
-        auto shader = builtin.compile<2, Image<uint>, uint>(builder);
+        auto &shader = builtin._fill_image_uint;
 
         const uint2 image_size{64, 64};
         Image<uint> image = device.create_image<uint>(PixelStorage::INT4, image_size);
@@ -59,8 +89,7 @@ int test_builtin_kernel(Device &device) {
 
     // Test Image2D fill (float)
     {
-        auto builder = BuiltinKernel::fill_image_float();
-        auto shader = builtin.compile<2, Image<float>, float>(builder);
+        auto &shader = builtin._fill_image_float;
 
         const uint2 image_size{64, 64};
         Image<float> image = device.create_image<float>(PixelStorage::FLOAT4, image_size);
@@ -73,8 +102,7 @@ int test_builtin_kernel(Device &device) {
 
     // Test Volume fill (uint)
     {
-        auto builder = BuiltinKernel::fill_volume_uint();
-        auto shader = builtin.compile<3, Volume<uint>, uint>(builder);
+        auto &shader = builtin._fill_volume_uint;
 
         const uint3 volume_size{32, 32, 32};
         Volume<uint> volume = device.create_volume<uint>(PixelStorage::INT4, volume_size);
@@ -87,8 +115,7 @@ int test_builtin_kernel(Device &device) {
 
     // Test Volume fill (int)
     {
-        auto builder = BuiltinKernel::fill_volume_int();
-        auto shader = builtin.compile<3, Volume<int>, int>(builder);
+        auto &shader = builtin._fill_volume_int;
 
         const uint3 volume_size{16, 16, 16};
         Volume<int> volume = device.create_volume<int>(PixelStorage::INT4, volume_size);
@@ -101,8 +128,7 @@ int test_builtin_kernel(Device &device) {
 
     // Test Volume fill (float)
     {
-        auto builder = BuiltinKernel::fill_volume_float();
-        auto shader = builtin.compile<3, Volume<float>, float>(builder);
+        auto &shader = builtin._fill_volume_float;
 
         const uint3 volume_size{8, 8, 8};
         Volume<float> volume = device.create_volume<float>(PixelStorage::FLOAT4, volume_size);

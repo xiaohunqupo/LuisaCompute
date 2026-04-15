@@ -70,7 +70,7 @@ float2 get_uv(float2 coord, float2 size){
     // Compile and execute
     auto shader = device.compile(kernel, option);
     stream << shader().dispatch(resolution)
-           << image.copy_to(host_image.data())
+           << image.copy_to(luisa::span{host_image})
            << synchronize();
     stbi_write_png("test_native_code.png", resolution.x, resolution.y, 4, host_image.data(), 0);
     auto ref_dir = luisa::test::find_reference_dir(std::filesystem::path{argv[0]}.parent_path());

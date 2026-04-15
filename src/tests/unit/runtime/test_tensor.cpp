@@ -51,7 +51,7 @@ void test_tensor(Device &device) {
     // Create GPU buffers and upload matrix data
     auto b0 = device.create_buffer<float>(16);
     auto b1 = device.create_buffer<float>(16);
-    cmdlist << b0.copy_from(&sb) << b1.copy_from(&sb1);
+    cmdlist << b0.copy_from(luisa::span{&sb, 1}) << b1.copy_from(luisa::span{&sb1, 1});
 
     // Load and compile tensor kernel for matrix multiplication
     // The kernel performs: output = ReLU(matmul(tensor0, tensor1))
@@ -73,7 +73,7 @@ void test_tensor(Device &device) {
     float4x4 result;
     auto outs = kernel.execute(cmdlist);
     auto bout = outs[0];
-    cmdlist << bout.copy_to(&result);
+    cmdlist << bout.copy_to(luisa::span{&result, 1});
     stream << cmdlist.commit() << synchronize();
     expect(true) << "tensor test completed";
 

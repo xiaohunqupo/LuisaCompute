@@ -542,7 +542,7 @@ private:
             if (_font_texture) { _stream << synchronize(); }
             _font_texture = _device.create_image<float>(PixelStorage::BYTE4, width, height, 1);
         }
-        _stream << _font_texture.copy_from(pixels);
+        _stream << _font_texture.copy_from(luisa::span{pixels, static_cast<size_t>(width * height * 4)});
         auto tex_id = register_texture(_font_texture, Sampler::linear_point_edge());
         io.Fonts->SetTexID(tex_id);
     }
@@ -589,9 +589,9 @@ private:
             }
         }
         // update the buffers and build the accel
-        _stream << _vertex_buffer.view(0u, _vertices.size()).copy_from(_vertices.data())
-                << _triangle_buffer.view(0u, _triangles.size()).copy_from(_triangles.data())
-                << _clip_buffer.view(0u, _clip_rects.size()).copy_from(_clip_rects.data())
+        _stream << _vertex_buffer.view(0u, _vertices.size()).copy_from(luisa::span{_vertices.data(), _vertices.size()})
+                << _triangle_buffer.view(0u, _triangles.size()).copy_from(luisa::span{_triangles.data(), _triangles.size()})
+                << _clip_buffer.view(0u, _clip_rects.size()).copy_from(luisa::span{_clip_rects.data(), _clip_rects.size()})
                 << luisa::make_unique<MeshBuildCommand>(
                        _mesh_handle, AccelBuildRequest::FORCE_BUILD,
                        _vertex_buffer.handle(), 0u,

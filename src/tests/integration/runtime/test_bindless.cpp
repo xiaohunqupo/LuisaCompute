@@ -36,7 +36,7 @@ void test_bindless(Device &device) {
     int v1 = 666;
     int result[2];
     stream << heap.update() << synchronize();
-    stream << buffer0.copy_from(&v0) << buffer1.copy_from(&v1) << shader().dispatch(2) << out_buffer.copy_to(result) << synchronize();
+    stream << buffer0.copy_from(luisa::span{&v0, 1}) << buffer1.copy_from(luisa::span{&v1, 1}) << shader().dispatch(2) << out_buffer.copy_to(luisa::span{result, 2}) << synchronize();
     LUISA_INFO("Value: {}, {}", result[0], result[1]);
 }
 

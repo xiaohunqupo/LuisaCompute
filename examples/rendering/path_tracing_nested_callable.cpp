@@ -77,7 +77,7 @@ int main(int argc, char *argv[]) {
     BindlessArray heap = device.create_bindless_array();
     Stream stream = device.create_stream(force_offline ? StreamTag::COMPUTE : StreamTag::GRAPHICS);
     Buffer<float3> vertex_buffer = device.create_buffer<float3>(vertices.size());
-    stream << vertex_buffer.copy_from(vertices.data());
+    stream << vertex_buffer.copy_from(luisa::span{vertices});
     luisa::vector<Mesh> meshes;
     luisa::vector<Buffer<Triangle>> triangle_buffers;
     for (auto &&shape : obj_reader.GetShapes()) {
@@ -93,7 +93,7 @@ int main(int argc, char *argv[]) {
         Buffer<Triangle> &triangle_buffer = triangle_buffers.emplace_back(device.create_buffer<Triangle>(triangle_count));
         Mesh &mesh = meshes.emplace_back(device.create_mesh(vertex_buffer, triangle_buffer));
         heap.emplace_on_update(index, triangle_buffer);
-        stream << triangle_buffer.copy_from(indices.data())
+        stream << triangle_buffer.copy_from(luisa::span{indices})
                << mesh.build();
     }
 
@@ -372,7 +372,7 @@ int main(int argc, char *argv[]) {
                    frame_count, dt, spp_per_dispatch / dt * 1000);
     }
     stream << hdr2ldr_shader(accum_image, ldr_image, 2.f).dispatch(resolution)
-           << ldr_image.copy_to(host_image.data())
+           << ldr_image.copy_to(luisa::span{host_image})
            << synchronize();
 
     LUISA_INFO("FPS: {}", frame_count / clock.toc() * 1000);

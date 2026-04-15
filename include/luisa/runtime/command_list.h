@@ -23,11 +23,13 @@ public:
     using CommandContainer = luisa::vector<luisa::unique_ptr<Command>>;
     using CallbackContainer = luisa::vector<luisa::move_only_function<void()>>;
     using PresentContainer = luisa::vector<SwapchainPresent>;
+    using DtorCallbacks = luisa::fixed_vector<luisa::move_only_function<void()>, 1>;
 
 private:
     CommandContainer _commands;
     CallbackContainer _callbacks;
     PresentContainer _presents;
+    DtorCallbacks _dtor_callbacks;
     bool _committed{false};
 
 public:
@@ -35,7 +37,8 @@ public:
     CommandList(
         CommandContainer &&commands,
         CallbackContainer &&callbacks,
-        PresentContainer &&presents) noexcept;
+        PresentContainer &&presents,
+        DtorCallbacks &&dtor_callbacks) noexcept;
     ~CommandList() noexcept;
     CommandList(CommandList &&another) noexcept;
     CommandList &operator=(CommandList &&rhs) noexcept = delete;
@@ -46,6 +49,8 @@ public:
     CommandList &operator<<(luisa::unique_ptr<Command> &&cmd) noexcept;
     CommandList &append(luisa::unique_ptr<Command> &&cmd) noexcept;
     CommandList &add_callback(luisa::move_only_function<void()> &&callback) noexcept;
+    // Run after command-list destruct (usually after commit)
+    CommandList &add_dtor_callback(luisa::move_only_function<void()> &&callback) noexcept;
     CommandList &add_present(SwapchainPresent &&present) noexcept;
 
     CommandList &add_range(CommandList &&cmdlist) noexcept;

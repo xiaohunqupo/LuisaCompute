@@ -64,7 +64,7 @@ void test_dstorage(Device &device) {
         // Read buffer from file
         dstorage_file_stream
             // read to memory
-            << file.copy_to(file_text.data(), file_text.size())
+            << file.copy_to(luisa::span{file_text.data(), file_text.size()})
             // read to memory read to buffer
             << file.copy_to(buffer)
             // make event signal
@@ -72,7 +72,7 @@ void test_dstorage(Device &device) {
 
         // wait for disk reading and read back to memory.
         copy_stream << event.wait(1)
-                    << buffer.copy_to(buffer_data.data())
+                    << buffer.copy_to(luisa::span{buffer_data})
                     << event.signal(2);
         event.synchronize(2);
         for (size_t i = file.size_bytes(); i < buffer_data.size(); ++i) {
@@ -130,7 +130,7 @@ void test_dstorage(Device &device) {
         }
         double time = clock.toc();
         LUISA_INFO("Texture read time: {} ms", time);
-        copy_stream << img.copy_to(out_pixels.data()) << synchronize();
+        copy_stream << img.copy_to(luisa::span{out_pixels}) << synchronize();
         stbi_write_png("test_dstorage_texture.png", width, height / 2, 4, out_pixels.data(), 0);
         auto result = luisa::test::save_and_compare(
             out_pixels.data(), static_cast<int>(width), static_cast<int>(height / 2), 4,
@@ -164,7 +164,7 @@ void test_dstorage(Device &device) {
                                << synchronize();
         double decompress_time = decompress_clock.toc();
         LUISA_INFO("Texture decompress time: {} ms", decompress_time);
-        copy_stream << img.copy_to(out_pixels.data()) << synchronize();
+        copy_stream << img.copy_to(luisa::span{out_pixels}) << synchronize();
         stbi_write_png("test_dstorage_texture_decompressed.png", width, height / 2, 4, out_pixels.data(), 0);
         auto decompressed_result = luisa::test::save_and_compare(
             reinterpret_cast<const uint8_t *>(out_pixels.data()), static_cast<int>(width), static_cast<int>(height / 2), 4,
