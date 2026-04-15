@@ -4,7 +4,7 @@
 #include <luisa/luisa-compute.h>
 #include "ut/ut.hpp"
 #include "test_device.h"
-#include "builtin_kernel.h"
+#include <luisa/runtime/builtin_kernel.h>
 
 using namespace luisa;
 using namespace luisa::compute;
@@ -24,7 +24,7 @@ int test_builtin_kernel(Device &device) {
 
     Stream stream = device.create_stream();
 
-    BuiltinKernel builtin{&device};
+    BuiltinKernel builtin{device};
     builtin.compile_all(device);
 
     // Test Buffer fill
