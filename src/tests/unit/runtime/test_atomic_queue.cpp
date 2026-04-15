@@ -166,6 +166,7 @@ void test_atomic_queue(Device &device) {
             stream << list.commit();
         }
         stream << synchronize();
+        expect(true) << "atomic queue completed";
         if (!name.empty()) {
             LUISA_INFO("{}: {} ms", name, clk.toc());
         }

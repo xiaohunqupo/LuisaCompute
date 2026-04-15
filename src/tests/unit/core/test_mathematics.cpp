@@ -522,6 +522,160 @@ void test_double_precision() {
     expect(static_cast<bool>(approx_eq(ddet2, -2.0)));
 }
 
+void test_nan_propagation() {
+    float nan = std::numeric_limits<float>::quiet_NaN();
+    float inf = std::numeric_limits<float>::infinity();
+
+    // NaN arithmetic propagation
+    expect(static_cast<bool>(std::isnan(nan + 1.0f)));
+    expect(static_cast<bool>(std::isnan(nan * 2.0f)));
+    expect(static_cast<bool>(std::isnan(nan - nan)));
+    expect(static_cast<bool>(std::isnan(0.0f * inf)));
+
+    // NaN comparisons always false
+    expect(static_cast<bool>(!(nan == nan)));
+    expect(static_cast<bool>(!(nan < 0.0f)));
+    expect(static_cast<bool>(!(nan > 0.0f)));
+    expect(static_cast<bool>(nan != nan));
+
+    // NaN propagation through math functions
+    expect(static_cast<bool>(std::isnan(sin(nan))));
+    expect(static_cast<bool>(std::isnan(cos(nan))));
+    expect(static_cast<bool>(std::isnan(sqrt(nan))));
+    expect(static_cast<bool>(std::isnan(fract(nan))));
+
+    // NaN in vector operations
+    float3 nan_vec = make_float3(1.0f, nan, 3.0f);
+    float3 result = nan_vec + make_float3(1.0f);
+    expect(static_cast<bool>(!std::isnan(result.x)));
+    expect(static_cast<bool>(std::isnan(result.y)));
+    expect(static_cast<bool>(!std::isnan(result.z)));
+
+    // dot product with NaN
+    float dot_nan = dot(nan_vec, make_float3(1.0f, 1.0f, 1.0f));
+    expect(static_cast<bool>(std::isnan(dot_nan)));
+
+    // length with NaN
+    float len_nan = length(nan_vec);
+    expect(static_cast<bool>(std::isnan(len_nan)));
+}
+
+void test_inf_arithmetic() {
+    float inf = std::numeric_limits<float>::infinity();
+    float neg_inf = -std::numeric_limits<float>::infinity();
+
+    // Inf arithmetic
+    expect(static_cast<bool>(std::isinf(inf + 1.0f)));
+    expect(static_cast<bool>(std::isinf(inf * 2.0f)));
+    expect(static_cast<bool>(std::isnan(inf - inf)));
+    expect(static_cast<bool>(std::isnan(inf + neg_inf)));
+    expect(static_cast<bool>(std::isinf(inf * inf)));
+    expect(static_cast<bool>(inf + 1.0f > 0.0f));
+    expect(static_cast<bool>(neg_inf < 0.0f));
+
+    // Inf / finite = inf
+    expect(static_cast<bool>(std::isinf(inf / 2.0f)));
+    // finite / inf = 0
+    expect(static_cast<bool>(1.0f / inf == 0.0f));
+    // inf / inf = NaN
+    expect(static_cast<bool>(std::isnan(inf / inf)));
+
+    // Inf in vector operations
+    float3 inf_vec = make_float3(inf, 1.0f, neg_inf);
+    bool3 isinf_result = isinf(inf_vec);
+    expect(static_cast<bool>(isinf_result.x));
+    expect(static_cast<bool>(!isinf_result.y));
+    expect(static_cast<bool>(isinf_result.z));
+
+    // clamp with inf
+    expect(static_cast<bool>(clamp(inf, 0.0f, 10.0f) == 10.0f));
+    expect(static_cast<bool>(clamp(neg_inf, 0.0f, 10.0f) == 0.0f));
+
+    // min/max with inf
+    expect(static_cast<bool>(min(inf, 1.0f) == 1.0f));
+    expect(static_cast<bool>(max(neg_inf, 1.0f) == 1.0f));
+}
+
+void test_boundary_values() {
+    float eps = std::numeric_limits<float>::epsilon();
+    float denorm_min = std::numeric_limits<float>::denorm_min();
+    float max_float = std::numeric_limits<float>::max();
+    float min_float = std::numeric_limits<float>::min();
+
+    // Epsilon behavior
+    expect(static_cast<bool>(1.0f + eps != 1.0f));
+    expect(static_cast<bool>(1.0f + eps / 2.0f == 1.0f));
+
+    // Denormalized numbers
+    expect(static_cast<bool>(denorm_min > 0.0f));
+    expect(static_cast<bool>(denorm_min < min_float));
+
+    // Max float
+    expect(static_cast<bool>(!std::isinf(max_float)));
+    expect(static_cast<bool>(std::isinf(max_float * 2.0f)));
+
+    // abs of special values
+    expect(static_cast<bool>(abs(-0.0f) == 0.0f));
+    expect(static_cast<bool>(std::isinf(abs(-std::numeric_limits<float>::infinity()))));
+
+    // sign of special values
+    expect(static_cast<bool>(sign(std::numeric_limits<float>::epsilon()) == 1.0f));
+    expect(static_cast<bool>(sign(-std::numeric_limits<float>::epsilon()) == -1.0f));
+
+    // lerp boundary: t=0 and t=1 exact
+    expect(static_cast<bool>(lerp(3.0f, 7.0f, 0.0f) == 3.0f));
+    expect(static_cast<bool>(lerp(3.0f, 7.0f, 1.0f) == 7.0f));
+
+    // fract of exact integers
+    expect(static_cast<bool>(approx_eq(fract(1.0f), 0.0f)));
+    expect(static_cast<bool>(approx_eq(fract(100.0f), 0.0f)));
+    expect(static_cast<bool>(approx_eq(fract(-1.0f), 0.0f)));
+
+    // next_pow2 edge cases
+    expect(static_cast<bool>(next_pow2(0u) == 0u));
+    expect(static_cast<bool>(next_pow2(1u) == 1u));
+    expect(static_cast<bool>(next_pow2(0x80000000u) == 0x80000000u));
+
+    // normalize zero-length vector (implementation-defined, but should not crash)
+    // We just verify it doesn't produce NaN for unit vectors
+    float3 unit_x = make_float3(1.0f, 0.0f, 0.0f);
+    float3 norm_x = normalize(unit_x);
+    expect(static_cast<bool>(approx_eq(norm_x.x, 1.0f) && approx_eq(norm_x.y, 0.0f) && approx_eq(norm_x.z, 0.0f)));
+
+    // cross product anti-commutativity: a×b = -(b×a)
+    float3 a = make_float3(1.0f, 2.0f, 3.0f);
+    float3 b = make_float3(4.0f, 5.0f, 6.0f);
+    float3 axb = cross(a, b);
+    float3 bxa = cross(b, a);
+    expect(static_cast<bool>(approx_eq(axb.x, -bxa.x) && approx_eq(axb.y, -bxa.y) && approx_eq(axb.z, -bxa.z)));
+
+    // cross product of parallel vectors = zero
+    float3 parallel = make_float3(2.0f, 4.0f, 6.0f);
+    float3 cross_parallel = cross(a, parallel);
+    expect(static_cast<bool>(approx_eq(cross_parallel.x, 0.0f) && approx_eq(cross_parallel.y, 0.0f) && approx_eq(cross_parallel.z, 0.0f)));
+
+    // determinant of identity = 1
+    expect(static_cast<bool>(approx_eq(determinant(float2x2{}), 1.0f)));
+    expect(static_cast<bool>(approx_eq(determinant(float3x3{}), 1.0f)));
+    expect(static_cast<bool>(approx_eq(determinant(float4x4{}), 1.0f)));
+
+    // inverse of identity = identity
+    float3x3 inv_id = inverse(float3x3{});
+    expect(static_cast<bool>(approx_eq(inv_id[0][0], 1.0f) && approx_eq(inv_id[1][1], 1.0f) && approx_eq(inv_id[2][2], 1.0f)));
+    expect(static_cast<bool>(approx_eq(inv_id[0][1], 0.0f) && approx_eq(inv_id[1][0], 0.0f)));
+
+    // transpose of identity = identity
+    float3x3 trans_id = transpose(float3x3{});
+    expect(static_cast<bool>(approx_eq(trans_id[0][0], 1.0f) && approx_eq(trans_id[1][1], 1.0f) && approx_eq(trans_id[2][2], 1.0f)));
+
+    // double-transpose = original
+    float3x3 m3 = make_float3x3(1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f, 9.0f);
+    float3x3 tt = transpose(transpose(m3));
+    for (int i = 0; i < 3; ++i)
+        for (int j = 0; j < 3; ++j)
+            expect(static_cast<bool>(approx_eq(tt[i][j], m3[i][j])));
+}
+
 static auto test_mathematics_registration = [] {
     "test_next_pow2"_test = [] {
         LUISA_INFO("Testing next_pow2...");
@@ -583,6 +737,18 @@ static auto test_mathematics_registration = [] {
         LUISA_INFO("Testing double precision...");
         test_double_precision();
         LUISA_INFO("All mathematics tests passed!");
+    };
+    "test_nan_propagation"_test = [] {
+        LUISA_INFO("Testing NaN propagation...");
+        test_nan_propagation();
+    };
+    "test_inf_arithmetic"_test = [] {
+        LUISA_INFO("Testing inf arithmetic...");
+        test_inf_arithmetic();
+    };
+    "test_boundary_values"_test = [] {
+        LUISA_INFO("Testing boundary values...");
+        test_boundary_values();
     };
     return 0;
 }();

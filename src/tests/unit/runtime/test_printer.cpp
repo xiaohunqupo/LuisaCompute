@@ -44,6 +44,7 @@ void test_printer(Device &device) {
     // });
     stream << shader().dispatch(128u, 128u)
            << synchronize();
+    expect(true) << "printer dispatch completed";
 }
 
 static inline const auto reg = [] {

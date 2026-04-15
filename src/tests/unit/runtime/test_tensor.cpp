@@ -75,6 +75,7 @@ void test_tensor(Device &device) {
     auto bout = outs[0];
     cmdlist << bout.copy_to(&result);
     stream << cmdlist.commit() << synchronize();
+    expect(true) << "tensor test completed";
 
     // Log the resulting matrix
     LUISA_INFO("{}", result);

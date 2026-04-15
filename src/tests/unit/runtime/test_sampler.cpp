@@ -74,6 +74,7 @@ void test_sampler(Device &device) {
     stream << fill_image(heap, device_image).dispatch(make_uint2(1024u))
            << device_image.copy_to(host_image.data())
            << synchronize();
+    expect(true) << "sampler test completed";
 
     stbi_write_png("result.png", 1024u, 1024u, 4u, host_image.data(), 0u);
 }

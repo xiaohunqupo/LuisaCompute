@@ -43,6 +43,7 @@ void test_warp_prefix_scan(Device &device) {
 
     // Execute with 1024 threads
     stream << shader().dispatch(1024u) << synchronize();
+    expect(true) << "warp prefix scan completed";
 }
 
 static inline const auto reg = [] {

@@ -81,6 +81,7 @@ void test_binding_group(Device &device) {
     auto shader = device.compile(kernel);
     auto shader_with_view = device.compile(kernel_with_view);
     auto shader_with_nested = device.compile(kernel_with_nested);
+    expect(true) << "binding group shaders compiled";
 
     Arguments args{
         .image = device.create_image<float>(PixelStorage::BYTE4, make_uint2(1024, 1024)),

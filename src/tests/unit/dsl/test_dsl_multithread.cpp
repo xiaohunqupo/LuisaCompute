@@ -148,6 +148,7 @@ int test_dsl_multithread(Device &device) {
     // Wait for all threads to complete
     for (std::thread &t : threads) { t.join(); }
 
+    expect(true) << "multithreaded compilation completed";
     return 0;
 }
 

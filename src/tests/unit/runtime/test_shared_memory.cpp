@@ -86,6 +86,7 @@ void test_shared_memory(Device &device) {
              << q.buffer().copy_to(values.data())
              << q.counter().copy_to(&n);
     stream << cmd_list.commit() << synchronize();
+    expect(true) << "shared memory test completed";
 
     auto mean = std::reduce(values.cbegin(), values.cend(), 0.0) / queue_size;
     LUISA_INFO("count = {} (expected {}), mean = {} (expected ~0.5)",

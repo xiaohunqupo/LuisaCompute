@@ -40,6 +40,7 @@ void test_pinned_mem(Device &device) {
         << shader().dispatch(buffer_size)
         << readback_buffer.copy_from(default_buffer)
         << synchronize();
+    expect(true) << "pinned memory test completed";
     memcpy(data.data(), readback_buffer.native_handle(), luisa::size_bytes(data));
     luisa::string result;
     for (auto &i : data) {

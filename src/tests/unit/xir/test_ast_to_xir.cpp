@@ -11,15 +11,15 @@ using namespace luisa::compute;
 
 int main() {
     // Rendering constants for the path tracer
-    static constexpr int max_ray_depth = 6;           // Maximum recursion depth for ray tracing
-    static constexpr float eps = 1e-4f;               // Epsilon for numerical precision
-    static constexpr float inf = 1e10f;               // Infinity representation
-    static constexpr float fov = 0.23f;               // Field of view
-    static constexpr float dist_limit = 100.0f;       // Maximum ray distance
-    static constexpr float3 camera_pos = make_float3(0.0f, 0.32f, 3.7f);  // Camera position
-    static constexpr float3 light_pos = make_float3(-1.5f, 0.6f, 0.3f);   // Light source position
-    static constexpr float3 light_normal = make_float3(1.0f, 0.0f, 0.0f); // Light direction
-    static constexpr float light_radius = 2.0f;       // Light source radius
+    static constexpr int max_ray_depth = 6;                              // Maximum recursion depth for ray tracing
+    static constexpr float eps = 1e-4f;                                  // Epsilon for numerical precision
+    static constexpr float inf = 1e10f;                                  // Infinity representation
+    static constexpr float fov = 0.23f;                                  // Field of view
+    static constexpr float dist_limit = 100.0f;                          // Maximum ray distance
+    static constexpr float3 camera_pos = make_float3(0.0f, 0.32f, 3.7f); // Camera position
+    static constexpr float3 light_pos = make_float3(-1.5f, 0.6f, 0.3f);  // Light source position
+    static constexpr float3 light_normal = make_float3(1.0f, 0.0f, 0.0f);// Light direction
+    static constexpr float light_radius = 2.0f;                          // Light source radius
 
     Clock clock;
 
@@ -132,7 +132,7 @@ int main() {
 
         Float2 resolution = make_float2(dispatch_size().xy());
         UInt2 coord = dispatch_id().xy();
-        
+
         // Initialize seed and accumulator on first frame
         $if (frame_index == 0u) {
             seed_image.write(coord, make_uint4(tea(coord.x, coord.y)));
@@ -149,7 +149,7 @@ int main() {
         Float3 d = make_float3(
             2.0f * fov * uv / resolution.y - fov * make_float2(aspect_ratio, 1.0f) - 1e-5f, -1.0f);
         d = normalize(d);
-        
+
         // Path tracing loop
         Float3 throughput = def(make_float3(1.0f, 1.0f, 1.0f));
         Float hit_light = def(0.0f);
@@ -169,7 +169,7 @@ int main() {
             pos = hit_pos + 1e-4f * d;
             throughput *= c;
         };
-        
+
         // Accumulate color with temporal blending
         Float3 accum_color = lerp(accum_image.read(coord).xyz(), throughput.xyz() * hit_light, 1.0f / (frame_index + 1.0f));
         accum_image.write(coord, make_float4(accum_color, 1.0f));

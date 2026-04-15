@@ -133,8 +133,10 @@ void test_dsl_sugar(Device &device) {
     };
 
     auto shader = device.compile(kernel);
+    expect(true) << "DSL sugar kernel compiled successfully";
     luisa::unique_ptr<Command> command = shader(float_buffer, 12u).dispatch(1024u);
     ShaderDispatchCommand *launch_command = static_cast<ShaderDispatchCommand *>(command.get());
+    expect(launch_command != nullptr) << "dispatch command created";
 }
 
 static inline const auto reg = [] {

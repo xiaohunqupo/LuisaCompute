@@ -551,6 +551,132 @@ void test_type_aliases() {
     LUISA_INFO("test_type_aliases passed");
 }
 
+void test_swizzle_operations() {
+    // float2 swizzles
+    float2 f2(1.0f, 2.0f);
+    float2 f2_xx = f2.xx();
+    expect(static_cast<bool>(f2_xx.x == 1.0f && f2_xx.y == 1.0f));
+    float2 f2_yx = f2.yx();
+    expect(static_cast<bool>(f2_yx.x == 2.0f && f2_yx.y == 1.0f));
+    float2 f2_yy = f2.yy();
+    expect(static_cast<bool>(f2_yy.x == 2.0f && f2_yy.y == 2.0f));
+    // float2 -> float3 swizzles
+    float3 f2_xxy = f2.xxy();
+    expect(static_cast<bool>(f2_xxy.x == 1.0f && f2_xxy.y == 1.0f && f2_xxy.z == 2.0f));
+    float3 f2_yyx = f2.yyx();
+    expect(static_cast<bool>(f2_yyx.x == 2.0f && f2_yyx.y == 2.0f && f2_yyx.z == 1.0f));
+    // float2 -> float4 swizzles
+    float4 f2_xyxy = f2.xyxy();
+    expect(static_cast<bool>(f2_xyxy.x == 1.0f && f2_xyxy.y == 2.0f && f2_xyxy.z == 1.0f && f2_xyxy.w == 2.0f));
+    float4 f2_yyyy = f2.yyyy();
+    expect(static_cast<bool>(f2_yyyy.x == 2.0f && f2_yyyy.y == 2.0f && f2_yyyy.z == 2.0f && f2_yyyy.w == 2.0f));
+
+    // float3 swizzles
+    float3 f3(1.0f, 2.0f, 3.0f);
+    float2 f3_xz = f3.xz();
+    expect(static_cast<bool>(f3_xz.x == 1.0f && f3_xz.y == 3.0f));
+    float2 f3_zy = f3.zy();
+    expect(static_cast<bool>(f3_zy.x == 3.0f && f3_zy.y == 2.0f));
+    float3 f3_zyx = f3.zyx();
+    expect(static_cast<bool>(f3_zyx.x == 3.0f && f3_zyx.y == 2.0f && f3_zyx.z == 1.0f));
+    float3 f3_xyz = f3.xyz();
+    expect(static_cast<bool>(f3_xyz.x == 1.0f && f3_xyz.y == 2.0f && f3_xyz.z == 3.0f));
+    float4 f3_xyzx = f3.xyzx();
+    expect(static_cast<bool>(f3_xyzx.x == 1.0f && f3_xyzx.y == 2.0f && f3_xyzx.z == 3.0f && f3_xyzx.w == 1.0f));
+    float4 f3_zzzy = f3.zzzy();
+    expect(static_cast<bool>(f3_zzzy.x == 3.0f && f3_zzzy.y == 3.0f && f3_zzzy.z == 3.0f && f3_zzzy.w == 2.0f));
+
+    // float4 swizzles
+    float4 f4(1.0f, 2.0f, 3.0f, 4.0f);
+    float2 f4_xw = f4.xw();
+    expect(static_cast<bool>(f4_xw.x == 1.0f && f4_xw.y == 4.0f));
+    float2 f4_wz = f4.wz();
+    expect(static_cast<bool>(f4_wz.x == 4.0f && f4_wz.y == 3.0f));
+    float3 f4_xyz = f4.xyz();
+    expect(static_cast<bool>(f4_xyz.x == 1.0f && f4_xyz.y == 2.0f && f4_xyz.z == 3.0f));
+    float3 f4_wzy = f4.wzy();
+    expect(static_cast<bool>(f4_wzy.x == 4.0f && f4_wzy.y == 3.0f && f4_wzy.z == 2.0f));
+    float4 f4_wzyx = f4.wzyx();
+    expect(static_cast<bool>(f4_wzyx.x == 4.0f && f4_wzyx.y == 3.0f && f4_wzyx.z == 2.0f && f4_wzyx.w == 1.0f));
+    float4 f4_xxxx = f4.xxxx();
+    expect(static_cast<bool>(f4_xxxx.x == 1.0f && f4_xxxx.y == 1.0f && f4_xxxx.z == 1.0f && f4_xxxx.w == 1.0f));
+    float4 f4_xywz = f4.xywz();
+    expect(static_cast<bool>(f4_xywz.x == 1.0f && f4_xywz.y == 2.0f && f4_xywz.z == 4.0f && f4_xywz.w == 3.0f));
+
+    // int vector swizzles
+    int3 i3(10, 20, 30);
+    int2 i3_zx = i3.zx();
+    expect(static_cast<bool>(i3_zx.x == 30 && i3_zx.y == 10));
+    int4 i3_yzxz = i3.yzxz();
+    expect(static_cast<bool>(i3_yzxz.x == 20 && i3_yzxz.y == 30 && i3_yzxz.z == 10 && i3_yzxz.w == 30));
+
+    // bool vector swizzles
+    bool3 b3(true, false, true);
+    bool2 b3_xz = b3.xz();
+    expect(static_cast<bool>(b3_xz.x == true && b3_xz.y == true));
+    bool2 b3_yz = b3.yz();
+    expect(static_cast<bool>(b3_yz.x == false && b3_yz.y == true));
+
+    LUISA_INFO("test_swizzle_operations passed");
+}
+
+void test_cross_type_construction() {
+    // float -> int construction via make_
+    float3 f3(1.5f, 2.7f, 3.9f);
+    int3 i3 = make_int3(f3);
+    expect(static_cast<bool>(i3.x == 1 && i3.y == 2 && i3.z == 3));
+
+    // int -> float construction via make_
+    int2 i2(3, 4);
+    float2 f2 = make_float2(i2);
+    expect(static_cast<bool>(f2.x == 3.0f && f2.y == 4.0f));
+
+    // uint -> int construction
+    uint3 u3(10u, 20u, 30u);
+    int3 i3_from_u = make_int3(u3);
+    expect(static_cast<bool>(i3_from_u.x == 10 && i3_from_u.y == 20 && i3_from_u.z == 30));
+
+    // int -> uint construction
+    int4 i4(1, 2, 3, 4);
+    uint4 u4 = make_uint4(i4);
+    expect(static_cast<bool>(u4.x == 1u && u4.y == 2u && u4.z == 3u && u4.w == 4u));
+
+    // float -> double construction
+    float2 f2d(1.5f, 2.5f);
+    double2 d2 = make_double2(f2d);
+    expect(static_cast<bool>(d2.x == static_cast<double>(1.5f) && d2.y == static_cast<double>(2.5f)));
+
+    // double -> float construction
+    double3 d3(1.0, 2.0, 3.0);
+    float3 f3_from_d = make_float3(d3);
+    expect(static_cast<bool>(f3_from_d.x == 1.0f && f3_from_d.y == 2.0f && f3_from_d.z == 3.0f));
+
+    // Construct higher-dimension from lower + scalars (already tested, add more edge cases)
+    float4 f4_from_f3 = make_float4(make_float3(0.0f), 1.0f);
+    expect(static_cast<bool>(f4_from_f3.x == 0.0f && f4_from_f3.y == 0.0f && f4_from_f3.z == 0.0f && f4_from_f3.w == 1.0f));
+
+    float4 f4_from_scalar_f3 = make_float4(1.0f, make_float3(0.0f));
+    expect(static_cast<bool>(f4_from_scalar_f3.x == 1.0f && f4_from_scalar_f3.y == 0.0f && f4_from_scalar_f3.z == 0.0f && f4_from_scalar_f3.w == 0.0f));
+
+    // Edge case: max/min values
+    int2 max_int = make_int2(std::numeric_limits<int>::max());
+    expect(static_cast<bool>(max_int.x == std::numeric_limits<int>::max() && max_int.y == std::numeric_limits<int>::max()));
+
+    int2 min_int = make_int2(std::numeric_limits<int>::min());
+    expect(static_cast<bool>(min_int.x == std::numeric_limits<int>::min() && min_int.y == std::numeric_limits<int>::min()));
+
+    uint2 max_uint = make_uint2(std::numeric_limits<uint>::max());
+    expect(static_cast<bool>(max_uint.x == std::numeric_limits<uint>::max()));
+
+    // Edge case: zero and negative zero
+    float2 neg_zero = make_float2(-0.0f);
+    float2 pos_zero = make_float2(0.0f);
+    // -0.0f and 0.0f compare equal
+    expect(static_cast<bool>(neg_zero.x == pos_zero.x && neg_zero.y == pos_zero.y));
+
+    LUISA_INFO("test_cross_type_construction passed");
+}
+
 void test_double_matrix_operations() {
     // Test double matrix scalar multiplication
     double2x2 m(double2(1.0, 2.0), double2(3.0, 4.0));
@@ -600,6 +726,8 @@ static auto test_basic_types_registration = [] {
     "test_matrix_addition_subtraction"_test = [] { test_matrix_addition_subtraction(); };
     "test_make_functions"_test = [] { test_make_functions(); };
     "test_type_aliases"_test = [] { test_type_aliases(); };
+    "test_swizzle_operations"_test = [] { test_swizzle_operations(); };
+    "test_cross_type_construction"_test = [] { test_cross_type_construction(); };
     "test_double_matrix_operations"_test = [] { test_double_matrix_operations(); };
     return 0;
 }();

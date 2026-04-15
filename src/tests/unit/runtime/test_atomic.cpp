@@ -18,6 +18,7 @@
 #include <luisa/runtime/stream.h>
 #include <luisa/dsl/syntax.h>
 #include <luisa/dsl/sugar.h>
+#include <cstring>
 
 using namespace luisa;
 using namespace luisa::compute;
@@ -122,6 +123,87 @@ void test_atomic(Device &device) {
     LUISA_INFO("Atomic float result: {}.", result);
     boost::ut::expect(static_cast<bool>(result == 1024.f))
         << "Atomic float operation failed.";
+
+    {
+        constexpr auto n = 512u;
+        auto vec_buf = device.create_buffer<float3>(1u);
+        float3 vec_init = make_float3(0.f);
+        auto vec_shader = device.compile(vector_atomic_kernel);
+        float3 vec_result{};
+        stream << vec_buf.copy_from(&vec_init)
+               << vec_shader(vec_buf).dispatch(n)
+               << vec_buf.copy_to(&vec_result)
+               << synchronize();
+        LUISA_INFO("Vector atomic result: x={}, y={}, z={}", vec_result.x, vec_result.y, vec_result.z);
+        boost::ut::expect(static_cast<bool>(vec_result.x == static_cast<float>(n)))
+            << "Vector atomic fetch_add on .x failed: expected " << n << " got " << vec_result.x;
+        boost::ut::expect(static_cast<bool>(vec_result.y == 0.f))
+            << "Vector atomic .y should remain 0";
+        boost::ut::expect(static_cast<bool>(vec_result.z == 0.f))
+            << "Vector atomic .z should remain 0";
+    }
+
+    {
+        constexpr auto n = 256u;
+        auto mat_buf = device.create_buffer<float2x2>(1u);
+        float2x2 mat_init = float2x2::fill(0.f);
+        auto mat_shader = device.compile(matrix_atomic_kernel);
+        float2x2 mat_result{};
+        stream << mat_buf.copy_from(&mat_init)
+               << mat_shader(mat_buf).dispatch(n)
+               << mat_buf.copy_to(&mat_result)
+               << synchronize();
+        LUISA_INFO("Matrix atomic result: [0]=({},{}), [1]=({},{})",
+                   mat_result.cols[0].x, mat_result.cols[0].y,
+                   mat_result.cols[1].x, mat_result.cols[1].y);
+        boost::ut::expect(static_cast<bool>(mat_result.cols[1].x == static_cast<float>(n)))
+            << "Matrix atomic fetch_add on [1].x failed: expected " << n;
+        boost::ut::expect(static_cast<bool>(mat_result.cols[0].x == 0.f && mat_result.cols[0].y == 0.f))
+            << "Matrix atomic: col 0 should remain zero";
+        boost::ut::expect(static_cast<bool>(mat_result.cols[1].y == 0.f))
+            << "Matrix atomic: [1].y should remain zero";
+    }
+
+    {
+        constexpr auto n = 128u;
+        using ArrayT = std::array<std::array<float4, 3u>, 5u>;
+        auto arr_buf = device.create_buffer<ArrayT>(1u);
+        ArrayT arr_init{};
+        std::memset(&arr_init, 0, sizeof(ArrayT));
+        auto arr_shader = device.compile(array_atomic_kernel);
+        ArrayT arr_result{};
+        stream << arr_buf.copy_from(&arr_init)
+               << arr_shader(arr_buf).dispatch(n)
+               << arr_buf.copy_to(&arr_result)
+               << synchronize();
+        float target = arr_result[1][2].w;
+        LUISA_INFO("Array atomic result [1][2].w: {}", target);
+        boost::ut::expect(static_cast<bool>(target == static_cast<float>(n)))
+            << "Array atomic fetch_add on [1][2][3] failed: expected " << n;
+        boost::ut::expect(static_cast<bool>(arr_result[0][0].x == 0.f))
+            << "Array atomic: [0][0].x should remain zero";
+        boost::ut::expect(static_cast<bool>(arr_result[1][2].x == 0.f))
+            << "Array atomic: [1][2].x should remain zero";
+    }
+
+    {
+        constexpr auto n = 64u;
+        auto struct_buf = device.create_buffer<Something>(1u);
+        Something s_init{};
+        s_init.x = 0u;
+        s_init.v = make_float3(0.f);
+        auto struct_shader = device.compile(struct_atomic_kernel);
+        Something s_result{};
+        stream << struct_buf.copy_from(&s_init)
+               << struct_shader(struct_buf).dispatch(n)
+               << struct_buf.copy_to(&s_result)
+               << synchronize();
+        LUISA_INFO("Struct atomic result: x={}, v=({},{},{})", s_result.x, s_result.v.x, s_result.v.y, s_result.v.z);
+        boost::ut::expect(static_cast<bool>(s_result.v.x == 1.f))
+            << "Struct atomic fetch_max on .v.x failed: expected 1.0";
+        boost::ut::expect(static_cast<bool>(s_result.v.y == 0.f && s_result.v.z == 0.f))
+            << "Struct atomic: .v.y and .v.z should remain zero";
+    }
 }
 
 static inline const auto reg = [] {

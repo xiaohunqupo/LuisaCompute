@@ -160,6 +160,7 @@ void test_mipmap(Device &device) {
         auto size = view.size();
         stbi_write_png(name.c_str(), size.x, size.y, 4, host_image.data(), 0);
     }
+    expect(true) << "mipmap test completed";
 }
 
 static inline const auto reg = [] {

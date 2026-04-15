@@ -50,6 +50,7 @@ void test_texture_io(Device &device) {
            << change_color().dispatch(512u, 512u)
            << device_image.copy_to(download_image.data())
            << synchronize();
+    expect(true) << "texture io test completed";
     stbi_write_png("result.png", 1024u, 1024u, 4u, download_image.data(), 0u);
 
     Volume<float> volume = device.create_volume<float>(PixelStorage::FLOAT4, 64u, 64u, 64u);

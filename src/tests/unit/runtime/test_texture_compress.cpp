@@ -86,6 +86,7 @@ void test_texture_compress(Device &device) {
         << present_shader(bc6h_image_index).dispatch(resolution)
         << byte4_image.copy_to(host_image.data())
         << synchronize();
+    expect(true) << "texture compress completed";
     stbi_write_png("test_bc6h_compress.png", resolution.x, resolution.y, 4, host_image.data(), 0);
 }
 

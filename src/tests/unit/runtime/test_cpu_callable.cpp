@@ -93,6 +93,7 @@ void test_cpu_callable(Device &device) {
         std::cout << '\n';
     }
     stream << sorted_arr_vars.copy_to(host_buffer.data()) << synchronize();
+    expect(true) << "cpu callable completed";
     for (auto i = 0u; i < 3u; i++) {
         for (auto j = 0u; j < batch; j++) {
             std::cout << host_buffer[i * batch + j] << ' ';

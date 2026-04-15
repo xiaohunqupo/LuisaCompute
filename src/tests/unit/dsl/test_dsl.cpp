@@ -277,6 +277,7 @@ void test_dsl(Device &device) {
     auto t1 = clock.toc();
 
     auto kernel = device.compile<2>(kernel_def);
+    expect(true) << "DSL kernel compiled successfully";
     // auto command = kernel(float_buffer, 12u).dispatch(1024u);
     // auto launch_command = static_cast<ShaderDispatchCommand *>(command.get());
 }

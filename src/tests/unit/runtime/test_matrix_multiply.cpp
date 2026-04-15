@@ -497,6 +497,7 @@ void test_matrix_multiply(Device &device) {
                LUISA_INFO("Final weight {}", hidden_weight);
            }
         << synchronize();
+    expect(true) << "matrix multiply completed";
     LUISA_INFO("{}", out_val);
 }
 

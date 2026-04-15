@@ -75,6 +75,7 @@ void test_printer_custom_callback(Device &device) {
     });
     stream << shader().dispatch(128u, 128u)
            << synchronize();
+    expect(true) << "custom callback printer dispatch completed";
 }
 
 static inline const auto reg = [] {

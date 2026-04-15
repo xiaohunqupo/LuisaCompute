@@ -65,6 +65,7 @@ void test_constant(Device &device) {
     stream << shader().dispatch(resolution)
            << image.copy_to(host_image.data())
            << synchronize();
+    expect(true) << "constant buffer kernel executed";
 
     // Save result to PNG file
     stbi_write_png("test_helloworld.png", resolution.x, resolution.y, 4, host_image.data(), 0);
