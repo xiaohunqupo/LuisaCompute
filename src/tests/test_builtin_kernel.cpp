@@ -60,7 +60,7 @@ int main(int argc, char *argv[]) {
         
         CommandList cmdlist{};
         MyStruct value{1u, 2u, 3u, 4u};
-        builtin.fill(cmdlist, buffer.view(), value);
+        builtin.fill_buffer(cmdlist, buffer.view(), value);
         stream << cmdlist.commit() << synchronize();
         
         std::vector<MyStruct> result(buffer_size);
@@ -140,6 +140,138 @@ int main(int argc, char *argv[]) {
                << synchronize();
         
         std::cout << "Volume fill (float): PASS (shader compiled and dispatched)" << std::endl;
+    }
+    
+    // Test Image2D fill via CommandList (uint)
+    {
+        const uint2 image_size{16, 16};
+        Image<uint> image = device.create_image<uint>(PixelStorage::INT1, image_size);
+        
+        CommandList cmdlist{};
+        builtin.fill_image(cmdlist, image.view(), 123u);
+        stream << cmdlist.commit() << synchronize();
+        
+        std::vector<uint> result(image_size.x * image_size.y);
+        stream << image.copy_to(luisa::span{result}) << synchronize();
+        
+        bool success = true;
+        for (size_t i = 0; i < result.size(); i++) {
+            if (result[i] != 123u) {
+                success = false;
+                break;
+            }
+        }
+        std::cout << "Image2D fill via CommandList (uint): " << (success ? "PASS" : "FAIL") << std::endl;
+    }
+    
+    // Test Image2D fill via CommandList (int)
+    {
+        const uint2 image_size{16, 16};
+        Image<int> image = device.create_image<int>(PixelStorage::INT1, image_size);
+        
+        CommandList cmdlist{};
+        builtin.fill_image(cmdlist, image.view(), -42);
+        stream << cmdlist.commit() << synchronize();
+        
+        std::vector<int> result(image_size.x * image_size.y);
+        stream << image.copy_to(luisa::span{result}) << synchronize();
+        
+        bool success = true;
+        for (size_t i = 0; i < result.size(); i++) {
+            if (result[i] != -42) {
+                success = false;
+                break;
+            }
+        }
+        std::cout << "Image2D fill via CommandList (int): " << (success ? "PASS" : "FAIL") << std::endl;
+    }
+    
+    // Test Image2D fill via CommandList (float)
+    {
+        const uint2 image_size{16, 16};
+        Image<float> image = device.create_image<float>(PixelStorage::FLOAT1, image_size);
+        
+        CommandList cmdlist{};
+        builtin.fill_image(cmdlist, image.view(), 2.718f);
+        stream << cmdlist.commit() << synchronize();
+        
+        std::vector<float> result(image_size.x * image_size.y);
+        stream << image.copy_to(luisa::span{result}) << synchronize();
+        
+        bool success = true;
+        for (size_t i = 0; i < result.size(); i++) {
+            if (result[i] != 2.718f) {
+                success = false;
+                break;
+            }
+        }
+        std::cout << "Image2D fill via CommandList (float): " << (success ? "PASS" : "FAIL") << std::endl;
+    }
+    
+    // Test Volume fill via CommandList (uint)
+    {
+        const uint3 volume_size{8, 8, 8};
+        Volume<uint> volume = device.create_volume<uint>(PixelStorage::INT1, volume_size);
+        
+        CommandList cmdlist{};
+        builtin.fill_volume(cmdlist, volume.view(), 77u);
+        stream << cmdlist.commit() << synchronize();
+        
+        std::vector<uint> result(volume_size.x * volume_size.y * volume_size.z);
+        stream << volume.copy_to(luisa::span{result}) << synchronize();
+        
+        bool success = true;
+        for (size_t i = 0; i < result.size(); i++) {
+            if (result[i] != 77u) {
+                success = false;
+                break;
+            }
+        }
+        std::cout << "Volume fill via CommandList (uint): " << (success ? "PASS" : "FAIL") << std::endl;
+    }
+    
+    // Test Volume fill via CommandList (int)
+    {
+        const uint3 volume_size{8, 8, 8};
+        Volume<int> volume = device.create_volume<int>(PixelStorage::INT1, volume_size);
+        
+        CommandList cmdlist{};
+        builtin.fill_volume(cmdlist, volume.view(), -99);
+        stream << cmdlist.commit() << synchronize();
+        
+        std::vector<int> result(volume_size.x * volume_size.y * volume_size.z);
+        stream << volume.copy_to(luisa::span{result}) << synchronize();
+        
+        bool success = true;
+        for (size_t i = 0; i < result.size(); i++) {
+            if (result[i] != -99) {
+                success = false;
+                break;
+            }
+        }
+        std::cout << "Volume fill via CommandList (int): " << (success ? "PASS" : "FAIL") << std::endl;
+    }
+    
+    // Test Volume fill via CommandList (float)
+    {
+        const uint3 volume_size{8, 8, 8};
+        Volume<float> volume = device.create_volume<float>(PixelStorage::FLOAT1, volume_size);
+        
+        CommandList cmdlist{};
+        builtin.fill_volume(cmdlist, volume.view(), 1.414f);
+        stream << cmdlist.commit() << synchronize();
+        
+        std::vector<float> result(volume_size.x * volume_size.y * volume_size.z);
+        stream << volume.copy_to(luisa::span{result}) << synchronize();
+        
+        bool success = true;
+        for (size_t i = 0; i < result.size(); i++) {
+            if (result[i] != 1.414f) {
+                success = false;
+                break;
+            }
+        }
+        std::cout << "Volume fill via CommandList (float): " << (success ? "PASS" : "FAIL") << std::endl;
     }
     
     std::cout << "\nAll tests passed!" << std::endl;
