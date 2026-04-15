@@ -9,6 +9,9 @@ CommandList::~CommandList() noexcept {
     LUISA_ASSERT(_committed || empty(),
                  "Destructing non-empty command list. "
                  "Did you forget to commit?");
+    for (auto &i : _dtor_callbacks) {
+        i();
+    }
 }
 
 void CommandList::reserve(size_t command_size, size_t callback_size, size_t present_size) noexcept {
@@ -21,6 +24,7 @@ void CommandList::clear() noexcept {
     _commands.clear();
     _callbacks.clear();
     _presents.clear();
+    _dtor_callbacks.clear();
     _committed = false;
 }
 
@@ -68,6 +72,10 @@ CommandList::CommandContainer CommandList::steal_commands() noexcept {
 CommandList::PresentContainer CommandList::steal_presents() noexcept {
     return std::move(_presents);
 }
+CommandList &CommandList::add_dtor_callback(luisa::move_only_function<void()> &&callback) noexcept {
+    _dtor_callbacks.emplace_back(std::move(callback));
+    return *this;
+}
 
 CommandList &CommandList::add_present(SwapchainPresent &&present) noexcept {
     _presents.emplace_back(present);
@@ -92,13 +100,16 @@ CommandList::CommandList(CommandList &&another) noexcept
     : _commands{std::move(another._commands)},
       _callbacks{std::move(another._callbacks)},
       _presents{std::move(another._presents)},
+      _dtor_callbacks(std::move(another._dtor_callbacks)),
       _committed{another._committed} { another._committed = false; }
 
 CommandList::CommandList(
     CommandContainer &&commands,
     CallbackContainer &&callbacks,
-    PresentContainer &&presents) noexcept
+    PresentContainer &&presents,
+    DtorCallbacks &&dtor_callbacks) noexcept
     : _commands{std::move(commands)},
       _callbacks{std::move(callbacks)},
-      _presents{std::move(presents)} {}
+      _presents{std::move(presents)},
+      _dtor_callbacks{std::move(dtor_callbacks)} {}
 }// namespace luisa::compute

@@ -10,12 +10,13 @@
 namespace luisa::compute {
 
 class LUISA_RUNTIME_API BuiltinKernel {
-    Device *_device{nullptr};
-    
+    Device _device;
+
 public:
-    explicit BuiltinKernel(Device *device) noexcept;
-    
+    explicit BuiltinKernel(Device const &device) noexcept;
+
     // Static methods return shared_ptr so the builder stays alive
+    [[nodiscard]] static luisa::shared_ptr<const detail::FunctionBuilder> fill_buffer_from_first() noexcept;
     [[nodiscard]] static luisa::shared_ptr<const detail::FunctionBuilder> fill_buffer() noexcept;
     [[nodiscard]] static luisa::shared_ptr<const detail::FunctionBuilder> fill_image_uint() noexcept;
     [[nodiscard]] static luisa::shared_ptr<const detail::FunctionBuilder> fill_image_int() noexcept;
@@ -23,25 +24,46 @@ public:
     [[nodiscard]] static luisa::shared_ptr<const detail::FunctionBuilder> fill_volume_uint() noexcept;
     [[nodiscard]] static luisa::shared_ptr<const detail::FunctionBuilder> fill_volume_int() noexcept;
     [[nodiscard]] static luisa::shared_ptr<const detail::FunctionBuilder> fill_volume_float() noexcept;
-    
+
     template<size_t N, typename... Args>
     [[nodiscard]] auto compile(luisa::shared_ptr<const detail::FunctionBuilder> builder) noexcept -> Shader<N, Args...> {
         Kernel<N, Args...> kernel{builder};
-        return _device->compile(kernel);
+        return _device.compile(kernel);
     }
-    
+
     // Cache for each fill operation
+    Shader<1, Buffer<uint>, uint> _fill_buffer_from_first;
     Shader<1, Buffer<uint>, uint> _fill_buffer_uint;
-    Shader<1, Buffer<int>, int> _fill_buffer_int;
-    Shader<1, Buffer<float>, float> _fill_buffer_float;
     Shader<2, Image<uint>, uint> _fill_image_uint;
     Shader<2, Image<int>, int> _fill_image_int;
     Shader<2, Image<float>, float> _fill_image_float;
     Shader<3, Volume<uint>, uint> _fill_volume_uint;
     Shader<3, Volume<int>, int> _fill_volume_int;
     Shader<3, Volume<float>, float> _fill_volume_float;
+    void compile_all(Device &device);
+    template<typename U>
+        requires((!std::is_reference_v<U>) && (std::is_copy_constructible_v<U>) && (alignof(U) >= 4))
+    void fill(
+        CommandList &cmdlist,
+        BufferView<U> buffer_view,
+        U const &value) {
+        // use temporal value
+        if constexpr (sizeof(U) > 4) {
+            auto ptr = luisa::allocate_with_allocator<U>(value);
+            size_t element_size = sizeof(U) / sizeof(uint);
+            cmdlist << buffer_view.copy_from(luisa::span<U>{ptr, 1});
+            if (buffer_view.size() > 1)
+                cmdlist << _fill_buffer_from_first(buffer_view.as<uint>(), element_size).dispatch(element_size * (buffer_view.size() - 1));
+
+            cmdlist.add_dtor_callback([ptr] {
+                luisa::deallocate_with_allocator(ptr);
+            });
+        }
+        // cast to uint
+        else {
+            cmdlist << _fill_buffer_uint(buffer_view.as<uint>(), reinterpret_cast<uint const &>(value)).dispatch(buffer_view.size());
+        }
+    }
 };
 
-
-
-}
+}// namespace luisa::compute

@@ -19,7 +19,7 @@ int main(int argc, char *argv[]) {
     Device device = context.create_device(argv[1]);
     Stream stream = device.create_stream();
     
-    BuiltinKernel builtin{&device};
+    BuiltinKernel builtin{device};
     
     // Test Buffer fill
     {

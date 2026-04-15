@@ -3,7 +3,7 @@
 
 namespace luisa::compute::detail {
 LUISA_RUNTIME_API void assert_same_size(size_t span_size, size_t buffer_size, luisa::string_view name) noexcept {
-    if (span_size != buffer_size) {
+    if (span_size != buffer_size) [[unlikely]] {
         LUISA_ERROR_WITH_LOCATION(
             "Span size {} does not match {} size {}.",
             span_size, name, buffer_size);
