@@ -32,7 +32,7 @@ int main(int argc, char *argv[]) {
 
     luisa::vector<uint8_t> pixels(image.view().size_bytes());
     auto compute_stream = device.create_stream();
-    compute_stream << image.copy_to(pixels.data()) << synchronize();
+    compute_stream << image.copy_to(luisa::span{pixels}) << synchronize();
 
     stbi_write_png("test_dstorage_decompression.png", 4096, 4096, 4, pixels.data(), 0);
 }

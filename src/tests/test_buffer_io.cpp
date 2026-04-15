@@ -77,7 +77,7 @@ void test_buffer_io(Device &device) noexcept {
 
         stream << cmdlist.commit()
                << used().dispatch(1)
-               << result_buffer.copy_to(result_readback.data())
+               << result_buffer.copy_to(luisa::span{result_readback})
                << synchronize();
 
         // Verify results match expected values

@@ -26,7 +26,7 @@ namespace luisa::test {
 int test_lcub_exclusive_scan(Device &device, int num_item, std::vector<int> &input, std::vector<int> &gt) {
     auto stream = device.create_stream();
     auto d_in = device.create_buffer<int>(input.size());
-    stream << d_in.copy_from(input.data());
+    stream << d_in.copy_from(luisa::span{input});
     auto d_out = device.create_buffer<int>(input.size());
     std::vector<int> out(num_item);
 
@@ -36,7 +36,7 @@ int test_lcub_exclusive_scan(Device &device, int num_item, std::vector<int> &inp
     temp_storage = device.create_buffer<int>(temp_storage_size);
     stream << DeviceScan::ExclusiveSum(temp_storage, d_in, d_out, input.size());
 
-    stream << d_out.copy_to(out.data()) << synchronize();
+    stream << d_out.copy_to(luisa::span{out}) << synchronize();
     // check
     for (int i = 0; i < num_item; i++) {
         CHECK_MESSAGE(gt[i] == out[i], "Error: " << i << " " << gt[i] << " " << out[i]);
@@ -48,13 +48,13 @@ template<typename Key_T, typename Value_T>
 int test_lcub_radix_sort(Device &device, int num_item, std::vector<Key_T> &input, std::vector<Key_T> &gt) {
     auto stream = device.create_stream();
     auto d_in = device.create_buffer<Key_T>(num_item);
-    stream << d_in.copy_from(input.data());
+    stream << d_in.copy_from(luisa::span{input});
     auto d_out = device.create_buffer<Key_T>(num_item);
 
     std::vector<Value_T> val(num_item);
     std::iota(val.begin(), val.end(), 0);
     auto d_val_in = device.create_buffer<Value_T>(val.size());
-    stream << d_val_in.copy_from(val.data());
+    stream << d_val_in.copy_from(luisa::span{val});
     auto d_val_out = device.create_buffer<Value_T>(val.size());
     stream << synchronize();
 
@@ -65,10 +65,10 @@ int test_lcub_radix_sort(Device &device, int num_item, std::vector<Key_T> &input
 
     temp_storage = device.create_buffer<int>(temp_storage_size);
     stream << DeviceRadixSort::SortPairs(temp_storage, d_in, d_out, d_val_in, d_val_out, num_item);
-    stream << d_val_out.copy_to(val.data());
+    stream << d_val_out.copy_to(luisa::span{val});
 
     std::vector<Key_T> out(num_item);
-    stream << d_out.copy_to(out.data()) << synchronize();
+    stream << d_out.copy_to(luisa::span{out}) << synchronize();
     // check
     for (int i = 0; i < num_item; i++) {
         CHECK(val[i] == num_item - i - 1);

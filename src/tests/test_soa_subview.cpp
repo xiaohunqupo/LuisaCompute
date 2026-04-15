@@ -95,12 +95,12 @@ int main(int argc, char *argv[]) {
 
     luisa::vector<RayRecord> host_download(n);
     luisa::vector<Ray> host_ray_download(subview_size);
-    stream << buffer_upload.copy_from(host_upload.data())
+    stream << buffer_upload.copy_from(luisa::span{host_upload})
            << shader_upload(buffer_upload).dispatch(n)
            << shader_download(soa, buffer_download).dispatch(n)
-           << buffer_download.copy_to(host_download.data())
+           << buffer_download.copy_to(luisa::span{host_download})
            << shader_ray_download(soa.subview(subview_offset, subview_size)).dispatch(subview_size)
-           << buffer_ray_download.copy_to(host_ray_download.data())
+           << buffer_ray_download.copy_to(luisa::span{host_ray_download})
            << synchronize();
 
     auto any_wrong = false;

@@ -43,7 +43,7 @@ int main(int argc, char *argv[]) {
     Buffer<uint> buffer = device.create_buffer<uint>(dispatch_count);
     std::array<uint, dispatch_count> buffer_data{};
     CommandList cmdlist{};
-    cmdlist << buffer.copy_from(buffer_data.data());
+    cmdlist << buffer.copy_from(luisa::span{buffer_data});
     // Single dispatch
     cmdlist << clear_shader(dispatch_buffer).dispatch(1)
             << set_shader(dispatch_buffer).dispatch(dispatch_count);
@@ -54,7 +54,7 @@ int main(int argc, char *argv[]) {
     cmdlist << emplace_shader(dispatch_buffer).dispatch(dispatch_count)
             << dispatch_shader(buffer).dispatch(dispatch_buffer);
     //  dispatch
-    cmdlist << buffer.copy_to(buffer_data.data());
+    cmdlist << buffer.copy_to(luisa::span{buffer_data});
     stream << cmdlist.commit() << synchronize();
     luisa::string result;
     for (auto &i : buffer_data) {

@@ -253,7 +253,7 @@ int sdf_renderer(Device &device, luisa::string filename = "sdf_renderer.png") {
 
     luisa::vector<uint8_t> host_image(width * height * 4u);// FIXME: this is unsafe for swapchain formats
     stream << hdr2ldr_shader(accum_image, ldr_image, 2.0).dispatch(width, height)
-           << ldr_image.copy_to(host_image.data())
+           << ldr_image.copy_to(luisa::span{host_image})
            << synchronize();
     stbi_write_png(filename.c_str(), width, height, 4, host_image.data(), 0);
 

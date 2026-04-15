@@ -55,7 +55,7 @@ int main(int argc, char *argv[]) {
 
     // generate mip-maps
     stream << heap.emplace_on_update(0u, texture, Sampler::linear_linear_mirror()).update()
-           << texture.copy_from(image_pixels);
+           << texture.copy_from(luisa::span{image_pixels, static_cast<size_t>(image_width * image_height * 4)});
 
     LUISA_INFO("Mip Level: {}", texture.mip_levels());
 
@@ -70,13 +70,13 @@ int main(int argc, char *argv[]) {
         image_width = half_w;
         image_height = half_h;
         // stbi_write_png(fmt::format("level-{}.png", i).c_str(), image_width, image_height, 4, out_pixels, 0);
-        stream << texture.view(i).copy_from(out_pixels);
+        stream << texture.view(i).copy_from(luisa::span{out_pixels, static_cast<size_t>(image_width * image_height * 4)});
         in_pixels = out_pixels;
         out_pixels += image_width * image_height * 4u;
     }
 
     stream << fill_image(heap, device_image).dispatch(make_uint2(1024u))
-           << device_image.copy_to(host_image.data())
+           << device_image.copy_to(luisa::span{host_image})
            << synchronize();
 
     stbi_write_png("result.png", 1024u, 1024u, 4u, host_image.data(), 0u);

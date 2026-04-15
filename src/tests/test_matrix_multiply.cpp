@@ -454,7 +454,7 @@ int main(int argc, char *argv[]) {
     // Training loop: train network to learn identity function
     for (int i = 0; i < 5000; ++i) {
         stream << make_lcg(input_buffer)
-               << tar_buffer.copy_from(input_buffer)
+               << tar_buffer.view().copy_from(input_buffer)
                // Forward pass
                << input_hidden_shader(input_buffer, input_to_hidden_weight, hidden_buffer).dispatch(input_hidden_kernel.dispatch_size)
                << hidden_output_shader(hidden_buffer, hidden_to_out_weight, out_buffer).dispatch(hidden_output_kernel.dispatch_size)
@@ -486,11 +486,11 @@ int main(int argc, char *argv[]) {
               final_hidden_to_out_weight.view().as<uint>(),
               batch_size)
               .dispatch((batch_size + sum_shader.block_size().x - 1) & (~(sum_shader.block_size().x - 1)), final_hidden_to_out_weight.size())
-       << final_input_buffer.copy_from(&input_val)
+       << final_input_buffer.copy_from(luisa::span{&input_val, 1})
        // Final forward pass with averaged weights
        << hidden_output_shader(final_hidden_buffer, final_hidden_to_out_weight, final_out_buffer).dispatch(make_uint3(1u, hidden_output_kernel.dispatch_size.yz()))
-       << final_out_buffer.copy_to(&out_val)
-       << final_input_to_hidden_weight.view(1, 1).copy_to(&hidden_weight) << [hidden_weight]() {
+       << final_out_buffer.copy_to(luisa::span{&out_val, 1})
+       << final_input_to_hidden_weight.view(1, 1).copy_to(luisa::span{&hidden_weight, 1}) << [hidden_weight]() {
               LUISA_INFO("Final weight {}", hidden_weight);
           }
        << synchronize();

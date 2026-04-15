@@ -25,7 +25,7 @@ int main(int argc, char *argv[]) {
     auto ldr_image = device.create_image<float>(PixelStorage::BYTE4, width, height);
     stream
         << shader(ldr_image).dispatch(width, height)
-        << ldr_image.copy_to(pixels.data())
+        << ldr_image.copy_to(luisa::span{pixels})
         << synchronize();
     stbi_write_png("test_aot.png", width, height, 4, pixels.data(), 0);
     

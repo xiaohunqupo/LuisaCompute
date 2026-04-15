@@ -44,7 +44,7 @@ int main(int argc, char *argv[]) {
     luisa::vector<uint> host_data(BUFFER_SIZE);
     stream << test_shader(ByteBufferView{buffer_float} /*Buffer<float> to Byte buffer*/, 114).dispatch(buffer_float.size())
            << test_shader(byte_buffer, 514).dispatch(buffer_float.size())
-           << buffer_float.copy_to(host_data.data())
+           << buffer_float.copy_to(luisa::span<uint>{host_data.data(), host_data.size()})
            << synchronize();
     LUISA_INFO("Buffer<float> as Buffer<uint>: ");
     for (auto &i : host_data) {

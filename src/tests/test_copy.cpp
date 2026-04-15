@@ -59,8 +59,8 @@ void test_buffer(Device &device, size_t size, const Generate &g) noexcept {
     }
     auto buffer = device.create_buffer<T>(size);
     Stream stream = device.create_stream();
-    stream << buffer.copy_from(host_input.data())
-           << buffer.copy_to(host_output.data())
+    stream << buffer.copy_from(luisa::span{host_input})
+           << buffer.copy_to(luisa::span{host_output})
            << synchronize();
     for (auto i = 0u; i < size; i++) {
         LUISA_ASSERT(host_input[i] == host_output[i],
@@ -97,8 +97,8 @@ void test_texture(Device &device, PixelStorage storage, Size size, std::mt19937 
         }
     }();
     Stream stream = device.create_stream();
-    stream << texture.copy_from(host_input.data())
-           << texture.copy_to(host_output.data())
+    stream << texture.copy_from(luisa::span{host_input})
+           << texture.copy_to(luisa::span{host_output})
            << synchronize();
     for (auto i = 0u; i < size_bytes; i++) {
         LUISA_ASSERT(host_input[i] == host_output[i],

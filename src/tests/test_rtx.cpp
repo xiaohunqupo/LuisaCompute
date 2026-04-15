@@ -125,8 +125,8 @@ int main(int argc, char *argv[]) {
     Stream stream = device.create_stream();
     Buffer<float3> vertex_buffer = device.create_buffer<float3>(3u);
     Buffer<Triangle> triangle_buffer = device.create_buffer<Triangle>(1u);
-    stream << vertex_buffer.copy_from(vertices.data())
-           << triangle_buffer.copy_from(indices.data());
+    stream << vertex_buffer.copy_from(luisa::span{vertices})
+           << triangle_buffer.copy_from(luisa::span{indices});
 
     // Build acceleration structure with two instances of the triangle
     Accel accel = device.create_accel();
@@ -161,7 +161,7 @@ int main(int argc, char *argv[]) {
         float4x4 m = translation(float3(-0.25f + t * 0.15f, 0.0f, 0.1f)) *
                      rotation(float3(0.0f, 0.0f, 1.0f), 0.5f + t * 0.5f);
 
-        stream << vertex_buffer.copy_from(vertices.data())
+        stream << vertex_buffer.copy_from(luisa::span{vertices})
                << set_transform_shader(accel, m, 1u).dispatch(1)
                << mesh.build()
                << accel.build()
@@ -175,7 +175,7 @@ int main(int argc, char *argv[]) {
         }
     }
     stream << colorspace_shader(hdr_image, ldr_image).dispatch(width, height)
-           << ldr_image.copy_to(pixels.data())
+           << ldr_image.copy_to(luisa::span{pixels})
            << synchronize();
     double time = clock.toc();
     LUISA_INFO("Time: {} ms", time);

@@ -35,7 +35,7 @@ int main(int argc, char *argv[]) {
             auto image_pixels = stbi_load(argv[2], &image_width, &image_height, &image_channels, 1);
             LUISA_ASSERT(image_pixels != nullptr, "Failed to load image: {}.", argv[2]);
             auto texture = device.create_image<float>(PixelStorage::BYTE1, image_width, image_height);
-            stream << texture.copy_from(image_pixels);
+            stream << texture.copy_from(luisa::span{image_pixels, static_cast<size_t>(image_width * image_height)});
             stbi_image_free(image_pixels);
             return texture;
         }
@@ -46,7 +46,7 @@ int main(int argc, char *argv[]) {
         std::uniform_int_distribution<uint32_t> dist;
         for (auto &x : pixels) { x = static_cast<uint8_t>(dist(rng) & 0xffu); }
         auto texture = device.create_image<float>(PixelStorage::BYTE1, size);
-        stream << texture.copy_from(pixels.data());
+        stream << texture.copy_from(luisa::span{pixels});
         return texture;
     }();
 

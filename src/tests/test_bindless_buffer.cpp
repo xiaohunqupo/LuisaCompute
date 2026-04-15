@@ -26,7 +26,7 @@ int main(int argc, char *argv[]) {
     a[1] = {0, 1, 0, 1};
     a[2] = {0, 0, 1, 1};
     a[3] = {1, 1, 1, 1};
-    stream << buffer.copy_from(a.data()) << synchronize();
+    stream << buffer.copy_from(luisa::span{a}) << synchronize();
     bdls.emplace_on_update(5, buffer);
     stream << bdls.update() << synchronize();
 

@@ -117,7 +117,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    stream << voxel_grid.copy_from(host_voxels.data()) << synchronize();
+    stream << voxel_grid.copy_from(luisa::span{host_voxels}) << synchronize();
 
     // Main rendering kernel
     Kernel2D render_kernel = [&](ImageFloat image, Float3 cam_pos, 

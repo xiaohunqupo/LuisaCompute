@@ -84,7 +84,7 @@ int main(int argc, char *argv[]) {
             .pad = {0.0f, 0.0f, 0.0f}
         };
     }
-    stream << particles.copy_from(host_particles.data()) << synchronize();
+    stream << particles.copy_from(luisa::span{host_particles}) << synchronize();
 
     // Particle update kernel
     Kernel1D update_kernel = [&](BufferVar<FireParticle> particle_buf, Float time, Float wind_strength) noexcept {
@@ -245,7 +245,7 @@ int main(int argc, char *argv[]) {
         }
         if (window.is_key_down(KEY_R)) {
             // Reset particles
-            stream << particles.copy_from(host_particles.data()) << synchronize();
+            stream << particles.copy_from(luisa::span{host_particles}) << synchronize();
         }
 
         float time = static_cast<float>(clock.toc() * 1e-3);

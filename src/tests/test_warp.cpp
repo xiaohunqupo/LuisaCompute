@@ -127,11 +127,11 @@ int main(int argc, char *argv[]) {
     
     // Execute kernel
     stream
-        << lhs_buffer.copy_from(lhs_matrix.data())
-        << rhs_buffer.copy_from(rhs_matrix.data())
+        << lhs_buffer.copy_from(luisa::span{lhs_matrix})
+        << rhs_buffer.copy_from(luisa::span{rhs_matrix})
         // Dispatch: x dimension accounts for warp grouping, y is matrix rows
         << mat_mul_shader(lhs_buffer, rhs_buffer, result_buffer, k_matrix_size).dispatch(k_matrix_size * k_warp_size, k_matrix_size)
-        << result_buffer.copy_to(result_matrix.data())
+        << result_buffer.copy_to(luisa::span{result_matrix})
         << synchronize();
     
     // Host-side validation

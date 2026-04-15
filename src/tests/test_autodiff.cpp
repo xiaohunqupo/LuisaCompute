@@ -54,9 +54,9 @@ int main(int argc, char *argv[]) {
     // Prepare host buffers for gradient results
     auto dx = std::vector<float>(n);
     auto dy = std::vector<float2>(n);
-    stream << x_buffer.copy_from(x.data())
+    stream << x_buffer.copy_from(luisa::span{x})
            << synchronize()
-           << y_buffer.copy_from(y.data())
+           << y_buffer.copy_from(luisa::span{y})
            << synchronize();
 
     // Define the function to differentiate: f(x, y) = x * sin(y)
@@ -102,8 +102,8 @@ int main(int argc, char *argv[]) {
            << synchronize();
 
     // Copy results back to host
-    stream << dx_buffer.copy_to(dx.data())
-           << dy_buffer.copy_to(dy.data())
+    stream << dx_buffer.copy_to(luisa::span{dx})
+           << dy_buffer.copy_to(luisa::span{dy})
            << synchronize();
 
     // Compute finite difference approximations for validation

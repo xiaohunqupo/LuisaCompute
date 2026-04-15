@@ -33,7 +33,7 @@ int main(int argc, char *argv[]) {
                << synchronize();
         
         std::vector<uint> result(buffer_size);
-        stream << buffer.copy_to(result.data()) << synchronize();
+        stream << buffer.copy_to(luisa::span{result}) << synchronize();
         
         bool success = true;
         for (size_t i = 0; i < buffer_size; i++) {

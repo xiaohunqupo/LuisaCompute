@@ -174,14 +174,14 @@ int main(int argc, char *argv[]) {
     
     // Execute softmax computation
     float sum;
-    stream << buffer.copy_from(f.data())
+    stream << buffer.copy_from(luisa::span{f})
            // Pass 1: Compute exp(x) and partial sums
            << sum_shader(buffer, temp_buffer, size, true).dispatch(size)
            // Pass 1b: Reduce partial sums to total sum
            << sum_shader(temp_buffer, temp_buffer, temp_buffer.size(), false).dispatch(1024)
            // Pass 2: Normalize
            << final_shader(buffer, temp_buffer).dispatch(size)
-           << buffer.view(0, 1).copy_to(&sum)
+           << buffer.view(0, 1).copy_to(luisa::span{&sum, 1})
            << synchronize();
     
     // For uniform input of ones, softmax output should be 1/size

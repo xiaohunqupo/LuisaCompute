@@ -435,8 +435,8 @@ int main(int argc, char *argv[]) {
     auto segment_buffer = device.create_buffer<uint>(segment_count);
 
     auto stream = device.create_stream(StreamTag::GRAPHICS);
-    stream << control_point_buffer.copy_from(control_points.data())
-           << segment_buffer.copy_from(segments.data())
+    stream << control_point_buffer.copy_from(luisa::span{control_points})
+           << segment_buffer.copy_from(luisa::span{segments})
            << synchronize();
     control_points = {};
     segments = {};
@@ -677,7 +677,7 @@ int main(int argc, char *argv[]) {
     // Save final image
     luisa::vector<std::byte> pixels(ldr_image.view().size_bytes());
     stream << hdr2ldr(hdr_image, ldr_image, false).dispatch(resolution)
-           << ldr_image.copy_to(pixels.data())
+           << ldr_image.copy_to(luisa::span{pixels})
            << synchronize();
     stbi_write_png("test_curve_pbrt.png", resolution.x, resolution.y, 4, pixels.data(), 0);
 }

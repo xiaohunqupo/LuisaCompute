@@ -98,7 +98,7 @@ int main(int argc, char *argv[]) {
     };
     auto hdr2ldr_shader = device.compile(hdr2ldr_kernel);
     Image<float> ldr_image = device.create_image<float>(swap_chain.backend_storage(), resolution);
-    stream << texture.copy_from(image_pixels) << synchronize();
+    stream << texture.copy_from(luisa::span{image_pixels, static_cast<size_t>(image_width * image_height * 4)}) << synchronize();
     Clock clk;
     float inter_val = 0.0f;
     float light_scale = 0.f;    

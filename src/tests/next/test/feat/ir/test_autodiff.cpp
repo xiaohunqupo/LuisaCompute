@@ -42,9 +42,9 @@ int simple_autodiff(Device &device) {
     auto dx = std::vector<float>(n);
     auto dy = std::vector<float2>(n);
 
-    stream << x_buffer.copy_from(x.data())
+    stream << x_buffer.copy_from(luisa::span{x})
            << synchronize()
-           << y_buffer.copy_from(y.data())
+           << y_buffer.copy_from(luisa::span{y})
            << synchronize();
 
     // object function: f = x * sin(y)
@@ -81,8 +81,8 @@ int simple_autodiff(Device &device) {
     stream << synchronize();
 
     // extract dx and dy buffer to cpu
-    stream << dx_buffer.copy_to(dx.data())
-           << dy_buffer.copy_to(dy.data())
+    stream << dx_buffer.copy_to(luisa::span{dx})
+           << dy_buffer.copy_to(luisa::span{dy})
            << synchronize();
 
     // forward difference

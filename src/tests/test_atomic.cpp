@@ -48,7 +48,7 @@ int main(int argc, char *argv[]) {
     Buffer<uint> constant_buffer = device.create_buffer<uint>(1);
     uint host_value = 1u;
     Stream stream = device.create_stream();
-    stream << constant_buffer.copy_from(&host_value) << synchronize();
+    stream << constant_buffer.copy_from(luisa::span{&host_value, 1}) << synchronize();
     
     // Kernel demonstrating atomic fetch_add and conditional write
     // This pattern can be used for counting unique events
@@ -70,9 +70,9 @@ int main(int argc, char *argv[]) {
     // Performance test for atomic operations
     Clock clock;
     clock.tic();
-    stream << buffer.copy_from(&host_buffer)
+    stream << buffer.copy_from(luisa::span{&host_buffer, 1})
            << count(constant_buffer).dispatch(102400u)  // Launch many threads
-           << buffer.copy_to(&host_buffer)
+           << buffer.copy_to(luisa::span{&host_buffer, 1})
            << synchronize();
     double time = clock.toc();
     
@@ -119,9 +119,9 @@ int main(int argc, char *argv[]) {
 
     // Validate float atomic addition
     float result = 0.f;
-    stream << atomic_float_buffer.copy_from(&result)
+    stream << atomic_float_buffer.copy_from(luisa::span{&result, 1})
            << add_shader(atomic_float_buffer).dispatch(1024u)
-           << atomic_float_buffer.copy_to(&result)
+           << atomic_float_buffer.copy_to(luisa::span{&result, 1})
            << synchronize();
     LUISA_INFO("Atomic float result: {}.", result);
     LUISA_ASSERT(result == 1024.f, "Atomic float operation failed.");

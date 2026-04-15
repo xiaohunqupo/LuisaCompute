@@ -35,8 +35,8 @@ int test_calc(Device &device) {
         float2 col_2 = make_float2(i + 2, i + 3);
         mat[i] = make_float2x2(col_1, col_2);
     }
-    stream << vert_buf.copy_from(vert.data());
-    stream << mat_buf.copy_from(mat.data());
+    stream << vert_buf.copy_from(luisa::span{vert});
+    stream << mat_buf.copy_from(luisa::span{mat});
     stream << synchronize();
 
     auto shader = device.compile(mat_vert_prod);
@@ -44,7 +44,7 @@ int test_calc(Device &device) {
     stream << synchronize();
 
     luisa::vector<float2> out(10);
-    stream << out_buf.copy_to(out.data());
+    stream << out_buf.copy_to(luisa::span{out});
     stream << synchronize();
 
     for (auto i = 0u; i < 10u; i++) {
