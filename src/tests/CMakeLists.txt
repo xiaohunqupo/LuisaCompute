@@ -70,6 +70,8 @@ luisa_compute_add_test(test_normal_encoding        unit/dsl/test_normal_encoding
 luisa_compute_add_test(test_calc                   unit/dsl/test_calc.cpp)
 luisa_compute_add_test(test_dsl_matrix             unit/dsl/test_matrix.cpp)
 luisa_compute_add_test(test_var                    unit/dsl/test_var.cpp)
+luisa_compute_add_test(test_polymorphic            unit/dsl/test_polymorphic.cpp)
+luisa_compute_add_test(test_dsl_autodiff           unit/dsl/test_autodiff.cpp)
 
 # --- unit/runtime: standalone tests (need backend, NOT auto-run via CTest) ---
 luisa_compute_add_test(test_atomic              unit/runtime/test_atomic.cpp)
