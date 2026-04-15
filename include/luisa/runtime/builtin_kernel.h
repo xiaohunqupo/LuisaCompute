@@ -49,14 +49,14 @@ public:
         U const &value) {
         // use temporal value
         if constexpr (sizeof(U) > 4) {
-            auto ptr = luisa::allocate_with_allocator<U>(value);
+            auto ptr = luisa::new_with_allocator<U>(value);
             size_t element_size = sizeof(U) / sizeof(uint);
-            cmdlist << buffer_view.copy_from(luisa::span<U>{ptr, 1});
+            cmdlist << buffer_view.subview(0, 1).copy_from(luisa::span<U>{ptr, 1});
             if (buffer_view.size() > 1)
                 cmdlist << _fill_buffer_from_first(buffer_view.as<uint>(), element_size).dispatch(element_size * (buffer_view.size() - 1));
 
             cmdlist.add_dtor_callback([ptr] {
-                luisa::deallocate_with_allocator(ptr);
+                luisa::delete_with_allocator(ptr);
             });
         }
         // cast to uint
