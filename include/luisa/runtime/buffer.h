@@ -150,7 +150,7 @@ public:
     }
     template<typename U>
     [[nodiscard]] auto copy_from(luisa::span<U> data) const noexcept {
-        return this->view().copy_to(data);
+        return this->view().copy_from(data);
     }
 #ifndef LUISA_ENABLE_SAFE_MODE
     // commands
