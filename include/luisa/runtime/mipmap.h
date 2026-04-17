@@ -44,7 +44,9 @@ public:
 
     template<typename U>
     [[nodiscard]] auto copy_from(luisa::span<U> data) const noexcept {
+#ifndef NDEBUG
         luisa::compute::detail::assert_same_size(data.size_bytes(), size_bytes(), "texture");
+#endif
         return luisa::make_unique<TextureUploadCommand>(_handle, _storage, _level, _size, data.data());
     }
 #ifndef LUISA_ENABLE_SAFE_MODE
@@ -107,9 +109,11 @@ public:
     }
 
     template<typename T>
-    requires (!std::is_const_v<T>)
+        requires(!std::is_const_v<T>)
     [[nodiscard]] auto copy_to(luisa::span<T> data) const noexcept {
+#ifndef NDEBUG
         luisa::compute::detail::assert_same_size(data.size_bytes(), size_bytes(), "texture");
+#endif
         return luisa::make_unique<TextureDownloadCommand>(_handle, _storage, _level, _size, data.data());
     }
 #ifndef LUISA_ENABLE_SAFE_MODE

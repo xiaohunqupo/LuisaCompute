@@ -6,6 +6,7 @@
 #include <luisa/runtime/device.h>
 #include <luisa/runtime/buffer.h>
 #include <luisa/runtime/image.h>
+#include <luisa/runtime/volume.h>
 
 namespace luisa::compute {
 
@@ -43,7 +44,7 @@ public:
     void compile_all(Device &device);
     template<typename U>
         requires((!std::is_reference_v<U>) && (std::is_copy_constructible_v<U>) && (alignof(U) >= 4))
-    void fill(
+    void fill_buffer(
         CommandList &cmdlist,
         BufferView<U> buffer_view,
         U const &value) {
@@ -62,6 +63,36 @@ public:
         // cast to uint
         else {
             cmdlist << _fill_buffer_uint(buffer_view.as<uint>(), reinterpret_cast<uint const &>(value)).dispatch(buffer_view.size());
+        }
+    }
+
+    template<typename T>
+        requires(is_legal_image_element<T>)
+    void fill_image(
+        CommandList &cmdlist,
+        ImageView<T> image_view,
+        T const &value) noexcept {
+        if constexpr (std::is_same_v<T, uint>) {
+            cmdlist << _fill_image_uint(image_view, value).dispatch(image_view.size());
+        } else if constexpr (std::is_same_v<T, int>) {
+            cmdlist << _fill_image_int(image_view, value).dispatch(image_view.size());
+        } else if constexpr (std::is_same_v<T, float>) {
+            cmdlist << _fill_image_float(image_view, value).dispatch(image_view.size());
+        }
+    }
+
+    template<typename T>
+        requires(is_legal_image_element<T>)
+    void fill_volume(
+        CommandList &cmdlist,
+        VolumeView<T> volume_view,
+        T const &value) noexcept {
+        if constexpr (std::is_same_v<T, uint>) {
+            cmdlist << _fill_volume_uint(volume_view, value).dispatch(volume_view.size());
+        } else if constexpr (std::is_same_v<T, int>) {
+            cmdlist << _fill_volume_int(volume_view, value).dispatch(volume_view.size());
+        } else if constexpr (std::is_same_v<T, float>) {
+            cmdlist << _fill_volume_float(volume_view, value).dispatch(volume_view.size());
         }
     }
 };

@@ -32,8 +32,9 @@ template<typename T>
 struct buffer_element_impl {
     using type = T;
 };
+#ifndef NDEBUG
 LUISA_RUNTIME_API void assert_same_size(size_t span_size, size_t buffer_size, luisa::string_view name) noexcept;
-
+#endif
 }// namespace detail
 
 class ByteBuffer;
@@ -149,7 +150,7 @@ public:
     }
     template<typename U>
     [[nodiscard]] auto copy_from(luisa::span<U> data) const noexcept {
-        return this->view().copy_to(data);
+        return this->view().copy_from(data);
     }
 #ifndef LUISA_ENABLE_SAFE_MODE
     // commands
@@ -273,12 +274,16 @@ public:
     template<typename U>
         requires(!std::is_const_v<U>)
     [[nodiscard]] auto copy_to(luisa::span<U> data) const noexcept {
+#ifndef NDEBUG
         luisa::compute::detail::assert_same_size(data.size_bytes(), size_bytes(), "buffer");
+#endif
         return luisa::make_unique<BufferDownloadCommand>(_handle, offset_bytes(), size_bytes(), data.data());
     }
     template<typename U>
     [[nodiscard]] auto copy_from(luisa::span<U> data) const noexcept {
+#ifndef NDEBUG
         luisa::compute::detail::assert_same_size(data.size_bytes(), size_bytes(), "buffer");
+#endif
         return luisa::make_unique<BufferUploadCommand>(this->handle(), this->offset_bytes(), this->size_bytes(), data.data());
     }
 #ifndef LUISA_ENABLE_SAFE_MODE
