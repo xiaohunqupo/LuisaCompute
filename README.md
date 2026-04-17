@@ -15,6 +15,12 @@ Welcome to join the [discussion channel on Discord](https://discord.com/invite/y
 
 对于中国大陆的用户，也欢迎加入我们的 QQ 群组：1050189593。
 
+## Powered by LuisaCompute
+
+- [SMARAY](https://www.smaray.com.cn/) — A GPU-native offline 3D rendering engine that delivers cinema-quality visuals at high speed, designed for designers and 3D artists with physical and AI rendering capabilities.
+- [Genesis](https://github.com/Genesis-Embodied-AI/Genesis) — A generative world for general-purpose robotics and embodied AI learning.
+- [libuipc](https://github.com/spiriMirror/libuipc) — A Modern C++20 Library of Unified Incremental Potential Contact.
+
 ## Table of Contents
 
 - [LuisaCompute](#luisacompute)
