@@ -88,7 +88,7 @@ DepthBuffer::DepthBuffer(
     }
 }
 DepthBuffer::~DepthBuffer() {
-    if (srvIdx != ~0u) device->globalHeap->ReturnIndex(srvIdx);
+    if (srvIdx != ~0u) device->global_heap->ReturnIndex(srvIdx);
 }
 D3D12_SHADER_RESOURCE_VIEW_DESC DepthBuffer::GetColorSrvDesc(uint mipOffset) const {
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc;
@@ -118,8 +118,8 @@ D3D12_SHADER_RESOURCE_VIEW_DESC DepthBuffer::GetColorSrvDesc(uint mipOffset) con
 uint DepthBuffer::GetGlobalSRVIndex(uint mipOffset) const {
     std::lock_guard lck(allocMtx);
     if (srvIdx != ~0u) return srvIdx;
-    srvIdx = device->globalHeap->AllocateIndex();
-    device->globalHeap->CreateSRV(
+    srvIdx = device->global_heap->AllocateIndex();
+    device->global_heap->CreateSRV(
         GetResource(),
         GetColorSrvDesc(),
         srvIdx);

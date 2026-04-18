@@ -6,7 +6,7 @@
 #include <luisa/runtime/rtx/aabb.h>
 namespace lc::vk {
 Blas::Blas(Device *device, AccelOption const &option)
-    : Resource(device), option(option), acceleration_build_geometry_info(nullptr) {
+    : Resource(device), _option(option), _acceleration_build_geometry_info(nullptr) {
     if (!device->enable_raytracing()) [[unlikely]] {
         LUISA_ERROR("Raytracing not enabled, BLAS can not be loaded.");
     }
@@ -17,23 +17,23 @@ void Blas::_pre_build(
     uint32_t primitive_count,
     AccelBuildRequest request) {
 
-    acceleration_build_geometry_info = cmdbuffer.temp_desc->allocate_memory<VkAccelerationStructureBuildGeometryInfoKHR>();
-    acceleration_build_geometry_info->sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
-    acceleration_build_geometry_info->type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-    acceleration_build_geometry_info->flags = option.hint == AccelOption::UsageHint::FAST_BUILD ? VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR : VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
-    if (option.allow_update) {
-        acceleration_build_geometry_info->flags |= VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
+    _acceleration_build_geometry_info = cmdbuffer.temp_desc->allocate_memory<VkAccelerationStructureBuildGeometryInfoKHR>();
+    _acceleration_build_geometry_info->sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+    _acceleration_build_geometry_info->type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+    _acceleration_build_geometry_info->flags = _option.hint == AccelOption::UsageHint::FAST_BUILD ? VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR : VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+    if (_option.allow_update) {
+        _acceleration_build_geometry_info->flags |= VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
     }
-    acceleration_build_geometry_info->geometryCount = 1;
-    acceleration_build_geometry_info->pGeometries = acceleration_structure_geometry;
-    bool update = option.allow_update && request == AccelBuildRequest::PREFER_UPDATE;
+    _acceleration_build_geometry_info->geometryCount = 1;
+    _acceleration_build_geometry_info->pGeometries = acceleration_structure_geometry;
+    bool update = _option.allow_update && request == AccelBuildRequest::PREFER_UPDATE;
 
     VkAccelerationStructureBuildSizesInfoKHR acceleration_structure_build_sizes_info{};
     acceleration_structure_build_sizes_info.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
-    acceleration_build_geometry_info->mode = update ? VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR : VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+    _acceleration_build_geometry_info->mode = update ? VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR : VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
     vkGetAccelerationStructureBuildSizesKHR(
         device()->logic_device(), VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
-        acceleration_build_geometry_info,
+        _acceleration_build_geometry_info,
         &primitive_count,
         &acceleration_structure_build_sizes_info);
     uint scratch_buffer_size = update ? acceleration_structure_build_sizes_info.updateScratchSize : acceleration_structure_build_sizes_info.buildScratchSize;
@@ -65,13 +65,13 @@ void Blas::_pre_build(
     scratch_buffer_size = (scratch_buffer_size + 255) & (~(255u));
     auto scratch_chunk = cmdbuffer.scratch_buffer_alloc->allocate(scratch_buffer_size);
 
-    scratch_buffer = reinterpret_cast<Buffer const *>(scratch_chunk.handle);
-    scratch_buffer_offset = scratch_chunk.offset;
+    _scratch_buffer = reinterpret_cast<Buffer const *>(scratch_chunk.handle);
+    _scratch_buffer_offset = scratch_chunk.offset;
     cmdbuffer.resource_barrier->record(
-        scratch_buffer,
+        _scratch_buffer,
         ResourceBarrier::Usage::ComputeUAV);
     if (sync) {
-        sync_tlas();
+        _sync_tlas();
     }
 }
 void Blas::pre_build(
@@ -124,8 +124,8 @@ void Blas::pre_build(
 void Blas::build(
     CommandBuffer &cmdbuffer,
     ProceduralPrimitiveBuildCommand const *cmd) {
-    acceleration_build_geometry_info->dstAccelerationStructure = _accel;
-    acceleration_build_geometry_info->scratchData.deviceAddress = scratch_buffer->get_device_address() + scratch_buffer_offset;
+    _acceleration_build_geometry_info->dstAccelerationStructure = _accel;
+    _acceleration_build_geometry_info->scratchData.deviceAddress = _scratch_buffer->get_device_address() + _scratch_buffer_offset;
     auto acceleration_structure_build_range_info = cmdbuffer.temp_desc->allocate_memory<VkAccelerationStructureBuildRangeInfoKHR>();
     acceleration_structure_build_range_info->primitiveCount = cmd->aabb_buffer_size() / sizeof(luisa::compute::AABB);
     acceleration_structure_build_range_info->primitiveOffset = 0;
@@ -134,14 +134,14 @@ void Blas::build(
     vkCmdBuildAccelerationStructuresKHR(
         cmdbuffer.cmdbuffer(),
         1,
-        acceleration_build_geometry_info,
+        _acceleration_build_geometry_info,
         &acceleration_structure_build_range_info);
 }
 void Blas::build(
     CommandBuffer &cmdbuffer,
     MeshBuildCommand const *cmd) {
-    acceleration_build_geometry_info->dstAccelerationStructure = _accel;
-    acceleration_build_geometry_info->scratchData.deviceAddress = scratch_buffer->get_device_address() + scratch_buffer_offset;
+    _acceleration_build_geometry_info->dstAccelerationStructure = _accel;
+    _acceleration_build_geometry_info->scratchData.deviceAddress = _scratch_buffer->get_device_address() + _scratch_buffer_offset;
     auto acceleration_structure_build_range_info = cmdbuffer.temp_desc->allocate_memory<VkAccelerationStructureBuildRangeInfoKHR>();
     acceleration_structure_build_range_info->primitiveCount = cmd->triangle_buffer_size() / 12;
     acceleration_structure_build_range_info->primitiveOffset = 0;
@@ -150,13 +150,13 @@ void Blas::build(
     vkCmdBuildAccelerationStructuresKHR(
         cmdbuffer.cmdbuffer(),
         1,
-        acceleration_build_geometry_info,
+        _acceleration_build_geometry_info,
         &acceleration_structure_build_range_info);
 }
 Blas::~Blas() {
-    for (auto &&i : handles) {
-        i->accel->allInstance[i->accelIndex].handle = nullptr;
-        MeshHandle::DestroyHandle(i);
+    for (auto &&i : _handles) {
+        i->accel->_all_instance[i->accel_index].handle = nullptr;
+        MeshHandle::destroy_handle(i);
     }
     vkDestroyAccelerationStructureKHR(device()->logic_device(), _accel, Device::alloc_callbacks());
 }
@@ -169,36 +169,36 @@ uint64_t Blas::get_accel_device_address() const {
     acceleration_device_address_info.accelerationStructure = _accel;
     return vkGetAccelerationStructureDeviceAddressKHR(device()->logic_device(), &acceleration_device_address_info);
 }
-void Blas::remove_accel_ref(MeshHandle *handle) {
+void Blas::_remove_accel_ref(MeshHandle *handle) {
     LUISA_ASSUME(handle->mesh == this);
     {
-        std::lock_guard lck(handleMtx);
-        auto last = handles.back();
-        handles.pop_back();
+        std::lock_guard lck(_handle_mtx);
+        auto last = _handles.back();
+        _handles.pop_back();
         if (last != handle) {
-            last->meshIndex = handle->meshIndex;
-            handles[handle->meshIndex] = last;
+            last->mesh_index = handle->mesh_index;
+            _handles[handle->mesh_index] = last;
         }
     }
-    MeshHandle::DestroyHandle(handle);
+    MeshHandle::destroy_handle(handle);
 }
-MeshHandle *Blas::add_accel_ref(Tlas *accel, uint index) {
-    auto meshHandle = MeshHandle::AllocateHandle();
+MeshHandle *Blas::_add_accel_ref(Tlas *accel, uint index) {
+    auto meshHandle = MeshHandle::allocate_handle();
     meshHandle->mesh = this;
     meshHandle->accel = accel;
-    meshHandle->accelIndex = index;
+    meshHandle->accel_index = index;
     {
-        std::lock_guard lck(handleMtx);
-        meshHandle->meshIndex = handles.size();
-        handles.emplace_back(meshHandle);
+        std::lock_guard lck(_handle_mtx);
+        meshHandle->mesh_index = _handles.size();
+        _handles.emplace_back(meshHandle);
     }
     return meshHandle;
 }
-void Blas::sync_tlas() {
-    std::lock_guard lck(handleMtx);
-    for (auto &&i : handles) {
+void Blas::_sync_tlas() {
+    std::lock_guard lck(_handle_mtx);
+    for (auto &&i : _handles) {
         LUISA_ASSUME(i->mesh == this);
-        i->accel->update_mesh(i);
+        i->accel->_update_mesh(i);
     }
 }
 
@@ -206,11 +206,11 @@ namespace detail {
 static vstd::Pool<MeshHandle> meshHandlePool(256, false);
 static vstd::spin_mutex meshHandleMtx;
 }// namespace detail
-MeshHandle *MeshHandle::AllocateHandle() {
+MeshHandle *MeshHandle::allocate_handle() {
     using namespace detail;
     return meshHandlePool.create_lock(meshHandleMtx);
 }
-void MeshHandle::DestroyHandle(MeshHandle *handle) {
+void MeshHandle::destroy_handle(MeshHandle *handle) {
     using namespace detail;
     meshHandlePool.destroy_lock(meshHandleMtx, handle);
 }

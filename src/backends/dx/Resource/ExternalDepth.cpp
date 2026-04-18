@@ -26,8 +26,8 @@ D3D12_DEPTH_STENCIL_VIEW_DESC ExternalDepth::GetDepthDesc() const {
 uint ExternalDepth::GetGlobalSRVIndex(uint mipOffset) const {
     std::lock_guard lck(allocMtx);
     if (srvIdx != ~0u) return srvIdx;
-    srvIdx = device->globalHeap->AllocateIndex();
-    device->globalHeap->CreateSRV(
+    srvIdx = device->global_heap->AllocateIndex();
+    device->global_heap->CreateSRV(
         GetResource(),
         GetColorSrvDesc(),
         srvIdx);
@@ -59,6 +59,6 @@ D3D12_SHADER_RESOURCE_VIEW_DESC ExternalDepth::GetColorSrvDesc(uint mipOffset) c
     return srvDesc;
 }
 ExternalDepth::~ExternalDepth() {
-    if (srvIdx != ~0u) device->globalHeap->ReturnIndex(srvIdx);
+    if (srvIdx != ~0u) device->global_heap->ReturnIndex(srvIdx);
 }
 }// namespace lc::dx

@@ -7,7 +7,7 @@ class UploadBuffer : public Buffer {
     void *_mapped_ptr{};
 
 public:
-    mutable BufferFlusher _flusher;
+    mutable BufferFlusher flusher;
     UploadBuffer(Device *device, size_t size_bytes);
     ~UploadBuffer();
     void copy_from(void const *data, size_t offset, size_t size) const;

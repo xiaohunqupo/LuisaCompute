@@ -4,9 +4,9 @@
 namespace lc::vk {
 class Buffer;
 struct BufferFlusher {
-    std::atomic_size_t _begin{std::numeric_limits<size_t>::max()};
-    std::atomic_size_t _end{};
-    void mark_dirty(size_t begin, size_t end);
+    std::atomic_size_t begin{std::numeric_limits<size_t>::max()};
+    std::atomic_size_t end{};
+    void mark_dirty(size_t range_begin, size_t range_end);
     void flush(Device *device, void *alloc);
 };
 void vma_defragment(Device* device);

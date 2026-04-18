@@ -10,7 +10,7 @@
 #include "log.h"
 #if !(defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK))
 // iOS & macOS: VulkanExampleBase::getAssetPath() implemented externally to allow access to Objective-C components
-const luisa::string getAssetPath()
+const luisa::string get_asset_path()
 {
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
 	return "";
@@ -26,9 +26,9 @@ namespace vks
 {
 	namespace tools
 	{
-		bool errorModeSilent = false;
+		bool error_mode_silent = false;
 
-		luisa::string errorString(VkResult errorCode)
+		luisa::string error_string(VkResult errorCode)
 		{
 			switch (errorCode)
 			{
@@ -62,7 +62,7 @@ namespace vks
 			}
 		}
 
-		luisa::string physicalDeviceTypeString(VkPhysicalDeviceType type)
+		luisa::string physical_device_type_string(VkPhysicalDeviceType type)
 		{
 			switch (type)
 			{
@@ -77,7 +77,7 @@ namespace vks
 			}
 		}
 
-		VkBool32 getSupportedDepthFormat(VkPhysicalDevice physicalDevice, VkFormat *depthFormat)
+		VkBool32 get_supported_depth_format(VkPhysicalDevice physicalDevice, VkFormat *depthFormat)
 		{
 			// Since all depth formats may be optional, we need to find a suitable depth format to use
 			// Start with the highest precision packed format
@@ -104,7 +104,7 @@ namespace vks
 			return false;
 		}
 
-		VkBool32 formatHasStencil(VkFormat format)
+		VkBool32 format_has_stencil(VkFormat format)
 		{
 			std::vector<VkFormat> stencilFormats = {
 				VK_FORMAT_S8_UINT,
@@ -116,7 +116,7 @@ namespace vks
 		}
 
 		// Returns if a given format support LINEAR filtering
-		VkBool32 formatIsFilterable(VkPhysicalDevice physicalDevice, VkFormat format, VkImageTiling tiling)
+		VkBool32 format_is_filterable(VkPhysicalDevice physicalDevice, VkFormat format, VkImageTiling tiling)
 		{
 			VkFormatProperties formatProps;
 			vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &formatProps);
@@ -134,7 +134,7 @@ namespace vks
 		// an image and put it into an active command buffer
 		// See chapter 11.4 "Image Layout" for details
 
-		void setImageLayout(
+		void set_image_layout(
 			VkCommandBuffer cmdbuffer,
 			VkImage image,
 			VkImageLayout oldImageLayout,
@@ -257,7 +257,7 @@ namespace vks
 		}
 
 		// Fixed sub resource on first mip level and layer
-		void setImageLayout(
+		void set_image_layout(
 			VkCommandBuffer cmdbuffer,
 			VkImage image,
 			VkImageAspectFlags aspectMask,
@@ -271,10 +271,10 @@ namespace vks
 			subresourceRange.baseMipLevel = 0;
 			subresourceRange.levelCount = 1;
 			subresourceRange.layerCount = 1;
-			setImageLayout(cmdbuffer, image, oldImageLayout, newImageLayout, subresourceRange, srcStageMask, dstStageMask);
+			set_image_layout(cmdbuffer, image, oldImageLayout, newImageLayout, subresourceRange, srcStageMask, dstStageMask);
 		}
 
-		void insertImageMemoryBarrier(
+		void insert_image_memory_barrier(
 			VkCommandBuffer cmdbuffer,
 			VkImage image,
 			VkAccessFlags srcAccessMask,
@@ -306,7 +306,7 @@ namespace vks
 #if defined(__ANDROID__)
 		// Android shaders are stored as assets in the apk
 		// So they need to be loaded via the asset manager
-		VkShaderModule loadShader(AAssetManager* assetManager, const char *fileName, VkDevice device)
+		VkShaderModule load_shader(AAssetManager* assetManager, const char *fileName, VkDevice device)
 		{
 			// Load shader from compressed asset
 			AAsset* asset = AAssetManager_open(assetManager, fileName, AASSET_MODE_STREAMING);
@@ -333,7 +333,7 @@ namespace vks
 			return shaderModule;
 		}
 #else
-		VkShaderModule loadShader(const char *fileName, VkDevice device)
+		VkShaderModule load_shader(const char *fileName, VkDevice device)
 		{
 			std::ifstream is(fileName, std::ios::binary | std::ios::in | std::ios::ate);
 
@@ -367,13 +367,13 @@ namespace vks
 		}
 #endif
 
-		bool fileExists(const luisa::string &filename)
+		bool file_exists(const luisa::string &filename)
 		{
 			std::ifstream f(filename.c_str());
 			return !f.fail();
 		}
 
-		uint32_t alignedSize(uint32_t value, uint32_t alignment)
+		uint32_t aligned_size(uint32_t value, uint32_t alignment)
         {
 	        return (value + alignment - 1) & ~(alignment - 1);
         }

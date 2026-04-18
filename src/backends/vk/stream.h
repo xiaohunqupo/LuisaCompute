@@ -28,13 +28,13 @@ public:
     Device *device;
     uint64 allocate(uint64 size) override;
     void deallocate(uint64 handle) override;
-    Pack *Create(uint64_t size);
+    Pack *create(uint64_t size);
 };
 class DefaultBufferDeferredVisitor : public vstd::StackAllocatorVisitor {
 public:
     Device *device;
     CommandBuffer *cmdbuffer;
-    vstd::unordered_map<uint64_t, vstd::unique_ptr<DefaultBuffer>> _buffers;
+    vstd::unordered_map<uint64_t, vstd::unique_ptr<DefaultBuffer>> buffers;
     uint64 allocate(uint64 size) override;
     void deallocate(uint64 handle) override;
 };
@@ -50,13 +50,13 @@ class BufferAllocator : public BufferAllocatorBase {
 public:
     static constexpr size_t kLargeBufferSize = 65536ull;
     vstd::StackAllocator alloc;
-    vstd::vector<vstd::unique_ptr<T>> largeBuffers;
+    vstd::vector<vstd::unique_ptr<T>> large_buffers;
 
     Visitor<T> visitor;
     BufferView allocate(size_t size) override;
     BufferView allocate(size_t size, size_t align) override;
     void clear();
-    BufferAllocator(size_t initCapacity);
+    BufferAllocator(size_t init_capacity);
     ~BufferAllocator();
 };
 }// namespace temp_buffer
@@ -88,7 +88,7 @@ struct CommandBufferState {
 };
 
 class CommandBuffer : public Resource {
-    Stream &stream;
+    Stream &_stream;
     VkCommandBuffer _cmdbuffer;
     vstd::unique_ptr<CommandBufferState> _state;
 
@@ -118,7 +118,7 @@ struct ReorderFuncTable {
     bool is_res_in_bindless(uint64_t bindless_handle, uint64_t resource_handle) const noexcept;
     Usage get_usage(uint64_t shader_handle, size_t argument_index) const noexcept {
         auto cs = reinterpret_cast<Shader *>(shader_handle);
-        return cs->saved_arguments()[argument_index].varUsage;
+        return cs->saved_arguments()[argument_index].var_usage;
     }
     void update_bindless(uint64_t handle, luisa::span<const BindlessArrayUpdateCommand::Modification> modifications) const noexcept;
     void update_bindless(uint64_t handle, luisa::span<const BindlessArrayUpdateCommand::BufferModification> modifications) const noexcept;

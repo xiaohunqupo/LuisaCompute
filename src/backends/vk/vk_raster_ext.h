@@ -8,7 +8,7 @@ class VkRasterExt : public RasterExt {
     Device *_device;
 public:
     VkRasterExt(Device *device);
-    ~VkRasterExt();
+    ~VkRasterExt() = default;
     ResourceCreationInfo create_raster_shader(
         Function vert,
         Function pixel,

@@ -30,7 +30,7 @@ public:
     ~StringViewBinaryStream() noexcept = default;
 };
 
-luisa::unique_ptr<luisa::BinaryStream> ReadBinaryIO(CacheType type, luisa::BinaryIO const *binIo, luisa::string_view name) {
+luisa::unique_ptr<luisa::BinaryStream> read_binary_io(CacheType type, luisa::BinaryIO const *binIo, luisa::string_view name) {
     switch (type) {
         case CacheType::ByteCode:
             return binIo->read_shader_bytecode(name);
@@ -46,37 +46,37 @@ luisa::unique_ptr<luisa::BinaryStream> ReadBinaryIO(CacheType type, luisa::Binar
     }
     return luisa::unique_ptr<luisa::BinaryStream>{};
 }
-ComputeShader *ComputeShader::LoadPresetCompute(
-    BinaryIO const *fileIo,
+ComputeShader *ComputeShader::load_preset_compute(
+    BinaryIO const *file_io,
     luisa::compute::Profiler *profiler,
     Device *device,
     vstd::span<Type const *const> types,
     vstd::string_view fileName) {
     using namespace ComputeShaderDetail;
-    auto psoName = Shader::PSOName(device, fileName);
-    bool oldDeleted = false;
+    auto pso_name = Shader::pso_name(device, fileName);
+    bool old_deleted = false;
     auto result = ShaderSerializer::DeSerialize(
         fileName,
-        psoName,
+        pso_name,
         CacheType::ByteCode,
         device,
-        *fileIo,
+        *file_io,
         profiler,
         {},
         hlsl::CodegenUtility::GetTypeMD5(types),
         {},
-        oldDeleted);
+        old_deleted);
     //Cached
 
     if (result) {
-        if (oldDeleted) {
-            result->SavePSO(result->Pso(), psoName, fileIo, device);
+        if (old_deleted) {
+            result->save_pso(result->pso(), pso_name, file_io, device);
         }
     }
     return result;
 }
-ComputeShader *ComputeShader::CompileCompute(
-    BinaryIO const *fileIo,
+ComputeShader *ComputeShader::compile_compute(
+    BinaryIO const *file_io,
     luisa::compute::Profiler *profiler,
     Device *device,
     Function kernel,
@@ -91,7 +91,7 @@ ComputeShader *ComputeShader::CompileCompute(
     bool debug) {
 
     using namespace ComputeShaderDetail;
-    auto CompileNewCompute = [&](bool WriteCache, vstd::string_view psoName) {
+    auto compile_new_compute = [&](bool WriteCache, vstd::string_view pso_name) {
         auto str = codegen();
         vstd::MD5 md5;
         if (WriteCache) {
@@ -112,7 +112,7 @@ ComputeShader *ComputeShader::CompileCompute(
         if (profiler) [[unlikely]] {
             profiler->before_compile_shader_bytecode(fileName);
         }
-        auto compResult = Device::Compiler()->compile_compute(
+        auto comp_result = Device::compiler()->compile_compute(
             str.result.view(),
             true,
             shaderModel,
@@ -121,14 +121,14 @@ ComputeShader *ComputeShader::CompileCompute(
         if (profiler) [[unlikely]] {
             profiler->after_compile_shader_bytecode(fileName);
         }
-        return compResult.multi_visit_or(
+        return comp_result.multi_visit_or(
             vstd::UndefEval<ComputeShader *>{},
             [&](hlsl::ComUniquePtr<IDxcBlob> &buffer) {
-                uint bdlsBufferCount = 0;
-                if (str.useBufferBindless) bdlsBufferCount++;
-                if (str.useTex2DBindless) bdlsBufferCount++;
-                if (str.useTex3DBindless) bdlsBufferCount++;
-                auto kernelArgs = [&] {
+                uint bdls_buffer_count = 0;
+                if (str.useBufferBindless) bdls_buffer_count++;
+                if (str.useTex2DBindless) bdls_buffer_count++;
+                if (str.useTex3DBindless) bdls_buffer_count++;
+                auto kernel_args = [&] {
                     if (kernel.builder() == nullptr) {
                         return vstd::vector<SavedArgument>();
                     } else {
@@ -136,30 +136,30 @@ ComputeShader *ComputeShader::CompileCompute(
                     }
                 }();
                 if (WriteCache) {
-                    auto serData = ShaderSerializer::Serialize(
+                    auto ser_data = ShaderSerializer::Serialize(
                         str.properties,
-                        kernelArgs,
+                        kernel_args,
                         {reinterpret_cast<std::byte const *>(buffer->GetBufferPointer()),
                          buffer->GetBufferSize()},
                         md5,
                         str.typeMD5,
-                        bdlsBufferCount,
+                        bdls_buffer_count,
                         blockSize,
                         str.printers);
-                    WriteBinaryIO(cacheType, fileIo, fileName, {reinterpret_cast<std::byte const *>(serData.data()), luisa::size_bytes(serData)});
+                    write_binary_io(cacheType, file_io, fileName, {reinterpret_cast<std::byte const *>(ser_data.data()), luisa::size_bytes(ser_data)});
                 }
                 auto cs = new ComputeShader(
                     blockSize,
                     std::move(str.properties),
-                    std::move(kernelArgs),
+                    std::move(kernel_args),
                     {reinterpret_cast<std::byte const *>(buffer->GetBufferPointer()),
                      buffer->GetBufferSize()},
                     std::move(bindings),
                     std::move(str.printers),
                     device);
-                cs->bindlessCount = bdlsBufferCount;
+                cs->bindlessCount = bdls_buffer_count;
                 if (WriteCache) {
-                    cs->SavePSO(cs->Pso(), psoName, fileIo, device);
+                    cs->save_pso(cs->pso(), pso_name, file_io, device);
                 }
                 return cs;
             },
@@ -169,34 +169,34 @@ ComputeShader *ComputeShader::CompileCompute(
             });
     };
     if (!fileName.empty()) {
-        vstd::string psoName = Shader::PSOName(device, fileName);
-        bool oldDeleted = false;
+        vstd::string pso_name = Shader::pso_name(device, fileName);
+        bool old_deleted = false;
         //Cached
         auto result = ShaderSerializer::DeSerialize(
             fileName,
-            psoName,
+            pso_name,
             cacheType,
             device,
-            *fileIo,
+            *file_io,
             profiler,
             checkMD5,
             {},
             std::move(bindings),
-            oldDeleted);
+            old_deleted);
         if (result) {
-            if (oldDeleted) {
-                result->SavePSO(result->Pso(), psoName, fileIo, device);
+            if (old_deleted) {
+                result->save_pso(result->pso(), pso_name, file_io, device);
             }
             return result;
         }
 
-        return CompileNewCompute(true, psoName);
+        return compile_new_compute(true, pso_name);
     } else {
-        return CompileNewCompute(false, {});
+        return compile_new_compute(false, {});
     }
 }
-void ComputeShader::SaveCompute(
-    BinaryIO const *fileIo,
+void ComputeShader::save_compute(
+    BinaryIO const *file_io,
     luisa::compute::Profiler *profiler,
     Function kernel,
     hlsl::CodegenResult &str,
@@ -215,7 +215,7 @@ void ComputeShader::SaveCompute(
     if (profiler) [[unlikely]] {
         profiler->before_load_shader_bytecode(fileName);
     }
-    if (ShaderSerializer::CheckMD5(fileName, md5, *fileIo)) {
+    if (ShaderSerializer::CheckMD5(fileName, md5, *file_io)) {
         if (profiler) [[unlikely]] {
             profiler->after_load_shader_bytecode(fileName, true);
         }
@@ -225,12 +225,12 @@ void ComputeShader::SaveCompute(
             profiler->after_load_shader_bytecode(fileName, false);
         }
     }
-    auto compiler = Device::Compiler();
+    auto compiler = Device::compiler();
     if (compiler) {
         if (profiler) [[unlikely]] {
             profiler->before_compile_shader_bytecode(fileName);
         }
-        auto compResult = compiler->compile_compute(
+        auto comp_result = compiler->compile_compute(
             str.result.view(),
             true,
             shaderModel,
@@ -239,48 +239,48 @@ void ComputeShader::SaveCompute(
         if (profiler) [[unlikely]] {
             profiler->after_compile_shader_bytecode(fileName);
         }
-        compResult.multi_visit(
+        comp_result.multi_visit(
             [&](hlsl::ComUniquePtr<IDxcBlob> &buffer) {
-                auto kernelArgs = ShaderSerializer::SerializeKernel(kernel);
-                uint bdlsBufferCount = 0;
-                if (str.useBufferBindless) bdlsBufferCount++;
-                if (str.useTex2DBindless) bdlsBufferCount++;
-                if (str.useTex3DBindless) bdlsBufferCount++;
-                auto serData = ShaderSerializer::Serialize(
+                auto kernel_args = ShaderSerializer::SerializeKernel(kernel);
+                uint bdls_buffer_count = 0;
+                if (str.useBufferBindless) bdls_buffer_count++;
+                if (str.useTex2DBindless) bdls_buffer_count++;
+                if (str.useTex3DBindless) bdls_buffer_count++;
+                auto ser_data = ShaderSerializer::Serialize(
                     str.properties,
-                    kernelArgs,
+                    kernel_args,
                     {reinterpret_cast<std::byte const *>(buffer->GetBufferPointer()),
                      buffer->GetBufferSize()},
                     md5,
                     str.typeMD5,
-                    bdlsBufferCount,
+                    bdls_buffer_count,
                     blockSize,
                     str.printers);
-                static_cast<void>(fileIo->write_shader_bytecode(fileName, {reinterpret_cast<std::byte const *>(serData.data()), luisa::size_bytes(serData)}));
+                static_cast<void>(file_io->write_shader_bytecode(fileName, {reinterpret_cast<std::byte const *>(ser_data.data()), luisa::size_bytes(ser_data)}));
             },
             [](auto &&err) {
                 LUISA_ERROR("DXC compute-shader compile error: {}", err);
             });
     } else {
         // write HLSL code if compiler not initialized
-        static_cast<void>(fileIo->write_shader_bytecode(fileName, {reinterpret_cast<std::byte const *>(str.result.data()), str.result.size()}));
+        static_cast<void>(file_io->write_shader_bytecode(fileName, {reinterpret_cast<std::byte const *>(str.result.data()), str.result.size()}));
     }
 }
-ID3D12CommandSignature *ComputeShader::CmdSig() const {
+ID3D12CommandSignature *ComputeShader::cmd_sig() const {
     std::lock_guard lck(cmdSigMtx);
     if (cmdSig) return cmdSig.Get();
     D3D12_COMMAND_SIGNATURE_DESC desc{};
-    D3D12_INDIRECT_ARGUMENT_DESC indDesc[2];
-    std::memset(indDesc, 0, vstd::array_byte_size(indDesc));
-    indDesc[0].Type = D3D12_INDIRECT_ARGUMENT_TYPE_CONSTANT;
-    auto &c = indDesc[0].Constant;
+    D3D12_INDIRECT_ARGUMENT_DESC ind_desc[2];
+    std::memset(ind_desc, 0, vstd::array_byte_size(ind_desc));
+    ind_desc[0].Type = D3D12_INDIRECT_ARGUMENT_TYPE_CONSTANT;
+    auto &c = ind_desc[0].Constant;
     c.RootParameterIndex = 0;
     c.DestOffsetIn32BitValues = 0;
     c.Num32BitValuesToSet = 4;
-    indDesc[1].Type = D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH;
+    ind_desc[1].Type = D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH;
     desc.ByteStride = DispatchIndirectStride;
     desc.NumArgumentDescs = 2;
-    desc.pArgumentDescs = indDesc;
+    desc.pArgumentDescs = ind_desc;
     ThrowIfFailed(device->device->CreateCommandSignature(&desc, rootSig.Get(), IID_PPV_ARGS(&cmdSig)));
     return cmdSig.Get();
 }
@@ -302,7 +302,7 @@ ComputeShader::ComputeShader(
     psoDesc.CS.pShaderBytecode = binData.data();
     psoDesc.CS.BytecodeLength = binData.size();
     psoDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
-    ThrowIfFailed(device->device->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(pso.GetAddressOf())));
+    ThrowIfFailed(device->device->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(_pso.GetAddressOf())));
 }
 ComputeShader::ComputeShader(
     uint3 blockSize,
@@ -317,7 +317,7 @@ ComputeShader::ComputeShader(
       argBindings(std::move(bindings)),
       device(device),
       blockSize(blockSize) {
-    this->pso = std::move(pso);
+    this->_pso = std::move(pso);
 }
 
 ComputeShader::~ComputeShader() {

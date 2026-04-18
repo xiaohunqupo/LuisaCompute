@@ -46,12 +46,12 @@ uint3 SparseTexture::TilingSize() const {
     return uint3(width / tileSize.x, height / tileSize.y, depth / tileSize.z);
 }
 SparseTexture::~SparseTexture() {
-    auto &globalHeap = *device->globalHeap.get();
+    auto &global_heap = *device->global_heap.get();
     for (auto &&i : uavIdcs) {
-        globalHeap.ReturnIndex(i.second);
+        global_heap.ReturnIndex(i.second);
     }
     for (auto &&i : srvIdcs) {
-        globalHeap.ReturnIndex(i.second);
+        global_heap.ReturnIndex(i.second);
     }
 }
 D3D12_SHADER_RESOURCE_VIEW_DESC SparseTexture::GetColorSrvDesc(uint mipOffset) const {

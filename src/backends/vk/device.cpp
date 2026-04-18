@@ -30,9 +30,9 @@
 
 namespace lc::vk {
 using namespace std::string_literals;
-static luisa::spin_mutex gDxcMutex;
-static vstd::StackObject<hlsl::ShaderCompiler, false> gDxcCompiler;
-static int32 gDxcRefCount = 0;
+static luisa::spin_mutex g_dxc_mutex;
+static vstd::StackObject<hlsl::ShaderCompiler, false> g_dxc_compiler;
+static int32 g_dxc_ref_count = 0;
 
 namespace detail {
 struct Settings {
@@ -45,25 +45,25 @@ struct Settings {
 static VkInstance vk_instance{nullptr};
 static std::mutex instance_mtx;
 static Settings settings{};
-static PFN_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessengerEXT;
-static PFN_vkDestroyDebugUtilsMessengerEXT vkDestroyDebugUtilsMessengerEXT;
-static VkDebugUtilsMessengerEXT debugUtilsMessenger;
+static PFN_vkCreateDebugUtilsMessengerEXT vk_create_debug_utils_messenger_ext;
+static PFN_vkDestroyDebugUtilsMessengerEXT vk_destroy_debug_utils_messenger_ext;
+static VkDebugUtilsMessengerEXT debug_utils_messenger;
 struct AllocCallbacks {
     VkAllocationCallbacks callbacks{};
     AllocCallbacks() {
         callbacks.pfnAllocation = [](
-                                      void *pUserData,
+                                      void *p_user_data,
                                       size_t size,
                                       size_t alignment,
                                       VkSystemAllocationScope allocationScope) -> void * {
             return luisa::detail::allocator_allocate(size, alignment);
         };
-        callbacks.pfnFree = [](void *pUserData,
+        callbacks.pfnFree = [](void *p_user_data,
                                void *pMemory) {
             luisa::detail::allocator_deallocate(pMemory, 0);
         };
         callbacks.pfnReallocation = [](
-                                        void *pUserData,
+                                        void *p_user_data,
                                         void *pOriginal,
                                         size_t size,
                                         size_t alignment,
@@ -80,29 +80,29 @@ struct InstanceDestructor {
         }
     }
 };
-VKAPI_ATTR VkBool32 VKAPI_CALL debugUtilsMessengerCallback(
-    VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-    VkDebugUtilsMessageTypeFlagsEXT messageType,
-    const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
-    void *pUserData) {
+VKAPI_ATTR VkBool32 VKAPI_CALL debug_utils_messenger_callback(
+    VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
+    VkDebugUtilsMessageTypeFlagsEXT message_type,
+    const VkDebugUtilsMessengerCallbackDataEXT *p_callback_data,
+    void *p_user_data) {
     // Select prefix depending on flags passed to the callback
     vstd::string prefix;
 
-    if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT) {
+    if (message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT) {
         prefix = "VERBOSE: ";
-    } else if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT) {
+    } else if (message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT) {
         prefix = "INFO: ";
-    } else if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
+    } else if (message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
         prefix = "WARNING: ";
-    } else if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
+    } else if (message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
         prefix = "ERROR: ";
     }
 
     // Display message to default output (console/logcat)
-    if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
-        vstd::string debugMessage;
-        debugMessage << prefix << "[" << vstd::to_string(pCallbackData->messageIdNumber) << "][" << pCallbackData->pMessageIdName << "] : " << pCallbackData->pMessage;
-        LUISA_ERROR("{}", debugMessage);
+    if (message_severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
+        vstd::string debug_message;
+        debug_message << prefix << "[" << vstd::to_string(p_callback_data->messageIdNumber) << "][" << p_callback_data->pMessageIdName << "] : " << p_callback_data->pMessage;
+        LUISA_ERROR("{}", debug_message);
     }
     // The return value of this callback controls whether the Vulkan call that caused the validation message will be aborted or not
     // We return VK_FALSE as we DON'T want Vulkan calls that cause a validation message to abort
@@ -110,17 +110,17 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugUtilsMessengerCallback(
     return VK_FALSE;
 }
 
-void setupDebugging(VkInstance instance) {
+void setup_debugging(VkInstance instance) {
 
-    vkCreateDebugUtilsMessengerEXT = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT"));
-    vkDestroyDebugUtilsMessengerEXT = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT"));
+    vk_create_debug_utils_messenger_ext = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT"));
+    vk_destroy_debug_utils_messenger_ext = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT"));
 
-    VkDebugUtilsMessengerCreateInfoEXT debugUtilsMessengerCI{};
-    debugUtilsMessengerCI.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-    debugUtilsMessengerCI.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-    debugUtilsMessengerCI.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT;
-    debugUtilsMessengerCI.pfnUserCallback = debugUtilsMessengerCallback;
-    VkResult result = vkCreateDebugUtilsMessengerEXT(instance, &debugUtilsMessengerCI, Device::alloc_callbacks(), &debugUtilsMessenger);
+    VkDebugUtilsMessengerCreateInfoEXT debug_utils_messenger_ci{};
+    debug_utils_messenger_ci.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+    debug_utils_messenger_ci.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+    debug_utils_messenger_ci.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT;
+    debug_utils_messenger_ci.pfnUserCallback = debug_utils_messenger_callback;
+    VkResult result = vk_create_debug_utils_messenger_ext(instance, &debug_utils_messenger_ci, Device::alloc_callbacks(), &debug_utils_messenger);
     assert(result == VK_SUCCESS);
 }
 vstd::unordered_set<luisa::string> supported_exts(VkPhysicalDevice physical_device) {
@@ -136,26 +136,26 @@ vstd::unordered_set<luisa::string> supported_exts(VkPhysicalDevice physical_devi
     }
     return result;
 }
-void create_instance(bool enableValidation, bool &enableSurface, VkInstance &instance, luisa::filesystem::path const &custom_path, luisa::string_view lib_name, luisa::span<luisa::string const> extra_exts) {
-    vks::VulkanDevice::initVolk(custom_path, lib_name);
+void create_instance(bool enable_validation, bool &enable_surface, VkInstance &instance, luisa::filesystem::path const &custom_path, luisa::string_view lib_name, luisa::span<luisa::string const> extra_exts) {
+    vks::VulkanDevice::init_volk(custom_path, lib_name);
     if (!instance) {
         vstd::vector<const char *> instance_exts;
         instance_exts.reserve(8);
         vstd::unordered_set<vstd::string> supported_instance_exts;
         // Validation can also be forced via a define
-        settings.validation = enableValidation;
+        settings.validation = enable_validation;
 
-        VkApplicationInfo appInfo = {};
-        appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-        appInfo.pApplicationName = "luisa_compute";
-        appInfo.pEngineName = appInfo.pApplicationName;
-        appInfo.apiVersion = VK_API_VERSION_1_3;
+        VkApplicationInfo app_info = {};
+        app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+        app_info.pApplicationName = "luisa_compute";
+        app_info.pEngineName = app_info.pApplicationName;
+        app_info.apiVersion = VK_API_VERSION_1_3;
         // Get extensions supported by the instance and store for later use
-        uint32_t extCount = 0;
-        vkEnumerateInstanceExtensionProperties(nullptr, &extCount, nullptr);
-        if (extCount > 0) {
-            vstd::vector<VkExtensionProperties> extensions(extCount);
-            if (vkEnumerateInstanceExtensionProperties(nullptr, &extCount, &extensions.front()) == VK_SUCCESS) {
+        uint32_t ext_count = 0;
+        vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, nullptr);
+        if (ext_count > 0) {
+            vstd::vector<VkExtensionProperties> extensions(ext_count);
+            if (vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, &extensions.front()) == VK_SUCCESS) {
                 supported_instance_exts.reserve(extensions.size());
                 for (VkExtensionProperties extension : extensions) {
                     supported_instance_exts.emplace(extension.extensionName);
@@ -171,30 +171,30 @@ void create_instance(bool enableValidation, bool &enableSurface, VkInstance &ins
                 return false;
             }
         };
-        if (enableSurface) {
-            enableSurface &= emplace_instance_ext(VK_KHR_SURFACE_EXTENSION_NAME);
-            enableSurface &= emplace_instance_ext(VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME);
+        if (enable_surface) {
+            enable_surface &= emplace_instance_ext(VK_KHR_SURFACE_EXTENSION_NAME);
+            enable_surface &= emplace_instance_ext(VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME);
 #if defined(_WIN32)
-            enableSurface &= emplace_instance_ext(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
+            enable_surface &= emplace_instance_ext(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
 #elif defined(VK_USE_PLATFORM_ANDROID_KHR)
-            enableSurface &= emplace_instance_ext(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
+            enable_surface &= emplace_instance_ext(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
 #elif defined(_DIRECT2DISPLAY)
-            enableSurface &= emplace_instance_ext(VK_KHR_DISPLAY_EXTENSION_NAME);
+            enable_surface &= emplace_instance_ext(VK_KHR_DISPLAY_EXTENSION_NAME);
 #elif defined(VK_USE_PLATFORM_DIRECTFB_EXT)
-            enableSurface &= emplace_instance_ext(VK_EXT_DIRECTFB_SURFACE_EXTENSION_NAME);
+            enable_surface &= emplace_instance_ext(VK_EXT_DIRECTFB_SURFACE_EXTENSION_NAME);
 #elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
-            enableSurface &= emplace_instance_ext(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
+            enable_surface &= emplace_instance_ext(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
 #elif defined(VK_USE_PLATFORM_XCB_KHR)
-            enableSurface &= emplace_instance_ext(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
+            enable_surface &= emplace_instance_ext(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
 #endif
 #if defined(VK_USE_PLATFORM_XLIB_KHR)
-            enableSurface &= emplace_instance_ext(VK_KHR_XLIB_SURFACE_EXTENSION_NAME);
+            enable_surface &= emplace_instance_ext(VK_KHR_XLIB_SURFACE_EXTENSION_NAME);
 #elif defined(VK_USE_PLATFORM_IOS_MVK)
-            enableSurface &= emplace_instance_ext(VK_MVK_IOS_SURFACE_EXTENSION_NAME);
+            enable_surface &= emplace_instance_ext(VK_MVK_IOS_SURFACE_EXTENSION_NAME);
 #elif defined(VK_USE_PLATFORM_MACOS_MVK)
-            enableSurface &= emplace_instance_ext(VK_MVK_MACOS_SURFACE_EXTENSION_NAME);
+            enable_surface &= emplace_instance_ext(VK_MVK_MACOS_SURFACE_EXTENSION_NAME);
 #elif defined(VK_USE_PLATFORM_HEADLESS_EXT)
-            enableSurface &= emplace_instance_ext(VK_EXT_HEADLESS_SURFACE_EXTENSION_NAME);
+            enable_surface &= emplace_instance_ext(VK_EXT_HEADLESS_SURFACE_EXTENSION_NAME);
 #endif
         }
         for (auto &i : extra_exts) {
@@ -206,30 +206,30 @@ void create_instance(bool enableValidation, bool &enableSurface, VkInstance &ins
             emplace_instance_ext(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
         }
 #endif
-        VkInstanceCreateInfo instanceCreateInfo = {};
-        instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-        instanceCreateInfo.pNext = NULL;
-        instanceCreateInfo.pApplicationInfo = &appInfo;
+        VkInstanceCreateInfo instance_create_info = {};
+        instance_create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+        instance_create_info.pNext = NULL;
+        instance_create_info.pApplicationInfo = &app_info;
 
         // The VK_LAYER_KHRONOS_validation contains all current validation functionality.
         // Note that on Android this layer requires at least NDK r20
-        const char *validationLayerName = "VK_LAYER_KHRONOS_validation";
+        const char *validation_layer_name = "VK_LAYER_KHRONOS_validation";
         if (settings.validation) {
             // Check if this layer is available at instance level
-            uint32_t instanceLayerCount;
-            vkEnumerateInstanceLayerProperties(&instanceLayerCount, nullptr);
-            vstd::vector<VkLayerProperties> instanceLayerProperties(instanceLayerCount);
-            vkEnumerateInstanceLayerProperties(&instanceLayerCount, instanceLayerProperties.data());
-            bool validationLayerPresent = false;
-            for (VkLayerProperties layer : instanceLayerProperties) {
-                if (strcmp(layer.layerName, validationLayerName) == 0) {
-                    validationLayerPresent = true;
+            uint32_t instance_layer_count;
+            vkEnumerateInstanceLayerProperties(&instance_layer_count, nullptr);
+            vstd::vector<VkLayerProperties> instance_layer_properties(instance_layer_count);
+            vkEnumerateInstanceLayerProperties(&instance_layer_count, instance_layer_properties.data());
+            bool validation_layer_present = false;
+            for (VkLayerProperties layer : instance_layer_properties) {
+                if (strcmp(layer.layerName, validation_layer_name) == 0) {
+                    validation_layer_present = true;
                     break;
                 }
             }
-            if (validationLayerPresent) {
-                instanceCreateInfo.ppEnabledLayerNames = &validationLayerName;
-                instanceCreateInfo.enabledLayerCount = 1;
+            if (validation_layer_present) {
+                instance_create_info.ppEnabledLayerNames = &validation_layer_name;
+                instance_create_info.enabledLayerCount = 1;
             } else {
                 LUISA_WARNING("Validation layer VK_LAYER_KHRONOS_validation not present, validation is disabled");
                 settings.validation = false;
@@ -240,16 +240,16 @@ void create_instance(bool enableValidation, bool &enableSurface, VkInstance &ins
         // SRS - When running on iOS/macOS with MoltenVK and VK_KHR_portability_enumeration is defined and supported by the instance, enable the extension and the flag
         if (supported_instance_exts.find(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME) == supported_instance_exts.end()) {
             emplace_instance_ext(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-            instanceCreateInfo.flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+            instance_create_info.flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
         }
 #endif
         if (settings.validation) {
             emplace_instance_ext(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);// SRS - Dependency when VK_EXT_DEBUG_MARKER is enabled
             emplace_instance_ext(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
         }
-        instanceCreateInfo.enabledExtensionCount = (uint32_t)instance_exts.size();
-        instanceCreateInfo.ppEnabledExtensionNames = instance_exts.size() > 0 ? instance_exts.data() : nullptr;
-        VK_CHECK_RESULT(vkCreateInstance(&instanceCreateInfo, Device::alloc_callbacks(), &instance));
+        instance_create_info.enabledExtensionCount = (uint32_t)instance_exts.size();
+        instance_create_info.ppEnabledExtensionNames = instance_exts.size() > 0 ? instance_exts.data() : nullptr;
+        VK_CHECK_RESULT(vkCreateInstance(&instance_create_info, Device::alloc_callbacks(), &instance));
     }
     volkLoadInstance(instance);
 }
@@ -298,8 +298,8 @@ void Device::destroy_accel(uint64_t handle) noexcept {
 //////////////// Not implemented area
 Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
     : DeviceInterface{std::move(ctx_arg)},
-      set_bindless_kernel(BuiltinKernel::LoadBindlessSetKernel),
-      set_accel_kernel(BuiltinKernel::LoadAccelSetKernel) {
+      set_bindless_kernel(BuiltinKernel::load_bindless_set_kernel),
+      set_accel_kernel(BuiltinKernel::load_accel_set_kernel) {
     bool headless = false;
     bool use_lmdb = false;
     bool load_dxc = true;
@@ -315,7 +315,7 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
         use_lmdb = configs->use_lmdb;
         device_idx = configs->device_index;
         _binary_io = configs->binary_io;
-        inqueue_limit = configs->inqueue_buffer_limit;
+        _inqueue_limit = configs->inqueue_buffer_limit;
     }
     VkPhysicalDevice ext_phy_device{};
     VkDevice ext_device{};
@@ -356,10 +356,10 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
     Context ctx{this->_ctx_impl};
 #ifndef LC_NO_HLSL_BUILTIN
     if (load_dxc) {
-        std::lock_guard lck(gDxcMutex);
-        if (gDxcRefCount == 0)
-            gDxcCompiler.create(ctx.runtime_directory(), true);
-        gDxcRefCount++;
+        std::lock_guard lck(g_dxc_mutex);
+        if (g_dxc_ref_count == 0)
+            g_dxc_compiler.create(ctx.runtime_directory(), true);
+        g_dxc_ref_count++;
     }
 #endif
     if (!_binary_io) {
@@ -372,9 +372,9 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
             std::lock_guard lck{detail::instance_mtx};
             if (!detail::vk_instance || _external_instance) {
 #ifdef NDEBUG
-                constexpr bool enableValidation = false;
+                constexpr bool enable_validation = false;
 #else
-                constexpr bool enableValidation = true;
+                constexpr bool enable_validation = true;
 #endif
                 luisa::vector<luisa::string> extra_exts = [&]() {
                     if (_config_ext) {
@@ -384,7 +384,7 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
                     }
                 }();
                 bool enable_surface = _enable_surface;
-                detail::create_instance(enableValidation, enable_surface, detail::vk_instance, custom_path, lib_name, extra_exts);
+                detail::create_instance(enable_validation, enable_surface, detail::vk_instance, custom_path, lib_name, extra_exts);
                 _enable_surface = enable_surface;
             }
         }
@@ -395,9 +395,9 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
 
         if (_config_ext) {
             _config_ext->init_volk(vkGetInstanceProcAddr);
-            _config_ext->readback_vulkan_device(instance(), physical_device(), logic_device(), alloc_callbacks(), _pso_header, _graphics_queue, _compute_queue, _copy_queue, graphics_queue_index(), compute_queue_index(), copy_queue_index(), gDxcCompiler->compiler(), gDxcCompiler->library(), gDxcCompiler->utils());
+            _config_ext->readback_vulkan_device(instance(), physical_device(), logic_device(), alloc_callbacks(), _pso_header, _graphics_queue, _compute_queue, _copy_queue, graphics_queue_index(), compute_queue_index(), copy_queue_index(), g_dxc_compiler->compiler(), g_dxc_compiler->library(), g_dxc_compiler->utils());
         }
-        exts.try_emplace(
+        _exts.try_emplace(
 #ifdef LUISA_USE_SYSTEM_STL
             luisa::string{PinnedMemoryExt::name},
 #else
@@ -410,7 +410,7 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
                 delete static_cast<VkPinnedMemoryExt *>(ext);
             });
     }
-    exts.try_emplace(
+    _exts.try_emplace(
 #ifdef LUISA_USE_SYSTEM_STL
         luisa::string{RasterExt::name},
 #else
@@ -422,7 +422,7 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
         [](DeviceExtension *ext) {
             delete static_cast<VkRasterExt *>(ext);
         });
-    exts.try_emplace(
+    _exts.try_emplace(
 #ifdef LUISA_USE_SYSTEM_STL
         luisa::string{NativeResourceExt::name},
 #else
@@ -436,7 +436,7 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
         });
 
 #ifdef LUISA_VULKAN_ENABLE_CUDA_INTEROP
-    exts.try_emplace(
+    _exts.try_emplace(
 #ifdef LUISA_USE_SYSTEM_STL
         luisa::string{VkCudaInterop::name},
 #else
@@ -449,36 +449,36 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
             delete static_cast<VkCudaInteropImpl *>(ext);
         });
 #endif
-    // auto exts = detail::supported_exts(physical_device());
-    // for(auto&& i : exts){
+    // auto _exts = detail::supported_exts(physical_device());
+    // for(auto&& i : _exts){
     //     LUISA_INFO("{}", i.extensionName);
     // }
 
     // func_table.init(this);
 }
 
-void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice external_device, uint32_t selectedDevice) {
+void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice external_device, uint32_t selected_device) {
     VkPhysicalDevice physical_device = external_physical_device;
     if (!physical_device) {
         VkResult err;
 
         // If requested, we enable the default validation layers for debugging
         if (detail::settings.validation) {
-            detail::setupDebugging(detail::vk_instance);
+            detail::setup_debugging(detail::vk_instance);
         }
 
         // Physical device
-        uint32_t gpuCount = 0;
+        uint32_t gpu_count = 0;
         // Get number of available physical devices
-        VK_CHECK_RESULT(vkEnumeratePhysicalDevices(detail::vk_instance, &gpuCount, nullptr));
-        if (gpuCount == 0) {
+        VK_CHECK_RESULT(vkEnumeratePhysicalDevices(detail::vk_instance, &gpu_count, nullptr));
+        if (gpu_count == 0) {
             LUISA_ERROR("No device with Vulkan support found");
             return;
         }
         vstd::vector<VkPhysicalDevice> physical_devices;
         // Enumerate devices
-        luisa::enlarge_by(physical_devices, gpuCount);
-        err = vkEnumeratePhysicalDevices(detail::vk_instance, &gpuCount, physical_devices.data());
+        luisa::enlarge_by(physical_devices, gpu_count);
+        err = vkEnumeratePhysicalDevices(detail::vk_instance, &gpu_count, physical_devices.data());
         if (err) [[unlikely]] {
             LUISA_ERROR("Could not enumerate physical devices : {}", (int)err);
             return;
@@ -493,8 +493,8 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
         // Select physical device to be used for the Vulkan example
         // Defaults to the first device unless specified by command line
         VkPhysicalDeviceProperties device_properties;
-        if (selectedDevice == -1) {
-            selectedDevice = 0;
+        if (selected_device == -1) {
+            selected_device = 0;
             for (auto &&i : physical_devices) {
                 vkGetPhysicalDeviceProperties(i, &device_properties);
                 luisa::string device_name{device_properties.deviceName};
@@ -504,10 +504,10 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
                     LUISA_INFO("Select device: {}", device_name);
                     break;
                 }
-                selectedDevice++;
+                selected_device++;
             }
         }
-        physical_device = physical_devices[std::min<uint32_t>(selectedDevice, physical_devices.size() - 1)];
+        physical_device = physical_devices[std::min<uint32_t>(selected_device, physical_devices.size() - 1)];
     }
 
     // Store properties (including limits), features and memory properties of the physical device (so that examples can check against them)
@@ -520,7 +520,7 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
     // This is handled by a separate class that gets a logical device representation
     // and encapsulates functions related to a device
     _vk_device.create(physical_device);
-    _vk_device->logicalDevice = external_device;
+    _vk_device->logical_device = external_device;
     if (supported_ext.find(VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME) == supported_ext.end()) [[unlikely]] {
         LUISA_ERROR("Necessary extension \"VK_KHR_timeline_semaphore\" is unsupported.");
     }
@@ -623,12 +623,12 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR,
         .pNext = feature_next,
         .rayQuery = VK_TRUE};
-    VkPhysicalDeviceAccelerationStructureFeaturesKHR enabledAccelerationStructureFeatures{
+    VkPhysicalDeviceAccelerationStructureFeaturesKHR enabled_acceleration_structure_features{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
         .pNext = &enable_rayquery_features,
         .accelerationStructure = VK_TRUE};
     if (_enable_raytracing) {
-        feature_next = &enabledAccelerationStructureFeatures;
+        feature_next = &enabled_acceleration_structure_features;
     }
     VkPhysicalDeviceSynchronization2Features barrier_feature{
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES,
@@ -652,17 +652,17 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
 
         .timelineSemaphore = VK_TRUE,
         .bufferDeviceAddress = _enable_device_address ? VK_TRUE : VK_FALSE};
-    VK_CHECK_RESULT(_vk_device->createLogicalDevice(device_features, _enable_device_exts, &vk12_feature, _enable_surface));
-    auto device = _vk_device->logicalDevice;
+    VK_CHECK_RESULT(_vk_device->create_logical_device(device_features, _enable_device_exts, &vk12_feature, _enable_surface));
+    auto device = _vk_device->logical_device;
     volkLoadDevice(device);
 
     // Get a graphics queue from the device
     if (!_external_graphics_queue)
-        vkGetDeviceQueue(device, _vk_device->queueFamilyIndices.graphics, 0, &_graphics_queue);
+        vkGetDeviceQueue(device, _vk_device->queue_family_indices.graphics, 0, &_graphics_queue);
     if (!_external_compute_queue)
-        vkGetDeviceQueue(device, _vk_device->queueFamilyIndices.compute, 0, &_compute_queue);
+        vkGetDeviceQueue(device, _vk_device->queue_family_indices.compute, 0, &_compute_queue);
     if (!_external_copy_queue)
-        vkGetDeviceQueue(device, _vk_device->queueFamilyIndices.transfer, 0, &_copy_queue);
+        vkGetDeviceQueue(device, _vk_device->queue_family_indices.transfer, 0, &_copy_queue);
     _pso_header.headerSize = sizeof(VkPipelineCacheHeaderVersionOne);
     _pso_header.headerVersion = VK_PIPELINE_CACHE_HEADER_VERSION_ONE;
     _pso_header.vendorID = _vk_device->properties.vendorID;
@@ -683,26 +683,26 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
             VkDescriptorPoolSize pool_size;
             pool_size.descriptorCount = buffer_heap_pool.full_size;
             pool_size.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-            VkDescriptorPoolCreateInfo createInfo{
+            VkDescriptorPoolCreateInfo create_info{
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
                 .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
                 .maxSets = 1,
                 .poolSizeCount = 1,
                 .pPoolSizes = &pool_size};
-            VK_CHECK_RESULT(vkCreateDescriptorPool(logic_device(), &createInfo, alloc_callbacks(), &_bdls_buffer_desc_pool));
+            VK_CHECK_RESULT(vkCreateDescriptorPool(logic_device(), &create_info, alloc_callbacks(), &_bdls_buffer_desc_pool));
             VkDescriptorSetLayoutBinding binding{
                 0,
                 VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                 buffer_heap_pool.full_size,
                 VK_SHADER_STAGE_ALL,
                 nullptr};
-            VkDescriptorSetLayoutCreateInfo descriptorLayout{
+            VkDescriptorSetLayoutCreateInfo descriptor_layout{
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
                 .pNext = &bindless_binding_flags,
                 .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
                 .bindingCount = 1,
                 .pBindings = &binding};
-            VK_CHECK_RESULT(vkCreateDescriptorSetLayout(logic_device(), &descriptorLayout, alloc_callbacks(), &_bdls_buffer_set_layout));
+            VK_CHECK_RESULT(vkCreateDescriptorSetLayout(logic_device(), &descriptor_layout, alloc_callbacks(), &_bdls_buffer_set_layout));
             VkDescriptorSetAllocateInfo alloc_info{
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
                 .descriptorPool = _bdls_buffer_desc_pool,
@@ -716,26 +716,26 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
             VkDescriptorPoolSize pool_size;
             pool_size.descriptorCount = tex2d_heap_pool.full_size;
             pool_size.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-            VkDescriptorPoolCreateInfo createInfo{
+            VkDescriptorPoolCreateInfo create_info{
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
                 .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
                 .maxSets = 1,
                 .poolSizeCount = 1,
                 .pPoolSizes = &pool_size};
-            VK_CHECK_RESULT(vkCreateDescriptorPool(logic_device(), &createInfo, alloc_callbacks(), &_bdls_tex2d_desc_pool));
+            VK_CHECK_RESULT(vkCreateDescriptorPool(logic_device(), &create_info, alloc_callbacks(), &_bdls_tex2d_desc_pool));
             VkDescriptorSetLayoutBinding binding{
                 0,
                 VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
                 tex2d_heap_pool.full_size,
                 VK_SHADER_STAGE_ALL,
                 nullptr};
-            VkDescriptorSetLayoutCreateInfo descriptorLayout{
+            VkDescriptorSetLayoutCreateInfo descriptor_layout{
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
                 .pNext = &bindless_binding_flags,
                 .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
                 .bindingCount = 1,
                 .pBindings = &binding};
-            VK_CHECK_RESULT(vkCreateDescriptorSetLayout(logic_device(), &descriptorLayout, alloc_callbacks(), &_bdls_tex2d_set_layout));
+            VK_CHECK_RESULT(vkCreateDescriptorSetLayout(logic_device(), &descriptor_layout, alloc_callbacks(), &_bdls_tex2d_set_layout));
             VkDescriptorSetAllocateInfo alloc_info{
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
                 .descriptorPool = _bdls_tex2d_desc_pool,
@@ -750,26 +750,26 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
             VkDescriptorPoolSize pool_size;
             pool_size.descriptorCount = tex3d_heap_pool.full_size;
             pool_size.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-            VkDescriptorPoolCreateInfo createInfo{
+            VkDescriptorPoolCreateInfo create_info{
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
                 .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
                 .maxSets = 1,
                 .poolSizeCount = 1,
                 .pPoolSizes = &pool_size};
-            VK_CHECK_RESULT(vkCreateDescriptorPool(logic_device(), &createInfo, alloc_callbacks(), &_bdls_tex3d_desc_pool));
+            VK_CHECK_RESULT(vkCreateDescriptorPool(logic_device(), &create_info, alloc_callbacks(), &_bdls_tex3d_desc_pool));
             VkDescriptorSetLayoutBinding binding{
                 0,
                 VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
                 tex3d_heap_pool.full_size,
                 VK_SHADER_STAGE_ALL,
                 nullptr};
-            VkDescriptorSetLayoutCreateInfo descriptorLayout{
+            VkDescriptorSetLayoutCreateInfo descriptor_layout{
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
                 .pNext = &bindless_binding_flags,
                 .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
                 .bindingCount = 1,
                 .pBindings = &binding};
-            VK_CHECK_RESULT(vkCreateDescriptorSetLayout(logic_device(), &descriptorLayout, alloc_callbacks(), &_bdls_tex3d_set_layout));
+            VK_CHECK_RESULT(vkCreateDescriptorSetLayout(logic_device(), &descriptor_layout, alloc_callbacks(), &_bdls_tex3d_set_layout));
             VkDescriptorSetAllocateInfo alloc_info{
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
                 .descriptorPool = _bdls_tex3d_desc_pool,
@@ -784,13 +784,13 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
         VkDescriptorPoolSize pool_size;
         pool_size.descriptorCount = 16;
         pool_size.type = VK_DESCRIPTOR_TYPE_SAMPLER;
-        VkDescriptorPoolCreateInfo createInfo{
+        VkDescriptorPoolCreateInfo create_info{
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
             .flags = 0,
             .maxSets = 1,
             .poolSizeCount = 1,
             .pPoolSizes = &pool_size};
-        VK_CHECK_RESULT(vkCreateDescriptorPool(logic_device(), &createInfo, alloc_callbacks(), &_sampler_pool));
+        VK_CHECK_RESULT(vkCreateDescriptorPool(logic_device(), &create_info, alloc_callbacks(), &_sampler_pool));
         _samplers.resize(16);
         size_t idx = 0;
         for (auto x : vstd::range(4))
@@ -853,11 +853,11 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
             16,
             VK_SHADER_STAGE_ALL,
             _samplers.data()};
-        VkDescriptorSetLayoutCreateInfo descriptorLayout{
+        VkDescriptorSetLayoutCreateInfo descriptor_layout{
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
             .bindingCount = 1,
             .pBindings = &binding};
-        VK_CHECK_RESULT(vkCreateDescriptorSetLayout(logic_device(), &descriptorLayout, alloc_callbacks(), &_sampler_set_layout));
+        VK_CHECK_RESULT(vkCreateDescriptorSetLayout(logic_device(), &descriptor_layout, alloc_callbacks(), &_sampler_set_layout));
         VkDescriptorSetAllocateInfo alloc_info{
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
             .descriptorPool = _sampler_pool,
@@ -891,19 +891,19 @@ Device::~Device() {
     }
     _default_file_io = nullptr;
 #ifndef LC_NO_HLSL_BUILTIN
-    if (gDxcCompiler) {
-        std::lock_guard lck(gDxcMutex);
-        if (--gDxcRefCount == 0) {
-            gDxcCompiler.destroy();
+    if (g_dxc_compiler) {
+        std::lock_guard lck(g_dxc_mutex);
+        if (--g_dxc_ref_count == 0) {
+            g_dxc_compiler.destroy();
         }
     }
 #endif
     if (_external_device) {
-        _vk_device->logicalDevice = nullptr;
-        _vk_device->physicalDevice = nullptr;
+        _vk_device->logical_device = nullptr;
+        _vk_device->physical_device = nullptr;
     }
 }
-void *Device::native_handle() const noexcept { return _vk_device->logicalDevice; }
+void *Device::native_handle() const noexcept { return _vk_device->logical_device; }
 BufferCreationInfo Device::create_buffer(const luisa::compute::Type *element, size_t elem_count, void *external_ptr) noexcept {
     if (element && element->is_custom()) [[unlikely]] {
         LUISA_ERROR("Indirect buffer not supported.");
@@ -987,7 +987,7 @@ void Device::synchronize_stream(uint64_t stream_handle) noexcept {
 }
 void Device::dispatch(
     uint64_t stream_handle, CommandList &&list) noexcept {
-    reinterpret_cast<Stream *>(stream_handle)->dispatch(list.commands(), list.steal_callbacks(), list.presents(), inqueue_limit);
+    reinterpret_cast<Stream *>(stream_handle)->dispatch(list.commands(), list.steal_callbacks(), list.presents(), _inqueue_limit);
 }
 
 // swap chain
@@ -1012,10 +1012,10 @@ void Device::destroy_swapchain(uint64_t handle) noexcept {
     delete reinterpret_cast<Swapchain *>(handle);
 }
 void Device::present_display_in_stream(uint64_t stream_handle, uint64_t swapchain_handle, uint64_t image_handle) noexcept {
-    reinterpret_cast<Stream *>(stream_handle)->present(reinterpret_cast<Texture const *>(image_handle), 0, reinterpret_cast<Swapchain *>(swapchain_handle), inqueue_limit);
+    reinterpret_cast<Stream *>(stream_handle)->present(reinterpret_cast<Texture const *>(image_handle), 0, reinterpret_cast<Swapchain *>(swapchain_handle), _inqueue_limit);
 }
 
-static const bool COMPUTE_PRINT_CODE = ([] {
+static const bool kComputePrintCode = ([] {
     // read env LUISA_DUMP_SOURCE
     auto env = std::getenv("LUISA_DUMP_SOURCE");
     if (env == nullptr) {
@@ -1024,11 +1024,11 @@ static const bool COMPUTE_PRINT_CODE = ([] {
     return std::string_view{env} == "1";
 })();
 bool Device::print_code() {
-    return COMPUTE_PRINT_CODE;
+    return kComputePrintCode;
 }
 // kernel
 ShaderCreationInfo Device::create_shader(const ShaderOption &option, Function kernel) noexcept {
-    LUISA_ASSERT(Device::Compiler(), "Shader compiler not loaded.");
+    LUISA_ASSERT(Device::compiler(), "Shader compiler not loaded.");
     ShaderCreationInfo info;
     uint mask = 0;
     if (option.enable_fast_math) {
@@ -1048,7 +1048,7 @@ ShaderCreationInfo Device::create_shader(const ShaderOption &option, Function ke
             fwrite(code.result.view().data(), code.result.view().size(), 1, f);
             fclose(f);
         }
-        auto comp_result = Device::Compiler()->compile_compute(
+        auto comp_result = Device::compiler()->compile_compute(
             code.result.view(),
             !option.enable_debug_info,
             kernel.use_cooperative_operations() ? k_tensor_shader_model : (kernel.allowed_warp_size().has_value() ? k_high_shader_model : k_shader_model),
@@ -1130,7 +1130,7 @@ ShaderCreationInfo Device::load_shader(luisa::string_view name, luisa::span<cons
 }
 Usage Device::shader_argument_usage(uint64_t handle, size_t index) noexcept {
     auto shader = reinterpret_cast<Shader const *>(handle);
-    return shader->saved_arguments()[index].varUsage;
+    return shader->saved_arguments()[index].var_usage;
 }
 void Device::destroy_shader(uint64_t handle) noexcept {
     delete reinterpret_cast<ComputeShader *>(handle);
@@ -1168,24 +1168,24 @@ LUISA_EXPORT_API void backend_device_names(luisa::vector<luisa::string> &r) {
         if (!detail::vk_instance) {
             destroy_inst = true;
 #ifdef NDEBUG
-            constexpr bool enableValidation = false;
+            constexpr bool enable_validation = false;
 #else
-            constexpr bool enableValidation = true;
+            constexpr bool enable_validation = true;
 #endif
             bool enable_surface{false};
-            detail::create_instance(enableValidation, enable_surface, detail::vk_instance, {}, {}, {});
+            detail::create_instance(enable_validation, enable_surface, detail::vk_instance, {}, {}, {});
         }
     }
     vstd::vector<VkPhysicalDevice> physical_devices;
-    uint32_t gpuCount = 0;
+    uint32_t gpu_count = 0;
     // Get number of available physical devices
-    VK_CHECK_RESULT(vkEnumeratePhysicalDevices(detail::vk_instance, &gpuCount, nullptr));
-    if (gpuCount == 0) {
+    VK_CHECK_RESULT(vkEnumeratePhysicalDevices(detail::vk_instance, &gpu_count, nullptr));
+    if (gpu_count == 0) {
         return;
     }
     // Enumerate devices
-    luisa::enlarge_by(physical_devices, gpuCount);
-    auto err = vkEnumeratePhysicalDevices(detail::vk_instance, &gpuCount, physical_devices.data());
+    luisa::enlarge_by(physical_devices, gpu_count);
+    auto err = vkEnumeratePhysicalDevices(detail::vk_instance, &gpu_count, physical_devices.data());
     if (err) {
         LUISA_ERROR("Could not enumerate physical devices : {}", (int)err);
         return;
@@ -1198,12 +1198,12 @@ LUISA_EXPORT_API void backend_device_names(luisa::vector<luisa::string> &r) {
     }
     if (destroy_inst) {
         vkDestroyInstance(detail::vk_instance, Device::alloc_callbacks());
-        vks::VulkanDevice::forceFreeVolk();
+        vks::VulkanDevice::force_free_volk();
     }
 }
 
-hlsl::ShaderCompiler *Device::Compiler() {
-    return gDxcCompiler ? gDxcCompiler.ptr() : nullptr;
+hlsl::ShaderCompiler *Device::compiler() {
+    return g_dxc_compiler ? g_dxc_compiler.ptr() : nullptr;
 }
 
 VkInstance Device::instance() {
@@ -1214,11 +1214,11 @@ LUISA_EXPORT_API VkInstance init_vk_instance(bool enable_validation, bool &enabl
     std::lock_guard lck{detail::instance_mtx};
     if (!detail::vk_instance) {
 #ifdef NDEBUG
-        constexpr bool enableValidation = false;
+        constexpr bool enable_validation = false;
 #else
-        constexpr bool enableValidation = true;
+        constexpr bool enable_validation = true;
 #endif
-        (void)enableValidation;
+        (void)enable_validation;
         detail::create_instance(enable_validation, enable_surface, detail::vk_instance, custom_vk_lib_path ? luisa::filesystem::path{custom_vk_lib_path} : luisa::filesystem::path{}, custom_vk_lib_name ? luisa::string_view{custom_vk_lib_name} : luisa::string_view{}, luisa::span{extra_instance_exts, extra_instance_ext_count});
     }
     return detail::vk_instance;
@@ -1247,19 +1247,19 @@ void Device::HeapAlloc::dealloc(uint idx) {
 }
 Device::HeapAlloc::HeapAlloc() : sub_allocator(std::numeric_limits<uint32_t>::max(), 1) {}
 Device::HeapAlloc::~HeapAlloc() = default;
-Device::LazyLoadShader::LazyLoadShader(LoadFunc loadFunc) : loadFunc(loadFunc) {}
+Device::LazyLoadShader::LazyLoadShader(LoadFunc load_func) : _load_func(load_func) {}
 Device::LazyLoadShader::~LazyLoadShader() {}
-ComputeShader *Device::LazyLoadShader::Get(Device *self) {
-    if (!shader) {
-        shader = vstd::create_unique(loadFunc(self));
+ComputeShader *Device::LazyLoadShader::get(Device *self) {
+    if (!_shader) {
+        _shader = vstd::create_unique(_load_func(self));
     }
-    return shader.get();
+    return _shader.get();
 }
-bool Device::LazyLoadShader::Check(Device *self) {
-    if (shader) return true;
-    shader = vstd::create_unique(loadFunc(self));
-    if (shader) {
-        auto afterExit = vstd::scope_exit([&] { shader = nullptr; });
+bool Device::LazyLoadShader::check(Device *self) {
+    if (_shader) return true;
+    _shader = vstd::create_unique(_load_func(self));
+    if (_shader) {
+        auto afterExit = vstd::scope_exit([&] { _shader = nullptr; });
         return true;
     }
     return false;
@@ -1327,11 +1327,11 @@ SparseTextureCreationInfo Device::create_sparse_texture(
     return r;
 }
 DeviceExtension *Device::extension(vstd::string_view name) noexcept {
-    auto ite = exts.find(name);
-    if (ite == exts.end()) return nullptr;
+    auto ite = _exts.find(name);
+    if (ite == _exts.end()) return nullptr;
     auto &v = ite->second;
     {
-        std::lock_guard lck{ext_mtx};
+        std::lock_guard lck{_ext_mtx};
         if (v.ext == nullptr) {
             v.ext = v.ctor(this);
         }

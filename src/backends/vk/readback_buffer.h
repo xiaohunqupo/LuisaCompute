@@ -7,7 +7,7 @@ class ReadbackBuffer : public Buffer {
     void *_mapped_ptr{};
 
 public:
-    mutable BufferFlusher _flusher;
+    mutable BufferFlusher flusher;
     ReadbackBuffer(Device *device, size_t size_bytes);
     ~ReadbackBuffer();
     void copy_to(void *data, size_t offset, size_t size) const;

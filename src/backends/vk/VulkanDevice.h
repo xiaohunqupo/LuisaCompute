@@ -21,42 +21,42 @@
 namespace vks {
 struct VulkanDevice {
     /** @brief Physical device representation */
-    VkPhysicalDevice physicalDevice;
+    VkPhysicalDevice physical_device;
     /** @brief Logical device representation (application's view of the device) */
-    VkDevice logicalDevice;
+    VkDevice logical_device;
     /** @brief Properties of the physical device including limits that the application can check against */
     VkPhysicalDeviceProperties properties;
     /** @brief Features of the physical device that an application can use to check if a feature is supported */
-    VkPhysicalDeviceVulkan12Features features12;
+    VkPhysicalDeviceVulkan12Features features_12;
     VkPhysicalDeviceFeatures2 features;
     /** @brief Features that have been enabled for use on the physical device */
-    VkPhysicalDeviceFeatures enabledFeatures;
+    VkPhysicalDeviceFeatures enabled_features;
     /** @brief Memory types and heaps of the physical device */
-    VkPhysicalDeviceMemoryProperties memoryProperties;
+    VkPhysicalDeviceMemoryProperties memory_properties;
     /** @brief Queue family properties of the physical device */
-    vstd::vector<VkQueueFamilyProperties> queueFamilyProperties;
+    vstd::vector<VkQueueFamilyProperties> queue_family_properties;
     /** @brief List of extensions supported by the device */
-    vstd::unordered_set<vstd::string> supportedExtensions;
+    vstd::unordered_set<vstd::string> supported_extensions;
     /** @brief Set to true when the debug marker extension is detected */
-    bool enableDebugMarkers = false;
+    bool enable_debug_markers = false;
     /** @brief Contains queue family indices */
     struct
     {
         uint32_t graphics;
         uint32_t compute;
         uint32_t transfer;
-    } queueFamilyIndices;
+    } queue_family_indices;
     operator VkDevice() const {
-        return logicalDevice;
+        return logical_device;
     };
-    explicit VulkanDevice(VkPhysicalDevice physicalDevice);
+    explicit VulkanDevice(VkPhysicalDevice physical_device);
     ~VulkanDevice();
-    uint32_t getMemoryType(uint32_t typeBits, VkMemoryPropertyFlags properties, VkBool32 *memTypeFound = nullptr) const;
-    uint32_t getQueueFamilyIndex(VkQueueFlags queueFlags) const;
-    VkResult createLogicalDevice(VkPhysicalDeviceFeatures &enabledFeatures, vstd::span<const vstd::string> enabledExtensions, void *pNextChain, bool useSwapChain = true, VkQueueFlags requestedQueueTypes = VK_QUEUE_FLAG_BITS_MAX_ENUM);
-    bool extensionSupported(vstd::string_view extension);
-    VkFormat getSupportedDepthFormat(bool checkSamplingSupport);
-    static void initVolk(luisa::filesystem::path const &custom_path, luisa::string_view lib_name);
-    static void forceFreeVolk();
+    uint32_t get_memory_type(uint32_t typeBits, VkMemoryPropertyFlags properties, VkBool32 *memTypeFound = nullptr) const;
+    uint32_t get_queue_family_index(VkQueueFlags queueFlags) const;
+    VkResult create_logical_device(VkPhysicalDeviceFeatures &enabled_features, vstd::span<const vstd::string> enabledExtensions, void *pNextChain, bool useSwapChain = true, VkQueueFlags requestedQueueTypes = VK_QUEUE_FLAG_BITS_MAX_ENUM);
+    bool extension_supported(vstd::string_view extension);
+    VkFormat get_supported_depth_format(bool checkSamplingSupport);
+    static void init_volk(luisa::filesystem::path const &custom_path, luisa::string_view lib_name);
+    static void force_free_volk();
 };
 }// namespace vks

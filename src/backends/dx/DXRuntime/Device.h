@@ -31,17 +31,17 @@ class Device;
 class DXAllocatorImpl : public luisa::compute::DirectXFuncTable {
 public:
     Device *device;
-    luisa::compute::DirectXHeap AllocateBufferHeap(
+    luisa::compute::DirectXHeap allocate_buffer_heap(
         luisa::string_view name,
-        uint64_t targetSizeInBytes,
-        D3D12_HEAP_TYPE heapType,
-        D3D12_HEAP_FLAGS extraFlags) const noexcept override;
-    luisa::compute::DirectXHeap AllocateTextureHeap(
+        uint64_t target_size_in_bytes,
+        D3D12_HEAP_TYPE heap_type,
+        D3D12_HEAP_FLAGS extra_flags) const noexcept override;
+    luisa::compute::DirectXHeap allocate_texture_heap(
         vstd::string_view name,
-        size_t sizeBytes,
-        bool isRenderTexture,
-        D3D12_HEAP_FLAGS extraFlags) const noexcept override;
-    void DeAllocateHeap(uint64_t handle) const noexcept override;
+        size_t size_bytes,
+        bool is_render_texture,
+        D3D12_HEAP_FLAGS extra_flags) const noexcept override;
+    void deallocate_heap(uint64_t handle) const noexcept override;
 };
 class Device {
 public:
@@ -51,47 +51,47 @@ public:
         INTEL,
         NVIDIA
     };
-    GpuType gpuType = GpuType::OTHER;
-    size_t maxAllocatorCount = 2;
-    luisa::BinaryIO const *fileIo = nullptr;
+    GpuType gpu_type = GpuType::OTHER;
+    size_t max_allocator_count = 2;
+    luisa::BinaryIO const *file_io = nullptr;
     luisa::compute::Profiler *profiler = nullptr;
     struct LazyLoadShader {
     public:
         using LoadFunc = vstd::func_ptr_t<ComputeShader *(Device *)>;
 
     private:
-        vstd::unique_ptr<ComputeShader> shader;
-        LoadFunc loadFunc;
+        vstd::unique_ptr<ComputeShader> _shader;
+        LoadFunc _load_func;
 
     public:
-        LazyLoadShader(LoadFunc loadFunc);
-        ComputeShader *Get(Device *self);
-        bool Check(Device *self);
+        LazyLoadShader(LoadFunc load_func);
+        ComputeShader *get(Device *self);
+        bool check(Device *self);
         ~LazyLoadShader();
     };
-    vstd::unique_ptr<luisa::compute::DefaultBinaryIO> serVisitor;
-    vstd::unique_ptr<luisa::compute::DirectXDeviceConfigExt> deviceSettings;
-    bool SupportMeshShader() const;
-    vstd::MD5 adapterID;
+    vstd::unique_ptr<luisa::compute::DefaultBinaryIO> ser_visitor;
+    vstd::unique_ptr<luisa::compute::DirectXDeviceConfigExt> device_settings;
+    bool support_mesh_shader() const;
+    vstd::MD5 adapter_id;
     DxPtr<IDXGIAdapter1> adapter;
     DxPtr<ID3D12Device5> device;
-    DxPtr<IDXGIFactory2> dxgiFactory;
-    vstd::unique_ptr<GpuAllocator> defaultAllocator;
-    DXAllocatorImpl allocatorInterface;
+    DxPtr<IDXGIFactory2> dxgi_factory;
+    vstd::unique_ptr<GpuAllocator> default_allocator;
+    DXAllocatorImpl allocator_interface;
 
-    vstd::unique_ptr<DescriptorHeap> globalHeap;
-    vstd::unique_ptr<DescriptorHeap> samplerHeap;
-    LazyLoadShader setBindlessKernel;
-    LazyLoadShader setAccelKernel;
+    vstd::unique_ptr<DescriptorHeap> global_heap;
+    vstd::unique_ptr<DescriptorHeap> sampler_heap;
+    LazyLoadShader set_bindless_kernel;
+    LazyLoadShader set_accel_kernel;
 
-    LazyLoadShader bc6TryModeG10;
-    LazyLoadShader bc6TryModeLE10;
-    LazyLoadShader bc6EncodeBlock;
+    LazyLoadShader bc6_try_mode_g10;
+    LazyLoadShader bc6_try_mode_le10;
+    LazyLoadShader bc6_encode_block;
 
-    LazyLoadShader bc7TryMode456;
-    LazyLoadShader bc7TryMode137;
-    LazyLoadShader bc7TryMode02;
-    LazyLoadShader bc7EncodeBlock;
+    LazyLoadShader bc7_try_mode_456;
+    LazyLoadShader bc7_try_mode_137;
+    LazyLoadShader bc7_try_mode_02;
+    LazyLoadShader bc7_encode_block;
 
     /*vstd::unique_ptr<ComputeShader> bc6_0;
     vstd::unique_ptr<ComputeShader> bc6_1;
@@ -105,8 +105,8 @@ public:
     Device(Device const &) = delete;
     Device(Device &&) = delete;
     ~Device();
-    void WaitFence(ID3D12Fence *fence, uint64 fenceIndex);
-    static hlsl::ShaderCompiler *Compiler();
-    uint waveSize() const;
+    void wait_fence(ID3D12Fence *fence, uint64 fenceIndex);
+    static hlsl::ShaderCompiler *compiler();
+    uint wave_size() const;
 };
 }// namespace lc::dx

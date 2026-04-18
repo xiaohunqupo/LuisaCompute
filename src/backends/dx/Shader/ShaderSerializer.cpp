@@ -161,7 +161,7 @@ ComputeShader *ShaderSerializer::DeSerialize(
         profiler->before_load_shader_bytecode(name);
     }
     using namespace shader_ser;
-    auto binStream = ReadBinaryIO(cacheType, &streamFunc, name);
+    auto binStream = read_binary_io(cacheType, &streamFunc, name);
     if (binStream == nullptr || binStream->length() <= sizeof(Header)) {
         if (profiler) [[unlikely]] {
             profiler->after_load_shader_bytecode(name, false);
@@ -288,7 +288,7 @@ RasterShader *ShaderSerializer::RasterDeSerialize(
     vstd::optional<vstd::MD5> const &ilMd5,
     vstd::optional<vstd::MD5> const &typeMD5) {
     using namespace shader_ser;
-    auto binStream = ReadBinaryIO(cacheType, &streamFunc, name);
+    auto binStream = read_binary_io(cacheType, &streamFunc, name);
     if (binStream == nullptr || binStream->length() <= sizeof(RasterHeader)){
         if(binStream) {
             LUISA_INFO("size {}", binStream->length());
@@ -320,7 +320,7 @@ RasterShader *ShaderSerializer::RasterDeSerialize(
     }
     BinaryBlob binCode = binStream->read(targetSize);
     auto binPtr = binCode.data();
-    // auto psoDesc = RasterShader::GetState(
+    // auto psoDesc = RasterShader::get_state(
     //     elements,
     //     meshFormat,
     //     state,

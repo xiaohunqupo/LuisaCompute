@@ -18,34 +18,34 @@ class CommandBufferBuilder {
     friend class CommandBuffer;
 
 private:
-    CommandBuffer const *cb;
-    CommandBufferBuilder(CommandBuffer const *cb);
+    CommandBuffer const *_cb;
+    CommandBufferBuilder(CommandBuffer const *_cb);
     CommandBufferBuilder(CommandBufferBuilder const &) = delete;
     CommandBufferBuilder(CommandBufferBuilder &&);
-    void SetComputeResources(
+    void set_compute_resources(
         Shader const *s,
         vstd::span<const BindProperty> resources);
-    void SetRasterResources(
+    void set_raster_resources(
         Shader const *s,
         vstd::span<const BindProperty> resources);
 
 public:
-    [[nodiscard]] CommandBuffer const *GetCB() const { return cb; }
+    [[nodiscard]] CommandBuffer const *get_cb() const { return _cb; }
 
-    void DispatchCompute(
+    void dispatch_compute(
         ComputeShader const *cs,
         uint3 dispatchId,
         vstd::span<const BindProperty> resources);
-    void DispatchCompute(
+    void dispatch_compute(
         ComputeShader const *cs,
         vstd::span<const uint3> dispatchSizes,
         uint constBindPos,
         vstd::span<const BindProperty> resources);
-    void SetRasterShader(
+    void set_raster_shader(
         RasterShader const *s,
         ID3D12PipelineState *state,
         vstd::span<const BindProperty> resources);
-    void DispatchComputeIndirect(
+    void dispatch_compute_indirect(
         ComputeShader const *cs,
         Buffer const &indirectBuffer,
         uint32_t indirectOffset,
@@ -64,23 +64,23 @@ public:
             dispatchId,
             vstd::span<const BindProperty>{resources.begin(), resources.size()});
     }*/
-    void CopyBuffer(
+    void copy_buffer(
         Buffer const *src,
         Buffer const *dst,
         uint64 srcOffset,
         uint64 dstOffset,
         uint64 byteSize);
-    void CopyTexture(
+    void copy_texture(
         TextureBase const *source, uint sourceSlice, uint sourceMipLevel,
         TextureBase const *dest, uint destSlice, uint destMipLevel);
-    void Upload(BufferView const &buffer, void const *src);
-    void Readback(BufferView const &buffer, void *dst);
-    BufferView GetTempBuffer(size_t size, size_t align = 0);
+    void upload(BufferView const &buffer, void const *src);
+    void readback(BufferView const &buffer, void *dst);
+    BufferView get_temp_buffer(size_t size, size_t align = 0);
     enum class BufferTextureCopy {
         BufferToTexture,
         TextureToBuffer,
     };
-    void CopyBufferTexture(
+    void copy_buffer_texture(
         BufferView const &buffer,
         TextureBase *texture,
         uint3 startCoord,
@@ -94,7 +94,7 @@ public:
         size_t stepSize;
         size_t copySize;
     };
-    static CopyInfo GetCopyTextureBufferSize(
+    static CopyInfo get_copy_texture_buffer_size(
         TextureBase *texture,
         uint3 size);
     ~CommandBufferBuilder();
@@ -103,35 +103,35 @@ class CommandBuffer : public vstd::IOperatorNewBase {
     friend class CommandQueue;
     friend class CommandBufferBuilder;
     friend class CommandAllocator;
-    mutable std::atomic_bool isOpened;
-    void Reset() const;
-    void Close() const;
-    DxPtr<ID3D12GraphicsCommandList4> cmdList;
-    CommandAllocator *alloc;
+    mutable std::atomic_bool _is_opened;
+    void _reset() const;
+    void _close() const;
+    DxPtr<ID3D12GraphicsCommandList4> _cmd_list;
+    CommandAllocator *_alloc;
 
 public:
-    void UpdateCommandBuffer(Device *device);
-    ID3D12GraphicsCommandList4 *CmdList() const { return cmdList.Get(); }
-    ComPtr<ID3D12GraphicsCommandList7> NextCmdList() const {
+    void update_command_buffer(Device *device);
+    ID3D12GraphicsCommandList4 *cmd_list() const { return _cmd_list.Get(); }
+    ComPtr<ID3D12GraphicsCommandList7> next_cmd_list() const {
         ComPtr<ID3D12GraphicsCommandList7> cmdlist;
-        if (cmdList->QueryInterface(IID_PPV_ARGS(&cmdlist)) != S_OK) {
+        if (_cmd_list->QueryInterface(IID_PPV_ARGS(&cmdlist)) != S_OK) {
             return nullptr;
         }
         return cmdlist;
     }
-    bool ContainedCmdList() const { return cmdList.Contained(); }
+    bool contained_cmd_list() const { return _cmd_list.Contained(); }
     CommandBuffer(
         Device *device,
         CommandAllocator *alloc);
-    CommandAllocator *GetAlloc() const;
+    CommandAllocator *get_alloc() const;
     ~CommandBuffer();
     CommandBuffer(CommandBuffer &&v);
-    CommandBufferBuilder Build() const { return CommandBufferBuilder(this); }
+    CommandBufferBuilder build() const { return CommandBufferBuilder(this); }
     KILL_COPY_CONSTRUCT(CommandBuffer)
 };
 struct GraphicsCmdlistBarrierCallback : public BarrierCallback {
     ID3D12GraphicsCommandList *cmdlist;
-    GraphicsCmdlistBarrierCallback(CommandBufferBuilder &builder) : cmdlist(builder.GetCB()->CmdList()) {}
+    GraphicsCmdlistBarrierCallback(CommandBufferBuilder &builder) : cmdlist(builder.get_cb()->cmd_list()) {}
     void Barrier(
         UINT32 NumBarrierGroups,
         const D3D12_BARRIER_GROUP *pBarrierGroups) {

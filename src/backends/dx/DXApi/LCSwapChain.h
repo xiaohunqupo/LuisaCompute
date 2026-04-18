@@ -9,31 +9,31 @@
 namespace lc::dx {
 class LCSwapChain : public Resource {
 public:
-    vstd::vector<SwapChain> m_renderTargets;
-    DxPtr<IDXGISwapChain1> swapChain;
-    uint64 frameIndex = 0;
-    uint64 frameCount = 0;
+    vstd::vector<SwapChain> render_targets;
+    DxPtr<IDXGISwapChain1> swap_chain;
+    uint64 frame_index = 0;
+    uint64 frame_count = 0;
     DXGI_FORMAT format;
-    ComPtr<IDCompositionDevice> dcompDevice;
-    ComPtr<IDCompositionTarget> dcompTarget;
-    ComPtr<IDCompositionVisual> dcompVisual;
+    ComPtr<IDCompositionDevice> dcomp_device;
+    ComPtr<IDCompositionTarget> dcomp_target;
+    ComPtr<IDCompositionVisual> dcomp_visual;
     bool vsync;
     Tag GetTag() const override { return Tag::SwapChain; }
     LCSwapChain(
         Device *device,
         CommandQueue *queue,
-        GpuAllocator *resourceAllocator,
-        HWND windowHandle,
+        GpuAllocator *resource_allocator,
+        HWND window_handle,
         uint width,
         uint height,
         DXGI_FORMAT format,
         bool vsync,
-        uint backBufferCount,
+        uint back_buffer_count,
         bool transparent = false);
     LCSwapChain(
         PixelStorage &storage,
         Device *device,
-        IDXGISwapChain1 *swapChain,
+        IDXGISwapChain1 *swap_chain,
         bool vsync);
 };
 }// namespace lc::dx

@@ -70,7 +70,7 @@ bool TopAccel::GenerateNewBuffer(
         oldBuffer = vstd::create_unique(new DefaultBuffer(
             device,
             newSize,
-            device->defaultAllocator.get(),
+            device->default_allocator.get(),
             state,
             false,
             name));
@@ -81,7 +81,7 @@ bool TopAccel::GenerateNewBuffer(
         auto newBuffer = new DefaultBuffer(
             device,
             newSize,
-            device->defaultAllocator.get(),
+            device->default_allocator.get(),
             state);
         if (needCopy) {
             tracker.Record(
@@ -92,14 +92,14 @@ bool TopAccel::GenerateNewBuffer(
                 EnhancedBarrierTracker::Usage::CopyDest);
             GraphicsCmdlistBarrierCallback callback(builder);
             tracker.UpdateState(&callback);
-            builder.CopyBuffer(
+            builder.copy_buffer(
                 oldBuffer.get(),
                 newBuffer,
                 0,
                 0,
                 oldBuffer->GetByteSize());
         }
-        builder.GetCB()->GetAlloc()->DisposeAfterComplete(std::move(oldBuffer));
+        builder.get_cb()->get_alloc()->dispose_after_complete(std::move(oldBuffer));
         oldBuffer = vstd::create_unique(newBuffer);
         return true;
     }
@@ -274,14 +274,14 @@ void TopAccel::Build(
     CommandBufferBuilder &builder,
     BufferView const *scratchBuffer) {
     if (Length() == 0) return;
-    auto alloc = builder.GetCB()->GetAlloc();
+    auto alloc = builder.get_cb()->get_alloc();
     // Update
     if (!setDesc.empty()) {
-        auto cs = device->setAccelKernel.Get(device);
+        auto cs = device->set_accel_kernel.get(device);
         auto size = setDesc.size();
         auto size_bytes = luisa::size_bytes(setDesc);
-        auto setBuffer = alloc->GetTempUploadBuffer(size_bytes);
-        auto cbuffer = alloc->GetTempUploadBuffer(sizeof(size_t), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+        auto setBuffer = alloc->get_temp_upload_buffer(size_bytes);
+        auto cbuffer = alloc->get_temp_upload_buffer(sizeof(size_t), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
         struct CBuffer {
             uint dsp;
             uint count;
@@ -300,7 +300,7 @@ void TopAccel::Build(
         properties[0] = cbuffer;
         properties[1] = setBuffer;
         properties[2] = BufferView(instBuffer.get());
-        builder.DispatchCompute(
+        builder.dispatch_compute(
             cs,
             uint3(size, 1, 1),
             properties);
@@ -317,12 +317,12 @@ void TopAccel::Build(
             postInfo.InfoType = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_POSTBUILD_INFO_COMPACTED_SIZE;
             auto compactOffset = scratchBuffer->offset + scratchBuffer->byteSize - sizeof(size_t);
             postInfo.DestBuffer = scratchBuffer->buffer->GetAddress() + compactOffset;
-            builder.GetCB()->CmdList()->BuildRaytracingAccelerationStructure(
+            builder.get_cb()->cmd_list()->BuildRaytracingAccelerationStructure(
                 &topLevelBuildDesc,
                 1,
                 &postInfo);
         } else {
-            builder.GetCB()->CmdList()->BuildRaytracingAccelerationStructure(
+            builder.get_cb()->cmd_list()->BuildRaytracingAccelerationStructure(
                 &topLevelBuildDesc,
                 0,
                 nullptr);
@@ -334,15 +334,15 @@ void TopAccel::FinalCopy(
     CommandBufferBuilder &builder,
     BufferView const &scratchBuffer) {
     auto compactOffset = scratchBuffer.offset + scratchBuffer.byteSize - sizeof(size_t);
-    auto &&alloc = builder.GetCB()->GetAlloc();
-    auto readback = alloc->GetTempReadbackBuffer(sizeof(size_t));
-    builder.CopyBuffer(
+    auto &&alloc = builder.get_cb()->get_alloc();
+    auto readback = alloc->get_temp_readback_buffer(sizeof(size_t));
+    builder.copy_buffer(
         scratchBuffer.buffer,
         readback.buffer,
         compactOffset,
         readback.offset,
         sizeof(size_t));
-    alloc->ExecuteAfterComplete([readback, this] {
+    alloc->execute_after_complete([readback, this] {
         static_cast<ReadbackBuffer const *>(readback.buffer)->CopyData(readback.offset, {(uint8_t *)&compactSize, sizeof(size_t)});
     });
 }
@@ -354,18 +354,18 @@ bool TopAccel::CheckAccel(
     auto disp = vstd::scope_exit([&] { compactSize = 0; });
     if (compactSize == 0)
         return false;
-    auto &&alloc = builder.GetCB()->GetAlloc();
+    auto &&alloc = builder.get_cb()->get_alloc();
     auto newAccelBuffer = vstd::create_unique(new DefaultBuffer(
         device,
         CalcAlign(compactSize, 65536),
-        device->defaultAllocator.get(),
+        device->default_allocator.get(),
         D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE));
 
-    builder.GetCB()->CmdList()->CopyRaytracingAccelerationStructure(
+    builder.get_cb()->cmd_list()->CopyRaytracingAccelerationStructure(
         newAccelBuffer->GetAddress(),
         accelBuffer->GetAddress(),
         D3D12_RAYTRACING_ACCELERATION_STRUCTURE_COPY_MODE_COMPACT);
-    alloc->DisposeAfterComplete(std::move(accelBuffer));
+    alloc->dispose_after_complete(std::move(accelBuffer));
     accelBuffer = std::move(newAccelBuffer);
     return true;
 }

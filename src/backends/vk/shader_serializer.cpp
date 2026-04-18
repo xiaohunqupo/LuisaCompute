@@ -44,7 +44,6 @@ class StringViewBinaryStream : public BinaryStream {
 
 public:
     luisa::string_view strv;
-    size_t _pos{};
     explicit StringViewBinaryStream(luisa::string_view strv) : strv(strv) {}
     [[nodiscard]] size_t length() const noexcept override { return strv.size(); }
     [[nodiscard]] size_t pos() const noexcept override { return _pos; }
@@ -53,7 +52,10 @@ public:
         std::memcpy(dst.data(), strv.data() + _pos, dst.size());
         _pos += dst.size();
     }
-    ~StringViewBinaryStream() noexcept = default;
+    ~StringViewBinaryStream() noexcept override = default;
+
+private:
+    size_t _pos{};
 };
 
 luisa::unique_ptr<luisa::BinaryStream> read_binary_io(SerdeType type, luisa::BinaryIO const *bin_io, luisa::string_view file_name) {

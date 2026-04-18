@@ -24,8 +24,8 @@ enum class CacheType : uint8_t {
     Cache,
     ByteCode
 };
-luisa::unique_ptr<luisa::BinaryStream> ReadBinaryIO(CacheType type, luisa::BinaryIO const *binIo, luisa::string_view name);
-inline static void WriteBinaryIO(CacheType type, luisa::BinaryIO const *binIo, luisa::string_view name, luisa::span<std::byte const> data) {
+luisa::unique_ptr<luisa::BinaryStream> read_binary_io(CacheType type, luisa::BinaryIO const *binIo, luisa::string_view name);
+inline static void write_binary_io(CacheType type, luisa::BinaryIO const *binIo, luisa::string_view name, luisa::span<std::byte const> data) {
     switch (type) {
         case CacheType::ByteCode:
             static_cast<void>(binIo->write_shader_bytecode(name, data));
@@ -48,23 +48,23 @@ public:
         RayTracingShader,
         RasterShader
     };
-    virtual Tag GetTag() const = 0;
+    virtual Tag get_tag() const = 0;
 
 protected:
     Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSig;
-    vstd::vector<hlsl::Property> properties;
+    vstd::vector<hlsl::Property> _properties;
     vstd::vector<SavedArgument> kernelArguments;
-    vstd::vector<std::pair<vstd::string, Type const *>> printers;
+    vstd::vector<std::pair<vstd::string, Type const *>> _printers;
     uint bindlessCount;
-    void SavePSO(ID3D12PipelineState *pso, vstd::string_view psoName, luisa::BinaryIO const *fileStream, Device const *device) const;
+    void save_pso(ID3D12PipelineState *pso, vstd::string_view psoName, luisa::BinaryIO const *fileStream, Device const *device) const;
 
 public:
-    static vstd::string PSOName(Device const *device, vstd::string_view fileName);
+    static vstd::string pso_name(Device const *device, vstd::string_view fileName);
     virtual ~Shader() noexcept = default;
-    vstd::span<const std::pair<vstd::string, Type const *>> Printers() const { return printers; }
-    uint BindlessCount() const { return bindlessCount; }
-    vstd::span<hlsl::Property const> Properties() const { return properties; }
-    vstd::span<SavedArgument const> Args() const { return kernelArguments; }
+    vstd::span<const std::pair<vstd::string, Type const *>> printers() const { return _printers; }
+    uint bindless_count() const { return bindlessCount; }
+    vstd::span<hlsl::Property const> properties() const { return _properties; }
+    vstd::span<SavedArgument const> args() const { return kernelArguments; }
     Shader(
         vstd::vector<hlsl::Property> &&properties,
         vstd::vector<SavedArgument> &&args,
@@ -76,38 +76,38 @@ public:
         vstd::vector<SavedArgument> &&args,
         ComPtr<ID3D12RootSignature> &&rootSig,
         vstd::vector<std::pair<vstd::string, Type const *>> &&printers);
-    ID3D12RootSignature *RootSig() const { return rootSig.Get(); }
+    ID3D12RootSignature *root_sig() const { return rootSig.Get(); }
 
-    void SetComputeResource(
+    void set_compute_resource(
         uint propertyName,
         CommandBufferBuilder *cmdList,
         BufferView buffer) const;
-    void SetComputeResource(
+    void set_compute_resource(
         uint propertyName,
         CommandBufferBuilder *cmdList,
         DescriptorHeapView view) const;
-    void SetComputeResource(
+    void set_compute_resource(
         uint propertyName,
         CommandBufferBuilder *cmdList,
         TopAccel const *bAccel) const;
-    void SetComputeResource(
+    void set_compute_resource(
         uint propertyName,
         CommandBufferBuilder *cmdList,
         std::pair<uint, uint4> const &constValue) const;
 
-    void SetRasterResource(
+    void set_raster_resource(
         uint propertyName,
         CommandBufferBuilder *cmdList,
         BufferView buffer) const;
-    void SetRasterResource(
+    void set_raster_resource(
         uint propertyName,
         CommandBufferBuilder *cmdList,
         DescriptorHeapView view) const;
-    void SetRasterResource(
+    void set_raster_resource(
         uint propertyName,
         CommandBufferBuilder *cmdList,
         TopAccel const *bAccel) const;
-    void SetRasterResource(
+    void set_raster_resource(
         uint propertyName,
         CommandBufferBuilder *cmdList,
         std::pair<uint, uint4> const &constValue) const;

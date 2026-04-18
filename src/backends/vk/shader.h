@@ -12,14 +12,14 @@ namespace lc::vk {
 using namespace luisa::compute;
 struct SavedArgument {
     luisa::compute::Type::Tag tag{};
-    Usage varUsage{};
-    uint structSize{};
+    Usage var_usage{};
+    uint struct_size{};
     SavedArgument() = default;
     SavedArgument(Function kernel, Variable const &var) : SavedArgument(var.type()) {
-        varUsage = kernel.variable_usage(var.uid());
+        var_usage = kernel.variable_usage(var.uid());
     }
     SavedArgument(Usage usage, Variable const &var) : SavedArgument(var.type()) {
-        varUsage = usage;
+        var_usage = usage;
     }
     explicit SavedArgument(luisa::compute::Type const *type);
 };
@@ -47,9 +47,9 @@ public:
     auto captured() const { return vstd::span<const Argument>{_captured}; }
     auto desc_set_layout() const { return vstd::span{_desc_set_layout}; }
     auto saved_arguments() const { return vstd::span{_saved_arguments}; }
-    bool use_tex2d_bindless() const { return _use_tex2d_bindless; };
-    bool use_tex3d_bindless() const { return _use_tex3d_bindless; };
-    bool use_buffer_bindless() const { return _use_buffer_bindless; };
+    bool use_tex2d_bindless() const { return _use_tex2d_bindless; }
+    bool use_tex3d_bindless() const { return _use_tex3d_bindless; }
+    bool use_buffer_bindless() const { return _use_buffer_bindless; }
     auto printers() const { return luisa::span{_printers}; }
     Shader(
         Device *device,

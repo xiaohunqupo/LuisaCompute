@@ -39,32 +39,32 @@
 
 // Macro to check and display Vulkan return results
 
-const luisa::string getAssetPath();
+const luisa::string get_asset_path();
 
 namespace vks
 {
 	namespace tools
 	{
 		/** @brief Disable message boxes on fatal errors */
-		extern bool errorModeSilent;
+		extern bool error_mode_silent;
 
 		/** @brief Returns an error code as a string */
-		luisa::string errorString(VkResult errorCode);
+		luisa::string error_string(VkResult errorCode);
 
 		/** @brief Returns the device type as a string */
-		luisa::string physicalDeviceTypeString(VkPhysicalDeviceType type);
+		luisa::string physical_device_type_string(VkPhysicalDeviceType type);
 
 		// Selected a suitable supported depth format starting with 32 bit down to 16 bit
 		// Returns false if none of the depth formats in the list is supported by the device
-		VkBool32 getSupportedDepthFormat(VkPhysicalDevice physicalDevice, VkFormat *depthFormat);
+		VkBool32 get_supported_depth_format(VkPhysicalDevice physicalDevice, VkFormat *depthFormat);
 
 		// Returns tru a given format support LINEAR filtering
-		VkBool32 formatIsFilterable(VkPhysicalDevice physicalDevice, VkFormat format, VkImageTiling tiling);
+		VkBool32 format_is_filterable(VkPhysicalDevice physicalDevice, VkFormat format, VkImageTiling tiling);
 		// Returns true if a given format has a stencil part
-		VkBool32 formatHasStencil(VkFormat format);
+		VkBool32 format_has_stencil(VkFormat format);
 
 		// Put an image memory barrier for setting an image layout on the sub resource into the given command buffer
-		void setImageLayout(
+		void set_image_layout(
 			VkCommandBuffer cmdbuffer,
 			VkImage image,
 			VkImageLayout oldImageLayout,
@@ -73,7 +73,7 @@ namespace vks
 			VkPipelineStageFlags srcStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
 			VkPipelineStageFlags dstStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
 		// Uses a fixed sub resource layout with first mip level and layer
-		void setImageLayout(
+		void set_image_layout(
 			VkCommandBuffer cmdbuffer,
 			VkImage image,
 			VkImageAspectFlags aspectMask,
@@ -83,7 +83,7 @@ namespace vks
 			VkPipelineStageFlags dstStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
 
 		/** @brief Insert an image memory barrier into the command buffer */
-		void insertImageMemoryBarrier(
+		void insert_image_memory_barrier(
 			VkCommandBuffer cmdbuffer,
 			VkImage image,
 			VkAccessFlags srcAccessMask,
@@ -96,15 +96,15 @@ namespace vks
 
 		// Load a SPIR-V shader (binary)
 #if defined(__ANDROID__)
-		VkShaderModule loadShader(AAssetManager* assetManager, const char *fileName, VkDevice device);
+		VkShaderModule load_shader(AAssetManager* assetManager, const char *fileName, VkDevice device);
 #else
-		VkShaderModule loadShader(const char *fileName, VkDevice device);
+		VkShaderModule load_shader(const char *fileName, VkDevice device);
 #endif
 
 		/** @brief Checks if a file exists */
-		bool fileExists(const luisa::string &filename);
+		bool file_exists(const luisa::string &filename);
 
-		uint32_t alignedSize(uint32_t value, uint32_t alignment);
+		uint32_t aligned_size(uint32_t value, uint32_t alignment);
 	}
 }
 

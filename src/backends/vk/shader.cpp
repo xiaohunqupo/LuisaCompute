@@ -4,7 +4,7 @@
 namespace lc::vk {
 SavedArgument::SavedArgument(luisa::compute::Type const *type) {
     if (luisa::to_underlying(type->tag()) < luisa::to_underlying(luisa::compute::Type::Tag::BUFFER)) {
-        structSize = type->size();
+        struct_size = type->size();
     }
 }
 Shader::Shader(
@@ -87,21 +87,21 @@ Shader::Shader(
         .bindingCount = 1,
         .pBindingFlags = &desc_binding_flag};
     for (auto &&i : bindings) {
-        VkDescriptorSetLayoutCreateInfo descriptorLayout{
+        VkDescriptorSetLayoutCreateInfo descriptor_layout{
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
             .pNext = (*is_bindless_iter) ? &bindless_binding_flags : nullptr,
             .flags = (*is_bindless_iter) ? (VkDescriptorSetLayoutCreateFlags)VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT : (VkDescriptorSetLayoutCreateFlags)0,
             .bindingCount = static_cast<uint>(i.size()),
             .pBindings = i.data()};
         auto &r = _desc_set_layout.emplace_back();
-        VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device->logic_device(), &descriptorLayout, Device::alloc_callbacks(), &r));
+        VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device->logic_device(), &descriptor_layout, Device::alloc_callbacks(), &r));
         ++is_bindless_iter;
     }
     VkPushConstantRange push_const_range{
         VkShaderStageFlags(stage_bits),
         0,
         16};
-    VkPipelineLayoutCreateInfo pPipelineLayoutCreateInfo{
+    VkPipelineLayoutCreateInfo pipeline_layout_create_info{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .setLayoutCount = static_cast<uint>(_desc_set_layout.size()),
         .pSetLayouts = _desc_set_layout.data(),
@@ -110,7 +110,7 @@ Shader::Shader(
     VK_CHECK_RESULT(
         vkCreatePipelineLayout(
             device->logic_device(),
-            &pPipelineLayoutCreateInfo,
+            &pipeline_layout_create_info,
             Device::alloc_callbacks(),
             &_pipeline_layout));
 }

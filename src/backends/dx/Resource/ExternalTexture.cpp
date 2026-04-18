@@ -24,12 +24,12 @@ ExternalTexture::ExternalTexture(
       resource{resource}{
 }
 ExternalTexture::~ExternalTexture() {
-    auto &globalHeap = *device->globalHeap.get();
+    auto &global_heap = *device->global_heap.get();
     for (auto &&i : uavIdcs) {
-        globalHeap.ReturnIndex(i.second);
+        global_heap.ReturnIndex(i.second);
     }
     for (auto &&i : srvIdcs) {
-        globalHeap.ReturnIndex(i.second);
+        global_heap.ReturnIndex(i.second);
     }
 }
 
@@ -47,8 +47,8 @@ uint ExternalTexture::GetGlobalSRVIndex(uint mipOffset) const {
     auto ite = srvIdcs.try_emplace(
         mipOffset,
         vstd::lazy_eval([&]() -> uint {
-            auto v = device->globalHeap->AllocateIndex();
-            device->globalHeap->CreateSRV(
+            auto v = device->global_heap->AllocateIndex();
+            device->global_heap->CreateSRV(
                 GetResource(),
                 GetColorSrvDesc(mipOffset),
                 v);
@@ -62,8 +62,8 @@ uint ExternalTexture::GetGlobalUAVIndex(uint mipLevel) const {
     auto ite = uavIdcs.try_emplace(
         mipLevel,
         vstd::lazy_eval([&]() -> uint {
-            auto v = device->globalHeap->AllocateIndex();
-            device->globalHeap->CreateUAV(
+            auto v = device->global_heap->AllocateIndex();
+            device->global_heap->CreateUAV(
                 GetResource(),
                 GetColorUavDesc(mipLevel),
                 v);

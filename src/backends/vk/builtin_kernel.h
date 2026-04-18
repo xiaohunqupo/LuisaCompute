@@ -3,8 +3,8 @@
 namespace lc::vk {
 class BuiltinKernel {
 public:
-    static ComputeShader *LoadBindlessSetKernel(Device *device);
-    static ComputeShader *LoadAccelSetKernel(Device *device);
+    static ComputeShader *load_bindless_set_kernel(Device *device);
+    static ComputeShader *load_accel_set_kernel(Device *device);
     // static ComputeShader *LoadBC6TryModeG10CSKernel(Device *device);
     // static ComputeShader *LoadBC6TryModeLE10CSKernel(Device *device);
     // static ComputeShader *LoadBC6EncodeBlockCSKernel(Device *device);
@@ -13,5 +13,5 @@ public:
     // static ComputeShader *LoadBC7TryMode02CSKernel(Device *device);
     // static ComputeShader *LoadBC7EncodeBlockCSKernel(Device *device);
 };
-}// namespace lc::dx
+}// namespace lc::vk
 

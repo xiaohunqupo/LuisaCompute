@@ -136,14 +136,14 @@ size_t BottomAccel::PreProcessStates(
         &bottomInput,
         &bottomLevelPrebuildInfo);
     // workaround driver bug
-    if (RequireCompact() && device->gpuType == Device::GpuType::NVIDIA) {
+    if (RequireCompact() && device->gpu_type == Device::GpuType::NVIDIA) {
         bottomLevelPrebuildInfo.ResultDataMaxSizeInBytes += 65536;
     }
     auto SetAccelBuffer = [&] {
         accelBuffer = vstd::create_unique(new DefaultBuffer(
             device,
             CalcAlign(bottomLevelPrebuildInfo.ResultDataMaxSizeInBytes, 65536),
-            device->defaultAllocator.get(),
+            device->default_allocator.get(),
             D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
             false,
             "blas-accel-buffer"));
@@ -153,7 +153,7 @@ size_t BottomAccel::PreProcessStates(
         SetAccelBuffer();
     } else if (accelBuffer->GetByteSize() < bottomLevelPrebuildInfo.ResultDataMaxSizeInBytes) {
         update = false;
-        builder.GetCB()->GetAlloc()->DisposeAfterComplete(std::move(accelBuffer));
+        builder.get_cb()->get_alloc()->dispose_after_complete(std::move(accelBuffer));
         SetAccelBuffer();
         SyncTopAccel();
     }
@@ -174,19 +174,19 @@ bool BottomAccel::CheckAccel(
     auto disp = vstd::scope_exit([&] { compactSize = 0; });
     if (compactSize == 0)
         return false;
-    auto &&alloc = builder.GetCB()->GetAlloc();
+    auto &&alloc = builder.get_cb()->get_alloc();
     auto newAccelBuffer = vstd::create_unique(new DefaultBuffer(
         device,
         CalcAlign(compactSize, 65536),
-        device->defaultAllocator.get(),
+        device->default_allocator.get(),
         D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
         false,
         "blas-accel-buffer"));
-    builder.GetCB()->CmdList()->CopyRaytracingAccelerationStructure(
+    builder.get_cb()->cmd_list()->CopyRaytracingAccelerationStructure(
         newAccelBuffer->GetAddress(),
         accelBuffer->GetAddress(),
         D3D12_RAYTRACING_ACCELERATION_STRUCTURE_COPY_MODE_COMPACT);
-    alloc->DisposeAfterComplete(std::move(accelBuffer));
+    alloc->dispose_after_complete(std::move(accelBuffer));
     accelBuffer = std::move(newAccelBuffer);
     SyncTopAccel();
     return true;
@@ -203,12 +203,12 @@ void BottomAccel::UpdateStates(
         postInfo.InfoType = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_POSTBUILD_INFO_COMPACTED_SIZE;
         auto compactOffset = scratchBuffer.offset + scratchBuffer.byteSize - sizeof(size_t);
         postInfo.DestBuffer = scratchBuffer.buffer->GetAddress() + compactOffset;
-        builder.GetCB()->CmdList()->BuildRaytracingAccelerationStructure(
+        builder.get_cb()->cmd_list()->BuildRaytracingAccelerationStructure(
             &accelData.bottomStruct,
             1,
             &postInfo);
     } else {
-        builder.GetCB()->CmdList()->BuildRaytracingAccelerationStructure(
+        builder.get_cb()->cmd_list()->BuildRaytracingAccelerationStructure(
             &accelData.bottomStruct,
             0,
             nullptr);
@@ -218,15 +218,15 @@ void BottomAccel::FinalCopy(
     CommandBufferBuilder &builder,
     BufferView const &scratchBuffer) {
     auto compactOffset = scratchBuffer.offset + scratchBuffer.byteSize - sizeof(size_t);
-    auto &&alloc = builder.GetCB()->GetAlloc();
-    auto readback = alloc->GetTempReadbackBuffer(sizeof(size_t));
-    builder.CopyBuffer(
+    auto &&alloc = builder.get_cb()->get_alloc();
+    auto readback = alloc->get_temp_readback_buffer(sizeof(size_t));
+    builder.copy_buffer(
         scratchBuffer.buffer,
         readback.buffer,
         compactOffset,
         readback.offset,
         sizeof(size_t));
-    alloc->ExecuteAfterComplete([readback, this] {
+    alloc->execute_after_complete([readback, this] {
         static_cast<ReadbackBuffer const *>(readback.buffer)->CopyData(readback.offset, {(uint8_t *)&compactSize, sizeof(size_t)});
     });
 }

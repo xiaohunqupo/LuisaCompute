@@ -85,19 +85,19 @@ private:
 
 public:
     // ID3D12CommandSignature *CmdSig(size_t vertexCount, bool index);
-    ID3D12PipelineState *GetPSO(
+    ID3D12PipelineState *get_pso(
         vstd::span<GFXFormat const> rtvFormats,
         MeshFormat const &meshFormat,
         DepthFormat dsvFormat,
         RasterState const &rasterState);
-    Tag GetTag() const noexcept override { return Tag::RasterShader; }
-    static vstd::MD5 GenMD5(
+    Tag get_tag() const noexcept override { return Tag::RasterShader; }
+    static vstd::MD5 gen_md5(
         vstd::MD5 const &codeMD5,
         MeshFormat const &meshFormat);
-    static void GetMeshFormatState(
+    static void get_mesh_format_state(
         vstd::vector<D3D12_INPUT_ELEMENT_DESC> &inputLayout,
         MeshFormat const &meshFormat);
-    static D3D12_GRAPHICS_PIPELINE_STATE_DESC GetState(
+    static D3D12_GRAPHICS_PIPELINE_STATE_DESC get_state(
         vstd::span<D3D12_INPUT_ELEMENT_DESC const> inputLayout,
         RasterState const &state,
         vstd::span<GFXFormat const> rtv,
@@ -113,8 +113,8 @@ public:
 
     ~RasterShader();
 
-    static RasterShader *CompileRaster(
-        luisa::BinaryIO const *fileIo,
+    static RasterShader *compile_raster(
+        luisa::BinaryIO const *file_io,
         Device *device,
         Function vertexKernel,
         Function pixelKernel,
@@ -125,8 +125,8 @@ public:
         CacheType cacheType,
         bool enableUnsafeMath,
         bool debug);
-    static void SaveRaster(
-        luisa::BinaryIO const *fileIo,
+    static void save_raster(
+        luisa::BinaryIO const *file_io,
         Device *device,
         hlsl::CodegenResult const &result,
         vstd::MD5 const &md5,
@@ -136,8 +136,8 @@ public:
         uint shaderModel,
         bool enableUnsafeMath,
         bool debug);
-    static RasterShader *LoadRaster(
-        luisa::BinaryIO const *fileIo,
+    static RasterShader *load_raster(
+        luisa::BinaryIO const *file_io,
         Device *device,
         luisa::span<Type const *const> types,
         vstd::string_view fileName);

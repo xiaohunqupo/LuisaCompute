@@ -13,7 +13,7 @@ BindlessArray::BindlessArray(
     Device *device, uint arraySize,
     BindlessSlotType type)
     : Resource(device),
-      buffer(device, type != BindlessSlotType::MULTIPLE ? sizeof(uint) : (arraySize * sizeof(BindlessStruct)), device->defaultAllocator.get()) {
+      buffer(device, type != BindlessSlotType::MULTIPLE ? sizeof(uint) : (arraySize * sizeof(BindlessStruct)), device->default_allocator.get()) {
     if (!device->feature_check.bindless_binding_supported()) [[unlikely]] {
         LUISA_ERROR("Current device not support bindless.");
     }
@@ -22,23 +22,23 @@ BindlessArray::BindlessArray(
             typed_binded.reset_as<vstd::vector<std::pair<BindlessStruct, MapIndicies>>>(arraySize);
             break;
         default: {
-            _buffer_node = device->globalHeap->SubAllocate(arraySize);
+            _buffer_node = device->global_heap->SubAllocate(arraySize);
             typed_binded.reset_as<vstd::vector<MapIndex>>(arraySize);
         } break;
     }
 }
 BindlessArray::~BindlessArray() {
     if (_buffer_node) {
-        device->globalHeap->DeAllocate(_buffer_node);
+        device->global_heap->DeAllocate(_buffer_node);
     }
     auto Return = [&](auto &&i) {
         if (i != BindlessStruct::n_pos) {
-            device->globalHeap->ReturnIndex(i);
+            device->global_heap->ReturnIndex(i);
         }
     };
     auto ReturnTex = [&](auto &&i) {
         if (i != BindlessStruct::n_pos) {
-            device->globalHeap->ReturnIndex(i & BindlessStruct::mask);
+            device->global_heap->ReturnIndex(i & BindlessStruct::mask);
         }
     };
     if (auto binded = typed_binded.try_get<vstd::vector<std::pair<BindlessStruct, MapIndicies>>>()) {
@@ -49,7 +49,7 @@ BindlessArray::~BindlessArray() {
         }
     }
     for (auto &&i : freeQueue) {
-        device->globalHeap->ReturnIndex(i);
+        device->global_heap->ReturnIndex(i);
     }
 }
 void BindlessArray::Deref(MapIndex &index) {
@@ -65,7 +65,7 @@ void BindlessArray::TryReturnIndexTex(MapIndex &index, uint &originValue) {
     if (originValue != BindlessStruct::n_pos) {
         freeQueue.push_back(originValue & BindlessStruct::mask);
         originValue = BindlessStruct::n_pos;
-        // device->globalHeap->ReturnIndex(originValue);
+        // device->global_heap->ReturnIndex(originValue);
         auto &&v = index.value();
         v--;
         if (v == 0) {
@@ -78,7 +78,7 @@ void BindlessArray::TryReturnIndex(MapIndex &index, uint &originValue) {
     if (originValue != BindlessStruct::n_pos) {
         freeQueue.push_back(originValue);
         originValue = BindlessStruct::n_pos;
-        // device->globalHeap->ReturnIndex(originValue);
+        // device->global_heap->ReturnIndex(originValue);
         auto &&v = index.value();
         v--;
         if (v == 0) {
@@ -104,7 +104,7 @@ void BindlessArray::Bind(vstd::span<const BindlessArrayUpdateCommand::BufferModi
         using Ope = BindlessArrayUpdateCommand::Modification::Operation;
         if (mod.buffer.op == Ope::EMPLACE) {
             BufferView v{reinterpret_cast<Buffer *>(mod.buffer.handle), mod.buffer.offset_bytes};
-            auto newIdx = device->globalHeap->GetSubAllocOffset(_buffer_node) + mod.slot;
+            auto newIdx = device->global_heap->GetSubAllocOffset(_buffer_node) + mod.slot;
             auto desc = v.buffer->GetColorSrvDesc(
                 v.offset,
                 v.byteSize);
@@ -113,7 +113,7 @@ void BindlessArray::Bind(vstd::span<const BindlessArrayUpdateCommand::BufferModi
                 LUISA_ERROR("illagel buffer");
             }
 #endif
-            device->globalHeap->CreateSRV(
+            device->global_heap->CreateSRV(
                 v.buffer->GetResource(),
                 *desc,
                 newIdx);
@@ -129,7 +129,7 @@ void BindlessArray::Bind(vstd::span<const BindlessArrayUpdateCommand::Texture2DM
     std::lock_guard lck{mtx};
     if (mods.empty()) return;
     auto EmplaceTex = [&](uint texIdx, MapIndex &indices, uint64_t handle, TextureBase const *tex, Sampler const &samp) {
-        device->globalHeap->CreateSRV(
+        device->global_heap->CreateSRV(
             tex->GetResource(),
             tex->GetColorSrvDesc(),
             texIdx);
@@ -139,7 +139,7 @@ void BindlessArray::Bind(vstd::span<const BindlessArrayUpdateCommand::Texture2DM
     for (auto &&mod : mods) {
         [[maybe_unused]] auto vv = mod.slot;
         auto &indices = binded[mod.slot];
-        auto newIdx = device->globalHeap->GetSubAllocOffset(_buffer_node) + mod.slot;
+        auto newIdx = device->global_heap->GetSubAllocOffset(_buffer_node) + mod.slot;
         Deref(indices);
         if (mod.tex2d.op == Ope::EMPLACE) {
             EmplaceTex(newIdx, indices, mod.tex2d.handle, reinterpret_cast<TextureBase *>(mod.tex2d.handle), mod.tex2d.sampler);
@@ -158,8 +158,8 @@ void BindlessArray::Bind(vstd::span<const BindlessArrayUpdateCommand::Modificati
             TryReturnIndexTex(indices.tex2D, bindGrp.tex2D);
         else
             TryReturnIndexTex(indices.tex3D, bindGrp.tex3D);
-        auto texIdx = device->globalHeap->AllocateIndex();
-        device->globalHeap->CreateSRV(
+        auto texIdx = device->global_heap->AllocateIndex();
+        device->global_heap->CreateSRV(
             tex->GetResource(),
             tex->GetColorSrvDesc(),
             texIdx);
@@ -183,7 +183,7 @@ void BindlessArray::Bind(vstd::span<const BindlessArrayUpdateCommand::Modificati
             case Ope::EMPLACE: {
                 TryReturnIndex(indices.buffer, bindGrp.buffer);
                 BufferView v{reinterpret_cast<Buffer *>(mod.buffer.handle), mod.buffer.offset_bytes};
-                auto newIdx = device->globalHeap->AllocateIndex();
+                auto newIdx = device->global_heap->AllocateIndex();
                 auto desc = v.buffer->GetColorSrvDesc(
                     v.offset,
                     v.byteSize);
@@ -192,7 +192,7 @@ void BindlessArray::Bind(vstd::span<const BindlessArrayUpdateCommand::Modificati
                     LUISA_ERROR("illagel buffer");
                 }
 #endif
-                device->globalHeap->CreateSRV(
+                device->global_heap->CreateSRV(
                     v.buffer->GetResource(),
                     *desc,
                     newIdx);
@@ -244,8 +244,8 @@ void BindlessArray::UpdateStates(
         BindlessStruct e;
     };
     if (!mods.empty()) {
-        auto alloc = builder.GetCB()->GetAlloc();
-        auto tempBuffer = alloc->GetTempUploadBuffer(sizeof(BindlessElement) * mods.size(), 16);
+        auto alloc = builder.get_cb()->get_alloc();
+        auto tempBuffer = alloc->get_temp_upload_buffer(sizeof(BindlessElement) * mods.size(), 16);
         auto ubuffer = static_cast<UploadBuffer const *>(tempBuffer.buffer);
         auto offset = tempBuffer.offset;
         for (auto &&mod : mods) {
@@ -255,8 +255,8 @@ void BindlessArray::UpdateStates(
             ubuffer->CopyData(offset, {reinterpret_cast<uint8_t const *>(&e), sizeof(BindlessElement)});
             offset += sizeof(BindlessElement);
         }
-        auto cs = device->setBindlessKernel.Get(device);
-        auto cbuffer = alloc->GetTempUploadBuffer(sizeof(uint), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+        auto cs = device->set_bindless_kernel.get(device);
+        auto cbuffer = alloc->get_temp_upload_buffer(sizeof(uint), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
         struct CBuffer {
             uint dsp;
         };
@@ -269,17 +269,17 @@ void BindlessArray::UpdateStates(
         properties[0] = cbuffer;
         properties[1] = tempBuffer;
         properties[2] = BufferView(&buffer);
-        builder.DispatchCompute(
+        builder.dispatch_compute(
             cs,
             uint3(mods.size(), 1, 1),
             properties);
     }
     if (!freeQueue.empty()) {
-        builder.GetCB()->GetAlloc()->ExecuteAfterComplete(
+        builder.get_cb()->get_alloc()->execute_after_complete(
             [vec = std::move(freeQueue),
              device = device] {
                 for (auto &&i : vec) {
-                    device->globalHeap->ReturnIndex(i);
+                    device->global_heap->ReturnIndex(i);
                 }
             });
     }
@@ -293,13 +293,13 @@ void BindlessArray::_UpdateStates(
     std::lock_guard lck{mtx};
     if (offset_setted) return;
     offset_setted = true;
-    auto alloc = builder.GetCB()->GetAlloc();
-    auto cbuffer = alloc->GetTempUploadBuffer(sizeof(uint), 16);
-    uint value = device->globalHeap->GetSubAllocOffset(_buffer_node);
+    auto alloc = builder.get_cb()->get_alloc();
+    auto cbuffer = alloc->get_temp_upload_buffer(sizeof(uint), 16);
+    uint value = device->global_heap->GetSubAllocOffset(_buffer_node);
     static_cast<UploadBuffer const *>(cbuffer.buffer)
         ->CopyData(cbuffer.offset,
                    {reinterpret_cast<uint8_t const *>(&value), sizeof(uint)});
-    builder.CopyBuffer(
+    builder.copy_buffer(
         cbuffer.buffer,
         &buffer,
         cbuffer.offset,

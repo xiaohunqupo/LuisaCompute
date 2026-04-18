@@ -7,7 +7,7 @@ using namespace luisa;
 using namespace luisa::compute;
 class VkPinnedMemoryExt : public PinnedMemoryExt {
     Device *_device;
-public:
+protected:
     [[nodiscard]] BufferCreationInfo _pin_host_memory(
         const Type *elem_type, size_t elem_count,
         void *host_ptr, const PinnedMemoryOption &option) noexcept override;

@@ -37,6 +37,6 @@ public:
     uint64_t get_native_resource_device_address(
         void *native_handle) noexcept override;
 
-    ~VkNativeResourceExt();
+    ~VkNativeResourceExt() = default;
 };
 }// namespace lc::vk

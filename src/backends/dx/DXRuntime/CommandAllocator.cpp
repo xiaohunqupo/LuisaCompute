@@ -4,17 +4,17 @@ namespace lc::dx {
 template<typename Pack>
 uint64 CommandAllocator::Visitor<Pack>::allocate(uint64 size) {
     auto packPtr = new Pack(
-        self->device,
+        self->_device,
         size,
-        self->resourceAllocator);
+        self->_resource_allocator);
     return reinterpret_cast<uint64>(packPtr);
 }
 template<typename Pack>
-vstd::unique_ptr<Pack> CommandAllocator::Visitor<Pack>::Create(uint64 size) {
+vstd::unique_ptr<Pack> CommandAllocator::Visitor<Pack>::create(uint64 size) {
     return vstd::make_unique<Pack>(
-        self->device,
+        self->_device,
         size,
-        self->resourceAllocator);
+        self->_resource_allocator);
 }
 
 template<typename Pack>
@@ -22,45 +22,45 @@ void CommandAllocator::Visitor<Pack>::deallocate(uint64 handle) {
     delete reinterpret_cast<Pack *>(handle);
 }
 template<typename T>
-void CommandAllocator::BufferAllocator<T>::Clear() {
-    largeBuffers.clear();
-    alloc.dispose();
+void CommandAllocator::BufferAllocator<T>::clear() {
+    _large_buffers.clear();
+    _alloc.dispose();
 }
 template<typename T>
 CommandAllocator::BufferAllocator<T>::BufferAllocator(size_t initCapacity)
-    : alloc(initCapacity, &visitor) {
+    : _alloc(initCapacity, &visitor) {
 }
 template<typename T>
 CommandAllocator::BufferAllocator<T>::~BufferAllocator() = default;
 template<typename T>
-BufferView CommandAllocator::BufferAllocator<T>::Allocate(size_t size) {
+BufferView CommandAllocator::BufferAllocator<T>::allocate(size_t size) {
     if (size <= kLargeBufferSize) [[likely]] {
-        auto chunk = alloc.allocate(size);
+        auto chunk = _alloc.allocate(size);
         return BufferView(reinterpret_cast<T const *>(chunk.handle), chunk.offset, size);
     } else {
-        auto &v = largeBuffers.emplace_back(visitor.Create(size));
+        auto &v = _large_buffers.emplace_back(visitor.create(size));
         return BufferView(v.get(), 0, size);
     }
 }
 template<typename T>
-BufferView CommandAllocator::BufferAllocator<T>::Allocate(size_t size, size_t align) {
+BufferView CommandAllocator::BufferAllocator<T>::allocate(size_t size, size_t align) {
     if (size <= kLargeBufferSize) [[likely]] {
-        auto chunk = alloc.allocate(size, align);
+        auto chunk = _alloc.allocate(size, align);
         return BufferView(reinterpret_cast<T const *>(chunk.handle), chunk.offset, size);
     } else {
-        auto &v = largeBuffers.emplace_back(visitor.Create(size));
+        auto &v = _large_buffers.emplace_back(visitor.create(size));
         return BufferView(v.get(), 0, size);
     }
 }
 // void CommandAllocator::WaitExternQueue(ID3D12Fence *fence, uint64 fenceIndex) {
-//     if (device->deviceSettings) {
-//         auto after_queue = device->deviceSettings->GetQueue();
+//     if (device->device_settings) {
+//         auto after_queue = device->device_settings->GetQueue();
 //         if (after_queue) {
 //             after_queue->Wait(fence, fenceIndex);
 //         }
 //     }
 // }
-void CommandAllocator::Execute(
+void CommandAllocator::execute(
     CommandQueue *queue,
     ID3D12Fence *fence,
     uint64 fenceIndex,
@@ -82,9 +82,9 @@ void CommandAllocator::Execute(
             }
         }
     };
-    ID3D12CommandList *cmdList = cbuffer->CmdList();
-    auto cmdQueue = queue->Queue();
-    if (!device->deviceSettings) {
+    ID3D12CommandList *cmdList = _cbuffer->cmd_list();
+    auto cmdQueue = queue->queue();
+    if (!_device->device_settings) {
         if (!cmdlist_is_empty) {
             cmdQueue->ExecuteCommandLists(
                 1,
@@ -95,123 +95,123 @@ void CommandAllocator::Execute(
         ThrowIfFailed(cmdQueue->Signal(fence, fenceIndex));
     } else {
         if (!cmdlist_is_empty) {
-            if (!device->deviceSettings->ExecuteCommandList(cmdQueue, static_cast<ID3D12GraphicsCommandList *>(cmdList)))
+            if (!_device->device_settings->ExecuteCommandList(cmdQueue, static_cast<ID3D12GraphicsCommandList *>(cmdList)))
                 cmdQueue->ExecuteCommandLists(
                     1,
                     &cmdList);
         }
         for (auto &i : swapChains)
             present(i.first, i.second);
-        if (!device->deviceSettings->SignalFence(cmdQueue, fence, fenceIndex)) {
+        if (!_device->device_settings->SignalFence(cmdQueue, fence, fenceIndex)) {
             ThrowIfFailed(cmdQueue->Signal(fence, fenceIndex));
         }
     }
 }
-void CommandAllocator::Complete(
+void CommandAllocator::complete(
     CommandQueue *queue,
     ID3D12Fence *fence,
     uint64 fenceIndex) {
-    device->WaitFence(fence, fenceIndex);
-    while (auto evt = executeAfterComplete.dequeue()) {
+    _device->wait_fence(fence, fenceIndex);
+    while (auto evt = _execute_after_complete.dequeue()) {
         (*evt)();
     }
-    resDisposeListMtx.lock();
-    auto vec = std::move(resDisposeList);
-    resDisposeListMtx.unlock();
+    _res_dispose_list_mtx.lock();
+    auto vec = std::move(_res_dispose_list);
+    _res_dispose_list_mtx.unlock();
     (void)vec;
 }
 
-CommandBuffer *CommandAllocator::GetBuffer() const {
-    return cbuffer;
+CommandBuffer *CommandAllocator::get_buffer() const {
+    return _cbuffer;
 }
 static size_t TEMP_SIZE = 1024ull * 1024ull;
 CommandAllocator::CommandAllocator(
     Device *device,
     GpuAllocator *resourceAllocator,
     D3D12_COMMAND_LIST_TYPE type)
-    : device(device),
-      type(type),
-      resourceAllocator(resourceAllocator),
-      rtvVisitor(device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV),
-      dsvVisitor(device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV),
-      uploadAllocator(TEMP_SIZE),
-      defaultAllocator(TEMP_SIZE),
-      readbackAllocator(TEMP_SIZE),
-      rtvAllocator(64, &rtvVisitor),
-      dsvAllocator(64, &dsvVisitor) {
+    : _device(device),
+      _type(type),
+      _resource_allocator(resourceAllocator),
+      _rtv_visitor(device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV),
+      _dsv_visitor(device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV),
+      _upload_allocator(TEMP_SIZE),
+      _default_allocator(TEMP_SIZE),
+      _readback_allocator(TEMP_SIZE),
+      rtv_allocator(64, &_rtv_visitor),
+      dsv_allocator(64, &_dsv_visitor) {
 
-    cbuffer.create(
+    _cbuffer.create(
         device,
         this);
-    cbuffer->Reset();
-    uploadAllocator.visitor.self = this;
-    defaultAllocator.visitor.self = this;
-    readbackAllocator.visitor.self = this;
+    _cbuffer->_reset();
+    _upload_allocator.visitor.self = this;
+    _default_allocator.visitor.self = this;
+    _readback_allocator.visitor.self = this;
 }
-ID3D12CommandAllocator *CommandAllocator::Allocator() {
-    if (!allocator) {
+ID3D12CommandAllocator *CommandAllocator::allocator() {
+    if (!_allocator) {
         ThrowIfFailed(
-            device->device->CreateCommandAllocator(type, IID_PPV_ARGS(allocator.GetAddressOf())));
+            _device->device->CreateCommandAllocator(_type, IID_PPV_ARGS(_allocator.GetAddressOf())));
         ThrowIfFailed(
-            allocator->Reset());
+            _allocator->Reset());
     }
-    return allocator.Get();
+    return _allocator.Get();
 }
 
 CommandAllocator::~CommandAllocator() {
-    cbuffer.destroy();
+    _cbuffer.destroy();
 }
-void CommandAllocator::Reset(CommandQueue *queue) {
-    readbackAllocator.Clear();
-    uploadAllocator.Clear();
-    defaultAllocator.Clear();
-    rtvAllocator.clear();
-    dsvAllocator.clear();
-    if (allocator)
+void CommandAllocator::reset(CommandQueue *queue) {
+    _readback_allocator.clear();
+    _upload_allocator.clear();
+    _default_allocator.clear();
+    rtv_allocator.clear();
+    dsv_allocator.clear();
+    if (_allocator)
         ThrowIfFailed(
-            allocator->Reset());
-    cbuffer->Reset();
+            _allocator->Reset());
+    _cbuffer->_reset();
 }
 
-DefaultBuffer const *CommandAllocator::AllocateScratchBuffer(size_t targetSize) {
-    if (scratchBuffer) {
-        if (scratchBuffer->GetByteSize() < targetSize) {
-            size_t allocSize = scratchBuffer->GetByteSize();
+DefaultBuffer const *CommandAllocator::allocate_scratch_buffer(size_t targetSize) {
+    if (_scratch_buffer) {
+        if (_scratch_buffer->GetByteSize() < targetSize) {
+            size_t allocSize = _scratch_buffer->GetByteSize();
             while (allocSize < targetSize) {
                 allocSize = std::max<size_t>(allocSize + 1, (allocSize * 3) / 2);
             }
-            DisposeAfterComplete(std::move(scratchBuffer));
+            dispose_after_complete(std::move(_scratch_buffer));
             allocSize = CalcAlign(allocSize, 65536);
-            scratchBuffer = vstd::create_unique(new DefaultBuffer(device, allocSize, device->defaultAllocator.get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
+            _scratch_buffer = vstd::create_unique(new DefaultBuffer(_device, allocSize, _device->default_allocator.get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
         }
-        return scratchBuffer.get();
+        return _scratch_buffer.get();
     } else {
         targetSize = CalcAlign(targetSize, 65536);
-        scratchBuffer = vstd::create_unique(new DefaultBuffer(device, targetSize, device->defaultAllocator.get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
-        return scratchBuffer.get();
+        _scratch_buffer = vstd::create_unique(new DefaultBuffer(_device, targetSize, _device->default_allocator.get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
+        return _scratch_buffer.get();
     }
 }
 
-BufferView CommandAllocator::GetTempReadbackBuffer(uint64 size, size_t align) {
+BufferView CommandAllocator::get_temp_readback_buffer(uint64 size, size_t align) {
     if (align <= 1) [[likely]] {
-        return readbackAllocator.Allocate(size);
+        return _readback_allocator.allocate(size);
     } else {
-        return readbackAllocator.Allocate(size, align);
+        return _readback_allocator.allocate(size, align);
     }
 }
 
-BufferView CommandAllocator::GetTempUploadBuffer(uint64 size, size_t align) {
+BufferView CommandAllocator::get_temp_upload_buffer(uint64 size, size_t align) {
     if (align <= 1) [[likely]] {
-        return uploadAllocator.Allocate(size);
+        return _upload_allocator.allocate(size);
     } else {
-        return uploadAllocator.Allocate(size, align);
+        return _upload_allocator.allocate(size, align);
     }
 }
-BufferView CommandAllocator::GetTempDefaultBuffer(uint64 size, size_t align) {
+BufferView CommandAllocator::get_temp_default_buffer(uint64 size, size_t align) {
     if (align <= 1) [[likely]] {
-        return defaultAllocator.Allocate(size);
+        return _default_allocator.allocate(size);
     } else {
-        return defaultAllocator.Allocate(size, align);
+        return _default_allocator.allocate(size, align);
     }
 }
 
@@ -221,6 +221,7 @@ uint64 CommandAllocator::DescHeapVisitor::allocate(uint64 size) {
         type,
         size, false));
 }
+
 void CommandAllocator::DescHeapVisitor::deallocate(uint64 handle) {
     delete reinterpret_cast<DescriptorHeap *>(handle);
 }

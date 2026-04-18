@@ -22,7 +22,7 @@ struct PresentCommand {
     luisa::fixed_vector<uint, 1> image_indices;
 };
 template<typename Visitor>
-void DecodeCmd(vstd::span<const Argument> args, Visitor &&visitor) {
+void decode_cmd(vstd::span<const Argument> args, Visitor &&visitor) {
     using Tag = Argument::Tag;
     for (auto &&i : args) {
         switch (i.tag) {
@@ -131,7 +131,7 @@ struct ResourceBarrierVisitor {
     }
     void operator()(Argument::Buffer const &bf) {
         auto res = reinterpret_cast<Buffer const *>(bf.handle);
-        if (((uint)arg->varUsage & (uint)Usage::WRITE) != 0) {
+        if (((uint)arg->var_usage & (uint)Usage::WRITE) != 0) {
             // LUISA_ASSERT(is_device_buffer(res), "Unordered access buffer can not be host-buffer.");
             barrier->record(
                 BufferView{res, bf.offset, bf.size},
@@ -146,7 +146,7 @@ struct ResourceBarrierVisitor {
     void operator()(Argument::Texture const &bf) {
         auto rt = reinterpret_cast<Texture *>(bf.handle);
         //UAV
-        if (((uint)arg->varUsage & (uint)Usage::WRITE) != 0) {
+        if (((uint)arg->var_usage & (uint)Usage::WRITE) != 0) {
             if (!rt->allow_uav()) {
                 LUISA_ERROR("Texture not allowed for Unordered-Access.");
             }
@@ -181,7 +181,7 @@ struct ResourceBarrierVisitor {
         if (!tlas->instance_buffer()) [[unlikely]] {
             LUISA_ERROR("Accel not initialized.");
         }
-        if ((luisa::to_underlying(arg->varUsage) & luisa::to_underlying(Usage::WRITE)) != 0) {
+        if ((luisa::to_underlying(arg->var_usage) & luisa::to_underlying(Usage::WRITE)) != 0) {
             barrier->record(
                 BufferView(tlas->instance_buffer()),
                 ResourceBarrier::Usage::ComputeUAV);
@@ -260,7 +260,7 @@ struct BindPropVisitor {
             idx,
             0,
             1,
-            ((luisa::to_underlying(arg->varUsage) & luisa::to_underlying(Usage::WRITE)) != 0) ? VK_DESCRIPTOR_TYPE_STORAGE_IMAGE : VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+            ((luisa::to_underlying(arg->var_usage) & luisa::to_underlying(Usage::WRITE)) != 0) ? VK_DESCRIPTOR_TYPE_STORAGE_IMAGE : VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
             image_descs,
             nullptr,
             nullptr});
@@ -292,7 +292,7 @@ struct BindPropVisitor {
     }
     void operator()(Argument::Accel const &bf) {
         auto tlas = reinterpret_cast<Tlas *>(bf.handle);
-        if ((luisa::to_underlying(arg->varUsage) & luisa::to_underlying(Usage::WRITE)) != 0) {
+        if ((luisa::to_underlying(arg->var_usage) & luisa::to_underlying(Usage::WRITE)) != 0) {
             auto idx = desc_index++;
             auto buffer_descs = cmdbuffer->temp_desc->allocate_memory<VkDescriptorBufferInfo>();
             *buffer_descs = VkDescriptorBufferInfo{
@@ -357,17 +357,17 @@ struct BindPropVisitor {
 namespace temp_buffer {
 uint64 DefaultBufferDeferredVisitor::allocate(uint64 size) {
     auto bf = new DefaultBuffer(device, size);
-    _buffers.try_emplace(
+    buffers.try_emplace(
         reinterpret_cast<uint64_t>(bf),
         bf);
     return reinterpret_cast<uint64>(bf);
 }
 void DefaultBufferDeferredVisitor::deallocate(uint64 handle) {
-    if (_buffers.empty()) return;
-    auto iter = _buffers.find(handle);
-    LUISA_ASSERT(iter != _buffers.end());
+    if (buffers.empty()) return;
+    auto iter = buffers.find(handle);
+    LUISA_ASSERT(iter != buffers.end());
     cmdbuffer->states()->dispose_after_flush(std::move(iter->second));
-    _buffers.erase(iter);
+    buffers.erase(iter);
 }
 template<typename Pack>
 uint64 Visitor<Pack>::allocate(uint64 size) {
@@ -378,17 +378,17 @@ void Visitor<Pack>::deallocate(uint64 handle) {
     delete reinterpret_cast<Pack *>(handle);
 }
 template<typename Pack>
-auto Visitor<Pack>::Create(uint64 size) -> Pack * {
+auto Visitor<Pack>::create(uint64 size) -> Pack * {
     return new Pack{device, size};
 }
 template<typename T>
 void BufferAllocator<T>::clear() {
-    largeBuffers.clear();
+    large_buffers.clear();
     alloc.dispose();
 }
 template<typename T>
-BufferAllocator<T>::BufferAllocator(size_t initCapacity)
-    : alloc(initCapacity, &visitor) {
+BufferAllocator<T>::BufferAllocator(size_t init_capacity)
+    : alloc(init_capacity, &visitor) {
 }
 template<typename T>
 BufferAllocator<T>::~BufferAllocator() {
@@ -399,7 +399,7 @@ BufferView BufferAllocator<T>::allocate(size_t size) {
         auto chunk = alloc.allocate(size);
         return BufferView(reinterpret_cast<T const *>(chunk.handle), chunk.offset, size);
     } else {
-        auto &v = largeBuffers.emplace_back(visitor.Create(size));
+        auto &v = large_buffers.emplace_back(visitor.create(size));
         return BufferView(v.get(), 0, size);
     }
 }
@@ -410,16 +410,16 @@ BufferView BufferAllocator<T>::allocate(size_t size, size_t align) {
         auto chunk = alloc.allocate(size, align);
         return BufferView(reinterpret_cast<T const *>(chunk.handle), chunk.offset, size);
     } else {
-        auto &v = largeBuffers.emplace_back(visitor.Create(size));
+        auto &v = large_buffers.emplace_back(visitor.create(size));
         return BufferView(v.get(), 0, size);
     }
 }
 }// namespace temp_buffer
 
-static size_t TEMP_SIZE = 1024ull * 1024ull;
+static constexpr size_t kTempSize = 1024ull * 1024ull;
 CommandBufferState::CommandBufferState()
-    : upload_alloc(TEMP_SIZE),
-      readback_alloc(TEMP_SIZE) {
+    : upload_alloc(kTempSize),
+      readback_alloc(kTempSize) {
 }
 void CommandBufferState::init(Device &device, StreamTag tag) {
     this->device = &device;
@@ -484,7 +484,7 @@ void CommandBufferState::reset(Stream *stream, Device &device) {
 }
 void CommandBuffer::reset() {
     VK_CHECK_RESULT(vkResetCommandBuffer(_cmdbuffer, 0));
-    _state->reset(&stream, *device());
+    _state->reset(&_stream, *device());
 }
 
 Stream::Stream(Device *device, StreamTag tag)
@@ -510,9 +510,9 @@ Stream::Stream(Device *device, StreamTag tag)
                                   i();
                               }
                           } else if constexpr (std::is_same_v<T, SyncExt>) {
-                              t.evt->host_wait(t.value);
+                              t.evt->_host_wait(t.value);
                           } else if constexpr (std::is_same_v<T, NotifyEvt>) {
-                              t.evt->notify(t.value);
+                              t.evt->_notify(t.value);
                           } else if constexpr (std::is_same_v<T, CommandBuffer>) {
                               t.reset();
                               _cmdbuffers.enqueue(std::move(t));
@@ -529,7 +529,7 @@ Stream::Stream(Device *device, StreamTag tag)
           loop_cmd();
       }),
       temp_desc(65536, &temp_desc_visitor, 2),
-      scratch_buffer_alloc(TEMP_SIZE, &scratch_buffer_alloc_visitor),
+      scratch_buffer_alloc(kTempSize, &scratch_buffer_alloc_visitor),
       _stream_tag(tag) {
     switch (tag) {
         case StreamTag::GRAPHICS:
@@ -561,7 +561,7 @@ Stream::~Stream() {
         _enabled = false;
     }
     _thd.join();
-    scratch_buffer_alloc_visitor._buffers.clear();
+    scratch_buffer_alloc_visitor.buffers.clear();
     while (auto p = _cmdbuffers.dequeue()) {
     }
 }
@@ -623,7 +623,7 @@ void Stream::present(
             // Cleanup command buffer without submitting
             cmdbuffer.states()->reset(this, *device());
             // Update fence and enqueue notification to match normal completion path
-            _evt.update_fence(fence);
+            _evt._update_fence(fence);
             _mtx.lock();
             _exec.enqueue(NotifyEvt{
                 .evt = &_evt,
@@ -671,7 +671,7 @@ void Stream::present(
                 LUISA_ERROR_WITH_LOCATION("Failed to present swapchain image: {}.", luisa::to_string(result));
             }
         }
-        _evt.signal(*this, fence);
+        _evt._signal(*this, fence);
         _mtx.lock();
         _exec.enqueue(SyncExt{
             .evt = &_evt,
@@ -713,7 +713,7 @@ void Stream::dispatch(
 
         auto cb = cmdbuffer.cmdbuffer();
         auto cb_ptr = &cb;
-        resource_barrier.restoreStates.clear();
+        resource_barrier.saved_restore_states.clear();
         if (device()->config_ext()) {
             auto after_states = device()->config_ext()->after_states(reinterpret_cast<uint64_t>(this));
             auto before_states = device()->config_ext()->before_states(reinterpret_cast<uint64_t>(this));
@@ -721,7 +721,7 @@ void Stream::dispatch(
                 resource_barrier.set_res(get_resource_view(i.resource), i.stage, i.access, i.texture_layout);
             }
             for (auto &i : after_states) {
-                resource_barrier.restoreStates.emplace(
+                resource_barrier.saved_restore_states.emplace(
                     reinterpret_cast<Resource const *>(luisa::visit([](auto &&t) { return t.handle; }, i.resource)),
                     ResourceBarrier::ResotreStates{
                         get_resource_view(i.resource),
@@ -874,7 +874,7 @@ void Stream::dispatch(
 
                 // Use normal completion path for the submitted prefix
                 cb_ptr = nullptr;
-                _evt.signal(*this, fence, cb_ptr);
+                _evt._signal(*this, fence, cb_ptr);
                 _mtx.lock();
                 _exec.enqueue(SyncExt{
                     .evt = &_evt,
@@ -888,7 +888,7 @@ void Stream::dispatch(
                     if (device()->config_ext() && device()->config_ext()->execute_command_buffer(cb)) {
                         cb_ptr = nullptr;
                     }
-                    _evt.signal(*this, fence, cb_ptr);
+                    _evt._signal(*this, fence, cb_ptr);
                     _mtx.lock();
                     _exec.enqueue(SyncExt{
                         .evt = &_evt,
@@ -899,7 +899,7 @@ void Stream::dispatch(
                     cmdbuffer.states()->reset(this, *device());
                     _mtx.lock();
                     // Update fence to prevent reuse, then notify
-                    _evt.update_fence(fence);
+                    _evt._update_fence(fence);
                 }
                 // Enqueue callbacks and completion notification
                 if (!callbacks.empty()) {
@@ -930,14 +930,14 @@ void Stream::dispatch(
         if (cb_ptr && device()->config_ext() && device()->config_ext()->execute_command_buffer(cb)) {
             cb_ptr = nullptr;
         }
-        _evt.signal(*this, fence, cb_ptr);
+        _evt._signal(*this, fence, cb_ptr);
         _mtx.lock();
         _exec.enqueue(SyncExt{
             .evt = &_evt,
             .value = fence});
         _exec.enqueue(std::move(cmdbuffer));
     } else {
-        _evt.update_fence(fence);
+        _evt._update_fence(fence);
         _mtx.lock();
     }
     if (!callbacks.empty()) {
@@ -1072,7 +1072,7 @@ void Stream::update_sparse_resources(luisa::vector<SparseUpdateTile> &&textures_
                      i.operations);
     }
     VkTimelineSemaphoreSubmitInfo timeline;
-    _evt.signal_sparse(*this, &fence, &info, &timeline);
+    _evt._signal_sparse(*this, &fence, &info, &timeline);
     _queue_mtx->lock();
     VK_CHECK_RESULT(vkQueueBindSparse(
         _queue,
@@ -1092,7 +1092,7 @@ void Stream::sync() {
 }
 CommandBuffer::CommandBuffer(Stream &stream) noexcept
     : Resource(stream.device()),
-      stream(stream),
+      _stream(stream),
       _state(vstd::make_unique<CommandBufferState>()) {
     _state->init(*stream.device(), stream.stream_tag());
     _cmdbuffer = nullptr;
@@ -1124,14 +1124,14 @@ void CommandBuffer::end() {
 }
 CommandBuffer::CommandBuffer(CommandBuffer &&rhs) noexcept
     : Resource(std::move(rhs)),
-      stream(rhs.stream),            // NOLINT(bugprone-use-after-move)
+      _stream(rhs._stream),            // NOLINT(bugprone-use-after-move)
       _cmdbuffer(rhs._cmdbuffer),    // NOLINT(bugprone-use-after-move)
       _state(std::move(rhs._state)) {// NOLINT(bugprone-use-after-move)
     rhs._cmdbuffer = nullptr;
 }
 void Stream::signal(Event *event, uint64_t value) {
     std::lock_guard lck{_dispatch_mtx};
-    event->signal(*this, value);
+    event->_signal(*this, value);
     _mtx.lock();
     _exec.enqueue(SyncExt{event, value});
     _exec.enqueue(NotifyEvt{event, value});
@@ -1139,7 +1139,7 @@ void Stream::signal(Event *event, uint64_t value) {
 }
 void Stream::wait(Event *event, uint64_t value) {
     std::lock_guard lck{_dispatch_mtx};
-    event->wait(*this, value);
+    event->_wait(*this, value);
 }
 void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
     // collect argument buffer
@@ -1163,7 +1163,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
         }
     };
     for (auto &&command : cmds) {
-        command->accept(stream.reorder);
+        command->accept(_stream.reorder);
         switch (command->tag()) {
             case Command::Tag::EShaderDispatchCommand: {
                 auto c = static_cast<ShaderDispatchCommand const *>(command.get());
@@ -1181,9 +1181,9 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
             default: break;
         }
     }
-    auto cmd_lists = stream.reorder.command_lists();
+    auto cmd_lists = _stream.reorder.command_lists();
     auto clear_reorder = vstd::scope_exit([&] {
-        stream.reorder.clear();
+        _stream.reorder.clear();
     });
     uniform_data->clear();
     uniform_data->reserve(uniform_buffer_size);
@@ -1212,8 +1212,8 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
             uniform_data,
             *c,
             is_raster};
-        DecodeCmd(shader->captured(), visitor);
-        DecodeCmd(c->arguments(), visitor);
+        decode_cmd(shader->captured(), visitor);
+        decode_cmd(c->arguments(), visitor);
         sizes.second = uniform_data->size() - sizes.first;
         dispatch_offsets->emplace_back(sizes);
     };
@@ -1425,8 +1425,8 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
             visitor.desc_index = desc_index;
             visitor.img_views = &_state->img_views;
             visitor.arg = shader->saved_arguments().data();
-            DecodeCmd(shader->captured(), visitor);
-            DecodeCmd(c->arguments(), visitor);
+            decode_cmd(shader->captured(), visitor);
+            decode_cmd(c->arguments(), visitor);
             return visitor.desc_index;
         };
         auto bind_shader_desc = [&](BindPropVisitor &visitor, Shader const *shader, VkPipelineBindPoint bind_point) {
@@ -2176,7 +2176,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                             static_cast<VKCustomCmd const *>(c)->execute(
                                 device()->physical_device(),
                                 device()->logic_device(),
-                                stream.queue(),
+                                _stream.queue(),
                                 _cmdbuffer,
                                 _state->_desc_pool);
                         } break;
@@ -2199,10 +2199,10 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
     for (auto &i : _state->readback_alloc.alloc.allocated_buffer()) {
         reinterpret_cast<ReadbackBuffer *>(i.handle)->flush_host();
     }
-    for (auto &i : _state->upload_alloc.largeBuffers) {
+    for (auto &i : _state->upload_alloc.large_buffers) {
         i->flush_host();
     }
-    for (auto &i : _state->readback_alloc.largeBuffers) {
+    for (auto &i : _state->readback_alloc.large_buffers) {
         i->flush_host();
     }
 }

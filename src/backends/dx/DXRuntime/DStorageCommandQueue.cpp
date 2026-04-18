@@ -34,10 +34,10 @@ void DStorageCommandQueue::ExecuteThread() {
             }
         };
         auto ExecuteEvent = [&](auto &evt) {
-            device->WaitFence(evt->fence.Get(), fence);
+            device->wait_fence(evt->fence(), fence);
             {
-                std::lock_guard lck(evt->eventMtx);
-                evt->finishedEvent = std::max<uint64_t>(fence, evt->finishedEvent);
+                std::lock_guard lck(evt->event_mtx);
+                evt->finished_event = std::max<uint64_t>(fence, evt->finished_event);
             }
             if (wakeupThread) {
                 executedFrame++;

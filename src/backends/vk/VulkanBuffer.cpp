@@ -58,7 +58,7 @@ namespace vks
 	* @param offset (Optional) Byte offset from beginning
 	*
 	*/
-	void Buffer::setupDescriptor(VkDeviceSize size, VkDeviceSize offset)
+	void Buffer::setup_descriptor(VkDeviceSize size, VkDeviceSize offset)
 	{
 		descriptor.offset = offset;
 		descriptor.buffer = buffer;
@@ -72,7 +72,7 @@ namespace vks
 	* @param size Size of the data to copy in machine units
 	*
 	*/
-	void Buffer::copyTo(void* data, VkDeviceSize size)
+	void Buffer::copy_to(void* data, VkDeviceSize size)
 	{
 		assert(mapped);
 		memcpy(mapped, data, size);

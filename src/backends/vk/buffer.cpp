@@ -8,15 +8,15 @@ namespace lc::vk {
 void vma_defragment(Device *device) {
     if (!device) return;
     
-    VmaDefragmentationInfo defragInfo = {};
-    defragInfo.flags = VMA_DEFRAGMENTATION_FLAG_ALGORITHM_FAST_BIT;
-    defragInfo.pool = VK_NULL_HANDLE;  // Defragment all default pools
+    VmaDefragmentationInfo defrag_info = {};
+    defrag_info.flags = VMA_DEFRAGMENTATION_FLAG_ALGORITHM_FAST_BIT;
+    defrag_info.pool = VK_NULL_HANDLE;  // Defragment all default pools
     
-    VmaDefragmentationContext defragCtx;
+    VmaDefragmentationContext defrag_ctx;
     VkResult result = vmaBeginDefragmentation(
         device->allocator().allocator(),
-        &defragInfo,
-        &defragCtx);
+        &defrag_info,
+        &defrag_ctx);
     
     if (result != VK_SUCCESS) {
         return;
@@ -24,11 +24,11 @@ void vma_defragment(Device *device) {
     
     // Perform defragmentation passes
     [&]{
-        VmaDefragmentationPassMoveInfo passInfo = {};
+        VmaDefragmentationPassMoveInfo pass_info = {};
         result = vmaBeginDefragmentationPass(
             device->allocator().allocator(),
-            defragCtx,
-            &passInfo);
+            defrag_ctx,
+            &pass_info);
         
         if (result == VK_SUCCESS) {
             // No more moves needed
@@ -43,20 +43,20 @@ void vma_defragment(Device *device) {
         // Mark all moves as IGNORE since we don't have access to buffer/image handles
         // to recreate them at the new locations. This will still allow VMA to free
         // empty memory blocks.
-        for (uint32_t i = 0; i < passInfo.moveCount; ++i) {
-            passInfo.pMoves[i].operation = VMA_DEFRAGMENTATION_MOVE_OPERATION_IGNORE;
+        for (uint32_t i = 0; i < pass_info.moveCount; ++i) {
+            pass_info.pMoves[i].operation = VMA_DEFRAGMENTATION_MOVE_OPERATION_IGNORE;
         }
         
         result = vmaEndDefragmentationPass(
             device->allocator().allocator(),
-            defragCtx,
-            &passInfo);
+            defrag_ctx,
+            &pass_info);
     }();
     
     VmaDefragmentationStats stats = {};
     vmaEndDefragmentation(
         device->allocator().allocator(),
-        defragCtx,
+        defrag_ctx,
         &stats);
     
     // Log compaction results
@@ -112,18 +112,18 @@ ReadbackBuffer::~ReadbackBuffer() {
 }
 void UploadBuffer::copy_from(void const *data, size_t offset, size_t size) const {
     memcpy(reinterpret_cast<std::byte *>(_mapped_ptr) + offset, data, size);
-    _flusher.mark_dirty(offset, offset + size);
+    flusher.mark_dirty(offset, offset + size);
 }
 void ReadbackBuffer::copy_to(void *data, size_t offset, size_t size) const {
     memcpy(data, reinterpret_cast<std::byte *>(_mapped_ptr) + offset, size);
-    _flusher.mark_dirty(offset, offset + size);
+    flusher.mark_dirty(offset, offset + size);
 }
 bool UploadBuffer::flush_host() const {
-    _flusher.flush(device(), _res.allocation);
+    flusher.flush(device(), _res.allocation);
     return true;
 }
 bool ReadbackBuffer::flush_host() const {
-    _flusher.flush(device(), _res.allocation);
+    flusher.flush(device(), _res.allocation);
     return true;
 }
 void ReadbackBuffer::flush_range(size_t begin, size_t end) {
@@ -227,33 +227,32 @@ SparseBuffer::~SparseBuffer() {
         vkDestroyBuffer(device()->logic_device(), _buffer, Device::alloc_callbacks());
     }
 }
-void BufferFlusher::mark_dirty(size_t begin, size_t end) {
+void BufferFlusher::mark_dirty(size_t range_begin, size_t range_end) {
     {
-        auto t = _begin.load();
+        auto t = begin.load();
         while (true) {
-            auto desired = std::min(begin, t);
-            if (_begin.compare_exchange_weak(t, desired))
+            auto desired = std::min(range_begin, t);
+            if (begin.compare_exchange_weak(t, desired))
                 break;
         }
     }
     {
-        auto t = _end.load();
+        auto t = end.load();
         while (true) {
-            auto desired = std::max(end, t);
-            if (_end.compare_exchange_weak(t, desired))
+            auto desired = std::max(range_end, t);
+            if (end.compare_exchange_weak(t, desired))
                 break;
         }
     }
 }
 void BufferFlusher::flush(Device *device, void *alloc) {
-    size_t begin, end;
-    begin = _begin.exchange(std::numeric_limits<size_t>::max());
-    end = _end.exchange(0);
-    if (begin < end) {
+    size_t flush_begin = begin.exchange(std::numeric_limits<size_t>::max());
+    size_t flush_end = end.exchange(0);
+    if (flush_begin < flush_end) {
         VK_CHECK_RESULT(vmaFlushAllocation(
             device->allocator().allocator(),
             static_cast<VmaAllocation>(alloc),
-            begin, end - begin));
+            flush_begin, flush_end - flush_begin));
     }
 }
 }// namespace lc::vk

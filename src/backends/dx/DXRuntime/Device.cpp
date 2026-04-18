@@ -17,47 +17,47 @@ extern "C" extern LPCSTR D3D12SDKPath = ".\\D3D12\\";
 namespace lc::dx {
 static ID3D12Device *last_device_handle = nullptr;
 
-DirectXHeap DXAllocatorImpl::AllocateBufferHeap(
+DirectXHeap DXAllocatorImpl::allocate_buffer_heap(
     luisa::string_view name,
-    uint64_t targetSizeInBytes,
-    D3D12_HEAP_TYPE heapType,
-    D3D12_HEAP_FLAGS extraFlags) const noexcept {
+    uint64_t target_size_in_bytes,
+    D3D12_HEAP_TYPE heap_type,
+    D3D12_HEAP_FLAGS extra_flags) const noexcept {
     DirectXHeap heap{};
-    heap.handle = device->defaultAllocator->AllocateBufferHeap(device, name, targetSizeInBytes, heapType, &heap.heap, &heap.offset, extraFlags);
+    heap.handle = device->default_allocator->AllocateBufferHeap(device, name, target_size_in_bytes, heap_type, &heap.heap, &heap.offset, extra_flags);
     return heap;
 }
-DirectXHeap DXAllocatorImpl::AllocateTextureHeap(
+DirectXHeap DXAllocatorImpl::allocate_texture_heap(
     vstd::string_view name,
-    size_t sizeBytes,
-    bool isRenderTexture,
-    D3D12_HEAP_FLAGS extraFlags) const noexcept {
+    size_t size_bytes,
+    bool is_render_texture,
+    D3D12_HEAP_FLAGS extra_flags) const noexcept {
     DirectXHeap heap{};
-    heap.handle = device->defaultAllocator->AllocateTextureHeap(device, name, sizeBytes, &heap.heap, &heap.offset, extraFlags);
+    heap.handle = device->default_allocator->AllocateTextureHeap(device, name, size_bytes, &heap.heap, &heap.offset, extra_flags);
     return heap;
 }
-void DXAllocatorImpl::DeAllocateHeap(uint64_t handle) const noexcept {
-    device->defaultAllocator->Release(handle);
+void DXAllocatorImpl::deallocate_heap(uint64_t handle) const noexcept {
+    device->default_allocator->Release(handle);
 }
-static luisa::spin_mutex gDxcMutex;
-static vstd::StackObject<hlsl::ShaderCompiler, false> gDxcCompiler;
-static int32 gDxcRefCount = 0;
+static luisa::spin_mutex g_dxc_mutex;
+static vstd::StackObject<hlsl::ShaderCompiler, false> g_dxc_compiler;
+static int32 g_dxc_ref_count = 0;
 
 Device::LazyLoadShader::~LazyLoadShader() {}
 LUISA_EXPORT_API void backend_device_names(luisa::vector<luisa::string> &r);
-Device::LazyLoadShader::LazyLoadShader(LoadFunc loadFunc) : loadFunc(loadFunc) {}
+Device::LazyLoadShader::LazyLoadShader(LoadFunc load_func) : _load_func(load_func) {}
 Device::~Device() {
     //lcmdSig.destroy();
 #ifndef LC_NO_HLSL_BUILTIN
-    std::lock_guard lck(gDxcMutex);
-    if (--gDxcRefCount == 0) {
-        gDxcCompiler.destroy();
+    std::lock_guard lck(g_dxc_mutex);
+    if (--g_dxc_ref_count == 0) {
+        g_dxc_compiler.destroy();
     }
 #endif
 }
 
-void Device::WaitFence(ID3D12Fence *fence, uint64 fenceIndex) {
+void Device::wait_fence(ID3D12Fence *fence, uint64 fenceIndex) {
     if (fenceIndex <= 0) return;
-    if (deviceSettings && deviceSettings->SyncFence(fence, fenceIndex)) return;
+    if (device_settings && device_settings->SyncFence(fence, fenceIndex)) return;
     HANDLE eventHandle = CreateEventEx(nullptr, nullptr, false, EVENT_ALL_ACCESS);
     auto d = vstd::scope_exit([&] {
         CloseHandle(eventHandle);
@@ -67,72 +67,72 @@ void Device::WaitFence(ID3D12Fence *fence, uint64 fenceIndex) {
         WaitForSingleObject(eventHandle, INFINITE);
     }
 }
-ComputeShader *Device::LazyLoadShader::Get(Device *self) {
-    if (!shader) {
-        shader = vstd::create_unique(loadFunc(self));
+ComputeShader *Device::LazyLoadShader::get(Device *self) {
+    if (!_shader) {
+        _shader = vstd::create_unique(_load_func(self));
     }
-    return shader.get();
+    return _shader.get();
 }
-bool Device::LazyLoadShader::Check(Device *self) {
-    if (shader) return true;
-    shader = vstd::create_unique(loadFunc(self));
-    if (shader) {
-        auto afterExit = vstd::scope_exit([&] { shader = nullptr; });
+bool Device::LazyLoadShader::check(Device *self) {
+    if (_shader) return true;
+    _shader = vstd::create_unique(_load_func(self));
+    if (_shader) {
+        auto afterExit = vstd::scope_exit([&] { _shader = nullptr; });
         return true;
     }
     return false;
 }
 
-hlsl::ShaderCompiler *Device::Compiler() {
-    return gDxcCompiler ? gDxcCompiler.ptr() : nullptr;
+hlsl::ShaderCompiler *Device::compiler() {
+    return g_dxc_compiler ? g_dxc_compiler.ptr() : nullptr;
 }
 Device::Device(Context &&ctx, DeviceConfig const *settings)
-    : setBindlessKernel(BuiltinKernel::LoadBindlessSetKernel),
-      setAccelKernel(BuiltinKernel::LoadAccelSetKernel),
-      bc6TryModeG10(BuiltinKernel::LoadBC6TryModeG10CSKernel),
-      bc6TryModeLE10(BuiltinKernel::LoadBC6TryModeLE10CSKernel),
-      bc6EncodeBlock(BuiltinKernel::LoadBC6EncodeBlockCSKernel),
-      bc7TryMode456(BuiltinKernel::LoadBC7TryMode456CSKernel),
-      bc7TryMode137(BuiltinKernel::LoadBC7TryMode137CSKernel),
-      bc7TryMode02(BuiltinKernel::LoadBC7TryMode02CSKernel),
-      bc7EncodeBlock(BuiltinKernel::LoadBC7EncodeBlockCSKernel) {
+    : set_bindless_kernel(BuiltinKernel::load_bindless_set_kernel),
+      set_accel_kernel(BuiltinKernel::load_accel_set_kernel),
+      bc6_try_mode_g10(BuiltinKernel::load_bc6_try_mode_g10cs_kernel),
+      bc6_try_mode_le10(BuiltinKernel::load_bc6_try_mode_le10cs_kernel),
+      bc6_encode_block(BuiltinKernel::load_bc6_encode_block_cs_kernel),
+      bc7_try_mode_456(BuiltinKernel::load_bc7_try_mode_456cs_kernel),
+      bc7_try_mode_137(BuiltinKernel::load_bc7_try_mode_137cs_kernel),
+      bc7_try_mode_02(BuiltinKernel::load_bc7_try_mode_02cs_kernel),
+      bc7_encode_block(BuiltinKernel::load_bc7_encode_block_cs_kernel) {
     using Microsoft::WRL::ComPtr;
     size_t index{std::numeric_limits<size_t>::max()};
-    bool useRuntime = true;
+    bool use_runtime = true;
     bool use_lmdb = false;
-    bool useExperimental = false;
+    bool use_experimental = false;
     if (settings) {
         index = settings->device_index;
         // auto select
-        useRuntime = !settings->headless;
+        use_runtime = !settings->headless;
         use_lmdb = settings->use_lmdb;
-        maxAllocatorCount = settings->inqueue_buffer_limit ? 2 : std::numeric_limits<size_t>::max();
-        fileIo = settings->binary_io;
+        max_allocator_count = settings->inqueue_buffer_limit ? 2 : std::numeric_limits<size_t>::max();
+        file_io = settings->binary_io;
         profiler = settings->profiler;
         if (settings->extension) {
-            deviceSettings = vstd::create_unique(static_cast<DirectXDeviceConfigExt *>(settings->extension.release()));
-            useExperimental = deviceSettings->UseExperimental();
+            device_settings = vstd::create_unique(static_cast<DirectXDeviceConfigExt *>(settings->extension.release()));
+            use_experimental = device_settings->UseExperimental();
         }
     }
 #ifndef LC_NO_HLSL_BUILTIN
-    if (!deviceSettings || deviceSettings->LoadDXC()) {
-        std::lock_guard lck(gDxcMutex);
-        if (gDxcRefCount == 0) {
-            gDxcCompiler.create(ctx.runtime_directory(), false);
+    if (!device_settings || device_settings->LoadDXC()) {
+        std::lock_guard lck(g_dxc_mutex);
+        if (g_dxc_ref_count == 0) {
+            g_dxc_compiler.create(ctx.runtime_directory(), false);
         }
-        gDxcRefCount++;
+        g_dxc_ref_count++;
     }
 #endif
-    if (fileIo == nullptr) {
-        serVisitor = vstd::make_unique<DefaultBinaryIO>(std::move(ctx), !useRuntime, use_lmdb);
-        fileIo = serVisitor.get();
+    if (file_io == nullptr) {
+        ser_visitor = vstd::make_unique<DefaultBinaryIO>(std::move(ctx), !use_runtime, use_lmdb);
+        file_io = ser_visitor.get();
     }
-    if (useRuntime) {
-        if (useExperimental) {
+    if (use_runtime) {
+        if (use_experimental) {
             UUID Features[] = {D3D12ExperimentalShaderModels, D3D12CooperativeVectorExperiment};
             ThrowIfFailed(D3D12EnableExperimentalFeatures(_countof(Features), Features, nullptr, nullptr));
         }
-        auto GenAdapterGUID = [](DXGI_ADAPTER_DESC1 const &desc) {
+        auto gen_adapter_guid = [](DXGI_ADAPTER_DESC1 const &desc) {
             struct AdapterInfo {
                 WCHAR Description[128];
                 UINT VendorId;
@@ -149,29 +149,29 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
             return vstd::MD5{vstd::span<uint8_t const>{reinterpret_cast<uint8_t const *>(&info), sizeof(AdapterInfo)}};
         };
         bool use_dred = false;
-        luisa::optional<DirectXDeviceConfigExt::ExternalDevice> extDevice;
-        luisa::optional<DirectXDeviceConfigExt::GPUAllocatorSettings> allocSettings;
-        if (deviceSettings) {
-            extDevice = deviceSettings->CreateExternalDevice();
-            allocSettings = deviceSettings->GetGPUAllocatorSettings();
-            use_dred = deviceSettings->UseDRED();
+        luisa::optional<DirectXDeviceConfigExt::ExternalDevice> ext_device;
+        luisa::optional<DirectXDeviceConfigExt::GPUAllocatorSettings> alloc_settings;
+        if (device_settings) {
+            ext_device = device_settings->CreateExternalDevice();
+            alloc_settings = device_settings->GetGPUAllocatorSettings();
+            use_dred = device_settings->UseDRED();
         }
-        if (extDevice && extDevice->device) {
-            device = {static_cast<ID3D12Device5 *>(extDevice->device), false};
-            if (extDevice->factory) {
-                dxgiFactory = {extDevice->factory, false};
+        if (ext_device && ext_device->device) {
+            device = {static_cast<ID3D12Device5 *>(ext_device->device), false};
+            if (ext_device->factory) {
+                dxgi_factory = {ext_device->factory, false};
             } else {
-                ThrowIfFailed(CreateDXGIFactory2(0, IID_PPV_ARGS(dxgiFactory.GetAddressOf())));
+                ThrowIfFailed(CreateDXGIFactory2(0, IID_PPV_ARGS(dxgi_factory.GetAddressOf())));
                 // IDXGIFactory *pDxgiFactory;
                 // ThrowIfFailed(adapter->GetParent(IID_PPV_ARGS(&pDxgiFactory)));
-                // dxgiFactory = {static_cast<IDXGIFactory2 *>(pDxgiFactory), true};
+                // dxgi_factory = {static_cast<IDXGIFactory2 *>(pDxgiFactory), true};
             }
-            if (extDevice->adapter) {
-                adapter = {extDevice->adapter, false};
+            if (ext_device->adapter) {
+                adapter = {ext_device->adapter, false};
             } else {
                 DxPtr<IDXGIAdapter1> local_adapter;
                 auto device_id = device->GetAdapterLuid();
-                for (auto adapterIndex = 0u; dxgiFactory->EnumAdapters1(adapterIndex, local_adapter.GetAddressOf()) != DXGI_ERROR_NOT_FOUND; adapterIndex++) {
+                for (auto adapter_index = 0u; dxgi_factory->EnumAdapters1(adapter_index, local_adapter.GetAddressOf()) != DXGI_ERROR_NOT_FOUND; adapter_index++) {
                     DXGI_ADAPTER_DESC1 desc;
                     local_adapter->GetDesc1(&desc);
                     if (std::memcmp(&desc.AdapterLuid, &device_id, sizeof(LUID)) == 0) {
@@ -195,9 +195,9 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
             }
             DXGI_ADAPTER_DESC1 desc;
             adapter->GetDesc1(&desc);
-            adapterID = GenAdapterGUID(desc);
+            adapter_id = gen_adapter_guid(desc);
         } else {
-            uint32_t dxgiFactoryFlags = 0;
+            uint32_t dxgi_factory_flags = 0;
 #ifndef NDEBUG
             // Enable the debug layer (requires the Graphics Tools "optional feature").
             // NOTE: Enabling the debug layer after device creation will invalidate the active device.
@@ -207,7 +207,7 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
                     debugController->EnableDebugLayer();
 
                     // Enable additional debug layers.
-                    dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
+                    dxgi_factory_flags |= DXGI_CREATE_FACTORY_DEBUG;
                 }
             }
             ComPtr<ID3D12DeviceRemovedExtendedDataSettings> pDredSettings;
@@ -239,7 +239,7 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
                 }
 #endif
             }
-            ThrowIfFailed(CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(dxgiFactory.GetAddressOf())));
+            ThrowIfFailed(CreateDXGIFactory2(dxgi_factory_flags, IID_PPV_ARGS(dxgi_factory.GetAddressOf())));
             luisa::vector<luisa::string> device_names;
             backend_device_names(device_names);
             for (auto &name : device_names) {
@@ -275,21 +275,21 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
             auto &device_name = device_names[index];
 
             if (device_name.find("nvidia") != luisa::string::npos) {
-                gpuType = GpuType::NVIDIA;
+                gpu_type = GpuType::NVIDIA;
             } else if (device_name.find("amd") != luisa::string::npos) {
-                gpuType = GpuType::AMD;
+                gpu_type = GpuType::AMD;
             } else if (device_name.find("intel") != luisa::string::npos) {
-                gpuType = GpuType::INTEL;
+                gpu_type = GpuType::INTEL;
             }
-            auto capableAdapterIndex = 0u;
-            for (auto adapterIndex = 0u; dxgiFactory->EnumAdapters1(adapterIndex, adapter.GetAddressOf()) != DXGI_ERROR_NOT_FOUND; adapterIndex++) {
+            auto capable_adapter_index = 0u;
+            for (auto adapter_index = 0u; dxgi_factory->EnumAdapters1(adapter_index, adapter.GetAddressOf()) != DXGI_ERROR_NOT_FOUND; adapter_index++) {
                 DXGI_ADAPTER_DESC1 desc;
                 adapter->GetDesc1(&desc);
                 if ((desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) == 0) {
-                    if (capableAdapterIndex++ == index) {
+                    if (capable_adapter_index++ == index) {
                         ThrowIfFailed(D3D12CreateDevice(
                             adapter.Get(), D3D_FEATURE_LEVEL_12_1, IID_PPV_ARGS(device.GetAddressOf())));
-                        adapterID = GenAdapterGUID(desc);
+                        adapter_id = gen_adapter_guid(desc);
                         break;
                     }
                 }
@@ -299,40 +299,40 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
             if (adapter == nullptr) { LUISA_ERROR_WITH_LOCATION("Failed to create DirectX device at index {}.", index); }
         }
         {
-            auto adapterIdStream = fileIo->read_shader_cache("dx_adapterid");
-            bool sameAdaptor = false;
-            if (adapterIdStream) {
-                auto blob = adapterIdStream->read(~0ull);
-                sameAdaptor = blob.size() == sizeof(vstd::MD5) && std::memcmp(blob.data(), &adapterID, sizeof(vstd::MD5)) == 0;
+            auto adapter_id_stream = file_io->read_shader_cache("dx_adapterid");
+            bool same_adaptor = false;
+            if (adapter_id_stream) {
+                auto blob = adapter_id_stream->read(~0ull);
+                same_adaptor = blob.size() == sizeof(vstd::MD5) && std::memcmp(blob.data(), &adapter_id, sizeof(vstd::MD5)) == 0;
             }
-            if (!sameAdaptor) {
+            if (!same_adaptor) {
                 LUISA_INFO("Adapter mismatch, shader cache cleared.");
-                fileIo->clear_shader_cache();
+                file_io->clear_shader_cache();
             }
         }
-        static_cast<void>(fileIo->write_shader_cache("dx_adapterid", {reinterpret_cast<std::byte const *>(&adapterID), sizeof(vstd::MD5)}));
-        if (allocSettings)
-            defaultAllocator = vstd::make_unique<GpuAllocator>(
+        static_cast<void>(file_io->write_shader_cache("dx_adapterid", {reinterpret_cast<std::byte const *>(&adapter_id), sizeof(vstd::MD5)}));
+        if (alloc_settings)
+            default_allocator = vstd::make_unique<GpuAllocator>(
                 this,
                 profiler,
-                allocSettings->preferred_block_size,
-                allocSettings->sparse_buffer_block_size,
-                allocSettings->sparse_image_block_size);
+                alloc_settings->preferred_block_size,
+                alloc_settings->sparse_buffer_block_size,
+                alloc_settings->sparse_image_block_size);
         else
-            defaultAllocator = vstd::make_unique<GpuAllocator>(this, profiler, 0, 0, 0);
-        if (deviceSettings) {
-            deviceSettings->GetDefragmentFunction([ptr = defaultAllocator.get()] {
+            default_allocator = vstd::make_unique<GpuAllocator>(this, profiler, 0, 0, 0);
+        if (device_settings) {
+            device_settings->GetDefragmentFunction([ptr = default_allocator.get()] {
                 ptr->Defragment();
             });
         }
-        allocatorInterface.device = this;
-        globalHeap = vstd::create_unique(
+        allocator_interface.device = this;
+        global_heap = vstd::create_unique(
             new DescriptorHeap(
                 this,
                 D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
                 1000000ull,// Max allowed in Tier 3
                 true));
-        samplerHeap = vstd::create_unique(
+        sampler_heap = vstd::create_unique(
             new DescriptorHeap(
                 this,
                 D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER,
@@ -340,51 +340,51 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
                 true));
         auto samplers = GlobalSamplers::GetSamplers();
         for (auto i : vstd::range(samplers.size())) {
-            samplerHeap->CreateSampler(
+            sampler_heap->CreateSampler(
                 samplers[i], i);
         }
-        if (deviceSettings) {
-            deviceSettings->ReadbackDX12Device(
+        if (device_settings) {
+            device_settings->ReadbackDX12Device(
                 device,
                 adapter,
-                dxgiFactory,
-                &allocatorInterface,
-                fileIo,
-                gDxcCompiler->compiler(),
-                gDxcCompiler->library(),
-                gDxcCompiler->utils(),
-                globalHeap->GetHeap(),
-                samplerHeap->GetHeap());
+                dxgi_factory,
+                &allocator_interface,
+                file_io,
+                g_dxc_compiler->compiler(),
+                g_dxc_compiler->library(),
+                g_dxc_compiler->utils(),
+                global_heap->GetHeap(),
+                sampler_heap->GetHeap());
         }
         feature_check.check(this);
         {
 
-            if (useExperimental && (!feature_check.flags().cooperative_vector_supported)) {
+            if (use_experimental && (!feature_check.flags().cooperative_vector_supported)) {
                 LUISA_ERROR("Experimental not supported.");
             }
-            feature_check.flags().enhanced_barriers_supported = (deviceSettings && deviceSettings->UseEnhancedBarrier()) && feature_check.flags().enhanced_barriers_supported;
+            feature_check.flags().enhanced_barriers_supported = (device_settings && device_settings->UseEnhancedBarrier()) && feature_check.flags().enhanced_barriers_supported;
         }
     } else {
-        if (deviceSettings) {
-            if (gDxcCompiler) {
-                deviceSettings->ReadbackDX12Device(
+        if (device_settings) {
+            if (g_dxc_compiler) {
+                device_settings->ReadbackDX12Device(
                     nullptr,
                     nullptr,
                     nullptr,
                     nullptr,
-                    fileIo,
-                    gDxcCompiler->compiler(),
-                    gDxcCompiler->library(),
-                    gDxcCompiler->utils(),
+                    file_io,
+                    g_dxc_compiler->compiler(),
+                    g_dxc_compiler->library(),
+                    g_dxc_compiler->utils(),
                     nullptr,
                     nullptr);
             } else {
-                deviceSettings->ReadbackDX12Device(
+                device_settings->ReadbackDX12Device(
                     nullptr,
                     nullptr,
                     nullptr,
                     nullptr,
-                    fileIo,
+                    file_io,
                     nullptr,
                     nullptr,
                     nullptr,
@@ -395,18 +395,18 @@ Device::Device(Context &&ctx, DeviceConfig const *settings)
     }
     last_device_handle = device.Get();
 }
-bool Device::SupportMeshShader() const {
-    D3D12_FEATURE_DATA_D3D12_OPTIONS7 featureData = {};
-    device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS7, &featureData, sizeof(featureData));
-    return (featureData.MeshShaderTier >= D3D12_MESH_SHADER_TIER_1);
+bool Device::support_mesh_shader() const {
+    D3D12_FEATURE_DATA_D3D12_OPTIONS7 feature_data = {};
+    device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS7, &feature_data, sizeof(feature_data));
+    return (feature_data.MeshShaderTier >= D3D12_MESH_SHADER_TIER_1);
 }
 
 LUISA_EXPORT_API void backend_device_names(luisa::vector<luisa::string> &r) {
     r.clear();
-    ComPtr<IDXGIFactory2> dxgiFactory;
+    ComPtr<IDXGIFactory2> dxgi_factory;
     ComPtr<IDXGIAdapter1> adapter;
-    ThrowIfFailed(CreateDXGIFactory2(0, IID_PPV_ARGS(dxgiFactory.GetAddressOf())));
-    for (auto adapterIndex = 0u; dxgiFactory->EnumAdapters1(adapterIndex, adapter.GetAddressOf()) != DXGI_ERROR_NOT_FOUND; adapterIndex++) {
+    ThrowIfFailed(CreateDXGIFactory2(0, IID_PPV_ARGS(dxgi_factory.GetAddressOf())));
+    for (auto adapter_index = 0u; dxgi_factory->EnumAdapters1(adapter_index, adapter.GetAddressOf()) != DXGI_ERROR_NOT_FOUND; adapter_index++) {
         DXGI_ADAPTER_DESC1 desc;
         adapter->GetDesc1(&desc);
         if ((desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) == 0) {
@@ -416,12 +416,12 @@ LUISA_EXPORT_API void backend_device_names(luisa::vector<luisa::string> &r) {
         }
     }
 }
-uint Device::waveSize() const {
+uint Device::wave_size() const {
     return feature_check.wave_lane_count_max();
 }
 void process_dxgi_error(HRESULT hr) {
     // Should match all values from D3D12_AUTO_BREADCRUMB_OP
-    static const wchar_t *OpNames[]{
+    static const wchar_t *kOpNames[]{
         L"SetMarker",
         L"BeginEvent",
         L"EndEvent",
@@ -467,9 +467,9 @@ void process_dxgi_error(HRESULT hr) {
         L"DispatchMesh",
         L"EncodeFrame",
         L"ResolveEncoderOutputMetadata"};
-    static_assert(std::size(OpNames) == D3D12_AUTO_BREADCRUMB_OP_RESOLVEENCODEROUTPUTMETADATA + 1, "OpNames array length mismatch");
+    static_assert(std::size(kOpNames) == D3D12_AUTO_BREADCRUMB_OP_RESOLVEENCODEROUTPUTMETADATA + 1, "kOpNames array length mismatch");
     // Should match all valid values from D3D12_DRED_ALLOCATION_TYPE
-    static const wchar_t *AllocTypesNames[]{
+    static const wchar_t *kAllocTypesNames[]{
         L"CommandQueue",
         L"CommandAllocator",
         L"PipelineState",
@@ -500,8 +500,8 @@ void process_dxgi_error(HRESULT hr) {
         L"VideoMotionVectorHeap",
         L"VideoExtensionCommand",
     };
-    static_assert(std::size(AllocTypesNames) == D3D12_DRED_ALLOCATION_TYPE_VIDEO_EXTENSION_COMMAND - D3D12_DRED_ALLOCATION_TYPE_COMMAND_QUEUE + 1, "AllocTypes array length mismatch");
-    auto GetBreadcrumbContexts = [](const D3D12_AUTO_BREADCRUMB_NODE1 *Node) {
+    static_assert(std::size(kAllocTypesNames) == D3D12_DRED_ALLOCATION_TYPE_VIDEO_EXTENSION_COMMAND - D3D12_DRED_ALLOCATION_TYPE_COMMAND_QUEUE + 1, "kAllocTypesNames array length mismatch");
+    auto get_breadcrumb_contexts = [](const D3D12_AUTO_BREADCRUMB_NODE1 *Node) {
         return luisa::span<D3D12_DRED_BREADCRUMB_CONTEXT>{Node->pBreadcrumbContexts, Node->BreadcrumbContextsCount};
     };
 
@@ -513,69 +513,69 @@ void process_dxgi_error(HRESULT hr) {
     }
     auto pDevice = last_device_handle;
     last_device_handle = nullptr;
-    ComPtr<ID3D12DeviceRemovedExtendedData1> pDred;
-    if (FAILED(pDevice->QueryInterface(IID_PPV_ARGS(&pDred)))) {
+    ComPtr<ID3D12DeviceRemovedExtendedData1> dred;
+    if (FAILED(pDevice->QueryInterface(IID_PPV_ARGS(&dred)))) {
         return;
     }
 
-    D3D12_DRED_AUTO_BREADCRUMBS_OUTPUT1 DredAutoBreadcrumbsOutput;
-    D3D12_DRED_PAGE_FAULT_OUTPUT DredPageFaultOutput;
-    if (FAILED(pDred->GetAutoBreadcrumbsOutput1(&DredAutoBreadcrumbsOutput))) {
+    D3D12_DRED_AUTO_BREADCRUMBS_OUTPUT1 dred_auto_breadcrumbs_output;
+    D3D12_DRED_PAGE_FAULT_OUTPUT dred_page_fault_output;
+    if (FAILED(dred->GetAutoBreadcrumbsOutput1(&dred_auto_breadcrumbs_output))) {
         return;
     }
-    if (FAILED(pDred->GetPageFaultAllocationOutput(&DredPageFaultOutput))) {
+    if (FAILED(dred->GetPageFaultAllocationOutput(&dred_page_fault_output))) {
         return;
     }
     luisa::wstring result;
     result += L"DRED: Last tracked GPU operations:\n";
 
-    luisa::wstring ContextStr;
-    luisa::unordered_map<int32, const wchar_t *> ContextStrings;
-    int TracedCommandLists = 0;
-    auto node = DredAutoBreadcrumbsOutput.pHeadAutoBreadcrumbNode;
+    luisa::wstring context_str;
+    luisa::unordered_map<int32, const wchar_t *> context_strings;
+    int traced_command_lists = 0;
+    auto node = dred_auto_breadcrumbs_output.pHeadAutoBreadcrumbNode;
     while (node && node->pLastBreadcrumbValue) {
-        int32 LastCompletedOp = *node->pLastBreadcrumbValue;
-        if (LastCompletedOp != node->BreadcrumbCount && LastCompletedOp != 0) {
+        int32 last_completed_op = *node->pLastBreadcrumbValue;
+        if (last_completed_op != node->BreadcrumbCount && last_completed_op != 0) {
             if (node->pCommandListDebugNameW) {
                 luisa::format_to(std::back_inserter(result), L"Command list debug name: {}\n", node->pCommandListDebugNameW);
             }
             if (node->pCommandQueueDebugNameW) {
                 luisa::format_to(std::back_inserter(result), L"Command queue debug name: {}\n", node->pCommandQueueDebugNameW);
             }
-            luisa::format_to(std::back_inserter(result), L"DRED: {} completed of {}\n", LastCompletedOp, node->BreadcrumbCount);
-            TracedCommandLists++;
-            int32 FirstOp = std::max(LastCompletedOp - 100, 0);
-            int32 LastOp = std::min(LastCompletedOp + 20, int32(node->BreadcrumbCount) - 1);
-            ContextStrings.clear();
-            for (const D3D12_DRED_BREADCRUMB_CONTEXT &Context : GetBreadcrumbContexts(node)) {
-                ContextStrings.emplace(Context.BreadcrumbIndex, Context.pContextString);
+            luisa::format_to(std::back_inserter(result), L"DRED: {} completed of {}\n", last_completed_op, node->BreadcrumbCount);
+            traced_command_lists++;
+            int32 first_op = std::max(last_completed_op - 100, 0);
+            int32 last_op = std::min(last_completed_op + 20, int32(node->BreadcrumbCount) - 1);
+            context_strings.clear();
+            for (const D3D12_DRED_BREADCRUMB_CONTEXT &Context : get_breadcrumb_contexts(node)) {
+                context_strings.emplace(Context.BreadcrumbIndex, Context.pContextString);
             }
-            for (int32 Op = FirstOp; Op <= LastOp; ++Op) {
-                D3D12_AUTO_BREADCRUMB_OP BreadcrumbOp = node->pCommandHistory[Op];
-                auto OpContextStr = ContextStrings.find(Op);
-                if (OpContextStr != ContextStrings.end()) {
-                    ContextStr += OpContextStr->second;
+            for (int32 op = first_op; op <= last_op; ++op) {
+                D3D12_AUTO_BREADCRUMB_OP breadcrumb_op = node->pCommandHistory[op];
+                auto op_context_str = context_strings.find(op);
+                if (op_context_str != context_strings.end()) {
+                    context_str += op_context_str->second;
                 } else {
-                    ContextStr.clear();
+                    context_str.clear();
                 }
-                luisa::wstring_view OpName = (BreadcrumbOp < std::size(OpNames)) ? OpNames[BreadcrumbOp] : L"Unknown Op";
-                luisa::wstring_view State = Op < LastCompletedOp ? L"[ok]" : (Op == LastCompletedOp ? L"[Active]" : L"[ ]");
-                luisa::format_to(std::back_inserter(result), L"\t{} Op: {}, {} {} {}\n", State, Op, OpName, ContextStr, (Op + 1 == LastCompletedOp) ? L" - LAST COMPLETED" : L"");
+                luisa::wstring_view op_name = (breadcrumb_op < std::size(kOpNames)) ? kOpNames[breadcrumb_op] : L"Unknown Op";
+                luisa::wstring_view state = op < last_completed_op ? L"[ok]" : (op == last_completed_op ? L"[Active]" : L"[ ]");
+                luisa::format_to(std::back_inserter(result), L"\t{} Op: {}, {} {} {}\n", state, op, op_name, context_str, (op + 1 == last_completed_op) ? L" - LAST COMPLETED" : L"");
             }
         }
         node = node->pNext;
     }
-    if (TracedCommandLists == 0) {
+    if (traced_command_lists == 0) {
         result += L"DRED: No command list found with active outstanding operations (all finished or not started yet)\n";
     }
-    luisa::format_to(std::back_inserter(result), L"page fault VA: {}\n", DredPageFaultOutput.PageFaultVA);
+    luisa::format_to(std::back_inserter(result), L"page fault VA: {}\n", dred_page_fault_output.PageFaultVA);
 
-    for (auto node = DredPageFaultOutput.pHeadExistingAllocationNode; node != nullptr; node = node->pNext) {
+    for (auto node = dred_page_fault_output.pHeadExistingAllocationNode; node != nullptr; node = node->pNext) {
         if (node->ObjectNameW) {
             luisa::format_to(std::back_inserter(result), L"Exists object name {}\n", node->ObjectNameW);
         }
     }
-    for (auto node = DredPageFaultOutput.pHeadRecentFreedAllocationNode; node != nullptr; node = node->pNext) {
+    for (auto node = dred_page_fault_output.pHeadRecentFreedAllocationNode; node != nullptr; node = node->pNext) {
         if (node->ObjectNameW) {
             luisa::format_to(std::back_inserter(result), L"Freed object name {}\n", node->ObjectNameW);
         }

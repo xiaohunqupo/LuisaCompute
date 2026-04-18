@@ -7,45 +7,45 @@ LCEvent::LCEvent(Device *device, bool shared)
     ThrowIfFailed(device->device->CreateFence(
         0,
         shared ? D3D12_FENCE_FLAG_SHARED : D3D12_FENCE_FLAG_NONE,
-        IID_PPV_ARGS(&fence)));
+        IID_PPV_ARGS(&_fence)));
 }
 LCEvent::~LCEvent() {
-    if (!fence) return;
+    if (!_fence) return;
     HANDLE eventHandle = CreateEventExW(nullptr, nullptr, 0, EVENT_ALL_ACCESS);
     auto d = vstd::scope_exit([&] {
         CloseHandle(eventHandle);
     });
-    if (fence->GetCompletedValue() < lastFence) {
-        ThrowIfFailed(fence->SetEventOnCompletion(lastFence, eventHandle));
+    if (_fence->GetCompletedValue() < last_fence) {
+        ThrowIfFailed(_fence->SetEventOnCompletion(last_fence, eventHandle));
         WaitForSingleObject(eventHandle, INFINITE);
     }
 }
 
-void LCEvent::Sync(uint64_t fenceIdx) const {
-    while (finishedEvent < fenceIdx) {
+void LCEvent::sync(uint64_t fenceIdx) const {
+    while (finished_event < fenceIdx) {
         std::this_thread::yield();
     }
 }
-void LCEvent::Signal(CommandQueue *queue, uint64_t fenceIdx) const {
-    std::lock_guard<luisa::spin_mutex> lck(eventMtx);
-    if (!device->deviceSettings || !device->deviceSettings->SignalFence(queue->Queue(), fence.Get(), fenceIdx))
-        ThrowIfFailed(queue->Queue()->Signal(fence.Get(), fenceIdx));
-    lastFence = std::max(lastFence, fenceIdx);
+void LCEvent::signal(CommandQueue *queue, uint64_t fenceIdx) const {
+    std::lock_guard<luisa::spin_mutex> lck(event_mtx);
+    if (!device->device_settings || !device->device_settings->SignalFence(queue->queue(), _fence.Get(), fenceIdx))
+        ThrowIfFailed(queue->queue()->Signal(_fence.Get(), fenceIdx));
+    last_fence = std::max(last_fence, fenceIdx);
+    queue->add_event(this, fenceIdx);
+}
+void LCEvent::signal(DStorageCommandQueue *queue, uint64_t fenceIdx) const {
+    std::lock_guard<luisa::spin_mutex> lck(event_mtx);
+    queue->Signal(_fence.Get(), fenceIdx);
+    last_fence = std::max(last_fence, fenceIdx);
     queue->AddEvent(this, fenceIdx);
 }
-void LCEvent::Signal(DStorageCommandQueue *queue, uint64_t fenceIdx) const {
-    std::lock_guard<luisa::spin_mutex> lck(eventMtx);
-    queue->Signal(fence.Get(), fenceIdx);
-    lastFence = std::max(lastFence, fenceIdx);
-    queue->AddEvent(this, fenceIdx);
+void LCEvent::wait(CommandQueue *queue, uint64_t fenceIdx) const {
+    std::lock_guard<luisa::spin_mutex> lck(event_mtx);
+    if (!device->device_settings || !device->device_settings->WaitFence(queue->queue(), _fence.Get(), fenceIdx))
+        ThrowIfFailed(queue->queue()->Wait(_fence.Get(), fenceIdx));
 }
-void LCEvent::Wait(CommandQueue *queue, uint64_t fenceIdx) const {
-    std::lock_guard<luisa::spin_mutex> lck(eventMtx);
-    if (!device->deviceSettings || !device->deviceSettings->WaitFence(queue->Queue(), fence.Get(), fenceIdx))
-        ThrowIfFailed(queue->Queue()->Wait(fence.Get(), fenceIdx));
-}
-bool LCEvent::IsComplete(uint64_t fenceIdx) const {
-    std::lock_guard<luisa::spin_mutex> lck(eventMtx);
-    return finishedEvent >= fenceIdx;
+bool LCEvent::is_complete(uint64_t fenceIdx) const {
+    std::lock_guard<luisa::spin_mutex> lck(event_mtx);
+    return finished_event >= fenceIdx;
 }
 }// namespace lc::dx

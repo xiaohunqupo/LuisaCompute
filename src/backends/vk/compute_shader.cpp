@@ -75,7 +75,7 @@ ComputeShader *ComputeShader::compile(
     vstd::function<hlsl::CodegenResult()> const &codegen,
     vstd::optional<vstd::MD5> const &code_md5,
     vstd::vector<Argument> &&bindings,
-    uint3 blockSize,
+    uint3 block_size,
     vstd::string_view file_name,
     SerdeType serde_type,
     uint shader_model,
@@ -99,7 +99,7 @@ ComputeShader *ComputeShader::compile(
             fwrite(str.result.data(), str.result.size(), 1, f);
             fclose(f);
         }
-        auto comp_result = Device::Compiler()->compile_compute(
+        auto comp_result = Device::compiler()->compile_compute(
             str.result.view(),
             true,
             shader_model,
@@ -111,7 +111,7 @@ ComputeShader *ComputeShader::compile(
             [&](hlsl::ComUniquePtr<IDxcBlob> const &buffer) {
                 auto shader = new ComputeShader(
                     device,
-                    blockSize,
+                    block_size,
                     str.properties,
                     std::move(saved_args),
                     {reinterpret_cast<const uint *>(buffer->GetBufferPointer()), buffer->GetBufferSize() / sizeof(uint)},
@@ -127,7 +127,7 @@ ComputeShader *ComputeShader::compile(
                         shader->saved_arguments(),
                         md5,
                         vstd::MD5(vstd::MD5::MD5Data{0, 0}),
-                        blockSize,
+                        block_size,
                         file_name,
                         {reinterpret_cast<const uint *>(buffer->GetBufferPointer()), buffer->GetBufferSize() / sizeof(uint)},
                         serde_type,

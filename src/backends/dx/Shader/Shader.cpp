@@ -30,9 +30,9 @@ Shader::Shader(
     ComPtr<ID3D12RootSignature> &&rootSig,
     vstd::vector<std::pair<vstd::string, Type const *>> &&printers)
     : rootSig(std::move(rootSig)),
-      properties(std::move(prop)),
+      _properties(std::move(prop)),
       kernelArguments(std::move(args)),
-      printers(std::move(printers)) {
+      _printers(std::move(printers)) {
 }
 
 Shader::Shader(
@@ -41,11 +41,11 @@ Shader::Shader(
     ID3D12Device *device,
     vstd::vector<std::pair<vstd::string, Type const *>> &&printers,
     bool isRaster)
-    : properties(std::move(prop)),
+    : _properties(std::move(prop)),
       kernelArguments(std::move(args)),
-      printers(std::move(printers)) {
+      _printers(std::move(printers)) {
     auto serializedRootSig = ShaderSerializer::SerializeRootSig(
-        properties,
+        _properties,
         isRaster);
     ThrowIfFailed(device->CreateRootSignature(
         0,
@@ -54,12 +54,12 @@ Shader::Shader(
         IID_PPV_ARGS(rootSig.GetAddressOf())));
 }
 
-void Shader::SetComputeResource(
+void Shader::set_compute_resource(
     uint propertyName,
     CommandBufferBuilder *cb,
     BufferView buffer) const {
-    auto cmdList = cb->GetCB()->CmdList();
-    auto &&var = properties[propertyName];
+    auto cmdList = cb->get_cb()->cmd_list();
+    auto &&var = _properties[propertyName];
     switch (var.type) {
         case hlsl::ShaderVariableType::ConstantBuffer: {
             cmdList->SetComputeRootConstantBufferView(
@@ -85,12 +85,12 @@ void Shader::SetComputeResource(
                         to_string(var.type));
     }
 }
-void Shader::SetComputeResource(
+void Shader::set_compute_resource(
     uint propertyName,
     CommandBufferBuilder *cb,
     DescriptorHeapView view) const {
-    auto cmdList = cb->GetCB()->CmdList();
-    auto &&var = properties[propertyName];
+    auto cmdList = cb->get_cb()->cmd_list();
+    auto &&var = _properties[propertyName];
     switch (var.type) {
         case hlsl::ShaderVariableType::UAVBufferHeap:
         case hlsl::ShaderVariableType::UAVTextureHeap:
@@ -105,29 +105,29 @@ void Shader::SetComputeResource(
         default: LUISA_ASSUME(false); break;
     }
 }
-void Shader::SetComputeResource(
+void Shader::set_compute_resource(
     uint propertyName,
     CommandBufferBuilder *cb,
     std::pair<uint, uint4> const &constValue) const {
-    auto cmdList = cb->GetCB()->CmdList();
-    LUISA_ASSUME(properties[propertyName].type == hlsl::ShaderVariableType::ConstantValue);
+    auto cmdList = cb->get_cb()->cmd_list();
+    LUISA_ASSUME(_properties[propertyName].type == hlsl::ShaderVariableType::ConstantValue);
     cmdList->SetComputeRoot32BitConstants(propertyName, constValue.first, &constValue.second, 0);
 }
-void Shader::SetComputeResource(
+void Shader::set_compute_resource(
     uint propertyName,
     CommandBufferBuilder *cmdList,
     TopAccel const *bAccel) const {
-    return SetComputeResource(
+    return set_compute_resource(
         propertyName,
         cmdList,
         BufferView(bAccel->GetAccelBuffer()));
 }
-void Shader::SetRasterResource(
+void Shader::set_raster_resource(
     uint propertyName,
     CommandBufferBuilder *cb,
     BufferView buffer) const {
-    auto cmdList = cb->GetCB()->CmdList();
-    auto &&var = properties[propertyName];
+    auto cmdList = cb->get_cb()->cmd_list();
+    auto &&var = _properties[propertyName];
     switch (var.type) {
         case hlsl::ShaderVariableType::ConstantBuffer: {
             cmdList->SetGraphicsRootConstantBufferView(
@@ -147,12 +147,12 @@ void Shader::SetRasterResource(
         default: LUISA_ASSUME(false); break;
     }
 }
-void Shader::SetRasterResource(
+void Shader::set_raster_resource(
     uint propertyName,
     CommandBufferBuilder *cb,
     DescriptorHeapView view) const {
-    auto cmdList = cb->GetCB()->CmdList();
-    auto &&var = properties[propertyName];
+    auto cmdList = cb->get_cb()->cmd_list();
+    auto &&var = _properties[propertyName];
     switch (var.type) {
         case hlsl::ShaderVariableType::UAVBufferHeap:
         case hlsl::ShaderVariableType::UAVTextureHeap:
@@ -167,24 +167,24 @@ void Shader::SetRasterResource(
         default: LUISA_ASSUME(false); break;
     }
 }
-void Shader::SetRasterResource(
+void Shader::set_raster_resource(
     uint propertyName,
     CommandBufferBuilder *cmdList,
     TopAccel const *bAccel) const {
-    return SetRasterResource(
+    return set_raster_resource(
         propertyName,
         cmdList,
         BufferView(bAccel->GetAccelBuffer()));
 }
-void Shader::SetRasterResource(
+void Shader::set_raster_resource(
     uint propertyName,
     CommandBufferBuilder *cb,
     std::pair<uint, uint4> const &constValue) const {
-    auto cmdList = cb->GetCB()->CmdList();
-    LUISA_ASSUME(properties[propertyName].type == hlsl::ShaderVariableType::ConstantValue);
+    auto cmdList = cb->get_cb()->cmd_list();
+    LUISA_ASSUME(_properties[propertyName].type == hlsl::ShaderVariableType::ConstantValue);
     cmdList->SetGraphicsRoot32BitConstants(propertyName, constValue.first, &constValue.second, 0);
 }
-void Shader::SavePSO(ID3D12PipelineState *pso, vstd::string_view psoName, luisa::BinaryIO const *fileStream, Device const *device) const {
+void Shader::save_pso(ID3D12PipelineState *pso, vstd::string_view psoName, luisa::BinaryIO const *fileStream, Device const *device) const {
     LUISA_VERBOSE("Write Pipeline cache to {}.", psoName);
     ComPtr<ID3DBlob> psoCache;
     pso->GetCachedBlob(&psoCache);
@@ -193,10 +193,10 @@ void Shader::SavePSO(ID3D12PipelineState *pso, vstd::string_view psoName, luisa:
         {reinterpret_cast<std::byte const *>(psoCache->GetBufferPointer()),
          psoCache->GetBufferSize()}));
 };
-vstd::string Shader::PSOName(Device const *device, vstd::string_view fileName) {
+vstd::string Shader::pso_name(Device const *device, vstd::string_view fileName) {
     vstd::fixed_vector<uint8_t, 64> data;
     luisa::enlarge_by(data, 16 + fileName.size());
-    std::memcpy(data.data(), &device->adapterID, 16);
+    std::memcpy(data.data(), &device->adapter_id, 16);
     std::memcpy(data.data() + 16, fileName.data(), fileName.size());
     vstd::MD5 hash{data};
     return hash.to_string(false) + ".dx";

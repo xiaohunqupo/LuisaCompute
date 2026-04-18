@@ -7,7 +7,7 @@
 #include "raster_shader.h"
 #include "texture.h"
 namespace lc::vk {
-static const bool RASTER_PRINT_CODE = ([] {
+static const bool kRasterPrintCode = ([] {
     // read env LUISA_DUMP_SOURCE
     auto env = std::getenv("LUISA_DUMP_SOURCE");
     if (env == nullptr) {
@@ -20,7 +20,7 @@ ResourceCreationInfo VkRasterExt::create_raster_shader(
     Function pixel,
     const ShaderOption &option) noexcept {
     LUISA_ASSERT(option.compile_only, "Raster only allow AOT.");
-    assert(!option.name.empty());
+    LUISA_ASSERT(!option.name.empty(), "Raster shader name must not be empty.");
     uint mask = 0;
     if (option.enable_fast_math) {
         mask |= 1;
@@ -28,14 +28,14 @@ ResourceCreationInfo VkRasterExt::create_raster_shader(
     if (option.enable_debug_info) {
         mask |= 2;
     }
-    auto code = hlsl::CodegenUtility{}.RasterCodegen(vert, pixel, {}, mask, true);
-    if (RASTER_PRINT_CODE) {
+    auto code = hlsl::CodegenUtility{}.RasterCodegen(vert, pixel, option.native_include, mask, true);
+    if (kRasterPrintCode) {
         auto f = fopen("hlsl_output.hlsl", "ab");
         fwrite(code.result.data(), code.result.size(), 1, f);
         fclose(f);
     }
     vstd::MD5 check_md5({reinterpret_cast<uint8_t const *>(code.result.data() + code.immutableHeaderSize), code.result.size() - code.immutableHeaderSize});
-    auto comp_result = Device::Compiler()->compile_raster(code.result.view(), !option.enable_debug_info, k_shader_model, option.enable_fast_math, true, option.enable_debug_info);
+    auto comp_result = Device::compiler()->compile_raster(code.result.view(), !option.enable_debug_info, k_shader_model, option.enable_fast_math, true, option.enable_debug_info);
     if (comp_result.vertex.is_type_of<vstd::string>()) [[unlikely]] {
         LUISA_ERROR("DXC compile vertex-shader error: {}", *comp_result.vertex.try_get<vstd::string>());
     }
@@ -43,23 +43,23 @@ ResourceCreationInfo VkRasterExt::create_raster_shader(
         LUISA_ERROR("DXC compile pixel-shader error: {}", *comp_result.pixel.try_get<vstd::string>());
     }
     auto kernel_args = [&]() {
-        auto vertSpan = vert.arguments();
-        auto vertArgs =
+        auto vert_span = vert.arguments();
+        auto vert_args =
             vstd::range_linker{
-                vstd::make_ite_range(vertSpan.subspan(1)),
+                vstd::make_ite_range(vert_span.subspan(1)),
                 vstd::transform_range{
                     [&](Variable const &var) {
                         return std::pair<Variable, Usage>{var, vert.variable_usage(var.uid())};
                     }}};
-        auto pixelSpan = pixel.arguments();
-        auto pixelArgs =
+        auto pixel_span = pixel.arguments();
+        auto pixel_args =
             vstd::range_linker{
-                vstd::make_ite_range(pixelSpan.subspan(1)),
+                vstd::make_ite_range(pixel_span.subspan(1)),
                 vstd::transform_range{
                     [&](Variable const &var) {
                         return std::pair<Variable, Usage>{var, pixel.variable_usage(var.uid())};
                     }}};
-        auto args = vstd::tuple_range(std::move(vertArgs), std::move(pixelArgs)).i_range();
+        auto args = vstd::tuple_range(std::move(vert_args), std::move(pixel_args)).i_range();
         return ShaderSerializer::serialize_saved_args(args);
     }();
     auto &&vert_buffer = comp_result.vertex.get<0>();
@@ -100,7 +100,6 @@ ResourceCreationInfo VkRasterExt::load_raster_shader(
 VkRasterExt::VkRasterExt(Device *device) {
     _device = device;
 }
-VkRasterExt::~VkRasterExt() {}
 
 void VkRasterExt::destroy_raster_shader(uint64_t handle) noexcept {
     delete reinterpret_cast<RasterShader *>(handle);

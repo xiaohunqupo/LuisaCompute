@@ -17,7 +17,7 @@ struct TlasInputInst {
 };
 }// namespace tlas_detail
 Tlas::Tlas(Device *device, AccelOption const &option)
-    : Resource(device), acceleration_build_geometry_info(nullptr) {
+    : Resource(device), _option(option), _acceleration_build_geometry_info(nullptr) {
     if (!device->enable_raytracing()) [[unlikely]] {
         LUISA_ERROR("Raytracing not enabled, TLAS can not be loaded.");
     }
@@ -30,13 +30,13 @@ void Tlas::pre_build(
     luisa::span<AccelBuildCommand::Modification const> modifications,
     AccelBuildRequest request) {
     using namespace tlas_detail;
-    resize_instance(instance_count);
+    _resize_instance(instance_count);
     auto dst_inst_size = instance_count * sizeof(VkAccelerationStructureInstanceKHR);
     dst_inst_size = (dst_inst_size + 65535u) & (~65535u);
     // resize
     auto resource_barrier = cmdbuffer.resource_barrier;
-    bool update = option.allow_update && request == AccelBuildRequest::PREFER_UPDATE && (!require_rebuild);
-    require_rebuild = false;
+    bool update = _option.allow_update && request == AccelBuildRequest::PREFER_UPDATE && (!_require_rebuild);
+    _require_rebuild = false;
     if (_last_instance_count != instance_count) {
         update = false;
         _last_instance_count = instance_count;
@@ -73,21 +73,21 @@ void Tlas::pre_build(
         update = false;
         _instance_buffer = vstd::make_unique<DefaultBuffer>(device(), dst_inst_size, false, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR);
     }
-    if (!(modifications.empty() && set_map.empty())) {
+    if (!(modifications.empty() && _set_map.empty())) {
         for (auto &&i : modifications) {
-            auto ite = set_map.find(i.index);
+            auto ite = _set_map.find(i.index);
             bool updateMesh = (i.flags & AccelBuildCommand::Modification::flag_primitive);
-            if (ite != set_map.end()) {
+            if (ite != _set_map.end()) {
                 if (!updateMesh) {
                     const_cast<uint &>(i.flags) = i.flags | AccelBuildCommand::Modification::flag_primitive;
                     const_cast<uint64_t &>(i.primitive) = ite->second->mesh->get_accel_device_address();
                     updateMesh = true;
                 }
-                set_map.erase(ite);
+                _set_map.erase(ite);
             }
             if (updateMesh) {
                 auto mesh = reinterpret_cast<Blas *>(i.primitive);
-                set_mesh(mesh, i.index);
+                _set_mesh(mesh, i.index);
                 update = false;
             }
         }
@@ -95,7 +95,7 @@ void Tlas::pre_build(
             BufferView{
                 _instance_buffer.get()},
             ResourceBarrier::Usage::ComputeUAV);
-        auto shader = device()->set_accel_kernel.Get(device());
+        auto shader = device()->set_accel_kernel.get(device());
         resource_barrier->update_states(cmdbuffer.cmdbuffer());
         VkDescriptorSet desc_set;
         VkDescriptorSetAllocateInfo alloc_info{
@@ -108,7 +108,7 @@ void Tlas::pre_build(
                 device()->logic_device(),
                 &alloc_info,
                 &desc_set));
-        const uint modification_size = modifications.size() + set_map.size();
+        const uint modification_size = modifications.size() + _set_map.size();
         uint2 value = {
             modification_size,
             instance_count};
@@ -141,8 +141,8 @@ void Tlas::pre_build(
             }
             inst_ptr++;
         }
-        for (auto &i : set_map) {
-            if (i.first >= allInstance.size()) continue;
+        for (auto &i : _set_map) {
+            if (i.first >= _all_instance.size()) continue;
             inst_ptr->index = i.first;
             inst_ptr->flags = AccelBuildCommand::Modification::flag_primitive;
             resource_barrier->record(BufferView{i.second->mesh->_accel_buffer.get()},
@@ -152,7 +152,7 @@ void Tlas::pre_build(
             ++inst_ptr;
         }
         static_cast<UploadBuffer const *>(dsc_buffer.buffer)->copy_from(cache.data(), dsc_buffer.offset, dsc_buffer.size_bytes);
-        set_map.clear();
+        _set_map.clear();
         VkDescriptorBufferInfo arg_buffer_info{
             dsc_buffer.buffer->vk_buffer(),
             dsc_buffer.offset,
@@ -212,21 +212,21 @@ void Tlas::pre_build(
     acceleration_structure_geometry->geometry.instances.arrayOfPointers = VK_FALSE;
     acceleration_structure_geometry->geometry.instances.data = instance_data_device_address;
 
-    acceleration_build_geometry_info = cmdbuffer.temp_desc->allocate_memory<VkAccelerationStructureBuildGeometryInfoKHR>();
-    acceleration_build_geometry_info->sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
-    acceleration_build_geometry_info->type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
-    acceleration_build_geometry_info->flags = option.hint == AccelOption::UsageHint::FAST_BUILD ? VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR : VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
-    acceleration_build_geometry_info->geometryCount = 1;
-    acceleration_build_geometry_info->pGeometries = acceleration_structure_geometry;
-    if (option.allow_update) {
-        acceleration_build_geometry_info->flags |= VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
+    _acceleration_build_geometry_info = cmdbuffer.temp_desc->allocate_memory<VkAccelerationStructureBuildGeometryInfoKHR>();
+    _acceleration_build_geometry_info->sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+    _acceleration_build_geometry_info->type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+    _acceleration_build_geometry_info->flags = _option.hint == AccelOption::UsageHint::FAST_BUILD ? VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR : VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+    _acceleration_build_geometry_info->geometryCount = 1;
+    _acceleration_build_geometry_info->pGeometries = acceleration_structure_geometry;
+    if (_option.allow_update) {
+        _acceleration_build_geometry_info->flags |= VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
     }
-    acceleration_build_geometry_info->mode = update ? VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR : VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+    _acceleration_build_geometry_info->mode = update ? VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR : VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
     VkAccelerationStructureBuildSizesInfoKHR acceleration_structure_build_sizes_info{};
     acceleration_structure_build_sizes_info.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
     vkGetAccelerationStructureBuildSizesKHR(
         device()->logic_device(), VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
-        acceleration_build_geometry_info,
+        _acceleration_build_geometry_info,
         &instance_count,
         &acceleration_structure_build_sizes_info);
     uint scratch_buffer_size = update ? acceleration_structure_build_sizes_info.updateScratchSize : acceleration_structure_build_sizes_info.buildScratchSize;
@@ -260,24 +260,24 @@ void Tlas::pre_build(
     scratch_buffer_size = (scratch_buffer_size + 255) & (~(255u));
     auto scratch_chunk = cmdbuffer.scratch_buffer_alloc->allocate(scratch_buffer_size);
 
-    scratch_buffer = reinterpret_cast<Buffer const *>(scratch_chunk.handle);
-    scratch_buffer_offset = scratch_chunk.offset;
+    _scratch_buffer = reinterpret_cast<Buffer const *>(scratch_chunk.handle);
+    _scratch_buffer_offset = scratch_chunk.offset;
     cmdbuffer.resource_barrier->record(
-        scratch_buffer,
+        _scratch_buffer,
         ResourceBarrier::Usage::ComputeUAV);
 }
-void Tlas::update_mesh(
+void Tlas::_update_mesh(
     MeshHandle *handle) {
-    auto instIndex = handle->accelIndex;
-    LUISA_ASSUME(allInstance[instIndex].handle == handle);
-    set_map[instIndex] = handle;
-    require_rebuild = true;
+    auto instIndex = handle->accel_index;
+    LUISA_ASSUME(_all_instance[instIndex].handle == handle);
+    _set_map[instIndex] = handle;
+    _require_rebuild = true;
 }
 void Tlas::build(
     CommandBuffer &cmdbuffer,
     uint instance_count) {
-    acceleration_build_geometry_info->dstAccelerationStructure = _accel;
-    acceleration_build_geometry_info->scratchData.deviceAddress = scratch_buffer->get_device_address() + scratch_buffer_offset;
+    _acceleration_build_geometry_info->dstAccelerationStructure = _accel;
+    _acceleration_build_geometry_info->scratchData.deviceAddress = _scratch_buffer->get_device_address() + _scratch_buffer_offset;
     auto acceleration_structure_build_range_info = cmdbuffer.temp_desc->allocate_memory<VkAccelerationStructureBuildRangeInfoKHR>();
     acceleration_structure_build_range_info->primitiveCount = instance_count;
     acceleration_structure_build_range_info->primitiveOffset = 0;
@@ -286,7 +286,7 @@ void Tlas::build(
     vkCmdBuildAccelerationStructuresKHR(
         cmdbuffer.cmdbuffer(),
         1,
-        acceleration_build_geometry_info,
+        _acceleration_build_geometry_info,
         &acceleration_structure_build_range_info);
     // possible? 
     cmdbuffer.resource_barrier->record(
@@ -297,31 +297,31 @@ void Tlas::build(
         _accel_buffer.get(),
         ResourceBarrier::Usage::ComputeRead);
 }
-void Tlas::resize_instance(size_t size) {
-    if (size < allInstance.size()) {
-        for (auto &i : vstd::ptr_range(allInstance.data() + size, allInstance.data() + allInstance.size())) {
+void Tlas::_resize_instance(size_t size) {
+    if (size < _all_instance.size()) {
+        for (auto &i : vstd::ptr_range(_all_instance.data() + size, _all_instance.data() + _all_instance.size())) {
             if (!i.handle) continue;
-            i.handle->mesh->remove_accel_ref(i.handle);
+            i.handle->mesh->_remove_accel_ref(i.handle);
         }
     }
-    allInstance.resize(size);
+    _all_instance.resize(size);
 }
 
 Tlas::~Tlas() {
-    for (auto &&i : allInstance) {
+    for (auto &&i : _all_instance) {
         auto mesh = i.handle;
         if (mesh)
-            mesh->mesh->remove_accel_ref(mesh);
+            mesh->mesh->_remove_accel_ref(mesh);
     }
     vkDestroyAccelerationStructureKHR(device()->logic_device(), _accel, Device::alloc_callbacks());
 }
-void Tlas::set_mesh(Blas *mesh, uint64 index) {
-    auto &&inst = allInstance[index].handle;
+void Tlas::_set_mesh(Blas *mesh, uint64 index) {
+    auto &&inst = _all_instance[index].handle;
     if (inst != nullptr) {
         if (inst->mesh == mesh) return;
-        inst->mesh->remove_accel_ref(inst);
+        inst->mesh->_remove_accel_ref(inst);
     }
-    inst = mesh->add_accel_ref(this, index);
-    inst->accelIndex = index;
+    inst = mesh->_add_accel_ref(this, index);
+    inst->accel_index = index;
 }
 }// namespace lc::vk

@@ -12,7 +12,7 @@ BufferCreationInfo VkNativeResourceExt::register_external_buffer(
     void *custom_data) noexcept {
     size_t elem_size = (element == Type::of<void>()) ? 1 : element->size();
     size_t size = elem_size * elem_count;
-    BufferCreationInfo info;
+    BufferCreationInfo info{};
     info.handle = reinterpret_cast<uint64_t>(new ExternalBuffer(
         static_cast<Device *>(_device),
         static_cast<VkBuffer>(buffer_ptr),
@@ -59,7 +59,7 @@ SwapchainCreationInfo VkNativeResourceExt::register_external_swapchain(
     void *swapchain_ptr,
     bool vsync) noexcept {
     // TODO
-    SwapchainCreationInfo s;
+    SwapchainCreationInfo s{};
     s.invalidate();
     return s;
 }
@@ -72,5 +72,4 @@ uint64_t VkNativeResourceExt::get_native_resource_device_address(
     return vkGetBufferDeviceAddress(static_cast<Device *>(_device)->logic_device(), &buffer_device_address_info);
 }
 
-VkNativeResourceExt::~VkNativeResourceExt() {}
 }// namespace lc::vk

@@ -30,7 +30,7 @@ struct ReorderFuncTable {
     }
     Usage get_usage(uint64_t shader_handle, size_t argument_index) const noexcept {
         auto cs = reinterpret_cast<ComputeShader *>(shader_handle);
-        return cs->Args()[argument_index].varUsage;
+        return cs->args()[argument_index].varUsage;
     }
     void update_bindless(uint64_t handle, luisa::span<const BindlessArrayUpdateCommand::Modification> modifications) const noexcept {
         reinterpret_cast<BindlessArray *>(handle)->Bind(modifications);
@@ -47,7 +47,7 @@ struct ReorderFuncTable {
             modifications.size()});
     }
     luisa::span<const Argument> shader_bindings(uint64_t handle) const noexcept {
-        return reinterpret_cast<ComputeShader const *>(handle)->ArgBindings();
+        return reinterpret_cast<ComputeShader const *>(handle)->arg_bindings();
     }
     void lock_bindless(uint64_t bindless_handle) const noexcept {
         reinterpret_cast<BindlessArray *>(bindless_handle)->Lock();
