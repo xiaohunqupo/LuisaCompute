@@ -13,11 +13,11 @@ public:
     virtual ~Resource() = default;
     auto device() const { return _device; }
     enum class Tag {
-        Buffer,
-        Texture,
-        Swapchain,
-        Unknown
+        kBuffer,
+        kTexture,
+        kSwapchain,
+        kUnknown
     };
-    virtual Tag tag() const { return Tag::Unknown; }
+    virtual Tag tag() const { return Tag::kUnknown; }
 };
 }// namespace lc::vk

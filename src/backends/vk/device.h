@@ -11,13 +11,13 @@ namespace lc::hlsl {
 class ShaderCompiler;
 }// namespace lc::hlsl
 namespace lc::vk {
-static constexpr uint k_shader_model = 65u;
-static constexpr uint k_high_shader_model = 66u;
-static constexpr uint k_tensor_shader_model = 69u;
+static constexpr uint kShaderModel = 65u;
+static constexpr uint kHighShaderModel = 66u;
+static constexpr uint kTensorShaderModel = 69u;
 class ComputeShader;
 using namespace luisa;
 using namespace luisa::compute;
-static constexpr size_t sparse_buffer_size = 65536ull;
+static constexpr size_t kSparseBufferSize = 65536ull;
 class Device : public DeviceInterface, public vstd::IOperatorNewBase {
     struct Ext {
         using Ctor = vstd::func_ptr_t<DeviceExtension *(Device *)>;
@@ -104,16 +104,16 @@ public:
     HeapAlloc buffer_heap_pool;
     LazyLoadShader set_bindless_kernel;
     LazyLoadShader set_accel_kernel;
-    bool _external_instance : 1 {false};
-    bool _external_device : 1 {false};
-    bool _external_graphics_queue : 1 {false};
-    bool _external_compute_queue : 1 {false};
-    bool _external_copy_queue : 1 {false};
-    bool _enable_bindless : 1 {true};
-    bool _enable_raytracing : 1 {true};
-    bool _enable_surface : 1 {true};
-    bool _enable_device_address : 1 {true};
-    bool _enable_interop : 1 {true};
+    bool external_instance : 1 {false};
+    bool external_device : 1 {false};
+    bool external_graphics_queue : 1 {false};
+    bool external_compute_queue : 1 {false};
+    bool external_copy_queue : 1 {false};
+    bool bindless_enabled : 1 {true};
+    bool raytracing_enabled : 1 {true};
+    bool surface_enabled : 1 {true};
+    bool device_address_enabled : 1 {true};
+    bool interop_enabled : 1 {true};
     auto &graphics_queue_mtx() { return _graphics_queue_mtx; }
     auto &compute_queue_mtx() { return _compute_queue_mtx; }
     auto &copy_queue_mtx() { return _copy_queue_mtx; }
@@ -124,11 +124,11 @@ public:
     auto bdls_tex2d_set() const { return _bdls_tex2d_set; }
     auto bdls_tex3d_set() const { return _bdls_tex3d_set; }
     auto samplers() const { return luisa::span{_samplers}; }
-    bool enable_surface_feature() const { return _enable_surface; }
-    bool enable_bindless() const { return _enable_bindless; }
-    bool enable_interop() const { return _enable_interop; }
-    bool enable_raytracing() const { return _enable_raytracing; }
-    bool enable_device_address() const { return _enable_device_address; }
+    bool enable_surface_feature() const { return surface_enabled; }
+    bool enable_bindless() const { return bindless_enabled; }
+    bool enable_interop() const { return interop_enabled; }
+    bool enable_raytracing() const { return raytracing_enabled; }
+    bool enable_device_address() const { return device_address_enabled; }
     static hlsl::ShaderCompiler *compiler();
     static VkAllocationCallbacks *alloc_callbacks();
     static VkInstance instance();

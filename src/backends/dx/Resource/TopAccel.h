@@ -56,7 +56,7 @@ public:
     bool RequireCompact() const;
     TopAccel(Device *device, luisa::compute::AccelOption const &option);
     uint Length() const { return topLevelBuildDesc.Inputs.NumDescs; }
-    Tag GetTag() const override { return Tag::Accel; }
+    Tag get_tag() const override { return Tag::Accel; }
 
     DefaultBuffer const *GetAccelBuffer() const {
         return accelBuffer.get();

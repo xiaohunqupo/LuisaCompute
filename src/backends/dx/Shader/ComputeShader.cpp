@@ -70,7 +70,7 @@ ComputeShader *ComputeShader::load_preset_compute(
 
     if (result) {
         if (old_deleted) {
-            result->save_pso(result->pso(), pso_name, file_io, device);
+            result->_save_pso(result->pso(), pso_name, file_io, device);
         }
     }
     return result;
@@ -157,9 +157,9 @@ ComputeShader *ComputeShader::compile_compute(
                     std::move(bindings),
                     std::move(str.printers),
                     device);
-                cs->bindlessCount = bdls_buffer_count;
+                cs->_bindless_count = bdls_buffer_count;
                 if (WriteCache) {
-                    cs->save_pso(cs->pso(), pso_name, file_io, device);
+                    cs->_save_pso(cs->pso(), pso_name, file_io, device);
                 }
                 return cs;
             },
@@ -185,7 +185,7 @@ ComputeShader *ComputeShader::compile_compute(
             old_deleted);
         if (result) {
             if (old_deleted) {
-                result->save_pso(result->pso(), pso_name, file_io, device);
+                result->_save_pso(result->pso(), pso_name, file_io, device);
             }
             return result;
         }
@@ -267,8 +267,8 @@ void ComputeShader::save_compute(
     }
 }
 ID3D12CommandSignature *ComputeShader::cmd_sig() const {
-    std::lock_guard lck(cmdSigMtx);
-    if (cmdSig) return cmdSig.Get();
+    std::lock_guard lck(_cmd_sig_mtx);
+    if (_cmd_sig) return _cmd_sig.Get();
     D3D12_COMMAND_SIGNATURE_DESC desc{};
     D3D12_INDIRECT_ARGUMENT_DESC ind_desc[2];
     std::memset(ind_desc, 0, vstd::array_byte_size(ind_desc));
@@ -278,11 +278,11 @@ ID3D12CommandSignature *ComputeShader::cmd_sig() const {
     c.DestOffsetIn32BitValues = 0;
     c.Num32BitValuesToSet = 4;
     ind_desc[1].Type = D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH;
-    desc.ByteStride = DispatchIndirectStride;
+    desc.ByteStride = kDispatchIndirectStride;
     desc.NumArgumentDescs = 2;
     desc.pArgumentDescs = ind_desc;
-    ThrowIfFailed(device->device->CreateCommandSignature(&desc, rootSig.Get(), IID_PPV_ARGS(&cmdSig)));
-    return cmdSig.Get();
+    ThrowIfFailed(_device->device->CreateCommandSignature(&desc, root_sig(), IID_PPV_ARGS(&_cmd_sig)));
+    return _cmd_sig.Get();
 }
 
 ComputeShader::ComputeShader(
@@ -294,11 +294,11 @@ ComputeShader::ComputeShader(
     vstd::vector<std::pair<vstd::string, Type const *>> &&printers,
     Device *device)
     : Shader(std::move(prop), std::move(args), device->device, std::move(printers), false),
-      argBindings(std::move(bindings)),
-      device(device),
-      blockSize(blockSize) {
+      _arg_bindings(std::move(bindings)),
+      _device(device),
+      _block_size(blockSize) {
     D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
-    psoDesc.pRootSignature = rootSig.Get();
+    psoDesc.pRootSignature = root_sig();
     psoDesc.CS.pShaderBytecode = binData.data();
     psoDesc.CS.BytecodeLength = binData.size();
     psoDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
@@ -311,12 +311,12 @@ ComputeShader::ComputeShader(
     vstd::vector<SavedArgument> &&args,
     vstd::vector<luisa::compute::Argument> &&bindings,
     vstd::vector<std::pair<vstd::string, Type const *>> &&printers,
-    ComPtr<ID3D12RootSignature> &&rootSig,
+    ComPtr<ID3D12RootSignature> &&root_sig,
     ComPtr<ID3D12PipelineState> &&pso)
-    : Shader(std::move(prop), std::move(args), std::move(rootSig), std::move(printers)),
-      argBindings(std::move(bindings)),
-      device(device),
-      blockSize(blockSize) {
+    : Shader(std::move(prop), std::move(args), std::move(root_sig), std::move(printers)),
+      _arg_bindings(std::move(bindings)),
+      _device(device),
+      _block_size(blockSize) {
     this->_pso = std::move(pso);
 }
 

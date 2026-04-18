@@ -30,7 +30,7 @@ public:
     D3D12_RESOURCE_STATES GetInitState() const override {
         return D3D12_RESOURCE_STATE_COMMON;
     }
-    Tag GetTag() const override { return Tag::SparseTexture; }
+    Tag get_tag() const override { return Tag::SparseTexture; }
     D3D12_UNORDERED_ACCESS_VIEW_DESC GetColorUavDesc(uint targetMipLevel) const override;
     D3D12_RENDER_TARGET_VIEW_DESC GetRenderTargetDesc(uint mipOffset) const override;
     uint GetGlobalSRVIndex(uint mipOffset = 0) const override;

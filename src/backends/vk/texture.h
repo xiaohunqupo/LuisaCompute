@@ -93,7 +93,7 @@ public:
         return !is_srgb(_format) && (luisa::to_underlying(_format) <= 65535u);
     }
     static VkFormat to_vk_format(compute::PixelFormat format);
-    Tag tag() const override { return Tag::Texture; }
+    Tag tag() const override { return Tag::kTexture; }
 };
 struct TexView {
     Texture const *tex;

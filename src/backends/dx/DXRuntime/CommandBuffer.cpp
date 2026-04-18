@@ -146,7 +146,7 @@ void CommandBufferBuilder::dispatch_compute_indirect(
     auto c = _cb->_cmd_list.Get();
     auto res = indirectBuffer.GetResource();
     size_t byteSize = indirectBuffer.GetByteSize();
-    size_t cmdSize = (byteSize - 4) / ComputeShader::DispatchIndirectStride;
+    size_t cmdSize = (byteSize - 4) / ComputeShader::kDispatchIndirectStride;
     LUISA_ASSUME(cmdSize >= 1);
     c->SetComputeRootSignature(cs->root_sig());
     set_compute_resources(cs, resources);
@@ -157,7 +157,7 @@ void CommandBufferBuilder::dispatch_compute_indirect(
         cs->cmd_sig(),
         maxIndirectCount,
         res,
-        sizeof(uint) + static_cast<uint64_t>(indirectOffset) * ComputeShader::DispatchIndirectStride,
+        sizeof(uint) + static_cast<uint64_t>(indirectOffset) * ComputeShader::kDispatchIndirectStride,
         res, 0);
 }
 /*void CommandBufferBuilder::DispatchRT(
@@ -297,7 +297,7 @@ void CommandBufferBuilder::readback(BufferView const &buffer, void *dst) {
         buffer.byteSize);
     _cb->get_alloc()->execute_after_complete(
         [rBuffer, dst] {
-            LUISA_ASSUME(rBuffer.buffer->GetTag() == Resource::Tag::ReadbackBuffer);
+            LUISA_ASSUME(rBuffer.buffer->get_tag() == Resource::Tag::ReadbackBuffer);
             static_cast<ReadbackBuffer const *>(rBuffer.buffer)
                 ->CopyData(
                     rBuffer.offset,

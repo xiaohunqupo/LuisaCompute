@@ -1,8 +1,5 @@
 #pragma once
 
-#ifndef LUISA_COMPUTE_VULKAN_BACKEND_PCH_H
-#define LUISA_COMPUTE_VULKAN_BACKEND_PCH_H
-
 #include <volk.h>
 #include <luisa/core/logging.h>
 #include <luisa/core/basic_traits.h>
@@ -19,5 +16,3 @@
 #include <luisa/runtime/dispatch_buffer.h>
 #include <luisa/vstl/common.h>
 #include <luisa/vstl/functional.h>
-
-#endif

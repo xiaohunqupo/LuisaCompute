@@ -32,7 +32,6 @@ class Swapchain : public Resource {
     bool _requested_transparent{false};
     void _recreate_swapchain();
     void _destroy_swapchain();
-    void _destroy_persistent_resources();
 
 public:
     explicit Swapchain(Device *device);

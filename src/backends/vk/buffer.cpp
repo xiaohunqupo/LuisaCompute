@@ -75,7 +75,7 @@ UploadBuffer::UploadBuffer(Device *device, size_t size_bytes)
               .allocate_buffer(
                   size_bytes,
                   (VkBufferUsageFlagBits)((uint)VK_BUFFER_USAGE_TRANSFER_SRC_BIT | (uint)VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT),
-                  AccessType::Upload)} {
+                  AccessType::kUpload)} {
     VK_CHECK_RESULT(vmaMapMemory(
         device->allocator().allocator(),
         _res.allocation,
@@ -96,7 +96,7 @@ ReadbackBuffer::ReadbackBuffer(Device *device, size_t size_bytes)
               .allocate_buffer(
                   size_bytes,
                   VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                  AccessType::ReadBack)} {
+                  AccessType::kReadBack)} {
     VK_CHECK_RESULT(vmaMapMemory(
         device->allocator().allocator(),
         _res.allocation,
@@ -112,14 +112,14 @@ ReadbackBuffer::~ReadbackBuffer() {
 }
 void UploadBuffer::copy_from(void const *data, size_t offset, size_t size) const {
     memcpy(reinterpret_cast<std::byte *>(_mapped_ptr) + offset, data, size);
-    flusher.mark_dirty(offset, offset + size);
+    _flusher.mark_dirty(offset, offset + size);
 }
 void ReadbackBuffer::copy_to(void *data, size_t offset, size_t size) const {
     memcpy(data, reinterpret_cast<std::byte *>(_mapped_ptr) + offset, size);
     flusher.mark_dirty(offset, offset + size);
 }
 bool UploadBuffer::flush_host() const {
-    flusher.flush(device(), _res.allocation);
+    _flusher.flush(device(), _res.allocation);
     return true;
 }
 bool ReadbackBuffer::flush_host() const {
@@ -163,7 +163,7 @@ DefaultBuffer::DefaultBuffer(Device *device, size_t size_bytes, bool used_as_acc
                            (device->enable_device_address() ? VK_BUFFER_USAGE_2_SHADER_DEVICE_ADDRESS_BIT : 0) |
                            ((device->enable_raytracing() && used_as_accel) ? VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR :
                                                                              0)),
-                       AccessType::None);
+                       AccessType::kNone);
     _buffer = res.buffer;
     _allocation = res.allocation;
 }

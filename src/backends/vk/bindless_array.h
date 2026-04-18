@@ -26,22 +26,22 @@ public:
             tex_3d = tex | (s << 28);
         }
     };
-    struct MapIndicies {
+    struct MapIndices {
         MapIndex buffer;
         MapIndex tex_2d;
         MapIndex tex_3d;
     };
 private:
     struct FreeValue {
-        uint type : 2;
-        uint index : 30;
+        uint _type : 2;
+        uint _index : 30;
     };
     DefaultBuffer _indices_buffer;
     BindlessSlotType _type;
     luisa::FirstFit::Node *_buffer_node = nullptr;
     bool _offset_setted = false;
     vstd::variant<
-        vstd::vector<std::pair<BindlessStruct, MapIndicies>>,
+        vstd::vector<std::pair<BindlessStruct, MapIndices>>,
         vstd::vector<MapIndex>>
         _typed_binded;
     Map _ptr_map;

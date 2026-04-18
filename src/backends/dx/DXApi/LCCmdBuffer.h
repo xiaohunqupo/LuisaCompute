@@ -30,7 +30,7 @@ struct ReorderFuncTable {
     }
     Usage get_usage(uint64_t shader_handle, size_t argument_index) const noexcept {
         auto cs = reinterpret_cast<ComputeShader *>(shader_handle);
-        return cs->args()[argument_index].varUsage;
+        return cs->args()[argument_index].var_usage;
     }
     void update_bindless(uint64_t handle, luisa::span<const BindlessArrayUpdateCommand::Modification> modifications) const noexcept {
         reinterpret_cast<BindlessArray *>(handle)->Bind(modifications);

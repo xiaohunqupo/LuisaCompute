@@ -22,22 +22,22 @@ namespace vks
 	*/
 	struct Buffer
 	{
-		VkDevice device;
+		VkDevice device = VK_NULL_HANDLE;
 		VkBuffer buffer = VK_NULL_HANDLE;
 		VkDeviceMemory memory = VK_NULL_HANDLE;
-		VkDescriptorBufferInfo descriptor;
+		VkDescriptorBufferInfo descriptor{};
 		VkDeviceSize size = 0;
 		VkDeviceSize alignment = 0;
 		void* mapped = nullptr;
 		/** @brief Usage flags to be filled by external source at buffer creation (to query at some later point) */
-		VkBufferUsageFlags usage_flags;
+		VkBufferUsageFlags usage_flags = 0;
 		/** @brief Memory property flags to be filled by external source at buffer creation (to query at some later point) */
-		VkMemoryPropertyFlags memory_property_flags;
+		VkMemoryPropertyFlags memory_property_flags = 0;
 		VkResult map(VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
 		void unmap();
 		VkResult bind(VkDeviceSize offset = 0);
 		void setup_descriptor(VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
-		void copy_to(void* data, VkDeviceSize size);
+		void copy_to(const void* data, VkDeviceSize size);
 		VkResult flush(VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
 		VkResult invalidate(VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
 		void destroy();

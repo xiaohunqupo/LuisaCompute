@@ -22,7 +22,7 @@ public:
     D3D12_RESOURCE_STATES GetInitState() const override {
         return D3D12_RESOURCE_STATE_GENERIC_READ;
     }
-    Tag GetTag() const override {
+    Tag get_tag() const override {
         return Tag::UploadBuffer;
     }
     UploadBuffer(UploadBuffer &&rhs);

@@ -24,7 +24,7 @@ ComputeShader::ComputeShader(
     bool use_tex3d_bindless,
     bool use_buffer_bindless,
     vstd::vector<std::pair<luisa::string, luisa::compute::Type const *>> &&printers)
-    : Shader{device, ShaderTag::ComputeShader, std::move(captured), std::move(saved_args), binds, use_tex2d_bindless, use_tex3d_bindless, use_buffer_bindless, std::move(printers)}, _block_size(block_size) {
+    : Shader{device, ShaderTag::kComputeShader, std::move(captured), std::move(saved_args), binds, use_tex2d_bindless, use_tex3d_bindless, use_buffer_bindless, std::move(printers)}, _block_size(block_size) {
     VkPipelineCacheCreateInfo pso_ci{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO};
     if (!cache_code.empty()) {

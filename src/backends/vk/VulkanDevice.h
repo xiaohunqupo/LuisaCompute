@@ -48,14 +48,14 @@ struct VulkanDevice {
     } queue_family_indices;
     operator VkDevice() const {
         return logical_device;
-    };
+    }
     explicit VulkanDevice(VkPhysicalDevice physical_device);
     ~VulkanDevice();
-    uint32_t get_memory_type(uint32_t typeBits, VkMemoryPropertyFlags properties, VkBool32 *memTypeFound = nullptr) const;
+    uint32_t get_memory_type(uint32_t type_bits, VkMemoryPropertyFlags properties, VkBool32 *mem_type_found = nullptr) const;
     uint32_t get_queue_family_index(VkQueueFlags queueFlags) const;
-    VkResult create_logical_device(VkPhysicalDeviceFeatures &enabled_features, vstd::span<const vstd::string> enabledExtensions, void *pNextChain, bool useSwapChain = true, VkQueueFlags requestedQueueTypes = VK_QUEUE_FLAG_BITS_MAX_ENUM);
+    VkResult create_logical_device(VkPhysicalDeviceFeatures &enabled_features, vstd::span<const vstd::string> enabled_extensions, void *p_next_chain, bool use_swap_chain = true, VkQueueFlags requested_queue_types = VK_QUEUE_FLAG_BITS_MAX_ENUM);
     bool extension_supported(vstd::string_view extension);
-    VkFormat get_supported_depth_format(bool checkSamplingSupport);
+    VkFormat get_supported_depth_format(bool check_sampling_support);
     static void init_volk(luisa::filesystem::path const &custom_path, luisa::string_view lib_name);
     static void force_free_volk();
 };

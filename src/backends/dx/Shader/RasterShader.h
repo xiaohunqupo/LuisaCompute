@@ -11,61 +11,61 @@ struct CodegenResult;
 namespace lc::dx {
 class ShaderSerializer;
 struct RasterPSOState {
-    vstd::vector<GFXFormat> rtvFormats;
-    DepthFormat dsvFormat;
-    RasterState rasterState;
+    vstd::vector<GFXFormat> rtv_formats;
+    DepthFormat dsv_format;
+    RasterState raster_state;
 };
 struct RasterPSOStateHash {
     size_t operator()(RasterPSOState const &v) const {
         size_t hash;
-        if (v.rtvFormats.empty()) {
+        if (v.rtv_formats.empty()) {
             hash = luisa::hash64_default_seed;
         } else {
-            hash = luisa::hash64(v.rtvFormats.data(), luisa::size_bytes(v.rtvFormats), luisa::hash64_default_seed);
+            hash = luisa::hash64(v.rtv_formats.data(), luisa::size_bytes(v.rtv_formats), luisa::hash64_default_seed);
         }
-        hash = luisa::hash64(&v.dsvFormat, sizeof(v.dsvFormat), hash);
-        hash = luisa::hash64(&v.rasterState, sizeof(v.rasterState), hash);
+        hash = luisa::hash64(&v.dsv_format, sizeof(v.dsv_format), hash);
+        hash = luisa::hash64(&v.raster_state, sizeof(v.raster_state), hash);
         return hash;
     }
 };
 struct RasterPSOStateEqual {
     int32_t operator()(RasterPSOState const &a, RasterPSOState const &b) const {
-        auto rtvSizeComp = vstd::compare<size_t>{}(a.rtvFormats.size(), b.rtvFormats.size());
+        auto rtvSizeComp = vstd::compare<size_t>{}(a.rtv_formats.size(), b.rtv_formats.size());
         if (rtvSizeComp != 0) return rtvSizeComp;
-        if (!a.rtvFormats.empty()) {
-            auto level = std::memcmp(a.rtvFormats.data(), b.rtvFormats.data(), luisa::size_bytes(a.rtvFormats));
+        if (!a.rtv_formats.empty()) {
+            auto level = std::memcmp(a.rtv_formats.data(), b.rtv_formats.data(), luisa::size_bytes(a.rtv_formats));
             if (level != 0) return level;
         }
-        auto dsvComp = vstd::compare<DepthFormat>{}(a.dsvFormat, b.dsvFormat);
+        auto dsvComp = vstd::compare<DepthFormat>{}(a.dsv_format, b.dsv_format);
         if (dsvComp != 0)
             return dsvComp;
-        return std::memcmp(&a.rasterState, &b.rasterState, sizeof(RasterState));
+        return std::memcmp(&a.raster_state, &b.raster_state, sizeof(RasterState));
     }
 };
 class RasterShader final : public Shader {
     friend class ShaderSerializer;
 
 private:
-    Device *device;
-    vstd::MD5 md5;
-    vstd::vector<std::byte> vertBinData;
-    vstd::vector<std::byte> pixelBinData;
+    Device *_device;
+    vstd::MD5 _md5;
+    vstd::vector<std::byte> _vert_bin_data;
+    vstd::vector<std::byte> _pixel_bin_data;
     RasterShader(
         Device *device,
         vstd::MD5 md5,
         vstd::vector<hlsl::Property> &&prop,
         vstd::vector<SavedArgument> &&args,
-        ComPtr<ID3D12RootSignature> &&rootSig,
+        ComPtr<ID3D12RootSignature> &&root_sig,
         vstd::vector<std::pair<vstd::string, Type const*>>&& printers,
-        vstd::vector<std::byte> &&vertBinData,
-        vstd::vector<std::byte> &&pixelBinData);
-    std::mutex psoMtx;
+        vstd::vector<std::byte> &&vert_bin_data,
+        vstd::vector<std::byte> &&pixel_bin_data);
+    std::mutex _pso_mtx;
     struct PsoValue {
         ComPtr<ID3D12PipelineState> pso{};
         vstd::spin_mutex mtx;
     };
     using PSOMap = vstd::HashMap<RasterPSOState, PsoValue, RasterPSOStateHash, RasterPSOStateEqual>;
-    PSOMap psoMap;
+    PSOMap _pso_map;
 
     // Prepared for indirect
 
@@ -108,8 +108,8 @@ public:
         vstd::vector<hlsl::Property> &&prop,
         vstd::vector<SavedArgument> &&args,
         vstd::vector<std::pair<vstd::string, Type const*>>&& printers,
-        vstd::vector<std::byte> &&vertBinData,
-        vstd::vector<std::byte> &&pixelBinData);
+        vstd::vector<std::byte> &&vert_bin_data,
+        vstd::vector<std::byte> &&pixel_bin_data);
 
     ~RasterShader();
 

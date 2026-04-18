@@ -2,16 +2,9 @@
 #include <d3dx12.h>
 #include <Shader/Shader.h>
 #include <luisa/core/binary_io.h>
-#include <luisa/runtime/raster/raster_state.h>
 namespace lc::dx {
 class ComputeShader;
 class RasterShader;
-class RTShader;
-struct ShaderBuildData {
-    vstd::vector<std::byte> binData;
-    Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSig;
-};
-
 class ShaderSerializer {
     static size_t SerializeRootSig(
         vstd::span<hlsl::Property const> properties,

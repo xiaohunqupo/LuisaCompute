@@ -279,7 +279,7 @@ uint Device::compute_warp_size() const noexcept {
     return 32;// TODO
 }
 uint64_t Device::memory_granularity() const noexcept {
-    return sparse_buffer_size;
+    return kSparseBufferSize;
 }
 
 void Device::destroy_procedural_primitive(uint64_t handle) noexcept {
@@ -340,18 +340,18 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
         lib_name = std::move(ext_path.lib_name);
         _compute_queue = external_device.compute_queue;
         _copy_queue = external_device.copy_queue;
-        _external_instance = external_device.instance;
-        _external_device = external_device.device;
-        _external_graphics_queue = external_device.graphics_queue;
-        _external_compute_queue = external_device.compute_queue;
-        _external_copy_queue = external_device.copy_queue;
-        _enable_bindless = _config_ext->enable_bindless_feature();
-        _enable_raytracing = _config_ext->enable_raytracing_feature();
-        _enable_interop = _config_ext->enable_interop_feature();
-        _enable_device_address = _config_ext->enable_device_address_feature();
-        _enable_surface = _config_ext->enable_surface_feature();
+        external_instance = external_device.instance;
+        this->external_device = external_device.device;
+        external_graphics_queue = external_device.graphics_queue;
+        external_compute_queue = external_device.compute_queue;
+        external_copy_queue = external_device.copy_queue;
+        bindless_enabled = _config_ext->enable_bindless_feature();
+        raytracing_enabled = _config_ext->enable_raytracing_feature();
+        interop_enabled = _config_ext->enable_interop_feature();
+        device_address_enabled = _config_ext->enable_device_address_feature();
+        surface_enabled = _config_ext->enable_surface_feature();
     }
-    _enable_device_address |= _enable_raytracing;
+    device_address_enabled |= raytracing_enabled;
 
     Context ctx{this->_ctx_impl};
 #ifndef LC_NO_HLSL_BUILTIN
@@ -370,7 +370,7 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
         // init instance
         {
             std::lock_guard lck{detail::instance_mtx};
-            if (!detail::vk_instance || _external_instance) {
+            if (!detail::vk_instance || external_instance) {
 #ifdef NDEBUG
                 constexpr bool enable_validation = false;
 #else
@@ -383,13 +383,13 @@ Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
                         return luisa::vector<luisa::string>{};
                     }
                 }();
-                bool enable_surface = _enable_surface;
+                bool enable_surface = surface_enabled;
                 detail::create_instance(enable_validation, enable_surface, detail::vk_instance, custom_path, lib_name, extra_exts);
-                _enable_surface = enable_surface;
+                surface_enabled = enable_surface;
             }
         }
 #ifndef LUISA_VULKAN_ENABLE_CUDA_INTEROP
-        _enable_interop = false;
+        interop_enabled = false;
 #endif
         _init_device(ext_phy_device, ext_device, device_idx);
 
@@ -548,25 +548,25 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
     }
     _enable_device_exts.emplace_back(VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME);
     _enable_device_exts.emplace_back(VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME);
-    if (_enable_bindless) {
+    if (bindless_enabled) {
         if (supported_ext.find(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME) != supported_ext.end() &&
             supported_ext.find(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME) != supported_ext.end()) {
             _enable_device_exts.emplace_back(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
             _enable_device_exts.emplace_back(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
         } else {
-            _enable_bindless = false;
+            bindless_enabled = false;
         }
     }
-    if (_enable_raytracing) {
+    if (raytracing_enabled) {
         if (supported_ext.find(VK_KHR_RAY_QUERY_EXTENSION_NAME) != supported_ext.end() &&
             supported_ext.find(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME) != supported_ext.end()) {
             _enable_device_exts.emplace_back(VK_KHR_RAY_QUERY_EXTENSION_NAME);
             _enable_device_exts.emplace_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
         } else {
-            _enable_raytracing = false;
+            raytracing_enabled = false;
         }
     }
-    if (_enable_interop) {
+    if (interop_enabled) {
         if (supported_ext.find(VK_KHR_RAY_QUERY_EXTENSION_NAME) != supported_ext.end() &&
             supported_ext.find(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME) != supported_ext.end()
 #ifdef LUISA_PLATFORM_WINDOWS
@@ -585,7 +585,7 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
             _enable_device_exts.emplace_back(VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME);
 #endif
         } else {
-            _enable_interop = false;
+            interop_enabled = false;
         }
     }
     luisa::vector<luisa::string> extra_exts = [&]() {
@@ -627,7 +627,7 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
         .pNext = &enable_rayquery_features,
         .accelerationStructure = VK_TRUE};
-    if (_enable_raytracing) {
+    if (raytracing_enabled) {
         feature_next = &enabled_acceleration_structure_features;
     }
     VkPhysicalDeviceSynchronization2Features barrier_feature{
@@ -640,28 +640,28 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
         .shaderBufferInt64Atomics = enable_atomic64_bit ? VK_TRUE : VK_FALSE,
         .shaderSharedInt64Atomics = enable_atomic64_bit ? VK_TRUE : VK_FALSE,
         .shaderFloat16 = enable_16bit ? VK_TRUE : VK_FALSE,
-        .descriptorIndexing = _enable_bindless ? VK_TRUE : VK_FALSE,
-        .shaderSampledImageArrayNonUniformIndexing = _enable_bindless ? VK_TRUE : VK_FALSE,
-        .shaderStorageImageArrayNonUniformIndexing = _enable_bindless ? VK_TRUE : VK_FALSE,
-        .descriptorBindingSampledImageUpdateAfterBind = _enable_bindless ? VK_TRUE : VK_FALSE,
-        .descriptorBindingStorageImageUpdateAfterBind = _enable_bindless ? VK_TRUE : VK_FALSE,
-        .descriptorBindingStorageBufferUpdateAfterBind = _enable_bindless ? VK_TRUE : VK_FALSE,
-        .runtimeDescriptorArray = _enable_bindless ? VK_TRUE : VK_FALSE,
+        .descriptorIndexing = bindless_enabled ? VK_TRUE : VK_FALSE,
+        .shaderSampledImageArrayNonUniformIndexing = bindless_enabled ? VK_TRUE : VK_FALSE,
+        .shaderStorageImageArrayNonUniformIndexing = bindless_enabled ? VK_TRUE : VK_FALSE,
+        .descriptorBindingSampledImageUpdateAfterBind = bindless_enabled ? VK_TRUE : VK_FALSE,
+        .descriptorBindingStorageImageUpdateAfterBind = bindless_enabled ? VK_TRUE : VK_FALSE,
+        .descriptorBindingStorageBufferUpdateAfterBind = bindless_enabled ? VK_TRUE : VK_FALSE,
+        .runtimeDescriptorArray = bindless_enabled ? VK_TRUE : VK_FALSE,
 
         .shaderSubgroupExtendedTypes = (enable_atomic64_bit || enable_16bit) ? VK_TRUE : VK_FALSE,
 
         .timelineSemaphore = VK_TRUE,
-        .bufferDeviceAddress = _enable_device_address ? VK_TRUE : VK_FALSE};
-    VK_CHECK_RESULT(_vk_device->create_logical_device(device_features, _enable_device_exts, &vk12_feature, _enable_surface));
+        .bufferDeviceAddress = device_address_enabled ? VK_TRUE : VK_FALSE};
+    VK_CHECK_RESULT(_vk_device->create_logical_device(device_features, _enable_device_exts, &vk12_feature, surface_enabled));
     auto device = _vk_device->logical_device;
     volkLoadDevice(device);
 
     // Get a graphics queue from the device
-    if (!_external_graphics_queue)
+    if (!external_graphics_queue)
         vkGetDeviceQueue(device, _vk_device->queue_family_indices.graphics, 0, &_graphics_queue);
-    if (!_external_compute_queue)
+    if (!external_compute_queue)
         vkGetDeviceQueue(device, _vk_device->queue_family_indices.compute, 0, &_compute_queue);
-    if (!_external_copy_queue)
+    if (!external_copy_queue)
         vkGetDeviceQueue(device, _vk_device->queue_family_indices.transfer, 0, &_copy_queue);
     _pso_header.headerSize = sizeof(VkPipelineCacheHeaderVersionOne);
     _pso_header.headerVersion = VK_PIPELINE_CACHE_HEADER_VERSION_ONE;
@@ -677,7 +677,7 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
         .bindingCount = 1,
         .pBindingFlags = &desc_binding_flag};
     // bindless buffer desc_pool
-    if (_enable_bindless) {
+    if (bindless_enabled) {
         {
             buffer_heap_pool.full_size = 262144;
             VkDescriptorPoolSize pool_size;
@@ -898,7 +898,7 @@ Device::~Device() {
         }
     }
 #endif
-    if (_external_device) {
+    if (external_device) {
         _vk_device->logical_device = nullptr;
         _vk_device->physical_device = nullptr;
     }
@@ -1051,7 +1051,7 @@ ShaderCreationInfo Device::create_shader(const ShaderOption &option, Function ke
         auto comp_result = Device::compiler()->compile_compute(
             code.result.view(),
             !option.enable_debug_info,
-            kernel.use_cooperative_operations() ? k_tensor_shader_model : (kernel.allowed_warp_size().has_value() ? k_high_shader_model : k_shader_model),
+            kernel.use_cooperative_operations() ? kTensorShaderModel : (kernel.allowed_warp_size().has_value() ? kHighShaderModel : kShaderModel),
             option.enable_fast_math,
             true,
             option.enable_debug_info);
@@ -1066,7 +1066,7 @@ ShaderCreationInfo Device::create_shader(const ShaderOption &option, Function ke
                     kernel.block_size(),
                     option.name,
                     {reinterpret_cast<const uint *>(buffer->GetBufferPointer()), buffer->GetBufferSize() / sizeof(uint)},
-                    SerdeType::ByteCode,
+                    SerdeType::kByteCode,
                     _binary_io, code.useTex2DBindless,
                     code.useTex3DBindless,
                     code.useBufferBindless,
@@ -1085,10 +1085,10 @@ ShaderCreationInfo Device::create_shader(const ShaderOption &option, Function ke
             if (option.name.empty()) {
                 str_cache << check_md5.to_string(false) << ".spv"sv;
                 file_name = str_cache;
-                serde_type = SerdeType::Cache;
+                serde_type = SerdeType::kCache;
             } else {
                 file_name = option.name;
-                serde_type = SerdeType::ByteCode;
+                serde_type = SerdeType::kByteCode;
             }
         }
         auto shader = ComputeShader::compile(
@@ -1101,7 +1101,7 @@ ShaderCreationInfo Device::create_shader(const ShaderOption &option, Function ke
             kernel.block_size(),
             file_name,
             serde_type,
-            kernel.use_cooperative_operations() ? k_tensor_shader_model : (kernel.allowed_warp_size().has_value() ? k_high_shader_model : k_shader_model),
+            kernel.use_cooperative_operations() ? kTensorShaderModel : (kernel.allowed_warp_size().has_value() ? kHighShaderModel : kShaderModel),
             option.enable_fast_math);
         info.handle = reinterpret_cast<uint64_t>(shader);
         info.native_handle = shader->pipeline();
@@ -1112,7 +1112,7 @@ ShaderCreationInfo Device::create_shader(const ShaderOption &option, Function ke
 ShaderCreationInfo Device::create_shader(const ShaderOption &option, const ir::KernelModule *kernel) noexcept { return ShaderCreationInfo::make_invalid(); }
 ShaderCreationInfo Device::load_shader(luisa::string_view name, luisa::span<const luisa::compute::Type *const> arg_types) noexcept {
     ShaderCreationInfo info;
-    auto deser_result = ShaderSerializer::try_deser_compute(this, {}, {}, name, SerdeType::ByteCode, _binary_io);
+    auto deser_result = ShaderSerializer::try_deser_compute(this, {}, {}, name, SerdeType::kByteCode, _binary_io);
     if (!deser_result.shader) {
         info.invalidate();
         return info;
@@ -1267,7 +1267,7 @@ bool Device::LazyLoadShader::check(Device *self) {
 ResourceCreationInfo Device::allocate_sparse_texture_heap(size_t byte_size) noexcept {
     VkMemoryRequirements req{
         .size = byte_size,
-        .alignment = sparse_buffer_size,
+        .alignment = kSparseBufferSize,
         .memoryTypeBits = std::numeric_limits<uint>::max()};
     auto allocation = vengine_new<std::pair<VmaAllocation, VmaAllocationInfo>>();
     VmaAllocationCreateInfo allocInfo = {
@@ -1304,7 +1304,7 @@ SparseBufferCreationInfo Device::create_sparse_buffer(const luisa::compute::Type
     info.handle = reinterpret_cast<uint64_t>(ptr);
     info.native_handle = ptr->vk_buffer();
     info.total_size_bytes = ptr->byte_size();
-    info.tile_size_bytes = sparse_buffer_size;
+    info.tile_size_bytes = kSparseBufferSize;
     return info;
 }
 SparseTextureCreationInfo Device::create_sparse_texture(
@@ -1316,7 +1316,7 @@ SparseTextureCreationInfo Device::create_sparse_texture(
     SparseTextureCreationInfo r;
     r.handle = reinterpret_cast<uint64_t>(ptr);
     r.native_handle = ptr->vk_image();
-    r.tile_size_bytes = sparse_buffer_size;
+    r.tile_size_bytes = kSparseBufferSize;
     r.tile_size = [&]() {
         if (dimension == 2) {
             return make_uint3(Texture::tex2d_tile_size(pixel_format_to_storage(format)), 1);

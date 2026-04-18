@@ -3,7 +3,9 @@
 #include "texture.h"
 #include "device.h"
 namespace lc::vk {
-VkNativeResourceExt::VkNativeResourceExt(Device *device) : NativeResourceExt(device) {}
+VkNativeResourceExt::VkNativeResourceExt(Device *device) : NativeResourceExt(device) {
+    _device = device;
+}
 BufferCreationInfo VkNativeResourceExt::register_external_buffer(
     void *buffer_ptr,
     const Type *element,
@@ -14,7 +16,7 @@ BufferCreationInfo VkNativeResourceExt::register_external_buffer(
     size_t size = elem_size * elem_count;
     BufferCreationInfo info{};
     info.handle = reinterpret_cast<uint64_t>(new ExternalBuffer(
-        static_cast<Device *>(_device),
+        _device,
         static_cast<VkBuffer>(buffer_ptr),
         size));
     info.native_handle = buffer_ptr;
@@ -31,7 +33,7 @@ ResourceCreationInfo VkNativeResourceExt::register_external_texture(
     void *custom_data) noexcept {
     VkFormat vk_format = custom_data ? *static_cast<VkFormat *>(custom_data) : Texture::to_vk_format(format);
     auto tex = new Texture(
-        static_cast<Device *>(_device),
+        _device,
         static_cast<VkImage>(image_ptr),
         dimension,
         vk_format,
@@ -69,7 +71,7 @@ uint64_t VkNativeResourceExt::get_native_resource_device_address(
     VkBufferDeviceAddressInfoKHR buffer_device_address_info{};
     buffer_device_address_info.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
     buffer_device_address_info.buffer = static_cast<VkBuffer>(native_handle);
-    return vkGetBufferDeviceAddress(static_cast<Device *>(_device)->logic_device(), &buffer_device_address_info);
+    return vkGetBufferDeviceAddress(_device->logic_device(), &buffer_device_address_info);
 }
 
 }// namespace lc::vk

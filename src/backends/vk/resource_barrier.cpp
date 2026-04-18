@@ -8,71 +8,71 @@ namespace detail {
 
 static constexpr auto kRasterStage = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_2_TESSELLATION_CONTROL_SHADER_BIT | VK_PIPELINE_STAGE_2_TESSELLATION_EVALUATION_SHADER_BIT | VK_PIPELINE_STAGE_2_GEOMETRY_SHADER_BIT | VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
 static constexpr VkPipelineStageFlagBits2 kBarrierSyncMap[] = {
-    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,                                                    // ComputeRead,
-    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,                                                    // ComputeAccelRead,
-    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,                                                    // ComputeUAV,
-    VK_PIPELINE_STAGE_2_COPY_BIT,                                                              // CopySource,
-    VK_PIPELINE_STAGE_2_COPY_BIT,                                                              // CopyDest,
-    VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,                                  // BuildAccel,
-    VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_COPY_BIT_KHR,                                   // CopyAccelSrc
-    VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_COPY_BIT_KHR,                                   // CopyAccelDst
-    VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,//DepthRead
-    VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,//DepthWrite
-    VK_PIPELINE_STAGE_2_CLEAR_BIT,                                                             //DepthClear
-    VK_PIPELINE_STAGE_2_CLEAR_BIT,                                                             //RenderTargetClear
+    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,                                                    // kComputeRead,
+    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,                                                    // kComputeAccelRead,
+    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,                                                    // kComputeUAV,
+    VK_PIPELINE_STAGE_2_COPY_BIT,                                                              // kCopySource,
+    VK_PIPELINE_STAGE_2_COPY_BIT,                                                              // kCopyDest,
+    VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,                                  // kBuildAccel,
+    VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_COPY_BIT_KHR,                                   // kCopyAccelSrc
+    VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_COPY_BIT_KHR,                                   // kCopyAccelDst
+    VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,//kDepthRead
+    VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,//kDepthWrite
+    VK_PIPELINE_STAGE_2_CLEAR_BIT,                                                             //kDepthClear
+    VK_PIPELINE_STAGE_2_CLEAR_BIT,                                                             //kRenderTargetClear
     VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,                                                     //IndirectArgs
-    VK_PIPELINE_STAGE_2_VERTEX_ATTRIBUTE_INPUT_BIT,                                            //VertexRead,
-    VK_PIPELINE_STAGE_2_INDEX_INPUT_BIT,                                                       //  IndexRead,
+    VK_PIPELINE_STAGE_2_VERTEX_ATTRIBUTE_INPUT_BIT,                                            //kVertexRead,
+    VK_PIPELINE_STAGE_2_INDEX_INPUT_BIT,                                                       //  kIndexRead,
     VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,                                           //  RenderTarget
     VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,                                  // AccelInstanceBuffer
-    kRasterStage,                                                                              // RasterRead
+    kRasterStage,                                                                              // kRasterRead
     kRasterStage,                                                                              //RasterAccelRead
-    kRasterStage                                                                               //RasterUAV
+    kRasterStage                                                                               //kRasterUAV
 };
 static constexpr VkAccessFlagBits2 kBarrierAccessMap[] = {
-    VK_ACCESS_2_SHADER_READ_BIT,                     // ComputeRead,
-    VK_ACCESS_2_ACCELERATION_STRUCTURE_READ_BIT_KHR, // ComputeAccelRead,
-    VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,            // ComputeUAV,
-    VK_ACCESS_2_TRANSFER_READ_BIT,                   // CopySource,
-    VK_ACCESS_2_TRANSFER_WRITE_BIT,                  // CopyDest,
-    VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,// BuildAccel,
-    VK_ACCESS_2_TRANSFER_READ_BIT,                   // CopyAccelSrc
-    VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,// CopyAccelDst
-    VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT,   //DepthRead
-    VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,  //DepthWrite
-    VK_ACCESS_2_TRANSFER_WRITE_BIT,                  //DepthClear
-    VK_ACCESS_2_TRANSFER_WRITE_BIT,                  //RenderTargetClear
-    VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT,           // IndirectArgs
-    VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT,           //VertexRead,
-    VK_ACCESS_2_INDEX_READ_BIT,                      //  IndexRead,
-    VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,          //RenderTarget
-    VK_ACCESS_2_SHADER_READ_BIT,                     //AccelInstanceBuffer
-    VK_ACCESS_2_SHADER_READ_BIT,                     // RasterRead
-    VK_ACCESS_2_ACCELERATION_STRUCTURE_READ_BIT_KHR, // RasterAccelRead,
-    VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,            // RasterUAV,
+    VK_ACCESS_2_SHADER_READ_BIT,                     // kComputeRead,
+    VK_ACCESS_2_ACCELERATION_STRUCTURE_READ_BIT_KHR, // kComputeAccelRead,
+    VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,            // kComputeUAV,
+    VK_ACCESS_2_TRANSFER_READ_BIT,                   // kCopySource,
+    VK_ACCESS_2_TRANSFER_WRITE_BIT,                  // kCopyDest,
+    VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,// kBuildAccel,
+    VK_ACCESS_2_TRANSFER_READ_BIT,                   // kCopyAccelSrc
+    VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,// kCopyAccelDst
+    VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT,   //kDepthRead
+    VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,  //kDepthWrite
+    VK_ACCESS_2_TRANSFER_WRITE_BIT,                  //kDepthClear
+    VK_ACCESS_2_TRANSFER_WRITE_BIT,                  //kRenderTargetClear
+    VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT,           // kIndirectArgs
+    VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT,           //kVertexRead,
+    VK_ACCESS_2_INDEX_READ_BIT,                      //  kIndexRead,
+    VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,          //kRenderTarget
+    VK_ACCESS_2_SHADER_READ_BIT,                     //kAccelInstanceBuffer
+    VK_ACCESS_2_SHADER_READ_BIT,                     // kRasterRead
+    VK_ACCESS_2_ACCELERATION_STRUCTURE_READ_BIT_KHR, // kRasterAccelRead,
+    VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,            // kRasterUAV,
 };
 static constexpr VkAccessFlagBits2 kWriteAccess = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
 static constexpr VkImageLayout kBarrierLayoutMap[] = {
-    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,        // ComputeRead,
-    VK_IMAGE_LAYOUT_GENERAL,                         // ComputeAccelRead,
-    VK_IMAGE_LAYOUT_GENERAL,                         // ComputeUAV,
-    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,            // CopySource,
-    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,            // CopyDest,
-    VK_IMAGE_LAYOUT_GENERAL,                         // BuildAccel,
-    VK_IMAGE_LAYOUT_GENERAL,                         // CopyAccelSrc
-    VK_IMAGE_LAYOUT_GENERAL,                         // CopyAccelDst
-    VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, //DepthRead
-    VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,//DepthWrite
-    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,            //DepthClear
-    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,            //RenderTargetClear
-    VK_IMAGE_LAYOUT_GENERAL,                         // IndirectArgs
-    VK_IMAGE_LAYOUT_GENERAL,                         //VertexRead,
-    VK_IMAGE_LAYOUT_GENERAL,                         //  IndexRead,
-    VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,              //RenderTarget
-    VK_IMAGE_LAYOUT_GENERAL,                         //AccelInstanceBuffer
-    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,        // RasterRead
-    VK_IMAGE_LAYOUT_GENERAL,                         // RasterAccelRead,
-    VK_IMAGE_LAYOUT_GENERAL,                         // RasterUAV,
+    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,        // kComputeRead,
+    VK_IMAGE_LAYOUT_GENERAL,                         // kComputeAccelRead,
+    VK_IMAGE_LAYOUT_GENERAL,                         // kComputeUAV,
+    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,            // kCopySource,
+    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,            // kCopyDest,
+    VK_IMAGE_LAYOUT_GENERAL,                         // kBuildAccel,
+    VK_IMAGE_LAYOUT_GENERAL,                         // kCopyAccelSrc
+    VK_IMAGE_LAYOUT_GENERAL,                         // kCopyAccelDst
+    VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, //kDepthRead
+    VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,//kDepthWrite
+    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,            //kDepthClear
+    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,            //kRenderTargetClear
+    VK_IMAGE_LAYOUT_GENERAL,                         // kIndirectArgs
+    VK_IMAGE_LAYOUT_GENERAL,                         //kVertexRead,
+    VK_IMAGE_LAYOUT_GENERAL,                         //  kIndexRead,
+    VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,              //kRenderTarget
+    VK_IMAGE_LAYOUT_GENERAL,                         //kAccelInstanceBuffer
+    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,        // kRasterRead
+    VK_IMAGE_LAYOUT_GENERAL,                         // kRasterAccelRead,
+    VK_IMAGE_LAYOUT_GENERAL,                         // kRasterUAV,
 };
 static std::pair<VkAccessFlagBits2, VkImageLayout> combine(
     std::pair<VkAccessFlagBits2, VkImageLayout> first,
@@ -149,7 +149,7 @@ void ResourceBarrier::set_res(
     auto res_range = res.multi_visit_or(
         vstd::UndefEval<SubResource>{},
         [&](BufferView const &buffer_view) -> SubResource {
-            type = ResourceStates::Type::Buffer;
+            type = ResourceStates::Type::kBuffer;
             vk_res = buffer_view.buffer;
             size = buffer_view.buffer->byte_size();
             return BufferAfterRange{
@@ -159,7 +159,7 @@ void ResourceBarrier::set_res(
         },
         [&](TexView const &tex_view) -> SubResource {
             // TODO: set init layout
-            type = ResourceStates::Type::Texture;
+            type = ResourceStates::Type::kTexture;
             size = tex_view.tex->mip();
             vk_res = tex_view.tex;
             init_layout = static_cast<Texture const *>(vk_res)->layout(tex_view.level);
@@ -212,7 +212,7 @@ void ResourceBarrier::record(
     auto res_range = res.multi_visit_or(
         vstd::UndefEval<SubResource>{},
         [&](BufferView const &buffer_view) -> SubResource {
-            type = ResourceStates::Type::Buffer;
+            type = ResourceStates::Type::kBuffer;
             vk_res = buffer_view.buffer;
             size = buffer_view.buffer->byte_size();
             return BufferAfterRange{
@@ -222,7 +222,7 @@ void ResourceBarrier::record(
         },
         [&](TexView const &tex_view) -> SubResource {
             // TODO: set init layout
-            type = ResourceStates::Type::Texture;
+            type = ResourceStates::Type::kTexture;
             size = tex_view.tex->mip();
             vk_res = tex_view.tex;
             init_layout = static_cast<Texture const *>(vk_res)->layout(tex_view.level);
@@ -351,7 +351,7 @@ void filter_access(
     VkAccessFlagBits2 &access,
     VkImageLayout &layout) {
     switch (type) {
-        case ResourceBarrier::QueueType::Compute: {
+        case ResourceBarrier::QueueType::kCompute: {
             sync &= (VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT |
                      VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT |
                      VK_PIPELINE_STAGE_2_COPY_BIT |
@@ -377,7 +377,7 @@ void filter_access(
                 default: break;
             }
         } break;
-        case ResourceBarrier::QueueType::Copy: {
+        case ResourceBarrier::QueueType::kCopy: {
             sync &= (VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT |
                      VK_PIPELINE_STAGE_2_COPY_BIT |
                      VK_PIPELINE_STAGE_2_TRANSFER_BIT |
@@ -426,11 +426,11 @@ void ResourceBarrier::process_bindless(BindlessArray const *bdls_arr, Usage dst_
             auto ite = _frame_states.find(iter->first);
             assert(ite);
             auto res = ite.key();
-            if (res->tag() == Resource::Tag::Buffer) {
+            if (res->tag() == Resource::Tag::kBuffer) {
                 record(
                     BufferView(static_cast<Buffer const *>(res), 0, static_cast<Buffer const *>(res)->byte_size()),
                     dst_usage);
-            } else if (res->tag() == Resource::Tag::Texture) {
+            } else if (res->tag() == Resource::Tag::kTexture) {
                 auto tex = static_cast<Texture const *>(res);
                 for (auto i : vstd::range(tex->mip())) {
                     record(
@@ -544,7 +544,7 @@ void ResourceBarrier::restore_states(VkCommandBuffer cmd_buffer) {
     _frame_states.clear();
 }
 ResourceBarrier::ResourceStates::ResourceStates(Type type, size_t size) : size(size) {
-    if (type == Type::Texture) {
+    if (type == Type::kTexture) {
         layer_states.reset_as<vstd::vector<TextureRange>>(size);
     } else {
         layer_states.reset_as<BufferRange>();

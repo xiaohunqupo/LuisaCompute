@@ -72,7 +72,7 @@ namespace vks
 	* @param size Size of the data to copy in machine units
 	*
 	*/
-	void Buffer::copy_to(void* data, VkDeviceSize size)
+	void Buffer::copy_to(const void* data, VkDeviceSize size)
 	{
 		assert(mapped);
 		memcpy(mapped, data, size);
@@ -132,5 +132,5 @@ namespace vks
 			vkFreeMemory(device, memory, nullptr);
 		}
 	}
-};
+}
 

@@ -18,7 +18,7 @@ public:
     ComPtr<IDCompositionTarget> dcomp_target;
     ComPtr<IDCompositionVisual> dcomp_visual;
     bool vsync;
-    Tag GetTag() const override { return Tag::SwapChain; }
+    Tag get_tag() const override { return Tag::SwapChain; }
     LCSwapChain(
         Device *device,
         CommandQueue *queue,

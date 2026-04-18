@@ -11,9 +11,9 @@ class ComputeShader final : public Shader {
 
 private:
     ComPtr<ID3D12PipelineState> _pso;
-    vstd::vector<luisa::compute::Argument> argBindings;
-    Device *device;
-    uint3 blockSize;
+    vstd::vector<luisa::compute::Argument> _arg_bindings;
+    Device *_device;
+    uint3 _block_size;
     ComputeShader(
         uint3 blockSize,
         Device *device,
@@ -24,17 +24,17 @@ private:
         ComPtr<ID3D12RootSignature> &&rootSig,
         ComPtr<ID3D12PipelineState> &&pso);
 
-    mutable ComPtr<ID3D12CommandSignature> cmdSig;
-    mutable std::mutex cmdSigMtx;
+    mutable ComPtr<ID3D12CommandSignature> _cmd_sig;
+    mutable std::mutex _cmd_sig_mtx;
 
 public:
-    static constexpr uint64_t DispatchIndirectStride = 28;
+    static constexpr uint64_t kDispatchIndirectStride = 28;
     ID3D12PipelineState *pso() const { return _pso.Get(); }
-    vstd::span<luisa::compute::Argument const> arg_bindings() const { return argBindings; }
+    vstd::span<luisa::compute::Argument const> arg_bindings() const { return _arg_bindings; }
     ID3D12CommandSignature *cmd_sig() const;
-    Device *get_device() const { return device; }
+    Device *get_device() const { return _device; }
     Tag get_tag() const { return Tag::ComputeShader; }
-    uint3 block_size() const { return blockSize; }
+    uint3 block_size() const { return _block_size; }
     static ComputeShader *compile_compute(
         luisa::BinaryIO const *file_io,
         luisa::compute::Profiler *profiler,

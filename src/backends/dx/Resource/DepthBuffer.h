@@ -18,7 +18,7 @@ public:
     D3D12_RESOURCE_STATES GetInitState() const override {
         return D3D12_RESOURCE_STATE_DEPTH_WRITE;
     }
-    Tag GetTag() const override { return Tag::DepthBuffer; }
+    Tag get_tag() const override { return Tag::DepthBuffer; }
     D3D12_DEPTH_STENCIL_VIEW_DESC GetDepthDesc() const override;
     DepthBuffer(
         Device *device,

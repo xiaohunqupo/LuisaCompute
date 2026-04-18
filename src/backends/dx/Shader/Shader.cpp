@@ -11,27 +11,27 @@
 namespace lc::dx {
 SavedArgument::SavedArgument(Usage usage, Variable const &var)
     : SavedArgument(var.type()) {
-    varUsage = usage;
+    var_usage = usage;
 }
 
 SavedArgument::SavedArgument(Function kernel, Variable const &var)
     : SavedArgument(var.type()) {
-    varUsage = kernel.variable_usage(var.uid());
+    var_usage = kernel.variable_usage(var.uid());
 }
 SavedArgument::SavedArgument(Type const *type) {
     if (luisa::to_underlying(type->tag()) < luisa::to_underlying(Type::Tag::BUFFER)) {
-        structSize = type->size();
+        struct_size = type->size();
     }
 }
 
 Shader::Shader(
     vstd::vector<hlsl::Property> &&prop,
     vstd::vector<SavedArgument> &&args,
-    ComPtr<ID3D12RootSignature> &&rootSig,
+    ComPtr<ID3D12RootSignature> &&root_sig,
     vstd::vector<std::pair<vstd::string, Type const *>> &&printers)
-    : rootSig(std::move(rootSig)),
+    : _root_sig(std::move(root_sig)),
       _properties(std::move(prop)),
-      kernelArguments(std::move(args)),
+      _kernel_arguments(std::move(args)),
       _printers(std::move(printers)) {
 }
 
@@ -42,7 +42,7 @@ Shader::Shader(
     vstd::vector<std::pair<vstd::string, Type const *>> &&printers,
     bool isRaster)
     : _properties(std::move(prop)),
-      kernelArguments(std::move(args)),
+      _kernel_arguments(std::move(args)),
       _printers(std::move(printers)) {
     auto serializedRootSig = ShaderSerializer::SerializeRootSig(
         _properties,
@@ -51,29 +51,29 @@ Shader::Shader(
         0,
         serializedRootSig->GetBufferPointer(),
         serializedRootSig->GetBufferSize(),
-        IID_PPV_ARGS(rootSig.GetAddressOf())));
+        IID_PPV_ARGS(_root_sig.GetAddressOf())));
 }
 
 void Shader::set_compute_resource(
-    uint propertyName,
+    uint property_name,
     CommandBufferBuilder *cb,
     BufferView buffer) const {
-    auto cmdList = cb->get_cb()->cmd_list();
-    auto &&var = _properties[propertyName];
+    auto cmd_list = cb->get_cb()->cmd_list();
+    auto &&var = _properties[property_name];
     switch (var.type) {
         case hlsl::ShaderVariableType::ConstantBuffer: {
-            cmdList->SetComputeRootConstantBufferView(
-                propertyName,
+            cmd_list->SetComputeRootConstantBufferView(
+                property_name,
                 buffer.buffer->GetAddress() + buffer.offset);
         } break;
         case hlsl::ShaderVariableType::StructuredBuffer: {
-            cmdList->SetComputeRootShaderResourceView(
-                propertyName,
+            cmd_list->SetComputeRootShaderResourceView(
+                property_name,
                 buffer.buffer->GetAddress() + buffer.offset);
         } break;
         case hlsl::ShaderVariableType::RWStructuredBuffer: {
-            cmdList->SetComputeRootUnorderedAccessView(
-                propertyName,
+            cmd_list->SetComputeRootUnorderedAccessView(
+                property_name,
                 buffer.buffer->GetAddress() + buffer.offset);
         } break;
         default:
@@ -86,11 +86,11 @@ void Shader::set_compute_resource(
     }
 }
 void Shader::set_compute_resource(
-    uint propertyName,
+    uint property_name,
     CommandBufferBuilder *cb,
     DescriptorHeapView view) const {
-    auto cmdList = cb->get_cb()->cmd_list();
-    auto &&var = _properties[propertyName];
+    auto cmd_list = cb->get_cb()->cmd_list();
+    auto &&var = _properties[property_name];
     switch (var.type) {
         case hlsl::ShaderVariableType::UAVBufferHeap:
         case hlsl::ShaderVariableType::UAVTextureHeap:
@@ -98,61 +98,61 @@ void Shader::set_compute_resource(
         case hlsl::ShaderVariableType::SamplerHeap:
         case hlsl::ShaderVariableType::SRVBufferHeap:
         case hlsl::ShaderVariableType::SRVTextureHeap: {
-            cmdList->SetComputeRootDescriptorTable(
-                propertyName,
+            cmd_list->SetComputeRootDescriptorTable(
+                property_name,
                 view.heap->hGPU(view.index));
         } break;
         default: LUISA_ASSUME(false); break;
     }
 }
 void Shader::set_compute_resource(
-    uint propertyName,
+    uint property_name,
     CommandBufferBuilder *cb,
-    std::pair<uint, uint4> const &constValue) const {
-    auto cmdList = cb->get_cb()->cmd_list();
-    LUISA_ASSUME(_properties[propertyName].type == hlsl::ShaderVariableType::ConstantValue);
-    cmdList->SetComputeRoot32BitConstants(propertyName, constValue.first, &constValue.second, 0);
+    std::pair<uint, uint4> const &const_value) const {
+    auto cmd_list = cb->get_cb()->cmd_list();
+    LUISA_ASSUME(_properties[property_name].type == hlsl::ShaderVariableType::ConstantValue);
+    cmd_list->SetComputeRoot32BitConstants(property_name, const_value.first, &const_value.second, 0);
 }
 void Shader::set_compute_resource(
-    uint propertyName,
-    CommandBufferBuilder *cmdList,
+    uint property_name,
+    CommandBufferBuilder *cmd_list,
     TopAccel const *bAccel) const {
     return set_compute_resource(
-        propertyName,
-        cmdList,
+        property_name,
+        cmd_list,
         BufferView(bAccel->GetAccelBuffer()));
 }
 void Shader::set_raster_resource(
-    uint propertyName,
+    uint property_name,
     CommandBufferBuilder *cb,
     BufferView buffer) const {
-    auto cmdList = cb->get_cb()->cmd_list();
-    auto &&var = _properties[propertyName];
+    auto cmd_list = cb->get_cb()->cmd_list();
+    auto &&var = _properties[property_name];
     switch (var.type) {
         case hlsl::ShaderVariableType::ConstantBuffer: {
-            cmdList->SetGraphicsRootConstantBufferView(
-                propertyName,
+            cmd_list->SetGraphicsRootConstantBufferView(
+                property_name,
                 buffer.buffer->GetAddress() + buffer.offset);
         } break;
         case hlsl::ShaderVariableType::StructuredBuffer: {
-            cmdList->SetGraphicsRootShaderResourceView(
-                propertyName,
+            cmd_list->SetGraphicsRootShaderResourceView(
+                property_name,
                 buffer.buffer->GetAddress() + buffer.offset);
         } break;
         case hlsl::ShaderVariableType::RWStructuredBuffer: {
-            cmdList->SetGraphicsRootUnorderedAccessView(
-                propertyName,
+            cmd_list->SetGraphicsRootUnorderedAccessView(
+                property_name,
                 buffer.buffer->GetAddress() + buffer.offset);
         } break;
         default: LUISA_ASSUME(false); break;
     }
 }
 void Shader::set_raster_resource(
-    uint propertyName,
+    uint property_name,
     CommandBufferBuilder *cb,
     DescriptorHeapView view) const {
-    auto cmdList = cb->get_cb()->cmd_list();
-    auto &&var = _properties[propertyName];
+    auto cmd_list = cb->get_cb()->cmd_list();
+    auto &&var = _properties[property_name];
     switch (var.type) {
         case hlsl::ShaderVariableType::UAVBufferHeap:
         case hlsl::ShaderVariableType::UAVTextureHeap:
@@ -160,44 +160,44 @@ void Shader::set_raster_resource(
         case hlsl::ShaderVariableType::SamplerHeap:
         case hlsl::ShaderVariableType::SRVBufferHeap:
         case hlsl::ShaderVariableType::SRVTextureHeap: {
-            cmdList->SetGraphicsRootDescriptorTable(
-                propertyName,
+            cmd_list->SetGraphicsRootDescriptorTable(
+                property_name,
                 view.heap->hGPU(view.index));
         } break;
         default: LUISA_ASSUME(false); break;
     }
 }
 void Shader::set_raster_resource(
-    uint propertyName,
-    CommandBufferBuilder *cmdList,
+    uint property_name,
+    CommandBufferBuilder *cmd_list,
     TopAccel const *bAccel) const {
     return set_raster_resource(
-        propertyName,
-        cmdList,
+        property_name,
+        cmd_list,
         BufferView(bAccel->GetAccelBuffer()));
 }
 void Shader::set_raster_resource(
-    uint propertyName,
+    uint property_name,
     CommandBufferBuilder *cb,
-    std::pair<uint, uint4> const &constValue) const {
-    auto cmdList = cb->get_cb()->cmd_list();
-    LUISA_ASSUME(_properties[propertyName].type == hlsl::ShaderVariableType::ConstantValue);
-    cmdList->SetGraphicsRoot32BitConstants(propertyName, constValue.first, &constValue.second, 0);
+    std::pair<uint, uint4> const &const_value) const {
+    auto cmd_list = cb->get_cb()->cmd_list();
+    LUISA_ASSUME(_properties[property_name].type == hlsl::ShaderVariableType::ConstantValue);
+    cmd_list->SetGraphicsRoot32BitConstants(property_name, const_value.first, &const_value.second, 0);
 }
-void Shader::save_pso(ID3D12PipelineState *pso, vstd::string_view psoName, luisa::BinaryIO const *fileStream, Device const *device) const {
-    LUISA_VERBOSE("Write Pipeline cache to {}.", psoName);
+void Shader::_save_pso(ID3D12PipelineState *pso, vstd::string_view pso_name, luisa::BinaryIO const *file_stream, Device const *device) const {
+    LUISA_VERBOSE("Write Pipeline cache to {}.", pso_name);
     ComPtr<ID3DBlob> psoCache;
     pso->GetCachedBlob(&psoCache);
-    static_cast<void>(fileStream->write_shader_cache(
-        psoName,
+    static_cast<void>(file_stream->write_shader_cache(
+        pso_name,
         {reinterpret_cast<std::byte const *>(psoCache->GetBufferPointer()),
          psoCache->GetBufferSize()}));
 };
-vstd::string Shader::pso_name(Device const *device, vstd::string_view fileName) {
+vstd::string Shader::pso_name(Device const *device, vstd::string_view file_name) {
     vstd::fixed_vector<uint8_t, 64> data;
-    luisa::enlarge_by(data, 16 + fileName.size());
+    luisa::enlarge_by(data, 16 + file_name.size());
     std::memcpy(data.data(), &device->adapter_id, 16);
-    std::memcpy(data.data() + 16, fileName.data(), fileName.size());
+    std::memcpy(data.data() + 16, file_name.data(), file_name.size());
     vstd::MD5 hash{data};
     return hash.to_string(false) + ".dx";
 }

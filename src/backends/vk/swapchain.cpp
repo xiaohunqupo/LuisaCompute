@@ -939,7 +939,7 @@ void Swapchain::present(
     VK_CHECK_RESULT(vkResetFences(device()->logic_device(), 1, &_in_flight_fences[_current_frame]));
     // Create vertex buffer only after successful acquisition
     if (!_vertex_buffer) {
-        _create_vertex_buffer(cmdbuffer, cmdbuffer.states()->_callbacks, device()->physical_device(), device()->logic_device(), _vertex_buffer, _vertex_buffer_memory);
+        _create_vertex_buffer(cmdbuffer, cmdbuffer.states()->callbacks, device()->physical_device(), device()->logic_device(), _vertex_buffer, _vertex_buffer_memory);
     }
     VkDescriptorSet descriptor_set;
     _create_descriptor_sets(
@@ -947,12 +947,12 @@ void Swapchain::present(
         _swapchain_images,
         descriptor_set,
         _descriptor_set_layout,
-        cmdbuffer.states()->_desc_pool);
+        cmdbuffer.states()->desc_pool);
     auto image = tex->vk_image();
     auto image_format = Texture::to_vk_format(tex->format());
     cmdbuffer.resource_barrier->record(
         TexView{tex, mip},
-        ResourceBarrier::Usage::RasterRead);
+        ResourceBarrier::Usage::kRasterRead);
     cmdbuffer.resource_barrier->update_states(cmdbuffer.cmdbuffer());
 
     auto image_layout = cmdbuffer.resource_barrier->get_layout(tex, mip);
@@ -972,7 +972,7 @@ void Swapchain::present(
         &image_view_create_info,
         Device::alloc_callbacks(),
         &img_view));
-    cmdbuffer.states()->_callbacks.emplace_back([img_view, device = this->device()->logic_device()]() {
+    cmdbuffer.states()->callbacks.emplace_back([img_view, device = this->device()->logic_device()]() {
         vkDestroyImageView(device, img_view, Device::alloc_callbacks());
     });
 

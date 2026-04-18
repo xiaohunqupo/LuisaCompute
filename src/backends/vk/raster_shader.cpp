@@ -13,7 +13,7 @@ RasterShader::RasterShader(
     bool use_tex2d_bindless,
     bool use_tex3d_bindless,
     bool use_buffer_bindless)
-    : Shader(device, ShaderTag::RasterShader, std::move(captured), std::move(saved_arguments), binds, use_tex2d_bindless, use_tex3d_bindless, use_buffer_bindless, {}), _vertex_spv_code(std::move(vertex_spv_code)), _pixel_spv_code(std::move(pixel_spv_code)) {
+    : Shader(device, ShaderTag::kRasterShader, std::move(captured), std::move(saved_arguments), binds, use_tex2d_bindless, use_tex3d_bindless, use_buffer_bindless, {}), _vertex_spv_code(std::move(vertex_spv_code)), _pixel_spv_code(std::move(pixel_spv_code)) {
     VkPipelineCacheCreateInfo pso_ci{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO};
     if (!cache_code.empty()) {

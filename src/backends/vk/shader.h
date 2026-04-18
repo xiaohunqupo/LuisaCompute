@@ -26,8 +26,8 @@ struct SavedArgument {
 class Shader : public Resource {
 public:
     enum class ShaderTag : uint {
-        ComputeShader,
-        RasterShader
+        kComputeShader,
+        kRasterShader
     };
 
 protected:

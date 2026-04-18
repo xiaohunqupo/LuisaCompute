@@ -254,7 +254,7 @@ BufferCreationInfo DxCudaInteropImpl::create_interop_buffer(const Type *element,
     }
     if (element->is_custom()) {
         if (element == Type::of<IndirectKernelDispatch>()) {
-            info.element_stride = ComputeShader::DispatchIndirectStride;
+            info.element_stride = ComputeShader::kDispatchIndirectStride;
             info.total_size_bytes = 4 + info.element_stride * elem_count;
             res = static_cast<Buffer *>(new DefaultBuffer(&_device.native_device, info.total_size_bytes,
                                                           static_cast<GpuAllocator *>(nullptr)));

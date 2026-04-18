@@ -60,14 +60,14 @@ void RTShader::DispatchRays(
     dispatchDesc.Depth = depth;
     dispatchDesc.Height = height;
     dispatchDesc.Width = width;
-    dispatchDesc.HitGroupTable.StartAddress = hitGroups.hitGroupVAddress;
-    dispatchDesc.HitGroupTable.SizeInBytes = hitGroups.hitGroupSize;
-    dispatchDesc.HitGroupTable.StrideInBytes = hitGroups.hitGroupSize;
-    dispatchDesc.RayGenerationShaderRecord.SizeInBytes = hitGroups.rayGenSize;
-    dispatchDesc.RayGenerationShaderRecord.StartAddress = hitGroups.rayGenVAddress;
-    dispatchDesc.MissShaderTable.SizeInBytes = hitGroups.missSize;
-    dispatchDesc.MissShaderTable.StrideInBytes = hitGroups.missSize;
-    dispatchDesc.MissShaderTable.StartAddress = hitGroups.missVAddress;
+    dispatchDesc.HitGroupTable.StartAddress = hitGroups.hit_group_v_address;
+    dispatchDesc.HitGroupTable.SizeInBytes = hitGroups.hit_group_size;
+    dispatchDesc.HitGroupTable.StrideInBytes = hitGroups.hit_group_size;
+    dispatchDesc.RayGenerationShaderRecord.SizeInBytes = hitGroups.ray_gen_size;
+    dispatchDesc.RayGenerationShaderRecord.StartAddress = hitGroups.ray_gen_v_address;
+    dispatchDesc.MissShaderTable.SizeInBytes = hitGroups.miss_size;
+    dispatchDesc.MissShaderTable.StrideInBytes = hitGroups.miss_size;
+    dispatchDesc.MissShaderTable.StartAddress = hitGroups.miss_v_address;
     cmdList->SetPipelineState1(stateObj.Get());
     cmdList->DispatchRays(
         &dispatchDesc);

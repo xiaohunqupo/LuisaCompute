@@ -35,7 +35,7 @@ ResourceCreationInfo VkRasterExt::create_raster_shader(
         fclose(f);
     }
     vstd::MD5 check_md5({reinterpret_cast<uint8_t const *>(code.result.data() + code.immutableHeaderSize), code.result.size() - code.immutableHeaderSize});
-    auto comp_result = Device::compiler()->compile_raster(code.result.view(), !option.enable_debug_info, k_shader_model, option.enable_fast_math, true, option.enable_debug_info);
+    auto comp_result = Device::compiler()->compile_raster(code.result.view(), !option.enable_debug_info, kShaderModel, option.enable_fast_math, true, option.enable_debug_info);
     if (comp_result.vertex.is_type_of<vstd::string>()) [[unlikely]] {
         LUISA_ERROR("DXC compile vertex-shader error: {}", *comp_result.vertex.try_get<vstd::string>());
     }
@@ -72,7 +72,7 @@ ResourceCreationInfo VkRasterExt::create_raster_shader(
         option.name,
         {reinterpret_cast<const uint *>(vert_buffer->GetBufferPointer()), vert_buffer->GetBufferSize() / sizeof(uint)},
         {reinterpret_cast<const uint *>(pixel_buffer->GetBufferPointer()), pixel_buffer->GetBufferSize() / sizeof(uint)},
-        SerdeType::ByteCode,
+        SerdeType::kByteCode,
         _device->binary_io(),
         code.useTex2DBindless,
         code.useTex3DBindless,
@@ -84,7 +84,7 @@ ResourceCreationInfo VkRasterExt::create_raster_shader(
 ResourceCreationInfo VkRasterExt::load_raster_shader(
     luisa::span<Type const *const> types,
     luisa::string_view ser_path) noexcept {
-    auto deser_result = ShaderSerializer::try_deser_raster(_device, {}, {}, ser_path, SerdeType::ByteCode, _device->binary_io());
+    auto deser_result = ShaderSerializer::try_deser_raster(_device, {}, {}, ser_path, SerdeType::kByteCode, _device->binary_io());
     if (!deser_result.shader)
         return ResourceCreationInfo::make_invalid();
     ResourceCreationInfo info{};

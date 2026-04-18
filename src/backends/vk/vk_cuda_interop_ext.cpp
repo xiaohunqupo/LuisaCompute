@@ -154,7 +154,7 @@ VkCudaInteropImpl::VkCudaInteropImpl(Device *device) noexcept : _device(device) 
     LUISA_CHECK_CUDA(cuDeviceGet(&_cu_device, _cuda_device));
     LUISA_CHECK_CUDA(cuDevicePrimaryCtxRetain(&_cu_context, _cu_device));
 }
-VkCudaInteropImpl::~VkCudaInteropImpl() {
+VkCudaInteropImpl::~VkCudaInteropImpl() noexcept {
     if (_cu_device)
         LUISA_CHECK_CUDA(cuDevicePrimaryCtxRelease(_cu_device));
 }

@@ -10,12 +10,11 @@ using namespace luisa::compute;
 class Tlas;
 class Blas;
 class MeshHandle {
-    friend class Tlas;
 public:
-    Blas *mesh;
-    Tlas *accel;
-    size_t accel_index;
-    size_t mesh_index;
+    Blas *mesh = nullptr;
+    Tlas *accel = nullptr;
+    size_t accel_index = 0;
+    size_t mesh_index = 0;
     static MeshHandle *allocate_handle();
     static void destroy_handle(MeshHandle *handle);
 };
@@ -25,9 +24,9 @@ private:
     luisa::spin_mutex _handle_mtx;
     VkAccelerationStructureKHR _accel{nullptr};
     vstd::unique_ptr<DefaultBuffer> _accel_buffer;
-    VkAccelerationStructureBuildGeometryInfoKHR *_acceleration_build_geometry_info;
+    VkAccelerationStructureBuildGeometryInfoKHR *_acceleration_build_geometry_info{nullptr};
     AccelOption _option;
-    Buffer const *_scratch_buffer{nullptr};
+    const Buffer *_scratch_buffer{nullptr};
     uint64_t _scratch_buffer_offset{0};
     vstd::fixed_vector<MeshHandle *, 2> _handles;
 
@@ -55,7 +54,7 @@ public:
     void build(
         CommandBuffer &cmdbuffer,
         ProceduralPrimitiveBuildCommand const *cmd);
-    ~Blas();
+    ~Blas() override;
     uint64_t get_accel_device_address() const;
 };
 }// namespace lc::vk

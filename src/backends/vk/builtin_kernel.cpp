@@ -33,7 +33,7 @@ ComputeShader *BuiltinKernel::load_accel_set_kernel(Device *device) {
         {},
         uint3(256, 1, 1),
         "accel_process_vk.dxil"sv,
-        SerdeType::Builtin,
+        SerdeType::kBuiltin,
         62, true);
 }
 ComputeShader *BuiltinKernel::load_bindless_set_kernel(Device *device) {
@@ -66,7 +66,7 @@ ComputeShader *BuiltinKernel::load_bindless_set_kernel(Device *device) {
         {},
         uint3(256, 1, 1),
         "load_bdls_vk.dxil"sv,
-        SerdeType::Builtin,
+        SerdeType::kBuiltin,
         62, true);
 }
 // namespace detail {

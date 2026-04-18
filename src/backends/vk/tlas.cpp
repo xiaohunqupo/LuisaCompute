@@ -46,11 +46,11 @@ void Tlas::pre_build(
         auto new_inst_buffer = vstd::make_unique<DefaultBuffer>(device(), dst_inst_size, true, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR);
         resource_barrier->record(
             BufferView{new_inst_buffer.get()},
-            ResourceBarrier::Usage::CopyDest);
+            ResourceBarrier::Usage::kCopyDest);
         resource_barrier->record(
             BufferView{
                 _instance_buffer.get()},
-            ResourceBarrier::Usage::CopySource);
+            ResourceBarrier::Usage::kCopySource);
         resource_barrier->update_states(cmdbuffer.cmdbuffer());
         VkBufferCopy2 buffer_copy{
             VK_STRUCTURE_TYPE_BUFFER_COPY_2,
@@ -94,13 +94,13 @@ void Tlas::pre_build(
         resource_barrier->record(
             BufferView{
                 _instance_buffer.get()},
-            ResourceBarrier::Usage::ComputeUAV);
+            ResourceBarrier::Usage::kComputeUAV);
         auto shader = device()->set_accel_kernel.get(device());
         resource_barrier->update_states(cmdbuffer.cmdbuffer());
         VkDescriptorSet desc_set;
         VkDescriptorSetAllocateInfo alloc_info{
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-            .descriptorPool = cmdbuffer.states()->_desc_pool,
+            .descriptorPool = cmdbuffer.states()->desc_pool,
             .descriptorSetCount = 1,
             .pSetLayouts = shader->desc_set_layout().data()};
         VK_CHECK_RESULT(
@@ -137,7 +137,7 @@ void Tlas::pre_build(
                 auto addr = mesh->get_accel_device_address();
                 inst_ptr->mesh = reinterpret_cast<std::array<uint, 2> const &>(addr);
                 resource_barrier->record(BufferView{mesh->_accel_buffer.get()},
-                                         ResourceBarrier::Usage::AccelInstanceBuffer);
+                                         ResourceBarrier::Usage::kAccelInstanceBuffer);
             }
             inst_ptr++;
         }
@@ -146,7 +146,7 @@ void Tlas::pre_build(
             inst_ptr->index = i.first;
             inst_ptr->flags = AccelBuildCommand::Modification::flag_primitive;
             resource_barrier->record(BufferView{i.second->mesh->_accel_buffer.get()},
-                                     ResourceBarrier::Usage::AccelInstanceBuffer);
+                                     ResourceBarrier::Usage::kAccelInstanceBuffer);
             auto addr = i.second->mesh->get_accel_device_address();
             inst_ptr->mesh = reinterpret_cast<std::array<uint, 2> &>(addr);
             ++inst_ptr;
@@ -242,17 +242,17 @@ void Tlas::pre_build(
     resource_barrier->record(
         BufferView{
             _instance_buffer.get()},
-        ResourceBarrier::Usage::AccelInstanceBuffer);
+        ResourceBarrier::Usage::kAccelInstanceBuffer);
     resource_barrier->record(
         _accel_buffer.get(),
-        ResourceBarrier::Usage::BuildAccel);
+        ResourceBarrier::Usage::kBuildAccel);
     VkAccelerationStructureCreateInfoKHR acceleration_structure_create_info{};
     acceleration_structure_create_info.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
     acceleration_structure_create_info.buffer = _accel_buffer->vk_buffer();
     acceleration_structure_create_info.size = acceleration_structure_build_sizes_info.accelerationStructureSize;
     acceleration_structure_create_info.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
     if (_accel) {
-        cmdbuffer.states()->_callbacks.emplace_back([a = _accel, device = device()]() {
+        cmdbuffer.states()->callbacks.emplace_back([a = _accel, device = device()]() {
             vkDestroyAccelerationStructureKHR(device->logic_device(), a, Device::alloc_callbacks());
         });
     }
@@ -264,7 +264,7 @@ void Tlas::pre_build(
     _scratch_buffer_offset = scratch_chunk.offset;
     cmdbuffer.resource_barrier->record(
         _scratch_buffer,
-        ResourceBarrier::Usage::ComputeUAV);
+        ResourceBarrier::Usage::kComputeUAV);
 }
 void Tlas::_update_mesh(
     MeshHandle *handle) {
@@ -292,10 +292,10 @@ void Tlas::build(
     cmdbuffer.resource_barrier->record(
         BufferView{
             _instance_buffer.get()},
-        ResourceBarrier::Usage::ComputeRead);
+        ResourceBarrier::Usage::kComputeRead);
     cmdbuffer.resource_barrier->record(
         _accel_buffer.get(),
-        ResourceBarrier::Usage::ComputeRead);
+        ResourceBarrier::Usage::kComputeRead);
 }
 void Tlas::_resize_instance(size_t size) {
     if (size < _all_instance.size()) {

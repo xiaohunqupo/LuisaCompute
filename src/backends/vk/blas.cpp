@@ -49,7 +49,7 @@ void Blas::_pre_build(
     }
     cmdbuffer.resource_barrier->record(
         _accel_buffer.get(),
-        ResourceBarrier::Usage::BuildAccel);
+        ResourceBarrier::Usage::kBuildAccel);
     VkAccelerationStructureCreateInfoKHR acceleration_structure_create_info{};
     acceleration_structure_create_info.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
     acceleration_structure_create_info.buffer = _accel_buffer->vk_buffer();
@@ -57,7 +57,7 @@ void Blas::_pre_build(
     acceleration_structure_create_info.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
     bool sync = _accel;
     if (_accel) {
-        cmdbuffer.states()->_callbacks.emplace_back([a = _accel, device = device()]() {
+        cmdbuffer.states()->callbacks.emplace_back([a = _accel, device = device()]() {
             vkDestroyAccelerationStructureKHR(device->logic_device(), a, Device::alloc_callbacks());
         });
     }
@@ -69,7 +69,7 @@ void Blas::_pre_build(
     _scratch_buffer_offset = scratch_chunk.offset;
     cmdbuffer.resource_barrier->record(
         _scratch_buffer,
-        ResourceBarrier::Usage::ComputeUAV);
+        ResourceBarrier::Usage::kComputeUAV);
     if (sync) {
         _sync_tlas();
     }
@@ -91,7 +91,7 @@ void Blas::pre_build(
     _pre_build(cmdbuffer, acceleration_structure_geometry, cmd->aabb_buffer_size() / sizeof(luisa::compute::AABB), cmd->request());
     cmdbuffer.resource_barrier->record(
         reinterpret_cast<Buffer const *>(cmd->aabb_buffer()),
-        ResourceBarrier::Usage::AccelInstanceBuffer);
+        ResourceBarrier::Usage::kAccelInstanceBuffer);
 }
 void Blas::pre_build(
     CommandBuffer &cmdbuffer,
@@ -116,10 +116,10 @@ void Blas::pre_build(
     _pre_build(cmdbuffer, acceleration_structure_geometry, cmd->triangle_buffer_size() / 12, cmd->request());
     cmdbuffer.resource_barrier->record(
         reinterpret_cast<Buffer const *>(cmd->vertex_buffer()),
-        ResourceBarrier::Usage::AccelInstanceBuffer);
+        ResourceBarrier::Usage::kAccelInstanceBuffer);
     cmdbuffer.resource_barrier->record(
         reinterpret_cast<Buffer const *>(cmd->triangle_buffer()),
-        ResourceBarrier::Usage::AccelInstanceBuffer);
+        ResourceBarrier::Usage::kAccelInstanceBuffer);
 }
 void Blas::build(
     CommandBuffer &cmdbuffer,

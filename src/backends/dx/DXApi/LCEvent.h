@@ -10,7 +10,7 @@ public:
     mutable std::atomic_uint64_t finished_event = 0;
     mutable luisa::spin_mutex event_mtx;
     mutable uint64_t last_fence = 0;
-    Tag GetTag() const override { return Tag::Event; }
+    Tag get_tag() const override { return Tag::Event; }
     ID3D12Fence *fence() const { return _fence.Get(); }
     LCEvent(Device *device, bool shared = false);
     ~LCEvent();

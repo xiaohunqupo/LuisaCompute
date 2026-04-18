@@ -88,7 +88,7 @@ public:
         vstd::span<const BindlessArrayUpdateCommand::Texture2DModification> mods) const;
 
     DefaultBuffer const *BindlessBuffer() const { return &buffer; }
-    Tag GetTag() const override { return Tag::BindlessArray; }
+    Tag get_tag() const override { return Tag::BindlessArray; }
     BindlessArray(
         Device *device,
         uint arraySize,

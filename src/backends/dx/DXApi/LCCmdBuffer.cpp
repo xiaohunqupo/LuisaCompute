@@ -50,13 +50,13 @@ auto get_resource_view(DXCustomCmd::ResourceHandle const &res) {
         res);
 };
 CmdQueueBase::CmdQueueBase(Device *device, CmdQueueTag tag)
-    : Resource{device}, tag{tag},
-      logCallback([](luisa::string_view str) {
+    : Resource{device}, _tag{tag},
+      log_callback([](luisa::string_view str) {
           LUISA_INFO("[DEVICE] {}", str);
       }) {}
 using Argument = luisa::compute::Argument;
 static bool is_device_buffer(Resource const *res) {
-    auto tag = res->GetTag();
+    auto tag = res->get_tag();
     return (tag != Resource::Tag::UploadBuffer) && (tag != Resource::Tag::ReadbackBuffer);
 }
 template<typename Visitor>
@@ -145,7 +145,7 @@ public:
         }
         void operator()(Argument::Buffer const &bf) {
             auto res = reinterpret_cast<Buffer const *>(bf.handle);
-            if (((uint)arg->varUsage & (uint)Usage::WRITE) != 0) {
+            if (((uint)arg->var_usage & (uint)Usage::WRITE) != 0) {
                 LUISA_ASSERT(is_device_buffer(res), "Unordered access buffer can not be host-buffer.");
                 self->state_tracker->Record(
                     BufferView{res, bf.offset, bf.size},
@@ -160,7 +160,7 @@ public:
                         BufferView{res, bf.offset, bf.size},
                         read_usage);
                 else {
-                    LUISA_ASSERT(res->GetTag() == Resource::Tag::UploadBuffer, "Only upload-buffer allowed as shader's resource.");
+                    LUISA_ASSERT(res->get_tag() == Resource::Tag::UploadBuffer, "Only upload-buffer allowed as shader's resource.");
                 }
             }
             ++arg;
@@ -168,7 +168,7 @@ public:
         void operator()(Argument::Texture const &bf) {
             auto rt = reinterpret_cast<TextureBase *>(bf.handle);
             //UAV
-            if (((uint)arg->varUsage & (uint)Usage::WRITE) != 0) {
+            if (((uint)arg->var_usage & (uint)Usage::WRITE) != 0) {
                 if (!rt->AllowUAV()) [[unlikely]] {
                     LUISA_ERROR("Texture not allowed for Unordered-Access.");
                 }
@@ -217,7 +217,7 @@ public:
         void operator()(Argument::Accel const &bf) {
             auto accel = reinterpret_cast<TopAccel *>(bf.handle);
             if (accel->GetInstBuffer()) [[likely]] {
-                if (((uint)arg->varUsage & (uint)Usage::WRITE) != 0) {
+                if (((uint)arg->var_usage & (uint)Usage::WRITE) != 0) {
                     self->state_tracker->Record(
                         BufferView{accel->GetInstBuffer(), 0, accel->GetInstBuffer()->GetByteSize()},
                         uav_usage);
@@ -279,14 +279,14 @@ public:
                 BufferView(srcBf, cmd->src_offset(), cmd->size()),
                 EnhancedBarrierTracker::Usage::CopySource);
         } else {
-            LUISA_ASSERT(srcBf->GetTag() == Resource::Tag::UploadBuffer, "Only upload-buffer allowed as copy source.");
+            LUISA_ASSERT(srcBf->get_tag() == Resource::Tag::UploadBuffer, "Only upload-buffer allowed as copy source.");
         }
         if (is_device_buffer(dstBf)) {
             state_tracker->Record(
                 BufferView(dstBf, cmd->dst_offset(), cmd->size()),
                 EnhancedBarrierTracker::Usage::CopyDest);
         } else {
-            LUISA_ASSERT(dstBf->GetTag() == Resource::Tag::ReadbackBuffer, "Only non write-combined-buffer allowed as copy destination.");
+            LUISA_ASSERT(dstBf->get_tag() == Resource::Tag::ReadbackBuffer, "Only non write-combined-buffer allowed as copy destination.");
         }
     }
     void visit(const BufferToTextureCopyCommand *cmd) noexcept override {
@@ -300,7 +300,7 @@ public:
                 BufferView(bf, cmd->buffer_offset(), pixel_storage_size(cmd->storage(), cmd->size())),
                 EnhancedBarrierTracker::Usage::CopySource);
         } else {
-            LUISA_ASSERT(bf->GetTag() == Resource::Tag::UploadBuffer, "Only upload-buffer allowed as copy source.");
+            LUISA_ASSERT(bf->get_tag() == Resource::Tag::UploadBuffer, "Only upload-buffer allowed as copy source.");
         }
     }
 
@@ -349,7 +349,7 @@ public:
                 BufferView(bf, cmd->buffer_offset(), pixel_storage_size(cmd->storage(), cmd->size())),
                 EnhancedBarrierTracker::Usage::CopyDest);
         } else {
-            LUISA_ASSERT(bf->GetTag() == Resource::Tag::ReadbackBuffer, "Only non write-combined-buffer allowed as copy destination.");
+            LUISA_ASSERT(bf->get_tag() == Resource::Tag::ReadbackBuffer, "Only non write-combined-buffer allowed as copy destination.");
         }
     }
     void visit(const ShaderDispatchCommand *cmd) noexcept override {
@@ -364,7 +364,7 @@ public:
         if (cmd->is_indirect()) {
             auto buffer = reinterpret_cast<Buffer *>(cmd->indirect_dispatch().handle);
             state_tracker->Record(
-                BufferView(buffer, cmd->indirect_dispatch().offset / ComputeShader::DispatchIndirectStride, cmd->indirect_dispatch().max_dispatch_size / ComputeShader::DispatchIndirectStride), EnhancedBarrierTracker::Usage::IndirectArgs);
+                BufferView(buffer, cmd->indirect_dispatch().offset / ComputeShader::kDispatchIndirectStride, cmd->indirect_dispatch().max_dispatch_size / ComputeShader::kDispatchIndirectStride), EnhancedBarrierTracker::Usage::IndirectArgs);
         }
     }
     void visit(const AccelBuildCommand *cmd) noexcept override {
@@ -594,7 +594,7 @@ public:
         void operator()(Argument::Texture const &bf) {
             auto rt = reinterpret_cast<TextureBase *>(bf.handle);
             //UAV
-            if (((uint)arg->varUsage & (uint)Usage::WRITE) != 0) {
+            if (((uint)arg->var_usage & (uint)Usage::WRITE) != 0) {
                 self->bind_props->emplace_back(
                     DescriptorHeapView(
                         self->device->global_heap.get(),
@@ -618,7 +618,7 @@ public:
         }
         void operator()(Argument::Accel const &bf) {
             auto accel = reinterpret_cast<TopAccel *>(bf.handle);
-            if ((static_cast<uint>(arg->varUsage) & static_cast<uint>(Usage::WRITE)) == 0) {
+            if ((static_cast<uint>(arg->var_usage) & static_cast<uint>(Usage::WRITE)) == 0) {
                 self->bind_props->emplace_back(
                     accel);
             }
@@ -1196,8 +1196,8 @@ void LCCmdBuffer::Execute(
         accelOffset.clear();
 
         LCCmdVisitor visitor;
-        if (logCallback) {
-            visitor.logger = &logCallback;
+        if (log_callback) {
+            visitor.logger = &log_callback;
         } else {
             visitor.logger = nullptr;
         }

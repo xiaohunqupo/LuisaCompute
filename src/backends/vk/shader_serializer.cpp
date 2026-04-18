@@ -60,16 +60,16 @@ private:
 
 luisa::unique_ptr<luisa::BinaryStream> read_binary_io(SerdeType type, luisa::BinaryIO const *bin_io, luisa::string_view file_name) {
     switch (type) {
-        case SerdeType::Cache:
+        case SerdeType::kCache:
             return bin_io->read_shader_cache(file_name);
-        case SerdeType::Builtin: {
+        case SerdeType::kBuiltin: {
             auto internal_data = hlsl::CodegenUtility::ReadInternalHLSLFile(file_name);
             if (!internal_data.empty()) {
                 return luisa::make_unique<StringViewBinaryStream>(internal_data);
             }
             return bin_io->read_internal_shader(file_name);
         }
-        case SerdeType::ByteCode:
+        case SerdeType::kByteCode:
             return bin_io->read_shader_bytecode(file_name);
     }
     return luisa::unique_ptr<luisa::BinaryStream>{};
@@ -136,13 +136,13 @@ void ShaderSerializer::serialize_raster(
     }
 
     switch (serde_type) {
-        case SerdeType::Cache:
+        case SerdeType::kCache:
             static_cast<void>(bin_io->write_shader_cache(file_name, results));
             break;
-        case SerdeType::Builtin:
+        case SerdeType::kBuiltin:
             static_cast<void>(bin_io->write_internal_shader(file_name, results));
             break;
-        case SerdeType::ByteCode:
+        case SerdeType::kByteCode:
             static_cast<void>(bin_io->write_shader_bytecode(file_name, results));
             break;
     }
@@ -207,13 +207,13 @@ void ShaderSerializer::serialize_bytecode(
     }
 
     switch (serde_type) {
-        case SerdeType::Cache:
+        case SerdeType::kCache:
             bin_io->write_shader_cache(file_name, results);
             break;
-        case SerdeType::Builtin:
+        case SerdeType::kBuiltin:
             bin_io->write_internal_shader(file_name, results);
             break;
-        case SerdeType::ByteCode:
+        case SerdeType::kByteCode:
             bin_io->write_shader_bytecode(file_name, results);
             break;
     }

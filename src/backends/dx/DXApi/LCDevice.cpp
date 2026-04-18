@@ -196,7 +196,7 @@ BufferCreationInfo LCDevice::create_buffer(const Type *element,
             LUISA_ASSERT(external_memory == nullptr,
                          "IndirectKernelDispatch buffer cannot "
                          "be created from external memory.");
-            info.element_stride = ComputeShader::DispatchIndirectStride;
+            info.element_stride = ComputeShader::kDispatchIndirectStride;
             info.total_size_bytes = 4 + info.element_stride * elem_count;
             res = static_cast<Buffer *>(new DefaultBuffer(&native_device, info.total_size_bytes, native_device.default_allocator.get()));
         } else {
@@ -300,7 +300,7 @@ ResourceCreationInfo LCDevice::create_stream(StreamTag stream_tag) noexcept {
 
 void LCDevice::destroy_stream(uint64 handle) noexcept {
     auto queue = reinterpret_cast<CmdQueueBase *>(handle);
-    switch (queue->Tag()) {
+    switch (queue->tag()) {
         case CmdQueueTag::MainCmd:
             delete static_cast<LCCmdBuffer *>(queue);
             break;
@@ -311,7 +311,7 @@ void LCDevice::destroy_stream(uint64 handle) noexcept {
 }
 void LCDevice::synchronize_stream(uint64 stream_handle) noexcept {
     auto queue = reinterpret_cast<CmdQueueBase *>(stream_handle);
-    switch (queue->Tag()) {
+    switch (queue->tag()) {
         case CmdQueueTag::MainCmd:
             static_cast<LCCmdBuffer *>(queue)->Sync();
             break;
@@ -322,7 +322,7 @@ void LCDevice::synchronize_stream(uint64 stream_handle) noexcept {
 }
 void LCDevice::dispatch(uint64 stream_handle, CommandList &&list) noexcept {
     auto queue = reinterpret_cast<CmdQueueBase *>(stream_handle);
-    switch (queue->Tag()) {
+    switch (queue->tag()) {
         case CmdQueueTag::MainCmd:
             reinterpret_cast<LCCmdBuffer *>(stream_handle)
                 ->Execute(
@@ -337,7 +337,7 @@ void LCDevice::dispatch(uint64 stream_handle, CommandList &&list) noexcept {
 void LCDevice::set_stream_log_callback(uint64_t stream_handle,
                                        const StreamLogCallback &callback) noexcept {
     auto queue = reinterpret_cast<CmdQueueBase *>(stream_handle);
-    queue->logCallback = callback;
+    queue->log_callback = callback;
 }
 
 ShaderCreationInfo LCDevice::create_shader(const ShaderOption &option, Function kernel) noexcept {
@@ -440,7 +440,7 @@ ShaderCreationInfo LCDevice::load_shader(
 }
 Usage LCDevice::shader_argument_usage(uint64_t handle, size_t index) noexcept {
     auto shader = reinterpret_cast<Shader *>(handle);
-    return shader->args()[index].varUsage;
+    return shader->args()[index].var_usage;
 }
 void LCDevice::destroy_shader(uint64 handle) noexcept {
     auto shader = reinterpret_cast<Shader *>(handle);
@@ -458,7 +458,7 @@ void LCDevice::destroy_event(uint64 handle) noexcept {
 }
 void LCDevice::signal_event(uint64 handle, uint64 stream_handle, uint64_t fence) noexcept {
     auto queue = reinterpret_cast<CmdQueueBase *>(stream_handle);
-    switch (queue->Tag()) {
+    switch (queue->tag()) {
         case CmdQueueTag::MainCmd:
             reinterpret_cast<LCEvent *>(handle)->signal(
                 &reinterpret_cast<LCCmdBuffer *>(stream_handle)->queue, fence);
@@ -474,7 +474,7 @@ bool LCDevice::is_event_completed(uint64_t handle, uint64_t fence) const noexcep
 }
 void LCDevice::wait_event(uint64 handle, uint64 stream_handle, uint64_t fence) noexcept {
     auto queue = reinterpret_cast<CmdQueueBase *>(stream_handle);
-    if (queue->Tag() != CmdQueueTag::MainCmd) [[unlikely]] {
+    if (queue->tag() != CmdQueueTag::MainCmd) [[unlikely]] {
         LUISA_ERROR("Wait command not allowed in Direct-Storage.");
     }
     reinterpret_cast<LCEvent *>(handle)->wait(
@@ -514,7 +514,7 @@ void LCDevice::destroy_accel(uint64 handle) noexcept {
 }
 SwapchainCreationInfo LCDevice::create_swapchain(const SwapchainOption &option, uint64_t stream_handle) noexcept {
     auto queue = reinterpret_cast<CmdQueueBase *>(stream_handle);
-    if (queue->Tag() != CmdQueueTag::MainCmd) [[unlikely]] {
+    if (queue->tag() != CmdQueueTag::MainCmd) [[unlikely]] {
         LUISA_ERROR("swapchain not allowed in Direct-Storage.");
     }
     SwapchainCreationInfo info{};
@@ -538,7 +538,7 @@ void LCDevice::destroy_swapchain(uint64 handle) noexcept {
 }
 void LCDevice::present_display_in_stream(uint64 stream_handle, uint64 swapchain_handle, uint64 image_handle) noexcept {
     auto queue = reinterpret_cast<CmdQueueBase *>(stream_handle);
-    if (queue->Tag() != CmdQueueTag::MainCmd) [[unlikely]] {
+    if (queue->tag() != CmdQueueTag::MainCmd) [[unlikely]] {
         LUISA_ERROR("present not allowed in Direct-Storage.");
     }
     reinterpret_cast<LCCmdBuffer *>(stream_handle)
@@ -726,7 +726,7 @@ SparseBufferCreationInfo LCDevice::create_sparse_buffer(const Type *element, siz
     SparseBuffer *res;
     if (element->is_custom()) {
         if (element == Type::of<IndirectKernelDispatch>()) {
-            info.element_stride = ComputeShader::DispatchIndirectStride;
+            info.element_stride = ComputeShader::kDispatchIndirectStride;
             info.total_size_bytes = 4 + info.element_stride * elem_count;
             res = new SparseBuffer(&native_device, info.total_size_bytes);
         } else {
@@ -752,7 +752,7 @@ void LCDevice::update_sparse_resources(
     luisa::vector<SparseUpdateTile> &&update_cmds) noexcept {
     auto queue = reinterpret_cast<CmdQueueBase *>(stream_handle);
 
-    if (queue->Tag() != CmdQueueTag::MainCmd) [[unlikely]] {
+    if (queue->tag() != CmdQueueTag::MainCmd) [[unlikely]] {
         LUISA_ERROR("sparse-texture update not allowed in Direct-Storage.");
     }
     auto &queue_ptr = static_cast<LCCmdBuffer *>(queue)->queue;

@@ -12,6 +12,8 @@ public:
     static ComputeShader *load_bc7_try_mode_137cs_kernel(Device *device);
     static ComputeShader *load_bc7_try_mode_02cs_kernel(Device *device);
     static ComputeShader *load_bc7_encode_block_cs_kernel(Device *device);
+    BuiltinKernel() = delete;
+    ~BuiltinKernel() = delete;
 };
 }// namespace lc::dx
 

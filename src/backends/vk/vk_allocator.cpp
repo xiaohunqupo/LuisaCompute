@@ -19,10 +19,10 @@ AllocatedBuffer VkAllocator::allocate_buffer(size_t byte_size, VkBufferUsageFlag
         .usage = static_cast<VkBufferUsageFlags>(usage)};
     VmaAllocationCreateInfo alloc_info = {.flags = VMA_ALLOCATION_CREATE_STRATEGY_BEST_FIT_BIT};
     switch (access) {
-        case AccessType::ReadBack:
+        case AccessType::kReadBack:
             alloc_info.usage = VMA_MEMORY_USAGE_GPU_TO_CPU;
             break;
-        case AccessType::Upload:
+        case AccessType::kUpload:
             alloc_info.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
             break;
         default:

@@ -7,14 +7,14 @@ enum class CmdQueueTag {
 };
 class CmdQueueBase : public Resource {
 protected:
-    CmdQueueTag tag;
+    CmdQueueTag _tag;
     CmdQueueBase(Device *device, CmdQueueTag tag);
     ~CmdQueueBase() = default;
 
 public:
-    luisa::function<void(luisa::string_view)> logCallback;
-    CmdQueueTag Tag() const { return tag; }
-    Resource::Tag GetTag() const override {
+    luisa::function<void(luisa::string_view)> log_callback;
+    CmdQueueTag tag() const { return _tag; }
+    Resource::Tag get_tag() const override {
         return Resource::Tag::CommandQueue;
     }
 };

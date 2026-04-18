@@ -15,7 +15,7 @@ private:
     VkAccelerationStructureKHR _accel{nullptr};
     vstd::unique_ptr<DefaultBuffer> _accel_buffer;
     vstd::unique_ptr<DefaultBuffer> _instance_buffer;
-    VkAccelerationStructureBuildGeometryInfoKHR *_acceleration_build_geometry_info;
+    VkAccelerationStructureBuildGeometryInfoKHR *_acceleration_build_geometry_info{nullptr};
     AccelOption _option;
     Buffer const *_scratch_buffer{nullptr};
     vstd::unordered_map<uint64, MeshHandle *> _set_map;
@@ -42,7 +42,7 @@ public:
     void build(
         CommandBuffer &cmdbuffer,
         uint instance_count);
-    ~Tlas();
+    ~Tlas() override;
     [[nodiscard]] auto &accel() const { return _accel; }
     [[nodiscard]] auto instance_buffer() const { return _instance_buffer.get(); }
     [[nodiscard]] auto accel_buffer() const { return _accel_buffer.get(); }

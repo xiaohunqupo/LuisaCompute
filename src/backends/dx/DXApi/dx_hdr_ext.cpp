@@ -146,7 +146,7 @@ SwapchainCreationInfo DXHDRExtImpl::create_swapchain(
     const DXSwapchainOption &option,
     uint64_t stream_handle) noexcept {
     auto queue = reinterpret_cast<CmdQueueBase *>(stream_handle);
-    if (queue->Tag() != CmdQueueTag::MainCmd) [[unlikely]] {
+    if (queue->tag() != CmdQueueTag::MainCmd) [[unlikely]] {
         LUISA_ERROR("swapchain not allowed in Direct-Storage.");
     }
     SwapchainCreationInfo info{};

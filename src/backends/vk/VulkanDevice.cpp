@@ -103,21 +103,21 @@ void VulkanDevice::force_free_volk() {
 	*
 	* @throw Throws an exception if memTypeFound is null and no memory type could be found that supports the requested properties
 	*/
-uint32_t VulkanDevice::get_memory_type(uint32_t typeBits, VkMemoryPropertyFlags properties, VkBool32 *memTypeFound) const {
+uint32_t VulkanDevice::get_memory_type(uint32_t type_bits, VkMemoryPropertyFlags properties, VkBool32 *mem_type_found) const {
     for (uint32_t i = 0; i < memory_properties.memoryTypeCount; i++) {
-        if ((typeBits & 1) == 1) {
+        if ((type_bits & 1) == 1) {
             if ((memory_properties.memoryTypes[i].propertyFlags & properties) == properties) {
-                if (memTypeFound) {
-                    *memTypeFound = true;
+                if (mem_type_found) {
+                    *mem_type_found = true;
                 }
                 return i;
             }
         }
-        typeBits >>= 1;
+        type_bits >>= 1;
     }
 
-    if (memTypeFound) {
-        *memTypeFound = false;
+    if (mem_type_found) {
+        *mem_type_found = false;
         return 0;
     } else {
         LUISA_ERROR("Could not find a matching memory type");
@@ -175,7 +175,7 @@ uint32_t VulkanDevice::get_queue_family_index(VkQueueFlags queueFlags) const {
 	*
 	* @return VkResult of the device creation call
 	*/
-VkResult VulkanDevice::create_logical_device(VkPhysicalDeviceFeatures &enabled_features, vstd::span<const vstd::string> enabledExtensions, void *pNextChain, bool useSwapChain, VkQueueFlags requestedQueueTypes) {
+VkResult VulkanDevice::create_logical_device(VkPhysicalDeviceFeatures &enabled_features, vstd::span<const vstd::string> enabled_extensions, void *p_next_chain, bool use_swap_chain, VkQueueFlags requested_queue_types) {
     // Desired queues need to be requested upon logical device creation
     // Due to differing queue family configurations of Vulkan implementations this can be a bit tricky, especially if the application
     // requests different queue types
@@ -190,7 +190,7 @@ VkResult VulkanDevice::create_logical_device(VkPhysicalDeviceFeatures &enabled_f
     const float copydefaultQueuePriority(0.0f);
 
     // Graphics queue
-    if (requestedQueueTypes & VK_QUEUE_GRAPHICS_BIT) {
+    if (requested_queue_types & VK_QUEUE_GRAPHICS_BIT) {
         queue_family_indices.graphics = get_queue_family_index(VK_QUEUE_GRAPHICS_BIT);
         VkDeviceQueueCreateInfo queueInfo{};
         queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
@@ -203,7 +203,7 @@ VkResult VulkanDevice::create_logical_device(VkPhysicalDeviceFeatures &enabled_f
     }
 
     // Dedicated compute queue
-    if (requestedQueueTypes & VK_QUEUE_COMPUTE_BIT) {
+    if (requested_queue_types & VK_QUEUE_COMPUTE_BIT) {
         queue_family_indices.compute = get_queue_family_index(VK_QUEUE_COMPUTE_BIT);
         if (queue_family_indices.compute != queue_family_indices.graphics) {
             // If compute family index differs, we need an additional queue create info for the compute queue
@@ -220,7 +220,7 @@ VkResult VulkanDevice::create_logical_device(VkPhysicalDeviceFeatures &enabled_f
     }
 
     // Dedicated transfer queue
-    if (requestedQueueTypes & VK_QUEUE_TRANSFER_BIT) {
+    if (requested_queue_types & VK_QUEUE_TRANSFER_BIT) {
         queue_family_indices.transfer = get_queue_family_index(VK_QUEUE_TRANSFER_BIT);
         if ((queue_family_indices.transfer != queue_family_indices.graphics) && (queue_family_indices.transfer != queue_family_indices.compute)) {
             // If transfer family index differs, we need an additional queue create info for the transfer queue
@@ -240,12 +240,12 @@ VkResult VulkanDevice::create_logical_device(VkPhysicalDeviceFeatures &enabled_f
     vstd::vector<const char *> deviceExtensions;
     vstd::push_back_func(
         deviceExtensions,
-        enabledExtensions.size(),
+        enabled_extensions.size(),
         [&](size_t i) {
-            return enabledExtensions[i].c_str();
+            return enabled_extensions[i].c_str();
         });
 
-    if (useSwapChain) {
+    if (use_swap_chain) {
         // If the device will be used for presenting to a display via a swapchain we need to request the swapchain extension
         deviceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
     }
@@ -258,10 +258,10 @@ VkResult VulkanDevice::create_logical_device(VkPhysicalDeviceFeatures &enabled_f
 
     // If a pNext(Chain) has been passed, we need to add it to the device creation info
     VkPhysicalDeviceFeatures2 physicalDeviceFeatures2{};
-    if (pNextChain) {
+    if (p_next_chain) {
         physicalDeviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
         physicalDeviceFeatures2.features = enabled_features;
-        physicalDeviceFeatures2.pNext = pNextChain;
+        physicalDeviceFeatures2.pNext = p_next_chain;
         deviceCreateInfo.pEnabledFeatures = nullptr;
         deviceCreateInfo.pNext = &physicalDeviceFeatures2;
     }
@@ -308,7 +308,7 @@ bool VulkanDevice::extension_supported(vstd::string_view extension) {
     return supported_extensions.find(extension) != supported_extensions.end();
 }
 
-VkFormat VulkanDevice::get_supported_depth_format(bool checkSamplingSupport) {
+VkFormat VulkanDevice::get_supported_depth_format(bool check_sampling_support) {
     // All depth formats may be optional, so we need to find a suitable depth format to use
     vstd::vector<VkFormat> depthFormats = {VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D32_SFLOAT, VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D16_UNORM_S8_UINT, VK_FORMAT_D16_UNORM};
     for (auto &format : depthFormats) {
@@ -316,7 +316,7 @@ VkFormat VulkanDevice::get_supported_depth_format(bool checkSamplingSupport) {
         vkGetPhysicalDeviceFormatProperties(physical_device, format, &formatProperties);
         // Format must support depth stencil attachment for optimal tiling
         if (formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) {
-            if (checkSamplingSupport) {
+            if (check_sampling_support) {
                 if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT)) {
                     continue;
                 }

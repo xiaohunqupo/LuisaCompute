@@ -120,13 +120,13 @@ struct ResourceBarrierVisitor {
         ShaderDispatchCommandBase const &cmd,
         bool is_raster) : barrier(barrier), arg(arg), arg_buffer(arg_buffer), cmd(cmd) {
         if (is_raster) {
-            uav_usage = ResourceBarrier::Usage::RasterUAV;
-            read_usage = ResourceBarrier::Usage::RasterRead;
-            accel_read_usage = ResourceBarrier::Usage::RasterAccelRead;
+            uav_usage = ResourceBarrier::Usage::kRasterUAV;
+            read_usage = ResourceBarrier::Usage::kRasterRead;
+            accel_read_usage = ResourceBarrier::Usage::kRasterAccelRead;
         } else {
-            uav_usage = ResourceBarrier::Usage::ComputeUAV;
-            read_usage = ResourceBarrier::Usage::ComputeRead;
-            accel_read_usage = ResourceBarrier::Usage::ComputeAccelRead;
+            uav_usage = ResourceBarrier::Usage::kComputeUAV;
+            read_usage = ResourceBarrier::Usage::kComputeRead;
+            accel_read_usage = ResourceBarrier::Usage::kComputeAccelRead;
         }
     }
     void operator()(Argument::Buffer const &bf) {
@@ -184,17 +184,17 @@ struct ResourceBarrierVisitor {
         if ((luisa::to_underlying(arg->var_usage) & luisa::to_underlying(Usage::WRITE)) != 0) {
             barrier->record(
                 BufferView(tlas->instance_buffer()),
-                ResourceBarrier::Usage::ComputeUAV);
+                ResourceBarrier::Usage::kComputeUAV);
         } else {
             if (!tlas->accel_buffer()) [[unlikely]] {
                 LUISA_ERROR("Accel not initialized.");
             }
             barrier->record(
                 BufferView(tlas->instance_buffer()),
-                ResourceBarrier::Usage::ComputeRead);
+                ResourceBarrier::Usage::kComputeRead);
             barrier->record(
                 BufferView(tlas->accel_buffer()),
-                ResourceBarrier::Usage::ComputeAccelRead);
+                ResourceBarrier::Usage::kComputeAccelRead);
         }
         ++arg;
     }
@@ -439,9 +439,9 @@ void CommandBufferState::init(Device &device, StreamTag tag) {
             .maxSets = 262144,
             .poolSizeCount = vstd::array_count(pool_sizes),
             .pPoolSizes = pool_sizes};
-        VK_CHECK_RESULT(vkCreateDescriptorPool(device.logic_device(), &createInfo, Device::alloc_callbacks(), &_desc_pool));
+        VK_CHECK_RESULT(vkCreateDescriptorPool(device.logic_device(), &createInfo, Device::alloc_callbacks(), &desc_pool));
     }
-    if (!_pool) {
+    if (!pool) {
         VkCommandPoolCreateInfo pool_ci{
             .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
             .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT};
@@ -458,29 +458,29 @@ void CommandBufferState::init(Device &device, StreamTag tag) {
             default:
                 LUISA_ERROR("Illegal stream tag.");
         }
-        VK_CHECK_RESULT(vkCreateCommandPool(device.logic_device(), &pool_ci, Device::alloc_callbacks(), &_pool));
+        VK_CHECK_RESULT(vkCreateCommandPool(device.logic_device(), &pool_ci, Device::alloc_callbacks(), &pool));
     }
 }
 CommandBufferState::~CommandBufferState() {
-    vkDestroyCommandPool(device->logic_device(), _pool, Device::alloc_callbacks());
-    vkDestroyDescriptorPool(device->logic_device(), _desc_pool, Device::alloc_callbacks());
+    vkDestroyCommandPool(device->logic_device(), pool, Device::alloc_callbacks());
+    vkDestroyDescriptorPool(device->logic_device(), desc_pool, Device::alloc_callbacks());
 }
 void CommandBufferState::reset(Stream *stream, Device &device) {
-    for (auto &i : _callbacks) {
+    for (auto &i : callbacks) {
         i();
     }
-    _callbacks.clear();
-    for (auto &i : _dispose_pool) {
+    callbacks.clear();
+    for (auto &i : dispose_pool) {
         i.second(stream, this, i.first);
     }
-    _dispose_pool.clear();
+    dispose_pool.clear();
     upload_alloc.clear();
     readback_alloc.clear();
     for (auto i : img_views) {
         vkDestroyImageView(device.logic_device(), i, Device::alloc_callbacks());
     }
     img_views.clear();
-    VK_CHECK_RESULT(vkResetDescriptorPool(device.logic_device(), _desc_pool, 0));
+    VK_CHECK_RESULT(vkResetDescriptorPool(device.logic_device(), desc_pool, 0));
 }
 void CommandBuffer::reset() {
     VK_CHECK_RESULT(vkResetCommandBuffer(_cmdbuffer, 0));
@@ -528,26 +528,26 @@ Stream::Stream(Device *device, StreamTag tag)
           }
           loop_cmd();
       }),
-      temp_desc(65536, &temp_desc_visitor, 2),
-      scratch_buffer_alloc(kTempSize, &scratch_buffer_alloc_visitor),
+      _temp_desc(65536, &_temp_desc_visitor, 2),
+      _scratch_buffer_alloc(kTempSize, &_scratch_buffer_alloc_visitor),
       _stream_tag(tag) {
     switch (tag) {
         case StreamTag::GRAPHICS:
             _queue = device->graphics_queue();
-            resource_barrier.queue_type = ResourceBarrier::QueueType::Graphics;
-            resource_barrier.queue_index = device->graphics_queue_index();
+            _resource_barrier.queue_type = ResourceBarrier::QueueType::kGraphics;
+            _resource_barrier.queue_index = device->graphics_queue_index();
             _queue_mtx = &device->graphics_queue_mtx();
             break;
         case StreamTag::COPY:
-            resource_barrier.queue_type = ResourceBarrier::QueueType::Copy;
+            _resource_barrier.queue_type = ResourceBarrier::QueueType::kCopy;
             _queue = device->copy_queue();
-            resource_barrier.queue_index = device->copy_queue_index();
+            _resource_barrier.queue_index = device->copy_queue_index();
             _queue_mtx = &device->copy_queue_mtx();
             break;
         case StreamTag::COMPUTE:
-            resource_barrier.queue_type = ResourceBarrier::QueueType::Compute;
+            _resource_barrier.queue_type = ResourceBarrier::QueueType::kCompute;
             _queue = device->compute_queue();
-            resource_barrier.queue_index = device->compute_queue_index();
+            _resource_barrier.queue_index = device->compute_queue_index();
             _queue_mtx = &device->compute_queue_mtx();
             break;
         default:
@@ -561,7 +561,7 @@ Stream::~Stream() {
         _enabled = false;
     }
     _thd.join();
-    scratch_buffer_alloc_visitor.buffers.clear();
+    _scratch_buffer_alloc_visitor.buffers.clear();
     while (auto p = _cmdbuffers.dequeue()) {
     }
 }
@@ -572,7 +572,7 @@ void Stream::present(
     Swapchain *swapchain,
     bool inqueue_limit) {
     std::lock_guard lck{_dispatch_mtx};
-    temp_desc.clear();
+    _temp_desc.clear();
     if (inqueue_limit) {
         if (_evt.last_fence() > 2) {
             _evt.sync(_evt.last_fence() - 2);
@@ -585,18 +585,18 @@ void Stream::present(
             if (p) return std::move(*p);
             return CommandBuffer{*this};
         }();
-        scratch_buffer_alloc_visitor.cmdbuffer = &cmdbuffer;
-        scratch_buffer_alloc_visitor.device = device();
+        _scratch_buffer_alloc_visitor.cmdbuffer = &cmdbuffer;
+        _scratch_buffer_alloc_visitor.device = device();
 
-        cmdbuffer.resource_barrier = &resource_barrier;
-        cmdbuffer.uniform_data = &uniform_data;
-        cmdbuffer.desc_sets = &desc_sets;
+        cmdbuffer.resource_barrier = &_resource_barrier;
+        cmdbuffer.uniform_data = &_uniform_data;
+        cmdbuffer.desc_sets = &_desc_sets;
         cmdbuffer.logger = logger ? &logger : nullptr;
-        cmdbuffer.dispatch_offsets = &dispatch_offsets;
-        cmdbuffer.write_desc_sets = &write_desc_sets;
-        cmdbuffer.bindless_cache = &bindless_cache;
-        cmdbuffer.temp_desc = &temp_desc;
-        cmdbuffer.scratch_buffer_alloc = &scratch_buffer_alloc;
+        cmdbuffer.dispatch_offsets = &_dispatch_offsets;
+        cmdbuffer.write_desc_sets = &_write_desc_sets;
+        cmdbuffer.bindless_cache = &_bindless_cache;
+        cmdbuffer.temp_desc = &_temp_desc;
+        cmdbuffer.scratch_buffer_alloc = &_scratch_buffer_alloc;
         cmdbuffer.begin();
         PresentCommand present_cmd;
         present_cmd.submit_wait_semaphores.emplace_back();
@@ -615,7 +615,7 @@ void Stream::present(
             vk_fence,
             mip);
 
-        resource_barrier.restore_states(cmdbuffer.cmdbuffer());
+        _resource_barrier.restore_states(cmdbuffer.cmdbuffer());
         cmdbuffer.end();
 
         // If fence is null, swapchain was recreated and we should skip this frame
@@ -692,7 +692,7 @@ void Stream::dispatch(
     std::lock_guard lck{_dispatch_mtx};
     PresentCommand present_cmd;
     luisa::fixed_vector<VkSwapchainKHR, 1> vk_swapchains;
-    temp_desc.clear();
+    _temp_desc.clear();
     if (cmds.empty() && callbacks.empty() && presents.empty()) {
         return;
     }
@@ -708,37 +708,37 @@ void Stream::dispatch(
             if (p) return std::move(*p);
             return CommandBuffer{*this};
         }();
-        scratch_buffer_alloc_visitor.cmdbuffer = &cmdbuffer;
-        scratch_buffer_alloc_visitor.device = device();
+        _scratch_buffer_alloc_visitor.cmdbuffer = &cmdbuffer;
+        _scratch_buffer_alloc_visitor.device = device();
 
         auto cb = cmdbuffer.cmdbuffer();
         auto cb_ptr = &cb;
-        resource_barrier.saved_restore_states.clear();
+        _resource_barrier.saved_restore_states.clear();
         if (device()->config_ext()) {
             auto after_states = device()->config_ext()->after_states(reinterpret_cast<uint64_t>(this));
             auto before_states = device()->config_ext()->before_states(reinterpret_cast<uint64_t>(this));
             for (auto &i : before_states) {
-                resource_barrier.set_res(get_resource_view(i.resource), i.stage, i.access, i.texture_layout);
+                _resource_barrier.set_res(get_resource_view(i.resource), i.stage, i.access, i.texture_layout);
             }
             for (auto &i : after_states) {
-                resource_barrier.saved_restore_states.emplace(
+                _resource_barrier.saved_restore_states.emplace(
                     reinterpret_cast<Resource const *>(luisa::visit([](auto &&t) { return t.handle; }, i.resource)),
-                    ResourceBarrier::ResotreStates{
+                    ResourceBarrier::RestoreStates{
                         get_resource_view(i.resource),
                         i.stage,
                         i.access,
                         i.texture_layout});
             }
         }
-        cmdbuffer.resource_barrier = &resource_barrier;
-        cmdbuffer.uniform_data = &uniform_data;
-        cmdbuffer.desc_sets = &desc_sets;
+        cmdbuffer.resource_barrier = &_resource_barrier;
+        cmdbuffer.uniform_data = &_uniform_data;
+        cmdbuffer.desc_sets = &_desc_sets;
         cmdbuffer.logger = logger ? &logger : nullptr;
-        cmdbuffer.dispatch_offsets = &dispatch_offsets;
-        cmdbuffer.write_desc_sets = &write_desc_sets;
-        cmdbuffer.bindless_cache = &bindless_cache;
-        cmdbuffer.temp_desc = &temp_desc;
-        cmdbuffer.scratch_buffer_alloc = &scratch_buffer_alloc;
+        cmdbuffer.dispatch_offsets = &_dispatch_offsets;
+        cmdbuffer.write_desc_sets = &_write_desc_sets;
+        cmdbuffer.bindless_cache = &_bindless_cache;
+        cmdbuffer.temp_desc = &_temp_desc;
+        cmdbuffer.scratch_buffer_alloc = &_scratch_buffer_alloc;
         cmdbuffer.begin();
         cmdbuffer.execute(cmds);
         bool present_failed = false;
@@ -772,7 +772,7 @@ void Stream::dispatch(
 
             vk_swapchains.emplace_back(swapchain->swapchain());
         }
-        resource_barrier.restore_states(cmdbuffer.cmdbuffer());
+        _resource_barrier.restore_states(cmdbuffer.cmdbuffer());
         cmdbuffer.end();
 
         if (!presents.empty() && !present_failed) {
@@ -951,7 +951,7 @@ void Stream::dispatch(
 }
 void Stream::update_sparse_resources(luisa::vector<SparseUpdateTile> &&textures_update) noexcept {
     std::lock_guard lck{_dispatch_mtx};
-    temp_desc.clear();
+    _temp_desc.clear();
     if (textures_update.empty()) [[unlikely]]
         return;
     VkBindSparseInfo info{
@@ -984,8 +984,8 @@ void Stream::update_sparse_resources(luisa::vector<SparseUpdateTile> &&textures_
             },
             i.operations);
     }
-    auto buffer_ptr_chunk = temp_desc.allocate(sizeof(VkSparseBufferMemoryBindInfo) * buffer_bind_count, alignof(VkSparseBufferMemoryBindInfo));
-    auto img_ptr_chunk = temp_desc.allocate(sizeof(VkSparseImageMemoryBindInfo) * img_bind_count, alignof(VkSparseImageMemoryBindInfo));
+    auto buffer_ptr_chunk = _temp_desc.allocate(sizeof(VkSparseBufferMemoryBindInfo) * buffer_bind_count, alignof(VkSparseBufferMemoryBindInfo));
+    auto img_ptr_chunk = _temp_desc.allocate(sizeof(VkSparseImageMemoryBindInfo) * img_bind_count, alignof(VkSparseImageMemoryBindInfo));
     auto buffer_ptr = reinterpret_cast<VkSparseBufferMemoryBindInfo *>(buffer_ptr_chunk.handle + buffer_ptr_chunk.offset);
     auto img_ptr = reinterpret_cast<VkSparseImageMemoryBindInfo *>(img_ptr_chunk.handle + img_ptr_chunk.offset);
     info.pBufferBinds = buffer_ptr;
@@ -996,7 +996,7 @@ void Stream::update_sparse_resources(luisa::vector<SparseUpdateTile> &&textures_
     for (auto &i : counter) {
         auto &a = i.second;
         if (a.is_buffer) {
-            auto chunk = temp_desc.allocate(sizeof(VkSparseMemoryBind) * a.size, alignof(VkSparseMemoryBind));
+            auto chunk = _temp_desc.allocate(sizeof(VkSparseMemoryBind) * a.size, alignof(VkSparseMemoryBind));
             auto ptr = reinterpret_cast<VkSparseMemoryBind *>(chunk.handle + chunk.offset);
             a.ptr = ptr;
             buffer_ptr->buffer = reinterpret_cast<SparseBuffer *>(i.first)->vk_buffer();
@@ -1004,7 +1004,7 @@ void Stream::update_sparse_resources(luisa::vector<SparseUpdateTile> &&textures_
             buffer_ptr->pBinds = ptr;
             ++buffer_ptr;
         } else {
-            auto chunk = temp_desc.allocate(sizeof(VkSparseImageMemoryBind) * a.size, alignof(VkSparseImageMemoryBind));
+            auto chunk = _temp_desc.allocate(sizeof(VkSparseImageMemoryBind) * a.size, alignof(VkSparseImageMemoryBind));
             auto ptr = reinterpret_cast<VkSparseImageMemoryBind *>(chunk.handle + chunk.offset);
             a.ptr = ptr;
             img_ptr->image = reinterpret_cast<Texture *>(i.first)->vk_image();
@@ -1054,16 +1054,16 @@ void Stream::update_sparse_resources(luisa::vector<SparseUpdateTile> &&textures_
                 auto heap = reinterpret_cast<std::pair<VmaAllocation, VmaAllocationInfo> *>(op.allocated_heap);
                 ptr->memory = heap->second.deviceMemory;
                 ptr->memoryOffset = heap->second.offset;
-                ptr->resourceOffset = op.start_tile * sparse_buffer_size;
-                ptr->size = sparse_buffer_size * op.tile_count;
+                ptr->resourceOffset = op.start_tile * kSparseBufferSize;
+                ptr->size = kSparseBufferSize * op.tile_count;
                 ptr->flags = 0;
                 ++ptr;
                 v.ptr = ptr;
             } else if constexpr (std::is_same_v<SparseBufferUnMapOperation, T>) {
                 auto ptr = reinterpret_cast<VkSparseMemoryBind *>(v.ptr);
                 ptr->memory = VK_NULL_HANDLE;
-                ptr->resourceOffset = op.start_tile * sparse_buffer_size;
-                ptr->size = sparse_buffer_size * op.tile_count;
+                ptr->resourceOffset = op.start_tile * kSparseBufferSize;
+                ptr->size = kSparseBufferSize * op.tile_count;
                 ptr->flags = 0;
                 ++ptr;
                 v.ptr = ptr;
@@ -1102,7 +1102,7 @@ CommandBuffer::CommandBuffer(Stream &stream) noexcept
     if (!_cmdbuffer) {
         VkCommandBufferAllocateInfo cb_ci{
             .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-            .commandPool = _state->_pool,
+            .commandPool = _state->pool,
             .commandBufferCount = 1};
         VK_CHECK_RESULT(vkAllocateCommandBuffers(device()->logic_device(), &cb_ci, &_cmdbuffer));
     }
@@ -1111,7 +1111,7 @@ CommandBuffer::CommandBuffer(Stream &stream) noexcept
 }
 CommandBuffer::~CommandBuffer() {
     if (_cmdbuffer)
-        vkFreeCommandBuffers(device()->logic_device(), _state->_pool, 1, &_cmdbuffer);
+        vkFreeCommandBuffers(device()->logic_device(), _state->pool, 1, &_cmdbuffer);
 }
 void CommandBuffer::begin() {
     VkCommandBufferBeginInfo bi{
@@ -1233,7 +1233,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                             reinterpret_cast<Buffer const *>(c->handle()),
                             c->offset(),
                             c->size()},
-                        ResourceBarrier::Usage::CopyDest);
+                        ResourceBarrier::Usage::kCopyDest);
                 } break;
                 case Command::Tag::EBufferDownloadCommand: {
                     auto c = static_cast<BufferDownloadCommand const *>(cmd);
@@ -1242,7 +1242,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                             reinterpret_cast<Buffer const *>(c->handle()),
                             c->offset(),
                             c->size()},
-                        ResourceBarrier::Usage::CopySource);
+                        ResourceBarrier::Usage::kCopySource);
                 } break;
                 case Command::Tag::EBufferCopyCommand: {
                     auto c = static_cast<BufferCopyCommand const *>(cmd);
@@ -1251,13 +1251,13 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                             reinterpret_cast<Buffer const *>(c->dst_handle()),
                             c->dst_offset(),
                             c->size()},
-                        ResourceBarrier::Usage::CopyDest);
+                        ResourceBarrier::Usage::kCopyDest);
                     resource_barrier->record(
                         BufferView{
                             reinterpret_cast<Buffer const *>(c->src_handle()),
                             c->src_offset(),
                             c->size()},
-                        ResourceBarrier::Usage::CopySource);
+                        ResourceBarrier::Usage::kCopySource);
                 } break;
                 case Command::Tag::EBufferToTextureCopyCommand: {
                     auto c = static_cast<BufferToTextureCopyCommand const *>(cmd);
@@ -1265,13 +1265,13 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                         TexView{
                             reinterpret_cast<Texture const *>(c->texture()),
                             c->level()},
-                        ResourceBarrier::Usage::CopySource);
+                        ResourceBarrier::Usage::kCopySource);
                     resource_barrier->record(
                         BufferView{
                             reinterpret_cast<Buffer const *>(c->buffer()),
                             c->buffer_offset(),
                             pixel_storage_size(c->storage(), c->size())},
-                        ResourceBarrier::Usage::CopyDest);
+                        ResourceBarrier::Usage::kCopyDest);
                 } break;
                 case Command::Tag::EShaderDispatchCommand: {
                     auto c = static_cast<ShaderDispatchCommand const *>(cmd);
@@ -1284,7 +1284,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                         TexView{
                             reinterpret_cast<Texture const *>(c->handle()),
                             c->level()},
-                        ResourceBarrier::Usage::CopyDest);
+                        ResourceBarrier::Usage::kCopyDest);
                 } break;
                 case Command::Tag::ETextureDownloadCommand: {
                     auto c = static_cast<TextureDownloadCommand const *>(cmd);
@@ -1292,7 +1292,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                         TexView{
                             reinterpret_cast<Texture const *>(c->handle()),
                             c->level()},
-                        ResourceBarrier::Usage::CopySource);
+                        ResourceBarrier::Usage::kCopySource);
                 } break;
                 case Command::Tag::ETextureCopyCommand: {
                     auto c = static_cast<TextureCopyCommand const *>(cmd);
@@ -1300,12 +1300,12 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                         TexView(
                             reinterpret_cast<Texture const *>(c->src_handle()),
                             c->src_level()),
-                        ResourceBarrier::Usage::CopySource);
+                        ResourceBarrier::Usage::kCopySource);
                     resource_barrier->record(
                         TexView(
                             reinterpret_cast<Texture const *>(c->dst_handle()),
                             c->dst_level()),
-                        ResourceBarrier::Usage::CopyDest);
+                        ResourceBarrier::Usage::kCopyDest);
                 } break;
                 case Command::Tag::ETextureToBufferCopyCommand: {
                     auto c = static_cast<TextureToBufferCopyCommand const *>(cmd);
@@ -1313,13 +1313,13 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                         TexView{
                             reinterpret_cast<Texture const *>(c->texture()),
                             c->level()},
-                        ResourceBarrier::Usage::CopyDest);
+                        ResourceBarrier::Usage::kCopyDest);
                     resource_barrier->record(
                         BufferView{
                             reinterpret_cast<Buffer const *>(c->buffer()),
                             c->buffer_offset(),
                             pixel_storage_size(c->storage(), c->size())},
-                        ResourceBarrier::Usage::CopySource);
+                        ResourceBarrier::Usage::kCopySource);
                 } break;
                 case Command::Tag::EAccelBuildCommand: {
                     auto c = static_cast<AccelBuildCommand const *>(cmd);
@@ -1347,14 +1347,14 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                             auto tex = reinterpret_cast<Texture const *>(cmd->handle());
                             resource_barrier->record(
                                 TexView(tex, 0),
-                                ResourceBarrier::Usage::DepthClear);
+                                ResourceBarrier::Usage::kDepthClear);
                         } break;
                         case to_underlying(CustomCommandUUID::RASTER_CLEAR_RENDER_TARGET): {
                             auto cmd = static_cast<ClearRenderTargetCommand const *>(c);
                             auto tex = reinterpret_cast<Texture const *>(cmd->handle());
                             resource_barrier->record(
                                 TexView(tex, cmd->level()),
-                                ResourceBarrier::Usage::RenderTargetClear);
+                                ResourceBarrier::Usage::kRenderTargetClear);
                         } break;
                         case to_underlying(CustomCommandUUID::RASTER_DRAW_SCENE): {
                             auto cmd = static_cast<DrawRasterSceneCommand const *>(c);
@@ -1364,13 +1364,13 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                                 auto tex = reinterpret_cast<Texture const *>(i.handle);
                                 resource_barrier->record(
                                     TexView(tex, i.level),
-                                    ResourceBarrier::Usage::RenderTarget);
+                                    ResourceBarrier::Usage::kRenderTarget);
                             }
                             if (cmd->dsv_tex().handle != invalid_resource_handle) {
                                 auto tex = reinterpret_cast<Texture const *>(cmd->dsv_tex().handle);
                                 resource_barrier->record(
                                     TexView(tex, 0),
-                                    ResourceBarrier::Usage::DepthWrite);
+                                    ResourceBarrier::Usage::kDepthWrite);
                             }
                         } break;
                         case to_underlying(CustomCommandUUID::CUSTOM_DISPATCH): {
@@ -1395,7 +1395,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
             visitor.cmdbuffer = this;
             VkDescriptorSetAllocateInfo alloc_info{
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-                .descriptorPool = _state->_desc_pool,
+                .descriptorPool = _state->desc_pool,
                 .descriptorSetCount = 1,
                 .pSetLayouts = shader->desc_set_layout().data()};
             VK_CHECK_RESULT(
@@ -1488,7 +1488,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                 case Command::Tag::EBufferDownloadCommand: {
                     auto c = static_cast<BufferDownloadCommand const *>(cmd);
                     auto chunk = _state->readback_alloc.allocate(c->size(), 16);
-                    _state->_callbacks.emplace_back([chunk, data = c->data(), size = c->size()]() {
+                    _state->callbacks.emplace_back([chunk, data = c->data(), size = c->size()]() {
                         static_cast<ReadbackBuffer const *>(chunk.buffer)->copy_to(data, chunk.offset, size);
                     });
                     VkBufferCopy2 buffer_copy{
@@ -1573,7 +1573,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
 
                         resource_barrier->record(
                             count_buffer,
-                            ResourceBarrier::Usage::CopyDest);
+                            ResourceBarrier::Usage::kCopyDest);
                         resource_barrier->update_states(_cmdbuffer);
                         VkBufferCopy2 buffer_copy{
                             VK_STRUCTURE_TYPE_BUFFER_COPY_2,
@@ -1638,10 +1638,10 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                         }
                         resource_barrier->record(
                             data_buffer,
-                            ResourceBarrier::Usage::ComputeUAV);
+                            ResourceBarrier::Usage::kComputeUAV);
                         resource_barrier->record(
                             count_buffer,
-                            ResourceBarrier::Usage::ComputeUAV);
+                            ResourceBarrier::Usage::kComputeUAV);
                         resource_barrier->update_states(_cmdbuffer);
                     }
                     bind_shader_desc(visitor, shader, VK_PIPELINE_BIND_POINT_COMPUTE);
@@ -1681,10 +1681,10 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                     if (logger && !shader->printers().empty()) {
                         resource_barrier->record(
                             count_buffer,
-                            ResourceBarrier::Usage::CopySource);
+                            ResourceBarrier::Usage::kCopySource);
                         resource_barrier->record(
                             data_buffer,
-                            ResourceBarrier::Usage::CopySource);
+                            ResourceBarrier::Usage::kCopySource);
                         resource_barrier->update_states(_cmdbuffer);
                         auto counter_readback = states()->readback_alloc.allocate(4, 16);
                         auto data_readback = states()->readback_alloc.allocate(max_printer_count, 16);
@@ -1727,7 +1727,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                                 _cmdbuffer,
                                 &copy_info2);
                         }
-                        states()->_callbacks.emplace_back(
+                        states()->callbacks.emplace_back(
                             [printers = shader->printers(),
                              logger = this->logger,
                              counter_readback,
@@ -1787,7 +1787,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                     auto c = static_cast<TextureDownloadCommand const *>(cmd);
                     auto pixel_size = pixel_storage_size(c->storage(), c->size());
                     auto buffer = _state->readback_alloc.allocate(pixel_size, 16);
-                    _state->_callbacks.emplace_back([buffer = buffer.buffer,
+                    _state->callbacks.emplace_back([buffer = buffer.buffer,
                                                      offset = buffer.offset,
                                                      pixel_size,
                                                      data = c->data()]() {
@@ -1876,7 +1876,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                     reinterpret_cast<Tlas *>(c->handle())->build(*this, c->instance_count());
                     // resource_barrier->record(
                     //     BufferView{&bf},
-                    //     ResourceBarrier::Usage::CopySource);
+                    //     ResourceBarrier::Usage::kCopySource);
                     // resource_barrier->update_states(_cmdbuffer);
                     // luisa::vector<VkAccelerationStructureInstanceKHR> vec(bf.byte_size() / sizeof(VkAccelerationStructureInstanceKHR));
                     // auto chunk = _state->readback_alloc.allocate(vec.size_bytes(), 16);
@@ -1898,7 +1898,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                     // vkCmdCopyBuffer2(
                     //     _cmdbuffer,
                     //     &copy_info2);
-                    // _state->_callbacks.emplace_back([chunk, vec = std::move(vec)]() mutable {
+                    // _state->callbacks.emplace_back([chunk, vec = std::move(vec)]() mutable {
                     //     static_cast<ReadbackBuffer const *>(chunk.buffer)->copy_to(vec.data(), chunk.offset, vec.size_bytes());
                     //     for (auto &i : vec) {
                     //         LUISA_INFO(
@@ -1936,7 +1936,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                     // auto &bf = reinterpret_cast<BindlessArray *>(c->handle())->indices_buffer();
                     // resource_barrier->record(
                     //     BufferView{&bf},
-                    //     ResourceBarrier::Usage::CopySource);
+                    //     ResourceBarrier::Usage::kCopySource);
                     // resource_barrier->update_states(_cmdbuffer);
 
                     // luisa::vector<std::array<uint, 3>> vec(3);
@@ -1958,7 +1958,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                     // vkCmdCopyBuffer2(
                     //     _cmdbuffer,
                     //     &copy_info2);
-                    // _state->_callbacks.emplace_back([chunk, vec = std::move(vec)]() mutable {
+                    // _state->callbacks.emplace_back([chunk, vec = std::move(vec)]() mutable {
                     //     static_cast<ReadbackBuffer const *>(chunk.buffer)->copy_to(vec.data(), chunk.offset, vec.size_bytes());
                     //     for (auto &i : vec) {
                     //         LUISA_INFO(uint3(i[0], i[1] & ((1u<<24u) - 1), i[2] & ((1u<<24u) - 1)));
@@ -2152,7 +2152,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                                              mesh.index());
                             }
                             vkCmdEndRenderPass(_cmdbuffer);
-                            _state->_dispose_pool.emplace_back(fb, [](Stream *stream, CommandBufferState *state, void *ptr) {
+                            _state->dispose_pool.emplace_back(fb, [](Stream *stream, CommandBufferState *state, void *ptr) {
                                 vkDestroyFramebuffer(
                                     stream->device()->logic_device(),
                                     static_cast<VkFramebuffer>(ptr),
@@ -2178,7 +2178,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                                 device()->logic_device(),
                                 _stream.queue(),
                                 _cmdbuffer,
-                                _state->_desc_pool);
+                                _state->desc_pool);
                         } break;
                         //TODO: other commands
                         default: {

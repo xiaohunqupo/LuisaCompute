@@ -6,39 +6,39 @@
 namespace lc::dx {
 
 enum class HitGroupFunctionType : uint8_t {
-    RayGeneration,
-    ClosestHit,
-    AnyHit,
-    Miss,
-    Intersect,
-    Num
+    kRayGeneration,
+    kClosestHit,
+    kAnyHit,
+    kMiss,
+    kIntersect,
+    kNum
 };
 struct DXRHitGroup {
-    D3D12_HIT_GROUP_TYPE shaderType;
-    D3D12_GPU_VIRTUAL_ADDRESS missVAddress;
-    uint64 missSize;
-    D3D12_GPU_VIRTUAL_ADDRESS rayGenVAddress;
-    uint64 rayGenSize;
-    D3D12_GPU_VIRTUAL_ADDRESS hitGroupVAddress;
-    uint64 hitGroupSize;
+    D3D12_HIT_GROUP_TYPE shader_type;
+    D3D12_GPU_VIRTUAL_ADDRESS miss_v_address;
+    uint64 miss_size;
+    D3D12_GPU_VIRTUAL_ADDRESS ray_gen_v_address;
+    uint64 ray_gen_size;
+    D3D12_GPU_VIRTUAL_ADDRESS hit_group_v_address;
+    uint64 hit_group_size;
 };
 struct ShaderVariable {
     vstd::string name;
     hlsl::ShaderVariableType type;
-    uint tableSize;
-    uint registerPos;
+    uint table_size;
+    uint register_pos;
     uint space;
-    ShaderVariable() {}
+    ShaderVariable() = default;
     ShaderVariable(
         const vstd::string &name,
         hlsl::ShaderVariableType type,
-        uint tableSize,
-        uint registerPos,
+        uint table_size,
+        uint register_pos,
         uint space)
         : name(name),
           type(type),
-          tableSize(tableSize),
-          registerPos(registerPos),
+          table_size(table_size),
+          register_pos(register_pos),
           space(space) {}
 };
 }// namespace lc::dx

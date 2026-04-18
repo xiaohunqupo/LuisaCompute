@@ -55,8 +55,8 @@ public:
             layer_states;
 
         enum class Type : uint8_t {
-            Buffer,
-            Texture
+            kBuffer,
+            kTexture
         };
         size_t size;
         bool require_update{false};
@@ -79,43 +79,42 @@ private:
     void _update_state(Resource const *res_ptr, ResourceStates &states);
 public:
     enum class Usage : uint {
-        ComputeRead,
-        ComputeAccelRead,
-        ComputeUAV,
-        CopySource,
-        CopyDest,
-        BuildAccel,
-        CopyAccelSrc,
-        CopyAccelDst,
-        DepthRead,
-        DepthWrite,
-        DepthClear,
-        RenderTargetClear,
-        IndirectArgs,
-        VertexRead,
-        IndexRead,
-        RenderTarget,
-        AccelInstanceBuffer,
-        RasterRead,
-        RasterAccelRead,
-        RasterUAV,
+        kComputeRead,
+        kComputeAccelRead,
+        kComputeUAV,
+        kCopySource,
+        kCopyDest,
+        kBuildAccel,
+        kCopyAccelSrc,
+        kCopyAccelDst,
+        kDepthRead,
+        kDepthWrite,
+        kDepthClear,
+        kRenderTargetClear,
+        kIndirectArgs,
+        kVertexRead,
+        kIndexRead,
+        kRenderTarget,
+        kAccelInstanceBuffer,
+        kRasterRead,
+        kRasterAccelRead,
+        kRasterUAV,
     };
     enum class QueueType {
-        Graphics,
-        Compute,
-        Copy
+        kGraphics,
+        kCompute,
+        kCopy
     };
-    QueueType queue_type{QueueType::Graphics};
+    QueueType queue_type{QueueType::kGraphics};
     uint queue_index{0};
-    struct ResotreStates {
+    struct RestoreStates {
         ResourceView res;
         VkPipelineStageFlagBits2 after_stage{0};
         VkAccessFlagBits2 after_access{0};
         VkImageLayout after_layout{VK_IMAGE_LAYOUT_GENERAL};
     };
-    vstd::HashMap<Resource const *, ResotreStates> saved_restore_states;
+    vstd::HashMap<Resource const *, RestoreStates> saved_restore_states;
     ResourceBarrier();
-    void add_buffer(Buffer const *buffer, size_t offset, size_t size);
     ~ResourceBarrier();
     void record(
         ResourceView const &res,

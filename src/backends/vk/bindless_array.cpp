@@ -31,7 +31,7 @@ BindlessArray::BindlessArray(Device *device, BindlessSlotType type, size_t size)
     }
     switch (type) {
         case BindlessSlotType::MULTIPLE:
-            _typed_binded.reset_as<vstd::vector<std::pair<BindlessStruct, MapIndicies>>>(size);
+            _typed_binded.reset_as<vstd::vector<std::pair<BindlessStruct, MapIndices>>>(size);
             break;
         default: {
             auto &alloc = bdls_detail::get_alloc(*device, type);
@@ -45,7 +45,7 @@ BindlessArray::~BindlessArray() {
         auto &alloc = bdls_detail::get_alloc(*device(), _type);
         alloc.free(_buffer_node);
     }
-    if (auto binded = _typed_binded.try_get<vstd::vector<std::pair<BindlessStruct, MapIndicies>>>()) {
+    if (auto binded = _typed_binded.try_get<vstd::vector<std::pair<BindlessStruct, MapIndices>>>()) {
         for (auto &idx : *binded) {
             auto &i = idx.first;
             if (i.buffer != BindlessStruct::kInvalidPos) {
@@ -60,15 +60,15 @@ BindlessArray::~BindlessArray() {
         }
     }
     for (auto &i : _free_queue) {
-        switch (i.type) {
+        switch (i._type) {
             case 0:
-                device()->buffer_heap_pool.dealloc(i.index);
+                device()->buffer_heap_pool.dealloc(i._index);
                 break;
             case 1:
-                device()->tex2d_heap_pool.dealloc(i.index);
+                device()->tex2d_heap_pool.dealloc(i._index);
                 break;
             case 2:
-                device()->tex3d_heap_pool.dealloc(i.index);
+                device()->tex3d_heap_pool.dealloc(i._index);
                 break;
         }
     }
@@ -77,13 +77,13 @@ void BindlessArray::pre_update(ResourceBarrier *barrier) {
     if (_offset_setted && _buffer_node) return;
     barrier->record(
         BufferView{&_indices_buffer},
-        _buffer_node ? ResourceBarrier::Usage::CopyDest : ResourceBarrier::Usage::ComputeUAV);
+        _buffer_node ? ResourceBarrier::Usage::kCopyDest : ResourceBarrier::Usage::kComputeUAV);
 }
 void BindlessArray::_return_value(MapIndex &index, uint type, uint &origin_value) {
     if (origin_value != BindlessStruct::kInvalidPos) {
         _free_queue.push_back(FreeValue{
-            .type = type,
-            .index = origin_value});
+            ._type = type,
+            ._index = origin_value});
         origin_value = BindlessStruct::kInvalidPos;
         auto &&v = index.value();
         v--;
@@ -138,12 +138,12 @@ auto BindlessArray::add_index(size_t ptr) -> Map::Index {
     return ite;
 }
 void BindlessArray::bind(luisa::span<BindlessArrayUpdateCommand::Modification const> mods) {
-    auto binded_ptr = _typed_binded.try_get<vstd::vector<std::pair<BindlessStruct, MapIndicies>>>();
+    auto binded_ptr = _typed_binded.try_get<vstd::vector<std::pair<BindlessStruct, MapIndices>>>();
     LUISA_DEBUG_ASSERT(binded_ptr);
     auto &binded = *binded_ptr;
     std::lock_guard lck{mtx};
 
-    auto _emplace_tex = [&]<bool IsTex2D>(BindlessStruct &bind_grp, MapIndicies &indices, uint64_t handle, Texture const *tex, Sampler const &samp) {
+    auto _emplace_tex = [&]<bool IsTex2D>(BindlessStruct &bind_grp, MapIndices &indices, uint64_t handle, Texture const *tex, Sampler const &samp) {
         uint tex_idx;
         if constexpr (IsTex2D) {
             _return_value(indices.tex_2d, 1, bind_grp.tex_2d);
@@ -369,7 +369,7 @@ void BindlessArray::update(
     luisa::vector<VkWriteDescriptorSet> &write_desc_sets,
     luisa::vector<uint4> &cache,
     luisa::span<BindlessArrayUpdateCommand::Modification const> mods) {
-    auto binded_ptr = _typed_binded.try_get<vstd::vector<std::pair<BindlessStruct, MapIndicies>>>();
+    auto binded_ptr = _typed_binded.try_get<vstd::vector<std::pair<BindlessStruct, MapIndices>>>();
     LUISA_DEBUG_ASSERT(binded_ptr);
     auto &binded = *binded_ptr;
     std::lock_guard lck{mtx};
@@ -436,7 +436,7 @@ void BindlessArray::update(
     VkDescriptorSet desc_set;
     VkDescriptorSetAllocateInfo alloc_info{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .descriptorPool = cmdbuffer->states()->_desc_pool,
+        .descriptorPool = cmdbuffer->states()->desc_pool,
         .descriptorSetCount = 1,
         .pSetLayouts = shader->desc_set_layout().data()};
     VK_CHECK_RESULT(
@@ -504,17 +504,17 @@ void BindlessArray::update(
     vkCmdBindPipeline(cmdbuffer->cmdbuffer(), VK_PIPELINE_BIND_POINT_COMPUTE, shader->pipeline());
     vkCmdDispatch(cmdbuffer->cmdbuffer(), (mods.size() + 255) / 256, 1, 1);
     if (!_free_queue.empty()) {
-        cmdbuffer->states()->_callbacks.emplace_back([_free_queue = std::move(_free_queue), device = device()]() {
+        cmdbuffer->states()->callbacks.emplace_back([_free_queue = std::move(_free_queue), device = device()]() {
             for (auto &i : _free_queue) {
-                switch (i.type) {
+                switch (i._type) {
                     case 0:
-                        device->buffer_heap_pool.dealloc(i.index);
+                        device->buffer_heap_pool.dealloc(i._index);
                         break;
                     case 1:
-                        device->tex2d_heap_pool.dealloc(i.index);
+                        device->tex2d_heap_pool.dealloc(i._index);
                         break;
                     case 2:
-                        device->tex3d_heap_pool.dealloc(i.index);
+                        device->tex3d_heap_pool.dealloc(i._index);
                         break;
                 }
             }

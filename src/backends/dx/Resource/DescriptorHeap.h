@@ -41,7 +41,7 @@ public:
     void CreateDSV(ID3D12Resource *resource, const D3D12_DEPTH_STENCIL_VIEW_DESC &pDesc, uint64 index);
     void CreateSampler(D3D12_SAMPLER_DESC const &desc, uint64 index);
     ~DescriptorHeap();
-    Tag GetTag() const override { return Tag::DescriptorHeap; }
+    Tag get_tag() const override { return Tag::DescriptorHeap; }
 };
 struct DescriptorHeapView {
     DescriptorHeap const *heap;

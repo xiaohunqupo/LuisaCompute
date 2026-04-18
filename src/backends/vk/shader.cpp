@@ -24,9 +24,9 @@ Shader::Shader(
     }
     VkShaderStageFlagBits stage_bits = [&]() -> VkShaderStageFlagBits {
         switch (tag) {
-            case ShaderTag::ComputeShader:
+            case ShaderTag::kComputeShader:
                 return VK_SHADER_STAGE_COMPUTE_BIT;
-            case ShaderTag::RasterShader:
+            case ShaderTag::kRasterShader:
                 return static_cast<VkShaderStageFlagBits>(
                     VK_SHADER_STAGE_VERTEX_BIT |
                     VK_SHADER_STAGE_FRAGMENT_BIT);
