@@ -5,6 +5,12 @@
 #include <luisa/core/spin_mutex.h>
 #include <luisa/runtime/rhi/pixel.h>
 #include <luisa/runtime/depth_format.h>
+
+// X11 headers define None as a macro, undef it her
+#ifdef None
+#undef None
+#endif
+
 namespace lc::vk {
 class Texture : public Resource {
     VkImage _vk_img;
