@@ -33,14 +33,8 @@ static inline const auto reg = [] {
         auto dc = luisa::test::create_device_from_ut();
         if (!dc) return;
         auto &device = dc->device;
-        try {
-            test_ast(device);
-            expect(true);
-        } catch (const std::exception &e) {
-            expect(false) << e.what();
-        } catch (...) {
-            expect(false) << "unknown exception";
-        }
+        test_ast(device);
+        expect(true);
     };
     return 0;
 }();
