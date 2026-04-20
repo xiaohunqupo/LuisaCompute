@@ -13,7 +13,7 @@ RasterShader::RasterShader(
     bool use_tex2d_bindless,
     bool use_tex3d_bindless,
     bool use_buffer_bindless)
-    : Shader(device, ShaderTag::RasterShader, std::move(captured), std::move(saved_arguments), binds, use_tex2d_bindless, use_tex3d_bindless, use_buffer_bindless, {}), _vertex_spv_code(std::move(vertex_spv_code)), _pixel_spv_code(std::move(pixel_spv_code)) {
+    : Shader(device, ShaderTag::kRasterShader, std::move(captured), std::move(saved_arguments), binds, use_tex2d_bindless, use_tex3d_bindless, use_buffer_bindless, {}), _vertex_spv_code(std::move(vertex_spv_code)), _pixel_spv_code(std::move(pixel_spv_code)) {
     VkPipelineCacheCreateInfo pso_ci{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO};
     if (!cache_code.empty()) {
@@ -53,7 +53,7 @@ auto RasterShader::_make_pipeline_key(
         std::byte *ptr = result.data();
         luisa::fixed_vector<uint32_t, 16> offsets;
         offsets.reserve(mesh_format.vertex_stream_count());
-        vertex_input_create_info.pVertexAttributeDescriptions = (const VkVertexInputAttributeDescription *)ptr;
+        vertex_input_create_info.pVertexAttributeDescriptions = reinterpret_cast<const VkVertexInputAttributeDescription *>(ptr);
         uint32_t location = 0;
         for (auto stream_idx : vstd::range((int64_t)mesh_format.vertex_stream_count())) {
             uint32_t offset = 0;
@@ -70,7 +70,7 @@ auto RasterShader::_make_pipeline_key(
             }
             offsets.emplace_back(offset);
         }
-        vertex_input_create_info.pVertexBindingDescriptions = (const VkVertexInputBindingDescription *)ptr;
+        vertex_input_create_info.pVertexBindingDescriptions = reinterpret_cast<const VkVertexInputBindingDescription *>(ptr);
         for (auto stream_idx : vstd::range((int64_t)mesh_format.vertex_stream_count())) {
             VkVertexInputBindingDescription desc{
                 .binding = (uint32_t)stream_idx,
@@ -79,6 +79,7 @@ auto RasterShader::_make_pipeline_key(
             std::memcpy(ptr, &desc, sizeof(desc));
             ptr += sizeof(desc);
         }
+        std::memcpy(ptr, &state, sizeof(state));
         ptr += sizeof(RasterState);
         LUISA_ASSERT(ptr == result.data() + result.size());
     }
@@ -130,7 +131,7 @@ auto RasterShader::create_pipeline(
         .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
         .depthClampEnable = state.depth_clip,
         .rasterizerDiscardEnable = false,
-        .polygonMode = state.fill_mode == FillMode::Solid ? VK_POLYGON_MODE_FILL : VK_POLYGON_MODE_LINE,// TO
+        .polygonMode = state.fill_mode == FillMode::Solid ? VK_POLYGON_MODE_FILL : VK_POLYGON_MODE_LINE,
         .cullMode = cull_mode,
         .frontFace = state.front_counter_clockwise ? VK_FRONT_FACE_COUNTER_CLOCKWISE : VK_FRONT_FACE_CLOCKWISE,
         .depthBiasEnable = VK_FALSE,
@@ -186,14 +187,13 @@ auto RasterShader::create_pipeline(
 
     VkPipelineColorBlendAttachmentState blend_attachment{
         .blendEnable = state.blend_state.enable_blend,
-    };
-    blend_attachment.srcColorBlendFactor = get_blend_factor(state.blend_state.prim_op);
-    blend_attachment.dstColorBlendFactor = get_blend_factor(state.blend_state.img_op);
-    blend_attachment.colorBlendOp = get_blend_op(state.blend_state.op);
-    blend_attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-    blend_attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-    blend_attachment.alphaBlendOp = VK_BLEND_OP_ADD;
-    blend_attachment.colorWriteMask = (VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT);
+        .srcColorBlendFactor = get_blend_factor(state.blend_state.prim_op),
+        .dstColorBlendFactor = get_blend_factor(state.blend_state.img_op),
+        .colorBlendOp = get_blend_op(state.blend_state.op),
+        .srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+        .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+        .alphaBlendOp = VK_BLEND_OP_ADD,
+        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT};
     VkPipelineColorBlendStateCreateInfo blend_info{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
         .logicOpEnable = VK_FALSE,
@@ -212,17 +212,6 @@ auto RasterShader::create_pipeline(
     VkPipelineTessellationStateCreateInfo tess_info{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO,
         .patchControlPoints = 1};
-    // view.minDepth = 0;
-    // view.maxDepth = 1;
-    // view.x = viewport.start.x;
-    // view.y = viewport.start.y;
-    // view.width = viewport.size.x;
-    // view.height = viewport.size.y;
-    // scissors.offset.x = viewport.start.x;
-    // scissors.offset.y = viewport.start.y;
-    // scissors.extent.width = viewport.size.x;
-    // scissors.extent.height = viewport.size.y;
-
     auto get_compare_op = [](Comparison const &comp) {
         switch (comp) {
             case Comparison::Never:
@@ -260,28 +249,27 @@ auto RasterShader::create_pipeline(
         .depthCompareOp = get_compare_op(state.depth_state.comparison),
         .depthBoundsTestEnable = VK_TRUE,
         .stencilTestEnable = state.stencil_state.enable_stencil,
-        // .front  = state.stencil_state.front_face_op
-        // TODO
+        .front = VkStencilOpState{
+            .failOp = get_stencil_state(state.stencil_state.front_face_op.stencil_fail_op),
+            .passOp = get_stencil_state(state.stencil_state.front_face_op.pass_op),
+            .depthFailOp = get_stencil_state(state.stencil_state.front_face_op.depth_fail_op),
+            .compareOp = get_compare_op(state.stencil_state.front_face_op.comparison),
+            .compareMask = ~0u,
+            .writeMask = ~0u,
+            .reference = ~0u,
+        },
+        .back = VkStencilOpState{
+            .failOp = get_stencil_state(state.stencil_state.back_face_op.stencil_fail_op),
+            .passOp = get_stencil_state(state.stencil_state.back_face_op.pass_op),
+            .depthFailOp = get_stencil_state(state.stencil_state.back_face_op.depth_fail_op),
+            .compareOp = get_compare_op(state.stencil_state.back_face_op.comparison),
+            .compareMask = ~0u,
+            .writeMask = ~0u,
+            .reference = ~0u,
+        },
+        .minDepthBounds = 0.f,
+        .maxDepthBounds = 1.f,
     };
-    depth_stencil_info.front.failOp = get_stencil_state(state.stencil_state.front_face_op.stencil_fail_op);
-    depth_stencil_info.front.passOp = get_stencil_state(state.stencil_state.front_face_op.pass_op);
-    depth_stencil_info.front.depthFailOp = get_stencil_state(state.stencil_state.front_face_op.depth_fail_op);
-    depth_stencil_info.front.compareOp = get_compare_op(state.stencil_state.front_face_op.comparison);
-    depth_stencil_info.front.compareMask = ~0u;
-    depth_stencil_info.front.writeMask = ~0u;
-    depth_stencil_info.front.compareMask = ~0u;
-    depth_stencil_info.front.reference = ~0u;
-
-    depth_stencil_info.back.failOp = get_stencil_state(state.stencil_state.back_face_op.stencil_fail_op);
-    depth_stencil_info.back.passOp = get_stencil_state(state.stencil_state.back_face_op.pass_op);
-    depth_stencil_info.back.depthFailOp = get_stencil_state(state.stencil_state.back_face_op.depth_fail_op);
-    depth_stencil_info.back.compareOp = get_compare_op(state.stencil_state.back_face_op.comparison);
-    depth_stencil_info.back.compareMask = ~0u;
-    depth_stencil_info.back.writeMask = ~0u;
-    depth_stencil_info.back.compareMask = ~0u;
-    depth_stencil_info.back.reference = ~0u;
-    depth_stencil_info.minDepthBounds = 0.f;
-    depth_stencil_info.maxDepthBounds = 1.f;
     VkDynamicState dynamic_states[] = {
         VK_DYNAMIC_STATE_VIEWPORT,
         VK_DYNAMIC_STATE_SCISSOR};

@@ -44,7 +44,7 @@ public:
         : device(device) {}
     Resource(Resource &&) = default;
     Resource(Resource const &) = delete;
-    virtual Tag GetTag() const = 0;
+    virtual Tag get_tag() const = 0;
     virtual ~Resource() = default;
     virtual ID3D12Resource *GetResource() const { return nullptr; }
     virtual D3D12_RESOURCE_STATES GetInitState() const { return D3D12_RESOURCE_STATE_COMMON; }

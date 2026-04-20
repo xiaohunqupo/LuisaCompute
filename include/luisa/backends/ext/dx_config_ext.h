@@ -24,17 +24,17 @@ struct DirectXHeap {
 };
 class DirectXFuncTable {
 public:
-    [[nodiscard]] virtual DirectXHeap AllocateBufferHeap(
+    [[nodiscard]] virtual DirectXHeap allocate_buffer_heap(
         luisa::string_view name,
         uint64_t sizeBytes,
         D3D12_HEAP_TYPE heapType,
         D3D12_HEAP_FLAGS extraFlags) const noexcept = 0;
-    [[nodiscard]] virtual DirectXHeap AllocateTextureHeap(
+    [[nodiscard]] virtual DirectXHeap allocate_texture_heap(
         luisa::string_view name,
         size_t sizeBytes,
         bool isRenderTexture,
         D3D12_HEAP_FLAGS extraFlags) const noexcept = 0;
-    virtual void DeAllocateHeap(uint64_t handle) const noexcept = 0;
+    virtual void deallocate_heap(uint64_t handle) const noexcept = 0;
 };
 struct DirectXDeviceConfigExt : public DeviceConfigExt {
 

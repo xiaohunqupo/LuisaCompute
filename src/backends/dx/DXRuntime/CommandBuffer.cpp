@@ -8,73 +8,73 @@
 #include <luisa/core/logging.h>
 namespace lc::dx {
 CommandBuffer::CommandBuffer(CommandBuffer &&v)
-    : cmdList(std::move(v.cmdList)),
-      alloc(v.alloc) {
-    v.alloc = nullptr;
+    : _cmd_list(std::move(v._cmd_list)),
+      _alloc(v._alloc) {
+    v._alloc = nullptr;
 }
-CommandAllocator *CommandBuffer::GetAlloc() const { return static_cast<CommandAllocator *>(alloc); }
-void CommandBuffer::UpdateCommandBuffer(Device *device) {
-    if (!device->deviceSettings) return;
-    auto newCmdList = static_cast<ID3D12GraphicsCommandList4 *>(device->deviceSettings->BorrowCommandList(alloc->Type()));
+CommandAllocator *CommandBuffer::get_alloc() const { return static_cast<CommandAllocator *>(_alloc); }
+void CommandBuffer::update_command_buffer(Device *device) {
+    if (!device->device_settings) return;
+    auto newCmdList = static_cast<ID3D12GraphicsCommandList4 *>(device->device_settings->BorrowCommandList(_alloc->type()));
     if (newCmdList) {
-        cmdList = {newCmdList, false};
+        _cmd_list = {newCmdList, false};
     }
 }
 CommandBuffer::CommandBuffer(
     Device *device,
     CommandAllocator *alloc)
-    : alloc(alloc) {
-    if (device->deviceSettings) {
-        cmdList = {static_cast<ID3D12GraphicsCommandList4 *>(device->deviceSettings->BorrowCommandList(alloc->Type())), false};
+    : _alloc(alloc) {
+    if (device->device_settings) {
+        _cmd_list = {static_cast<ID3D12GraphicsCommandList4 *>(device->device_settings->BorrowCommandList(_alloc->type())), false};
     }
-    if (!cmdList) {
+    if (!_cmd_list) {
         ThrowIfFailed(device->device->CreateCommandList(
             0,
-            alloc->Type(),
-            alloc->Allocator(),// Associated command allocator
+            _alloc->type(),
+            _alloc->allocator(),// Associated command allocator
             nullptr,           // Initial PipelineStateObject
-            IID_PPV_ARGS(cmdList.GetAddressOf())));
+            IID_PPV_ARGS(_cmd_list.GetAddressOf())));
     }
-    if (cmdList.Contained())
-        ThrowIfFailed(cmdList->Close());
-    isOpened = false;
+    if (_cmd_list.Contained())
+        ThrowIfFailed(_cmd_list->Close());
+    _is_opened = false;
 }
-void CommandBufferBuilder::SetComputeResources(
+void CommandBufferBuilder::set_compute_resources(
     Shader const *s,
     vstd::span<const BindProperty> resources) {
-    LUISA_ASSUME(resources.size() == s->Properties().size());
+    LUISA_ASSUME(resources.size() == s->properties().size());
     for (auto i : vstd::range(static_cast<int64>(resources.size()))) {
         resources[i].visit(
             [&](auto &&b) {
-                s->SetComputeResource(
+                s->set_compute_resource(
                     i,
                     this,
                     b);
             });
     }
 }
-void CommandBufferBuilder::SetRasterResources(
+void CommandBufferBuilder::set_raster_resources(
     Shader const *s,
     vstd::span<const BindProperty> resources) {
-    LUISA_ASSUME(resources.size() == s->Properties().size());
+    LUISA_ASSUME(resources.size() == s->properties().size());
     for (auto i : vstd::range(static_cast<int64>(resources.size()))) {
         resources[i].visit(
             [&](auto &&b) {
-                s->SetRasterResource(
+                s->set_raster_resource(
                     i,
                     this,
                     b);
             });
     }
 }
-void CommandBufferBuilder::DispatchCompute(
+void CommandBufferBuilder::dispatch_compute(
     ComputeShader const *cs,
     uint3 dispatchId,
     vstd::span<const BindProperty> resources) {
     auto calc = [](uint disp, uint thd) {
         return (disp + thd - 1) / thd;
     };
-    uint3 blk = cs->BlockSize();
+    uint3 blk = cs->block_size();
     uint3 dispId = {
         calc(dispatchId.x, blk.x),
         calc(dispatchId.y, blk.y),
@@ -88,25 +88,25 @@ void CommandBufferBuilder::DispatchCompute(
     if (dispId.z > D3D12_CS_DISPATCH_MAX_THREAD_GROUPS_PER_DIMENSION) [[unlikely]] {
         LUISA_ERROR("Dispatch size Z {} out of range {}", dispId.z, D3D12_CS_DISPATCH_MAX_THREAD_GROUPS_PER_DIMENSION);
     }
-    auto c = cb->cmdList.Get();
-    c->SetComputeRootSignature(cs->RootSig());
-    SetComputeResources(cs, resources);
-    c->SetPipelineState(cs->Pso());
+    auto c = _cb->_cmd_list.Get();
+    c->SetComputeRootSignature(cs->root_sig());
+    set_compute_resources(cs, resources);
+    c->SetPipelineState(cs->pso());
     c->Dispatch(dispId.x, dispId.y, dispId.z);
 }
-void CommandBufferBuilder::DispatchCompute(
+void CommandBufferBuilder::dispatch_compute(
     ComputeShader const *cs,
     vstd::span<const uint3> dispatchSizes,
     uint constBindPos,
     vstd::span<const BindProperty> resources) {
-    auto c = cb->cmdList.Get();
-    c->SetComputeRootSignature(cs->RootSig());
-    SetComputeResources(cs, resources);
-    c->SetPipelineState(cs->Pso());
+    auto c = _cb->_cmd_list.Get();
+    c->SetComputeRootSignature(cs->root_sig());
+    set_compute_resources(cs, resources);
+    c->SetPipelineState(cs->pso());
     auto calc = [](uint disp, uint thd) {
         return (disp + thd - 1) / thd;
     };
-    uint3 blk = cs->BlockSize();
+    uint3 blk = cs->block_size();
     uint kernelId = 0;
     for (auto dispatchId : dispatchSizes) {
         uint3 dispId = {
@@ -128,44 +128,44 @@ void CommandBufferBuilder::DispatchCompute(
         c->Dispatch(dispId.x, dispId.y, dispId.z);
     }
 }
-void CommandBufferBuilder::SetRasterShader(
+void CommandBufferBuilder::set_raster_shader(
     RasterShader const *s,
     ID3D12PipelineState *state,
     vstd::span<const BindProperty> resources) {
-    auto c = cb->CmdList();
-    c->SetGraphicsRootSignature(s->RootSig());
+    auto c = _cb->cmd_list();
+    c->SetGraphicsRootSignature(s->root_sig());
     c->SetPipelineState(state);
-    SetRasterResources(s, resources);
+    set_raster_resources(s, resources);
 }
-void CommandBufferBuilder::DispatchComputeIndirect(
+void CommandBufferBuilder::dispatch_compute_indirect(
     ComputeShader const *cs,
     Buffer const &indirectBuffer,
     uint32_t indirectOffset,
     uint32_t maxIndirectCount,
     vstd::span<const BindProperty> resources) {
-    auto c = cb->cmdList.Get();
+    auto c = _cb->_cmd_list.Get();
     auto res = indirectBuffer.GetResource();
     size_t byteSize = indirectBuffer.GetByteSize();
-    size_t cmdSize = (byteSize - 4) / ComputeShader::DispatchIndirectStride;
+    size_t cmdSize = (byteSize - 4) / ComputeShader::kDispatchIndirectStride;
     LUISA_ASSUME(cmdSize >= 1);
-    c->SetComputeRootSignature(cs->RootSig());
-    SetComputeResources(cs, resources);
-    c->SetPipelineState(cs->Pso());
+    c->SetComputeRootSignature(cs->root_sig());
+    set_compute_resources(cs, resources);
+    c->SetPipelineState(cs->pso());
     maxIndirectCount = std::min<uint32_t>(maxIndirectCount, static_cast<uint32_t>(cmdSize - indirectOffset));
     // TODO
     c->ExecuteIndirect(
-        cs->CmdSig(),
+        cs->cmd_sig(),
         maxIndirectCount,
         res,
-        sizeof(uint) + static_cast<uint64_t>(indirectOffset) * ComputeShader::DispatchIndirectStride,
+        sizeof(uint) + static_cast<uint64_t>(indirectOffset) * ComputeShader::kDispatchIndirectStride,
         res, 0);
 }
 /*void CommandBufferBuilder::DispatchRT(
     RTShader const *rt,
     uint3 dispatchId,
     vstd::span<const BindProperty> resources) {
-    auto c = cb->cmdList.Get();
-    c->SetComputeRootSignature(rt->RootSig());
+    auto c = _cb->_cmd_list.Get();
+    c->SetComputeRootSignature(rt->root_sig());
     SetResources(rt, resources);
     rt->DispatchRays(
         *this,
@@ -173,13 +173,13 @@ void CommandBufferBuilder::DispatchComputeIndirect(
         dispatchId.y,
         dispatchId.z);
 }*/
-void CommandBufferBuilder::CopyBuffer(
+void CommandBufferBuilder::copy_buffer(
     Buffer const *src,
     Buffer const *dst,
     uint64 srcOffset,
     uint64 dstOffset,
     uint64 byteSize) {
-    auto c = cb->cmdList.Get();
+    auto c = _cb->_cmd_list.Get();
     c->CopyBufferRegion(
         dst->GetResource(),
         dstOffset,
@@ -187,7 +187,7 @@ void CommandBufferBuilder::CopyBuffer(
         srcOffset,
         byteSize);
 }
-CommandBufferBuilder::CopyInfo CommandBufferBuilder::GetCopyTextureBufferSize(
+CommandBufferBuilder::CopyInfo CommandBufferBuilder::get_copy_texture_buffer_size(
     TextureBase *texture,
     uint3 size) {
     if (Resource::IsBCtex(texture->Format())) {
@@ -202,7 +202,7 @@ CommandBufferBuilder::CopyInfo CommandBufferBuilder::GetCopyTextureBufferSize(
         size_t(lineSize),
         size_t(pureLineSize)};
 }
-void CommandBufferBuilder::CopyBufferTexture(
+void CommandBufferBuilder::copy_buffer_texture(
     BufferView const &buffer,
     TextureBase *texture,
     uint3 startCoord,
@@ -210,7 +210,7 @@ void CommandBufferBuilder::CopyBufferTexture(
     uint targetMip,
     BufferTextureCopy ope,
     bool checkAlign) {
-    auto c = cb->cmdList.Get();
+    auto c = _cb->_cmd_list.Get();
     D3D12_TEXTURE_COPY_LOCATION sourceLocation;
     sourceLocation.pResource = buffer.buffer->GetResource();
     sourceLocation.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
@@ -252,20 +252,20 @@ void CommandBufferBuilder::CopyBufferTexture(
             nullptr);
     }
 }
-void CommandBufferBuilder::Upload(BufferView const &buffer, void const *src) {
-    auto uBuffer = cb->GetAlloc()->GetTempUploadBuffer(buffer.byteSize);
+void CommandBufferBuilder::upload(BufferView const &buffer, void const *src) {
+    auto uBuffer = _cb->get_alloc()->get_temp_upload_buffer(buffer.byteSize);
     static_cast<UploadBuffer const *>(uBuffer.buffer)
         ->CopyData(
             uBuffer.offset,
             {reinterpret_cast<uint8_t const *>(src), size_t(uBuffer.byteSize)});
-    CopyBuffer(
+    copy_buffer(
         uBuffer.buffer,
         buffer.buffer,
         uBuffer.offset,
         buffer.offset,
         buffer.byteSize);
 }
-void CommandBufferBuilder::CopyTexture(
+void CommandBufferBuilder::copy_texture(
     TextureBase const *source, uint sourceSlice, uint sourceMipLevel,
     TextureBase const *dest, uint destSlice, uint destMipLevel) {
     if (source->Dimension() == TextureDimension::Tex2D) sourceSlice = 0;
@@ -278,57 +278,57 @@ void CommandBufferBuilder::CopyTexture(
     destLocation.SubresourceIndex = destSlice * dest->Mip() + destMipLevel;
     sourceLocation.pResource = source->GetResource();
     destLocation.pResource = dest->GetResource();
-    cb->cmdList->CopyTextureRegion(
+    _cb->_cmd_list->CopyTextureRegion(
         &destLocation,
         0, 0, 0,
         &sourceLocation,
         nullptr);
 }
-BufferView CommandBufferBuilder::GetTempBuffer(size_t size, size_t align) {
-    return cb->GetAlloc()->GetTempDefaultBuffer(size, align);
+BufferView CommandBufferBuilder::get_temp_buffer(size_t size, size_t align) {
+    return _cb->get_alloc()->get_temp_default_buffer(size, align);
 }
-void CommandBufferBuilder::Readback(BufferView const &buffer, void *dst) {
-    auto rBuffer = cb->GetAlloc()->GetTempReadbackBuffer(buffer.byteSize);
-    CopyBuffer(
+void CommandBufferBuilder::readback(BufferView const &buffer, void *dst) {
+    auto rBuffer = _cb->get_alloc()->get_temp_readback_buffer(buffer.byteSize);
+    copy_buffer(
         buffer.buffer,
         rBuffer.buffer,
         buffer.offset,
         rBuffer.offset,
         buffer.byteSize);
-    cb->GetAlloc()->ExecuteAfterComplete(
+    _cb->get_alloc()->execute_after_complete(
         [rBuffer, dst] {
-            LUISA_ASSUME(rBuffer.buffer->GetTag() == Resource::Tag::ReadbackBuffer);
+            LUISA_ASSUME(rBuffer.buffer->get_tag() == Resource::Tag::ReadbackBuffer);
             static_cast<ReadbackBuffer const *>(rBuffer.buffer)
                 ->CopyData(
                     rBuffer.offset,
                     {reinterpret_cast<uint8_t *>(dst), size_t(rBuffer.byteSize)});
         });
 }
-void CommandBuffer::Reset() const {
-    if (isOpened.exchange(true)) return;
-    if (cmdList.Contained())
-        ThrowIfFailed(cmdList->Reset(alloc->Allocator(), nullptr));
+void CommandBuffer::_reset() const {
+    if (_is_opened.exchange(true)) return;
+    if (_cmd_list.Contained())
+        ThrowIfFailed(_cmd_list->Reset(_alloc->allocator(), nullptr));
 }
-void CommandBuffer::Close() const {
-    if (!isOpened.exchange(false)) return;
-    if (cmdList.Contained())
-        ThrowIfFailed(cmdList->Close());
+void CommandBuffer::_close() const {
+    if (!_is_opened.exchange(false)) return;
+    if (_cmd_list.Contained())
+        ThrowIfFailed(_cmd_list->Close());
 }
-CommandBufferBuilder::CommandBufferBuilder(CommandBuffer const *cb)
-    : cb(cb) {
-    cb->Reset();
+CommandBufferBuilder::CommandBufferBuilder(CommandBuffer const *_cb)
+    : _cb(_cb) {
+    _cb->_reset();
 }
 CommandBufferBuilder::~CommandBufferBuilder() {
-    if (cb)
-        cb->Close();
+    if (_cb)
+        _cb->_close();
 }
 CommandBufferBuilder::CommandBufferBuilder(CommandBufferBuilder &&v)
-    : cb(v.cb) {
-    v.cb = nullptr;
+    : _cb(v._cb) {
+    v._cb = nullptr;
 }
 
 CommandBuffer::~CommandBuffer() {
-    Close();
+    _close();
 }
 
 }// namespace lc::dx

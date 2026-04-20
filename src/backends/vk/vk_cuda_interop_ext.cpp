@@ -44,16 +44,16 @@ namespace lc::vk {
 class WindowsSecurityAttributes {
 
 protected:
-    SECURITY_ATTRIBUTES m_winSecurityAttributes{};
-    PSECURITY_DESCRIPTOR m_winPSecurityDescriptor{};
+    SECURITY_ATTRIBUTES _win_security_attributes{};
+    PSECURITY_DESCRIPTOR _win_p_security_descriptor{};
 
 public:
     WindowsSecurityAttributes() noexcept {
-        m_winPSecurityDescriptor = (PSECURITY_DESCRIPTOR)calloc(
+        _win_p_security_descriptor = (PSECURITY_DESCRIPTOR)calloc(
             1, SECURITY_DESCRIPTOR_MIN_LENGTH + 2 * sizeof(void **));
-        PSID *ppSID = (PSID *)((PBYTE)m_winPSecurityDescriptor + SECURITY_DESCRIPTOR_MIN_LENGTH);
+        PSID *ppSID = (PSID *)((PBYTE)_win_p_security_descriptor + SECURITY_DESCRIPTOR_MIN_LENGTH);
         PACL *ppACL = (PACL *)((PBYTE)ppSID + sizeof(PSID *));
-        InitializeSecurityDescriptor(m_winPSecurityDescriptor, SECURITY_DESCRIPTOR_REVISION);
+        InitializeSecurityDescriptor(_win_p_security_descriptor, SECURITY_DESCRIPTOR_REVISION);
         SID_IDENTIFIER_AUTHORITY sidIdentifierAuthority = SECURITY_WORLD_SID_AUTHORITY;
         AllocateAndInitializeSid(&sidIdentifierAuthority, 1, SECURITY_WORLD_RID,
                                  0, 0, 0, 0, 0, 0, 0, ppSID);
@@ -66,20 +66,20 @@ public:
         explicitAccess.Trustee.TrusteeType = TRUSTEE_IS_WELL_KNOWN_GROUP;
         explicitAccess.Trustee.ptstrName = (LPTSTR)*ppSID;
         SetEntriesInAcl(1, &explicitAccess, nullptr, ppACL);
-        SetSecurityDescriptorDacl(m_winPSecurityDescriptor, true, *ppACL, false);
-        m_winSecurityAttributes.nLength = sizeof(m_winSecurityAttributes);
-        m_winSecurityAttributes.lpSecurityDescriptor = m_winPSecurityDescriptor;
-        m_winSecurityAttributes.bInheritHandle = true;
+        SetSecurityDescriptorDacl(_win_p_security_descriptor, true, *ppACL, false);
+        _win_security_attributes.nLength = sizeof(_win_security_attributes);
+        _win_security_attributes.lpSecurityDescriptor = _win_p_security_descriptor;
+        _win_security_attributes.bInheritHandle = true;
     }
     ~WindowsSecurityAttributes() noexcept {
-        PSID *ppSID = (PSID *)((PBYTE)m_winPSecurityDescriptor + SECURITY_DESCRIPTOR_MIN_LENGTH);
+        PSID *ppSID = (PSID *)((PBYTE)_win_p_security_descriptor + SECURITY_DESCRIPTOR_MIN_LENGTH);
         PACL *ppACL = (PACL *)((PBYTE)ppSID + sizeof(PSID *));
         if (*ppSID) { FreeSid(*ppSID); }
         if (*ppACL) { LocalFree(*ppACL); }
-        free(m_winPSecurityDescriptor);
+        free(_win_p_security_descriptor);
     }
     [[nodiscard]] auto get() const noexcept {
-        return &m_winSecurityAttributes;
+        return &_win_security_attributes;
     }
 };
 
@@ -113,7 +113,7 @@ static bool initialize_cuda() noexcept {
     return success;
 }
 
-[[nodiscard]] int getCudaDeviceForVulkanDevice(VkPhysicalDevice device) noexcept {
+[[nodiscard]] int get_cuda_device_for_vulkan_device(VkPhysicalDevice device) noexcept {
     if (!initialize_cuda()) return -1;
     VkPhysicalDeviceIDProperties id_properties{};
     id_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES;
@@ -137,7 +137,7 @@ static bool initialize_cuda() noexcept {
     return -1;
 }
 
-[[nodiscard]] auto _find_memory_type(uint32_t type_filter, VkPhysicalDevice physical_device, VkMemoryPropertyFlags properties) noexcept {
+[[nodiscard]] auto find_memory_type(uint32_t type_filter, VkPhysicalDevice physical_device, VkMemoryPropertyFlags properties) noexcept {
     VkPhysicalDeviceMemoryProperties memory_properties;
     vkGetPhysicalDeviceMemoryProperties(physical_device, &memory_properties);
     for (auto i = 0u; i < memory_properties.memoryTypeCount; i++) {
@@ -149,12 +149,12 @@ static bool initialize_cuda() noexcept {
     vstd::unreachable();
 }
 VkCudaInteropImpl::VkCudaInteropImpl(Device *device) noexcept : _device(device) {
-    _cuda_device = getCudaDeviceForVulkanDevice(device->physical_device());
+    _cuda_device = get_cuda_device_for_vulkan_device(device->physical_device());
     if (_cuda_device == -1) return;
     LUISA_CHECK_CUDA(cuDeviceGet(&_cu_device, _cuda_device));
     LUISA_CHECK_CUDA(cuDevicePrimaryCtxRetain(&_cu_context, _cu_device));
 }
-VkCudaInteropImpl::~VkCudaInteropImpl() {
+VkCudaInteropImpl::~VkCudaInteropImpl() noexcept {
     if (_cu_device)
         LUISA_CHECK_CUDA(cuDevicePrimaryCtxRelease(_cu_device));
 }
@@ -253,7 +253,7 @@ BufferCreationInfo VkCudaInteropImpl::create_interop_buffer(const Type *element,
     VkMemoryAllocateInfo alloc_info{};
     alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     alloc_info.allocationSize = mem_requirements.size;
-    alloc_info.memoryTypeIndex = _find_memory_type(mem_requirements.memoryTypeBits, _device->physical_device(), VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    alloc_info.memoryTypeIndex = find_memory_type(mem_requirements.memoryTypeBits, _device->physical_device(), VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
     alloc_info.pNext = &alloc_flag_info;
     LUISA_CHECK_VULKAN(vkAllocateMemory(_device->logic_device(), &alloc_info, Device::alloc_callbacks(), &buffer_memory));
     LUISA_CHECK_VULKAN(vkBindBufferMemory(_device->logic_device(), buffer, buffer_memory, 0));
@@ -338,7 +338,7 @@ ResourceCreationInfo VkCudaInteropImpl::create_interop_texture(
     VkMemoryAllocateInfo alloc_info{};
     alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     alloc_info.allocationSize = mem_requirements.size;
-    alloc_info.memoryTypeIndex = _find_memory_type(mem_requirements.memoryTypeBits, _device->physical_device(), VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    alloc_info.memoryTypeIndex = find_memory_type(mem_requirements.memoryTypeBits, _device->physical_device(), VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
     alloc_info.pNext = &alloc_flag_info;
     LUISA_CHECK_VULKAN(vkAllocateMemory(_device->logic_device(), &alloc_info, Device::alloc_callbacks(), &image_memory));
     LUISA_CHECK_VULKAN(vkBindImageMemory(_device->logic_device(), image, image_memory, 0));

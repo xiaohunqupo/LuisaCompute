@@ -17,7 +17,7 @@
 namespace lc::dx {
 // IUtil *LCDevice::get_util() noexcept {
 //     if (!util) {
-//         util = vstd::create_unique(new DxTexCompressExt(&nativeDevice));
+//         util = vstd::create_unique(new DxTexCompressExt(&native_device));
 //     }
 //     return util.get();
 // }
@@ -35,7 +35,7 @@ TexCompressExt::Result DxTexCompressExt::compress_bc6h(Stream &stream, ImageView
         result,
         true,
         0,
-        device->defaultAllocator.get(),
+        device->default_allocator.get(),
         2);
     return Result::Success;
 }
@@ -48,27 +48,27 @@ TexCompressExt::Result DxTexCompressExt::compress_bc7(Stream &stream, ImageView<
         result,
         false,
         alphaImportance,
-        device->defaultAllocator.get(),
+        device->default_allocator.get(),
         2);
     return Result::Success;
 }
 TexCompressExt::Result DxTexCompressExt::check_builtin_shader() noexcept {
-    LUISA_VERBOSE("start try compile setAccelKernel");
-    if (!device->setAccelKernel.Check(device)) return Result::Failed;
-    LUISA_VERBOSE("start try compile bc6TryModeG10");
-    if (!device->bc6TryModeG10.Check(device)) return Result::Failed;
-    LUISA_VERBOSE("start try compile bc6TryModeLE10");
-    if (!device->bc6TryModeLE10.Check(device)) return Result::Failed;
-    LUISA_VERBOSE("start try compile bc6EncodeBlock");
-    if (!device->bc6EncodeBlock.Check(device)) return Result::Failed;
-    LUISA_VERBOSE("start try compile bc7TryMode456");
-    if (!device->bc7TryMode456.Check(device)) return Result::Failed;
-    LUISA_VERBOSE("start try compile bc7TryMode137");
-    if (!device->bc7TryMode137.Check(device)) return Result::Failed;
-    LUISA_VERBOSE("start try compile bc7TryMode02");
-    if (!device->bc7TryMode02.Check(device)) return Result::Failed;
-    LUISA_VERBOSE("start try compile bc7EncodeBlock");
-    if (!device->bc7EncodeBlock.Check(device)) return Result::Failed;
+    LUISA_VERBOSE("start try compile set_accel_kernel");
+    if (!device->set_accel_kernel.check(device)) return Result::Failed;
+    LUISA_VERBOSE("start try compile bc6_try_mode_g10");
+    if (!device->bc6_try_mode_g10.check(device)) return Result::Failed;
+    LUISA_VERBOSE("start try compile bc6_try_mode_le10");
+    if (!device->bc6_try_mode_le10.check(device)) return Result::Failed;
+    LUISA_VERBOSE("start try compile bc6_encode_block");
+    if (!device->bc6_encode_block.check(device)) return Result::Failed;
+    LUISA_VERBOSE("start try compile bc7_try_mode_456");
+    if (!device->bc7_try_mode_456.check(device)) return Result::Failed;
+    LUISA_VERBOSE("start try compile bc7_try_mode_137");
+    if (!device->bc7_try_mode_137.check(device)) return Result::Failed;
+    LUISA_VERBOSE("start try compile bc7_try_mode_02");
+    if (!device->bc7_try_mode_02.check(device)) return Result::Failed;
+    LUISA_VERBOSE("start try compile bc7_encode_block");
+    if (!device->bc7_encode_block.check(device)) return Result::Failed;
     return Result::Success;
 }
 DxNativeResourceExt::DxNativeResourceExt(DeviceInterface *lc_device, Device *dx_device)
@@ -153,53 +153,53 @@ SwapchainCreationInfo DxNativeResourceExt::register_external_swapchain(
     info.native_handle = swapchain_ptr;
     return info;
 }
-void DStorageExtImpl::init_factory_nolock() {
+void DStorageExtImpl::_init_factory_nolock() {
     HRESULT(WINAPI * DStorageGetFactory)
     (REFIID riid, _COM_Outptr_ void **ppv);
-    if (!dstorage_module || !dstorage_core_module) {
+    if (!_dstorage_module || !_dstorage_core_module) {
         LUISA_WARNING("Direct-Storage DLL not found.");
         return;
     }
-    DStorageGetFactory = dstorage_module.function<std::remove_pointer_t<decltype(DStorageGetFactory)>>("DStorageGetFactory");
-    DStorageGetFactory(IID_PPV_ARGS(factory.GetAddressOf()));
+    DStorageGetFactory = _dstorage_module.function<std::remove_pointer_t<decltype(DStorageGetFactory)>>("DStorageGetFactory");
+    DStorageGetFactory(IID_PPV_ARGS(_factory.GetAddressOf()));
 }
-void DStorageExtImpl::init_factory() {
+void DStorageExtImpl::_init_factory() {
     {
-        std::lock_guard lck{spin_mtx};
-        if (factory) [[likely]] {
+        std::lock_guard lck{_spin_mtx};
+        if (_factory) [[likely]] {
             return;
         }
     }
-    std::lock_guard lck{mtx};
-    if (factory) [[unlikely]] {
+    std::lock_guard lck{_mtx};
+    if (_factory) [[unlikely]] {
         return;
     }
-    init_factory_nolock();
+    _init_factory_nolock();
 }
 DStorageExtImpl::DStorageExtImpl(std::filesystem::path const &runtime_dir, LCDevice *device) noexcept
-    : dstorage_core_module{DynamicModule::load(runtime_dir, "dstoragecore")},
-      dstorage_module{DynamicModule::load(runtime_dir, "dstorage")},
-      mdevice{device} {
+    : _dstorage_core_module{DynamicModule::load(runtime_dir, "dstoragecore")},
+      _dstorage_module{DynamicModule::load(runtime_dir, "dstorage")},
+      _mdevice{device} {
 }
 ResourceCreationInfo DStorageExtImpl::create_stream_handle(const DStorageStreamOption &option) noexcept {
-    set_config(option.supports_hdd);
-    if (option.staging_buffer_size != staging_buffer_size) {
-        if (!staging.exchange(true)) {
-            factory->SetStagingBufferSize(option.staging_buffer_size);
-            staging_buffer_size = option.staging_buffer_size;
+    _set_config(option.supports_hdd);
+    if (option.staging_buffer_size != _staging_buffer_size) {
+        if (!_staging.exchange(true)) {
+            _factory->SetStagingBufferSize(option.staging_buffer_size);
+            _staging_buffer_size = option.staging_buffer_size;
         } else {
             LUISA_WARNING("Staging buffer already setted, staging set failed.");
         }
     }
     ResourceCreationInfo r{};
-    auto ptr = new DStorageCommandQueue{factory.Get(), &mdevice->nativeDevice, option.source};
-    ptr->staging_buffer_size = staging_buffer_size;
+    auto ptr = new DStorageCommandQueue{_factory.Get(), &_mdevice->native_device, option.source};
+    ptr->staging_buffer_size = _staging_buffer_size;
     r.handle = reinterpret_cast<uint64_t>(ptr);
     r.native_handle = nullptr;
     return r;
 }
 DStorageExtImpl::FileCreationInfo DStorageExtImpl::open_file_handle(luisa::string_view path) noexcept {
-    init_factory();
+    _init_factory();
     ComPtr<IDStorageFile> file;
     luisa::vector<wchar_t> wstr;
     luisa::enlarge_by(wstr, path.size() + 1);
@@ -207,7 +207,7 @@ DStorageExtImpl::FileCreationInfo DStorageExtImpl::open_file_handle(luisa::strin
     for (size_t i = 0; i < path.size(); ++i) {
         wstr[i] = path[i];
     }
-    HRESULT hr = factory->OpenFile(wstr.data(), IID_PPV_ARGS(file.GetAddressOf()));
+    HRESULT hr = _factory->OpenFile(wstr.data(), IID_PPV_ARGS(file.GetAddressOf()));
     DStorageExtImpl::FileCreationInfo f{};
     if (FAILED(hr)) {
         f.invalidate();
@@ -233,7 +233,7 @@ DStorageExtImpl::FileCreationInfo DStorageExtImpl::open_file_handle(luisa::strin
     return f;
 }
 DeviceInterface *DStorageExtImpl::device() const noexcept {
-    return mdevice;
+    return _mdevice;
 }
 void DStorageExtImpl::close_file_handle(uint64_t handle) noexcept {
     delete reinterpret_cast<DStorageFileImpl *>(handle);
@@ -251,22 +251,22 @@ void DStorageExtImpl::compress(
     size_t out_size{};
     [&]() {
         {
-            std::lock_guard lck{spin_mtx};
-            if (compression_codec) [[likely]] {
+            std::lock_guard lck{_spin_mtx};
+            if (_compression_codec) [[likely]] {
                 return;
             }
         }
-        std::lock_guard lck{mtx};
-        if (compression_codec) [[unlikely]] {
+        std::lock_guard lck{_mtx};
+        if (_compression_codec) [[unlikely]] {
             return;
         }
         HRESULT(WINAPI * DStorageCreateCompressionCodec)
         (DSTORAGE_COMPRESSION_FORMAT format, UINT32 numThreads, REFIID riid, _COM_Outptr_ void **ppv);
-        DStorageCreateCompressionCodec = dstorage_module.function<std::remove_pointer_t<decltype(DStorageCreateCompressionCodec)>>("DStorageCreateCompressionCodec");
-        DStorageCreateCompressionCodec(DSTORAGE_COMPRESSION_FORMAT_GDEFLATE, std::thread::hardware_concurrency(), IID_PPV_ARGS(compression_codec.GetAddressOf()));
+        DStorageCreateCompressionCodec = _dstorage_module.function<std::remove_pointer_t<decltype(DStorageCreateCompressionCodec)>>("DStorageCreateCompressionCodec");
+        DStorageCreateCompressionCodec(DSTORAGE_COMPRESSION_FORMAT_GDEFLATE, std::thread::hardware_concurrency(), IID_PPV_ARGS(_compression_codec.GetAddressOf()));
     }();
-    luisa::enlarge_by(result, compression_codec->CompressBufferBound(size_bytes));
-    ThrowIfFailed(compression_codec->CompressBuffer(
+    luisa::enlarge_by(result, _compression_codec->CompressBufferBound(size_bytes));
+    ThrowIfFailed(_compression_codec->CompressBuffer(
         data,
         size_bytes,
         qua[luisa::to_underlying(quality)],
@@ -275,21 +275,21 @@ void DStorageExtImpl::compress(
         &out_size));
     result.resize(out_size);
 }
-void DStorageExtImpl::set_config(bool hdd) noexcept {
-    std::lock_guard lck{mtx};
-    if (hdd == is_hdd) {
-        if (!factory) {
-            init_factory_nolock();
+void DStorageExtImpl::_set_config(bool hdd) noexcept {
+    std::lock_guard lck{_mtx};
+    if (hdd == _is_hdd) {
+        if (!_factory) {
+            _init_factory_nolock();
         }
         return;
     }
-    is_hdd = hdd;
-    if (factory) [[unlikely]] {
+    _is_hdd = hdd;
+    if (_factory) [[unlikely]] {
         LUISA_ERROR("set_config can only be called before first open_file and create_stream");
     }
     HRESULT(WINAPI * DStorageSetConfiguration1)
     (DSTORAGE_CONFIGURATION1 const *configuration);
-    DStorageSetConfiguration1 = dstorage_module.function<std::remove_pointer_t<decltype(DStorageSetConfiguration1)>>("DStorageSetConfiguration1");
+    DStorageSetConfiguration1 = _dstorage_module.function<std::remove_pointer_t<decltype(DStorageSetConfiguration1)>>("DStorageSetConfiguration1");
     if (hdd) {
         DSTORAGE_CONFIGURATION1 cfg{
             .DisableBypassIO = true,
@@ -299,7 +299,7 @@ void DStorageExtImpl::set_config(bool hdd) noexcept {
         DSTORAGE_CONFIGURATION1 cfg{};
         DStorageSetConfiguration1(&cfg);
     }
-    init_factory_nolock();
+    _init_factory_nolock();
 }
 BufferCreationInfo DxPinnedMemoryExt::_pin_host_memory(
     const Type *elem_type, size_t elem_count,
@@ -326,16 +326,16 @@ BufferCreationInfo DxPinnedMemoryExt::_allocate_pinned_memory(
     }
     if (option.write_combined) {
         auto res = new UploadBuffer(
-            &_device->nativeDevice,
+            &_device->native_device,
             info.total_size_bytes,
-            _device->nativeDevice.defaultAllocator.get());
+            _device->native_device.default_allocator.get());
         info.handle = resource_to_handle(res);
         info.native_handle = res->MappedPtr();
     } else {
         auto res = new ReadbackBuffer(
-            &_device->nativeDevice,
+            &_device->native_device,
             info.total_size_bytes,
-            _device->nativeDevice.defaultAllocator.get());
+            _device->native_device.default_allocator.get());
         info.handle = resource_to_handle(res);
         info.native_handle = res->MappedPtr();
     }
@@ -419,7 +419,7 @@ DXOidnDenoiser::DXOidnDenoiser(LCDevice *_device, oidn::DeviceRef &&oidn_device,
 DXOidnDenoiserExt::DXOidnDenoiserExt(LCDevice *device) noexcept
     : _device{device} {}
 luisa::shared_ptr<DenoiserExt::Denoiser> DXOidnDenoiserExt::create(uint64_t stream) noexcept {
-    auto d3d12_device = _device->nativeDevice.device.Get();
+    auto d3d12_device = _device->native_device.device.Get();
     auto cuda_device = getCudaDeviceForD3D12Device(d3d12_device);
     return luisa::make_shared<DXOidnDenoiser>(_device, oidn::newCUDADevice(cuda_device, nullptr), stream);
 }

@@ -145,10 +145,10 @@ public:
 };
 class Device;
 class DxRasterExt final : public RasterExt, public vstd::IOperatorNewBase {
-    Device &nativeDevice;
+    Device &_native_device;
 
 public:
-    DxRasterExt(Device &nativeDevice) noexcept : nativeDevice{nativeDevice} {}
+    DxRasterExt(Device &native_device) noexcept : _native_device{native_device} {}
     ResourceCreationInfo create_raster_shader(
         Function vert,
         Function pixel,
@@ -167,8 +167,8 @@ public:
 
 class DxCudaInteropImpl : public luisa::compute::DxCudaInterop {
 
-    CUcontext cuContext{};
-    CUdevice cuDevice{};
+    CUcontext _cu_context{};
+    CUdevice _cu_device{};
     LCDevice &_device;
     int _cuda_device{-1};
 
@@ -197,22 +197,22 @@ public:
 };
 #endif
 class DStorageExtImpl final : public DStorageExt, public vstd::IOperatorNewBase {
-    luisa::DynamicModule dstorage_core_module;
-    luisa::DynamicModule dstorage_module;
-    ComPtr<IDStorageFactory> factory;
-    ComPtr<IDStorageCompressionCodec> compression_codec;
-    vstd::spin_mutex spin_mtx;
-    std::mutex mtx;
-    LCDevice *mdevice;
-    std::atomic_bool staging{false};
-    size_t staging_buffer_size = DSTORAGE_STAGING_BUFFER_SIZE_32MB;
-    bool is_hdd = false;
-    void init_factory();
-    void init_factory_nolock();
-    void set_config(bool hdd) noexcept;
+    luisa::DynamicModule _dstorage_core_module;
+    luisa::DynamicModule _dstorage_module;
+    ComPtr<IDStorageFactory> _factory;
+    ComPtr<IDStorageCompressionCodec> _compression_codec;
+    vstd::spin_mutex _spin_mtx;
+    std::mutex _mtx;
+    LCDevice *_mdevice;
+    std::atomic_bool _staging{false};
+    size_t _staging_buffer_size = DSTORAGE_STAGING_BUFFER_SIZE_32MB;
+    bool _is_hdd = false;
+    void _init_factory();
+    void _init_factory_nolock();
+    void _set_config(bool hdd) noexcept;
 
 public:
-    auto Factory() const { return factory.Get(); }
+    auto factory() const { return _factory.Get(); }
     DeviceInterface *device() const noexcept override;
     DStorageExtImpl(std::filesystem::path const &runtime_dir, LCDevice *device) noexcept;
     ResourceCreationInfo create_stream_handle(const DStorageStreamOption &option) noexcept override;

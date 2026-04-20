@@ -31,41 +31,41 @@ private:
                       bool wakeupThread)
             : evt{std::forward<Arg>(arg)}, fence{fence}, wakeupThread{wakeupThread} {}
     };
-    std::atomic_bool enabled = true;
-    std::atomic_uint64_t executedFrame = 0;
-    std::atomic_uint64_t lastFrame = 0;
-    Device *device;
-    GpuAllocator *resourceAllocator;
-    D3D12_COMMAND_LIST_TYPE type;
-    luisa::spin_mutex mtx;
-    DxPtr<ID3D12CommandQueue> queue;
-    Microsoft::WRL::ComPtr<ID3D12Fence> cmdFence;
-    vstd::LockFreeArrayQueue<AllocatorPtr> allocatorPool;
-    vstd::SingleThreadArrayQueue<CallbackEvent> executedAllocators;
-    void ExecuteThread();
+    std::atomic_bool _enabled = true;
+    std::atomic_uint64_t _executed_frame = 0;
+    std::atomic_uint64_t _last_frame = 0;
+    Device *_device;
+    GpuAllocator *_resource_allocator;
+    D3D12_COMMAND_LIST_TYPE _type;
+    luisa::spin_mutex _mtx;
+    DxPtr<ID3D12CommandQueue> _queue;
+    Microsoft::WRL::ComPtr<ID3D12Fence> _cmd_fence;
+    vstd::LockFreeArrayQueue<AllocatorPtr> _allocator_pool;
+    vstd::SingleThreadArrayQueue<CallbackEvent> _executed_allocators;
+    void _execute_thread();
 
 public:
-    void WaitFrame(uint64 lastFrame);
-    uint64 LastFrame() const { return lastFrame; }
-    ID3D12CommandQueue *Queue() const { return queue; }
+    void wait_frame(uint64 lastFrame);
+    uint64 last_frame() const { return _last_frame; }
+    ID3D12CommandQueue *queue() const { return _queue; }
     CommandQueue(
         Device *device,
         GpuAllocator *resourceAllocator,
         D3D12_COMMAND_LIST_TYPE type);
     ~CommandQueue();
-    AllocatorPtr CreateAllocator(size_t maxAllocCount);
-    void AddEvent(LCEvent const *evt, uint64_t fenceIdx);
-    void Signal();
-    void Execute(AllocatorPtr &&alloc, vstd::vector<vstd::function<void()>> &&callbacks, luisa::span<std::pair<IDXGISwapChain *, bool>> swapChains, bool cmdlist_is_empty);
-    void Complete(uint64 fence);
-    void Complete();
-    void ForceSync(
+    AllocatorPtr create_allocator(size_t maxAllocCount);
+    void add_event(LCEvent const *evt, uint64_t fenceIdx);
+    void signal();
+    void execute(AllocatorPtr &&alloc, vstd::vector<vstd::function<void()>> &&callbacks, luisa::span<std::pair<IDXGISwapChain *, bool>> swapChains, bool cmdlist_is_empty);
+    void complete(uint64 fence);
+    void complete();
+    void force_sync(
         AllocatorPtr &alloc,
         CommandBuffer &cb);
     KILL_MOVE_CONSTRUCT(CommandQueue)
     KILL_COPY_CONSTRUCT(CommandQueue)
 private:
     // make sure thread always construct after all members
-    std::thread thd;
+    std::thread _thd;
 };
 }// namespace lc::dx

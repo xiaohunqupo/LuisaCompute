@@ -44,7 +44,7 @@ class BottomAccel : public Resource {
     void SyncTopAccel();
 
 public:
-    Tag GetTag() const override { return Tag::Mesh; }
+    Tag get_tag() const override { return Tag::Mesh; }
     struct MeshOptions {
         Buffer const *vHandle;
         size_t vOffset;

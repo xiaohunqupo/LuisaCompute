@@ -5,10 +5,6 @@
 #include <luisa/core/basic_types.h>
 #include <luisa/vstl/vector.h>
 
-#ifdef None
-#undef None
-#endif
-
 namespace lc::vk {
 using namespace luisa;
 class Device;
@@ -21,9 +17,9 @@ struct AllocatedImage {
     VmaAllocation allocation{};
 };
 enum class AccessType {
-    None,
-    Upload,
-    ReadBack
+    kNone,
+    kUpload,
+    kReadBack
 };
 struct SparseAllocCmdList {
     vstd::vector<VkMemoryRequirements> mem_requires;

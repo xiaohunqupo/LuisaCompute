@@ -10,39 +10,38 @@ using namespace luisa::compute;
 class Tlas;
 class Blas;
 class MeshHandle {
-    friend class Tlas;
 public:
-    Blas *mesh;
-    Tlas *accel;
-    size_t accelIndex;
-    size_t meshIndex;
-    static MeshHandle *AllocateHandle();
-    static void DestroyHandle(MeshHandle *handle);
+    Blas *mesh = nullptr;
+    Tlas *accel = nullptr;
+    size_t accel_index = 0;
+    size_t mesh_index = 0;
+    static MeshHandle *allocate_handle();
+    static void destroy_handle(MeshHandle *handle);
 };
 class Blas : public Resource {
     friend class Tlas;
 private:
-    luisa::spin_mutex handleMtx;
+    luisa::spin_mutex _handle_mtx;
     VkAccelerationStructureKHR _accel{nullptr};
     vstd::unique_ptr<DefaultBuffer> _accel_buffer;
-    VkAccelerationStructureBuildGeometryInfoKHR *acceleration_build_geometry_info;
-    AccelOption option;
-    Buffer const *scratch_buffer{nullptr};
-    uint64_t scratch_buffer_offset{0};
-    vstd::fixed_vector<MeshHandle *, 2> handles;
+    VkAccelerationStructureBuildGeometryInfoKHR *_acceleration_build_geometry_info{nullptr};
+    AccelOption _option;
+    const Buffer *_scratch_buffer{nullptr};
+    uint64_t _scratch_buffer_offset{0};
+    vstd::fixed_vector<MeshHandle *, 2> _handles;
 
-    MeshHandle *add_accel_ref(Tlas *accel, uint index);
-    void remove_accel_ref(MeshHandle *handle);
-    void sync_tlas();
-public:
-    [[nodiscard]] auto &accel() const { return _accel; }
-    Blas(Device *device, AccelOption const &option);
+    MeshHandle *_add_accel_ref(Tlas *accel, uint index);
+    void _remove_accel_ref(MeshHandle *handle);
+    void _sync_tlas();
     void _pre_build(
         CommandBuffer &cmdbuffer,
         VkAccelerationStructureGeometryKHR* acceleration_structure_geometry,
         uint32_t primitive_count,
         AccelBuildRequest request
     );
+public:
+    [[nodiscard]] auto &accel() const { return _accel; }
+    Blas(Device *device, AccelOption const &option);
     void pre_build(
         CommandBuffer &cmdbuffer,
         MeshBuildCommand const *cmd);
@@ -55,7 +54,7 @@ public:
     void build(
         CommandBuffer &cmdbuffer,
         ProceduralPrimitiveBuildCommand const *cmd);
-    ~Blas();
+    ~Blas() override;
     uint64_t get_accel_device_address() const;
 };
 }// namespace lc::vk

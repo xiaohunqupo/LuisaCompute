@@ -19,7 +19,7 @@ public:
     D3D12_RESOURCE_STATES GetInitState() const override {
         return initState;
     }
-    Tag GetTag() const override {
+    Tag get_tag() const override {
         return Tag::ExternalBuffer;
     }
     KILL_COPY_CONSTRUCT(ExternalBuffer)

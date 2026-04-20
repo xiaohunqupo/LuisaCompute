@@ -12,14 +12,12 @@ private:
     vstd::vector<uint> _vertex_spv_code;
     vstd::vector<uint> _pixel_spv_code;
     struct BinaryBlob {
-        std::byte *_ptr;
-        size_t _size;
         auto data() const { return _ptr; }
         auto size() const { return _size; }
         auto size_bytes() const { return _size; }
         BinaryBlob() : _ptr(nullptr), _size(0) {}
         BinaryBlob(size_t size)
-            : _ptr((std::byte *)vengine_malloc(size)),
+            : _ptr(reinterpret_cast<std::byte *>(vengine_malloc(size))),
               _size(size) {
             std::memset(_ptr, 0, size);
         }
@@ -35,6 +33,9 @@ private:
                 vengine_free(_ptr);
             }
         }
+    private:
+        std::byte *_ptr;
+        size_t _size;
     };
 
     struct PtrHash {

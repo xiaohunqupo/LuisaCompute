@@ -3,7 +3,7 @@
 #include "../common/hlsl/hlsl_codegen.h"
 #include "device.h"
 namespace lc::vk {
-ComputeShader *BuiltinKernel::LoadAccelSetKernel(Device *device) {
+ComputeShader *BuiltinKernel::load_accel_set_kernel(Device *device) {
     auto func = [&] {
         hlsl::CodegenResult code;
         code.useBufferBindless = false;
@@ -11,16 +11,16 @@ ComputeShader *BuiltinKernel::LoadAccelSetKernel(Device *device) {
         code.useTex3DBindless = false;
         code.result << hlsl::CodegenUtility::ReadInternalHLSLFile("accel_process_vk");
         code.properties.resize(2);
-        auto &SetBuffer = code.properties[0];
-        SetBuffer.array_size = 1;
-        SetBuffer.register_index = 0;
-        SetBuffer.space_index = 0;
-        SetBuffer.type = hlsl::ShaderVariableType::StructuredBuffer;
-        auto &InstBuffer = code.properties[1];
-        InstBuffer.array_size = 1;
-        InstBuffer.register_index = 1;
-        InstBuffer.space_index = 0;
-        InstBuffer.type = hlsl::ShaderVariableType::RWStructuredBuffer;
+        auto &set_buffer = code.properties[0];
+        set_buffer.array_size = 1;
+        set_buffer.register_index = 0;
+        set_buffer.space_index = 0;
+        set_buffer.type = hlsl::ShaderVariableType::StructuredBuffer;
+        auto &inst_buffer = code.properties[1];
+        inst_buffer.array_size = 1;
+        inst_buffer.register_index = 1;
+        inst_buffer.space_index = 0;
+        inst_buffer.type = hlsl::ShaderVariableType::RWStructuredBuffer;
         return code;
     };
     vstd::vector<SavedArgument> saved_args;
@@ -33,10 +33,10 @@ ComputeShader *BuiltinKernel::LoadAccelSetKernel(Device *device) {
         {},
         uint3(256, 1, 1),
         "accel_process_vk.dxil"sv,
-        SerdeType::Builtin,
+        SerdeType::kBuiltin,
         62, true);
 }
-ComputeShader *BuiltinKernel::LoadBindlessSetKernel(Device *device) {
+ComputeShader *BuiltinKernel::load_bindless_set_kernel(Device *device) {
     auto func = [&] {
         hlsl::CodegenResult code;
         code.useBufferBindless = false;
@@ -44,16 +44,16 @@ ComputeShader *BuiltinKernel::LoadBindlessSetKernel(Device *device) {
         code.useTex3DBindless = false;
         code.result << hlsl::CodegenUtility::ReadInternalHLSLFile("bindless_upload_vk");
         code.properties.resize(2);
-        auto &SetBuffer = code.properties[0];
-        SetBuffer.array_size = 1;
-        SetBuffer.register_index = 0;
-        SetBuffer.space_index = 0;
-        SetBuffer.type = hlsl::ShaderVariableType::StructuredBuffer;
-        auto &InstBuffer = code.properties[1];
-        InstBuffer.array_size = 1;
-        InstBuffer.register_index = 1;
-        InstBuffer.space_index = 0;
-        InstBuffer.type = hlsl::ShaderVariableType::RWStructuredBuffer;
+        auto &set_buffer = code.properties[0];
+        set_buffer.array_size = 1;
+        set_buffer.register_index = 0;
+        set_buffer.space_index = 0;
+        set_buffer.type = hlsl::ShaderVariableType::StructuredBuffer;
+        auto &inst_buffer = code.properties[1];
+        inst_buffer.array_size = 1;
+        inst_buffer.register_index = 1;
+        inst_buffer.space_index = 0;
+        inst_buffer.type = hlsl::ShaderVariableType::RWStructuredBuffer;
         return code;
     };
     vstd::vector<SavedArgument> saved_args;
@@ -66,7 +66,7 @@ ComputeShader *BuiltinKernel::LoadBindlessSetKernel(Device *device) {
         {},
         uint3(256, 1, 1),
         "load_bdls_vk.dxil"sv,
-        SerdeType::Builtin,
+        SerdeType::kBuiltin,
         62, true);
 }
 // namespace detail {

@@ -5,6 +5,12 @@
 #include <luisa/core/spin_mutex.h>
 #include <luisa/runtime/rhi/pixel.h>
 #include <luisa/runtime/depth_format.h>
+
+// X11 headers define None as a macro, undef it her
+#ifdef None
+#undef None
+#endif
+
 namespace lc::vk {
 class Texture : public Resource {
     VkImage _vk_img;
@@ -93,7 +99,7 @@ public:
         return !is_srgb(_format) && (luisa::to_underlying(_format) <= 65535u);
     }
     static VkFormat to_vk_format(compute::PixelFormat format);
-    Tag tag() const override { return Tag::Texture; }
+    Tag tag() const override { return Tag::kTexture; }
 };
 struct TexView {
     Texture const *tex;

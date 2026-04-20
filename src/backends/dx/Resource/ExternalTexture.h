@@ -31,6 +31,6 @@ public:
     D3D12_RESOURCE_STATES GetInitState() const override {
         return initState;
     }
-    Tag GetTag() const override { return Tag::ExternalTexture; }
+    Tag get_tag() const override { return Tag::ExternalTexture; }
 };
 }// namespace lc::dx

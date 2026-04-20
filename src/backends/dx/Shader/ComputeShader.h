@@ -10,10 +10,10 @@ class ComputeShader final : public Shader {
     friend class ShaderSerializer;
 
 private:
-    ComPtr<ID3D12PipelineState> pso;
-    vstd::vector<luisa::compute::Argument> argBindings;
-    Device *device;
-    uint3 blockSize;
+    ComPtr<ID3D12PipelineState> _pso;
+    vstd::vector<luisa::compute::Argument> _arg_bindings;
+    Device *_device;
+    uint3 _block_size;
     ComputeShader(
         uint3 blockSize,
         Device *device,
@@ -24,19 +24,19 @@ private:
         ComPtr<ID3D12RootSignature> &&rootSig,
         ComPtr<ID3D12PipelineState> &&pso);
 
-    mutable ComPtr<ID3D12CommandSignature> cmdSig;
-    mutable std::mutex cmdSigMtx;
+    mutable ComPtr<ID3D12CommandSignature> _cmd_sig;
+    mutable std::mutex _cmd_sig_mtx;
 
 public:
-    static constexpr uint64_t DispatchIndirectStride = 28;
-    ID3D12PipelineState *Pso() const { return pso.Get(); }
-    vstd::span<luisa::compute::Argument const> ArgBindings() const { return argBindings; }
-    ID3D12CommandSignature *CmdSig() const;
-    Device *GetDevice() const { return device; }
-    Tag GetTag() const { return Tag::ComputeShader; }
-    uint3 BlockSize() const { return blockSize; }
-    static ComputeShader *CompileCompute(
-        luisa::BinaryIO const *fileIo,
+    static constexpr uint64_t kDispatchIndirectStride = 28;
+    ID3D12PipelineState *pso() const { return _pso.Get(); }
+    vstd::span<luisa::compute::Argument const> arg_bindings() const { return _arg_bindings; }
+    ID3D12CommandSignature *cmd_sig() const;
+    Device *get_device() const { return _device; }
+    Tag get_tag() const { return Tag::ComputeShader; }
+    uint3 block_size() const { return _block_size; }
+    static ComputeShader *compile_compute(
+        luisa::BinaryIO const *file_io,
         luisa::compute::Profiler *profiler,
         Device *device,
         Function kernel,
@@ -49,8 +49,8 @@ public:
         CacheType cacheType,
         bool enableUnsafeMath,
         bool debug);
-    static void SaveCompute(
-        luisa::BinaryIO const *fileIo,
+    static void save_compute(
+        luisa::BinaryIO const *file_io,
         luisa::compute::Profiler *profiler,
         Function kernel,
         hlsl::CodegenResult &codegen,
@@ -59,8 +59,8 @@ public:
         vstd::string_view fileName,
         bool enableUnsafeMath,
         bool debug);
-    static ComputeShader *LoadPresetCompute(
-        luisa::BinaryIO const *fileIo,
+    static ComputeShader *load_preset_compute(
+        luisa::BinaryIO const *file_io,
         luisa::compute::Profiler *profiler,
         Device *device,
         vstd::span<Type const *const> types,

@@ -13,7 +13,7 @@ struct Header {
     uint64 codeBytes;
     uint blockSize[3];
     uint propertyCount;
-    uint bindlessCount;
+    uint bindless_count;
     uint kernelArgCount;
     uint printerCount;
 };
@@ -25,7 +25,7 @@ struct RasterHeader {
     uint64 vertCodeBytes;
     uint64 pixelCodeBytes;
     uint propertyCount;
-    uint bindlessCount;
+    uint bindless_count;
     uint kernelArgCount;
     uint printerCount;
 };
@@ -62,7 +62,7 @@ ShaderSerializer::Serialize(
     vstd::span<std::byte const> binByte,
     vstd::MD5 const &checkMD5,
     vstd::MD5 const &typeMD5,
-    uint bindlessCount,
+    uint bindless_count,
     uint3 blockSize,
     vstd::span<std::pair<vstd::string, Type const *> const> printers) {
     using namespace shader_ser;
@@ -79,7 +79,7 @@ ShaderSerializer::Serialize(
         .rootSigBytes = (uint64)SerializeRootSig(properties, result, false),
         .codeBytes = (uint64)binByte.size(),
         .propertyCount = static_cast<uint>(properties.size()),
-        .bindlessCount = bindlessCount,
+        .bindless_count = bindless_count,
         .kernelArgCount = static_cast<uint>(kernelArgs.size()),
         .printerCount = static_cast<uint>(printers.size())};
     for (auto i : vstd::range(3)) {
@@ -102,7 +102,7 @@ vstd::vector<std::byte> ShaderSerializer::RasterSerialize(
     vstd::span<std::byte const> pixelBin,
     vstd::MD5 const &checkMD5,
     vstd::MD5 const &typeMD5,
-    uint bindlessCount,
+    uint bindless_count,
     vstd::span<std::pair<vstd::string, Type const *> const> printers) {
     using namespace shader_ser;
     vstd::vector<std::byte> result;
@@ -116,7 +116,7 @@ vstd::vector<std::byte> ShaderSerializer::RasterSerialize(
         .vertCodeBytes = (uint64)vertBin.size(),
         .pixelCodeBytes = (uint64)pixelBin.size(),
         .propertyCount = static_cast<uint>(properties.size()),
-        .bindlessCount = bindlessCount,
+        .bindless_count = bindless_count,
         .kernelArgCount = static_cast<uint>(kernelArgs.size()),
         .printerCount = static_cast<uint>(printers.size())};
     *reinterpret_cast<RasterHeader *>(result.data()) = std::move(header);
@@ -161,7 +161,7 @@ ComputeShader *ShaderSerializer::DeSerialize(
         profiler->before_load_shader_bytecode(name);
     }
     using namespace shader_ser;
-    auto binStream = ReadBinaryIO(cacheType, &streamFunc, name);
+    auto binStream = read_binary_io(cacheType, &streamFunc, name);
     if (binStream == nullptr || binStream->length() <= sizeof(Header)) {
         if (profiler) [[unlikely]] {
             profiler->after_load_shader_bytecode(name, false);
@@ -277,7 +277,7 @@ ComputeShader *ShaderSerializer::DeSerialize(
         std::move(printers),
         std::move(rootSig),
         std::move(pso));
-    cs->bindlessCount = header.bindlessCount;
+    cs->_bindless_count = header.bindless_count;
     return cs;
 }
 RasterShader *ShaderSerializer::RasterDeSerialize(
@@ -288,7 +288,7 @@ RasterShader *ShaderSerializer::RasterDeSerialize(
     vstd::optional<vstd::MD5> const &ilMd5,
     vstd::optional<vstd::MD5> const &typeMD5) {
     using namespace shader_ser;
-    auto binStream = ReadBinaryIO(cacheType, &streamFunc, name);
+    auto binStream = read_binary_io(cacheType, &streamFunc, name);
     if (binStream == nullptr || binStream->length() <= sizeof(RasterHeader)){
         if(binStream) {
             LUISA_INFO("size {}", binStream->length());
@@ -320,7 +320,7 @@ RasterShader *ShaderSerializer::RasterDeSerialize(
     }
     BinaryBlob binCode = binStream->read(targetSize);
     auto binPtr = binCode.data();
-    // auto psoDesc = RasterShader::GetState(
+    // auto psoDesc = RasterShader::get_state(
     //     elements,
     //     meshFormat,
     //     state,
@@ -389,7 +389,7 @@ RasterShader *ShaderSerializer::RasterDeSerialize(
         std::move(printers),
         std::move(vertBin),
         std::move(pixelBin));
-    s->bindlessCount = header.bindlessCount;
+    s->_bindless_count = header.bindless_count;
     return s;
 }
 ComPtr<ID3DBlob> ShaderSerializer::SerializeRootSig(

@@ -37,7 +37,7 @@ public:
     }
     D3D12_UNORDERED_ACCESS_VIEW_DESC GetColorUavDesc(uint targetMipLevel) const override;
     D3D12_RENDER_TARGET_VIEW_DESC GetRenderTargetDesc(uint mipOffset) const override;
-    Tag GetTag() const override { return Tag::RenderTexture; }
+    Tag get_tag() const override { return Tag::RenderTexture; }
     uint GetGlobalSRVIndex(uint mipOffset = 0) const override;
     uint GetGlobalUAVIndex(uint mipLevel) const override;
 };

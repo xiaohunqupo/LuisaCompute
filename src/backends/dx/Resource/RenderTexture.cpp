@@ -34,7 +34,7 @@ RenderTexture::RenderTexture(
     } else {
         ID3D12Heap *heap;
         uint64 offset;
-        // if(device->gpuType == Device::GpuType::NVIDIA && allowUav){
+        // if(device->gpu_type == Device::GpuType::NVIDIA && allowUav){
         //     texDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
         // }
         auto allocateInfo = device->device->GetResourceAllocationInfo(
@@ -75,12 +75,12 @@ uint RenderTexture::GetGlobalUAVIndex(uint mipLevel) const {
     return GetGlobalUAVIndexBase(mipLevel, allocMtx, uavIdcs);
 }
 RenderTexture::~RenderTexture() {
-    auto &globalHeap = *device->globalHeap.get();
+    auto &global_heap = *device->global_heap.get();
     for (auto &&i : uavIdcs) {
-        globalHeap.ReturnIndex(i.second);
+        global_heap.ReturnIndex(i.second);
     }
     for (auto &&i : srvIdcs) {
-        globalHeap.ReturnIndex(i.second);
+        global_heap.ReturnIndex(i.second);
     }
 }
 }// namespace lc::dx

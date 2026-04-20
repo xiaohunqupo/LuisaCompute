@@ -11,13 +11,13 @@ namespace lc::hlsl {
 class ShaderCompiler;
 }// namespace lc::hlsl
 namespace lc::vk {
-static constexpr uint k_shader_model = 65u;
-static constexpr uint k_high_shader_model = 66u;
-static constexpr uint k_tensor_shader_model = 69u;
+static constexpr uint kShaderModel = 65u;
+static constexpr uint kHighShaderModel = 66u;
+static constexpr uint kTensorShaderModel = 69u;
 class ComputeShader;
 using namespace luisa;
 using namespace luisa::compute;
-static constexpr size_t sparse_buffer_size = 65536ull;
+static constexpr size_t kSparseBufferSize = 65536ull;
 class Device : public DeviceInterface, public vstd::IOperatorNewBase {
     struct Ext {
         using Ctor = vstd::func_ptr_t<DeviceExtension *(Device *)>;
@@ -39,8 +39,8 @@ class Device : public DeviceInterface, public vstd::IOperatorNewBase {
     luisa::spin_mutex _graphics_queue_mtx;
     luisa::spin_mutex _compute_queue_mtx;
     luisa::spin_mutex _copy_queue_mtx;
-    std::mutex ext_mtx;
-    vstd::unordered_map<vstd::string, Ext> exts;
+    std::mutex _ext_mtx;
+    vstd::unordered_map<vstd::string, Ext> _exts;
     luisa::unique_ptr<VulkanDeviceConfigExt> _config_ext;
     vstd::optional<vks::VulkanDevice> _vk_device;
     vstd::vector<vstd::string> _enable_device_exts;
@@ -64,7 +64,7 @@ class Device : public DeviceInterface, public vstd::IOperatorNewBase {
     vstd::optional<VkAllocator> _allocator;
     BinaryIO const *_binary_io{};
     vstd::unique_ptr<DefaultBinaryIO> _default_file_io;
-    bool inqueue_limit = true;// TODO
+    bool _inqueue_limit = true;// TODO
     void _init_device(VkPhysicalDevice external_physical_device, VkDevice external_device, uint32_t selectedDevice);
 public:
     struct HeapAlloc {
@@ -88,13 +88,13 @@ public:
         using LoadFunc = vstd::func_ptr_t<ComputeShader *(Device *)>;
 
     private:
-        vstd::unique_ptr<ComputeShader> shader;
-        LoadFunc loadFunc;
+        vstd::unique_ptr<ComputeShader> _shader;
+        LoadFunc _load_func;
 
     public:
-        explicit LazyLoadShader(LoadFunc loadFunc);
-        ComputeShader *Get(Device *self);
-        bool Check(Device *self);
+        explicit LazyLoadShader(LoadFunc load_func);
+        ComputeShader *get(Device *self);
+        bool check(Device *self);
         ~LazyLoadShader();
     };
     vstd::vector<VkImageView> tex2d_bindless_imgview;
@@ -104,16 +104,16 @@ public:
     HeapAlloc buffer_heap_pool;
     LazyLoadShader set_bindless_kernel;
     LazyLoadShader set_accel_kernel;
-    bool _external_instance : 1 {false};
-    bool _external_device : 1 {false};
-    bool _external_graphics_queue : 1 {false};
-    bool _external_compute_queue : 1 {false};
-    bool _external_copy_queue : 1 {false};
-    bool _enable_bindless : 1 {true};
-    bool _enable_raytracing : 1 {true};
-    bool _enable_surface : 1 {true};
-    bool _enable_device_address : 1 {true};
-    bool _enable_interop : 1 {true};
+    bool external_instance : 1 {false};
+    bool external_device : 1 {false};
+    bool external_graphics_queue : 1 {false};
+    bool external_compute_queue : 1 {false};
+    bool external_copy_queue : 1 {false};
+    bool bindless_enabled : 1 {true};
+    bool raytracing_enabled : 1 {true};
+    bool surface_enabled : 1 {true};
+    bool device_address_enabled : 1 {true};
+    bool interop_enabled : 1 {true};
     auto &graphics_queue_mtx() { return _graphics_queue_mtx; }
     auto &compute_queue_mtx() { return _compute_queue_mtx; }
     auto &copy_queue_mtx() { return _copy_queue_mtx; }
@@ -124,26 +124,26 @@ public:
     auto bdls_tex2d_set() const { return _bdls_tex2d_set; }
     auto bdls_tex3d_set() const { return _bdls_tex3d_set; }
     auto samplers() const { return luisa::span{_samplers}; }
-    bool enable_surface_feature() const { return _enable_surface; }
-    bool enable_bindless() const { return _enable_bindless; }
-    bool enable_interop() const { return _enable_interop; }
-    bool enable_raytracing() const { return _enable_raytracing; }
-    bool enable_device_address() const { return _enable_device_address; }
-    static hlsl::ShaderCompiler *Compiler();
+    bool enable_surface_feature() const { return surface_enabled; }
+    bool enable_bindless() const { return bindless_enabled; }
+    bool enable_interop() const { return interop_enabled; }
+    bool enable_raytracing() const { return raytracing_enabled; }
+    bool enable_device_address() const { return device_address_enabled; }
+    static hlsl::ShaderCompiler *compiler();
     static VkAllocationCallbacks *alloc_callbacks();
     static VkInstance instance();
     uint compute_warp_size() const noexcept override;
     uint64_t memory_granularity() const noexcept override;
     auto &allocator() { return *_allocator; }
-    auto physical_device() const { return _vk_device->physicalDevice; }
-    auto logic_device() const { return _vk_device->logicalDevice; }
+    auto physical_device() const { return _vk_device->physical_device; }
+    auto logic_device() const { return _vk_device->logical_device; }
     auto const &pso_header() const { return _pso_header; }
     bool is_pso_same(VkPipelineCacheHeaderVersionOne const &pso);
     auto const &properties() const { return _vk_device->properties; }
     auto const &features() const { return _vk_device->features; }
-    auto graphics_queue_index() const { return _vk_device->queueFamilyIndices.graphics; }
-    auto compute_queue_index() const { return _vk_device->queueFamilyIndices.compute; }
-    auto copy_queue_index() const { return _vk_device->queueFamilyIndices.transfer; }
+    auto graphics_queue_index() const { return _vk_device->queue_family_indices.graphics; }
+    auto compute_queue_index() const { return _vk_device->queue_family_indices.compute; }
+    auto copy_queue_index() const { return _vk_device->queue_family_indices.transfer; }
     Device(Context &&ctx, DeviceConfig const *configs);
     ~Device();
     void *native_handle() const noexcept override;

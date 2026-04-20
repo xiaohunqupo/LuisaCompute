@@ -3,15 +3,17 @@
 namespace lc::dx {
 class BuiltinKernel {
 public:
-    static ComputeShader *LoadBindlessSetKernel(Device *device);
-    static ComputeShader *LoadAccelSetKernel(Device *device);
-    static ComputeShader *LoadBC6TryModeG10CSKernel(Device *device);
-    static ComputeShader *LoadBC6TryModeLE10CSKernel(Device *device);
-    static ComputeShader *LoadBC6EncodeBlockCSKernel(Device *device);
-    static ComputeShader *LoadBC7TryMode456CSKernel(Device *device);
-    static ComputeShader *LoadBC7TryMode137CSKernel(Device *device);
-    static ComputeShader *LoadBC7TryMode02CSKernel(Device *device);
-    static ComputeShader *LoadBC7EncodeBlockCSKernel(Device *device);
+    static ComputeShader *load_bindless_set_kernel(Device *device);
+    static ComputeShader *load_accel_set_kernel(Device *device);
+    static ComputeShader *load_bc6_try_mode_g10cs_kernel(Device *device);
+    static ComputeShader *load_bc6_try_mode_le10cs_kernel(Device *device);
+    static ComputeShader *load_bc6_encode_block_cs_kernel(Device *device);
+    static ComputeShader *load_bc7_try_mode_456cs_kernel(Device *device);
+    static ComputeShader *load_bc7_try_mode_137cs_kernel(Device *device);
+    static ComputeShader *load_bc7_try_mode_02cs_kernel(Device *device);
+    static ComputeShader *load_bc7_encode_block_cs_kernel(Device *device);
+    BuiltinKernel() = delete;
+    ~BuiltinKernel() = delete;
 };
 }// namespace lc::dx
 

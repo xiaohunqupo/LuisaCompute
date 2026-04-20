@@ -18,9 +18,9 @@ Event::Event(Device *device)
 
     VK_CHECK_RESULT(vkCreateSemaphore(device->logic_device(), &createInfo, Device::alloc_callbacks(), &_semaphore));
 }
-void Event::update_fence(uint64_t value) {
-    std::lock_guard lck(eventMtx);
-    lastFence = std::max(lastFence, value);
+void Event::_update_fence(uint64_t value) {
+    std::lock_guard lck(_event_mtx);
+    _last_fence = std::max(_last_fence, value);
 }
 VkTimelineSemaphoreSubmitInfo Event::get_timeline_submit(uint64_t const *value_ptr) {
     VkTimelineSemaphoreSubmitInfo timelineInfo1{};
@@ -34,19 +34,19 @@ VkTimelineSemaphoreSubmitInfo Event::get_timeline_submit(uint64_t const *value_p
     return timelineInfo1;
 }
 void Event::mark_signal_fence(uint64_t fence) {
-    uint64_t old_val = signaledEvent.load(std::memory_order_relaxed);
+    uint64_t old_val = _signaled_event.load(std::memory_order_relaxed);
     while (fence > old_val &&
-           !signaledEvent.compare_exchange_weak(
+           !_signaled_event.compare_exchange_weak(
                old_val, fence,
                std::memory_order_release,
                std::memory_order_relaxed)) {
         LUISA_INTRIN_PAUSE();
     }
 }
-void Event::signal_sparse(Stream &stream, uint64_t const *value_ptr, VkBindSparseInfo *sparse_info, VkTimelineSemaphoreSubmitInfo *timeline_ptr) {
+void Event::_signal_sparse(Stream &stream, uint64_t const *value_ptr, VkBindSparseInfo *sparse_info, VkTimelineSemaphoreSubmitInfo *timeline_ptr) {
     {
-        std::lock_guard lck(eventMtx);
-        lastFence = std::max(lastFence, *value_ptr);
+        std::lock_guard lck(_event_mtx);
+        _last_fence = std::max(_last_fence, *value_ptr);
     }
     *timeline_ptr = get_timeline_submit(value_ptr);
     timeline_ptr->pNext = sparse_info->pNext;
@@ -56,10 +56,10 @@ void Event::signal_sparse(Stream &stream, uint64_t const *value_ptr, VkBindSpars
     sparse_info->signalSemaphoreCount = 1;
     sparse_info->pSignalSemaphores = &_semaphore;
 }
-void Event::signal(Stream &stream, uint64_t value, VkCommandBuffer *cmdbuffer) {
+void Event::_signal(Stream &stream, uint64_t value, VkCommandBuffer *cmdbuffer) {
     {
-        std::lock_guard lck(eventMtx);
-        lastFence = std::max(lastFence, value);
+        std::lock_guard lck(_event_mtx);
+        _last_fence = std::max(_last_fence, value);
     }
     if (device()->config_ext() && device()->config_ext()->signal_semaphore(stream.queue(), _semaphore, value))
         return;
@@ -79,8 +79,8 @@ void Event::signal(Stream &stream, uint64_t value, VkCommandBuffer *cmdbuffer) {
     stream.queue_mtx().unlock();
     mark_signal_fence(value);
 }
-void Event::wait(Stream &stream, uint64_t value) {
-    auto evt_value = signaledEvent.load();
+void Event::_wait(Stream &stream, uint64_t value) {
+    auto evt_value = _signaled_event.load();
     if (evt_value < value)
         LUISA_ERROR("Waiting for fence {} greater than last signaled-fence {}", value, evt_value);
     if (device()->config_ext() && device()->config_ext()->wait_semaphore(stream.queue(), _semaphore, value))
@@ -109,7 +109,7 @@ void Event::wait(Stream &stream, uint64_t value) {
     VK_CHECK_RESULT(vkQueueSubmit(stream.queue(), 1, &info1, VK_NULL_HANDLE));
     stream.queue_mtx().unlock();
 }
-void Event::host_wait(uint64_t value) {
+void Event::_host_wait(uint64_t value) {
     if (device()->config_ext() && device()->config_ext()->sync_semaphore(_semaphore, value))
         return;
     VkSemaphoreWaitInfo info{
@@ -119,21 +119,21 @@ void Event::host_wait(uint64_t value) {
         .pValues = &value};
     VK_CHECK_RESULT(vkWaitSemaphores(device()->logic_device(), &info, std::numeric_limits<uint64_t>::max()));
 }
-void Event::notify(uint64_t value) {
+void Event::_notify(uint64_t value) {
     {
-        std::lock_guard lck(eventMtx);
-        finishedEvent = std::max<uint64_t>(finishedEvent, value);
+        std::lock_guard lck(_event_mtx);
+        _finished_event = std::max<uint64_t>(_finished_event, value);
     }
 }
 void Event::sync(uint64_t value) {
-    while (finishedEvent < value) {
+    while (_finished_event < value) {
         std::this_thread::yield();
     }
 }
 
 Event::~Event() {
-    sync(lastFence);
-    host_wait(signaledEvent.load(std::memory_order_relaxed));
+    sync(_last_fence);
+    _host_wait(_signaled_event.load(std::memory_order_relaxed));
     vkDestroySemaphore(device()->logic_device(), _semaphore, Device::alloc_callbacks());
 }
 }// namespace lc::vk

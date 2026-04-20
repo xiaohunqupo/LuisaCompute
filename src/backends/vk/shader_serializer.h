@@ -15,6 +15,8 @@ class RasterShader;
 class Shader;
 class ComputeShader;
 class ShaderSerializer {
+    ShaderSerializer() = delete;
+    ~ShaderSerializer() = delete;
 public:
     static void serialize_raster(
         vstd::span<const hlsl::Property> binds,

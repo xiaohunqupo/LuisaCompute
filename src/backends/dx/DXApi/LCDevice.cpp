@@ -48,7 +48,7 @@ static constexpr uint kHighShaderModel = 66u;
 static constexpr uint kTensorShaderModel = 69u;
 LCDevice::LCDevice(Context &&ctx, DeviceConfig const *settings)
     : DeviceInterface(std::move(ctx)),
-      nativeDevice(Context{_ctx_impl}, settings) {
+      native_device(Context{_ctx_impl}, settings) {
     // no ext when headless
     bool headless = settings && settings->headless;
     if (!headless) {
@@ -69,7 +69,7 @@ LCDevice::LCDevice(Context &&ctx, DeviceConfig const *settings)
             TexCompressExt::name,
 #endif
             [](LCDevice *device) -> DeviceExtension * {
-                return new DxTexCompressExt(&device->nativeDevice);
+                return new DxTexCompressExt(&device->native_device);
             },
             [](DeviceExtension *ext) {
                 delete static_cast<DxTexCompressExt *>(ext);
@@ -81,7 +81,7 @@ LCDevice::LCDevice(Context &&ctx, DeviceConfig const *settings)
             NativeResourceExt::name,
 #endif
             [](LCDevice *device) -> DeviceExtension * {
-                return new DxNativeResourceExt(device, &device->nativeDevice);
+                return new DxNativeResourceExt(device, &device->native_device);
             },
             [](DeviceExtension *ext) {
                 delete static_cast<DxNativeResourceExt *>(ext);
@@ -157,7 +157,7 @@ LCDevice::LCDevice(Context &&ctx, DeviceConfig const *settings)
         RasterExt::name,
 #endif
         [](LCDevice *device) -> DeviceExtension * {
-            return new DxRasterExt(device->nativeDevice);
+            return new DxRasterExt(device->native_device);
         },
         [](DeviceExtension *ext) {
             delete static_cast<DxRasterExt *>(ext);
@@ -165,14 +165,14 @@ LCDevice::LCDevice(Context &&ctx, DeviceConfig const *settings)
 }
 LCDevice::~LCDevice() = default;
 //Hash128 LCDevice::device_hash() const noexcept {
-//    vstd::MD5::MD5Data const &md5 = nativeDevice.adapterID.to_binary();
+//    vstd::MD5::MD5Data const &md5 = native_device.adapter_id.to_binary();
 //    Hash128 r;
 //    static_assert(sizeof(Hash128) == sizeof(vstd::MD5::MD5Data));
 //    memcpy(&r, &md5, sizeof(Hash128));
 //    return r;
 //}
 void *LCDevice::native_handle() const noexcept {
-    return nativeDevice.device.Get();
+    return native_device.device.Get();
 }
 BufferCreationInfo LCDevice::create_buffer(const Type *element,
                                            size_t elem_count,
@@ -184,21 +184,21 @@ BufferCreationInfo LCDevice::create_buffer(const Type *element,
         info.element_stride = 1u;
         res = external_memory ?
                   new DefaultBuffer(
-                      &nativeDevice,
+                      &native_device,
                       info.total_size_bytes,
                       reinterpret_cast<ID3D12Resource *>(external_memory)) :
                   new DefaultBuffer(
-                      &nativeDevice,
+                      &native_device,
                       info.total_size_bytes,
-                      nativeDevice.defaultAllocator.get());
+                      native_device.default_allocator.get());
     } else if (element->is_custom()) {
         if (element == Type::of<IndirectKernelDispatch>()) {
             LUISA_ASSERT(external_memory == nullptr,
                          "IndirectKernelDispatch buffer cannot "
                          "be created from external memory.");
-            info.element_stride = ComputeShader::DispatchIndirectStride;
+            info.element_stride = ComputeShader::kDispatchIndirectStride;
             info.total_size_bytes = 4 + info.element_stride * elem_count;
-            res = static_cast<Buffer *>(new DefaultBuffer(&nativeDevice, info.total_size_bytes, nativeDevice.defaultAllocator.get()));
+            res = static_cast<Buffer *>(new DefaultBuffer(&native_device, info.total_size_bytes, native_device.default_allocator.get()));
         } else {
             LUISA_ERROR("Un-known custom type in dx-backend.");
         }
@@ -207,14 +207,14 @@ BufferCreationInfo LCDevice::create_buffer(const Type *element,
         res = external_memory ?
                   static_cast<Buffer *>(
                       new DefaultBuffer(
-                          &nativeDevice,
+                          &native_device,
                           info.total_size_bytes,
                           reinterpret_cast<ID3D12Resource *>(external_memory))) :
                   static_cast<Buffer *>(
                       new DefaultBuffer(
-                          &nativeDevice,
+                          &native_device,
                           info.total_size_bytes,
-                          nativeDevice.defaultAllocator.get()));
+                          native_device.default_allocator.get()));
         info.element_stride = element->size();
     }
     info.handle = resource_to_handle(res);
@@ -241,33 +241,33 @@ ResourceCreationInfo LCDevice::create_texture(
         }
         simultaneous_access = false;
     }
-    bool allowUAV = !is_block_compressed(format);
+    bool allow_uav = !is_block_compressed(format);
     ResourceCreationInfo info{};
     auto res = new RenderTexture(
-        &nativeDevice,
+        &native_device,
         width,
         height,
         TextureBase::ToGFXFormat(format),
         (TextureDimension)dimension,
         depth,
         mipmap_levels,
-        allowUAV,
+        allow_uav,
         simultaneous_access,
         allow_raster_target,
-        nativeDevice.defaultAllocator.get());
+        native_device.default_allocator.get());
     info.handle = resource_to_handle(res);
     info.native_handle = res->GetResource();
     return info;
 }
 //string LCDevice::cache_name(string_view file_name) const noexcept {
-//    return Shader::PSOName(&nativeDevice, file_name);
+//    return Shader::PSOName(&native_device, file_name);
 //}
 void LCDevice::destroy_texture(uint64 handle) noexcept {
     delete reinterpret_cast<TextureBase *>(handle);
 }
 ResourceCreationInfo LCDevice::create_bindless_array(size_t size, BindlessSlotType type) noexcept {
     ResourceCreationInfo info{};
-    auto res = new BindlessArray(&nativeDevice, size, type);
+    auto res = new BindlessArray(&native_device, size, type);
     info.handle = resource_to_handle(res);
     info.native_handle = res->GetResource();
     return info;
@@ -278,8 +278,8 @@ void LCDevice::destroy_bindless_array(uint64 handle) noexcept {
 ResourceCreationInfo LCDevice::create_stream(StreamTag stream_tag) noexcept {
     ResourceCreationInfo info{};
     auto res = new LCCmdBuffer(
-        &nativeDevice,
-        nativeDevice.defaultAllocator.get(),
+        &native_device,
+        native_device.default_allocator.get(),
         [&] {
             switch (stream_tag) {
                 case compute::StreamTag::COMPUTE:
@@ -294,13 +294,13 @@ ResourceCreationInfo LCDevice::create_stream(StreamTag stream_tag) noexcept {
             LUISA_ERROR_WITH_LOCATION("Unreachable.");
         }());
     info.handle = resource_to_handle(res);
-    info.native_handle = res->queue.Queue();
+    info.native_handle = res->queue.queue();
     return info;
 }
 
 void LCDevice::destroy_stream(uint64 handle) noexcept {
     auto queue = reinterpret_cast<CmdQueueBase *>(handle);
-    switch (queue->Tag()) {
+    switch (queue->tag()) {
         case CmdQueueTag::MainCmd:
             delete static_cast<LCCmdBuffer *>(queue);
             break;
@@ -311,7 +311,7 @@ void LCDevice::destroy_stream(uint64 handle) noexcept {
 }
 void LCDevice::synchronize_stream(uint64 stream_handle) noexcept {
     auto queue = reinterpret_cast<CmdQueueBase *>(stream_handle);
-    switch (queue->Tag()) {
+    switch (queue->tag()) {
         case CmdQueueTag::MainCmd:
             static_cast<LCCmdBuffer *>(queue)->Sync();
             break;
@@ -322,12 +322,12 @@ void LCDevice::synchronize_stream(uint64 stream_handle) noexcept {
 }
 void LCDevice::dispatch(uint64 stream_handle, CommandList &&list) noexcept {
     auto queue = reinterpret_cast<CmdQueueBase *>(stream_handle);
-    switch (queue->Tag()) {
+    switch (queue->tag()) {
         case CmdQueueTag::MainCmd:
             reinterpret_cast<LCCmdBuffer *>(stream_handle)
                 ->Execute(
                     list.commands(), list.steal_callbacks(), list.presents(),
-                    nativeDevice.maxAllocatorCount);
+                    native_device.max_allocator_count);
             break;
         case CmdQueueTag::DStorage:
             static_cast<DStorageCommandQueue *>(queue)->Execute(list.commands(), list.steal_callbacks());
@@ -337,11 +337,11 @@ void LCDevice::dispatch(uint64 stream_handle, CommandList &&list) noexcept {
 void LCDevice::set_stream_log_callback(uint64_t stream_handle,
                                        const StreamLogCallback &callback) noexcept {
     auto queue = reinterpret_cast<CmdQueueBase *>(stream_handle);
-    queue->logCallback = callback;
+    queue->log_callback = callback;
 }
 
 ShaderCreationInfo LCDevice::create_shader(const ShaderOption &option, Function kernel) noexcept {
-    LUISA_ASSERT(Device::Compiler(), "Shader compiler not loaded.");
+    LUISA_ASSERT(Device::compiler(), "Shader compiler not loaded.");
     if (kernel.propagated_builtin_callables().test(CallOp::BACKWARD)) {
 #ifdef LUISA_ENABLE_IR
         auto ir = AST2IR::build_kernel(kernel);
@@ -366,12 +366,12 @@ ShaderCreationInfo LCDevice::create_shader(const ShaderOption &option, Function 
     constexpr uint compiler_version = 202403u;// dxc version at march 2024
     mask |= (1 << 2);
     mask |= compiler_version << 3u;
-    auto code = hlsl::CodegenUtility{}.Codegen(kernel, option.native_include, mask, false, Device::Compiler() == nullptr);
+    auto code = hlsl::CodegenUtility{}.Codegen(kernel, option.native_include, mask, false, Device::compiler() == nullptr);
     if (option.compile_only) {
         LUISA_ASSUME(!option.name.empty());
-        ComputeShader::SaveCompute(
-            nativeDevice.fileIo,
-            nativeDevice.profiler,
+        ComputeShader::save_compute(
+            native_device.file_io,
+            native_device.profiler,
             kernel,
             code,
             kernel.block_size(),
@@ -385,35 +385,35 @@ ShaderCreationInfo LCDevice::create_shader(const ShaderOption &option, Function 
     } else {
         vstd::string_view file_name;
         vstd::string str_cache;
-        vstd::MD5 checkMD5({reinterpret_cast<uint8_t const *>(code.result.data() + code.immutableHeaderSize), code.result.size() - code.immutableHeaderSize});
-        CacheType cacheType{};
+        vstd::MD5 check_md5({reinterpret_cast<uint8_t const *>(code.result.data() + code.immutableHeaderSize), code.result.size() - code.immutableHeaderSize});
+        CacheType cache_type{};
         if (option.enable_cache) {
             if (option.name.empty()) {
-                str_cache << checkMD5.to_string(false) << ".dxil"sv;
+                str_cache << check_md5.to_string(false) << ".dxil"sv;
                 file_name = str_cache;
-                cacheType = CacheType::Cache;
+                cache_type = CacheType::Cache;
             } else {
                 file_name = option.name;
-                cacheType = CacheType::ByteCode;
+                cache_type = CacheType::ByteCode;
             }
         }
-        auto res = ComputeShader::CompileCompute(
-            nativeDevice.fileIo,
-            nativeDevice.profiler,
-            &nativeDevice,
+        auto res = ComputeShader::compile_compute(
+            native_device.file_io,
+            native_device.profiler,
+            &native_device,
             kernel,
             [&]() { return std::move(code); },
-            checkMD5,
+            check_md5,
             hlsl::binding_to_arg(kernel.bound_arguments()),
             kernel.block_size(),
             kernel.use_cooperative_operations() ? kTensorShaderModel : (kernel.allowed_warp_size().has_value() ? kHighShaderModel : kShaderModel),
             file_name,
-            cacheType,
+            cache_type,
             option.enable_fast_math,
             option.enable_debug_info);
         info.block_size = kernel.block_size();
         info.handle = reinterpret_cast<uint64>(res);
-        info.native_handle = res->Pso();
+        info.native_handle = res->pso();
         return info;
     }
     return info;
@@ -421,17 +421,17 @@ ShaderCreationInfo LCDevice::create_shader(const ShaderOption &option, Function 
 ShaderCreationInfo LCDevice::load_shader(
     vstd::string_view file_name,
     vstd::span<Type const *const> types) noexcept {
-    auto res = ComputeShader::LoadPresetCompute(
-        nativeDevice.fileIo,
-        nativeDevice.profiler,
-        &nativeDevice,
+    auto res = ComputeShader::load_preset_compute(
+        native_device.file_io,
+        native_device.profiler,
+        &native_device,
         types,
         file_name);
     ShaderCreationInfo info;
     if (res) {
         info.handle = reinterpret_cast<uint64>(res);
-        info.native_handle = res->Pso();
-        info.block_size = res->BlockSize();
+        info.native_handle = res->pso();
+        info.block_size = res->block_size();
     } else {
         info.invalidate();
         info.block_size = uint3(0);
@@ -440,7 +440,7 @@ ShaderCreationInfo LCDevice::load_shader(
 }
 Usage LCDevice::shader_argument_usage(uint64_t handle, size_t index) noexcept {
     auto shader = reinterpret_cast<Shader *>(handle);
-    return shader->Args()[index].varUsage;
+    return shader->args()[index].var_usage;
 }
 void LCDevice::destroy_shader(uint64 handle) noexcept {
     auto shader = reinterpret_cast<Shader *>(handle);
@@ -448,9 +448,9 @@ void LCDevice::destroy_shader(uint64 handle) noexcept {
 }
 ResourceCreationInfo LCDevice::create_event() noexcept {
     ResourceCreationInfo info{};
-    auto res = new LCEvent(&nativeDevice);
+    auto res = new LCEvent(&native_device);
     info.handle = resource_to_handle(res);
-    info.native_handle = res->Fence();
+    info.native_handle = res->fence();
     return info;
 }
 void LCDevice::destroy_event(uint64 handle) noexcept {
@@ -458,30 +458,30 @@ void LCDevice::destroy_event(uint64 handle) noexcept {
 }
 void LCDevice::signal_event(uint64 handle, uint64 stream_handle, uint64_t fence) noexcept {
     auto queue = reinterpret_cast<CmdQueueBase *>(stream_handle);
-    switch (queue->Tag()) {
+    switch (queue->tag()) {
         case CmdQueueTag::MainCmd:
-            reinterpret_cast<LCEvent *>(handle)->Signal(
+            reinterpret_cast<LCEvent *>(handle)->signal(
                 &reinterpret_cast<LCCmdBuffer *>(stream_handle)->queue, fence);
             break;
         case CmdQueueTag::DStorage:
-            reinterpret_cast<LCEvent *>(handle)->Signal(
+            reinterpret_cast<LCEvent *>(handle)->signal(
                 reinterpret_cast<DStorageCommandQueue *>(stream_handle), fence);
             break;
     }
 }
 bool LCDevice::is_event_completed(uint64_t handle, uint64_t fence) const noexcept {
-    return reinterpret_cast<LCEvent *>(handle)->IsComplete(fence);
+    return reinterpret_cast<LCEvent *>(handle)->is_complete(fence);
 }
 void LCDevice::wait_event(uint64 handle, uint64 stream_handle, uint64_t fence) noexcept {
     auto queue = reinterpret_cast<CmdQueueBase *>(stream_handle);
-    if (queue->Tag() != CmdQueueTag::MainCmd) [[unlikely]] {
+    if (queue->tag() != CmdQueueTag::MainCmd) [[unlikely]] {
         LUISA_ERROR("Wait command not allowed in Direct-Storage.");
     }
-    reinterpret_cast<LCEvent *>(handle)->Wait(
+    reinterpret_cast<LCEvent *>(handle)->wait(
         &reinterpret_cast<LCCmdBuffer *>(stream_handle)->queue, fence);
 }
 void LCDevice::synchronize_event(uint64 handle, uint64_t fence) noexcept {
-    reinterpret_cast<LCEvent *>(handle)->Sync(fence);
+    reinterpret_cast<LCEvent *>(handle)->sync(fence);
 }
 ResourceCreationInfo LCDevice::create_procedural_primitive(const AccelOption &option) noexcept {
     return create_mesh(option);
@@ -491,7 +491,7 @@ void LCDevice::destroy_procedural_primitive(uint64 handle) noexcept {
 }
 ResourceCreationInfo LCDevice::create_mesh(const AccelOption &option) noexcept {
     ResourceCreationInfo info{};
-    auto res = new BottomAccel(&nativeDevice, option);
+    auto res = new BottomAccel(&native_device, option);
     info.handle = resource_to_handle(res);
     info.native_handle = nullptr;
     return info;
@@ -502,7 +502,7 @@ void LCDevice::destroy_mesh(uint64 handle) noexcept {
 ResourceCreationInfo LCDevice::create_accel(const AccelOption &option) noexcept {
     ResourceCreationInfo info{};
     auto res = new TopAccel(
-        &nativeDevice,
+        &native_device,
         option);
 
     info.handle = resource_to_handle(res);
@@ -514,14 +514,14 @@ void LCDevice::destroy_accel(uint64 handle) noexcept {
 }
 SwapchainCreationInfo LCDevice::create_swapchain(const SwapchainOption &option, uint64_t stream_handle) noexcept {
     auto queue = reinterpret_cast<CmdQueueBase *>(stream_handle);
-    if (queue->Tag() != CmdQueueTag::MainCmd) [[unlikely]] {
+    if (queue->tag() != CmdQueueTag::MainCmd) [[unlikely]] {
         LUISA_ERROR("swapchain not allowed in Direct-Storage.");
     }
     SwapchainCreationInfo info{};
     auto res = new LCSwapChain(
-        &nativeDevice,
+        &native_device,
         &reinterpret_cast<LCCmdBuffer *>(stream_handle)->queue,
-        nativeDevice.defaultAllocator.get(),
+        native_device.default_allocator.get(),
         reinterpret_cast<HWND>(option.window),
         option.size.x,
         option.size.y,
@@ -529,7 +529,7 @@ SwapchainCreationInfo LCDevice::create_swapchain(const SwapchainOption &option, 
         option.wants_vsync,
         option.back_buffer_count, option.wants_transparent);
     info.handle = resource_to_handle(res);
-    info.native_handle = res->swapChain.Get();
+    info.native_handle = res->swap_chain.Get();
     info.storage = option.wants_hdr ? PixelStorage::HALF4 : PixelStorage::BYTE4;
     return info;
 }
@@ -538,13 +538,13 @@ void LCDevice::destroy_swapchain(uint64 handle) noexcept {
 }
 void LCDevice::present_display_in_stream(uint64 stream_handle, uint64 swapchain_handle, uint64 image_handle) noexcept {
     auto queue = reinterpret_cast<CmdQueueBase *>(stream_handle);
-    if (queue->Tag() != CmdQueueTag::MainCmd) [[unlikely]] {
+    if (queue->tag() != CmdQueueTag::MainCmd) [[unlikely]] {
         LUISA_ERROR("present not allowed in Direct-Storage.");
     }
     reinterpret_cast<LCCmdBuffer *>(stream_handle)
         ->Present(
             reinterpret_cast<LCSwapChain *>(swapchain_handle),
-            reinterpret_cast<TextureBase *>(image_handle), 0, nativeDevice.maxAllocatorCount);
+            reinterpret_cast<TextureBase *>(image_handle), 0, native_device.max_allocator_count);
 }
 ResourceCreationInfo DxRasterExt::create_raster_shader(
     Function vert,
@@ -557,15 +557,15 @@ ResourceCreationInfo DxRasterExt::create_raster_shader(
     if (option.enable_debug_info) {
         mask |= 2;
     }
-    auto code = hlsl::CodegenUtility{}.RasterCodegen(vert, pixel, option.native_include, mask, false, Device::Compiler() == nullptr);
-    vstd::MD5 checkMD5({reinterpret_cast<uint8_t const *>(code.result.data() + code.immutableHeaderSize), code.result.size() - code.immutableHeaderSize});
+    auto code = hlsl::CodegenUtility{}.RasterCodegen(vert, pixel, option.native_include, mask, false, Device::compiler() == nullptr);
+    vstd::MD5 check_md5({reinterpret_cast<uint8_t const *>(code.result.data() + code.immutableHeaderSize), code.result.size() - code.immutableHeaderSize});
     if (option.compile_only) {
         LUISA_ASSUME(!option.name.empty());
-        RasterShader::SaveRaster(
-            nativeDevice.fileIo,
-            &nativeDevice,
+        RasterShader::save_raster(
+            _native_device.file_io,
+            &_native_device,
             code,
-            checkMD5,
+            check_md5,
             option.name,
             vert,
             pixel,
@@ -583,9 +583,9 @@ ResourceCreationInfo DxRasterExt::load_raster_shader(
     span<Type const *const> types,
     string_view ser_path) noexcept {
     ResourceCreationInfo info{};
-    auto res = RasterShader::LoadRaster(
-        nativeDevice.fileIo,
-        &nativeDevice,
+    auto res = RasterShader::load_raster(
+        _native_device.file_io,
+        &_native_device,
         types,
         ser_path);
 
@@ -603,9 +603,9 @@ void DxRasterExt::destroy_raster_shader(uint64_t handle) noexcept {
 ResourceCreationInfo DxRasterExt::create_depth_buffer(DepthFormat format, uint width, uint height) noexcept {
     ResourceCreationInfo info{};
     auto res = new DepthBuffer(
-        &nativeDevice,
+        &_native_device,
         width, height,
-        format, nativeDevice.defaultAllocator.get());
+        format, _native_device.default_allocator.get());
     info.handle = resource_to_handle(res);
     info.native_handle = res->GetResource();
     return info;
@@ -618,7 +618,7 @@ DeviceExtension *LCDevice::extension(vstd::string_view name) noexcept {
     if (ite == exts.end()) return nullptr;
     auto &v = ite->second;
     {
-        std::lock_guard lck{extMtx};
+        std::lock_guard lck{ext_mtx};
         if (v.ext == nullptr) {
             v.ext = v.ctor(this);
         }
@@ -635,18 +635,18 @@ void LCDevice::set_name(luisa::compute::Resource::Tag resource_tag, uint64_t res
     using Tag = luisa::compute::Resource::Tag;
     switch (resource_tag) {
         case Tag::ACCEL: {
-            auto accelBuffer = reinterpret_cast<TopAccel *>(resource_handle)->GetAccelBuffer();
-            if (accelBuffer) {
-                accelBuffer->GetResource()->SetName(vec.data());
+            auto accel_buffer = reinterpret_cast<TopAccel *>(resource_handle)->GetAccelBuffer();
+            if (accel_buffer) {
+                accel_buffer->GetResource()->SetName(vec.data());
             }
-            auto instBuffer = reinterpret_cast<TopAccel *>(resource_handle)->GetInstBuffer();
+            auto inst_buffer = reinterpret_cast<TopAccel *>(resource_handle)->GetInstBuffer();
             constexpr auto inst = L"_Instance"sv;
             luisa::vector_resize(vec, name.size() + inst.size() + 1);
             vec[vec.size() - 1] = 0;
             for (auto i : vstd::range(inst.size())) {
                 vec[name.size() + i] = inst[i];
             }
-            instBuffer->GetResource()->SetName(vec.data());
+            inst_buffer->GetResource()->SetName(vec.data());
         } break;
         case Tag::BINDLESS_ARRAY: {
             reinterpret_cast<BindlessArray *>(resource_handle)->BindlessBuffer()->GetResource()->SetName(vec.data());
@@ -657,35 +657,35 @@ void LCDevice::set_name(luisa::compute::Resource::Tag resource_tag, uint64_t res
         } break;
         case Tag::PROCEDURAL_PRIMITIVE:
         case Tag::MESH: {
-            auto accelBuffer = reinterpret_cast<BottomAccel *>(resource_handle)->GetAccelBuffer();
-            if (accelBuffer) {
-                accelBuffer->GetResource()->SetName(vec.data());
+            auto accel_buffer = reinterpret_cast<BottomAccel *>(resource_handle)->GetAccelBuffer();
+            if (accel_buffer) {
+                accel_buffer->GetResource()->SetName(vec.data());
             }
         } break;
         case Tag::STREAM: {
-            reinterpret_cast<LCCmdBuffer *>(resource_handle)->queue.Queue()->SetName(vec.data());
+            reinterpret_cast<LCCmdBuffer *>(resource_handle)->queue.queue()->SetName(vec.data());
         } break;
         case Tag::EVENT: {
-            reinterpret_cast<LCEvent *>(resource_handle)->Fence()->SetName(vec.data());
+            reinterpret_cast<LCEvent *>(resource_handle)->fence()->SetName(vec.data());
         } break;
         case Tag::SHADER: {
-            reinterpret_cast<ComputeShader *>(resource_handle)->Pso()->SetName(vec.data());
+            reinterpret_cast<ComputeShader *>(resource_handle)->pso()->SetName(vec.data());
         } break;
         case Tag::RASTER_SHADER: {
-            // reinterpret_cast<RasterShader *>(resource_handle)->Pso()->SetName(vec.data());
+            // reinterpret_cast<RasterShader *>(resource_handle)->pso()->SetName(vec.data());
         } break;
         case Tag::SWAP_CHAIN: {
-            size_t backBuffer = 0;
-            for (auto &&i : reinterpret_cast<LCSwapChain *>(resource_handle)->m_renderTargets) {
+            size_t back_buffer = 0;
+            for (auto &&i : reinterpret_cast<LCSwapChain *>(resource_handle)->render_targets) {
                 luisa::vector_resize(vec, name.size());
                 vec.push_back(L'_');
-                auto num = vstd::to_string(backBuffer);
+                auto num = vstd::to_string(back_buffer);
                 for (auto &&i : num) {
                     vec.push_back(i);
                 }
                 vec.push_back(0);
                 i.GetResource()->SetName(vec.data());
-                backBuffer += 1;
+                back_buffer += 1;
             }
         } break;
         default: {
@@ -698,17 +698,17 @@ void LCDevice::set_name(luisa::compute::Resource::Tag resource_tag, uint64_t res
     PixelFormat format, uint dimension,
     uint width, uint height, uint depth,
     uint mipmap_levels, bool simultaneous_access) noexcept {
-    bool allowUAV = !is_block_compressed(format);
+    bool allow_uav = !is_block_compressed(format);
     SparseTextureCreationInfo info;
     auto res = new SparseTexture(
-        &nativeDevice,
+        &native_device,
         width,
         height,
         TextureBase::ToGFXFormat(format),
         (TextureDimension)dimension,
         depth,
         mipmap_levels,
-        allowUAV,
+        allow_uav,
         simultaneous_access);
     info.handle = resource_to_handle(res);
     info.native_handle = res->GetResource();
@@ -726,16 +726,16 @@ SparseBufferCreationInfo LCDevice::create_sparse_buffer(const Type *element, siz
     SparseBuffer *res;
     if (element->is_custom()) {
         if (element == Type::of<IndirectKernelDispatch>()) {
-            info.element_stride = ComputeShader::DispatchIndirectStride;
+            info.element_stride = ComputeShader::kDispatchIndirectStride;
             info.total_size_bytes = 4 + info.element_stride * elem_count;
-            res = new SparseBuffer(&nativeDevice, info.total_size_bytes);
+            res = new SparseBuffer(&native_device, info.total_size_bytes);
         } else {
             LUISA_ERROR("Un-known custom type in dx-backend.");
         }
     } else {
         info.total_size_bytes = element->size() * elem_count;
         res = new SparseBuffer(
-            &nativeDevice,
+            &native_device,
             info.total_size_bytes);
         info.element_stride = element->size();
     }
@@ -752,10 +752,10 @@ void LCDevice::update_sparse_resources(
     luisa::vector<SparseUpdateTile> &&update_cmds) noexcept {
     auto queue = reinterpret_cast<CmdQueueBase *>(stream_handle);
 
-    if (queue->Tag() != CmdQueueTag::MainCmd) [[unlikely]] {
+    if (queue->tag() != CmdQueueTag::MainCmd) [[unlikely]] {
         LUISA_ERROR("sparse-texture update not allowed in Direct-Storage.");
     }
-    auto &queuePtr = static_cast<LCCmdBuffer *>(queue)->queue;
+    auto &queue_ptr = static_cast<LCCmdBuffer *>(queue)->queue;
     UpdateTileTracker tile_tracker;
     for (auto &&i : update_cmds) {
         luisa::visit(
@@ -776,8 +776,8 @@ void LCDevice::update_sparse_resources(
             },
             i.operations);
     }
-    tile_tracker.update(queuePtr.Queue(), D3D12_TILE_MAPPING_FLAG_NONE);
-    queuePtr.Signal();
+    tile_tracker.update(queue_ptr.queue(), D3D12_TILE_MAPPING_FLAG_NONE);
+    queue_ptr.signal();
 }
 
 BufferCreationInfo LCDevice::create_buffer(const ir::CArc<ir::Type> *element,
@@ -803,7 +803,7 @@ ShaderCreationInfo LCDevice::create_shader(const ShaderOption &option, const ir:
 }
 ResourceCreationInfo LCDevice::allocate_sparse_buffer_heap(size_t byte_size) noexcept {
     auto heap = reinterpret_cast<SparseHeap *>(vengine_malloc(sizeof(SparseHeap)));
-    heap->allocation = nativeDevice.defaultAllocator->AllocateBufferHeap(&nativeDevice, "sparse buffer heap", byte_size, D3D12_HEAP_TYPE_DEFAULT, &heap->heap, &heap->offset, D3D12_HEAP_FLAG_NONE, true);
+    heap->allocation = native_device.default_allocator->AllocateBufferHeap(&native_device, "sparse buffer heap", byte_size, D3D12_HEAP_TYPE_DEFAULT, &heap->heap, &heap->offset, D3D12_HEAP_FLAG_NONE, true);
     heap->size_bytes = byte_size;
     ResourceCreationInfo r{};
     r.handle = reinterpret_cast<uint64>(heap);
@@ -812,12 +812,12 @@ ResourceCreationInfo LCDevice::allocate_sparse_buffer_heap(size_t byte_size) noe
 }
 void LCDevice::deallocate_sparse_buffer_heap(uint64_t handle) noexcept {
     auto heap = reinterpret_cast<SparseHeap *>(handle);
-    nativeDevice.defaultAllocator->Release(heap->allocation);
+    native_device.default_allocator->Release(heap->allocation);
     vengine_free(heap);
 }
 ResourceCreationInfo LCDevice::allocate_sparse_texture_heap(size_t byte_size) noexcept {
     auto heap = reinterpret_cast<SparseHeap *>(vengine_malloc(sizeof(SparseHeap)));
-    heap->allocation = nativeDevice.defaultAllocator->AllocateTextureHeap(&nativeDevice, "sparse texture heap", byte_size, &heap->heap, &heap->offset, false, D3D12_HEAP_FLAG_NONE, true);
+    heap->allocation = native_device.default_allocator->AllocateTextureHeap(&native_device, "sparse texture heap", byte_size, &heap->heap, &heap->offset, false, D3D12_HEAP_FLAG_NONE, true);
     heap->size_bytes = byte_size;
     ResourceCreationInfo r{};
     r.handle = reinterpret_cast<uint64>(heap);
@@ -830,7 +830,7 @@ void LCDevice::deallocate_sparse_texture_heap(uint64_t handle) noexcept {
 }
 
 uint LCDevice::compute_warp_size() const noexcept {
-    return nativeDevice.waveSize();
+    return native_device.wave_size();
 }
 
 uint64_t LCDevice::memory_granularity() const noexcept {

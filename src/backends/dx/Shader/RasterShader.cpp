@@ -45,14 +45,14 @@ RasterShader::RasterShader(
     vstd::MD5 md5,
     vstd::vector<hlsl::Property> &&prop,
     vstd::vector<SavedArgument> &&args,
-    ComPtr<ID3D12RootSignature> &&rootSig,
+    ComPtr<ID3D12RootSignature> &&root_sig,
     vstd::vector<std::pair<vstd::string, Type const *>> &&printers,
-    vstd::vector<std::byte> &&vertBinData,
-    vstd::vector<std::byte> &&pixelBinData)
-    : Shader(std::move(prop), std::move(args), std::move(rootSig), std::move(printers)), device(device), md5{md5},
-      vertBinData{std::move(vertBinData)}, pixelBinData{std::move(pixelBinData)} {
+    vstd::vector<std::byte> &&vert_bin_data,
+    vstd::vector<std::byte> &&pixel_bin_data)
+    : Shader(std::move(prop), std::move(args), std::move(root_sig), std::move(printers)), _device(device), _md5{md5},
+      _vert_bin_data{std::move(vert_bin_data)}, _pixel_bin_data{std::move(pixel_bin_data)} {
 }
-void RasterShader::GetMeshFormatState(
+void RasterShader::get_mesh_format_state(
     vstd::vector<D3D12_INPUT_ELEMENT_DESC> &inputLayout,
     MeshFormat const &meshFormat) {
     inputLayout.clear();
@@ -93,14 +93,14 @@ RasterShader::RasterShader(
     vstd::vector<hlsl::Property> &&prop,
     vstd::vector<SavedArgument> &&args,
     vstd::vector<std::pair<vstd::string, Type const *>> &&printers,
-    vstd::vector<std::byte> &&vertBinData,
-    vstd::vector<std::byte> &&pixelBinData)
+    vstd::vector<std::byte> &&vert_bin_data,
+    vstd::vector<std::byte> &&pixel_bin_data)
     : Shader(std::move(prop), std::move(args), device->device.Get(), std::move(printers), true),
-      device(device), md5{md5},
-      vertBinData{std::move(vertBinData)}, pixelBinData{std::move(pixelBinData)} {
+      _device(device), _md5{md5},
+      _vert_bin_data{std::move(vert_bin_data)}, _pixel_bin_data{std::move(pixel_bin_data)} {
 }
 RasterShader::~RasterShader() {}
-D3D12_GRAPHICS_PIPELINE_STATE_DESC RasterShader::GetState(
+D3D12_GRAPHICS_PIPELINE_STATE_DESC RasterShader::get_state(
     vstd::span<D3D12_INPUT_ELEMENT_DESC const> inputLayout,
     RasterState const &state,
     vstd::span<GFXFormat const> rtv,
@@ -245,7 +245,7 @@ D3D12_GRAPHICS_PIPELINE_STATE_DESC RasterShader::GetState(
     result.InputLayout = {.pInputElementDescs = inputLayout.data(), .NumElements = static_cast<uint>(inputLayout.size())};
     return result;
 }
-vstd::MD5 RasterShader::GenMD5(
+vstd::MD5 RasterShader::gen_md5(
     vstd::MD5 const &codeMD5,
     MeshFormat const &meshFormat) {
     vstd::fixed_vector<uint64, 8> streamHashes;
@@ -268,8 +268,8 @@ vstd::MD5 RasterShader::GenMD5(
             reinterpret_cast<uint8_t const *>(&h),
             sizeof(Hashes)});
 }
-RasterShader *RasterShader::CompileRaster(
-    BinaryIO const *fileIo,
+RasterShader *RasterShader::compile_raster(
+    BinaryIO const *file_io,
     Device *device,
     Function vertexKernel,
     Function pixelKernel,
@@ -291,7 +291,7 @@ RasterShader *RasterShader::CompileRaster(
             fwrite(str.result.data(), str.result.size(), 1, f);
             fclose(f);
         }
-        auto compResult = Device::Compiler()->compile_raster(
+        auto compResult = Device::compiler()->compile_raster(
             str.result.view(),
             true,
             shaderModel, enableUnsafeMath,
@@ -319,7 +319,7 @@ RasterShader *RasterShader::CompileRaster(
                 str.properties,
                 kernelArgs, vertBin, pixelBin, md5, str.typeMD5, bdlsBufferCount,
                 str.printers);
-            WriteBinaryIO(cacheType, fileIo, fileName, {reinterpret_cast<std::byte const *>(serData.data()), luisa::size_bytes(serData)});
+            write_binary_io(cacheType, file_io, fileName, {reinterpret_cast<std::byte const *>(serData.data()), luisa::size_bytes(serData)});
         }
 
         auto s = new RasterShader(
@@ -330,14 +330,14 @@ RasterShader *RasterShader::CompileRaster(
             std::move(str.printers),
             std::move(vertBin),
             std::move(pixelBin));
-        s->bindlessCount = bdlsBufferCount;
+        s->_bindless_count = bdlsBufferCount;
         return s;
     };
 
     if (!fileName.empty()) {
         // auto psoName = Shader::PSOName(device, fileName);
         auto result = ShaderSerializer::RasterDeSerialize(
-            fileName, cacheType, device, *fileIo, md5,
+            fileName, cacheType, device, *file_io, md5,
             {});
         if (result) {
             return result;
@@ -347,10 +347,10 @@ RasterShader *RasterShader::CompileRaster(
         return CompileNewCompute(false);
     }
 }
-void RasterShader::SaveRaster(
-    BinaryIO const *fileIo,
+void RasterShader::save_raster(
+    BinaryIO const *file_io,
     Device *device,
-    hlsl::CodegenResult const &str,
+    hlsl::CodegenResult const &result,
     vstd::MD5 const &md5,
     vstd::string_view fileName,
     Function vertexKernel,
@@ -360,14 +360,14 @@ void RasterShader::SaveRaster(
     bool debug) {
     if (RasterShaderDetail::RASTER_PRINT_CODE) {
         auto f = fopen("hlsl_output.hlsl", "ab");
-        fwrite(str.result.data(), str.result.size(), 1, f);
+        fwrite(result.result.data(), result.result.size(), 1, f);
         fclose(f);
     }
-    if (ShaderSerializer::CheckMD5(fileName, md5, *fileIo)) return;
-    auto compiler = Device::Compiler();
+    if (ShaderSerializer::CheckMD5(fileName, md5, *file_io)) return;
+    auto compiler = Device::compiler();
     if (compiler) {
         auto compResult = compiler->compile_raster(
-            str.result.view(),
+            result.result.view(),
             true,
             shaderModel,
             enableUnsafeMath,
@@ -390,50 +390,50 @@ void RasterShader::SaveRaster(
         auto vertBin = GetSpan(compResult.vertex.get<0>());
         auto pixelBin = GetSpan(compResult.pixel.get<0>());
         uint bdlsBufferCount = 0;
-        if (str.useBufferBindless) bdlsBufferCount++;
-        if (str.useTex2DBindless) bdlsBufferCount++;
-        if (str.useTex3DBindless) bdlsBufferCount++;
+        if (result.useBufferBindless) bdlsBufferCount++;
+        if (result.useTex2DBindless) bdlsBufferCount++;
+        if (result.useTex3DBindless) bdlsBufferCount++;
         auto serData = ShaderSerializer::RasterSerialize(
-            str.properties,
+            result.properties,
             kernelArgs,
-            vertBin, pixelBin, md5, str.typeMD5, bdlsBufferCount,
-            str.printers);
-        static_cast<void>(fileIo->write_shader_bytecode(fileName, {reinterpret_cast<std::byte const *>(serData.data()), luisa::size_bytes(serData)}));
+            vertBin, pixelBin, md5, result.typeMD5, bdlsBufferCount,
+            result.printers);
+        static_cast<void>(file_io->write_shader_bytecode(fileName, {reinterpret_cast<std::byte const *>(serData.data()), luisa::size_bytes(serData)}));
     } else {
         // write HLSL code if compiler not initialized
-        static_cast<void>(fileIo->write_shader_bytecode(fileName, {reinterpret_cast<std::byte const *>(str.result.data()), str.result.size()}));
+        static_cast<void>(file_io->write_shader_bytecode(fileName, {reinterpret_cast<std::byte const *>(result.result.data()), result.result.size()}));
     }
 }
-RasterShader *RasterShader::LoadRaster(
-    BinaryIO const *fileIo,
+RasterShader *RasterShader::load_raster(
+    BinaryIO const *file_io,
     Device *device,
     luisa::span<Type const *const> types,
     vstd::string_view fileName) {
-    auto ptr = ShaderSerializer::RasterDeSerialize(fileName, CacheType::ByteCode, device, *device->fileIo, {}, hlsl::CodegenUtility::GetTypeMD5(types));
+    auto ptr = ShaderSerializer::RasterDeSerialize(fileName, CacheType::ByteCode, device, *device->file_io, {}, hlsl::CodegenUtility::GetTypeMD5(types));
     return ptr;
 }
-ID3D12PipelineState *RasterShader::GetPSO(
+ID3D12PipelineState *RasterShader::get_pso(
     vstd::span<GFXFormat const> rtvFormats,
     MeshFormat const &meshFormat,
     DepthFormat dsvFormat,
     RasterState const &rasterState) {
     std::pair<PSOMap::Index, bool> idx;
     RasterPSOState psoState;
-    luisa::enlarge_by(psoState.rtvFormats, rtvFormats.size());
+    luisa::enlarge_by(psoState.rtv_formats, rtvFormats.size());
     if (!rtvFormats.empty()) {
-        std::memcpy(psoState.rtvFormats.data(), rtvFormats.data(), rtvFormats.size_bytes());
+        std::memcpy(psoState.rtv_formats.data(), rtvFormats.data(), rtvFormats.size_bytes());
     }
-    psoState.dsvFormat = dsvFormat;
-    psoState.rasterState = rasterState;
+    psoState.dsv_format = dsvFormat;
+    psoState.raster_state = rasterState;
     {
-        std::lock_guard lck{psoMtx};
-        idx = psoMap.try_emplace(psoState);
+        std::lock_guard lck{_pso_mtx};
+        idx = _pso_map.try_emplace(psoState);
     }
     auto &v = idx.first.value();
     std::lock_guard lck{v.mtx};
     if (!idx.second) return v.pso.Get();
     vstd::vector<D3D12_INPUT_ELEMENT_DESC> elements;
-    GetMeshFormatState(elements, meshFormat);
+    get_mesh_format_state(elements, meshFormat);
     vstd::vector<std::byte> md5Bytes;
     auto push = [&]<typename T>(T const &t) {
         auto sz = md5Bytes.size();
@@ -446,23 +446,23 @@ ID3D12PipelineState *RasterShader::GetPSO(
         luisa::enlarge_by(md5Bytes, byteSize);
         std::memcpy(md5Bytes.data() + sz, ptr, byteSize);
     };
-    pushArray(psoState.rtvFormats.data(), psoState.rtvFormats.size());
-    push(psoState.dsvFormat);
-    push(psoState.rasterState);
-    push(this->md5);
-    auto psoDesc = GetState(
+    pushArray(psoState.rtv_formats.data(), psoState.rtv_formats.size());
+    push(psoState.dsv_format);
+    push(psoState.raster_state);
+    push(this->_md5);
+    auto psoDesc = get_state(
         elements,
-        psoState.rasterState,
+        psoState.raster_state,
         rtvFormats,
         dsvFormat);
-    psoDesc.pRootSignature = this->rootSig.Get();
-    psoDesc.VS = {vertBinData.data(), vertBinData.size()};
-    psoDesc.PS = {pixelBinData.data(), pixelBinData.size()};
+    psoDesc.pRootSignature = this->_root_sig.Get();
+    psoDesc.VS = {_vert_bin_data.data(), _vert_bin_data.size()};
+    psoDesc.PS = {_pixel_bin_data.data(), _pixel_bin_data.size()};
     auto psoMD5 = vstd::MD5{vstd::span<const uint8_t>{reinterpret_cast<uint8_t const *>(md5Bytes.data()), md5Bytes.size()}};
     auto psoName = psoMD5.to_string(false);
-    auto psoStream = device->fileIo->read_shader_cache(psoName);
+    auto psoStream = _device->file_io->read_shader_cache(psoName);
     auto createPipe = [&] {
-        return device->device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(v.pso.GetAddressOf()));
+        return _device->device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(v.pso.GetAddressOf()));
     };
     // use PSO cache
     bool newPso = false;
@@ -490,7 +490,7 @@ ID3D12PipelineState *RasterShader::GetPSO(
         ThrowIfFailed(createPipe());
     }
     if (newPso) {
-        SavePSO(v.pso.Get(), psoName, device->fileIo, device);
+        _save_pso(v.pso.Get(), psoName, _device->file_io, _device);
     }
     return v.pso.Get();
 }

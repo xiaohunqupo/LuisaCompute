@@ -10,7 +10,7 @@
 #include "log.h"
 #if !(defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK))
 // iOS & macOS: VulkanExampleBase::getAssetPath() implemented externally to allow access to Objective-C components
-const luisa::string getAssetPath()
+const luisa::string get_asset_path()
 {
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
 	return "";
@@ -26,11 +26,11 @@ namespace vks
 {
 	namespace tools
 	{
-		bool errorModeSilent = false;
+		bool error_mode_silent = false;
 
-		luisa::string errorString(VkResult errorCode)
+		luisa::string error_string(VkResult error_code)
 		{
-			switch (errorCode)
+			switch (error_code)
 			{
 #define STR(r) case VK_ ##r: return #r
 				STR(NOT_READY);
@@ -62,7 +62,7 @@ namespace vks
 			}
 		}
 
-		luisa::string physicalDeviceTypeString(VkPhysicalDeviceType type)
+		luisa::string physical_device_type_string(VkPhysicalDeviceType type)
 		{
 			switch (type)
 			{
@@ -77,11 +77,11 @@ namespace vks
 			}
 		}
 
-		VkBool32 getSupportedDepthFormat(VkPhysicalDevice physicalDevice, VkFormat *depthFormat)
+		VkBool32 get_supported_depth_format(VkPhysicalDevice physical_device, VkFormat *depth_format)
 		{
 			// Since all depth formats may be optional, we need to find a suitable depth format to use
 			// Start with the highest precision packed format
-			std::vector<VkFormat> depthFormats = {
+			std::vector<VkFormat> depth_formats = {
 				VK_FORMAT_D32_SFLOAT_S8_UINT,
 				VK_FORMAT_D32_SFLOAT,
 				VK_FORMAT_D24_UNORM_S8_UINT,
@@ -89,14 +89,14 @@ namespace vks
 				VK_FORMAT_D16_UNORM
 			};
 
-			for (auto& format : depthFormats)
+			for (auto& format : depth_formats)
 			{
-				VkFormatProperties formatProps;
-				vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &formatProps);
+				VkFormatProperties format_props;
+				vkGetPhysicalDeviceFormatProperties(physical_device, format, &format_props);
 				// Format must support depth stencil attachment for optimal tiling
-				if (formatProps.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
+				if (format_props.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
 				{
-					*depthFormat = format;
+					*depth_format = format;
 					return true;
 				}
 			}
@@ -104,28 +104,28 @@ namespace vks
 			return false;
 		}
 
-		VkBool32 formatHasStencil(VkFormat format)
+		VkBool32 format_has_stencil(VkFormat format)
 		{
-			std::vector<VkFormat> stencilFormats = {
+			std::vector<VkFormat> stencil_formats = {
 				VK_FORMAT_S8_UINT,
 				VK_FORMAT_D16_UNORM_S8_UINT,
 				VK_FORMAT_D24_UNORM_S8_UINT,
 				VK_FORMAT_D32_SFLOAT_S8_UINT,
 			};
-			return std::find(stencilFormats.begin(), stencilFormats.end(), format) != std::end(stencilFormats);
+			return std::find(stencil_formats.begin(), stencil_formats.end(), format) != std::end(stencil_formats);
 		}
 
 		// Returns if a given format support LINEAR filtering
-		VkBool32 formatIsFilterable(VkPhysicalDevice physicalDevice, VkFormat format, VkImageTiling tiling)
+		VkBool32 format_is_filterable(VkPhysicalDevice physical_device, VkFormat format, VkImageTiling tiling)
 		{
-			VkFormatProperties formatProps;
-			vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &formatProps);
+			VkFormatProperties format_props;
+			vkGetPhysicalDeviceFormatProperties(physical_device, format, &format_props);
 
 			if (tiling == VK_IMAGE_TILING_OPTIMAL)
-				return formatProps.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+				return format_props.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
 
 			if (tiling == VK_IMAGE_TILING_LINEAR)
-				return formatProps.linearTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+				return format_props.linearTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
 
 			return false;
 		}
@@ -134,69 +134,69 @@ namespace vks
 		// an image and put it into an active command buffer
 		// See chapter 11.4 "Image Layout" for details
 
-		void setImageLayout(
+		void set_image_layout(
 			VkCommandBuffer cmdbuffer,
 			VkImage image,
-			VkImageLayout oldImageLayout,
-			VkImageLayout newImageLayout,
-			VkImageSubresourceRange subresourceRange,
-			VkPipelineStageFlags srcStageMask,
-			VkPipelineStageFlags dstStageMask)
+			VkImageLayout old_image_layout,
+			VkImageLayout new_image_layout,
+			VkImageSubresourceRange subresource_range,
+			VkPipelineStageFlags src_stage_mask,
+			VkPipelineStageFlags dst_stage_mask)
 		{
 			// Create an image barrier object
-			VkImageMemoryBarrier imageMemoryBarrier = vks::initializers::imageMemoryBarrier();
-			imageMemoryBarrier.oldLayout = oldImageLayout;
-			imageMemoryBarrier.newLayout = newImageLayout;
-			imageMemoryBarrier.image = image;
-			imageMemoryBarrier.subresourceRange = subresourceRange;
+			VkImageMemoryBarrier image_memory_barrier = vks::initializers::imageMemoryBarrier();
+			image_memory_barrier.oldLayout = old_image_layout;
+			image_memory_barrier.newLayout = new_image_layout;
+			image_memory_barrier.image = image;
+			image_memory_barrier.subresourceRange = subresource_range;
 
 			// Source layouts (old)
 			// Source access mask controls actions that have to be finished on the old layout
 			// before it will be transitioned to the new layout
-			switch (oldImageLayout)
+			switch (old_image_layout)
 			{
 			case VK_IMAGE_LAYOUT_UNDEFINED:
 				// Image layout is undefined (or does not matter)
 				// Only valid as initial layout
 				// No flags required, listed only for completeness
-				imageMemoryBarrier.srcAccessMask = 0;
+				image_memory_barrier.srcAccessMask = 0;
 				break;
 
 			case VK_IMAGE_LAYOUT_PREINITIALIZED:
 				// Image is preinitialized
 				// Only valid as initial layout for linear images, preserves memory contents
 				// Make sure host writes have been finished
-				imageMemoryBarrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
+				image_memory_barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
 				break;
 
 			case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
 				// Image is a color attachment
 				// Make sure any writes to the color buffer have been finished
-				imageMemoryBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+				image_memory_barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 				break;
 
 			case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
 				// Image is a depth/stencil attachment
 				// Make sure any writes to the depth/stencil buffer have been finished
-				imageMemoryBarrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+				image_memory_barrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 				break;
 
 			case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
 				// Image is a transfer source
 				// Make sure any reads from the image have been finished
-				imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+				image_memory_barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
 				break;
 
 			case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
 				// Image is a transfer destination
 				// Make sure any writes to the image have been finished
-				imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+				image_memory_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 				break;
 
 			case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
 				// Image is read by a shader
 				// Make sure any shader reads from the image have been finished
-				imageMemoryBarrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+				image_memory_barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
 				break;
 			default:
 				// Other source layouts aren't handled (yet)
@@ -205,40 +205,40 @@ namespace vks
 
 			// Target layouts (new)
 			// Destination access mask controls the dependency for the new image layout
-			switch (newImageLayout)
+			switch (new_image_layout)
 			{
 			case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
 				// Image will be used as a transfer destination
 				// Make sure any writes to the image have been finished
-				imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+				image_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 				break;
 
 			case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
 				// Image will be used as a transfer source
 				// Make sure any reads from the image have been finished
-				imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+				image_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
 				break;
 
 			case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
 				// Image will be used as a color attachment
 				// Make sure any writes to the color buffer have been finished
-				imageMemoryBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+				image_memory_barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 				break;
 
 			case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
 				// Image layout will be used as a depth/stencil attachment
 				// Make sure any writes to depth/stencil buffer have been finished
-				imageMemoryBarrier.dstAccessMask = imageMemoryBarrier.dstAccessMask | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+				image_memory_barrier.dstAccessMask = image_memory_barrier.dstAccessMask | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 				break;
 
 			case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
 				// Image will be read in a shader (sampler, input attachment)
 				// Make sure any writes to the image have been finished
-				if (imageMemoryBarrier.srcAccessMask == 0)
+				if (image_memory_barrier.srcAccessMask == 0)
 				{
-					imageMemoryBarrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+					image_memory_barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
 				}
-				imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+				image_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 				break;
 			default:
 				// Other source layouts aren't handled (yet)
@@ -248,132 +248,132 @@ namespace vks
 			// Put barrier inside setup command buffer
 			vkCmdPipelineBarrier(
 				cmdbuffer,
-				srcStageMask,
-				dstStageMask,
+				src_stage_mask,
+				dst_stage_mask,
 				0,
 				0, nullptr,
 				0, nullptr,
-				1, &imageMemoryBarrier);
+				1, &image_memory_barrier);
 		}
 
 		// Fixed sub resource on first mip level and layer
-		void setImageLayout(
+		void set_image_layout(
 			VkCommandBuffer cmdbuffer,
 			VkImage image,
-			VkImageAspectFlags aspectMask,
-			VkImageLayout oldImageLayout,
-			VkImageLayout newImageLayout,
-			VkPipelineStageFlags srcStageMask,
-			VkPipelineStageFlags dstStageMask)
+			VkImageAspectFlags aspect_mask,
+			VkImageLayout old_image_layout,
+			VkImageLayout new_image_layout,
+			VkPipelineStageFlags src_stage_mask,
+			VkPipelineStageFlags dst_stage_mask)
 		{
-			VkImageSubresourceRange subresourceRange = {};
-			subresourceRange.aspectMask = aspectMask;
-			subresourceRange.baseMipLevel = 0;
-			subresourceRange.levelCount = 1;
-			subresourceRange.layerCount = 1;
-			setImageLayout(cmdbuffer, image, oldImageLayout, newImageLayout, subresourceRange, srcStageMask, dstStageMask);
+			VkImageSubresourceRange subresource_range = {};
+			subresource_range.aspectMask = aspect_mask;
+			subresource_range.baseMipLevel = 0;
+			subresource_range.levelCount = 1;
+			subresource_range.layerCount = 1;
+			set_image_layout(cmdbuffer, image, old_image_layout, new_image_layout, subresource_range, src_stage_mask, dst_stage_mask);
 		}
 
-		void insertImageMemoryBarrier(
+		void insert_image_memory_barrier(
 			VkCommandBuffer cmdbuffer,
 			VkImage image,
-			VkAccessFlags srcAccessMask,
-			VkAccessFlags dstAccessMask,
-			VkImageLayout oldImageLayout,
-			VkImageLayout newImageLayout,
-			VkPipelineStageFlags srcStageMask,
-			VkPipelineStageFlags dstStageMask,
-			VkImageSubresourceRange subresourceRange)
+			VkAccessFlags src_access_mask,
+			VkAccessFlags dst_access_mask,
+			VkImageLayout old_image_layout,
+			VkImageLayout new_image_layout,
+			VkPipelineStageFlags src_stage_mask,
+			VkPipelineStageFlags dst_stage_mask,
+			VkImageSubresourceRange subresource_range)
 		{
-			VkImageMemoryBarrier imageMemoryBarrier = vks::initializers::imageMemoryBarrier();
-			imageMemoryBarrier.srcAccessMask = srcAccessMask;
-			imageMemoryBarrier.dstAccessMask = dstAccessMask;
-			imageMemoryBarrier.oldLayout = oldImageLayout;
-			imageMemoryBarrier.newLayout = newImageLayout;
-			imageMemoryBarrier.image = image;
-			imageMemoryBarrier.subresourceRange = subresourceRange;
+			VkImageMemoryBarrier image_memory_barrier = vks::initializers::imageMemoryBarrier();
+			image_memory_barrier.srcAccessMask = src_access_mask;
+			image_memory_barrier.dstAccessMask = dst_access_mask;
+			image_memory_barrier.oldLayout = old_image_layout;
+			image_memory_barrier.newLayout = new_image_layout;
+			image_memory_barrier.image = image;
+			image_memory_barrier.subresourceRange = subresource_range;
 
 			vkCmdPipelineBarrier(
 				cmdbuffer,
-				srcStageMask,
-				dstStageMask,
+				src_stage_mask,
+				dst_stage_mask,
 				0,
 				0, nullptr,
 				0, nullptr,
-				1, &imageMemoryBarrier);
+				1, &image_memory_barrier);
 		}
 
 #if defined(__ANDROID__)
 		// Android shaders are stored as assets in the apk
 		// So they need to be loaded via the asset manager
-		VkShaderModule loadShader(AAssetManager* assetManager, const char *fileName, VkDevice device)
+		VkShaderModule load_shader(AAssetManager* asset_manager, const char *file_name, VkDevice device)
 		{
 			// Load shader from compressed asset
-			AAsset* asset = AAssetManager_open(assetManager, fileName, AASSET_MODE_STREAMING);
+			AAsset* asset = AAssetManager_open(asset_manager, file_name, AASSET_MODE_STREAMING);
 			assert(asset);
 			size_t size = AAsset_getLength(asset);
 			assert(size > 0);
 
-			char *shaderCode = new char[size];
-			AAsset_read(asset, shaderCode, size);
+			char *shader_code = new char[size];
+			AAsset_read(asset, shader_code, size);
 			AAsset_close(asset);
 
-			VkShaderModule shaderModule;
-			VkShaderModuleCreateInfo moduleCreateInfo;
-			moduleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-			moduleCreateInfo.pNext = NULL;
-			moduleCreateInfo.codeSize = size;
-			moduleCreateInfo.pCode = (uint32_t*)shaderCode;
-			moduleCreateInfo.flags = 0;
+			VkShaderModule shader_module;
+			VkShaderModuleCreateInfo module_create_info;
+			module_create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+			module_create_info.pNext = NULL;
+			module_create_info.codeSize = size;
+			module_create_info.pCode = (uint32_t*)shader_code;
+			module_create_info.flags = 0;
 
-			VK_CHECK_RESULT(vkCreateShaderModule(device, &moduleCreateInfo, NULL, &shaderModule));
+			VK_CHECK_RESULT(vkCreateShaderModule(device, &module_create_info, NULL, &shader_module));
 
-			delete[] shaderCode;
+			delete[] shader_code;
 
-			return shaderModule;
+			return shader_module;
 		}
 #else
-		VkShaderModule loadShader(const char *fileName, VkDevice device)
+		VkShaderModule load_shader(const char *file_name, VkDevice device)
 		{
-			std::ifstream is(fileName, std::ios::binary | std::ios::in | std::ios::ate);
+			std::ifstream is(file_name, std::ios::binary | std::ios::in | std::ios::ate);
 
 			if (is.is_open())
 			{
 				size_t size = is.tellg();
 				is.seekg(0, std::ios::beg);
-				char* shaderCode = new char[size];
-				is.read(shaderCode, size);
+				char* shader_code = new char[size];
+				is.read(shader_code, size);
 				is.close();
 
 				assert(size > 0);
 
-				VkShaderModule shaderModule;
-				VkShaderModuleCreateInfo moduleCreateInfo{};
-				moduleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-				moduleCreateInfo.codeSize = size;
-				moduleCreateInfo.pCode = (uint32_t*)shaderCode;
+				VkShaderModule shader_module;
+				VkShaderModuleCreateInfo module_create_info{};
+				module_create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+				module_create_info.codeSize = size;
+				module_create_info.pCode = (uint32_t*)shader_code;
 
-				VK_CHECK_RESULT(vkCreateShaderModule(device, &moduleCreateInfo, NULL, &shaderModule));
+				VK_CHECK_RESULT(vkCreateShaderModule(device, &module_create_info, NULL, &shader_module));
 
-				delete[] shaderCode;
+				delete[] shader_code;
 
-				return shaderModule;
+				return shader_module;
 			}
 			else
 			{
-				std::cerr << "Error: Could not open shader file \"" << fileName << "\"" << "\n";
+				std::cerr << "Error: Could not open shader file \"" << file_name << "\"" << "\n";
 				return VK_NULL_HANDLE;
 			}
 		}
 #endif
 
-		bool fileExists(const luisa::string &filename)
+		bool file_exists(const luisa::string &filename)
 		{
 			std::ifstream f(filename.c_str());
 			return !f.fail();
 		}
 
-		uint32_t alignedSize(uint32_t value, uint32_t alignment)
+		uint32_t aligned_size(uint32_t value, uint32_t alignment)
         {
 	        return (value + alignment - 1) & ~(alignment - 1);
         }

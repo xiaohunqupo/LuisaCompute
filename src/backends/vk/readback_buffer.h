@@ -7,13 +7,13 @@ class ReadbackBuffer : public Buffer {
     void *_mapped_ptr{};
 
 public:
-    mutable BufferFlusher _flusher;
+    mutable BufferFlusher flusher;
     ReadbackBuffer(Device *device, size_t size_bytes);
     ~ReadbackBuffer();
     void copy_to(void *data, size_t offset, size_t size) const;
     VkBuffer vk_buffer() const override { return _res.buffer; }
     void *mapped_ptr() const { return _mapped_ptr; }
     bool flush_host() const override;
-    void flush_range(size_t begin, size_t end)  override;
+    void flush_range(size_t begin, size_t end) override;
 };
 }// namespace lc::vk

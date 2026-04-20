@@ -5,6 +5,7 @@ class Device;
 using luisa::uint;
 using namespace luisa::compute;
 class VkNativeResourceExt : public NativeResourceExt {
+    Device *_device;
 public:
     VkNativeResourceExt(Device *device);
     BufferCreationInfo register_external_buffer(
@@ -37,6 +38,6 @@ public:
     uint64_t get_native_resource_device_address(
         void *native_handle) noexcept override;
 
-    ~VkNativeResourceExt();
+    ~VkNativeResourceExt() = default;
 };
 }// namespace lc::vk

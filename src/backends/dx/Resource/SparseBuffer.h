@@ -31,7 +31,7 @@ public:
     D3D12_RESOURCE_STATES GetInitState() const override {
         return initState;
     }
-    Tag GetTag() const override {
+    Tag get_tag() const override {
         return Tag::SparseBuffer;
     }
     SparseBuffer(SparseBuffer &&) = delete;// cannot move due to atomic<T>

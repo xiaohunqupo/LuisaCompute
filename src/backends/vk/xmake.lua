@@ -19,6 +19,7 @@ on_load(function(target)
         return path.normalize(path.join(os.scriptdir(), p))
     end
     target:add("headerfiles", rela("../common/default_binary_io.h"))
+    target:add("files", rela("../common/default_binary_io.cpp"))
     target:add("deps", "lc-volk")
     if target:is_plat("macosx") then
         target:add("files", rela("../common/moltenvk_surface.mm"))

@@ -15,20 +15,20 @@ private:
     VkAccelerationStructureKHR _accel{nullptr};
     vstd::unique_ptr<DefaultBuffer> _accel_buffer;
     vstd::unique_ptr<DefaultBuffer> _instance_buffer;
-    VkAccelerationStructureBuildGeometryInfoKHR *acceleration_build_geometry_info;
-    AccelOption option;
-    Buffer const *scratch_buffer{nullptr};
-    vstd::unordered_map<uint64, MeshHandle *> set_map;
-    uint64_t scratch_buffer_offset{0};
+    VkAccelerationStructureBuildGeometryInfoKHR *_acceleration_build_geometry_info{nullptr};
+    AccelOption _option;
+    Buffer const *_scratch_buffer{nullptr};
+    vstd::unordered_map<uint64, MeshHandle *> _set_map;
+    uint64_t _scratch_buffer_offset{0};
     uint _last_instance_count = 0;
     struct Instance {
         MeshHandle *handle = nullptr;
     };
-    bool require_rebuild = true;
-    vstd::vector<Instance> allInstance;
-    void resize_instance(size_t size);
-    void update_mesh(MeshHandle *handle);
-    void set_mesh(Blas *mesh, uint64 index);
+    bool _require_rebuild = true;
+    vstd::vector<Instance> _all_instance;
+    void _resize_instance(size_t size);
+    void _update_mesh(MeshHandle *handle);
+    void _set_mesh(Blas *mesh, uint64 index);
 
 public:
     Tlas(Device *device, AccelOption const &option);
@@ -42,7 +42,7 @@ public:
     void build(
         CommandBuffer &cmdbuffer,
         uint instance_count);
-    ~Tlas();
+    ~Tlas() override;
     [[nodiscard]] auto &accel() const { return _accel; }
     [[nodiscard]] auto instance_buffer() const { return _instance_buffer.get(); }
     [[nodiscard]] auto accel_buffer() const { return _accel_buffer.get(); }

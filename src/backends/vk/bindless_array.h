@@ -14,40 +14,40 @@ public:
     using Map = vstd::HashMap<size_t, size_t>;
     using MapIndex = typename Map::Index;
     struct BindlessStruct {
-        static constexpr auto n_pos = std::numeric_limits<uint>::max();
-        static constexpr auto mask = (1u << 28u) - 1;
-        uint buffer = n_pos;
-        uint tex2D = n_pos;
-        uint tex3D = n_pos;
+        static constexpr auto kInvalidPos = std::numeric_limits<uint>::max();
+        static constexpr auto kMask = (1u << 28u) - 1;
+        uint buffer = kInvalidPos;
+        uint tex_2d = kInvalidPos;
+        uint tex_3d = kInvalidPos;
         void write_samp2d(uint tex, uint s) {
-            tex2D = tex | (s << 28);
+            tex_2d = tex | (s << 28);
         }
         void write_samp3d(uint tex, uint s) {
-            tex3D = tex | (s << 28);
+            tex_3d = tex | (s << 28);
         }
     };
-    struct MapIndicies {
+    struct MapIndices {
         MapIndex buffer;
-        MapIndex tex2D;
-        MapIndex tex3D;
+        MapIndex tex_2d;
+        MapIndex tex_3d;
     };
 private:
     struct FreeValue {
-        uint type : 2;
-        uint index : 30;
+        uint _type : 2;
+        uint _index : 30;
     };
     DefaultBuffer _indices_buffer;
     BindlessSlotType _type;
     luisa::FirstFit::Node *_buffer_node = nullptr;
-    bool offset_setted = false;
+    bool _offset_setted = false;
     vstd::variant<
-        vstd::vector<std::pair<BindlessStruct, MapIndicies>>,
+        vstd::vector<std::pair<BindlessStruct, MapIndices>>,
         vstd::vector<MapIndex>>
-        typed_binded;
-    Map ptrMap;
-    mutable vstd::vector<FreeValue> freeQueue;
-    void return_value(MapIndex &index, uint type, uint &originValue);
-    void emplace_tex(
+        _typed_binded;
+    Map _ptr_map;
+    mutable vstd::vector<FreeValue> _free_queue;
+    void _return_value(MapIndex &index, uint type, uint &origin_value);
+    void _emplace_tex(
         VkImageView &img_view,
         CommandBuffer *cmdbuffer,
         luisa::vector<VkWriteDescriptorSet> &write_desc_sets,
@@ -62,7 +62,7 @@ public:
     BindlessArray(Device *device, BindlessSlotType type, size_t size);
     void pre_update(ResourceBarrier *barrier);
     bool is_ptr_in_bindless(size_t ptr) const {
-        return ptrMap.find(ptr);
+        return _ptr_map.find(ptr);
     }
     void deref(Map::Index &index);
     Map::Index add_index(size_t ptr);

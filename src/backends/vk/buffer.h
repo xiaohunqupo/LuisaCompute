@@ -4,24 +4,24 @@
 namespace lc::vk {
 class Buffer;
 struct BufferFlusher {
-    std::atomic_size_t _begin{std::numeric_limits<size_t>::max()};
-    std::atomic_size_t _end{};
-    void mark_dirty(size_t begin, size_t end);
+    std::atomic_size_t begin{std::numeric_limits<size_t>::max()};
+    std::atomic_size_t end{};
+    void mark_dirty(size_t range_begin, size_t range_end);
     void flush(Device *device, void *alloc);
 };
-void vma_defragment(Device* device);
+void vma_defragment(Device *device);
 class Buffer : public Resource {
     size_t _byte_size;
 
 public:
     Buffer(Device *device, size_t byte_size)
         : Resource{device},
-          _byte_size{byte_size} {};
+          _byte_size{byte_size} {}
     Buffer(Buffer &&) = default;
     auto byte_size() const { return _byte_size; }
     virtual ~Buffer() = default;
     virtual VkBuffer vk_buffer() const = 0;
-    Tag tag() const override { return Tag::Buffer; }
+    Tag tag() const override { return Tag::kBuffer; }
     uint64_t get_device_address() const;
     virtual bool flush_host() const { return false; }
     virtual void flush_range(size_t begin, size_t end) {}

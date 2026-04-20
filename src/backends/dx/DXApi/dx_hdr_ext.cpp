@@ -11,49 +11,49 @@ namespace lc::dx {
 using namespace luisa::compute;
 namespace dx_hdr_ext_detail {
 
-DXHDRExt::DisplayCurve EnsureSwapChainColorSpace(
-    IDXGISwapChain4 *swapChain,
-    DXGI_COLOR_SPACE_TYPE &currentSwapChainColorSpace,
-    DXHDRExt::SwapChainBitDepth swapChainBitDepth,
-    bool enableST2084) noexcept {
+DXHDRExt::DisplayCurve ensure_swap_chain_color_space(
+    IDXGISwapChain4 *swap_chain,
+    DXGI_COLOR_SPACE_TYPE &current_swap_chain_color_space,
+    DXHDRExt::SwapChainBitDepth swap_chain_bit_depth,
+    bool enable_st2084) noexcept {
     DXHDRExt::DisplayCurve result{DXHDRExt::DisplayCurve::None};
-    DXGI_COLOR_SPACE_TYPE colorSpace = DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709;
-    switch (swapChainBitDepth) {
+    DXGI_COLOR_SPACE_TYPE color_space = DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709;
+    switch (swap_chain_bit_depth) {
         case DXHDRExt::SwapChainBitDepth::_8:
             result = DXHDRExt::DisplayCurve::sRGB;
             break;
 
         case DXHDRExt::SwapChainBitDepth::_10:
-            colorSpace = enableST2084 ? DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020 : DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709;
-            result = enableST2084 ? DXHDRExt::DisplayCurve::ST2084 : DXHDRExt::DisplayCurve::sRGB;
+            color_space = enable_st2084 ? DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020 : DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709;
+            result = enable_st2084 ? DXHDRExt::DisplayCurve::ST2084 : DXHDRExt::DisplayCurve::sRGB;
             break;
 
         case DXHDRExt::SwapChainBitDepth::_16:
-            colorSpace = DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709;
+            color_space = DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709;
             result = DXHDRExt::DisplayCurve::None;
             break;
     }
 
-    if (currentSwapChainColorSpace != colorSpace) {
-        UINT colorSpaceSupport = 0;
-        if (SUCCEEDED(swapChain->CheckColorSpaceSupport(colorSpace, &colorSpaceSupport)) &&
-            ((colorSpaceSupport & DXGI_SWAP_CHAIN_COLOR_SPACE_SUPPORT_FLAG_PRESENT) == DXGI_SWAP_CHAIN_COLOR_SPACE_SUPPORT_FLAG_PRESENT)) {
-            ThrowIfFailed(swapChain->SetColorSpace1(colorSpace));
-            currentSwapChainColorSpace = colorSpace;
+    if (current_swap_chain_color_space != color_space) {
+        UINT color_space_support = 0;
+        if (SUCCEEDED(swap_chain->CheckColorSpaceSupport(color_space, &color_space_support)) &&
+            ((color_space_support & DXGI_SWAP_CHAIN_COLOR_SPACE_SUPPORT_FLAG_PRESENT) == DXGI_SWAP_CHAIN_COLOR_SPACE_SUPPORT_FLAG_PRESENT)) {
+            ThrowIfFailed(swap_chain->SetColorSpace1(color_space));
+            current_swap_chain_color_space = color_space;
         }
     }
     return result;
 }
-DXHDRExt::DisplayChromaticities SetHDRMetaData(
-    DXGI_COLOR_SPACE_TYPE &colorSpace,
+DXHDRExt::DisplayChromaticities set_hdr_meta_data(
+    DXGI_COLOR_SPACE_TYPE &color_space,
     IDXGISwapChain4 *swapchain,
     DXGI_FORMAT format,
     bool hdr_support,
-    float MaxOutputNits /*=1000.0f*/,
-    float MinOutputNits /*=0.001f*/,
-    float MaxCLL /*=2000.0f*/,
-    float MaxFALL /*=500.0f*/,
-    const DXHDRExt::DisplayChromaticities *Chroma) noexcept {
+    float max_output_nits /*=1000.0f*/,
+    float min_output_nits /*=0.001f*/,
+    float max_cll /*=2000.0f*/,
+    float max_fall /*=500.0f*/,
+    const DXHDRExt::DisplayChromaticities *chroma) noexcept {
     if (!swapchain) {
         return {};
     }
@@ -64,20 +64,20 @@ DXHDRExt::DisplayChromaticities SetHDRMetaData(
         return {};
     }
 
-    static const DXHDRExt::DisplayChromaticities DisplayChromaticityList[] =
+    static const DXHDRExt::DisplayChromaticities kDisplayChromaticityList[] =
         {
             {0.64000f, 0.33000f, 0.30000f, 0.60000f, 0.15000f, 0.06000f, 0.31270f, 0.32900f},// Display Gamut Rec709
             {0.70800f, 0.29200f, 0.17000f, 0.79700f, 0.13100f, 0.04600f, 0.31270f, 0.32900f},// Display Gamut Rec2020
         };
 
     // Select the chromaticity based on HDR format of the DWM.
-    DXHDRExt::SwapChainBitDepth hitDepth = DXHDRExt::SwapChainBitDepth::_8;
+    DXHDRExt::SwapChainBitDepth hit_depth = DXHDRExt::SwapChainBitDepth::_8;
     switch (format) {
         case DXGI_FORMAT_R10G10B10A2_TYPELESS:
         case DXGI_FORMAT_R10G10B10A2_UNORM:
         case DXGI_FORMAT_R10G10B10A2_UINT:
         case DXGI_FORMAT_R11G11B10_FLOAT:
-            hitDepth = DXHDRExt::SwapChainBitDepth::_10;
+            hit_depth = DXHDRExt::SwapChainBitDepth::_10;
             break;
         case DXGI_FORMAT_R16G16B16A16_FLOAT:
         case DXGI_FORMAT_R16G16B16A16_UNORM:
@@ -85,19 +85,19 @@ DXHDRExt::DisplayChromaticities SetHDRMetaData(
         case DXGI_FORMAT_R16G16B16A16_SINT:
         case DXGI_FORMAT_R16G16B16A16_UINT:
         case DXGI_FORMAT_R16G16B16A16_TYPELESS:
-            hitDepth = DXHDRExt::SwapChainBitDepth::_16;
+            hit_depth = DXHDRExt::SwapChainBitDepth::_16;
             break;
         default:
-            hitDepth = DXHDRExt::SwapChainBitDepth::_8;
+            hit_depth = DXHDRExt::SwapChainBitDepth::_8;
             break;
     }
 
-    EnsureSwapChainColorSpace(swapchain, colorSpace, hitDepth, hdr_support);
-    int selectedChroma = 0;
-    if (format == DXGI_FORMAT_R16G16B16A16_FLOAT && colorSpace == DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709) {
-        selectedChroma = 0;
-    } else if (hitDepth == DXHDRExt::SwapChainBitDepth::_10 && colorSpace == DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020) {
-        selectedChroma = 1;
+    ensure_swap_chain_color_space(swapchain, color_space, hit_depth, hdr_support);
+    int selected_chroma = 0;
+    if (format == DXGI_FORMAT_R16G16B16A16_FLOAT && color_space == DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709) {
+        selected_chroma = 0;
+    } else if (hit_depth == DXHDRExt::SwapChainBitDepth::_10 && color_space == DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020) {
+        selected_chroma = 1;
     } else {
         // Reset the metadata since this is not a supported HDR format.
         ThrowIfFailed(swapchain->SetHDRMetaData(DXGI_HDR_METADATA_TYPE_NONE, 0, nullptr));
@@ -105,35 +105,35 @@ DXHDRExt::DisplayChromaticities SetHDRMetaData(
     }
 
     // Set HDR meta data
-    if (!Chroma) {
-        Chroma = &DisplayChromaticityList[selectedChroma];
+    if (!chroma) {
+        chroma = &kDisplayChromaticityList[selected_chroma];
     }
-    DXGI_HDR_METADATA_HDR10 HDR10MetaData = {};
-    HDR10MetaData.RedPrimary[0] = static_cast<UINT16>(Chroma->RedX * 50000.0f);
-    HDR10MetaData.RedPrimary[1] = static_cast<UINT16>(Chroma->RedY * 50000.0f);
-    HDR10MetaData.GreenPrimary[0] = static_cast<UINT16>(Chroma->GreenX * 50000.0f);
-    HDR10MetaData.GreenPrimary[1] = static_cast<UINT16>(Chroma->GreenY * 50000.0f);
-    HDR10MetaData.BluePrimary[0] = static_cast<UINT16>(Chroma->BlueX * 50000.0f);
-    HDR10MetaData.BluePrimary[1] = static_cast<UINT16>(Chroma->BlueY * 50000.0f);
-    HDR10MetaData.WhitePoint[0] = static_cast<UINT16>(Chroma->WhiteX * 50000.0f);
-    HDR10MetaData.WhitePoint[1] = static_cast<UINT16>(Chroma->WhiteY * 50000.0f);
-    HDR10MetaData.MaxMasteringLuminance = static_cast<UINT>(MaxOutputNits * 10000.0f);
-    HDR10MetaData.MinMasteringLuminance = static_cast<UINT>(MinOutputNits * 10000.0f);
-    HDR10MetaData.MaxContentLightLevel = static_cast<UINT16>(MaxCLL);
-    HDR10MetaData.MaxFrameAverageLightLevel = static_cast<UINT16>(MaxFALL);
-    ThrowIfFailed(swapchain->SetHDRMetaData(DXGI_HDR_METADATA_TYPE_HDR10, sizeof(DXGI_HDR_METADATA_HDR10), &HDR10MetaData));
-    return *Chroma;
+    DXGI_HDR_METADATA_HDR10 hdr10_meta_data = {};
+    hdr10_meta_data.RedPrimary[0] = static_cast<UINT16>(chroma->RedX * 50000.0f);
+    hdr10_meta_data.RedPrimary[1] = static_cast<UINT16>(chroma->RedY * 50000.0f);
+    hdr10_meta_data.GreenPrimary[0] = static_cast<UINT16>(chroma->GreenX * 50000.0f);
+    hdr10_meta_data.GreenPrimary[1] = static_cast<UINT16>(chroma->GreenY * 50000.0f);
+    hdr10_meta_data.BluePrimary[0] = static_cast<UINT16>(chroma->BlueX * 50000.0f);
+    hdr10_meta_data.BluePrimary[1] = static_cast<UINT16>(chroma->BlueY * 50000.0f);
+    hdr10_meta_data.WhitePoint[0] = static_cast<UINT16>(chroma->WhiteX * 50000.0f);
+    hdr10_meta_data.WhitePoint[1] = static_cast<UINT16>(chroma->WhiteY * 50000.0f);
+    hdr10_meta_data.MaxMasteringLuminance = static_cast<UINT>(max_output_nits * 10000.0f);
+    hdr10_meta_data.MinMasteringLuminance = static_cast<UINT>(min_output_nits * 10000.0f);
+    hdr10_meta_data.MaxContentLightLevel = static_cast<UINT16>(max_cll);
+    hdr10_meta_data.MaxFrameAverageLightLevel = static_cast<UINT16>(max_fall);
+    ThrowIfFailed(swapchain->SetHDRMetaData(DXGI_HDR_METADATA_TYPE_HDR10, sizeof(DXGI_HDR_METADATA_HDR10), &hdr10_meta_data));
+    return *chroma;
 }
 }// namespace dx_hdr_ext_detail
 DXHDRExtImpl::DXHDRExtImpl(LCDevice *lc_device) : _lc_device(lc_device), _device_support_hdr(false) {
     UINT i = 0;
-    ComPtr<IDXGIOutput> currentOutput;
+    ComPtr<IDXGIOutput> current_output;
 
-    while (lc_device->nativeDevice.adapter->EnumOutputs(i, &currentOutput) != DXGI_ERROR_NOT_FOUND) {
+    while (lc_device->native_device.adapter->EnumOutputs(i, &current_output) != DXGI_ERROR_NOT_FOUND) {
         // Having determined the output (display) upon which the app is primarily being
         // rendered, retrieve the HDR capabilities of that display by checking the color space.
         ComPtr<IDXGIOutput6> output6;
-        ThrowIfFailed(currentOutput.As(&output6));
+        ThrowIfFailed(current_output.As(&output6));
         DXGI_OUTPUT_DESC1 desc1;
         ThrowIfFailed(output6->GetDesc1(&desc1));
         _device_support_hdr |= (desc1.ColorSpace == DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020) || (desc1.ColorSpace == DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709);
@@ -146,14 +146,14 @@ SwapchainCreationInfo DXHDRExtImpl::create_swapchain(
     const DXSwapchainOption &option,
     uint64_t stream_handle) noexcept {
     auto queue = reinterpret_cast<CmdQueueBase *>(stream_handle);
-    if (queue->Tag() != CmdQueueTag::MainCmd) [[unlikely]] {
+    if (queue->tag() != CmdQueueTag::MainCmd) [[unlikely]] {
         LUISA_ERROR("swapchain not allowed in Direct-Storage.");
     }
     SwapchainCreationInfo info{};
     auto res = new LCSwapChain(
-        &(_lc_device->nativeDevice),
+        &(_lc_device->native_device),
         &reinterpret_cast<LCCmdBuffer *>(stream_handle)->queue,
-        _lc_device->nativeDevice.defaultAllocator.get(),
+        _lc_device->native_device.default_allocator.get(),
         reinterpret_cast<HWND>(option.window),
         option.size.x,
         option.size.y,
@@ -161,7 +161,7 @@ SwapchainCreationInfo DXHDRExtImpl::create_swapchain(
         option.wants_vsync,
         option.back_buffer_count);
     info.handle = resource_to_handle(res);
-    info.native_handle = res->swapChain.Get();
+    info.native_handle = res->swap_chain.Get();
     info.storage = option.storage;
     return info;
 }
@@ -174,13 +174,13 @@ auto DXHDRExtImpl::set_hdr_meta_data(
     float max_fall,
     const DXHDRExt::DisplayChromaticities *custom_chroma) noexcept -> Meta {
     DXGI_COLOR_SPACE_TYPE color_space = DXGI_COLOR_SPACE_CUSTOM;
-    auto swapChain = reinterpret_cast<LCSwapChain *>(swapchain_handle);
-    ComPtr<IDXGISwapChain4> swapChain4;
-    ThrowIfFailed(swapChain->swapChain->QueryInterface(IID_PPV_ARGS(&swapChain4)));
-    auto chroma = dx_hdr_ext_detail::SetHDRMetaData(
+    auto swap_chain = reinterpret_cast<LCSwapChain *>(swapchain_handle);
+    ComPtr<IDXGISwapChain4> swap_chain4;
+    ThrowIfFailed(swap_chain->swap_chain->QueryInterface(IID_PPV_ARGS(&swap_chain4)));
+    auto chroma = dx_hdr_ext_detail::set_hdr_meta_data(
         color_space,
-        swapChain4.Get(),
-        swapChain->format,
+        swap_chain4.Get(),
+        swap_chain->format,
         true,
         max_output_nits,
         min_output_nits,
@@ -193,37 +193,37 @@ auto DXHDRExtImpl::set_hdr_meta_data(
 void DXHDRExtImpl::set_color_space(
     uint64_t handle,
     ColorSpace const &color_space) const noexcept {
-    auto swapChain = reinterpret_cast<LCSwapChain *>(handle);
-    ComPtr<IDXGISwapChain3> swapChain3;
-    ThrowIfFailed(swapChain->swapChain->QueryInterface(IID_PPV_ARGS(&swapChain3)));
-    swapChain3->SetColorSpace1(static_cast<DXGI_COLOR_SPACE_TYPE>(color_space));
+    auto swap_chain = reinterpret_cast<LCSwapChain *>(handle);
+    ComPtr<IDXGISwapChain3> swap_chain3;
+    ThrowIfFailed(swap_chain->swap_chain->QueryInterface(IID_PPV_ARGS(&swap_chain3)));
+    swap_chain3->SetColorSpace1(static_cast<DXGI_COLOR_SPACE_TYPE>(color_space));
 }
 bool DXHDRExtImpl::device_support_hdr() const noexcept {
     return _device_support_hdr;
 }
 auto DXHDRExtImpl::get_display_data(uint64_t hwnd) const noexcept -> DisplayData {
     /////// Get window bound
-    RECT windowRect = {};
-    GetWindowRect(reinterpret_cast<HWND>(hwnd), &windowRect);
+    RECT window_rect = {};
+    GetWindowRect(reinterpret_cast<HWND>(hwnd), &window_rect);
 
     UINT i = 0;
-    ComPtr<IDXGIOutput> currentOutput;
-    ComPtr<IDXGIOutput> bestOutput;
-    float bestIntersectArea = -1;
-    auto ComputeIntersectionArea = [](int ax1, int ay1, int ax2, int ay2, int bx1, int by1, int bx2, int by2) -> float {
+    ComPtr<IDXGIOutput> current_output;
+    ComPtr<IDXGIOutput> best_output;
+    float best_intersect_area = -1;
+    auto compute_intersection_area = [](int ax1, int ay1, int ax2, int ay2, int bx1, int by1, int bx2, int by2) -> float {
         return static_cast<float>(std::max(0, std::min(ax2, bx2) - std::max(ax1, bx1)) * std::max(0, std::min(ay2, by2) - std::max(ay1, by1)));
     };
 
-    while (_lc_device->nativeDevice.adapter->EnumOutputs(i, &currentOutput) != DXGI_ERROR_NOT_FOUND) {
+    while (_lc_device->native_device.adapter->EnumOutputs(i, &current_output) != DXGI_ERROR_NOT_FOUND) {
         // Get the retangle bounds of the app window
-        int ax1 = windowRect.left;
-        int ay1 = windowRect.top;
-        int ax2 = windowRect.right;
-        int ay2 = windowRect.bottom;
+        int ax1 = window_rect.left;
+        int ay1 = window_rect.top;
+        int ax2 = window_rect.right;
+        int ay2 = window_rect.bottom;
 
         // Get the rectangle bounds of current output
         DXGI_OUTPUT_DESC desc;
-        ThrowIfFailed(currentOutput->GetDesc(&desc));
+        ThrowIfFailed(current_output->GetDesc(&desc));
         RECT r = desc.DesktopCoordinates;
         int bx1 = r.left;
         int by1 = r.top;
@@ -231,10 +231,10 @@ auto DXHDRExtImpl::get_display_data(uint64_t hwnd) const noexcept -> DisplayData
         int by2 = r.bottom;
 
         // Compute the intersection
-        float intersectArea = ComputeIntersectionArea(ax1, ay1, ax2, ay2, bx1, by1, bx2, by2);
-        if (intersectArea > bestIntersectArea) {
-            bestOutput = currentOutput;
-            bestIntersectArea = intersectArea;
+        float intersect_area = compute_intersection_area(ax1, ay1, ax2, ay2, bx1, by1, bx2, by2);
+        if (intersect_area > best_intersect_area) {
+            best_output = current_output;
+            best_intersect_area = intersect_area;
         }
 
         i++;
@@ -243,7 +243,7 @@ auto DXHDRExtImpl::get_display_data(uint64_t hwnd) const noexcept -> DisplayData
     // Having determined the output (display) upon which the app is primarily being
     // rendered, retrieve the HDR capabilities of that display by checking the color space.
     ComPtr<IDXGIOutput6> output6;
-    ThrowIfFailed(bestOutput.As(&output6));
+    ThrowIfFailed(best_output.As(&output6));
 
     DXGI_OUTPUT_DESC1 desc1;
     ThrowIfFailed(output6->GetDesc1(&desc1));

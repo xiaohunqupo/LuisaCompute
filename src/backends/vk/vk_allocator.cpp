@@ -13,29 +13,29 @@
 namespace lc::vk {
 
 AllocatedBuffer VkAllocator::allocate_buffer(size_t byte_size, VkBufferUsageFlagBits usage, AccessType access) {
-    VkBufferCreateInfo bufferInfo = {
+    VkBufferCreateInfo buffer_info = {
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .size = byte_size,
         .usage = static_cast<VkBufferUsageFlags>(usage)};
-    VmaAllocationCreateInfo allocInfo = {.flags = VMA_ALLOCATION_CREATE_STRATEGY_BEST_FIT_BIT};
+    VmaAllocationCreateInfo alloc_info = {.flags = VMA_ALLOCATION_CREATE_STRATEGY_BEST_FIT_BIT};
     switch (access) {
-        case AccessType::ReadBack:
-            allocInfo.usage = VMA_MEMORY_USAGE_GPU_TO_CPU;
+        case AccessType::kReadBack:
+            alloc_info.usage = VMA_MEMORY_USAGE_GPU_TO_CPU;
             break;
-        case AccessType::Upload:
-            allocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+        case AccessType::kUpload:
+            alloc_info.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
             break;
         default:
-            allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+            alloc_info.usage = VMA_MEMORY_USAGE_GPU_ONLY;
             break;
     }
     AllocatedBuffer r;
-    VK_CHECK_RESULT(vmaCreateBuffer(_allocator, &bufferInfo, &allocInfo, &r.buffer, &r.allocation, nullptr));
+    VK_CHECK_RESULT(vmaCreateBuffer(_allocator, &buffer_info, &alloc_info, &r.buffer, &r.allocation, nullptr));
     return r;
 }
 VkAllocator::VkAllocator(Device &device)
     : _allocator(nullptr) {
-    VmaAllocatorCreateInfo createInfo{
+    VmaAllocatorCreateInfo create_info{
         .flags = VmaAllocatorCreateFlags(device.enable_device_address() ? VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT : 0),
         .physicalDevice = device.physical_device(),
         .device = device.logic_device(),
@@ -47,7 +47,7 @@ VkAllocator::VkAllocator(Device &device)
         .instance = device.instance(),
         .vulkanApiVersion = VK_API_VERSION_1_3,
         .pTypeExternalMemoryHandleTypes = nullptr};
-    VK_CHECK_RESULT(vmaCreateAllocator(&createInfo, &_allocator));
+    VK_CHECK_RESULT(vmaCreateAllocator(&create_info, &_allocator));
 }
 AllocatedImage VkAllocator::allocate_image(
     VkImageType dimension,
@@ -55,7 +55,7 @@ AllocatedImage VkAllocator::allocate_image(
     uint3 size,
     uint mip_level,
     VkImageUsageFlags usage) {
-    VkImageCreateInfo imageInfo = {
+    VkImageCreateInfo image_info = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         .imageType = dimension,
         .format = format,
@@ -68,11 +68,11 @@ AllocatedImage VkAllocator::allocate_image(
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .usage = usage,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
-    VmaAllocationCreateInfo allocInfo = {
+    VmaAllocationCreateInfo alloc_info = {
         .flags = VMA_ALLOCATION_CREATE_STRATEGY_BEST_FIT_BIT,
         .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE};
     AllocatedImage r;
-    VK_CHECK_RESULT(vmaCreateImage(_allocator, &imageInfo, &allocInfo, &r.image, &r.allocation, nullptr));
+    VK_CHECK_RESULT(vmaCreateImage(_allocator, &image_info, &alloc_info, &r.image, &r.allocation, nullptr));
     return r;
 }
 void VkAllocator::destroy_buffer(AllocatedBuffer const &buffer) {

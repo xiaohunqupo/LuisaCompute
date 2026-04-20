@@ -12,8 +12,8 @@ using namespace luisa;
 using namespace luisa::compute;
 struct SavedArgument {
     Type::Tag tag;
-    Usage varUsage;
-    uint structSize;
+    Usage var_usage;
+    uint struct_size;
     SavedArgument() {}
     SavedArgument(Function kernel, Variable const &var);
     SavedArgument(Usage usage, Variable const &var);
@@ -24,17 +24,17 @@ enum class CacheType : uint8_t {
     Cache,
     ByteCode
 };
-luisa::unique_ptr<luisa::BinaryStream> ReadBinaryIO(CacheType type, luisa::BinaryIO const *binIo, luisa::string_view name);
-inline static void WriteBinaryIO(CacheType type, luisa::BinaryIO const *binIo, luisa::string_view name, luisa::span<std::byte const> data) {
+luisa::unique_ptr<luisa::BinaryStream> read_binary_io(CacheType type, luisa::BinaryIO const *bin_io, luisa::string_view name);
+inline static void write_binary_io(CacheType type, luisa::BinaryIO const *bin_io, luisa::string_view name, luisa::span<std::byte const> data) {
     switch (type) {
         case CacheType::ByteCode:
-            static_cast<void>(binIo->write_shader_bytecode(name, data));
+            static_cast<void>(bin_io->write_shader_bytecode(name, data));
             return;
         case CacheType::Cache:
-            static_cast<void>(binIo->write_shader_cache(name, data));
+            static_cast<void>(bin_io->write_shader_cache(name, data));
             return;
         case CacheType::Internal:
-            static_cast<void>(binIo->write_internal_shader(name, data));
+            static_cast<void>(bin_io->write_internal_shader(name, data));
             return;
     }
 }
@@ -48,23 +48,23 @@ public:
         RayTracingShader,
         RasterShader
     };
-    virtual Tag GetTag() const = 0;
+    virtual Tag get_tag() const = 0;
 
 protected:
-    Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSig;
-    vstd::vector<hlsl::Property> properties;
-    vstd::vector<SavedArgument> kernelArguments;
-    vstd::vector<std::pair<vstd::string, Type const *>> printers;
-    uint bindlessCount;
-    void SavePSO(ID3D12PipelineState *pso, vstd::string_view psoName, luisa::BinaryIO const *fileStream, Device const *device) const;
+    Microsoft::WRL::ComPtr<ID3D12RootSignature> _root_sig;
+    vstd::vector<hlsl::Property> _properties;
+    vstd::vector<SavedArgument> _kernel_arguments;
+    vstd::vector<std::pair<vstd::string, Type const *>> _printers;
+    uint _bindless_count;
+    void _save_pso(ID3D12PipelineState *pso, vstd::string_view pso_name, luisa::BinaryIO const *file_stream, Device const *device) const;
 
 public:
-    static vstd::string PSOName(Device const *device, vstd::string_view fileName);
+    static vstd::string pso_name(Device const *device, vstd::string_view file_name);
     virtual ~Shader() noexcept = default;
-    vstd::span<const std::pair<vstd::string, Type const *>> Printers() const { return printers; }
-    uint BindlessCount() const { return bindlessCount; }
-    vstd::span<hlsl::Property const> Properties() const { return properties; }
-    vstd::span<SavedArgument const> Args() const { return kernelArguments; }
+    vstd::span<const std::pair<vstd::string, Type const *>> printers() const { return _printers; }
+    uint bindless_count() const { return _bindless_count; }
+    vstd::span<hlsl::Property const> properties() const { return _properties; }
+    vstd::span<SavedArgument const> args() const { return _kernel_arguments; }
     Shader(
         vstd::vector<hlsl::Property> &&properties,
         vstd::vector<SavedArgument> &&args,
@@ -74,43 +74,43 @@ public:
     Shader(
         vstd::vector<hlsl::Property> &&properties,
         vstd::vector<SavedArgument> &&args,
-        ComPtr<ID3D12RootSignature> &&rootSig,
+        ComPtr<ID3D12RootSignature> &&root_sig,
         vstd::vector<std::pair<vstd::string, Type const *>> &&printers);
-    ID3D12RootSignature *RootSig() const { return rootSig.Get(); }
+    ID3D12RootSignature *root_sig() const { return _root_sig.Get(); }
 
-    void SetComputeResource(
-        uint propertyName,
-        CommandBufferBuilder *cmdList,
+    void set_compute_resource(
+        uint property_name,
+        CommandBufferBuilder *cmd_list,
         BufferView buffer) const;
-    void SetComputeResource(
-        uint propertyName,
-        CommandBufferBuilder *cmdList,
+    void set_compute_resource(
+        uint property_name,
+        CommandBufferBuilder *cmd_list,
         DescriptorHeapView view) const;
-    void SetComputeResource(
-        uint propertyName,
-        CommandBufferBuilder *cmdList,
+    void set_compute_resource(
+        uint property_name,
+        CommandBufferBuilder *cmd_list,
         TopAccel const *bAccel) const;
-    void SetComputeResource(
-        uint propertyName,
-        CommandBufferBuilder *cmdList,
-        std::pair<uint, uint4> const &constValue) const;
+    void set_compute_resource(
+        uint property_name,
+        CommandBufferBuilder *cmd_list,
+        std::pair<uint, uint4> const &const_value) const;
 
-    void SetRasterResource(
-        uint propertyName,
-        CommandBufferBuilder *cmdList,
+    void set_raster_resource(
+        uint property_name,
+        CommandBufferBuilder *cmd_list,
         BufferView buffer) const;
-    void SetRasterResource(
-        uint propertyName,
-        CommandBufferBuilder *cmdList,
+    void set_raster_resource(
+        uint property_name,
+        CommandBufferBuilder *cmd_list,
         DescriptorHeapView view) const;
-    void SetRasterResource(
-        uint propertyName,
-        CommandBufferBuilder *cmdList,
+    void set_raster_resource(
+        uint property_name,
+        CommandBufferBuilder *cmd_list,
         TopAccel const *bAccel) const;
-    void SetRasterResource(
-        uint propertyName,
-        CommandBufferBuilder *cmdList,
-        std::pair<uint, uint4> const &constValue) const;
+    void set_raster_resource(
+        uint property_name,
+        CommandBufferBuilder *cmd_list,
+        std::pair<uint, uint4> const &const_value) const;
 
     KILL_COPY_CONSTRUCT(Shader)
     KILL_MOVE_CONSTRUCT(Shader)

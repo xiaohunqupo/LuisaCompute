@@ -5,9 +5,9 @@ namespace lc::vk {
 class UploadBuffer : public Buffer {
     AllocatedBuffer _res;
     void *_mapped_ptr{};
+    mutable BufferFlusher _flusher;
 
 public:
-    mutable BufferFlusher _flusher;
     UploadBuffer(Device *device, size_t size_bytes);
     ~UploadBuffer();
     void copy_from(void const *data, size_t offset, size_t size) const;

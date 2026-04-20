@@ -28,13 +28,13 @@ public:
     Device *device;
     uint64 allocate(uint64 size) override;
     void deallocate(uint64 handle) override;
-    Pack *Create(uint64_t size);
+    Pack *create(uint64_t size);
 };
 class DefaultBufferDeferredVisitor : public vstd::StackAllocatorVisitor {
 public:
     Device *device;
     CommandBuffer *cmdbuffer;
-    vstd::unordered_map<uint64_t, vstd::unique_ptr<DefaultBuffer>> _buffers;
+    vstd::unordered_map<uint64_t, vstd::unique_ptr<DefaultBuffer>> buffers;
     uint64 allocate(uint64 size) override;
     void deallocate(uint64 handle) override;
 };
@@ -50,25 +50,25 @@ class BufferAllocator : public BufferAllocatorBase {
 public:
     static constexpr size_t kLargeBufferSize = 65536ull;
     vstd::StackAllocator alloc;
-    vstd::vector<vstd::unique_ptr<T>> largeBuffers;
+    vstd::vector<vstd::unique_ptr<T>> large_buffers;
 
     Visitor<T> visitor;
     BufferView allocate(size_t size) override;
     BufferView allocate(size_t size, size_t align) override;
     void clear();
-    BufferAllocator(size_t initCapacity);
+    BufferAllocator(size_t init_capacity);
     ~BufferAllocator();
 };
 }// namespace temp_buffer
 struct CommandBufferState {
-    VkCommandPool _pool{};
+    VkCommandPool pool{};
     Device *device{};
     temp_buffer::BufferAllocator<UploadBuffer> upload_alloc;
     temp_buffer::BufferAllocator<ReadbackBuffer> readback_alloc;
-    VkDescriptorPool _desc_pool{};
+    VkDescriptorPool desc_pool{};
     vstd::vector<VkImageView> img_views;
-    vstd::vector<std::pair<void *, vstd::func_ptr_t<void(Stream *, CommandBufferState *, void *)>>> _dispose_pool;
-    vstd::vector<vstd::function<void()>> _callbacks;
+    vstd::vector<std::pair<void *, vstd::func_ptr_t<void(Stream *, CommandBufferState *, void *)>>> dispose_pool;
+    vstd::vector<vstd::function<void()>> callbacks;
     CommandBufferState();
     ~CommandBufferState();
     void init(Device &device, StreamTag tag);
@@ -78,7 +78,7 @@ struct CommandBufferState {
     void dispose_after_flush(TT &&value) {
         auto ptr = vengine_malloc(sizeof(std::remove_cvref_t<TT>));
         new (ptr) TT(std::forward<TT>(value));
-        _dispose_pool.emplace_back(
+        dispose_pool.emplace_back(
             ptr,
             [](Stream *, CommandBufferState *, void *ptr) {
                 std::destroy_at(reinterpret_cast<std::remove_cvref_t<TT> *>(ptr));
@@ -88,7 +88,7 @@ struct CommandBufferState {
 };
 
 class CommandBuffer : public Resource {
-    Stream &stream;
+    Stream &_stream;
     VkCommandBuffer _cmdbuffer;
     vstd::unique_ptr<CommandBufferState> _state;
 
@@ -118,7 +118,7 @@ struct ReorderFuncTable {
     bool is_res_in_bindless(uint64_t bindless_handle, uint64_t resource_handle) const noexcept;
     Usage get_usage(uint64_t shader_handle, size_t argument_index) const noexcept {
         auto cs = reinterpret_cast<Shader *>(shader_handle);
-        return cs->saved_arguments()[argument_index].varUsage;
+        return cs->saved_arguments()[argument_index].var_usage;
     }
     void update_bindless(uint64_t handle, luisa::span<const BindlessArrayUpdateCommand::Modification> modifications) const noexcept;
     void update_bindless(uint64_t handle, luisa::span<const BindlessArrayUpdateCommand::BufferModification> modifications) const noexcept;
@@ -153,17 +153,17 @@ class Stream : public Resource {
     std::mutex _dispatch_mtx;
     luisa::spin_mutex _mtx;
     vstd::LockFreeArrayQueue<CommandBuffer> _cmdbuffers;
-    vstd::vector<VkDescriptorSet> desc_sets;
+    vstd::vector<VkDescriptorSet> _desc_sets;
     vstd::SingleThreadArrayQueue<AsyncCmd> _exec;
-    ResourceBarrier resource_barrier;
-    vstd::vector<std::byte> uniform_data;
-    vstd::vector<std::pair<size_t, size_t>> dispatch_offsets;
-    vstd::VEngineMallocVisitor temp_desc_visitor;
-    vstd::StackAllocator temp_desc;
-    temp_buffer::DefaultBufferDeferredVisitor scratch_buffer_alloc_visitor;
-    vstd::StackAllocator scratch_buffer_alloc;
-    vstd::vector<VkWriteDescriptorSet> write_desc_sets;
-    vstd::vector<uint4> bindless_cache;
+    ResourceBarrier _resource_barrier;
+    vstd::vector<std::byte> _uniform_data;
+    vstd::vector<std::pair<size_t, size_t>> _dispatch_offsets;
+    vstd::VEngineMallocVisitor _temp_desc_visitor;
+    vstd::StackAllocator _temp_desc;
+    temp_buffer::DefaultBufferDeferredVisitor _scratch_buffer_alloc_visitor;
+    vstd::StackAllocator _scratch_buffer_alloc;
+    vstd::vector<VkWriteDescriptorSet> _write_desc_sets;
+    vstd::vector<uint4> _bindless_cache;
     StreamTag _stream_tag;
     luisa::spin_mutex *_queue_mtx;
 public:

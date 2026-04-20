@@ -229,7 +229,7 @@ void EnhancedBarrierTracker::Record(
     D3D12_BARRIER_SYNC sync,
     D3D12_BARRIER_ACCESS access,
     D3D12_BARRIER_LAYOUT layout) {
-    switch (res->GetTag()) {
+    switch (res->get_tag()) {
         case Resource::Tag::DefaultBuffer:
         case Resource::Tag::SparseBuffer:
         case Resource::Tag::ExternalBuffer:

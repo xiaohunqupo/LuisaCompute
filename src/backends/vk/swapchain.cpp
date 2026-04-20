@@ -24,7 +24,7 @@
 #endif
 
 namespace lc::vk {
-VkCompositeAlphaFlagBitsKHR choose_composite_alpha(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface) {
+VkCompositeAlphaFlagBitsKHR _choose_composite_alpha(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface) {
     VkSurfaceCapabilitiesKHR caps;
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &caps);
     // Priority: Post-multiplied > Pre-multiplied > Inherit > Opaque
@@ -96,14 +96,14 @@ static const std::array vulkan_swapchain_screen_shader_fragment_bytecode = {
     0x00000012u, 0x00000013u, 0x0000000du, 0x00000011u, 0x0004003du, 0x00000014u, 0x00000017u, 0x00000016u,
     0x00050057u, 0x00000007u, 0x00000018u, 0x00000013u, 0x00000017u, 0x0003003eu, 0x00000009u, 0x00000018u,
     0x000100fdu, 0x00010038u};
-struct SwapChainSupportDetails {
+struct SwapchainSupportDetails {
     VkSurfaceCapabilitiesKHR capabilities{};
     luisa::vector<VkSurfaceFormatKHR> formats;
     luisa::vector<VkPresentModeKHR> present_modes;
 };
 [[nodiscard]] auto _query_swapchain_support(
     VkPhysicalDevice device, VkSurfaceKHR surface) noexcept {
-    SwapChainSupportDetails details;
+    SwapchainSupportDetails details;
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities);
     auto format_count = 0u;
     vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &format_count, nullptr);
@@ -749,7 +749,7 @@ void Swapchain::create_swapchain(
     create_info.presentMode = present_mode;
     create_info.clipped = VK_TRUE;
     if (transparent) {
-        create_info.compositeAlpha = choose_composite_alpha(device()->physical_device(), _surface);
+        create_info.compositeAlpha = _choose_composite_alpha(device()->physical_device(), _surface);
     }
     auto logic_device = device()->logic_device();
     if (!vkCreateSwapchainKHR) {
@@ -939,7 +939,7 @@ void Swapchain::present(
     VK_CHECK_RESULT(vkResetFences(device()->logic_device(), 1, &_in_flight_fences[_current_frame]));
     // Create vertex buffer only after successful acquisition
     if (!_vertex_buffer) {
-        _create_vertex_buffer(cmdbuffer, cmdbuffer.states()->_callbacks, device()->physical_device(), device()->logic_device(), _vertex_buffer, _vertex_buffer_memory);
+        _create_vertex_buffer(cmdbuffer, cmdbuffer.states()->callbacks, device()->physical_device(), device()->logic_device(), _vertex_buffer, _vertex_buffer_memory);
     }
     VkDescriptorSet descriptor_set;
     _create_descriptor_sets(
@@ -947,12 +947,12 @@ void Swapchain::present(
         _swapchain_images,
         descriptor_set,
         _descriptor_set_layout,
-        cmdbuffer.states()->_desc_pool);
+        cmdbuffer.states()->desc_pool);
     auto image = tex->vk_image();
     auto image_format = Texture::to_vk_format(tex->format());
     cmdbuffer.resource_barrier->record(
         TexView{tex, mip},
-        ResourceBarrier::Usage::RasterRead);
+        ResourceBarrier::Usage::kRasterRead);
     cmdbuffer.resource_barrier->update_states(cmdbuffer.cmdbuffer());
 
     auto image_layout = cmdbuffer.resource_barrier->get_layout(tex, mip);
@@ -972,7 +972,7 @@ void Swapchain::present(
         &image_view_create_info,
         Device::alloc_callbacks(),
         &img_view));
-    cmdbuffer.states()->_callbacks.emplace_back([img_view, device = this->device()->logic_device()]() {
+    cmdbuffer.states()->callbacks.emplace_back([img_view, device = this->device()->logic_device()]() {
         vkDestroyImageView(device, img_view, Device::alloc_callbacks());
     });
 

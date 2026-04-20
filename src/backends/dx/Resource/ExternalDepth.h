@@ -18,7 +18,7 @@ public:
     uint GetGlobalUAVIndex(uint mipLevel) const override {
         return ~0u;
     }
-    Tag GetTag() const override { return Tag::ExternalDepth; }
+    Tag get_tag() const override { return Tag::ExternalDepth; }
     D3D12_DEPTH_STENCIL_VIEW_DESC GetDepthDesc() const override;
     ExternalDepth(
         ID3D12Resource *res,

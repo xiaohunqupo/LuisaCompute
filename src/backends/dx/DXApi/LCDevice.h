@@ -26,8 +26,8 @@ class LCDevice : public DeviceInterface, public vstd::IOperatorNewBase {
     };
 
 public:
-    Device nativeDevice;
-    std::mutex extMtx;
+    Device native_device;
+    std::mutex ext_mtx;
     vstd::unordered_map<vstd::string, Ext> exts;
     //std::numeric_limits<size_t>::max();
     LCDevice(Context &&ctx, DeviceConfig const *settings);

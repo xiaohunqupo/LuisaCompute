@@ -31,12 +31,12 @@ BindlessArray::BindlessArray(Device *device, BindlessSlotType type, size_t size)
     }
     switch (type) {
         case BindlessSlotType::MULTIPLE:
-            typed_binded.reset_as<vstd::vector<std::pair<BindlessStruct, MapIndicies>>>(size);
+            _typed_binded.reset_as<vstd::vector<std::pair<BindlessStruct, MapIndices>>>(size);
             break;
         default: {
             auto &alloc = bdls_detail::get_alloc(*device, type);
             _buffer_node = alloc.sub_alloc(size);
-            typed_binded.reset_as<vstd::vector<MapIndex>>(size);
+            _typed_binded.reset_as<vstd::vector<MapIndex>>(size);
         } break;
     }
 }
@@ -45,50 +45,50 @@ BindlessArray::~BindlessArray() {
         auto &alloc = bdls_detail::get_alloc(*device(), _type);
         alloc.free(_buffer_node);
     }
-    if (auto binded = typed_binded.try_get<vstd::vector<std::pair<BindlessStruct, MapIndicies>>>()) {
+    if (auto binded = _typed_binded.try_get<vstd::vector<std::pair<BindlessStruct, MapIndices>>>()) {
         for (auto &idx : *binded) {
             auto &i = idx.first;
-            if (i.buffer != BindlessStruct::n_pos) {
+            if (i.buffer != BindlessStruct::kInvalidPos) {
                 device()->buffer_heap_pool.dealloc(i.buffer);
             }
-            if (i.tex2D != BindlessStruct::n_pos) {
-                device()->tex2d_heap_pool.dealloc(i.tex2D);
+            if (i.tex_2d != BindlessStruct::kInvalidPos) {
+                device()->tex2d_heap_pool.dealloc(i.tex_2d);
             }
-            if (i.tex3D != BindlessStruct::n_pos) {
-                device()->tex3d_heap_pool.dealloc(i.tex3D);
+            if (i.tex_3d != BindlessStruct::kInvalidPos) {
+                device()->tex3d_heap_pool.dealloc(i.tex_3d);
             }
         }
     }
-    for (auto &i : freeQueue) {
-        switch (i.type) {
+    for (auto &i : _free_queue) {
+        switch (i._type) {
             case 0:
-                device()->buffer_heap_pool.dealloc(i.index);
+                device()->buffer_heap_pool.dealloc(i._index);
                 break;
             case 1:
-                device()->tex2d_heap_pool.dealloc(i.index);
+                device()->tex2d_heap_pool.dealloc(i._index);
                 break;
             case 2:
-                device()->tex3d_heap_pool.dealloc(i.index);
+                device()->tex3d_heap_pool.dealloc(i._index);
                 break;
         }
     }
 }
 void BindlessArray::pre_update(ResourceBarrier *barrier) {
-    if (offset_setted && _buffer_node) return;
+    if (_offset_setted && _buffer_node) return;
     barrier->record(
         BufferView{&_indices_buffer},
-        _buffer_node ? ResourceBarrier::Usage::CopyDest : ResourceBarrier::Usage::ComputeUAV);
+        _buffer_node ? ResourceBarrier::Usage::kCopyDest : ResourceBarrier::Usage::kComputeUAV);
 }
-void BindlessArray::return_value(MapIndex &index, uint type, uint &originValue) {
-    if (originValue != BindlessStruct::n_pos) {
-        freeQueue.push_back(FreeValue{
-            .type = type,
-            .index = originValue});
-        originValue = BindlessStruct::n_pos;
+void BindlessArray::_return_value(MapIndex &index, uint type, uint &origin_value) {
+    if (origin_value != BindlessStruct::kInvalidPos) {
+        _free_queue.push_back(FreeValue{
+            ._type = type,
+            ._index = origin_value});
+        origin_value = BindlessStruct::kInvalidPos;
         auto &&v = index.value();
         v--;
         if (v == 0) {
-            ptrMap.remove(index);
+            _ptr_map.remove(index);
         }
     }
     index = {};
@@ -98,12 +98,12 @@ void BindlessArray::deref(Map::Index &index) {
     auto &&v = index.value();
     v--;
     if (v == 0) {
-        ptrMap.remove(index);
+        _ptr_map.remove(index);
     }
     index = {};
 }
 void BindlessArray::bind(vstd::span<const BindlessArrayUpdateCommand::Texture2DModification> mods) {
-    auto bind_ptr = typed_binded.try_get<vstd::vector<MapIndex>>();
+    auto bind_ptr = _typed_binded.try_get<vstd::vector<MapIndex>>();
     LUISA_DEBUG_ASSERT(bind_ptr && _buffer_node);
     auto &binded = *bind_ptr;
     std::lock_guard lck{mtx};
@@ -118,7 +118,7 @@ void BindlessArray::bind(vstd::span<const BindlessArrayUpdateCommand::Texture2DM
     }
 }
 void BindlessArray::bind(vstd::span<const BindlessArrayUpdateCommand::BufferModification> mods) {
-    auto bind_ptr = typed_binded.try_get<vstd::vector<MapIndex>>();
+    auto bind_ptr = _typed_binded.try_get<vstd::vector<MapIndex>>();
     LUISA_DEBUG_ASSERT(bind_ptr && _buffer_node);
     auto &binded = *bind_ptr;
     std::lock_guard lck{mtx};
@@ -133,32 +133,32 @@ void BindlessArray::bind(vstd::span<const BindlessArrayUpdateCommand::BufferModi
     }
 }
 auto BindlessArray::add_index(size_t ptr) -> Map::Index {
-    auto ite = ptrMap.emplace(ptr, 0);
+    auto ite = _ptr_map.emplace(ptr, 0);
     ite.value()++;
     return ite;
 }
 void BindlessArray::bind(luisa::span<BindlessArrayUpdateCommand::Modification const> mods) {
-    auto binded_ptr = typed_binded.try_get<vstd::vector<std::pair<BindlessStruct, MapIndicies>>>();
+    auto binded_ptr = _typed_binded.try_get<vstd::vector<std::pair<BindlessStruct, MapIndices>>>();
     LUISA_DEBUG_ASSERT(binded_ptr);
     auto &binded = *binded_ptr;
     std::lock_guard lck{mtx};
 
-    auto emplace_tex = [&]<bool isTex2D>(BindlessStruct &bind_grp, MapIndicies &indices, uint64_t handle, Texture const *tex, Sampler const &samp) {
+    auto _emplace_tex = [&]<bool IsTex2D>(BindlessStruct &bind_grp, MapIndices &indices, uint64_t handle, Texture const *tex, Sampler const &samp) {
         uint tex_idx;
-        if constexpr (isTex2D) {
-            return_value(indices.tex2D, 1, bind_grp.tex2D);
+        if constexpr (IsTex2D) {
+            _return_value(indices.tex_2d, 1, bind_grp.tex_2d);
             tex_idx = device()->tex2d_heap_pool.alloc();
         } else {
-            return_value(indices.tex3D, 2, bind_grp.tex3D);
+            _return_value(indices.tex_3d, 2, bind_grp.tex_3d);
             tex_idx = device()->tex3d_heap_pool.alloc();
         }
         auto smp_idx = luisa::to_underlying(samp.filter()) + luisa::to_underlying(samp.address()) * 4;
         // auto smpIdx = GlobalSamplers::GetIndex(samp);
-        if constexpr (isTex2D) {
-            indices.tex2D = add_index(handle);
+        if constexpr (IsTex2D) {
+            indices.tex_2d = add_index(handle);
             bind_grp.write_samp2d(tex_idx, smp_idx);
         } else {
-            indices.tex3D = add_index(handle);
+            indices.tex_3d = add_index(handle);
             bind_grp.write_samp3d(tex_idx, smp_idx);
         }
     };
@@ -168,10 +168,10 @@ void BindlessArray::bind(luisa::span<BindlessArrayUpdateCommand::Modification co
         using Ope = BindlessArrayUpdateCommand::Modification::Operation;
         switch (mod.buffer.op) {
             case Ope::REMOVE:
-                return_value(indices.buffer, 0, bind_grp.buffer);
+                _return_value(indices.buffer, 0, bind_grp.buffer);
                 break;
             case Ope::EMPLACE: {
-                return_value(indices.buffer, 0, bind_grp.buffer);
+                _return_value(indices.buffer, 0, bind_grp.buffer);
                 auto buffer = reinterpret_cast<Buffer *>(mod.buffer.handle);
                 BufferView v{buffer, mod.buffer.offset_bytes, buffer->byte_size() - mod.buffer.offset_bytes};
                 auto new_idx = device()->buffer_heap_pool.alloc();
@@ -183,27 +183,27 @@ void BindlessArray::bind(luisa::span<BindlessArrayUpdateCommand::Modification co
         }
         switch (mod.tex2d.op) {
             case Ope::REMOVE:
-                return_value(indices.tex2D, 1, bind_grp.tex2D);
+                _return_value(indices.tex_2d, 1, bind_grp.tex_2d);
                 break;
             case Ope::EMPLACE:
-                emplace_tex.operator()<true>(bind_grp, indices, mod.tex2d.handle, reinterpret_cast<Texture *>(mod.tex2d.handle), mod.tex2d.sampler);
+                _emplace_tex.operator()<true>(bind_grp, indices, mod.tex2d.handle, reinterpret_cast<Texture *>(mod.tex2d.handle), mod.tex2d.sampler);
                 break;
             default: break;
         }
         switch (mod.tex3d.op) {
             case Ope::REMOVE:
-                return_value(indices.tex3D, 2, bind_grp.tex3D);
+                _return_value(indices.tex_3d, 2, bind_grp.tex_3d);
                 break;
             case Ope::EMPLACE:
-                emplace_tex.operator()<false>(bind_grp, indices, mod.tex3d.handle, reinterpret_cast<Texture *>(mod.tex3d.handle), mod.tex3d.sampler);
+                _emplace_tex.operator()<false>(bind_grp, indices, mod.tex3d.handle, reinterpret_cast<Texture *>(mod.tex3d.handle), mod.tex3d.sampler);
                 break;
             default: break;
         }
     }
 }
 void BindlessArray::copy_index(CommandBuffer *cmdbuffer) {
-    if (offset_setted) return;
-    offset_setted = true;
+    if (_offset_setted) return;
+    _offset_setted = true;
     auto dsc_buffer = cmdbuffer->states()->upload_alloc.allocate(4, 4);
     uint value = bdls_detail::get_alloc(*device(), _type).get_index(_buffer_node);
     reinterpret_cast<UploadBuffer const *>(dsc_buffer.buffer)->copy_from(&value, dsc_buffer.offset, sizeof(uint));
@@ -277,7 +277,7 @@ void BindlessArray::update(
         if (mod.tex2d.op == Ope::EMPLACE) {
             auto idx = device()->tex2d_heap_pool.get_index(_buffer_node) + mod.slot;
             auto img_view = &device()->tex2d_bindless_imgview[idx];
-            emplace_tex(*img_view, cmdbuffer, write_desc_sets, device()->bdls_tex2d_set(), idx, reinterpret_cast<Texture *>(mod.tex2d.handle));
+            _emplace_tex(*img_view, cmdbuffer, write_desc_sets, device()->bdls_tex2d_set(), idx, reinterpret_cast<Texture *>(mod.tex2d.handle));
         }
     }
     if (!write_desc_sets.empty()) {
@@ -302,7 +302,7 @@ void BindlessArray::update(
         if (mod.tex3d.op == Ope::EMPLACE) {
             auto idx = device()->tex3d_heap_pool.get_index(_buffer_node) + mod.slot;
             auto img_view = &device()->tex3d_bindless_imgview[idx];
-            emplace_tex(*img_view, cmdbuffer, write_desc_sets, device()->bdls_tex3d_set(), idx, reinterpret_cast<Texture *>(mod.tex3d.handle));
+            _emplace_tex(*img_view, cmdbuffer, write_desc_sets, device()->bdls_tex3d_set(), idx, reinterpret_cast<Texture *>(mod.tex3d.handle));
         }
     }
     if (!write_desc_sets.empty()) {
@@ -315,7 +315,7 @@ void BindlessArray::update(
         write_desc_sets.clear();
     }
 }
-void BindlessArray::emplace_tex(
+void BindlessArray::_emplace_tex(
     VkImageView &img_view,
     CommandBuffer *cmdbuffer,
     luisa::vector<VkWriteDescriptorSet> &write_desc_sets,
@@ -369,28 +369,28 @@ void BindlessArray::update(
     luisa::vector<VkWriteDescriptorSet> &write_desc_sets,
     luisa::vector<uint4> &cache,
     luisa::span<BindlessArrayUpdateCommand::Modification const> mods) {
-    auto binded_ptr = typed_binded.try_get<vstd::vector<std::pair<BindlessStruct, MapIndicies>>>();
+    auto binded_ptr = _typed_binded.try_get<vstd::vector<std::pair<BindlessStruct, MapIndices>>>();
     LUISA_DEBUG_ASSERT(binded_ptr);
     auto &binded = *binded_ptr;
     std::lock_guard lck{mtx};
     auto dsc_buffer = cmdbuffer->states()->upload_alloc.allocate(16 * mods.size(), 16);
-    auto shader = device()->set_bindless_kernel.Get(device());
+    auto shader = device()->set_bindless_kernel.get(device());
     cache.clear();
     cache.reserve(mods.size());
-    auto emplace_tex = [&]<bool isTex2D>(BindlessStruct &bind_grp, Texture const *tex) {
+    auto _emplace_tex = [&]<bool IsTex2D>(BindlessStruct &bind_grp, Texture const *tex) {
         VkDescriptorSet tex_set;
         uint tex_idx;
         VkImageView *img_view;
-        if constexpr (isTex2D) {
+        if constexpr (IsTex2D) {
             tex_set = device()->bdls_tex2d_set();
-            tex_idx = bind_grp.tex2D & BindlessStruct::mask;
+            tex_idx = bind_grp.tex_2d & BindlessStruct::kMask;
             img_view = &device()->tex2d_bindless_imgview[tex_idx];
         } else {
             tex_set = device()->bdls_tex3d_set();
-            tex_idx = bind_grp.tex3D & BindlessStruct::mask;
+            tex_idx = bind_grp.tex_3d & BindlessStruct::kMask;
             img_view = &device()->tex3d_bindless_imgview[tex_idx];
         }
-        this->emplace_tex(
+        this->_emplace_tex(
             *img_view,
             cmdbuffer,
             write_desc_sets,
@@ -422,10 +422,10 @@ void BindlessArray::update(
                 nullptr});
         }
         if (mod.tex2d.op == Ope::EMPLACE) {
-            emplace_tex.operator()<true>(bind_grp, reinterpret_cast<Texture *>(mod.tex2d.handle));
+            _emplace_tex.operator()<true>(bind_grp, reinterpret_cast<Texture *>(mod.tex2d.handle));
         }
         if (mod.tex3d.op == Ope::EMPLACE) {
-            emplace_tex.operator()<false>(bind_grp, reinterpret_cast<Texture *>(mod.tex3d.handle));
+            _emplace_tex.operator()<false>(bind_grp, reinterpret_cast<Texture *>(mod.tex3d.handle));
         }
         auto &v = cache.emplace_back();
         v.x = mod.slot;
@@ -436,7 +436,7 @@ void BindlessArray::update(
     VkDescriptorSet desc_set;
     VkDescriptorSetAllocateInfo alloc_info{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .descriptorPool = cmdbuffer->states()->_desc_pool,
+        .descriptorPool = cmdbuffer->states()->desc_pool,
         .descriptorSetCount = 1,
         .pSetLayouts = shader->desc_set_layout().data()};
     VK_CHECK_RESULT(
@@ -503,18 +503,18 @@ void BindlessArray::update(
         nullptr);
     vkCmdBindPipeline(cmdbuffer->cmdbuffer(), VK_PIPELINE_BIND_POINT_COMPUTE, shader->pipeline());
     vkCmdDispatch(cmdbuffer->cmdbuffer(), (mods.size() + 255) / 256, 1, 1);
-    if (!freeQueue.empty()) {
-        cmdbuffer->states()->_callbacks.emplace_back([freeQueue = std::move(freeQueue), device = device()]() {
-            for (auto &i : freeQueue) {
-                switch (i.type) {
+    if (!_free_queue.empty()) {
+        cmdbuffer->states()->callbacks.emplace_back([_free_queue = std::move(_free_queue), device = device()]() {
+            for (auto &i : _free_queue) {
+                switch (i._type) {
                     case 0:
-                        device->buffer_heap_pool.dealloc(i.index);
+                        device->buffer_heap_pool.dealloc(i._index);
                         break;
                     case 1:
-                        device->tex2d_heap_pool.dealloc(i.index);
+                        device->tex2d_heap_pool.dealloc(i._index);
                         break;
                     case 2:
-                        device->tex3d_heap_pool.dealloc(i.index);
+                        device->tex3d_heap_pool.dealloc(i._index);
                         break;
                 }
             }

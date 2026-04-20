@@ -44,7 +44,7 @@ public:
         vstd::function<hlsl::CodegenResult()> const &codegen,
         vstd::optional<vstd::MD5> const &code_md5,
         vstd::vector<Argument> &&bindings,
-        uint3 blockSize,
+        uint3 block_size,
         vstd::string_view file_name,
         SerdeType serde_type,
         uint shader_model,
