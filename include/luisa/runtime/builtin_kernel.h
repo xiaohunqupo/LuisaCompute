@@ -54,7 +54,7 @@ public:
             size_t element_size = sizeof(U) / sizeof(uint);
             cmdlist << buffer_view.subview(0, 1).copy_from(luisa::span<U>{ptr, 1});
             if (buffer_view.size() > 1)
-                cmdlist << _fill_buffer_from_first(buffer_view.as<uint>(), element_size).dispatch(element_size * (buffer_view.size() - 1));
+                cmdlist << _fill_buffer_from_first(buffer_view.template as<uint>(), element_size).dispatch(element_size * (buffer_view.size() - 1));
 
             cmdlist.add_dtor_callback([ptr] {
                 luisa::delete_with_allocator(ptr);
@@ -62,7 +62,7 @@ public:
         }
         // cast to uint
         else {
-            cmdlist << _fill_buffer_uint(buffer_view.as<uint>(), reinterpret_cast<uint const &>(value)).dispatch(buffer_view.size());
+            cmdlist << _fill_buffer_uint(buffer_view.template as<uint>(), reinterpret_cast<uint const &>(value)).dispatch(buffer_view.size());
         }
     }
 
