@@ -25,6 +25,11 @@ int test_ast(Device &device) {
 
     // Print the type description to verify attribute handling
     LUISA_INFO("{}", t->description());
+
+    expect(t != nullptr);
+    expect(t->is_buffer());
+    expect(t->element() == Type::of<float>());
+    expect(eq(luisa::string_view{t->description()}, luisa::string_view{"buffer[attr0(attr1)]<float>"}));
     return 0;
 }
 
