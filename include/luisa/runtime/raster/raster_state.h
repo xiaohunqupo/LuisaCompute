@@ -15,6 +15,11 @@ namespace luisa::compute {
 #undef Always
 #endif
 
+// X11 headers define None as a macro, undef it here
+#ifdef None
+#undef None
+#endif
+
 enum class Comparison : uint8_t {
     Never,
     Less,
