@@ -176,3 +176,70 @@ xmake build --verbose
 - Boolean options use `=true` or `=false` format: `--lc_enable_xir=true`
 - Use `-c` flag to clean configuration cache before reconfiguring
 - Use `-m` for build mode: `debug`, `release`, or `releasedbg`
+
+
+## Build System Architecture
+
+### Project Structure
+
+XMake uses `xmake.lua` files in `src/` and most subdirectories. The root `xmake.lua` defines global options and includes subdirectory build files.
+
+### Target Hierarchy
+
+```
+luisa-compute-include (header-only)
+    ↓
+luisa-compute-ext (third-party deps)
+    ↓
+luisa-compute-core
+    ↓
+luisa-compute-ast → luisa-compute-xir
+    ↓
+luisa-compute-runtime
+    ↓
+luisa-compute-dsl, luisa-compute-gui, luisa-compute-ir
+    ↓
+backends (plugins)
+```
+
+### Backend Plugin Pattern
+
+Backends are built as `shared` targets with output names `luisa-backend-<name>`:
+```lua
+target("luisa-compute-backend-cuda")
+    set_kind("shared")
+    set_basename("luisa-backend-cuda")
+    add_deps("luisa-compute-ast", "luisa-compute-runtime")
+    -- ...
+```
+
+### Option System
+
+Options are defined in root `xmake.lua` and consumed by subdirectory `xmake.lua` files:
+```lua
+option("lc_cuda_backend")
+    set_default(true)
+    set_showmenu(true)
+    set_description("Enable CUDA backend")
+```
+
+### Rust Integration
+
+XMake invokes `cargo build` via `os.run()` or `os.vrun()` in build rules:
+```lua
+rule("rust.build")
+    on_build(function(target)
+        os.run("cargo build --release")
+    end)
+```
+
+### Key Differences from CMake
+
+| Aspect | CMake | XMake |
+|--------|-------|-------|
+| Build file | `CMakeLists.txt` | `xmake.lua` |
+| Backend output | `MODULE` library | `shared` target |
+| Install paths | `install(TARGETS ...)` | `on_install()` rules |
+| Rust integration | Custom commands + imported targets | Direct `os.run()` invocation |
+| Configuration | `cmake -D` options | `xmake f --option=value` |
+| Unity build | `LUISA_COMPUTE_ENABLE_UNITY_BUILD` | `lc_enable_unity_build` |
