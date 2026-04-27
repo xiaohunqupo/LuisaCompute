@@ -4,6 +4,9 @@ test_*.png
 result.png
 sdf-renderer.png
 
+# Allow reference images in gallery
+!docs/gallery/*.png
+
 # Created by .ignore support plugin (hsz.mobi)
 ### Windows template
 # Windows thumbnail cache files
@@ -350,3 +353,5 @@ agents.*
 AGENTS.*
 /*agent.py
 /agent*.py
+build-check/
+build-verify/

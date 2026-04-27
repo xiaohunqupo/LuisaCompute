@@ -54,7 +54,7 @@ public:
 template<typename Derive, TensorExpr::Tag _tag>
 class TensorExprCRTPDerive : public TensorExpr {
 protected:
-    using BaseClass = typename TensorExprCRTPDerive<Derive, _tag>;
+    using BaseClass = TensorExprCRTPDerive<Derive, _tag>;
 public:
     explicit TensorExprCRTPDerive(uint64_t idx) noexcept : TensorExpr(idx) {}
     Tag tag() noexcept override {
@@ -99,7 +99,7 @@ public:
     SetValueExpr(
         uint64_t idx,
         TensorData *tensor_data,
-        ValueType const& value) noexcept
+        ValueType const &value) noexcept
         : BaseClass(idx),
           tensor_data(tensor_data),
           value(value) {}

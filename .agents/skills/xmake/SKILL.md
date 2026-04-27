@@ -4,61 +4,45 @@ name: xmake
 
 # XMake Build System
 
-This project uses XMake as its primary build system.
+Primary build system for this project.
 
 ## Requirements
 
 - XMake 3.0.6+
-- CUDA Toolkit (optional, for CUDA backend)
-- Vulkan SDK (optional, for Vulkan backend)
-- LLVM 20 (optional, for clang toolchain)
-- Rust (for some dependencies)
+- Optional: CUDA Toolkit, Vulkan SDK, LLVM 20, Rust
 
 ## Quick Start
 
 ```bash
-# Configure and build with default options
-xmake f -m debug -c
-xmake build
-
-# Build with specific configuration
-xmake f -m release -c
-xmake build
+xmake f -m debug -c && xmake build
 ```
 
-## Update compile_commands.json
+Update `compile_commands.json`:
 ```bash
 xmake project -k compile_commands --lsp=clangd .vscode
 ```
 
-## Configuration Commands
+## Configuration
 
-```bash
-# Linux with GCC
-xmake f -p linux -a x86_64 --toolchain=gcc -m release -c
+### Platform Examples
 
-# Linux with Clang
-xmake f -p linux -a x86_64 --toolchain=clang -m release -c
+| Platform | Command |
+|----------|---------|
+| Linux GCC | `xmake f -p linux -a x86_64 --toolchain=gcc -m release -c` |
+| Linux Clang | `xmake f -p linux -a x86_64 --toolchain=clang -m release -c` |
+| Windows MSVC | `xmake f -p windows -a x64 --toolchain=msvc -m release -c` |
+| Windows Clang-CL | `xmake f -p windows -a x64 --toolchain=clang-cl -m release -c` |
+| Windows LLVM | `xmake f -p windows -a x64 --toolchain=llvm --sdk="C:/Program Files/LLVM" -m release -c` |
 
-# Windows with MSVC
-xmake f -p windows -a x64 --toolchain=msvc -m release -c
-
-# Windows with Clang-CL
-xmake f -p windows -a x64 --toolchain=clang-cl -m release -c
-
-# Windows with LLVM
-xmake f -p windows -a x64 --toolchain=llvm --sdk="C:/Program Files/LLVM" -m release -c
-```
-
-## Common Flags
+### Flags
 
 | Flag | Description |
 |------|-------------|
 | `-c` | Clean configuration cache |
+| `-m <mode>` | Build mode: `release`, `debug`, `releasedbg` |
+| `-p <plat>` | Platform: `linux`, `windows`, `macosx` |
+| `-a <arch>` | Architecture: `x86_64`, `x64`, `arm64` |
 | `--check` | Check flags before building |
-| `-m <mode>` | Build mode: release, debug, releasedbg |
-| `-p <plat>` | Platform: linux, windows, macosx |
-| `-a <arch>` | Architecture: x86_64, x64, arm64 |
 
 ## Project Options
 
@@ -66,110 +50,111 @@ xmake f -p windows -a x64 --toolchain=llvm --sdk="C:/Program Files/LLVM" -m rele
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `lc_cuda_backend` | true | Enable NVIDIA CUDA backend |
-| `lc_vk_backend` | true | Enable Vulkan backend |
-| `lc_dx_backend` | true | Enable DirectX-12 backend |
-| `lc_metal_backend` | true | Enable Metal backend |
-| `lc_fallback_backend` | false | Enable fallback CPU backend |
-| `lc_toy_c_backend` | false | Enable toy C backend for testing |
+| `lc_cuda_backend` | true | NVIDIA CUDA backend |
+| `lc_vk_backend` | true | Vulkan backend |
+| `lc_dx_backend` | true | DirectX-12 backend |
+| `lc_metal_backend` | true | Metal backend |
+| `lc_fallback_backend` | false | CPU fallback backend |
+| `lc_toy_c_backend` | false | Toy C backend for testing |
 
 ### Features
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `lc_enable_dsl` | true | Enable C++ DSL module |
-| `lc_enable_gui` | true | Enable GUI module |
-| `lc_enable_imgui` | true | Enable ImGui integration |
-| `lc_enable_tests` | true | Enable tests module |
-| `lc_enable_py` | true | Enable Python bindings |
-| `lc_enable_osl` | true | Enable OpenShadingLanguage support |
+| `lc_enable_dsl` | true | C++ DSL module |
+| `lc_enable_gui` | true | GUI module |
+| `lc_enable_imgui` | true | ImGui integration |
+| `lc_enable_tests` | true | Tests module |
+| `lc_enable_py` | true | Python bindings |
+| `lc_enable_osl` | true | OpenShadingLanguage support |
 
-### Build Optimization
+### Build Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `lc_enable_unity_build` | true | Enable unity (jumbo) build |
-| `lc_enable_simd` | true | Enable SSE and SSE2 SIMD |
-| `lc_use_lto` | false | Enable Link Time Optimization |
-| `lc_enable_mimalloc` | true | Use mimalloc as default allocator |
-| `lc_enable_custom_malloc` | false | Use custom memory allocator |
+| `lc_enable_unity_build` | true | Unity (jumbo) build |
+| `lc_enable_simd` | true | SSE/SSE2 SIMD |
+| `lc_use_lto` | false | Link Time Optimization |
+| `lc_enable_mimalloc` | true | Use mimalloc allocator |
+| `lc_enable_custom_malloc` | false | Use custom allocator |
 
 ### Advanced Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `lc_cxx_standard` | cxx20 | C++ standard version |
-| `lc_rtti` | false | Enable C++ RTTI |
-| `lc_enable_xir` | false | Enable XIR (IR) support |
-| `lc_dx_cuda_interop` | false | Enable DirectX-CUDA interop |
-| `lc_vk_cuda_interop` | false | Enable Vulkan-CUDA interop |
-| `lc_cuda_ext_lcub` | false | Enable CUDA CUB extension |
+| `lc_cxx_standard` | cxx20 | C++ standard |
+| `lc_rtti` | false | Enable RTTI |
+| `lc_enable_xir` | false | XIR (IR) support |
+| `lc_dx_cuda_interop` | false | DirectX-CUDA interop |
+| `lc_vk_cuda_interop` | false | Vulkan-CUDA interop |
+| `lc_cuda_ext_lcub` | false | CUDA CUB extension |
 | `lc_sdk_dir` | false | SDK download directory |
 | `lc_bin_dir` | bin | Binary output directory |
 
-## Usage Examples
+## Build Examples
 
 ```bash
-# Full build with all backends and tests
-xmake f -p linux -m release \
-  --lc_cuda_backend=true \
-  --lc_vk_backend=true \
-  --lc_enable_dsl=true \
-  --lc_enable_gui=true \
-  --lc_enable_tests=true \
-  --lc_enable_unity_build=false \
-  -c
+# Full build
+xmake f -p linux -m release --lc_cuda_backend=true --lc_vk_backend=true \
+  --lc_enable_dsl=true --lc_enable_gui=true --lc_enable_tests=true -c
 xmake
 
 # Minimal build (no tests, no GUI)
-xmake f -m release \
-  --lc_enable_tests=false \
-  --lc_enable_gui=false \
-  --lc_enable_dsl=false \
-  -c
+xmake f -m release --lc_enable_tests=false --lc_enable_gui=false --lc_enable_dsl=false -c
 xmake
 
-# Debug build with tests
-xmake f -m debug --lc_enable_tests=true -c
-xmake
+# Debug with tests
+xmake f -m debug --lc_enable_tests=true -c && xmake
 ```
 
-## Other Commands
+## Commands
 
-```bash
-# Clean build files
-xmake clean
+| Command | Description |
+|---------|-------------|
+| `xmake clean` | Clean build files |
+| `xmake -r` | Rebuild |
+| `xmake run <target>` | Run target |
+| `xmake -l` | List targets |
+| `xmake install -o <dir>` | Install to directory |
 
-# Rebuild
-xmake -r
+## Common Issues
 
-# Run specific target
-xmake run <target>
+### Build Flags
 
-# List targets
-xmake -l
+- `-v`, `-D`, `--diagnosis` are **invalid**; use `--verbose` for verbose output
+- Boolean options: `--lc_option=true` or `=false`
+- Always use `-c` to clean cache before reconfiguring
 
-# Install to directory
-xmake install -o <dir>
+### C1083: Missing Headers
+
+```lua
+-- Add include directory
+target("my_target")
+    add_includedirs("$(projectdir)/src/runtime")
+
+-- Add dependency for headers
+target("test")
+    add_deps("lc-volk")  -- For vulkan/vulkan_core.h
 ```
 
-## Common Mistakes to Avoid
+| Header | Dependency |
+|--------|------------|
+| `vulkan/vulkan_core.h` | `lc-volk` |
+| `builtin_kernel.h` | `$(projectdir)/src/runtime` |
 
-### Invalid Flags
-- `-v`, `-D`, `--diagnosis` are **NOT** valid xmake flags. The verbose flag is `--verbose` or `-v` (in newer versions), but use with caution.
-- The project uses xmake 3.0.6+ with standard xmake syntax.
+### LNK2005: Duplicate Symbols
 
-### Correct Build Commands
-```bash
-# Wrong (invalid flags)
-xmake f -v -c -m debug
+**Cause:** Source file added via `add_files()` AND library dependency.
 
-# Correct
-xmake f -c -m debug
-xmake build
+```lua
+-- WRONG
+target("test")
+    add_files("$(projectdir)/src/runtime/builtin_kernel.cpp")
+    add_deps("lc-runtime")  -- Already contains builtin_kernel.cpp
 
-# Verbose output (if needed)
-xmake build --verbose
+-- CORRECT
+target("test")
+    add_deps("lc-runtime")
 ```
 
 ### Configuration Options

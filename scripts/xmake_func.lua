@@ -333,9 +333,13 @@ on_load(function(target)
     -- SIMD extensions configuration
     if _get_or("enable_simd") then
         if is_arch("arm64") then
-            target:add("vectorexts", "neon", {
-                public = true
-            })
+            -- NEON is always available on aarch64; vectorexts "neon" emits
+            -- -mfpu=neon which is ARM32-only and errors on ARM64 macOS/Linux.
+            if not target:is_plat("macosx", "linux") then
+                target:add("vectorexts", "neon", {
+                    public = true
+                })
+            end
         else
             target:add("vectorexts", "avx", "avx2", {
                 public = true

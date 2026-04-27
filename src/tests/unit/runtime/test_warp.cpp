@@ -1,0 +1,164 @@
+#include "ut/ut.hpp"
+#include "test_device.h"
+// Test for warp-level matrix multiplication.
+//
+// This test demonstrates optimized matrix multiplication using warp-level
+// primitives for efficient GPU utilization. The kernel uses:
+// - Warp-level collective operations (warp_active_sum)
+// - Coalesced memory access patterns
+// - Tiled computation for cache efficiency
+//
+// The implementation targets GPUs supporting Shader Model 6.6 or CUDA.
+
+#include <luisa/core/logging.h>
+#include <luisa/runtime/context.h>
+#include <luisa/runtime/stream.h>
+#include <luisa/runtime/device.h>
+#include <luisa/dsl/sugar.h>
+#include <random>
+
+using namespace luisa;
+using namespace luisa::compute;
+using namespace boost::ut;
+using namespace boost::ut::literals;
+
+void test_warp(Device &device) {
+    auto stream = device.create_stream();
+
+    // Helper lambdas for matrix element access in row-major layout
+    // buffer[y * size.x + x] stores element at (x, y)
+    auto get_matrix = [&](BufferVar<float> const &buffer, UInt2 const &size, UInt2 const &idx) {
+        return buffer.read(size.x * idx.y + idx.x);
+    };
+    auto set_matrix = [&](BufferVar<float> const &buffer, UInt2 const &size, UInt2 const &idx, Float const &value) {
+        return buffer.write(size.x * idx.y + idx.x, value);
+    };
+
+    // Warp size constant (32 for NVIDIA/AMD, 64 for AMD in some cases)
+    constexpr uint k_warp_size = 32;
+
+    // Warp-level matrix multiplication kernel
+    // Computes: result = lhs * rhs where lhs is [M x K] and rhs is [K x N]
+    // Each warp computes a tile of the output matrix
+    auto mat_mul_kernel = [&](BufferVar<float> lhs_buffer,
+                              BufferVar<float> rhs_buffer,
+                              BufferVar<float> result_buffer,
+                              UInt lhs_row_size) {
+        set_block_size(128, 1, 1);
+        // Note: Requires Shader Model 6.6 (DirectX) or CUDA
+        // The warp size is implementation-defined for modern GPUs
+        set_warp_size(k_warp_size);
+
+        // Calculate matrix dimensions from dispatch size
+        UInt2 lhs_matrix_size = make_uint2(lhs_row_size, dispatch_size().y);
+        UInt2 rhs_matrix_size = make_uint2(dispatch_size().x / k_warp_size, lhs_row_size);
+
+        // Each warp processes one output tile
+        UInt lhs_y = dispatch_id().x / k_warp_size;// Row in output
+        UInt rhs_x = dispatch_id().y;              // Column in output
+        UInt warp_local_id = warp_lane_id();       // Thread index within warp (0-31)
+
+        // Calculate number of tiles along K dimension
+        UInt lhs_row_batch_count = (lhs_matrix_size.x + k_warp_size - 1) / k_warp_size;
+        Float curr_lane_value = 0.f;
+
+        Float local_v;
+        // Process K dimension in tiles of warp_size
+        for (auto lhs_row_batch : dynamic_range(lhs_row_batch_count)) {
+            // Index within current tile
+            UInt lhs_x = lhs_row_batch * k_warp_size + warp_local_id;
+
+            // Load and multiply if within bounds
+            $if (lhs_x < lhs_matrix_size.x) {
+                local_v = get_matrix(lhs_buffer, lhs_matrix_size, make_uint2(lhs_x, lhs_y));
+                local_v *= get_matrix(rhs_buffer, rhs_matrix_size, make_uint2(rhs_x, lhs_x));
+            }
+            $else {
+                local_v = 0.f;
+            };
+
+            // Warp-level sum reduction: all 32 threads contribute
+            // This is more efficient than shared memory reduction
+            curr_lane_value += warp_active_sum(local_v);
+        }
+
+        // Only thread 0 in each warp writes the result
+        $if (warp_local_id == 0) {
+            set_matrix(result_buffer, make_uint2(rhs_matrix_size.x, lhs_matrix_size.y), make_uint2(rhs_x, lhs_y), curr_lane_value);
+        };
+    };
+
+    // Compile the kernel
+    auto mat_mul_shader = device.compile<2>(std::move(mat_mul_kernel));
+
+    // Initialize random data for testing
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<float> dist(0.5, 1.5);
+
+    // Matrix dimensions
+    constexpr uint k_matrix_size = 256;
+    luisa::vector<float> lhs_matrix;
+    luisa::vector<float> rhs_matrix;
+    luisa::vector<float> result_matrix;
+    lhs_matrix.resize(k_matrix_size * k_matrix_size);
+    rhs_matrix.resize(k_matrix_size * k_matrix_size);
+    result_matrix.resize(k_matrix_size * k_matrix_size);
+
+    // Helper for row-major index calculation
+    auto idx = [](auto x, auto y) {
+        return y * k_matrix_size + x;
+    };
+
+    // Fill matrices with random values
+    for (int x = 0; x < k_matrix_size; ++x)
+        for (int y = 0; y < k_matrix_size; ++y) {
+            lhs_matrix[idx(x, y)] = dist(gen);
+            rhs_matrix[idx(x, y)] = dist(gen);
+        }
+
+    // Create GPU buffers
+    auto lhs_buffer = device.create_buffer<float>(lhs_matrix.size());
+    auto rhs_buffer = device.create_buffer<float>(rhs_matrix.size());
+    auto result_buffer = device.create_buffer<float>(result_matrix.size());
+
+    // Execute kernel
+    stream
+        << lhs_buffer.copy_from(luisa::span{lhs_matrix})
+        << rhs_buffer.copy_from(luisa::span{rhs_matrix})
+        // Dispatch: x dimension accounts for warp grouping, y is matrix rows
+        << mat_mul_shader(lhs_buffer, rhs_buffer, result_buffer, k_matrix_size).dispatch(k_matrix_size * k_warp_size, k_matrix_size)
+        << result_buffer.copy_to(luisa::span{result_matrix})
+        << synchronize();
+
+    // Host-side validation
+    auto all_correct = true;
+    for (int x = 0; x < k_matrix_size; ++x) {
+        for (int y = 0; y < k_matrix_size; ++y) {
+            float result = 0.f;
+            // Standard matrix multiplication: C[y][x] = sum(A[y][k] * B[k][x])
+            for (int row = 0; row < k_matrix_size; ++row) {
+                result += lhs_matrix[idx(row, y)] * rhs_matrix[idx(x, row)];
+            }
+            // Validate with tolerance for floating point errors
+            if (abs(result - result_matrix[idx(x, y)]) > 1e-2f) {
+                LUISA_WARNING("Warp matmul mismatch at ({},{}): expected {} got {}",
+                              x, y, result, result_matrix[idx(x, y)]);
+                all_correct = false;
+            }
+        }
+    }
+    expect(all_correct) << "warp_matmul_correctness";
+}
+
+static inline const auto reg = [] {
+    "warp"_test = [] {
+        auto dc = luisa::test::create_device_from_ut();
+        if (!dc) return;
+        auto &device = dc->device;
+        test_warp(device);
+    };
+    return 0;
+}();
+
+int main() {}

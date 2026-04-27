@@ -139,4 +139,8 @@ if has_config('_lc_check_env') then
         set_targetdir(lc_bin_dir)
     end
     includes("src")
+    if has_config("lc_enable_tests") then
+        includes("examples")
+        includes("tutorials")
+    end
 end

@@ -19,7 +19,7 @@ jobs:
             arch: aarch64
             cuda-keyring: sbsa
             jobs: 4
-            unity: ON
+            unity: OFF
 
     name: ${{ matrix.config }} / ${{ matrix.platform.os }} / ${{ matrix.platform.arch }} / ${{ matrix.compiler }}
     runs-on: ${{ matrix.platform.os }}
