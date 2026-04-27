@@ -87,3 +87,118 @@ cmake -S . -B build -G Ninja \
 
 cmake --build build
 ```
+
+
+## Build System Architecture
+
+### Target Naming Conventions
+
+| Prefix | Example | Purpose |
+|--------|---------|---------|
+| `luisa-compute-<module>` | `luisa-compute-core` | Internal library targets |
+| `luisa-compute-backend-<name>` | `luisa-compute-backend-cuda` | Backend plugin targets (output as `luisa-backend-<name>`) |
+| `luisa-compute-ext-<name>` | `luisa-compute-ext-spdlog` | Third-party extension targets |
+| `luisa::compute` | Alias | Interface target linking all core modules |
+
+### Module Hierarchy
+
+```
+luisa-compute-include (INTERFACE header-only)
+    ↓
+luisa-compute-ext (INTERFACE third-party deps)
+    ↓
+luisa-compute-core (SHARED)
+    ↓
+luisa-compute-ast (SHARED) → luisa-compute-xir (SHARED)
+    ↓
+luisa-compute-runtime (SHARED)
+    ↓
+luisa-compute-dsl, luisa-compute-gui, luisa-compute-ir
+    ↓
+luisa-compute-backends (INTERFACE aggregator)
+```
+
+### Custom CMake Functions
+
+#### `luisa_compute_install(target)`
+
+Installs a target with consistent destination paths:
+```cmake
+luisa_compute_install(core SOURCES ${LUISA_COMPUTE_CORE_SOURCES})
+```
+
+#### `luisa_compute_add_backend(name)`
+
+Creates a backend plugin MODULE target:
+```cmake
+luisa_compute_add_backend(cuda SOURCES ${LUISA_COMPUTE_CUDA_SOURCES})
+```
+
+- Creates `luisa-compute-backend-${name}` MODULE
+- Links to `ast`, `runtime`, `gui`, optionally `dsl`
+- Sets output name to `luisa-backend-${name}`
+- Installs to `${CMAKE_INSTALL_BINDIR}` (bin, not lib)
+
+#### `luisa_compute_add_executable(name)`
+
+Creates executable linked to `luisa::compute`:
+```cmake
+luisa_compute_add_executable(my_app)
+```
+
+#### `luisa_compute_test_suite(name)` / `luisa_compute_add_test(name)`
+
+Test creation helpers:
+```cmake
+luisa_compute_test_suite(feat)  # globs next/test/feat/**.cpp
+luisa_compute_add_test(my_test) # adds to test_main executable
+```
+
+### Backend Plugin Build Pattern
+
+Backends are built as `MODULE` (shared libraries) loaded at runtime:
+```cmake
+luisa_compute_add_backend(cuda SOURCES ${LUISA_COMPUTE_CUDA_SOURCES})
+```
+
+Key properties:
+- Output renamed to `luisa-backend-<name>` (without `compute-`)
+- Installed to `bin/` not `lib/` because they are runtime plugins
+- Support for builtin device libraries via `luisa_embed_device_lib`
+
+### Rust Integration
+
+**File**: `src/rust/CMakeLists.txt`
+
+1. Custom command invokes `cargo build`
+2. Profile: `dev` (Debug) or `release` (Release)
+3. CMake targets:
+   - `luisa-compute-rust-meta` (INTERFACE): Static Rust libs
+   - `luisa_compute_backend_impl` (INTERFACE): Shared Rust backend
+
+### Third-Party Extension Pattern
+
+Each extension in `src/ext/` follows:
+```cmake
+if (LUISA_COMPUTE_USE_SYSTEM_<LIB>)
+    find_package(<LIB> REQUIRED)
+    target_link_libraries(luisa-compute-ext INTERFACE <target>)
+    target_compile_definitions(luisa-compute-ext INTERFACE LUISA_USE_SYSTEM_<LIB>=1)
+else ()
+    add_subdirectory(<lib>)
+    target_link_libraries(luisa-compute-ext INTERFACE <target>)
+    luisa_compute_install_extension(<target> ...)
+endif ()
+```
+
+### Output Directories
+
+```
+${CMAKE_BINARY_DIR}/bin  → Runtime outputs (DLLs, executables)
+${CMAKE_BINARY_DIR}/lib  → Archive outputs (static libs, PDBs)
+```
+
+### RPATH Configuration
+
+- **macOS**: `@loader_path`, `@loader_path/../bin`, `@loader_path/../lib`
+- **Linux**: `$ORIGIN`, `$ORIGIN/../bin`, `$ORIGIN/../lib`
