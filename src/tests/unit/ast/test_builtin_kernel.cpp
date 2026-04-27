@@ -280,6 +280,7 @@ static inline const auto reg = [] {
         auto dc = luisa::test::create_device_from_ut();
         if (!dc) return;
         auto &device = dc->device;
+#ifdef __cpp_exceptions
         try {
             test_builtin_kernel(device);
             expect(true);
@@ -288,6 +289,10 @@ static inline const auto reg = [] {
         } catch (...) {
             expect(false) << "unknown exception";
         }
+#else
+        test_builtin_kernel(device);
+        expect(true);
+#endif
     };
     return 0;
 }();
