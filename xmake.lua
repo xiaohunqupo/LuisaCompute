@@ -94,6 +94,8 @@ option("lc_imgui_use_xrepo", {default = false})
 -- use xmake-repo glfw package instead of bundled
 option("lc_glfw_use_xrepo", {default = false})
 -- use xmake-repo yyjson package instead of bundled
+option("lc_disable_win_message_box", {default = true})
+
 option("lc_yyjson_use_xrepo", {default = false})
 -- internal: xmake scripts directory path
 option("lc_scripts_path")

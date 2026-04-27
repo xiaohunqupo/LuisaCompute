@@ -15,6 +15,9 @@ on_load(function(target)
     if target:is_plat("windows") then
         if is_mode("debug") then
             target:add("syslinks", "Dbghelp")
+            if has_config('lc_disable_win_message_box') and target:is_plat('windows') then
+                target:add('defines', 'LUISA_DISABLE_WIN_MESSAGE_BOX')
+            end
         end
         target:add("defines", "NOMINMAX", "LUISA_PLATFORM_WINDOWS", "_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR", {
             public = true

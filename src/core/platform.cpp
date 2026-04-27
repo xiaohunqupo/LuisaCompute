@@ -22,6 +22,11 @@ static_assert(sizeof(void *) == 8 && sizeof(int) == 4 && sizeof(char) == 1,
 #include <DbgHelp.h>
 #endif
 
+#ifdef LUISA_DISABLE_WIN_MESSAGE_BOX
+#include <crtdbg.h>
+#include <stdlib.h>
+#endif
+
 namespace luisa {
 
 void *aligned_alloc(size_t alignment, size_t size) noexcept {
@@ -31,6 +36,23 @@ void *aligned_alloc(size_t alignment, size_t size) noexcept {
 void aligned_free(void *p) noexcept {
     _aligned_free(p);
 }
+
+#ifdef LUISA_DISABLE_WIN_MESSAGE_BOX
+struct DisableMessageBoxInit {
+    DisableMessageBoxInit() noexcept {
+#ifndef NDEBUG
+        _CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_FILE);
+        _CrtSetReportFile(_CRT_WARN, _CRTDBG_FILE_STDERR);
+        _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE);
+        _CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
+        _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
+        _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+#endif
+        _set_error_mode(_OUT_TO_STDERR);
+        SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
+    }
+} disable_message_box;
+#endif
 
 namespace detail {
 

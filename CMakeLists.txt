@@ -74,6 +74,7 @@ option(LUISA_COMPUTE_USE_SYSTEM_XXHASH "Use system xxHash instead of the bundled
 option(LUISA_COMPUTE_USE_SYSTEM_YYJSON "Use system yyjson instead of the bundled one" ${LUISA_COMPUTE_USE_SYSTEM_LIBS})
 option(LUISA_COMPUTE_USE_SYSTEM_MAGIC_ENUM "Use system magic enum instead of the bundled one" ${LUISA_COMPUTE_USE_SYSTEM_LIBS})
 option(LUISA_COMPUTE_USE_SYSTEM_MARL "Use system marl instead of the bundled one" ${LUISA_COMPUTE_USE_SYSTEM_LIBS})
+option(LUISA_COMPUTE_DISABLE_WIN_MESSAGE_BOX "Disable windows message box" ${LUISA_COMPUTE_DISABLE_WIN_MESSAGE_BOX})
 
 option(LUISA_COMPUTE_ENABLE_SANITIZERS "Enable sanitizers" OFF)
 option(LUISA_COMPUTE_ENABLE_UNITY_BUILD "Enable unity build (which might accelerate the compilation but could break VS Code's clangd indexing)" OFF)
