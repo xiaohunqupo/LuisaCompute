@@ -37,7 +37,7 @@ ComputeShader *BuiltinKernel::load_accel_set_kernel(Device *device) {
         62, true);
 }
 ComputeShader *BuiltinKernel::load_accel_motion_set_kernel(Device *device) {
-    // Motion variant: uses RWByteAddressBuffer for 152-byte stride output
+    // Motion variant: uses RWByteAddressBuffer for 184-byte stride output (sizeof(VkAccelerationStructureMotionInstanceNV))
     static constexpr auto motion_shader_source = R"(
 struct InputInst{
 float4 p0;float4 p1;float4 p2;
@@ -47,6 +47,8 @@ RWByteAddressBuffer _InstBuffer:register(u1);
 StructuredBuffer<InputInst> _SetBuffer:register(t0);
 struct _CBType{uint dsp;uint count;};
 [[vk::push_constant]] ConstantBuffer<_CBType> cb:register(b0);
+static const uint MOTION_INST_STRIDE = 184u;
+static const uint STATIC_DATA_OFFSET = 8u;
 [numthreads(256,1,1)]
 void main(uint id:SV_DISPATCHTHREADID){
 if(id >= cb.dsp) return;
@@ -59,10 +61,10 @@ const uint flag_user_id = 1u << 5u;
 const uint flag_opaque = flag_opaque_on | flag_opaque_off;
 InputInst v=_SetBuffer[id];
 if(v.index>=cb.count) return;
-uint base = v.index * 152u;
+uint base = v.index * MOTION_INST_STRIDE;
 _InstBuffer.Store(base, 0u);
 _InstBuffer.Store(base + 4u, 0u);
-uint db = base + 8u;
+uint db = base + STATIC_DATA_OFFSET;
 if((v.flags&flag_transform)!=0){
 _InstBuffer.Store4(db + 0u, asuint(v.p0));
 _InstBuffer.Store4(db + 16u, asuint(v.p1));

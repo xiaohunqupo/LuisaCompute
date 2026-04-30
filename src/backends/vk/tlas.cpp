@@ -63,9 +63,9 @@ void Tlas::pre_build(
         }
     }
 
-    // When motion is enabled, use 152-byte VkAccelerationStructureMotionInstanceNV
+    // When motion is enabled, use VkAccelerationStructureMotionInstanceNV
     // instead of 64-byte VkAccelerationStructureInstanceKHR
-    auto inst_stride = _has_motion ? 152u : static_cast<uint>(sizeof(VkAccelerationStructureInstanceKHR));
+    auto inst_stride = _has_motion ? static_cast<uint>(sizeof(VkAccelerationStructureMotionInstanceNV)) : static_cast<uint>(sizeof(VkAccelerationStructureInstanceKHR));
     auto dst_inst_size = static_cast<size_t>(instance_count) * inst_stride;
     dst_inst_size = (dst_inst_size + 65535u) & (~65535u);
     // resize
@@ -143,10 +143,13 @@ void Tlas::pre_build(
             }
         }
         // When motion is enabled, fill instance buffer directly from CPU
-        // using VkAccelerationStructureMotionInstanceNV (152 bytes per instance)
+        // using VkAccelerationStructureMotionInstanceNV
         if (_has_motion) {
+            LUISA_INFO("TLAS motion path: instance_count={}, modifications.size()={}, _has_motion={}",
+                       instance_count, modifications.size(), _has_motion);
             // Allocate upload buffer for motion instances
-            auto upload_size = static_cast<size_t>(instance_count) * 152u;
+            auto motion_inst_size = sizeof(VkAccelerationStructureMotionInstanceNV);
+            auto upload_size = static_cast<size_t>(instance_count) * motion_inst_size;
             auto upload_buf = cmdbuffer.states()->upload_alloc.allocate(upload_size, 16);
             auto motion_data = reinterpret_cast<uint8_t *>(
                 static_cast<UploadBuffer const *>(upload_buf.buffer)->mapped_ptr()) + upload_buf.offset;
@@ -156,7 +159,12 @@ void Tlas::pre_build(
             for (size_t idx = 0; idx < modifications.size(); idx++) {
                 auto &&i = modifications[idx];
                 if (i.index >= instance_count) continue;
-                auto inst_base = motion_data + static_cast<size_t>(i.index) * 152u;
+                auto motion_inst_size = sizeof(VkAccelerationStructureMotionInstanceNV);
+                auto inst_base = motion_data + static_cast<size_t>(i.index) * motion_inst_size;
+
+                LUISA_INFO("  Writing instance idx={}, index={}, user_id={}, flags=0x{:x}, primitive=0x{:x}, resolved_mesh={}",
+                           idx, i.index, i.user_id, i.flags, i.primitive,
+                           resolved_meshes[idx] ? "valid" : "null");
 
                 // type = VK_ACCELERATION_STRUCTURE_MOTION_INSTANCE_TYPE_STATIC_NV (0)
                 *reinterpret_cast<uint32_t *>(inst_base + 0) = 0u;
@@ -170,9 +178,11 @@ void Tlas::pre_build(
                 if (i.flags & AccelBuildCommand::Modification::flag_transform) {
                     memcpy(&inst->transform, i.affine, sizeof(float) * 12);
                 }
-                // Instance custom index (user_id)
+                // Instance custom index: default to instance index, override with user_id if set
                 if (i.flags & AccelBuildCommand::Modification::flag_user_id) {
                     inst->instanceCustomIndex = i.user_id;
+                } else {
+                    inst->instanceCustomIndex = static_cast<uint>(i.index);
                 }
                 // Visibility mask
                 if (i.flags & AccelBuildCommand::Modification::flag_visibility) {
@@ -428,7 +438,7 @@ void Tlas::build(
         1,
         _acceleration_build_geometry_info,
         &acceleration_structure_build_range_info);
-    // possible? 
+    // possible?
     cmdbuffer.resource_barrier->record(
         BufferView{
             _instance_buffer.get()},
