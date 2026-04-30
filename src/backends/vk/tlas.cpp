@@ -63,11 +63,12 @@ void Tlas::pre_build(
         }
     }
 
-    // When motion is enabled, use VkAccelerationStructureMotionInstanceNV
-    // instead of 64-byte VkAccelerationStructureInstanceKHR
-    auto inst_stride = _has_motion ? static_cast<uint>(sizeof(VkAccelerationStructureMotionInstanceNV)) : static_cast<uint>(sizeof(VkAccelerationStructureInstanceKHR));
-    auto dst_inst_size = static_cast<size_t>(instance_count) * inst_stride;
-    dst_inst_size = (dst_inst_size + 65535u) & (~65535u);
+    // _instance_buffer always uses 64-byte stride (VkAccelerationStructureInstanceKHR)
+    // for shader reads via StructuredBuffer<_MeshInst>.
+    // When motion is enabled, _motion_instance_buffer uses 160-byte stride
+    // (VkAccelerationStructureMotionInstanceNV padded to 16-byte alignment) for TLAS build.
+    auto std_inst_size = static_cast<size_t>(instance_count) * sizeof(VkAccelerationStructureInstanceKHR);
+    std_inst_size = (std_inst_size + 65535u) & (~65535u);
     // resize
     auto resource_barrier = cmdbuffer.resource_barrier;
     bool update = _option.allow_update && request == AccelBuildRequest::PREFER_UPDATE && (!_require_rebuild);
@@ -76,9 +77,10 @@ void Tlas::pre_build(
         update = false;
         _last_instance_count = instance_count;
     }
-    if (_instance_buffer && _instance_buffer->byte_size() < dst_inst_size) {
+    // Resize the standard 64-byte instance buffer (for shader reads)
+    if (_instance_buffer && _instance_buffer->byte_size() < std_inst_size) {
         update = false;
-        auto new_inst_buffer = vstd::make_unique<DefaultBuffer>(device(), dst_inst_size, true, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR);
+        auto new_inst_buffer = vstd::make_unique<DefaultBuffer>(device(), std_inst_size, true, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR);
         resource_barrier->record(
             BufferView{new_inst_buffer.get()},
             ResourceBarrier::Usage::kCopyDest);
@@ -106,7 +108,20 @@ void Tlas::pre_build(
         _instance_buffer = std::move(new_inst_buffer);
     } else if (!_instance_buffer) {
         update = false;
-        _instance_buffer = vstd::make_unique<DefaultBuffer>(device(), dst_inst_size, false, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR);
+        _instance_buffer = vstd::make_unique<DefaultBuffer>(device(), std_inst_size, false, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR);
+    }
+    // When motion is enabled, also manage the motion instance buffer for TLAS build
+    if (_has_motion) {
+        auto motion_buf_size = static_cast<size_t>(instance_count) * kMotionInstanceStride;
+        motion_buf_size = (motion_buf_size + 65535u) & (~65535u);
+        if (_motion_instance_buffer && _motion_instance_buffer->byte_size() < motion_buf_size) {
+            update = false;
+            cmdbuffer.states()->dispose_after_flush(std::move(_motion_instance_buffer));
+        }
+        if (!_motion_instance_buffer) {
+            update = false;
+            _motion_instance_buffer = vstd::make_unique<DefaultBuffer>(device(), motion_buf_size, false, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR);
+        }
     }
     if (!(modifications.empty() && _set_map.empty())) {
         // First pass: resolve primitives and update mesh references
@@ -142,87 +157,126 @@ void Tlas::pre_build(
                 }
             }
         }
-        // When motion is enabled, fill instance buffer directly from CPU
-        // using VkAccelerationStructureMotionInstanceNV
+        // When motion is enabled, fill both instance buffers from CPU:
+        // 1. _motion_instance_buffer (160-byte stride, 16-byte aligned) for TLAS build
+        // 2. _instance_buffer (64-byte stride) for shader reads via StructuredBuffer<_MeshInst>
         if (_has_motion) {
-            LUISA_INFO("TLAS motion path: instance_count={}, modifications.size()={}, _has_motion={}",
-                       instance_count, modifications.size(), _has_motion);
-            // Allocate upload buffer for motion instances
-            auto motion_inst_size = sizeof(VkAccelerationStructureMotionInstanceNV);
-            auto upload_size = static_cast<size_t>(instance_count) * motion_inst_size;
-            auto upload_buf = cmdbuffer.states()->upload_alloc.allocate(upload_size, 16);
-            auto motion_data = reinterpret_cast<uint8_t *>(
+            // Allocate upload buffer for motion instances (160-byte stride)
+            auto motion_upload_size = static_cast<size_t>(instance_count) * kMotionInstanceStride;
+            // Allocate upload buffer for standard instances (64-byte stride)
+            auto std_inst_size_bytes = static_cast<size_t>(instance_count) * sizeof(VkAccelerationStructureInstanceKHR);
+            auto total_upload_size = motion_upload_size + std_inst_size_bytes;
+            auto upload_buf = cmdbuffer.states()->upload_alloc.allocate(total_upload_size, 16);
+            auto upload_base = reinterpret_cast<uint8_t *>(
                 static_cast<UploadBuffer const *>(upload_buf.buffer)->mapped_ptr()) + upload_buf.offset;
-            memset(motion_data, 0, upload_size);
+            auto motion_data = upload_base;
+            auto std_data = upload_base + motion_upload_size;
+            memset(motion_data, 0, motion_upload_size);
+            memset(std_data, 0, std_inst_size_bytes);
 
-            // Fill each instance as STATIC motion instance
+            // Fill each instance
             for (size_t idx = 0; idx < modifications.size(); idx++) {
                 auto &&i = modifications[idx];
                 if (i.index >= instance_count) continue;
-                auto motion_inst_size = sizeof(VkAccelerationStructureMotionInstanceNV);
-                auto inst_base = motion_data + static_cast<size_t>(i.index) * motion_inst_size;
 
-                LUISA_INFO("  Writing instance idx={}, index={}, user_id={}, flags=0x{:x}, primitive=0x{:x}, resolved_mesh={}",
-                           idx, i.index, i.user_id, i.flags, i.primitive,
-                           resolved_meshes[idx] ? "valid" : "null");
-
+                // --- Fill motion instance at 160-byte stride ---
+                auto inst_base = motion_data + static_cast<size_t>(i.index) * kMotionInstanceStride;
                 // type = VK_ACCELERATION_STRUCTURE_MOTION_INSTANCE_TYPE_STATIC_NV (0)
                 *reinterpret_cast<uint32_t *>(inst_base + 0) = 0u;
                 // flags = 0
                 *reinterpret_cast<uint32_t *>(inst_base + 4) = 0u;
-
                 // data.staticInstance = VkAccelerationStructureInstanceKHR at offset 8
-                auto inst = reinterpret_cast<VkAccelerationStructureInstanceKHR *>(inst_base + 8);
+                auto motion_inst = reinterpret_cast<VkAccelerationStructureInstanceKHR *>(inst_base + 8);
+
+                // --- Fill 64-byte standard instance ---
+                auto std_inst = reinterpret_cast<VkAccelerationStructureInstanceKHR *>(
+                    std_data + static_cast<size_t>(i.index) * sizeof(VkAccelerationStructureInstanceKHR));
 
                 // Transform (3x4 row-major float matrix)
                 if (i.flags & AccelBuildCommand::Modification::flag_transform) {
-                    memcpy(&inst->transform, i.affine, sizeof(float) * 12);
+                    memcpy(&motion_inst->transform, i.affine, sizeof(float) * 12);
+                    memcpy(&std_inst->transform, i.affine, sizeof(float) * 12);
                 }
                 // Instance custom index: default to instance index, override with user_id if set
+                uint custom_index;
                 if (i.flags & AccelBuildCommand::Modification::flag_user_id) {
-                    inst->instanceCustomIndex = i.user_id;
+                    custom_index = i.user_id;
                 } else {
-                    inst->instanceCustomIndex = static_cast<uint>(i.index);
+                    custom_index = static_cast<uint>(i.index);
                 }
+                motion_inst->instanceCustomIndex = custom_index;
+                std_inst->instanceCustomIndex = custom_index;
                 // Visibility mask
+                uint mask;
                 if (i.flags & AccelBuildCommand::Modification::flag_visibility) {
-                    inst->mask = i.vis_mask;
+                    mask = i.vis_mask;
                 } else {
-                    inst->mask = 0xFF;
+                    mask = 0xFF;
                 }
+                motion_inst->mask = mask;
+                std_inst->mask = mask;
                 // SBT offset and flags
-                inst->instanceShaderBindingTableRecordOffset = 0;
+                motion_inst->instanceShaderBindingTableRecordOffset = 0;
+                std_inst->instanceShaderBindingTableRecordOffset = 0;
+                VkGeometryInstanceFlagsKHR geom_flags = 0;
                 if (i.flags & AccelBuildCommand::Modification::flag_opaque_on) {
-                    inst->flags = VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_KHR;
+                    geom_flags = VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_KHR;
                 } else if (i.flags & AccelBuildCommand::Modification::flag_opaque_off) {
-                    inst->flags = VK_GEOMETRY_INSTANCE_FORCE_NO_OPAQUE_BIT_KHR;
+                    geom_flags = VK_GEOMETRY_INSTANCE_FORCE_NO_OPAQUE_BIT_KHR;
                 }
+                motion_inst->flags = geom_flags;
+                std_inst->flags = geom_flags;
                 // Acceleration structure reference
                 if ((i.flags & AccelBuildCommand::Modification::flag_primitive) && resolved_meshes[idx]) {
-                    inst->accelerationStructureReference = resolved_meshes[idx]->get_accel_device_address();
+                    auto addr = resolved_meshes[idx]->get_accel_device_address();
+                    motion_inst->accelerationStructureReference = addr;
+                    std_inst->accelerationStructureReference = addr;
                     resource_barrier->record(BufferView{resolved_meshes[idx]->_accel_buffer.get()},
                                              ResourceBarrier::Usage::kAccelInstanceBuffer);
                 }
             }
 
-            // Copy from upload buffer to instance buffer
+            // Copy motion instances to _motion_instance_buffer (for TLAS build)
+            resource_barrier->record(
+                BufferView{_motion_instance_buffer.get()},
+                ResourceBarrier::Usage::kCopyDest);
+            // Copy standard instances to _instance_buffer (for shader reads)
             resource_barrier->record(
                 BufferView{_instance_buffer.get()},
                 ResourceBarrier::Usage::kCopyDest);
             resource_barrier->update_states(cmdbuffer.cmdbuffer());
-            VkBufferCopy2 buffer_copy{
-                VK_STRUCTURE_TYPE_BUFFER_COPY_2,
-                nullptr,
-                upload_buf.offset, 0,
-                upload_size};
-            VkCopyBufferInfo2 copy_info2{
-                VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2,
-                nullptr,
-                upload_buf.buffer->vk_buffer(),
-                _instance_buffer->vk_buffer(),
-                1,
-                &buffer_copy};
-            vkCmdCopyBuffer2(cmdbuffer.cmdbuffer(), &copy_info2);
+            // Copy motion buffer
+            {
+                VkBufferCopy2 buffer_copy{
+                    VK_STRUCTURE_TYPE_BUFFER_COPY_2,
+                    nullptr,
+                    upload_buf.offset, 0,
+                    motion_upload_size};
+                VkCopyBufferInfo2 copy_info2{
+                    VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2,
+                    nullptr,
+                    upload_buf.buffer->vk_buffer(),
+                    _motion_instance_buffer->vk_buffer(),
+                    1,
+                    &buffer_copy};
+                vkCmdCopyBuffer2(cmdbuffer.cmdbuffer(), &copy_info2);
+            }
+            // Copy standard buffer
+            {
+                VkBufferCopy2 buffer_copy{
+                    VK_STRUCTURE_TYPE_BUFFER_COPY_2,
+                    nullptr,
+                    upload_buf.offset + motion_upload_size, 0,
+                    std_inst_size_bytes};
+                VkCopyBufferInfo2 copy_info2{
+                    VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2,
+                    nullptr,
+                    upload_buf.buffer->vk_buffer(),
+                    _instance_buffer->vk_buffer(),
+                    1,
+                    &buffer_copy};
+                vkCmdCopyBuffer2(cmdbuffer.cmdbuffer(), &copy_info2);
+            }
             _set_map.clear();
         } else {
         // Non-motion path: use compute shader to fill instance buffer
@@ -340,7 +394,10 @@ void Tlas::pre_build(
         } // end non-motion path
     }
     VkDeviceOrHostAddressConstKHR instance_data_device_address{};
-    instance_data_device_address.deviceAddress = _instance_buffer->get_device_address();
+    // When motion is enabled, TLAS build reads from the 160-byte stride motion instance buffer.
+    // The 64-byte _instance_buffer is only for shader reads (StructuredBuffer<_MeshInst>).
+    auto *build_instance_buffer = _has_motion ? _motion_instance_buffer.get() : _instance_buffer.get();
+    instance_data_device_address.deviceAddress = build_instance_buffer->get_device_address();
     auto acceleration_structure_geometry = cmdbuffer.temp_desc->allocate_memory<VkAccelerationStructureGeometryKHR>();
     acceleration_structure_geometry->sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
     acceleration_structure_geometry->geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
@@ -381,8 +438,7 @@ void Tlas::pre_build(
             false, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR);
     }
     resource_barrier->record(
-        BufferView{
-            _instance_buffer.get()},
+        BufferView{build_instance_buffer},
         ResourceBarrier::Usage::kAccelInstanceBuffer);
     resource_barrier->record(
         _accel_buffer.get(),

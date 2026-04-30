@@ -15,6 +15,11 @@ private:
     VkAccelerationStructureKHR _accel{nullptr};
     vstd::unique_ptr<DefaultBuffer> _accel_buffer;
     vstd::unique_ptr<DefaultBuffer> _instance_buffer;
+    vstd::unique_ptr<DefaultBuffer> _motion_instance_buffer;  // 160-byte stride buffer for TLAS build when motion is enabled
+    // VkAccelerationStructureMotionInstanceNV is 152 bytes, but the Vulkan driver
+    // requires each motion instance to be 16-byte aligned in the instance buffer.
+    // ceil(152 / 16) * 16 = 160.
+    static constexpr size_t kMotionInstanceStride = 160u;
     VkAccelerationStructureBuildGeometryInfoKHR *_acceleration_build_geometry_info{nullptr};
     AccelOption _option;
     Buffer const *_scratch_buffer{nullptr};

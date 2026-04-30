@@ -1,5 +1,5 @@
 // Motion variant of accel_process_vk
-// Writes VkAccelerationStructureMotionInstanceNV (152 bytes per instance)
+// Writes VkAccelerationStructureMotionInstanceNV (160 bytes per instance, 16-byte aligned)
 // instead of VkAccelerationStructureInstanceKHR (64 bytes per instance).
 // Required when TLAS has VK_BUILD_ACCELERATION_STRUCTURE_MOTION_BIT_NV.
 
@@ -21,7 +21,7 @@ uint count;
 };
 [[vk::push_constant]] ConstantBuffer<_CBType> cb:register(b0);
 
-// VkAccelerationStructureMotionInstanceNV layout (152 bytes):
+// VkAccelerationStructureMotionInstanceNV layout (160 bytes, 16-byte aligned):
 // offset 0: uint type (0=STATIC)
 // offset 4: uint flags (0)
 // offset 8: VkAccelerationStructureInstanceKHR (64 bytes)
@@ -31,10 +31,10 @@ uint count;
 //   offset 56: uint InstanceID:24 | InstanceMask:8
 //   offset 60: uint InstanceContributionToHitGroupIndex:24 | Flags:8
 //   offset 64: uint2 accelerationStructureReference
-// offset 72: padding (80 bytes)
-// Total: 152 bytes
+// offset 72: padding (88 bytes to reach 160)
+// Total: 160 bytes (sizeof struct is 152, padded to 16-byte alignment)
 
-static const uint MOTION_INST_STRIDE = 152u;
+static const uint MOTION_INST_STRIDE = 160u;
 static const uint STATIC_DATA_OFFSET = 8u;
 
 [numthreads(256,1,1)]
