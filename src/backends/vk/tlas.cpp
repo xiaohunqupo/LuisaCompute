@@ -179,60 +179,126 @@ void Tlas::pre_build(
                 auto &&i = modifications[idx];
                 if (i.index >= instance_count) continue;
 
+                // Determine if this modification refers to a MotionInstance with SRT/Matrix keyframes
+                MotionInstance *mi = nullptr;
+                if (i.flags & AccelBuildCommand::Modification::flag_primitive) {
+                    auto prim = reinterpret_cast<PrimitiveBase *>(i.primitive);
+                    if (prim && prim->is_motion_instance()) {
+                        mi = static_cast<MotionInstance *>(prim);
+                    }
+                }
+
                 // --- Fill motion instance at 160-byte stride ---
                 auto inst_base = motion_data + static_cast<size_t>(i.index) * kMotionInstanceStride;
-                // type = VK_ACCELERATION_STRUCTURE_MOTION_INSTANCE_TYPE_STATIC_NV (0)
-                *reinterpret_cast<uint32_t *>(inst_base + 0) = 0u;
-                // flags = 0
-                *reinterpret_cast<uint32_t *>(inst_base + 4) = 0u;
-                // data.staticInstance = VkAccelerationStructureInstanceKHR at offset 8
-                auto motion_inst = reinterpret_cast<VkAccelerationStructureInstanceKHR *>(inst_base + 8);
 
                 // --- Fill 64-byte standard instance ---
                 auto std_inst = reinterpret_cast<VkAccelerationStructureInstanceKHR *>(
                     std_data + static_cast<size_t>(i.index) * sizeof(VkAccelerationStructureInstanceKHR));
 
-                // Transform (3x4 row-major float matrix)
-                if (i.flags & AccelBuildCommand::Modification::flag_transform) {
-                    memcpy(&motion_inst->transform, i.affine, sizeof(float) * 12);
-                    memcpy(&std_inst->transform, i.affine, sizeof(float) * 12);
-                }
-                // Instance custom index: default to instance index, override with user_id if set
+                // Common instance fields
                 uint custom_index;
                 if (i.flags & AccelBuildCommand::Modification::flag_user_id) {
                     custom_index = i.user_id;
                 } else {
                     custom_index = static_cast<uint>(i.index);
                 }
-                motion_inst->instanceCustomIndex = custom_index;
-                std_inst->instanceCustomIndex = custom_index;
-                // Visibility mask
                 uint mask;
                 if (i.flags & AccelBuildCommand::Modification::flag_visibility) {
                     mask = i.vis_mask;
                 } else {
                     mask = 0xFF;
                 }
-                motion_inst->mask = mask;
-                std_inst->mask = mask;
-                // SBT offset and flags
-                motion_inst->instanceShaderBindingTableRecordOffset = 0;
-                std_inst->instanceShaderBindingTableRecordOffset = 0;
                 VkGeometryInstanceFlagsKHR geom_flags = 0;
                 if (i.flags & AccelBuildCommand::Modification::flag_opaque_on) {
                     geom_flags = VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_KHR;
                 } else if (i.flags & AccelBuildCommand::Modification::flag_opaque_off) {
                     geom_flags = VK_GEOMETRY_INSTANCE_FORCE_NO_OPAQUE_BIT_KHR;
                 }
-                motion_inst->flags = geom_flags;
-                std_inst->flags = geom_flags;
-                // Acceleration structure reference
+                uint64_t accel_ref = 0;
                 if ((i.flags & AccelBuildCommand::Modification::flag_primitive) && resolved_meshes[idx]) {
-                    auto addr = resolved_meshes[idx]->get_accel_device_address();
-                    motion_inst->accelerationStructureReference = addr;
-                    std_inst->accelerationStructureReference = addr;
+                    accel_ref = resolved_meshes[idx]->get_accel_device_address();
                     resource_barrier->record(BufferView{resolved_meshes[idx]->_accel_buffer.get()},
                                              ResourceBarrier::Usage::kAccelInstanceBuffer);
+                }
+
+                // Fill standard instance buffer (for shader reads)
+                if (i.flags & AccelBuildCommand::Modification::flag_transform) {
+                    memcpy(&std_inst->transform, i.affine, sizeof(float) * 12);
+                }
+                std_inst->instanceCustomIndex = custom_index;
+                std_inst->mask = mask;
+                std_inst->instanceShaderBindingTableRecordOffset = 0;
+                std_inst->flags = geom_flags;
+                std_inst->accelerationStructureReference = accel_ref;
+
+                // Fill motion instance buffer (for TLAS build)
+                if (mi && mi->mode() == AccelMotionMode::SRT && mi->keyframe_count() >= 2) {
+                    // SRT Motion Instance: type = VK_ACCELERATION_STRUCTURE_MOTION_INSTANCE_TYPE_SRT_MOTION_NV (2)
+                    *reinterpret_cast<uint32_t *>(inst_base + 0) = VK_ACCELERATION_STRUCTURE_MOTION_INSTANCE_TYPE_SRT_MOTION_NV;
+                    *reinterpret_cast<uint32_t *>(inst_base + 4) = 0u; // flags = 0
+
+                    // VkAccelerationStructureSRTMotionInstanceNV layout at offset 8:
+                    //   transformT0 (VkSRTDataNV, 64 bytes) at offset 8
+                    //   transformT1 (VkSRTDataNV, 64 bytes) at offset 72
+                    //   instanceCustomIndex:24 | mask:8 at offset 136
+                    //   instanceShaderBindingTableRecordOffset:24 | flags:8 at offset 140
+                    //   accelerationStructureReference (uint64) at offset 144
+
+                    // Convert MotionInstanceTransformSRT -> VkSRTDataNV (field remapping)
+                    auto &keyframes = mi->keyframes();
+                    auto &srt0 = keyframes[0].as_srt();
+                    auto &srt1 = keyframes[mi->keyframe_count() - 1].as_srt();
+
+                    auto write_vk_srt = [](uint8_t *dst, const MotionInstanceTransformSRT &srt) {
+                        auto *f = reinterpret_cast<float *>(dst);
+                        f[0]  = srt.scale[0];       // sx
+                        f[1]  = srt.shear[0];       // a
+                        f[2]  = srt.shear[1];       // b
+                        f[3]  = srt.pivot[0];       // pvx
+                        f[4]  = srt.scale[1];       // sy
+                        f[5]  = srt.shear[2];       // c
+                        f[6]  = srt.pivot[1];       // pvy
+                        f[7]  = srt.scale[2];       // sz
+                        f[8]  = srt.pivot[2];       // pvz
+                        f[9]  = srt.quaternion[0];  // qx
+                        f[10] = srt.quaternion[1];  // qy
+                        f[11] = srt.quaternion[2];  // qz
+                        f[12] = srt.quaternion[3];  // qw
+                        f[13] = srt.translation[0]; // tx
+                        f[14] = srt.translation[1]; // ty
+                        f[15] = srt.translation[2]; // tz
+                    };
+
+                    write_vk_srt(inst_base + 8, srt0);       // transformT0
+                    write_vk_srt(inst_base + 8 + 64, srt1);  // transformT1
+
+                    // Instance fields after the two SRT transforms
+                    auto *srt_inst_fields = inst_base + 8 + 64 + 64; // offset 136
+                    *reinterpret_cast<uint32_t *>(srt_inst_fields + 0) =
+                        (custom_index & 0x00FFFFFFu) | (static_cast<uint32_t>(mask) << 24u);
+                    *reinterpret_cast<uint32_t *>(srt_inst_fields + 4) =
+                        (0u & 0x00FFFFFFu) | (static_cast<uint32_t>(geom_flags) << 24u);
+                    *reinterpret_cast<uint64_t *>(srt_inst_fields + 8) = accel_ref;
+
+                    if (mi->keyframe_count() > 2) {
+                        LUISA_WARNING("VK_NV_ray_tracing_motion_blur only supports 2 keyframes for SRT motion. "
+                                      "Using first and last keyframes (ignoring {} intermediate keyframes).",
+                                      mi->keyframe_count() - 2);
+                    }
+                } else {
+                    // Static instance: type = VK_ACCELERATION_STRUCTURE_MOTION_INSTANCE_TYPE_STATIC_NV (0)
+                    *reinterpret_cast<uint32_t *>(inst_base + 0) = VK_ACCELERATION_STRUCTURE_MOTION_INSTANCE_TYPE_STATIC_NV;
+                    *reinterpret_cast<uint32_t *>(inst_base + 4) = 0u; // flags = 0
+                    // data.staticInstance = VkAccelerationStructureInstanceKHR at offset 8
+                    auto motion_inst = reinterpret_cast<VkAccelerationStructureInstanceKHR *>(inst_base + 8);
+                    if (i.flags & AccelBuildCommand::Modification::flag_transform) {
+                        memcpy(&motion_inst->transform, i.affine, sizeof(float) * 12);
+                    }
+                    motion_inst->instanceCustomIndex = custom_index;
+                    motion_inst->mask = mask;
+                    motion_inst->instanceShaderBindingTableRecordOffset = 0;
+                    motion_inst->flags = geom_flags;
+                    motion_inst->accelerationStructureReference = accel_ref;
                 }
             }
 
