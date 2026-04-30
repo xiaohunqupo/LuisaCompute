@@ -1,15 +1,15 @@
-// Motion Blur Ray Tracing Test - Motion Instance SRT Transform
-// Tests instance-level SRT (Scale-Rotate-Translate) motion blur.
-// A static triangle mesh is wrapped in a MotionInstance with SRT keyframes
-// that rotate the mesh around the Y axis, producing motion blur from the
-// instance transform interpolation (not vertex animation).
+// Motion Blur Ray Tracing Test - Motion Instance SRT Transform (4 quadrants)
+// Tests all four SRT components of instance-level motion blur, one per quadrant:
 //
-// This test verifies:
-// - MotionInstance creation with SRT mode
-// - SRT keyframe data written correctly to TLAS motion instance buffer
-//   (VkAccelerationStructureMotionInstanceNV with type=SRT_MOTION_NV)
-// - VkSRTDataNV field remapping from MotionInstanceTransformSRT
-// - Motion blur ray tracing with time-varying instance transforms
+//   Top-left:     Rotation   — Y-axis rotation from 0 to 45 degrees
+//   Top-right:    Translation — slides right by 0.5 units
+//   Bottom-left:  Scale      — uniform scale from 1.0 to 1.8
+//   Bottom-right: Shear      — shear (xy) from 0 to 0.5
+//
+// Each quadrant contains a static triangle mesh wrapped in a MotionInstance
+// with SRT keyframes exercising one specific SRT component.
+// The triangles are colored by instance_user_id so each quadrant is visually
+// distinguishable: red, green, blue, yellow.
 
 #include "ut/ut.hpp"
 #include "test_device.h"
@@ -34,15 +34,17 @@ void test_motion_blur_mesh_4(Device &device) {
 
     static constexpr uint width = 512u;
     static constexpr uint height = 512u;
+    static constexpr uint instance_count = 4u;
 
     auto stream = device.create_stream(StreamTag::GRAPHICS);
 
-    // Create a static triangle mesh (no vertex motion blur).
-    // This mesh will be animated purely through instance-level SRT transforms.
+    // Camera at (0,0,3) with 60-degree FOV gives visible range ~[-1.73, 1.73] at z=0.
+    // Quadrant centers at (+/-0.87, +/-0.87). Use a small triangle (radius ~0.3)
+    // so each fits comfortably within its quadrant.
     std::array vertices{
-        float3(-0.5f, -0.5f, 0.0f),
-        float3(0.5f, -0.5f, 0.0f),
-        float3(0.0f, 0.5f, 0.0f),
+        float3(-0.3f, -0.3f, 0.0f),
+        float3(0.3f, -0.3f, 0.0f),
+        float3(0.0f, 0.3f, 0.0f),
     };
     std::array indices{0u, 1u, 2u};
 
@@ -51,38 +53,93 @@ void test_motion_blur_mesh_4(Device &device) {
     stream << vertex_buffer.copy_from(luisa::span{vertices})
            << triangle_buffer.copy_from(luisa::span{indices});
 
-    // Static mesh (no motion keyframes)
+    // All four instances share the same static mesh
     auto mesh = device.create_mesh(vertex_buffer, triangle_buffer);
 
-    // Create a MotionInstance wrapping the mesh with SRT animation.
-    // The instance rotates around the Y axis from 0 to 45 degrees over [0, 1].
-    AccelMotionOption motion_option;
-    motion_option.mode = AccelMotionMode::SRT;
-    motion_option.keyframe_count = 2u;
-    motion_option.time_start = 0.f;
-    motion_option.time_end = 1.f;
-    auto motion_instance = device.create_motion_instance(mesh, motion_option);
+    // Common motion option: SRT mode, 2 keyframes, time [0, 1]
+    auto make_motion_option = []() {
+        AccelMotionOption opt;
+        opt.mode = AccelMotionMode::SRT;
+        opt.keyframe_count = 2u;
+        opt.time_start = 0.f;
+        opt.time_end = 1.f;
+        return opt;
+    };
 
-    // Keyframe 0: identity rotation
-    auto angle0 = radians(0.f);
-    auto srt0 = MotionInstanceTransformSRT{
-        .pivot = {0.f, 0.f, 0.f},
-        .quaternion = {0.f, sin(angle0 / 2.f), 0.f, cos(angle0 / 2.f)},
-        .scale = {1.f, 1.f, 1.f},
-        .shear = {0.f, 0.f, 0.f},
-        .translation = {0.f, 0.f, 0.f}};
+    // Quadrant center offsets (camera looks along -Z, so screen Y = world Y)
+    //   index 0: top-left     (-0.87, +0.87)  — Rotation
+    //   index 1: top-right    (+0.87, +0.87)  — Translation
+    //   index 2: bottom-left  (-0.87, -0.87)  — Scale
+    //   index 3: bottom-right (+0.87, -0.87)  — Shear
+    static constexpr float qx[4] = {-0.87f, 0.87f, -0.87f, 0.87f};
+    static constexpr float qy[4] = { 0.87f, 0.87f, -0.87f, -0.87f};
 
-    // Keyframe 1: 45-degree Y rotation
-    auto angle1 = radians(45.f);
-    auto srt1 = MotionInstanceTransformSRT{
-        .pivot = {0.f, 0.f, 0.f},
-        .quaternion = {0.f, sin(angle1 / 2.f), 0.f, cos(angle1 / 2.f)},
-        .scale = {1.f, 1.f, 1.f},
-        .shear = {0.f, 0.f, 0.f},
-        .translation = {0.f, 0.f, 0.f}};
+    // Helper: identity SRT at a given quadrant center
+    auto make_identity_srt = [](float tx, float ty) {
+        return MotionInstanceTransformSRT{
+            .pivot = {0.f, 0.f, 0.f},
+            .quaternion = {0.f, 0.f, 0.f, 1.f},
+            .scale = {1.f, 1.f, 1.f},
+            .shear = {0.f, 0.f, 0.f},
+            .translation = {tx, ty, 0.f}};
+    };
 
-    luisa::vector<MotionInstanceTransformSRT> motion_transforms{srt0, srt1};
-    motion_instance.set_keyframes(motion_transforms);
+    // --- Instance 0: Rotation (top-left) ---
+    // Rotates around Y axis from 0 to 45 degrees
+    auto mi0 = device.create_motion_instance(mesh, make_motion_option());
+    {
+        auto angle0 = radians(0.f);
+        auto angle1 = radians(45.f);
+        MotionInstanceTransformSRT k0{
+            .pivot = {0.f, 0.f, 0.f},
+            .quaternion = {0.f, sin(angle0 / 2.f), 0.f, cos(angle0 / 2.f)},
+            .scale = {1.f, 1.f, 1.f},
+            .shear = {0.f, 0.f, 0.f},
+            .translation = {qx[0], qy[0], 0.f}};
+        MotionInstanceTransformSRT k1{
+            .pivot = {0.f, 0.f, 0.f},
+            .quaternion = {0.f, sin(angle1 / 2.f), 0.f, cos(angle1 / 2.f)},
+            .scale = {1.f, 1.f, 1.f},
+            .shear = {0.f, 0.f, 0.f},
+            .translation = {qx[0], qy[0], 0.f}};
+        luisa::vector<MotionInstanceTransformSRT> kfs{k0, k1};
+        mi0.set_keyframes(kfs);
+    }
+
+    // --- Instance 1: Translation (top-right) ---
+    // Slides right by 0.5 units
+    auto mi1 = device.create_motion_instance(mesh, make_motion_option());
+    {
+        MotionInstanceTransformSRT k0 = make_identity_srt(qx[1] - 0.25f, qy[1]);
+        MotionInstanceTransformSRT k1 = make_identity_srt(qx[1] + 0.25f, qy[1]);
+        luisa::vector<MotionInstanceTransformSRT> kfs{k0, k1};
+        mi1.set_keyframes(kfs);
+    }
+
+    // --- Instance 2: Scale (bottom-left) ---
+    // Uniform scale from 1.0 to 1.8
+    auto mi2 = device.create_motion_instance(mesh, make_motion_option());
+    {
+        MotionInstanceTransformSRT k0 = make_identity_srt(qx[2], qy[2]);
+        k0.scale[0] = 1.0f; k0.scale[1] = 1.0f; k0.scale[2] = 1.0f;
+        MotionInstanceTransformSRT k1 = make_identity_srt(qx[2], qy[2]);
+        k1.scale[0] = 1.8f; k1.scale[1] = 1.8f; k1.scale[2] = 1.8f;
+        luisa::vector<MotionInstanceTransformSRT> kfs{k0, k1};
+        mi2.set_keyframes(kfs);
+    }
+
+    // --- Instance 3: Shear (bottom-right) ---
+    // Shear xy from 0 to 0.5
+    auto mi3 = device.create_motion_instance(mesh, make_motion_option());
+    {
+        MotionInstanceTransformSRT k0 = make_identity_srt(qx[3], qy[3]);
+        // shear[0] = a (xy shear), shear[1] = b (xz shear), shear[2] = c (yz shear)
+        k0.shear[0] = 0.f;
+        MotionInstanceTransformSRT k1 = make_identity_srt(qx[3], qy[3]);
+        k1.shear[0] = 0.5f;
+        luisa::vector<MotionInstanceTransformSRT> kfs{k0, k1};
+        mi3.set_keyframes(kfs);
+    }
 
     // Color space conversion
     Callable linear_to_srgb = [](Var<float3> x) noexcept {
@@ -151,16 +208,21 @@ void test_motion_blur_mesh_4(Device &device) {
         auto color = def<float3>(0.1f, 0.1f, 0.15f);
         auto u = rand(frame_index, coord);
         auto ray = generate_ray(make_float2(coord) + u.xy());
-        // Random time for motion blur sampling
         auto time = u.z * 1.f;
-        // Trace with motion blur support
         auto hit = accel.intersect_motion(ray, time, {});
         $if (hit->is_triangle()) {
-            // Color by barycentric coordinates
-            constexpr auto red = make_float3(1.0f, 0.0f, 0.0f);
-            constexpr auto green = make_float3(0.0f, 1.0f, 0.0f);
-            constexpr auto blue = make_float3(0.0f, 0.0f, 1.0f);
-            color = triangle_interpolate(hit.bary, red, green, blue);
+            // Per-instance color: red, green, blue, yellow
+            auto inst = accel.instance_user_id(hit.inst);
+            auto c0 = make_float3(1.0f, 0.2f, 0.2f);  // red   — rotation
+            auto c1 = make_float3(0.2f, 1.0f, 0.2f);  // green — translation
+            auto c2 = make_float3(0.2f, 0.4f, 1.0f);  // blue  — scale
+            auto c3 = make_float3(1.0f, 0.9f, 0.2f);  // yellow — shear
+            // Modulate by barycentric coordinates for depth
+            auto bary_brightness = 0.5f + 0.5f * (hit.bary.x + hit.bary.y);
+            $if (inst == 0u) { color = c0 * bary_brightness; };
+            $if (inst == 1u) { color = c1 * bary_brightness; };
+            $if (inst == 2u) { color = c2 * bary_brightness; };
+            $if (inst == 3u) { color = c3 * bary_brightness; };
         };
         // Progressive accumulation
         auto old = image.read(coord.y * dispatch_size_x() + coord.x).xyz();
@@ -178,9 +240,15 @@ void test_motion_blur_mesh_4(Device &device) {
 
     // Build acceleration structure
     Accel accel = device.create_accel();
-    accel.emplace_back(motion_instance);
+    accel.emplace_back(mi0, make_float4x4(1.f), 0xffu, true, 0u);
+    accel.emplace_back(mi1, make_float4x4(1.f), 0xffu, true, 1u);
+    accel.emplace_back(mi2, make_float4x4(1.f), 0xffu, true, 2u);
+    accel.emplace_back(mi3, make_float4x4(1.f), 0xffu, true, 3u);
     stream << mesh.build()
-           << motion_instance.build()
+           << mi0.build()
+           << mi1.build()
+           << mi2.build()
+           << mi3.build()
            << accel.build();
 
     // Compile shaders
