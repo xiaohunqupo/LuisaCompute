@@ -104,6 +104,7 @@ public:
     HeapAlloc buffer_heap_pool;
     LazyLoadShader set_bindless_kernel;
     LazyLoadShader set_accel_kernel;
+    LazyLoadShader set_accel_motion_kernel;
     bool external_instance : 1 {false};
     bool external_device : 1 {false};
     bool external_graphics_queue : 1 {false};
@@ -114,6 +115,7 @@ public:
     bool surface_enabled : 1 {true};
     bool device_address_enabled : 1 {true};
     bool interop_enabled : 1 {true};
+    bool motion_blur_enabled : 1 {false};
     auto &graphics_queue_mtx() { return _graphics_queue_mtx; }
     auto &compute_queue_mtx() { return _compute_queue_mtx; }
     auto &copy_queue_mtx() { return _copy_queue_mtx; }
@@ -127,6 +129,7 @@ public:
     bool enable_surface_feature() const { return surface_enabled; }
     bool enable_bindless() const { return bindless_enabled; }
     bool enable_interop() const { return interop_enabled; }
+    bool enable_motion_blur() const { return motion_blur_enabled; }
     bool enable_raytracing() const { return raytracing_enabled; }
     bool enable_device_address() const { return device_address_enabled; }
     static hlsl::ShaderCompiler *compiler();
@@ -204,6 +207,10 @@ public:
 
     ResourceCreationInfo create_accel(const AccelOption &option) noexcept override;
     void destroy_accel(uint64_t handle) noexcept override;
+
+    // motion instance
+    ResourceCreationInfo create_motion_instance(const AccelMotionOption &option) noexcept override;
+    void destroy_motion_instance(uint64_t handle) noexcept override;
 
     // query
     void set_name(luisa::compute::Resource::Tag resource_tag, uint64_t resource_handle, luisa::string_view name) noexcept override;

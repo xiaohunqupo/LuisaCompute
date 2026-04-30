@@ -6,7 +6,7 @@
 #include <luisa/runtime/rtx/aabb.h>
 namespace lc::vk {
 Blas::Blas(Device *device, AccelOption const &option)
-    : Resource(device), _option(option), _acceleration_build_geometry_info(nullptr) {
+    : PrimitiveBase(device, PrimitiveBase::PrimTag::BLAS), _option(option), _acceleration_build_geometry_info(nullptr) {
     if (!device->enable_raytracing()) [[unlikely]] {
         LUISA_ERROR("Raytracing not enabled, BLAS can not be loaded.");
     }
@@ -23,6 +23,10 @@ void Blas::_pre_build(
     _acceleration_build_geometry_info->flags = _option.hint == AccelOption::UsageHint::FAST_BUILD ? VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR : VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
     if (_option.allow_update) {
         _acceleration_build_geometry_info->flags |= VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
+    }
+    // Enable BLAS-level vertex motion blur when the mesh has motion keyframes
+    if (_option.motion.is_enabled()) {
+        _acceleration_build_geometry_info->flags |= VK_BUILD_ACCELERATION_STRUCTURE_MOTION_BIT_NV;
     }
     _acceleration_build_geometry_info->geometryCount = 1;
     _acceleration_build_geometry_info->pGeometries = acceleration_structure_geometry;
@@ -55,6 +59,9 @@ void Blas::_pre_build(
     acceleration_structure_create_info.buffer = _accel_buffer->vk_buffer();
     acceleration_structure_create_info.size = acceleration_structure_build_sizes_info.accelerationStructureSize;
     acceleration_structure_create_info.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+    if (_option.motion.is_enabled()) {
+        acceleration_structure_create_info.createFlags = VK_ACCELERATION_STRUCTURE_CREATE_MOTION_BIT_NV;
+    }
     bool sync = _accel;
     if (_accel) {
         cmdbuffer.states()->callbacks.emplace_back([a = _accel, device = device()]() {
@@ -98,7 +105,8 @@ void Blas::pre_build(
     MeshBuildCommand const *cmd) {
     VkDeviceOrHostAddressConstKHR vertex_data_device_address{};
     VkDeviceOrHostAddressConstKHR index_data_device_address{};
-    vertex_data_device_address.deviceAddress = reinterpret_cast<Buffer const *>(cmd->vertex_buffer())->get_device_address() + cmd->vertex_buffer_offset();
+    auto vertex_buffer_base = reinterpret_cast<Buffer const *>(cmd->vertex_buffer())->get_device_address() + cmd->vertex_buffer_offset();
+    vertex_data_device_address.deviceAddress = vertex_buffer_base;
     index_data_device_address.deviceAddress = reinterpret_cast<Buffer const *>(cmd->triangle_buffer())->get_device_address() + cmd->triangle_buffer_offset();
 
     auto acceleration_structure_geometry = cmdbuffer.temp_desc->allocate_memory<VkAccelerationStructureGeometryKHR>();
@@ -107,12 +115,42 @@ void Blas::pre_build(
     acceleration_structure_geometry->flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
     auto &triangles = acceleration_structure_geometry->geometry.triangles;
     triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
-    triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
-    triangles.vertexData = vertex_data_device_address;
-    triangles.maxVertex = cmd->vertex_buffer_size() / cmd->vertex_stride();
-    triangles.vertexStride = cmd->vertex_stride();
-    triangles.indexType = VK_INDEX_TYPE_UINT32;
-    triangles.indexData = index_data_device_address;
+    triangles.pNext = nullptr;
+
+    auto keyframe_count = _option.motion.is_enabled() ? _option.motion.keyframe_count : 1u;
+    auto total_vertex_count = cmd->vertex_buffer_size() / cmd->vertex_stride();
+    auto vertex_count_per_keyframe = total_vertex_count / keyframe_count;
+
+    if (_option.motion.is_enabled() && keyframe_count == 2u) {
+        // BLAS vertex motion blur: provide two keyframes via
+        // VkAccelerationStructureGeometryMotionTrianglesDataNV.
+        // Keyframe 0 goes into triangles.vertexData (the base geometry).
+        // Keyframe 1 goes into the motion triangles pNext extension.
+        auto keyframe_size_bytes = vertex_count_per_keyframe * cmd->vertex_stride();
+
+        auto motion_triangles = cmdbuffer.temp_desc->allocate_memory<VkAccelerationStructureGeometryMotionTrianglesDataNV>();
+        motion_triangles->sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_MOTION_TRIANGLES_DATA_NV;
+        motion_triangles->pNext = nullptr;
+        motion_triangles->vertexData.deviceAddress = vertex_buffer_base + keyframe_size_bytes;
+        triangles.pNext = motion_triangles;
+
+        // Base geometry uses keyframe 0 vertices only
+        triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
+        triangles.vertexData = vertex_data_device_address;
+        triangles.maxVertex = vertex_count_per_keyframe;
+        triangles.vertexStride = cmd->vertex_stride();
+        triangles.indexType = VK_INDEX_TYPE_UINT32;
+        triangles.indexData = index_data_device_address;
+    } else {
+        // Non-motion path or unsupported keyframe count (>2 not supported by NV extension)
+        triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
+        triangles.vertexData = vertex_data_device_address;
+        triangles.maxVertex = total_vertex_count;
+        triangles.vertexStride = cmd->vertex_stride();
+        triangles.indexType = VK_INDEX_TYPE_UINT32;
+        triangles.indexData = index_data_device_address;
+    }
+
     _pre_build(cmdbuffer, acceleration_structure_geometry, cmd->triangle_buffer_size() / 12, cmd->request());
     cmdbuffer.resource_barrier->record(
         reinterpret_cast<Buffer const *>(cmd->vertex_buffer()),

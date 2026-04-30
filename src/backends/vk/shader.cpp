@@ -18,7 +18,7 @@ Shader::Shader(
     bool use_buffer_bindless,
     vstd::vector<std::pair<luisa::string, luisa::compute::Type const *>> &&printers)
     : Resource{device}, _captured{std::move(captured)}, _saved_arguments(std::move(saved_arguments)),
-      _use_tex2d_bindless(use_tex2d_bindless), _use_tex3d_bindless(use_tex3d_bindless), _use_buffer_bindless(use_buffer_bindless), _printers(std::move(printers)) {
+      _shader_tag(tag), _use_tex2d_bindless(use_tex2d_bindless), _use_tex3d_bindless(use_tex3d_bindless), _use_buffer_bindless(use_buffer_bindless), _printers(std::move(printers)) {
     if ((!device->enable_bindless()) && (use_tex2d_bindless || use_tex3d_bindless || use_buffer_bindless)) [[unlikely]] {
         LUISA_ERROR("Bindless not enabled, shader can not be load.");
     }
@@ -30,6 +30,11 @@ Shader::Shader(
                 return static_cast<VkShaderStageFlagBits>(
                     VK_SHADER_STAGE_VERTEX_BIT |
                     VK_SHADER_STAGE_FRAGMENT_BIT);
+            case ShaderTag::kRayTracingShader:
+                return static_cast<VkShaderStageFlagBits>(
+                    VK_SHADER_STAGE_RAYGEN_BIT_KHR |
+                    VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR |
+                    VK_SHADER_STAGE_MISS_BIT_KHR);
             default:
                 return VK_SHADER_STAGE_ALL;
         }

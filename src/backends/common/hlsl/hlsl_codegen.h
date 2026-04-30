@@ -94,6 +94,7 @@ public:
         RegisterIndexer &registerCount,
         uint &bind_count);
     CodegenResult Codegen(Function kernel, luisa::string_view native_code, uint custom_mask, bool isSpirV, bool noRegister = false);
+    CodegenResult RayTracingCodegen(Function kernel, luisa::string_view native_code, uint custom_mask, bool isSpirV, bool noRegister = false);
     CodegenResult RasterCodegen(
         Function vertFunc,
         Function pixelFunc,

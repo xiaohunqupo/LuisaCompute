@@ -254,6 +254,86 @@ uint4 v;
         GetTypeMD5(kernel)};
 }
 
+// Ray tracing pipeline codegen for motion blur
+// Generates a lib_6_5 HLSL with raygen/miss/closesthit entry points
+CodegenResult CodegenUtility::RayTracingCodegen(Function kernel, luisa::string_view native_code, uint custom_mask, bool isSpirV, bool noRegister) {
+    opt = CodegenStackData::Allocate(this);
+    opt->isSpirv = isSpirV;
+    opt->noRegister = noRegister;
+    opt->isRayTracing = true;
+    opt->atomicFloatToInt = isSpirV && kernel.propagated_builtin_callables().uses_atomic();
+    auto disposeOpt = vstd::scope_exit([&] {
+        CodegenStackData::DeAllocate(std::move(opt));
+    });
+    opt->kernel = kernel;
+    bool nonEmptyCbuffer = IsCBufferNonEmpty(kernel);
+
+    vstd::StringBuilder codegenData;
+    vstd::StringBuilder varData;
+    vstd::StringBuilder incrementalFunc;
+    vstd::StringBuilder finalResult;
+    opt->incrementalFunc = &incrementalFunc;
+    finalResult.reserve(65500);
+    uint64 immutableHeaderSize = detail::AddHeader(kernel.propagated_builtin_callables(), finalResult, false, isSpirV, noRegister, kernel.use_cooperative_operations());
+    // Add motion blur ray tracing header (miss/closesthit entry points + _TraceClosestMotion)
+    finalResult << ReadInternalHLSLFile("raytracing_motion_header");
+    finalResult << native_code << "\n//"sv;
+    static_cast<void>(vstd::to_string(custom_mask));
+    finalResult << '\n';
+    CodegenFunction(kernel, codegenData, nonEmptyCbuffer, true);
+
+    opt->funcType = CodegenStackData::FuncType::Callable;
+    auto argRange = vstd::make_ite_range(kernel.arguments()).i_range();
+    uint bind_count = 2;
+    if (nonEmptyCbuffer) {
+        GenerateCBuffer({&argRange}, varData);
+    }
+    // For ray tracing pipeline, we use push constants for dispatch dimensions
+    if (isSpirV) {
+        if (opt->noRegister) {
+            varData << R"(
+struct _CBType{
+uint4 v;
+};
+[[vk::push_constant]] ConstantBuffer<_CBType> dsp_c;
+)"sv;
+        } else {
+            varData << R"(
+struct _CBType{
+uint4 v;
+};
+[[vk::push_constant]] ConstantBuffer<_CBType> dsp_c:register(b0);
+)"sv;
+        }
+        bind_count += 2;
+    } else {
+        if (opt->noRegister) {
+            varData << "uint4 dsp_c;\n"sv;
+        } else {
+            varData << "uint4 dsp_c:register(b0);\n"sv;
+        }
+        bind_count += 2;
+    }
+    CodegenResult::Properties properties;
+    DXILRegisterIndexer dxilRegisters;
+    SpirVRegisterIndexer spvRegisters;
+    RegisterIndexer &indexer = isSpirV ? static_cast<RegisterIndexer &>(spvRegisters) : static_cast<RegisterIndexer &>(dxilRegisters);
+    PreprocessCodegenProperties(properties, varData, indexer, nonEmptyCbuffer, false, isSpirV, bind_count);
+    CodegenProperties(properties, varData, kernel, 0, indexer, bind_count);
+    PostprocessCodegenProperties(finalResult, kernel.requires_autodiff());
+    finalResult << varData << incrementalFunc << codegenData;
+
+    return {
+        std::move(finalResult),
+        std::move(opt->printer),
+        std::move(properties),
+        opt->useTex2DBindless,
+        opt->useTex3DBindless,
+        opt->useBufferBindless,
+        immutableHeaderSize,
+        GetTypeMD5(kernel)};
+}
+
 // Main rasterization pipeline codegen
 CodegenResult CodegenUtility::RasterCodegen(
     Function vertFunc,
@@ -457,38 +537,52 @@ void CodegenUtility::CodegenFunction(Function func, vstd::StringBuilder &result,
 #endif
         if (func.tag() == Function::Tag::KERNEL) {
             opt->funcType = CodegenStackData::FuncType::Kernel;
-            auto warp_size = func.allowed_warp_size();
-            if (warp_size.has_value()) {
-                result << luisa::format("[WaveSize({})]\n", int(warp_size.value()));
-            }
-            result << "[numthreads("
-                   << vstd::to_string(func.block_size().x)
-                   << ','
-                   << vstd::to_string(func.block_size().y)
-                   << ','
-                   << vstd::to_string(func.block_size().z)
-                   << R"()]
+            if (opt->isRayTracing) {
+                // Ray tracing pipeline: generate raygen entry point
+                result << R"([shader("raygeneration")]
+void main_raygen(){
+uint3 dspId = DispatchRaysIndex();
+uint3 thdId = uint3(0,0,0);
+uint3 grpId = uint3(0,0,0);
+)"sv;
+                auto blockSize = func.block_size();
+                auto dsp_c = opt->isSpirv ? "dsp_c.v"sv : "dsp_c"sv;
+                // Bounds check using DispatchRaysDimensions
+                result << "if(any(dspId.xy >= "sv << dsp_c << ".xy)) return;\n"sv;
+            } else {
+                // Compute shader: generate standard entry point
+                auto warp_size = func.allowed_warp_size();
+                if (warp_size.has_value()) {
+                    result << luisa::format("[WaveSize({})]\n", int(warp_size.value()));
+                }
+                result << "[numthreads("
+                       << vstd::to_string(func.block_size().x)
+                       << ','
+                       << vstd::to_string(func.block_size().y)
+                       << ','
+                       << vstd::to_string(func.block_size().z)
+                       << R"()]
 void main(uint3 thdId:SV_GroupThreadId,uint3 dspId:SV_DispatchThreadID,uint3 grpId:SV_GroupId){
 )"sv;
-            auto blockSize = func.block_size();
-            vstd::fixed_vector<char, 3> swizzle;
-            //  result << "if(any(dspId >= dsp_c.xyz)) return;\n"sv;
-            if (blockSize.x > 1) {
-                swizzle.emplace_back('x');
-            }
-            if (blockSize.y > 1) {
-                swizzle.emplace_back('y');
-            }
-            if (blockSize.z > 1) {
-                swizzle.emplace_back('z');
-            }
-            if (!swizzle.empty()) {
-                auto dsp_c = opt->isSpirv ? "dsp_c.v"sv : "dsp_c"sv;
-                if (swizzle.size() == 1) {
-                    result << "if(dspId."sv << swizzle[0] << ">="sv << dsp_c << "."sv << swizzle[0] << ") return;\n"sv;
-                } else {
-                    vstd::string_view strv(swizzle.data(), swizzle.size());
-                    result << "if(any(dspId."sv << strv << ">="sv << dsp_c << "."sv << strv << ")) return;\n"sv;
+                auto blockSize = func.block_size();
+                vstd::fixed_vector<char, 3> swizzle;
+                if (blockSize.x > 1) {
+                    swizzle.emplace_back('x');
+                }
+                if (blockSize.y > 1) {
+                    swizzle.emplace_back('y');
+                }
+                if (blockSize.z > 1) {
+                    swizzle.emplace_back('z');
+                }
+                if (!swizzle.empty()) {
+                    auto dsp_c = opt->isSpirv ? "dsp_c.v"sv : "dsp_c"sv;
+                    if (swizzle.size() == 1) {
+                        result << "if(dspId."sv << swizzle[0] << ">="sv << dsp_c << "."sv << swizzle[0] << ") return;\n"sv;
+                    } else {
+                        vstd::string_view strv(swizzle.data(), swizzle.size());
+                        result << "if(any(dspId."sv << strv << ">="sv << dsp_c << "."sv << strv << ")) return;\n"sv;
+                    }
                 }
             }
             if (cbufferNonEmpty) {

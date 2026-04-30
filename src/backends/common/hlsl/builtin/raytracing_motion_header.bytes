@@ -1,0 +1,56 @@
+// Motion blur ray tracing header for VK_NV_ray_tracing_motion_blur
+// Uses ray tracing pipeline with TraceRay for closest-hit tracing.
+// The time parameter is stored in the payload struct before TraceRay.
+// A SPIR-V post-processing pass replaces OpTraceRayKHR with OpTraceRayMotionNV,
+// extracting the time value from the payload's time field.
+
+// Payload structure matching _Hit1 layout, with extra time field for SPIR-V patching.
+// The time field is stored before TraceRay and read by the SPIR-V patcher.
+// It occupies payload location 5 (after v0-v3 which use locations 0-4).
+struct _MotionPayload {
+    uint inst_idx;   // v0: instance index (0xFFFFFFFF = miss)
+    uint prim_idx;   // v1: primitive index
+    float2 bary;     // v2: barycentrics
+    float ray_t;     // v3: committed ray T
+    float time;      // v4: motion blur time (for SPIR-V patcher)
+};
+
+// Miss shader entry point
+[shader("miss")]
+void main_miss(inout _MotionPayload payload) {
+    payload.inst_idx = 4294967295u;
+}
+
+// Closest hit shader entry point
+[shader("closesthit")]
+void main_closesthit(inout _MotionPayload payload, BuiltInTriangleIntersectionAttributes attr) {
+    payload.inst_idx = InstanceIndex();
+    payload.prim_idx = PrimitiveIndex();
+    payload.bary = attr.barycentrics;
+    payload.ray_t = RayTCurrent();
+}
+
+template<typename T>
+_Hit1 _TraceClosestMotion(RaytracingAccelerationStructure accel, T rayDesc, float time, uint mask) {
+    RayDesc ray = _toRay(rayDesc);
+    _MotionPayload payload;
+    payload.inst_idx = 4294967295u;
+    payload.prim_idx = 0u;
+    payload.bary = float2(0, 0);
+    payload.ray_t = 0.0f;
+    // Store time in payload for SPIR-V post-processor.
+    // The patcher finds the OpStore to the time field of the payload
+    // variable preceding OpTraceRayKHR and uses it as the time operand
+    // for OpTraceRayMotionNV.
+    payload.time = time;
+    TraceRay(accel,
+        RAY_FLAG_FORCE_OPAQUE,
+        mask, 0, 0, 0, ray, payload);
+    _Hit1 result;
+    result.v0 = payload.inst_idx;
+    result.v1 = payload.prim_idx;
+    result.v2 = payload.bary;
+    result.v3 = payload.ray_t;
+    return result;
+}
+

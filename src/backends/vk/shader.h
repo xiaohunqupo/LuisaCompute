@@ -27,7 +27,8 @@ class Shader : public Resource {
 public:
     enum class ShaderTag : uint {
         kComputeShader,
-        kRasterShader
+        kRasterShader,
+        kRayTracingShader
     };
 
 protected:
@@ -37,11 +38,13 @@ protected:
     vstd::vector<Argument> _captured;
     vstd::vector<SavedArgument> _saved_arguments;
     vstd::vector<std::pair<luisa::string, luisa::compute::Type const *>> _printers;
+    ShaderTag _shader_tag;
     bool _use_tex2d_bindless;
     bool _use_tex3d_bindless;
     bool _use_buffer_bindless;
 public:
     auto pipeline_layout() const { return _pipeline_layout; }
+    auto shader_tag() const { return _shader_tag; }
     virtual bool serialize_pso(vstd::vector<std::byte> &result) const { return false; }
     auto binds() const { return vstd::span<const hlsl::Property>{_binds}; }
     auto captured() const { return vstd::span<const Argument>{_captured}; }

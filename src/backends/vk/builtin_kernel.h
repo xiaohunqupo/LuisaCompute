@@ -5,6 +5,7 @@ class BuiltinKernel {
 public:
     static ComputeShader *load_bindless_set_kernel(Device *device);
     static ComputeShader *load_accel_set_kernel(Device *device);
+    static ComputeShader *load_accel_motion_set_kernel(Device *device);
     BuiltinKernel() = delete;
     ~BuiltinKernel() = delete;
 };

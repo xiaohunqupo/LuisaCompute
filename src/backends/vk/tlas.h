@@ -25,6 +25,7 @@ private:
         MeshHandle *handle = nullptr;
     };
     bool _require_rebuild = true;
+    bool _has_motion = false;  // true if any child BLAS has motion or any MotionInstance is present
     vstd::vector<Instance> _all_instance;
     void _resize_instance(size_t size);
     void _update_mesh(MeshHandle *handle);
@@ -46,5 +47,6 @@ public:
     [[nodiscard]] auto &accel() const { return _accel; }
     [[nodiscard]] auto instance_buffer() const { return _instance_buffer.get(); }
     [[nodiscard]] auto accel_buffer() const { return _accel_buffer.get(); }
+    [[nodiscard]] bool has_motion() const noexcept { return _has_motion; }
 };
 }// namespace lc::vk

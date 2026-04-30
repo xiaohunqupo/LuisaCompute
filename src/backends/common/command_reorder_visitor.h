@@ -971,8 +971,10 @@ public:
         }
     }
 
-    void visit(const MotionInstanceBuildCommand *) noexcept override {
-        LUISA_NOT_IMPLEMENTED();
+    void visit(const MotionInstanceBuildCommand *command) noexcept override {
+        // Register as a write to the motion instance handle to ensure
+        // it's ordered before AccelBuildCommand that references it.
+        add_command(command, set_write(command->handle(), Range(), ResourceType::Accel));
     }
 };
 

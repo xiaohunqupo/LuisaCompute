@@ -232,5 +232,38 @@ CompileResult ShaderCompiler::CompileRayTracing(
     }
     return compile(code, args);
 }*/
+CompileResult ShaderCompiler::compile_raytracing(
+    vstd::string_view code,
+    bool optimize,
+    uint shaderModel,
+    bool enableUnsafeMath,
+    bool spirv,
+    bool debug) const {
+#ifndef NDEBUG
+    if (shaderModel < 10) {
+        LUISA_ERROR("Illegal shader model!");
+    }
+#endif
+    vstd::fixed_vector<LPCWSTR, 32> args;
+    vstd::wstring smStr;
+    smStr << L"lib_" << GetSM(shaderModel);
+    if (spirv) {
+        args.emplace_back(L"-spirv");
+        args.emplace_back(L"/DSPV");
+        args.emplace_back(L"-fspv-target-env=vulkan1.2");
+        // Enable ray tracing SPIR-V extensions
+        args.emplace_back(L"-fspv-extension=SPV_KHR_ray_tracing");
+    }
+    args.emplace_back(L"-T");
+    args.emplace_back(smStr.c_str());
+    AddCompileFlags(args, debug);
+    if (enableUnsafeMath) {
+        AddUnsafeMathFlags(args);
+    }
+    if (optimize) {
+        args.emplace_back(DXC_ARG_OPTIMIZATION_LEVEL3);
+    }
+    return compile(code, args);
+}
 #undef LC_DXC_THROW_IF_FAILED
 }// namespace lc::hlsl
