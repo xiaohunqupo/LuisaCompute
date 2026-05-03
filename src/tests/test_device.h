@@ -14,6 +14,10 @@
 #include <luisa/runtime/context.h>
 #include <luisa/runtime/device.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 namespace luisa::test {
 
 struct DeviceContext {
@@ -21,12 +25,26 @@ struct DeviceContext {
     compute::Device device;
 };
 
+/// Safe executable-path helper for Windows when __argv is unreliable.
+inline const char *safe_argv0() noexcept {
+#ifdef _WIN32
+    static char path[MAX_PATH];
+    if (path[0] == '\0') {
+        GetModuleFileNameA(nullptr, path, MAX_PATH);
+    }
+    return path;
+#else
+    return "";
+#endif
+}
+
 /// Create a device from main(argc, argv).
 /// Exits with code 1 if no backend argument is provided.
 [[nodiscard]] inline DeviceContext create_device(int argc, char *argv[]) {
-    compute::Context context{argv[0]};
+    const char *exe = (argc > 0 && argv && argv[0]) ? argv[0] : safe_argv0();
+    compute::Context context{exe};
     if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
+        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", exe);
         exit(1);
     }
     compute::Device device = context.create_device(argv[1]);
@@ -39,11 +57,12 @@ struct DeviceContext {
 [[nodiscard]] inline std::optional<DeviceContext> create_device_from_ut() {
     auto argc = boost::ut::detail::cfg::largc;
     auto argv = boost::ut::detail::cfg::largv;
+    const char *exe = (argc > 0 && argv && argv[0]) ? argv[0] : safe_argv0();
     if (argc <= 1) {
-        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", argv[0]);
+        LUISA_INFO("Usage: {} <backend>. <backend>: cuda, dx, cpu, metal", exe);
         return std::nullopt;
     }
-    compute::Context context{argv[0]};
+    compute::Context context{exe};
     compute::Device device = context.create_device(argv[1]);
     return DeviceContext{std::move(context), std::move(device)};
 }

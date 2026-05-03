@@ -10,8 +10,9 @@
 static inline const auto _luisa_reg_context = [] {
     boost::ut::detail::test{"test", "context"} = [] {
         auto argv = boost::ut::detail::cfg::largv;
+        const char *exe = (argv && argv[0]) ? argv[0] : luisa::test::safe_argv0();
         // Initialize context with the test executable path
-        luisa::compute::Context context{argv[0]};
+        luisa::compute::Context context{exe};
 
         // Iterate over all installed backends
         for (auto &&backend : context.installed_backends()) {

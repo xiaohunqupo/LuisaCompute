@@ -18,11 +18,7 @@ struct compare {
                 return -1;
             return 1;
         } else if constexpr (std::is_arithmetic_v<T> || std::is_pointer_v<T>) {
-            if (a == b)
-                return 0;
-            else if (a < b)
-                return -1;
-            return 1;
+            return static_cast<int32_t>((a > b) - (a < b));
         } else {
             static_assert(sizeof(T) == sizeof(V), "Same size!");
             return std::memcmp(&a, &b, sizeof(T));
