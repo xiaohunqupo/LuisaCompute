@@ -32,7 +32,7 @@ xmake project -k compile_commands --lsp=clangd .vscode
 | Linux Clang | `xmake f -p linux -a x86_64 --toolchain=clang -m release -c` |
 | Windows MSVC | `xmake f -p windows -a x64 --toolchain=msvc -m release -c` |
 | Windows Clang-CL | `xmake f -p windows -a x64 --toolchain=clang-cl -m release -c` |
-| Windows LLVM | `xmake f -p windows -a x64 --toolchain=llvm --sdk="C:/Program Files/LLVM" -m release -c` |
+| Windows LLVM | `xmake f -p windows -a x64 --toolchain=llvm -m release -c` |
 
 ### Flags
 

@@ -97,6 +97,18 @@
 #include <exception>
 #endif
 
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#include <shellapi.h>
+#include <stringapiset.h>
+#if defined(_MSC_VER) || defined(__clang__)
+#pragma comment(lib, "shell32.lib")
+#endif
+#endif
+
 #if __has_include(<format>)
 #include <format>
 #endif
@@ -684,13 +696,8 @@ struct cfg {
   static inline reflection::source_location location{};
   static inline bool wip{};
 
-#if defined(_MSC_VER)
-  static inline int largc = __argc;
-  static inline const char** largv = const_cast<const char**>(__argv);
-#else
   static inline int largc = 0;
   static inline const char** largv = nullptr;
-#endif
 
   static inline std::string executable_name = "unknown executable";
   static inline std::string query_pattern;           // <- done
@@ -780,11 +787,53 @@ struct cfg {
       cfg::largc = argc;
       cfg::largv = argv;
     }
-    else
+#if defined(_WIN32)
+    else {
+      // On Windows, __argc/__argv may be uninitialized when main()
+      // doesn't declare parameters (observed with Clang targeting MSVC).
+      // Use GetCommandLineW + CommandLineToArgvW for a reliable fallback.
+      int win_argc = 0;
+      LPWSTR *win_argv = CommandLineToArgvW(GetCommandLineW(), &win_argc);
+      if (win_argv && win_argc > 0) {
+        static std::vector<std::string> utf8_args;
+        static std::vector<const char*> utf8_ptrs;
+        utf8_args.reserve(win_argc);
+        utf8_ptrs.reserve(win_argc);
+        for (int i = 0; i < win_argc; ++i) {
+          int len = WideCharToMultiByte(CP_UTF8, 0, win_argv[i], -1, nullptr, 0, nullptr, nullptr);
+          std::string arg;
+          if (len > 0) {
+            arg.resize(len - 1);
+            WideCharToMultiByte(CP_UTF8, 0, win_argv[i], -1, arg.data(), len, nullptr, nullptr);
+          }
+          utf8_args.push_back(std::move(arg));
+        }
+        for (auto &s : utf8_args) {
+          utf8_ptrs.push_back(s.c_str());
+        }
+        cfg::largc = static_cast<int>(utf8_ptrs.size());
+        cfg::largv = utf8_ptrs.data();
+        LocalFree(win_argv);
+      } else {
+        cfg::largc = 0;
+        cfg::largv = nullptr;
+      }
+    }
+#elif defined(_MSC_VER)
+    else if (__argc > 0 && __argv != nullptr) {
+      cfg::largc = __argc;
+      cfg::largv = const_cast<const char**>(__argv);
+    }
+    else {
+      cfg::largc = 0;
+      cfg::largv = nullptr;
+    }
+#else
     {
       cfg::largc = 0;
       cfg::largv = nullptr;
     }
+#endif
     parse(cfg::largc, cfg::largv);
   }
 
@@ -2242,9 +2291,10 @@ class runner {
 
 struct override {};
 
-template <class = override, class...>
-//[[maybe_unused]] inline auto cfg = runner<reporter<printer>>{};// alt reporter
-[[maybe_unused]] inline auto cfg = runner<reporter_junit<printer>>{};
+inline auto& cfg() {
+    static runner<reporter_junit<printer>> instance{};
+    return instance;
+}
 
 namespace detail {
 struct tag {
@@ -2253,7 +2303,7 @@ struct tag {
 
 template <class... Ts, class TEvent>
 [[nodiscard]] constexpr decltype(auto) on(TEvent&& event) {
-  return ut::cfg<typename type_traits::identity<override, Ts...>::type>.on(
+  return ut::cfg().on(
       static_cast<TEvent&&>(event));
 }
 
@@ -3360,14 +3410,15 @@ using operators::operator>>;
 }  // namespace boost::inline ext::ut::inline v2_3_1
 
 #if (defined(__GNUC__) || defined(__clang__) || defined(__INTEL_COMPILER)) && \
-    !defined(__EMSCRIPTEN__)
+    !defined(__EMSCRIPTEN__) && !defined(_WIN32)
 __attribute__((constructor(101))) inline void cmd_line_args(
     int argc, const char* argv[]) {
   ::boost::ut::detail::cfg::largc = argc;
   ::boost::ut::detail::cfg::largv = argv;
 }
-#else
-// For MSVC, largc/largv are initialized with __argc/__argv
+#elif defined(_MSC_VER)
+// For MSVC, largc/largv were initialized with __argc/__argv
+// but we now rely on parse_arg_with_fallback / GetCommandLineW.
 #endif
 
 #if defined(_MSC_VER)

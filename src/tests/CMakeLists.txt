@@ -72,7 +72,6 @@ luisa_compute_add_test(test_dsl_matrix             unit/dsl/test_matrix.cpp)
 luisa_compute_add_test(test_var                    unit/dsl/test_var.cpp)
 luisa_compute_add_test(test_polymorphic            unit/dsl/test_polymorphic.cpp)
 luisa_compute_add_test(test_dsl_autodiff           unit/dsl/test_autodiff.cpp)
-luisa_compute_add_test(test_dsl_mathematic         test_dsl_mathematic.cpp)
 
 # --- unit/runtime: standalone tests (need backend, NOT auto-run via CTest) ---
 luisa_compute_add_test(test_atomic              unit/runtime/test_atomic.cpp)
@@ -104,10 +103,6 @@ luisa_compute_add_test(test_device_test         unit/runtime/test_device.cpp)
 luisa_compute_add_test(test_external_buffer     unit/runtime/test_external_buffer.cpp)
 luisa_compute_add_test(test_gemm                unit/runtime/test_gemm.cpp)
 luisa_compute_add_test(test_shared_mem          unit/runtime/test_shared_mem.cpp)
-luisa_compute_add_test(test_fp8                 test_fp8.cpp)
-luisa_compute_add_test(test_fp8_quantization    test_fp8_quantization.cpp)
-luisa_compute_add_test(test_fp4                 test_fp4.cpp)
-luisa_compute_add_test(test_fp4_quantization    test_fp4_quantization.cpp)
 
 # --- unit/xir: standalone tests (no backend needed, auto-run via CTest) ---
 luisa_compute_add_test(test_ast_to_xir unit/xir/test_ast_to_xir.cpp LABELS "unit;unit_xir")
@@ -178,6 +173,51 @@ if (LUISA_COMPUTE_ENABLE_RUST)
     if (LUISA_COMPUTE_ENABLE_GUI)
         luisa_compute_add_test(test_kernel_ir integration/ir/test_kernel_ir.cpp)
     endif ()
+endif ()
+
+# --- root-only tests: no GUI required ---
+luisa_compute_add_test(test_cuda_dx_interop      test_cuda_dx_interop.cpp)
+luisa_compute_add_test(test_cuda_vk_interop      test_cuda_vk_interop.cpp)
+luisa_compute_add_test(test_dml                  test_dml.cpp)
+luisa_compute_add_test(test_dsl_mathematic       test_dsl_mathematic.cpp)
+luisa_compute_add_test(test_fp4                  test_fp4.cpp)
+luisa_compute_add_test(test_fp4_quantization     test_fp4_quantization.cpp)
+luisa_compute_add_test(test_fp8                  test_fp8.cpp)
+luisa_compute_add_test(test_fp8_quantization     test_fp8_quantization.cpp)
+luisa_compute_add_test(test_helloworld           test_helloworld.cpp)
+
+# --- root-only tests: GUI required ---
+if (LUISA_COMPUTE_ENABLE_GUI)
+    luisa_compute_add_test(test_blackhole            test_blackhole.cpp)
+    # luisa_compute_add_test(test_dx_supersampling     test_dx_supersampling.cpp) # requires XeSS SDK
+    luisa_compute_add_test(test_fire_simulation      test_fire_simulation.cpp)
+    # luisa_compute_add_test(test_fsr3                 test_fsr3.cpp) # requires FidelityFX SDK
+    luisa_compute_add_test(test_game_of_life         test_game_of_life.cpp)
+    luisa_compute_add_test(test_image_processing     test_image_processing.cpp)
+    luisa_compute_add_test(test_imgui                test_imgui.cpp)
+    # luisa_compute_add_test(test_mnist                test_mnist.cpp) # no main, complex interop demo
+    luisa_compute_add_test(test_mpm3d                test_mpm3d.cpp)
+    luisa_compute_add_test(test_mpm88                test_mpm88.cpp)
+    luisa_compute_add_test(test_nbody_simulation     test_nbody_simulation.cpp)
+    luisa_compute_add_test(test_path_tracing         test_path_tracing.cpp)
+    luisa_compute_add_test(test_path_tracing_camera  test_path_tracing_camera.cpp)
+    luisa_compute_add_test(test_path_tracing_clangcxx test_path_tracing_clangcxx.cpp)
+    luisa_compute_add_test(test_path_tracing_cutout  test_path_tracing_cutout.cpp)
+    luisa_compute_add_test(test_path_tracing_hdr     test_path_tracing_hdr.cpp)
+    luisa_compute_add_test(test_path_tracing_nested_callable test_path_tracing_nested_callable.cpp)
+    luisa_compute_add_test(test_path_tracing_ray_masks test_path_tracing_ray_masks.cpp)
+    luisa_compute_add_test(test_path_tracing_spectrum test_path_tracing_spectrum.cpp)
+    luisa_compute_add_test(test_photon_mapping       test_photon_mapping.cpp)
+    luisa_compute_add_test(test_sdf_renderer         test_sdf_renderer.cpp)
+    # luisa_compute_add_test(test_sdf_renderer_ir      test_sdf_renderer_ir.cpp) # outdated API
+    luisa_compute_add_test(test_shader_toy           test_shader_toy.cpp)
+    luisa_compute_add_test(test_shader_toy_spacex    test_shader_toy_spacex.cpp)
+    luisa_compute_add_test(test_shader_visuals_present test_shader_visuals_present.cpp)
+    luisa_compute_add_test(test_swapchain            test_swapchain.cpp)
+    luisa_compute_add_test(test_swapchain_static     test_swapchain_static.cpp)
+    luisa_compute_add_test(test_voxel_raytracer      test_voxel_raytracer.cpp)
+    luisa_compute_add_test(test_wave_equation        test_wave_equation.cpp)
+    luisa_compute_add_test(test_win_hdr              test_win_hdr.cpp)
 endif ()
 
 # GUI interaction with wxWidgets
