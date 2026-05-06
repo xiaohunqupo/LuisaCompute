@@ -104,7 +104,6 @@ public:
     HeapAlloc buffer_heap_pool;
     LazyLoadShader set_bindless_kernel;
     LazyLoadShader set_accel_kernel;
-    LazyLoadShader set_accel_motion_kernel;
     bool external_instance : 1 {false};
     bool external_device : 1 {false};
     bool external_graphics_queue : 1 {false};

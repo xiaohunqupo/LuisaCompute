@@ -20,6 +20,7 @@ struct TlasInputInst {
 // If the handle is a MotionInstance, returns its child Blas.
 static Blas *resolve_to_blas(uint64_t primitive_handle) {
     auto prim = reinterpret_cast<PrimitiveBase *>(primitive_handle);
+    if (!prim) return nullptr;
     if (prim->is_motion_instance()) {
         auto mi = static_cast<MotionInstance *>(prim);
         return mi->child();
@@ -43,22 +44,27 @@ void Tlas::pre_build(
     using namespace tlas_detail;
     _resize_instance(instance_count);
 
-    // Pre-scan modifications to detect motion before calculating buffer sizes
-    if (!_has_motion && !(modifications.empty() && _set_map.empty())) {
-        for (auto &&i : modifications) {
-            if (i.flags & AccelBuildCommand::Modification::flag_primitive) {
-                auto prim = reinterpret_cast<PrimitiveBase *>(i.primitive);
-                if (prim) {
-                    if (prim->is_motion_instance()) {
-                        _has_motion = true;
-                        break;
-                    }
-                    auto blas = tlas_detail::resolve_to_blas(i.primitive);
-                    if (blas && blas->has_motion()) {
-                        _has_motion = true;
-                        break;
-                    }
-                }
+    // Recompute motion state from current modifications and existing instances
+    _has_motion = false;
+    for (auto &&i : modifications) {
+        if (i.flags & AccelBuildCommand::Modification::flag_primitive) {
+            auto prim = reinterpret_cast<PrimitiveBase *>(i.primitive);
+            if (prim && prim->is_motion_instance()) {
+                _has_motion = true;
+                break;
+            }
+            auto blas = tlas_detail::resolve_to_blas(i.primitive);
+            if (blas && blas->has_motion()) {
+                _has_motion = true;
+                break;
+            }
+        }
+    }
+    if (!_has_motion) {
+        for (auto &i : _set_map) {
+            if (i.second->mesh && i.second->mesh->has_motion()) {
+                _has_motion = true;
+                break;
             }
         }
     }
@@ -494,7 +500,7 @@ void Tlas::pre_build(
         &instance_count,
         &acceleration_structure_build_sizes_info);
     uint scratch_buffer_size = update ? acceleration_structure_build_sizes_info.updateScratchSize : acceleration_structure_build_sizes_info.buildScratchSize;
-    if (_accel_buffer && _accel_buffer->byte_size() != acceleration_structure_build_sizes_info.accelerationStructureSize) {
+    if (_accel_buffer && _accel_buffer->byte_size() < acceleration_structure_build_sizes_info.accelerationStructureSize) {
         cmdbuffer.states()->dispose_after_flush(std::move(_accel_buffer));
     }
     if (!_accel_buffer) {

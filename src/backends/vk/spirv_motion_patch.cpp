@@ -156,7 +156,7 @@ vstd::vector<uint32_t> patch_spirv_for_motion_blur(vstd::span<uint32_t const> sp
 
     // Phase 4: Build the patched SPIR-V
     vstd::vector<uint32_t> result;
-    result.reserve(spirv.size() + 64);
+    result.reserve(spirv.size() + 16 + trace_ray_count);
 
     // Copy header (no new IDs needed)
     for (size_t i = 0; i < 5; i++) {

@@ -767,25 +767,27 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             break;
         case CallOp::RAY_TRACING_TRACE_CLOSEST_MOTION_BLUR: {
             // Motion blur trace: args are (accel, ray, time, mask)
-            // Map to non-motion _TraceClosest(accel, ray, mask), ignoring time
-            // str << "_TraceClosest("sv;
-            // args[0]->accept(vis);// accel
-            // str << ',';
-            // args[1]->accept(vis);// ray
-            // str << ',';
-            // args[3]->accept(vis);// mask (skip time at index 2)
-            // str << ')';
-            // return;
-
-            str << "_TraceClosestMotion("sv;
-            args[0]->accept(vis); // accel
-            str << ',';
-            args[1]->accept(vis); // ray
-            str << ',';
-            args[2]->accept(vis); // time (原被忽略)
-            str << ',';
-            args[3]->accept(vis); // mask
-            str << ')';
+            if (opt->isRayTracing) {
+                str << "_TraceClosestMotion("sv;
+                args[0]->accept(vis);// accel
+                str << ',';
+                args[1]->accept(vis);// ray
+                str << ',';
+                args[2]->accept(vis);// time argument (was previously ignored)
+                str << ',';
+                args[3]->accept(vis);// mask
+                str << ')';
+            } else {
+                // Fallback for devices without motion blur support:
+                // ignore time and use standard _TraceClosest
+                str << "_TraceClosest("sv;
+                args[0]->accept(vis);// accel
+                str << ',';
+                args[1]->accept(vis);// ray
+                str << ',';
+                args[3]->accept(vis);// mask
+                str << ')';
+            }
             return;
         }
         // case CallOp::RAY_TRACING_TRACE_ANY_MOTION_BLUR:
@@ -808,31 +810,11 @@ void CodegenUtility::GetFunctionName(CallExpr const *expr, vstd::StringBuilder &
             PrintArgs();
             return;
         case CallOp::RAY_TRACING_QUERY_ALL_MOTION_BLUR:
-            // Motion blur query all: args are (accel, ray, time, mask, query)
-            // Map to non-motion _QueryAll(accel, ray, mask, query), ignoring time
-            str << "_QueryAll("sv;
-            args[0]->accept(vis);// accel
-            str << ',';
-            args[1]->accept(vis);// ray
-            str << ',';
-            args[3]->accept(vis);// mask (skip time at index 2)
-            str << ',';
-            args[4]->accept(vis);// query
-            str << ')';
-            return;
+            LUISA_ERROR("RAY_TRACING_QUERY_ALL_MOTION_BLUR not supported.");
+            break;
         case CallOp::RAY_TRACING_QUERY_ANY_MOTION_BLUR:
-            // Motion blur query any: args are (accel, ray, time, mask, query)
-            // Map to non-motion _QueryAny(accel, ray, mask, query), ignoring time
-            str << "_QueryAny("sv;
-            args[0]->accept(vis);// accel
-            str << ',';
-            args[1]->accept(vis);// ray
-            str << ',';
-            args[3]->accept(vis);// mask (skip time at index 2)
-            str << ',';
-            args[4]->accept(vis);// query
-            str << ')';
-            return;
+            LUISA_ERROR("RAY_TRACING_QUERY_ANY_MOTION_BLUR not supported.");
+            break;
         case CallOp::BINDLESS_BUFFER_SIZE: {
             str << "_bdlsBfSize"sv;
             opt->useBufferBindless = true;

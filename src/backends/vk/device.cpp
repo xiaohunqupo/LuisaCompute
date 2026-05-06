@@ -313,8 +313,7 @@ void Device::destroy_motion_instance(uint64_t handle) noexcept {
 Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
     : DeviceInterface{std::move(ctx_arg)},
       set_bindless_kernel(BuiltinKernel::load_bindless_set_kernel),
-      set_accel_kernel(BuiltinKernel::load_accel_set_kernel),
-      set_accel_motion_kernel(BuiltinKernel::load_accel_motion_set_kernel) {
+      set_accel_kernel(BuiltinKernel::load_accel_set_kernel) {
     bool headless = false;
     bool use_lmdb = false;
     bool load_dxc = true;
@@ -1089,6 +1088,9 @@ ShaderCreationInfo Device::create_shader(const ShaderOption &option, Function ke
     }
 
     if (requires_motion_blur) {
+        if (option.compile_only) {
+            LUISA_ERROR("compile_only is not yet supported for motion blur shaders.");
+        }
         // Use ray tracing pipeline for motion blur shaders
         auto code = hlsl::CodegenUtility{}.RayTracingCodegen(kernel, option.native_include, mask, true);
         vstd::MD5 check_md5({reinterpret_cast<uint8_t const *>(code.result.data() + code.immutableHeaderSize), code.result.size() - code.immutableHeaderSize});
@@ -1116,7 +1118,8 @@ ShaderCreationInfo Device::create_shader(const ShaderOption &option, Function ke
             file_name,
             serde_type,
             kShaderModel,
-            option.enable_fast_math);
+            option.enable_fast_math,
+            option.enable_debug_info);
         info.handle = reinterpret_cast<uint64_t>(shader);
         info.native_handle = shader->pipeline();
     } else {

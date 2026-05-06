@@ -209,29 +209,6 @@ RasterBin ShaderCompiler::compile_raster(
     bin.pixel = compile(code, args);
     return bin;
 }
-/*
-CompileResult ShaderCompiler::CompileRayTracing(
-    vstd::string_view code,
-    bool optimize,
-    uint shaderModel) {
-    if (shaderModel < 10) {
-        return "Illegal shader model!"_sv;
-    }
-    vstd::fixed_vector<LPCWSTR, 32> args;
-    vstd::wstring smStr;
-    smStr << L"lib_" << GetSM(shaderModel);
-    args.emplace_back(L"-T");
-    args.emplace_back(smStr.c_str());
-    args.push_back_all(
-        {L"-Qstrip_debug",
-         L"-Qstrip_reflect",
-         L"/enable_unbounded_descriptor_tables",
-         L"-HV 2021"});
-    if (optimize) {
-        args.emplace_back(DXC_ARG_OPTIMIZATION_LEVEL3);
-    }
-    return compile(code, args);
-}*/
 CompileResult ShaderCompiler::compile_raytracing(
     vstd::string_view code,
     bool optimize,
@@ -250,7 +227,9 @@ CompileResult ShaderCompiler::compile_raytracing(
     if (spirv) {
         args.emplace_back(L"-spirv");
         args.emplace_back(L"/DSPV");
-        args.emplace_back(L"-fspv-target-env=vulkan1.2");
+        if (shaderModel > 60) {
+            args.emplace_back(L"-fspv-target-env=vulkan1.2");
+        }
         // Enable ray tracing SPIR-V extensions
         args.emplace_back(L"-fspv-extension=SPV_KHR_ray_tracing");
     }

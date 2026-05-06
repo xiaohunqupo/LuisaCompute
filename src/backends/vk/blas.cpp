@@ -137,15 +137,19 @@ void Blas::pre_build(
         // Base geometry uses keyframe 0 vertices only
         triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
         triangles.vertexData = vertex_data_device_address;
-        triangles.maxVertex = vertex_count_per_keyframe;
+        triangles.maxVertex = vertex_count_per_keyframe - 1;
         triangles.vertexStride = cmd->vertex_stride();
         triangles.indexType = VK_INDEX_TYPE_UINT32;
         triangles.indexData = index_data_device_address;
     } else {
         // Non-motion path or unsupported keyframe count (>2 not supported by NV extension)
+        if (_option.motion.is_enabled() && keyframe_count != 2u) {
+            LUISA_WARNING("BLAS vertex motion blur only supports exactly 2 keyframes, but {} were provided. "
+                          "Falling back to static BLAS build.", keyframe_count);
+        }
         triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
         triangles.vertexData = vertex_data_device_address;
-        triangles.maxVertex = total_vertex_count;
+        triangles.maxVertex = total_vertex_count - 1;
         triangles.vertexStride = cmd->vertex_stride();
         triangles.indexType = VK_INDEX_TYPE_UINT32;
         triangles.indexData = index_data_device_address;

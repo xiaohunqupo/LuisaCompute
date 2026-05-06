@@ -1660,7 +1660,7 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                     }
                     auto bind_point = is_rt_shader ? VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR : VK_PIPELINE_BIND_POINT_COMPUTE;
                     auto push_stage = is_rt_shader ?
-                        static_cast<VkShaderStageFlags>(VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR) :
+                        static_cast<VkShaderStageFlags>(VK_SHADER_STAGE_RAYGEN_BIT_KHR) :
                         static_cast<VkShaderStageFlags>(VK_SHADER_STAGE_COMPUTE_BIT);
                     // Get pipeline and block_size from the correct shader type
                     VkPipeline vk_pipeline;

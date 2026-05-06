@@ -194,7 +194,7 @@ CodegenResult CodegenUtility::Codegen(Function kernel, luisa::string_view native
     finalResult.reserve(65500);
     uint64 immutableHeaderSize = detail::AddHeader(kernel.propagated_builtin_callables(), finalResult, false, isSpirV, noRegister, kernel.use_cooperative_operations());
     finalResult << native_code << "\n//"sv;
-    static_cast<void>(vstd::to_string(custom_mask));
+    finalResult << luisa::format("{}", custom_mask);
     finalResult << '\n';
     CodegenFunction(kernel, codegenData, nonEmptyCbuffer, true);
 
@@ -278,7 +278,7 @@ CodegenResult CodegenUtility::RayTracingCodegen(Function kernel, luisa::string_v
     // Add motion blur ray tracing header (miss/closesthit entry points + _TraceClosestMotion)
     finalResult << ReadInternalHLSLFile("raytracing_motion_header");
     finalResult << native_code << "\n//"sv;
-    static_cast<void>(vstd::to_string(custom_mask));
+    finalResult << luisa::format("{}", custom_mask);
     finalResult << '\n';
     CodegenFunction(kernel, codegenData, nonEmptyCbuffer, true);
 
@@ -363,7 +363,7 @@ CodegenResult CodegenUtility::RasterCodegen(
     opSet.propagate(pixelFunc.propagated_builtin_callables());
     uint64 immutableHeaderSize = detail::AddHeader(opSet, finalResult, true, isSpirV, noRegister, vertFunc.use_cooperative_operations() || pixelFunc.use_cooperative_operations());
     finalResult << native_code << "\n//"sv;
-    static_cast<void>(vstd::to_string(custom_mask));
+    finalResult << luisa::format("{}", custom_mask);
     finalResult << '\n';
     // Vertex
     codegenData << "struct v2p{\n"sv;
@@ -548,7 +548,7 @@ uint3 grpId = uint3(0,0,0);
                 auto blockSize = func.block_size();
                 auto dsp_c = opt->isSpirv ? "dsp_c.v"sv : "dsp_c"sv;
                 // Bounds check using DispatchRaysDimensions
-                result << "if(any(dspId.xy >= "sv << dsp_c << ".xy)) return;\n"sv;
+                result << "if(any(dspId >= "sv << dsp_c << ")) return;\n"sv;
             } else {
                 // Compute shader: generate standard entry point
                 auto warp_size = func.allowed_warp_size();

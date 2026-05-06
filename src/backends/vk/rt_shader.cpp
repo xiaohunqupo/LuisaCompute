@@ -161,8 +161,11 @@ bool RayTracingShader::serialize_pso(vstd::vector<std::byte> &result) const {
     auto last_size = result.size();
     size_t pso_size = 0;
     VK_CHECK_RESULT(vkGetPipelineCacheData(device()->logic_device(), _pipe_cache, &pso_size, nullptr));
+    if (pso_size <= sizeof(VkPipelineCacheHeaderVersionOne)) {
+        luisa::vector_resize(result, last_size);
+        return false;
+    }
     luisa::vector_resize(result, last_size + pso_size);
-    if (pso_size <= sizeof(VkPipelineCacheHeaderVersionOne)) return false;
     VK_CHECK_RESULT(vkGetPipelineCacheData(device()->logic_device(), _pipe_cache, &pso_size, result.data() + last_size));
     luisa::vector_resize(result, last_size + pso_size);
     return true;
@@ -187,7 +190,8 @@ RayTracingShader *RayTracingShader::compile(
     vstd::string_view file_name,
     SerdeType serde_type,
     uint shader_model,
-    bool unsafe_math) {
+    bool unsafe_math,
+    bool debug) {
 
     auto str = codegen();
 
@@ -199,11 +203,11 @@ RayTracingShader *RayTracingShader::compile(
 
     auto comp_result = Device::compiler()->compile_raytracing(
         str.result.view(),
-        true,
+        !debug,
         shader_model,
         unsafe_math,
         true,
-        false);
+        debug);
 
     return comp_result.multi_visit_or(
         vstd::UndefEval<RayTracingShader *>{},

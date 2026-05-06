@@ -304,7 +304,7 @@ def get_config(parsed_args):
     if os.path.exists('config.json'):
         with open('config.json', 'r') as f:
             config.update(json.load(f))
-    config['build_system'] = parsed_args['build_system']
+    config['build_system'] = parsed_args.get('build_system')
     if "toolchain" in parsed_args:
         config['toolchain'] = parsed_args['toolchain']
     if "output" in parsed_args:

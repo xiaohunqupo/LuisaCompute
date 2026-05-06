@@ -68,6 +68,7 @@ public:
         vstd::string_view file_name,
         SerdeType serde_type,
         uint shader_model,
-        bool unsafe_math);
+        bool unsafe_math,
+        bool debug = false);
 };
 }// namespace lc::vk
