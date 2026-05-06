@@ -22,10 +22,9 @@ jobs:
           chmod +x llvm.sh
           sudo ./llvm.sh 20 all
           sudo apt-get -y install build-essential wget uuid-dev libxinerama-dev libxcursor-dev libxi-dev libvulkan-dev
-          sudo add-apt-repository ppa:xmake-io/xmake
-          sudo apt update
-          sudo apt install xmake
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+      - name: "Setup XMake"
+        uses: xmake-io/github-action-setup-xmake@v1
       - name: "Setup CUDA"
         run: |
           wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
