@@ -57,14 +57,14 @@ void test_autodiff_basic(Device &device) {
     }
 
     auto shader = device.compile(kernel);
-    stream << x_buf.copy_from(hx.data())
-           << y_buf.copy_from(hy.data())
+    stream << x_buf.copy_from(luisa::span{hx})
+           << y_buf.copy_from(luisa::span{hy})
            << shader(x_buf, y_buf, dx_buf, dy_buf).dispatch(N)
            << synchronize();
 
     luisa::vector<float> hdx(N), hdy(N);
-    stream << dx_buf.copy_to(hdx.data())
-           << dy_buf.copy_to(hdy.data())
+    stream << dx_buf.copy_to(luisa::span{hdx})
+           << dy_buf.copy_to(luisa::span{hdy})
            << synchronize();
 
     bool correct = true;
@@ -104,12 +104,12 @@ void test_autodiff_trig(Device &device) {
     }
 
     auto shader = device.compile(kernel);
-    stream << x_buf.copy_from(hx.data())
+    stream << x_buf.copy_from(luisa::span{hx})
            << shader(x_buf, dx_buf).dispatch(N)
            << synchronize();
 
     luisa::vector<float> hdx(N);
-    stream << dx_buf.copy_to(hdx.data()) << synchronize();
+    stream << dx_buf.copy_to(luisa::span{hdx}) << synchronize();
 
     bool correct = true;
     for (uint i = 0u; i < N; i++) {
@@ -147,12 +147,12 @@ void test_autodiff_custom_grad(Device &device) {
     }
 
     auto shader = device.compile(kernel);
-    stream << x_buf.copy_from(hx.data())
+    stream << x_buf.copy_from(luisa::span{hx})
            << shader(x_buf, dx_buf).dispatch(N)
            << synchronize();
 
     luisa::vector<float> hdx(N);
-    stream << dx_buf.copy_to(hdx.data()) << synchronize();
+    stream << dx_buf.copy_to(luisa::span{hdx}) << synchronize();
 
     bool correct = true;
     for (uint i = 0u; i < N; i++) {
@@ -190,12 +190,12 @@ void test_autodiff_chain_rule(Device &device) {
     }
 
     auto shader = device.compile(kernel);
-    stream << x_buf.copy_from(hx.data())
+    stream << x_buf.copy_from(luisa::span{hx})
            << shader(x_buf, dx_buf).dispatch(N)
            << synchronize();
 
     luisa::vector<float> hdx(N);
-    stream << dx_buf.copy_to(hdx.data()) << synchronize();
+    stream << dx_buf.copy_to(luisa::span{hdx}) << synchronize();
 
     bool correct = true;
     for (uint i = 0u; i < N; i++) {
@@ -239,14 +239,14 @@ void test_autodiff_addition(Device &device) {
     }
 
     auto shader = device.compile(kernel);
-    stream << x_buf.copy_from(hx.data())
-           << y_buf.copy_from(hy.data())
+    stream << x_buf.copy_from(luisa::span{hx})
+           << y_buf.copy_from(luisa::span{hy})
            << shader(x_buf, y_buf, dx_buf, dy_buf).dispatch(N)
            << synchronize();
 
     luisa::vector<float> hdx(N), hdy(N);
-    stream << dx_buf.copy_to(hdx.data())
-           << dy_buf.copy_to(hdy.data())
+    stream << dx_buf.copy_to(luisa::span{hdx})
+           << dy_buf.copy_to(luisa::span{hdy})
            << synchronize();
 
     bool correct = true;
@@ -290,12 +290,12 @@ void test_autodiff_with_callable(Device &device) {
     }
 
     auto shader = device.compile(kernel);
-    stream << x_buf.copy_from(hx.data())
+    stream << x_buf.copy_from(luisa::span{hx})
            << shader(x_buf, dx_buf).dispatch(N)
            << synchronize();
 
     luisa::vector<float> hdx(N);
-    stream << dx_buf.copy_to(hdx.data()) << synchronize();
+    stream << dx_buf.copy_to(luisa::span{hdx}) << synchronize();
 
     bool correct = true;
     for (uint i = 0u; i < N; i++) {

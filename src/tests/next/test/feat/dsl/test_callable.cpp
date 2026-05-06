@@ -66,12 +66,12 @@ int test_callable(Device &device) {
     std::iota(data.begin(), data.end(), 1.0f);
 
     Clock clock;
-    stream << buffer.copy_from(data.data());
+    stream << buffer.copy_from(luisa::span{data});
     CommandList command_list = CommandList::create();
     command_list << shader(buffer, result_buffer, 3.0f).dispatch(n);
 
     stream << command_list.commit()
-           << result_buffer.copy_to(results.data());
+           << result_buffer.copy_to(luisa::span{results});
 
     double t1 = clock.toc();
     stream << synchronize();

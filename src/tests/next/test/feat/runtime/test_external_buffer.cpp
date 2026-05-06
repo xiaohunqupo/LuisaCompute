@@ -25,12 +25,12 @@ int test_external_buffer(Device &device) {
     luisa::vector<int> data_init(n, 1);
     luisa::vector<int> data_result(n, 0);
 
-    stream << a.copy_from(data_init.data());
+    stream << a.copy_from(luisa::span{data_init});
     stream << synchronize();
 
     auto b = device.import_external_buffer<int>(a.native_handle(), n);
 
-    stream << b.copy_to(data_result.data());
+    stream << b.copy_to(luisa::span{data_result});
     stream << synchronize();
 
     for (uint idx = 0u; idx < n; idx++) {

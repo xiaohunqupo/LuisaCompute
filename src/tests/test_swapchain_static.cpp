@@ -40,7 +40,7 @@ int main(int argc, char *argv[]) {
     auto pixels = stbi_load("src/tests/logo.png", &width, &height, &channels, 4);
     auto resolution = make_uint2(width, height);
     auto image = device.create_image<float>(PixelStorage::BYTE4, resolution);
-    stream << image.copy_from(pixels) << synchronize();
+    stream << image.copy_from(luisa::span{pixels, static_cast<size_t>(width * height * 4)}) << synchronize();
     stbi_image_free(pixels);
 
     // Create window and swapchain

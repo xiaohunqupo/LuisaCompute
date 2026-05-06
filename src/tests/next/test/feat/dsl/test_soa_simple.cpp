@@ -39,10 +39,10 @@ int test_soa_simple(Device &device) {
     });
 
     luisa::vector<float3> host_download(N);
-    stream << buffer_upload.copy_from(host_upload.data())
+    stream << buffer_upload.copy_from(luisa::span{host_upload})
            << shader_upload(soa, buffer_upload).dispatch(N)
            << shader_download(soa, buffer_download).dispatch(N)
-           << buffer_download.copy_to(host_download.data())
+           << buffer_download.copy_to(luisa::span{host_download})
            << synchronize();
 
     for (auto i = 0u; i < N; i++) {

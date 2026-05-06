@@ -91,7 +91,7 @@ int main(int argc, char *argv[]) {
     BindlessArray heap = device.create_bindless_array();
     Stream stream = device.create_stream(force_offline ? StreamTag::COMPUTE : StreamTag::GRAPHICS);
     Buffer<float3> vertex_buffer = device.create_buffer<float3>(vertices.size());
-    stream << vertex_buffer.copy_from(vertices.data());
+    stream << vertex_buffer.copy_from(luisa::span{vertices});
     luisa::vector<Mesh> meshes;
     luisa::vector<Buffer<Triangle>> triangle_buffers;
     for (auto &&shape : obj_reader.GetShapes()) {
@@ -107,7 +107,7 @@ int main(int argc, char *argv[]) {
         Buffer<Triangle> &triangle_buffer = triangle_buffers.emplace_back(device.create_buffer<Triangle>(triangle_count));
         Mesh &mesh = meshes.emplace_back(device.create_mesh(vertex_buffer, triangle_buffer));
         heap.emplace_on_update(index, triangle_buffer);
-        stream << triangle_buffer.copy_from(indices.data())
+        stream << triangle_buffer.copy_from(luisa::span{indices})
                << mesh.build();
     }
 
@@ -133,7 +133,7 @@ int main(int argc, char *argv[]) {
     materials.emplace_back(Material{make_float3(0.025f, 0.21f, 0.68f), make_float3(0.0f)});// tall box
     materials.emplace_back(Material{make_float3(0.0f), make_float3(17.0f, 12.0f, 4.0f)});  // light
     Buffer<Material> material_buffer = device.create_buffer<Material>(materials.size());
-    stream << material_buffer.copy_from(materials.data());
+    stream << material_buffer.copy_from(luisa::span{materials});
 
     uint light_inst = static_cast<uint>(meshes.size() - 1u);
     uint tall_inst = static_cast<uint>(meshes.size() - 2u);
@@ -412,7 +412,7 @@ int main(int argc, char *argv[]) {
         LUISA_INFO("time: {} ms", dt);
     }
     stream << hdr2ldr_shader(accum_image, ldr_image, 1.0f, false).dispatch(resolution)
-           << ldr_image.copy_to(host_image.data())
+           << ldr_image.copy_to(luisa::span{host_image})
            << synchronize();
 
     LUISA_INFO("FPS: {}", frame_count / clock.toc() * 1000);

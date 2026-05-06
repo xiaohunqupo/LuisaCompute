@@ -124,9 +124,9 @@ static auto test_normal_encoding_registration = [] {
         Shader shader = device.compile(kernel);
         luisa::vector<float3> decoded_normals(n);
 
-        stream << encoded_normal_buffer.copy_from(encoded_normals.data())
+        stream << encoded_normal_buffer.copy_from(luisa::span{encoded_normals})
                << shader().dispatch(n)
-               << decoded_normal_buffer.copy_to(decoded_normals.data())
+               << decoded_normal_buffer.copy_to(luisa::span{decoded_normals})
                << synchronize();
 
         // Print sample results

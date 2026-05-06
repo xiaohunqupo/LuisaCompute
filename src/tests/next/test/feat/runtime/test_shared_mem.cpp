@@ -38,7 +38,7 @@ int test_shared_mem(Device &device) {
     stream << test_shader(a).dispatch(n);
     stream << synchronize();
     luisa::vector<int> data(n, 0);
-    stream << a.copy_to(data.data());
+    stream << a.copy_to(luisa::span{data});
     stream << synchronize();
 
     for (uint i = 0u; i < n; i++) {

@@ -27,7 +27,7 @@ int test_ast(Device &device) {
     stream << synchronize();
 
     luisa::vector<int> v(10);
-    stream << buf.copy_to(v.data());
+    stream << buf.copy_to(luisa::span{v});
     stream << synchronize();
 
     for (auto i = 0u; i < 10u; i++) {

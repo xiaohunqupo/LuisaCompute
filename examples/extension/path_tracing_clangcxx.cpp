@@ -114,7 +114,7 @@ int main(int argc, char *argv[]) {
         make_float3(0.000f, 0.000f, 0.000f),// light
     };
     auto materials = device.create_buffer<float3>(8);
-    stream << materials.copy_from(luisa::span{mats});
+    stream << materials.copy_from(luisa::span{mats, std::size(mats)});
 
     Callable linear_to_srgb = [&](Var<float3> x) noexcept {
         return saturate(select(1.055f * pow(x, 1.0f / 2.4f) - 0.055f,

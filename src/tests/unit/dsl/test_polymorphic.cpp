@@ -127,12 +127,12 @@ void test_polymorphic_dispatch(Device &device) {
     for (uint i = 0u; i < N; i++) { host_tags[i] = i % 3u; }
 
     auto shader_dispatch = device.compile(k_dispatch);
-    stream << tag_buf.copy_from(host_tags.data())
+    stream << tag_buf.copy_from(luisa::span{host_tags})
            << shader_dispatch(tag_buf, out_buf).dispatch(N)
            << synchronize();
 
     luisa::vector<float> host_out(N);
-    stream << out_buf.copy_to(host_out.data()) << synchronize();
+    stream << out_buf.copy_to(luisa::span{host_out}) << synchronize();
 
     bool dispatch_correct = true;
     for (uint i = 0u; i < N; i++) {
@@ -169,12 +169,12 @@ void test_polymorphic_dispatch_range(Device &device) {
     for (uint i = 0u; i < N; i++) { host_tags[i] = 1u + (i % 2u); }
 
     auto shader = device.compile(k_range);
-    stream << tag_buf.copy_from(host_tags.data())
+    stream << tag_buf.copy_from(luisa::span{host_tags})
            << shader(tag_buf, out_buf).dispatch(N)
            << synchronize();
 
     luisa::vector<float> host_out(N);
-    stream << out_buf.copy_to(host_out.data()) << synchronize();
+    stream << out_buf.copy_to(luisa::span{host_out}) << synchronize();
 
     bool range_correct = true;
     for (uint i = 0u; i < N; i++) {
@@ -213,12 +213,12 @@ void test_polymorphic_dispatch_group(Device &device) {
     for (uint i = 0u; i < N; i++) { host_tags[i] = (i % 2u == 0u) ? 0u : 2u; }
 
     auto shader = device.compile(k_group);
-    stream << tag_buf.copy_from(host_tags.data())
+    stream << tag_buf.copy_from(luisa::span{host_tags})
            << shader(tag_buf, out_buf).dispatch(N)
            << synchronize();
 
     luisa::vector<float> host_out(N);
-    stream << out_buf.copy_to(host_out.data()) << synchronize();
+    stream << out_buf.copy_to(luisa::span{host_out}) << synchronize();
 
     bool group_correct = true;
     for (uint i = 0u; i < N; i++) {
@@ -251,12 +251,12 @@ void test_polymorphic_single_impl(Device &device) {
 
     luisa::vector<uint> host_tags(N, 0u);
     auto shader = device.compile(k_single);
-    stream << tag_buf.copy_from(host_tags.data())
+    stream << tag_buf.copy_from(luisa::span{host_tags})
            << shader(tag_buf, out_buf).dispatch(N)
            << synchronize();
 
     luisa::vector<float> host_out(N);
-    stream << out_buf.copy_to(host_out.data()) << synchronize();
+    stream << out_buf.copy_to(luisa::span{host_out}) << synchronize();
 
     bool single_correct = true;
     for (uint i = 0u; i < N; i++) {
@@ -292,12 +292,12 @@ void test_polymorphic_with_default(Device &device) {
     }
 
     auto shader = device.compile(k_default);
-    stream << tag_buf.copy_from(host_tags.data())
+    stream << tag_buf.copy_from(luisa::span{host_tags})
            << shader(tag_buf, out_buf).dispatch(N)
            << synchronize();
 
     luisa::vector<float> host_out(N);
-    stream << out_buf.copy_to(host_out.data()) << synchronize();
+    stream << out_buf.copy_to(luisa::span{host_out}) << synchronize();
 
     bool default_correct = true;
     for (uint i = 0u; i < N; i++) {

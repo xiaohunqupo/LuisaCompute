@@ -230,7 +230,7 @@ int main(int argc, char *argv[]) {
         render_current_state();
 
         luisa::vector<std::array<uint8_t, 4u>> host_image(display_size.x * display_size.y);
-        stream << output_image.copy_to(host_image.data()) << synchronize();
+        stream << output_image.copy_to(luisa::span{host_image}) << synchronize();
         stbi_write_png("tutorial_09_reaction_diffusion.png", display_size.x, display_size.y, 4, host_image.data(), 0);
         LUISA_INFO("Saved tutorial_09_reaction_diffusion.png");
         return 0;

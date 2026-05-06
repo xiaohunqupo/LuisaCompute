@@ -344,7 +344,7 @@ int main(int argc, char *argv[]) {
     if (force_offline) {
         luisa::vector<std::array<uint8_t, 4u>> host_image(width * height);
         stream << render(display, cam_pos, cam_rot, voxel_grid).dispatch(width, height)
-               << display.copy_to(host_image.data())
+               << display.copy_to(luisa::span{host_image})
                << synchronize();
         stbi_write_png("test_voxel_raytracer.png", width, height, 4, host_image.data(), 0);
         auto exe_dir = std::filesystem::path{argv[0]}.parent_path();

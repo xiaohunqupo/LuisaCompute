@@ -98,7 +98,7 @@ void test_kernel_ir(Device &device) {
     } else {
         luisa::vector<std::byte> pixels(image.view().size_bytes());
         stream << render(image).dispatch(width, height)
-               << image.copy_to(pixels.data())
+               << image.copy_to(luisa::span{pixels})
                << synchronize();
         auto result = luisa::test::save_and_compare(
             reinterpret_cast<const uint8_t *>(pixels.data()), static_cast<int>(width), static_cast<int>(height), 4,

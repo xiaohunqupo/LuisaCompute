@@ -160,7 +160,7 @@ int main(int argc, char *argv[]) {
     luisa::vector<Mesh> meshes;
     luisa::vector<Buffer<Triangle>> triangle_buffers;
 
-    stream << vertex_buffer.copy_from(vertices.data());
+    stream << vertex_buffer.copy_from(luisa::span{vertices});
 
     for (auto &&shape : obj_reader.GetShapes()) {
         luisa::vector<uint> indices;
@@ -173,7 +173,7 @@ int main(int argc, char *argv[]) {
         auto &mesh = meshes.emplace_back(device.create_mesh(vertex_buffer, triangle_buffer));
         auto slot = static_cast<uint>(meshes.size() - 1u);
         heap.emplace_on_update(slot, triangle_buffer);
-        stream << triangle_buffer.copy_from(indices.data())
+        stream << triangle_buffer.copy_from(luisa::span{indices})
                << mesh.build();
     }
 
@@ -201,7 +201,7 @@ int main(int argc, char *argv[]) {
         make_float3(0.000f, 0.000f, 0.000f),
     };
     Buffer<float3> materials = device.create_buffer<float3>(8u);
-    stream << materials.copy_from(material_data);
+    stream << materials.copy_from(luisa::span{material_data, std::size(material_data)});
 
     // Step 5: Create helper callables.
     // Why: putting repeated logic into Callables makes kernels smaller, easier to explain, and
@@ -466,7 +466,7 @@ int main(int argc, char *argv[]) {
     if (offline) {
         luisa::vector<std::array<uint8_t, 4u>> host_image(resolution.x * resolution.y);
         stream << tonemap_shader(accum_image, output_image, 1.8f).dispatch(resolution)
-               << output_image.copy_to(host_image.data())
+               << output_image.copy_to(luisa::span{host_image})
                << synchronize();
         stbi_write_png(output_file, static_cast<int>(resolution.x), static_cast<int>(resolution.y), 4, host_image.data(), 0);
         LUISA_INFO("Saved offline path traced image to {} after {} spp.", output_file, frame_index);

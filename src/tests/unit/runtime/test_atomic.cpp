@@ -45,7 +45,7 @@ void test_atomic(Device &device) {
     Buffer<uint> constant_buffer = device.create_buffer<uint>(1);
     uint host_value = 1u;
     Stream stream = device.create_stream();
-    stream << constant_buffer.copy_from(&host_value) << synchronize();
+    stream << constant_buffer.copy_from(luisa::span{&host_value, 1}) << synchronize();
 
     // Kernel demonstrating atomic fetch_add and conditional write
     // This pattern can be used for counting unique events
@@ -67,9 +67,9 @@ void test_atomic(Device &device) {
     // Performance test for atomic operations
     Clock clock;
     clock.tic();
-    stream << buffer.copy_from(&host_buffer)
+    stream << buffer.copy_from(luisa::span{&host_buffer, 1})
            << count(constant_buffer).dispatch(102400u)// Launch many threads
-           << buffer.copy_to(&host_buffer)
+           << buffer.copy_to(luisa::span{&host_buffer, 1})
            << synchronize();
     double time = clock.toc();
 
@@ -116,9 +116,9 @@ void test_atomic(Device &device) {
 
     // Validate float atomic addition
     float result = 0.f;
-    stream << atomic_float_buffer.copy_from(&result)
+    stream << atomic_float_buffer.copy_from(luisa::span{&result, 1})
            << add_shader(atomic_float_buffer).dispatch(1024u)
-           << atomic_float_buffer.copy_to(&result)
+           << atomic_float_buffer.copy_to(luisa::span{&result, 1})
            << synchronize();
     LUISA_INFO("Atomic float result: {}.", result);
     boost::ut::expect(static_cast<bool>(result == 1024.f))
@@ -130,9 +130,9 @@ void test_atomic(Device &device) {
         float3 vec_init = make_float3(0.f);
         auto vec_shader = device.compile(vector_atomic_kernel);
         float3 vec_result{};
-        stream << vec_buf.copy_from(&vec_init)
+        stream << vec_buf.copy_from(luisa::span{&vec_init, 1})
                << vec_shader(vec_buf).dispatch(n)
-               << vec_buf.copy_to(&vec_result)
+               << vec_buf.copy_to(luisa::span{&vec_result, 1})
                << synchronize();
         LUISA_INFO("Vector atomic result: x={}, y={}, z={}", vec_result.x, vec_result.y, vec_result.z);
         boost::ut::expect(static_cast<bool>(vec_result.x == static_cast<float>(n)))
@@ -149,9 +149,9 @@ void test_atomic(Device &device) {
         float2x2 mat_init = float2x2::fill(0.f);
         auto mat_shader = device.compile(matrix_atomic_kernel);
         float2x2 mat_result{};
-        stream << mat_buf.copy_from(&mat_init)
+        stream << mat_buf.copy_from(luisa::span{&mat_init, 1})
                << mat_shader(mat_buf).dispatch(n)
-               << mat_buf.copy_to(&mat_result)
+               << mat_buf.copy_to(luisa::span{&mat_result, 1})
                << synchronize();
         LUISA_INFO("Matrix atomic result: [0]=({},{}), [1]=({},{})",
                    mat_result.cols[0].x, mat_result.cols[0].y,
@@ -172,9 +172,9 @@ void test_atomic(Device &device) {
         std::memset(&arr_init, 0, sizeof(ArrayT));
         auto arr_shader = device.compile(array_atomic_kernel);
         ArrayT arr_result{};
-        stream << arr_buf.copy_from(&arr_init)
+        stream << arr_buf.copy_from(luisa::span{&arr_init, 1})
                << arr_shader(arr_buf).dispatch(n)
-               << arr_buf.copy_to(&arr_result)
+               << arr_buf.copy_to(luisa::span{&arr_result, 1})
                << synchronize();
         float target = arr_result[1][2].w;
         LUISA_INFO("Array atomic result [1][2].w: {}", target);
@@ -194,9 +194,9 @@ void test_atomic(Device &device) {
         s_init.v = make_float3(0.f);
         auto struct_shader = device.compile(struct_atomic_kernel);
         Something s_result{};
-        stream << struct_buf.copy_from(&s_init)
+        stream << struct_buf.copy_from(luisa::span{&s_init, 1})
                << struct_shader(struct_buf).dispatch(n)
-               << struct_buf.copy_to(&s_result)
+               << struct_buf.copy_to(luisa::span{&s_result, 1})
                << synchronize();
         LUISA_INFO("Struct atomic result: x={}, v=({},{},{})", s_result.x, s_result.v.x, s_result.v.y, s_result.v.z);
         boost::ut::expect(static_cast<bool>(s_result.v.x == 1.f))

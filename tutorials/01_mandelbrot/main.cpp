@@ -206,7 +206,7 @@ int main(int argc, char *argv[]) {
     // Step 6: Read the rendered image back to the CPU and write a PNG file.
     // Why: kernels run on the device; stbi_write_png needs host memory.
     luisa::vector<std::array<uint8_t, 4u>> host_image(resolution.x * resolution.y);
-    stream << png_image.copy_to(host_image.data())
+    stream << png_image.copy_to(luisa::span{host_image})
            << synchronize();
     stbi_write_png(output_file, static_cast<int>(resolution.x), static_cast<int>(resolution.y), 4, host_image.data(), 0);
     LUISA_INFO("Saved Mandelbrot image to {}.", output_file);

@@ -699,7 +699,7 @@ int test_device_math(Device &device) {
 
     luisa::vector<float> results(SLOT_COUNT);
     stream << shader().dispatch(1u)
-           << result_buf.copy_to(results.data())
+           << result_buf.copy_to(luisa::span{results})
            << synchronize();
 
     auto approx = [](float a, float b, float eps = 1e-4f) {

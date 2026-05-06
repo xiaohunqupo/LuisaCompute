@@ -119,7 +119,7 @@ void test_transient_resource(Device &device) {
             }
         }
         luisa::vector<std::byte> pixels(dst_tex.view().size_bytes());
-        stream << dst_tex.copy_to(pixels.data()) << synchronize();
+        stream << dst_tex.copy_to(luisa::span{pixels}) << synchronize();
         auto result = luisa::test::save_and_compare(
             reinterpret_cast<const uint8_t *>(pixels.data()), static_cast<int>(resolution.x), static_cast<int>(resolution.y), 4,
             "test_transient_resource", opts.output_dir, ref_dir, opts.update_reference);

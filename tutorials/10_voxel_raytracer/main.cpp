@@ -501,7 +501,7 @@ int main(int argc, char *argv[]) {
         // Copying a BYTE4 image back to the host gives us PNG-ready bytes.
         luisa::vector<std::array<uint8_t, 4u>> host_image(image_width * image_height);
         stream << render_shader(output, voxel_grid, make_float2(yaw, pitch), distance).dispatch(image_width, image_height)
-               << output.copy_to(host_image.data())
+               << output.copy_to(luisa::span{host_image})
                << synchronize();
         stbi_write_png("tutorial_10_voxel_raytracer.png", static_cast<int>(image_width), static_cast<int>(image_height), 4, host_image.data(), 0);
         LUISA_INFO("Saved offline render to tutorial_10_voxel_raytracer.png");

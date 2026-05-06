@@ -121,9 +121,9 @@ int main(int argc, char *argv[]) {
     auto opt = device.create_buffer<float>(outputs.size());
 
     // Upload data and run inference
-    stream << w.copy_from(weights.data()) << ipt.copy_from(inputs.data())
+    stream << w.copy_from(luisa::span{weights}) << ipt.copy_from(luisa::span{inputs})
            << graph->forward(ipt, opt, w)
-           << opt.copy_to(outputs.data()) << synchronize();
+           << opt.copy_to(luisa::span{outputs}) << synchronize();
     
     // Print results
     size_t idx = 0;

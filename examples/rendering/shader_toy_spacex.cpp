@@ -70,7 +70,7 @@ int main(int argc, char *argv[]) {
             auto image_pixels = stbi_load(input_image, &image_width, &image_height, &image_channels, 1);
             LUISA_ASSERT(image_pixels != nullptr, "Failed to load image: {}.", input_image);
             auto texture = device.create_image<float>(PixelStorage::BYTE1, image_width, image_height);
-            stream << texture.copy_from(image_pixels);
+            stream << texture.copy_from(luisa::span{image_pixels, static_cast<size_t>(image_width * image_height)});
             stbi_image_free(image_pixels);
             return texture;
         }
@@ -81,7 +81,7 @@ int main(int argc, char *argv[]) {
         std::uniform_int_distribution<uint32_t> dist;
         for (auto &x : pixels) { x = static_cast<uint8_t>(dist(rng) & 0xffu); }
         auto texture = device.create_image<float>(PixelStorage::BYTE1, size);
-        stream << texture.copy_from(pixels.data());
+        stream << texture.copy_from(luisa::span{pixels});
         return texture;
     }();
 
@@ -143,7 +143,7 @@ int main(int argc, char *argv[]) {
         auto time = 0.0f;
         stream << shader(framebuffer, bindless, time).dispatch(resolution);
         luisa::vector<uint8_t> host_image(resolution.x * resolution.y * 4u);
-        stream << framebuffer.copy_to(host_image.data()) << synchronize();
+        stream << framebuffer.copy_to(luisa::span{host_image}) << synchronize();
         stbi_write_png("test_shader_toy_spacex.png", static_cast<int>(resolution.x), static_cast<int>(resolution.y), 4, host_image.data(), 0);
         auto exe_dir = std::filesystem::path{argv[0]}.parent_path();
         auto ref_dir = luisa::ref::find_reference_dir(exe_dir);

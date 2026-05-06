@@ -31,7 +31,7 @@ int write_image(Device &device, luisa::string filename = "write_image.png") {
     };
     auto shader = device.compile(kernel);
     stream << shader().dispatch(resolution)
-           << image.copy_to(host_image.data())
+           << image.copy_to(luisa::span{host_image})
            << synchronize();
     stbi_write_png(filename.c_str(), resolution.x, resolution.y, 4, host_image.data(), 0);
     return 0;

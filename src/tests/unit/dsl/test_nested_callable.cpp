@@ -103,9 +103,9 @@ int test_nested_callable(Device &device) {
             out.write(idx, result);
         };
         auto shader = device.compile(kernel);
-        stream << buf_in.copy_from(host_in.data())
+        stream << buf_in.copy_from(luisa::span{host_in})
                << shader(buf_in, buf_out).dispatch(N)
-               << buf_out.copy_to(host_out.data())
+               << buf_out.copy_to(luisa::span{host_out})
                << synchronize();
         // expected: identity
         check("test1_lambda_capture_read", host_out, host_in);
@@ -124,9 +124,9 @@ int test_nested_callable(Device &device) {
             out.write(idx, val);// should see mutation
         };
         auto shader = device.compile(kernel);
-        stream << buf_in.copy_from(host_in.data())
+        stream << buf_in.copy_from(luisa::span{host_in})
                << shader(buf_in, buf_out).dispatch(N)
-               << buf_out.copy_to(host_out.data())
+               << buf_out.copy_to(luisa::span{host_out})
                << synchronize();
         for (uint i = 0; i < N; i++) host_expected[i] = host_in[i] + 10.0f;
         check("test2_lambda_capture_mutation", host_out, host_expected);
@@ -149,9 +149,9 @@ int test_nested_callable(Device &device) {
             out.write(idx, a + b + c);// (x+1) + 2x + 3x = 6x + 1
         };
         auto shader = device.compile(kernel);
-        stream << buf_in.copy_from(host_in.data())
+        stream << buf_in.copy_from(luisa::span{host_in})
                << shader(buf_in, buf_out).dispatch(N)
-               << buf_out.copy_to(host_out.data())
+               << buf_out.copy_to(luisa::span{host_out})
                << synchronize();
         for (uint i = 0; i < N; i++) host_expected[i] = 6.0f * host_in[i] + 1.0f;
         check("test3_lambda_multi_capture_mutation", host_out, host_expected);
@@ -176,9 +176,9 @@ int test_nested_callable(Device &device) {
             out.write(idx, accum);// expected: val + val*2 = val*3
         };
         auto shader = device.compile(kernel);
-        stream << buf_in.copy_from(host_in.data())
+        stream << buf_in.copy_from(luisa::span{host_in})
                << shader(buf_in, buf_out).dispatch(N)
-               << buf_out.copy_to(host_out.data())
+               << buf_out.copy_to(luisa::span{host_out})
                << synchronize();
         for (uint i = 0; i < N; i++) host_expected[i] = host_in[i] * 3.0f;
         check("test4_nested_lambda_2_levels", host_out, host_expected);
@@ -199,9 +199,9 @@ int test_nested_callable(Device &device) {
             out.write(idx, val);// expected: val + 5 + 7 = val + 12
         };
         auto shader = device.compile(kernel);
-        stream << buf_in.copy_from(host_in.data())
+        stream << buf_in.copy_from(luisa::span{host_in})
                << shader(buf_in, buf_out).dispatch(N)
-               << buf_out.copy_to(host_out.data())
+               << buf_out.copy_to(luisa::span{host_out})
                << synchronize();
         for (uint i = 0; i < N; i++) host_expected[i] = host_in[i] + 12.0f;
         check("test5_lambda_with_params", host_out, host_expected);
@@ -221,9 +221,9 @@ int test_nested_callable(Device &device) {
             out.write(idx, result);
         };
         auto shader = device.compile(kernel);
-        stream << buf_in.copy_from(host_in.data())
+        stream << buf_in.copy_from(luisa::span{host_in})
                << shader(buf_in, buf_out).dispatch(N)
-               << buf_out.copy_to(host_out.data())
+               << buf_out.copy_to(luisa::span{host_out})
                << synchronize();
         for (uint i = 0; i < N; i++) host_expected[i] = host_in[i] * host_in[i];
         check("test6_lambda_return_value", host_out, host_expected);
@@ -242,9 +242,9 @@ int test_nested_callable(Device &device) {
             out.write(idx, val);
         };
         auto shader = device.compile(kernel);
-        stream << buf_in.copy_from(host_in.data())
+        stream << buf_in.copy_from(luisa::span{host_in})
                << shader(buf_in, buf_out).dispatch(N)
-               << buf_out.copy_to(host_out.data())
+               << buf_out.copy_to(luisa::span{host_out})
                << synchronize();
         for (uint i = 0; i < N; i++) host_expected[i] = host_in[i] + 100.0f;
         check("test7_outline_capture_mutation", host_out, host_expected);
@@ -266,9 +266,9 @@ int test_nested_callable(Device &device) {
             out.write(idx, add10(val));
         };
         auto shader = device.compile(kernel);
-        stream << buf_in.copy_from(host_in.data())
+        stream << buf_in.copy_from(luisa::span{host_in})
                << shader(buf_in, buf_out).dispatch(N)
-               << buf_out.copy_to(host_out.data())
+               << buf_out.copy_to(luisa::span{host_out})
                << synchronize();
         for (uint i = 0; i < N; i++) host_expected[i] = host_in[i] + 10.0f;
         check("test8_callable_composition", host_out, host_expected);
@@ -290,9 +290,9 @@ int test_nested_callable(Device &device) {
             out.write(idx, result);
         };
         auto shader = device.compile(kernel);
-        stream << buf_in.copy_from(host_in.data())
+        stream << buf_in.copy_from(luisa::span{host_in})
                << shader(buf_in, buf_out).dispatch(N)
-               << buf_out.copy_to(host_out.data())
+               << buf_out.copy_to(luisa::span{host_out})
                << synchronize();
         for (uint i = 0; i < N; i++) host_expected[i] = host_in[i] * 4.0f;
         check("test9_optional_emplace_in_lambda", host_out, host_expected);
@@ -314,9 +314,9 @@ int test_nested_callable(Device &device) {
             out.write(idx, tmp);
         };
         auto shader = device.compile(kernel);
-        stream << buf_in.copy_from(host_in.data())
+        stream << buf_in.copy_from(luisa::span{host_in})
                << shader(buf_in, buf_out).dispatch(N)
-               << buf_out.copy_to(host_out.data())
+               << buf_out.copy_to(luisa::span{host_out})
                << synchronize();
         for (uint i = 0; i < N; i++) host_expected[i] = host_in[i] * 2.0f;
         check("test10_buffer_ops_in_lambda", host_out, host_expected);
@@ -341,9 +341,9 @@ int test_nested_callable(Device &device) {
             out.write(idx, sum);// expected: val * 3 (all inputs > 0)
         };
         auto shader = device.compile(kernel);
-        stream << buf_in.copy_from(host_in.data())
+        stream << buf_in.copy_from(luisa::span{host_in})
                << shader(buf_in, buf_out).dispatch(N)
-               << buf_out.copy_to(host_out.data())
+               << buf_out.copy_to(luisa::span{host_out})
                << synchronize();
         for (uint i = 0; i < N; i++) host_expected[i] = host_in[i] * 3.0f;
         check("test11_control_flow_in_lambda", host_out, host_expected);
@@ -391,10 +391,10 @@ int test_nested_callable(Device &device) {
         auto shader = device.compile(kernel);
         std::vector<float> rng_out(N);
         std::vector<uint> seed_out(N);
-        stream << seed_buf.copy_from(host_seeds.data())
+        stream << seed_buf.copy_from(luisa::span{host_seeds})
                << shader(seed_buf, buf_out).dispatch(N)
-               << buf_out.copy_to(rng_out.data())
-               << seed_buf.copy_to(seed_out.data())
+               << buf_out.copy_to(luisa::span{rng_out})
+               << seed_buf.copy_to(luisa::span{seed_out})
                << synchronize();
 
         // Compute expected on host
@@ -448,9 +448,9 @@ int test_nested_callable(Device &device) {
             out.write(idx, radiance);// expected: beta*(1.0 + 0.5 + 0.25) = beta*1.75
         };
         auto shader = device.compile(kernel);
-        stream << buf_in.copy_from(host_in.data())
+        stream << buf_in.copy_from(luisa::span{host_in})
                << shader(buf_in, buf_out).dispatch(N)
-               << buf_out.copy_to(host_out.data())
+               << buf_out.copy_to(luisa::span{host_out})
                << synchronize();
         for (uint i = 0; i < N; i++) host_expected[i] = host_in[i] * 1.75f;
         check("test13_accumulation_nested_lambda", host_out, host_expected);
@@ -473,9 +473,9 @@ int test_nested_callable(Device &device) {
             out.write(idx, accum);// expected: val * 4
         };
         auto shader = device.compile(kernel);
-        stream << buf_in.copy_from(host_in.data())
+        stream << buf_in.copy_from(luisa::span{host_in})
                << shader(buf_in, buf_out).dispatch(N)
-               << buf_out.copy_to(host_out.data())
+               << buf_out.copy_to(luisa::span{host_out})
                << synchronize();
         for (uint i = 0; i < N; i++) host_expected[i] = host_in[i] * 4.0f;
         check("test14_lambda_in_for_loop", host_out, host_expected);
@@ -498,9 +498,9 @@ int test_nested_callable(Device &device) {
             out.write(idx, result);
         };
         auto shader = device.compile(kernel);
-        stream << buf_in.copy_from(host_in.data())
+        stream << buf_in.copy_from(luisa::span{host_in})
                << shader(buf_in, buf_out).dispatch(N)
-               << buf_out.copy_to(host_out.data())
+               << buf_out.copy_to(luisa::span{host_out})
                << synchronize();
         for (uint i = 0; i < N; i++) host_expected[i] = host_in[i] * 2.0f;
         check("test15_callable_inside_lambda", host_out, host_expected);
@@ -526,9 +526,9 @@ int test_nested_callable(Device &device) {
             out.write(idx, result);// expected: (val + 1) * 3
         };
         auto shader = device.compile(kernel);
-        stream << buf_in.copy_from(host_in.data())
+        stream << buf_in.copy_from(luisa::span{host_in})
                << shader(buf_in, buf_out).dispatch(N)
-               << buf_out.copy_to(host_out.data())
+               << buf_out.copy_to(luisa::span{host_out})
                << synchronize();
         for (uint i = 0; i < N; i++) host_expected[i] = (host_in[i] + 1.0f) * 3.0f;
         check("test16_lambda_calling_lambda", host_out, host_expected);
@@ -549,9 +549,9 @@ int test_nested_callable(Device &device) {
             out.write(idx, val);
         };
         auto shader = device.compile(kernel);
-        stream << buf_in.copy_from(host_in.data())
+        stream << buf_in.copy_from(luisa::span{host_in})
                << shader(buf_in, buf_out).dispatch(N)
-               << buf_out.copy_to(host_out.data())
+               << buf_out.copy_to(luisa::span{host_out})
                << synchronize();
         for (uint i = 0; i < N; i++) host_expected[i] = host_in[i] + 50.0f;
         check("test17_outline_inside_lambda", host_out, host_expected);
@@ -577,9 +577,9 @@ int test_nested_callable(Device &device) {
             out.write(idx, result);// expected: 1 + 2 + val = val + 3
         };
         auto shader = device.compile(kernel);
-        stream << buf_in.copy_from(host_in.data())
+        stream << buf_in.copy_from(luisa::span{host_in})
                << shader(buf_in, buf_out).dispatch(N)
-               << buf_out.copy_to(host_out.data())
+               << buf_out.copy_to(luisa::span{host_out})
                << synchronize();
         for (uint i = 0; i < N; i++) host_expected[i] = host_in[i] + 3.0f;
         check("test18_triple_nested_lambda", host_out, host_expected);
@@ -608,9 +608,9 @@ int test_nested_callable(Device &device) {
             out.write(idx, result);// expected: val * 2 + 1
         };
         auto shader = device.compile(kernel);
-        stream << buf_in.copy_from(host_in.data())
+        stream << buf_in.copy_from(luisa::span{host_in})
                << shader(buf_in, buf_out).dispatch(N)
-               << buf_out.copy_to(host_out.data())
+               << buf_out.copy_to(luisa::span{host_out})
                << synchronize();
         for (uint i = 0; i < N; i++) host_expected[i] = host_in[i] * 2.0f + 1.0f;
         check("test19_optional_nested_lambda", host_out, host_expected);
@@ -676,10 +676,10 @@ int test_nested_callable(Device &device) {
         auto shader = device.compile(kernel);
         std::vector<float> pt_out(N);
         std::vector<uint> seed_out(N);
-        stream << seed_buf.copy_from(host_seeds.data())
+        stream << seed_buf.copy_from(luisa::span{host_seeds})
                << shader(seed_buf, buf_out).dispatch(N)
-               << buf_out.copy_to(pt_out.data())
-               << seed_buf.copy_to(seed_out.data())
+               << buf_out.copy_to(luisa::span{pt_out})
+               << seed_buf.copy_to(luisa::span{seed_out})
                << synchronize();
 
         // Host-side reference computation

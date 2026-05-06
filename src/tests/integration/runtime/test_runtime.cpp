@@ -191,7 +191,7 @@ void test_runtime(Device &device_from_ut) {
         graphics_stream
             << compute_event.wait()
             << shader(0.0f, uint2(0, resolution.y / 2), 0.0f).dispatch(resolution.x, resolution.y / 2)
-            << ldr_image.copy_to(pixels.data())
+            << ldr_image.copy_to(luisa::span{pixels})
             << synchronize();
 
         auto result = luisa::test::save_and_compare(

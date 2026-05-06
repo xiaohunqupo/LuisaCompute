@@ -148,7 +148,7 @@ void test_raster(Device &device) {
             << clear_shader(out_img).dispatch(width, height)
             << depth_buffer.clear(1.0)
             << shader(0.0f, 0.0f).draw(std::move(meshes), mesh_format, Viewport{0, 0, width, height}, state, &depth_buffer, out_img)
-            << out_img.copy_to(pixels.data())
+            << out_img.copy_to(luisa::span{pixels})
             << synchronize();
         auto result = luisa::test::save_and_compare(
             reinterpret_cast<const uint8_t *>(pixels.data()), static_cast<int>(width), static_cast<int>(height), 4,

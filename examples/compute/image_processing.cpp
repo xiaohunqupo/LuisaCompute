@@ -274,7 +274,7 @@ int main(int argc, char *argv[]) {
                                    display, edge_intensity)
                       .dispatch(width, height);
         luisa::vector<uint8_t> host_image(width * height * 4u);
-        stream << display.copy_to(host_image.data()) << synchronize();
+        stream << display.copy_to(luisa::span{host_image}) << synchronize();
         stbi_write_png("test_image_processing.png", width, height, 4, host_image.data(), 0);
         auto exe_dir = std::filesystem::path{argv[0]}.parent_path();
         auto ref_dir = luisa::ref::find_reference_dir(exe_dir);

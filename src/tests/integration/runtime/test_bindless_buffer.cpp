@@ -33,7 +33,7 @@ void test_bindless_buffer(Device &device) {
     a[1] = {0, 1, 0, 1};
     a[2] = {0, 0, 1, 1};
     a[3] = {1, 1, 1, 1};
-    stream << buffer.copy_from(a.data()) << synchronize();
+    stream << buffer.copy_from(luisa::span{a}) << synchronize();
     bdls.emplace_on_update(5, buffer);
     stream << bdls.update() << synchronize();
 
@@ -69,7 +69,7 @@ void test_bindless_buffer(Device &device) {
     } else {
         luisa::vector<std::byte> pixels(device_image1.view().size_bytes());
         stream << s(0.0f).dispatch(resolution.x, resolution.y)
-               << device_image1.copy_to(pixels.data())
+               << device_image1.copy_to(luisa::span{pixels})
                << synchronize();
         auto result = luisa::test::save_and_compare(
             reinterpret_cast<const uint8_t *>(pixels.data()), static_cast<int>(resolution.x), static_cast<int>(resolution.y), 4,

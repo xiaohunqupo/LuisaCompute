@@ -247,7 +247,7 @@ void test_curve(Device &device) {
             stream << render(accel, hdr_image, seed_image).dispatch(resolution);
         }
         stream << hdr2ldr(hdr_image, ldr_image, false).dispatch(resolution)
-               << ldr_image.copy_to(pixels.data())
+               << ldr_image.copy_to(luisa::span{pixels})
                << synchronize();
         auto result = luisa::test::save_and_compare(
             reinterpret_cast<const uint8_t *>(pixels.data()), static_cast<int>(resolution.x), static_cast<int>(resolution.y), 4,

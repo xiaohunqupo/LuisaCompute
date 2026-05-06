@@ -160,8 +160,8 @@ int main(int argc, char *argv[]) {
     Buffer<float4> accumulation = device.create_buffer<float4>(resolution.x * resolution.y);
     Image<float> output_image = device.create_image<float>(PixelStorage::BYTE4, resolution);
 
-    stream << particles_a.copy_from(host_particles.data())
-           << particles_b.copy_from(host_particles.data())
+    stream << particles_a.copy_from(luisa::span{host_particles})
+           << particles_b.copy_from(luisa::span{host_particles})
            << synchronize();
 
     // Step 2: Build the simulation kernel.
@@ -308,7 +308,7 @@ int main(int argc, char *argv[]) {
         render_frame(current, next, 0.65f, 0.35f);
 
         luisa::vector<std::array<uint8_t, 4u>> host_image(resolution.x * resolution.y);
-        stream << output_image.copy_to(host_image.data()) << synchronize();
+        stream << output_image.copy_to(luisa::span{host_image}) << synchronize();
         stbi_write_png("tutorial_07_nbody.png", resolution.x, resolution.y, 4, host_image.data(), 0);
         LUISA_INFO("Saved tutorial_07_nbody.png");
         return 0;

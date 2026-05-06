@@ -46,7 +46,7 @@ namespace {
 
 void save_png(Stream &stream, Image<float> &image, uint2 resolution, const char *filename) {
     luisa::vector<std::byte> host_pixels(image.view().size_bytes());
-    stream << image.copy_to(host_pixels.data()) << synchronize();
+    stream << image.copy_to(luisa::span{host_pixels}) << synchronize();
     auto success = stbi_write_png(filename, static_cast<int>(resolution.x), static_cast<int>(resolution.y), 4, host_pixels.data(), 0);
     LUISA_INFO("Saved {} [{}]", filename, success != 0 ? "ok" : "failed");
 }
@@ -192,8 +192,8 @@ int main(int argc, char *argv[]) {
         for (auto &pixel : host_state) {
             pixel = pack_alive((rng() % 4u) == 0u);
         }
-        stream << life_images.front.copy_from(host_state.data())
-               << life_images.back.copy_from(host_state.data())
+        stream << life_images.front.copy_from(luisa::span{host_state})
+               << life_images.back.copy_from(luisa::span{host_state})
                << synchronize();
         LUISA_INFO("Simulation reset.");
     };

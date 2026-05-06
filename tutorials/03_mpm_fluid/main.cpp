@@ -375,10 +375,10 @@ int main(int argc, char *argv[]) {
         float z = 0.20f + uniform(rng) * 0.25f;
         initial_positions[i] = make_float3(x, y, z);
     }
-    stream << particle_positions.copy_from(initial_positions.data())
-           << particle_velocities.copy_from(initial_velocities.data())
-           << particle_C.copy_from(initial_C.data())
-           << particle_J.copy_from(initial_J.data())
+    stream << particle_positions.copy_from(luisa::span{initial_positions})
+           << particle_velocities.copy_from(luisa::span{initial_velocities})
+           << particle_C.copy_from(luisa::span{initial_C})
+           << particle_J.copy_from(luisa::span{initial_J})
            << synchronize();
 
     auto run_substeps = [&](CommandList &commands) noexcept {
@@ -407,7 +407,7 @@ int main(int argc, char *argv[]) {
         }
 
         luisa::vector<std::array<uint8_t, 4u>> host_image(static_cast<size_t>(resolution) * resolution);
-        stream << display.copy_to(host_image.data())
+        stream << display.copy_to(luisa::span{host_image})
                << synchronize();
         stbi_write_png(output_file, static_cast<int>(resolution), static_cast<int>(resolution), 4, host_image.data(), 0);
         LUISA_INFO("Saved final offline MPM frame to {}.", output_file);

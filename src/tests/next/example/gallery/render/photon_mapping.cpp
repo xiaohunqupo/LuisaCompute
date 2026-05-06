@@ -109,7 +109,7 @@ int photon_mapping(Device &device) {
     BindlessArray heap = device.create_bindless_array();
     Stream stream = device.create_stream(StreamTag::GRAPHICS);
     Buffer<float3> vertex_buffer = device.create_buffer<float3>(vertices.size());
-    stream << vertex_buffer.copy_from(vertices.data());
+    stream << vertex_buffer.copy_from(luisa::span{vertices});
 
     luisa::vector<Mesh> meshes;
     luisa::vector<Buffer<Triangle>> triangle_buffers;
@@ -127,7 +127,7 @@ int photon_mapping(Device &device) {
         Buffer<Triangle> &triangle_buffer = triangle_buffers.emplace_back(device.create_buffer<Triangle>(triangle_count));
         Mesh &mesh = meshes.emplace_back(device.create_mesh(vertex_buffer, triangle_buffer));
         heap.emplace_on_update(index, triangle_buffer);
-        stream << triangle_buffer.copy_from(indices.data())
+        stream << triangle_buffer.copy_from(luisa::span{indices})
                << mesh.build();
     }
 
@@ -150,7 +150,7 @@ int photon_mapping(Device &device) {
     materials.emplace_back(Material{make_float3(0.725f, 0.71f, 0.68f), make_float3(0.0f)});// tall box
     materials.emplace_back(Material{make_float3(0.0f), make_float3(17.0f, 12.0f, 4.0f)});  // light
     Buffer<Material> material_buffer = device.create_buffer<Material>(materials.size());
-    stream << material_buffer.copy_from(materials.data());
+    stream << material_buffer.copy_from(luisa::span{materials});
     // scene built
 
     // set light
@@ -185,7 +185,7 @@ int photon_mapping(Device &device) {
 
     LUISA_INFO("grid_len = {}", grid_len);
 
-    stream << seed_buffer.copy_from(seeds.data());
+    stream << seed_buffer.copy_from(luisa::span{seeds});
 
     Kernel1D clear_grid_kernel = [&]() noexcept {
         UInt index = static_cast<UInt>(dispatch_x());
@@ -491,7 +491,7 @@ int photon_mapping(Device &device) {
 
         window.poll_events();
     }
-    stream << ldr_image.copy_to(host_image.data()) << synchronize();
+    stream << ldr_image.copy_to(luisa::span{host_image}) << synchronize();
 
     stbi_write_png("test_photon_mapping.png", resolution.x, resolution.y, 4, host_image.data(), 0);
     return 0;

@@ -136,7 +136,7 @@ int main(int argc, char *argv[]) {
             .size = 0.018f + host_random01(rng_state) * 0.02f,
             .pad = make_float3(0.0f)};
     }
-    stream << particles.copy_from(host_particles.data()) << synchronize();
+    stream << particles.copy_from(luisa::span{host_particles}) << synchronize();
 
     Callable hash_u32 = [](UInt x) noexcept {
         x = (x ^ 61u) ^ (x >> 16u);
@@ -304,7 +304,7 @@ int main(int argc, char *argv[]) {
         render_frame();
 
         luisa::vector<std::array<uint8_t, 4u>> host_image(resolution.x * resolution.y);
-        stream << output_image.copy_to(host_image.data()) << synchronize();
+        stream << output_image.copy_to(luisa::span{host_image}) << synchronize();
         stbi_write_png("tutorial_08_fire_particles.png", resolution.x, resolution.y, 4, host_image.data(), 0);
         LUISA_INFO("Saved tutorial_08_fire_particles.png");
         return 0;

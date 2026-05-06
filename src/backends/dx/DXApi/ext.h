@@ -163,7 +163,7 @@ public:
 #ifdef LCDX_ENABLE_CUDA
 
 // see implementation in cuda_interop.cpp
-[[nodiscard]] int getCudaDeviceForD3D12Device(ID3D12Device *d3d12Device) noexcept;
+[[nodiscard]] int get_cuda_device_for_d3d12_device(ID3D12Device *d3d12Device) noexcept;
 
 class DxCudaInteropImpl : public luisa::compute::DxCudaInterop {
 

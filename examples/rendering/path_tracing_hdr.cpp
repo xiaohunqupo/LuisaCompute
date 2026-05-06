@@ -450,7 +450,7 @@ int main(int argc, char *argv[]) {
     }
     luisa::vector<std::array<uint8_t, 4u>> host_image(resolution.x * resolution.y);
     stream << hdr2ldr_shader(accum_image, ldr_image, scale, 0, white_point, false).dispatch(resolution)
-           << ldr_image.copy_to(host_image.data())
+           << ldr_image.copy_to(luisa::span{host_image})
            << synchronize();
     LUISA_INFO("FPS: {}", frame_count / clock.toc() * 1000);
     stbi_write_png("test_path_tracing_hdr.png", resolution.x, resolution.y, 4, host_image.data(), 0);

@@ -267,7 +267,7 @@ int main(int argc, char *argv[]) {
 
     luisa::vector<uint8_t> host_image(width * height * 4u);// FIXME: this is unsafe for swapchain formats
     stream << hdr2ldr_shader(accum_image, ldr_image, 2.0).dispatch(width, height)
-           << ldr_image.copy_to(host_image.data())
+           << ldr_image.copy_to(luisa::span{host_image})
            << synchronize();
     stbi_write_png("sdf-renderer.png", width, height, 4, host_image.data(), 0);
 }

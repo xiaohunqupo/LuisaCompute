@@ -326,7 +326,7 @@ int main(int argc, char *argv[]) {
         // Step 6a: Offline mode writes a single PNG.
         luisa::vector<std::array<uint8_t, 4u>> host_image(image_width * image_height);
         stream << render_shader(output, yaw, pitch, zoom).dispatch(image_width, image_height)
-               << output.copy_to(host_image.data())
+               << output.copy_to(luisa::span{host_image})
                << synchronize();
         stbi_write_png("tutorial_11_black_hole.png", static_cast<int>(image_width), static_cast<int>(image_height), 4, host_image.data(), 0);
         LUISA_INFO("Saved offline render to tutorial_11_black_hole.png");
