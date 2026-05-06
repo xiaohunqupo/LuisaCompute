@@ -15,6 +15,11 @@ private:
     VkAccelerationStructureKHR _accel{nullptr};
     vstd::unique_ptr<DefaultBuffer> _accel_buffer;
     vstd::unique_ptr<DefaultBuffer> _instance_buffer;
+    vstd::unique_ptr<DefaultBuffer> _motion_instance_buffer;  // 160-byte stride buffer for TLAS build when motion is enabled
+    // VkAccelerationStructureMotionInstanceNV is 152 bytes, but the Vulkan driver
+    // requires each motion instance to be 16-byte aligned in the instance buffer.
+    // ceil(152 / 16) * 16 = 160.
+    static constexpr size_t kMotionInstanceStride = 160u;
     VkAccelerationStructureBuildGeometryInfoKHR *_acceleration_build_geometry_info{nullptr};
     AccelOption _option;
     Buffer const *_scratch_buffer{nullptr};
@@ -25,6 +30,7 @@ private:
         MeshHandle *handle = nullptr;
     };
     bool _require_rebuild = true;
+    bool _has_motion = false;  // true if any child BLAS has motion or any MotionInstance is present
     vstd::vector<Instance> _all_instance;
     void _resize_instance(size_t size);
     void _update_mesh(MeshHandle *handle);
@@ -46,5 +52,6 @@ public:
     [[nodiscard]] auto &accel() const { return _accel; }
     [[nodiscard]] auto instance_buffer() const { return _instance_buffer.get(); }
     [[nodiscard]] auto accel_buffer() const { return _accel_buffer.get(); }
+    [[nodiscard]] bool has_motion() const noexcept { return _has_motion; }
 };
 }// namespace lc::vk

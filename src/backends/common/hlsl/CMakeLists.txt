@@ -6,6 +6,7 @@ if (LUISA_COMPUTE_ENABLE_DX OR LUISA_COMPUTE_ENABLE_VULKAN)
             dx_linalg.bytes
             hlsl_header_fallback.bytes
             raytracing_header.bytes
+            raytracing_motion_header.bytes
             tex2d_bindless.bytes
             tex3d_bindless.bytes
             compute_quad.bytes

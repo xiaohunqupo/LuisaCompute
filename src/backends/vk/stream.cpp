@@ -6,6 +6,8 @@
 #include "log.h"
 #include "blas.h"
 #include "tlas.h"
+#include "motion_instance.h"
+#include "rt_shader.h"
 #include "swapchain.h"
 #include "sparse_buffer.h"
 #include <luisa/runtime/swapchain.h>
@@ -1178,6 +1180,14 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                     dispatch_shader(c, shader);
                 }
             } break;
+            case Command::Tag::EMotionInstanceBuildCommand: {
+                // Handle motion instance build early (before reordering/preprocess)
+                // to ensure child is set before TLAS build references it
+                auto c = static_cast<MotionInstanceBuildCommand const *>(command.get());
+                auto mi = reinterpret_cast<MotionInstance *>(c->handle());
+                mi->set_child(reinterpret_cast<Blas *>(c->child()));
+                mi->set_keyframes(const_cast<MotionInstanceBuildCommand *>(c)->steal_keyframes());
+            } break;
             default: break;
         }
     }
@@ -1330,6 +1340,9 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                     reinterpret_cast<Blas *>(c->handle())->pre_build(*this, c);
                 } break;
                 case Command::Tag::ECurveBuildCommand: {
+                } break;
+                case Command::Tag::EMotionInstanceBuildCommand: {
+                    // Already handled in the first pass (before reordering)
                 } break;
                 case Command::Tag::EProceduralPrimitiveBuildCommand: {
                     auto c = static_cast<ProceduralPrimitiveBuildCommand const *>(cmd);
@@ -1554,7 +1567,8 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                 } break;
                 case Command::Tag::EShaderDispatchCommand: {
                     auto c = static_cast<ShaderDispatchCommand const *>(cmd);
-                    auto shader = reinterpret_cast<ComputeShader *>(c->handle());
+                    auto shader = reinterpret_cast<Shader *>(c->handle());
+                    bool is_rt_shader = (shader->shader_tag() == Shader::ShaderTag::kRayTracingShader);
                     BindPropVisitor visitor{};
                     set_dispatch_args(visitor, c, shader);
                     constexpr size_t max_printer_count = 1024ull * 1024ull;
@@ -1644,12 +1658,27 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                             ResourceBarrier::Usage::kComputeUAV);
                         resource_barrier->update_states(_cmdbuffer);
                     }
-                    bind_shader_desc(visitor, shader, VK_PIPELINE_BIND_POINT_COMPUTE);
-                    vkCmdBindPipeline(_cmdbuffer, VK_PIPELINE_BIND_POINT_COMPUTE, shader->pipeline());
+                    auto bind_point = is_rt_shader ? VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR : VK_PIPELINE_BIND_POINT_COMPUTE;
+                    auto push_stage = is_rt_shader ?
+                        static_cast<VkShaderStageFlags>(VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR) :
+                        static_cast<VkShaderStageFlags>(VK_SHADER_STAGE_COMPUTE_BIT);
+                    // Get pipeline and block_size from the correct shader type
+                    VkPipeline vk_pipeline;
+                    uint3 blk;
+                    if (is_rt_shader) {
+                        auto rt = static_cast<RayTracingShader const *>(shader);
+                        vk_pipeline = rt->pipeline();
+                        blk = rt->block_size();
+                    } else {
+                        auto cs = static_cast<ComputeShader const *>(shader);
+                        vk_pipeline = cs->pipeline();
+                        blk = cs->block_size();
+                    }
+                    bind_shader_desc(visitor, shader, bind_point);
+                    vkCmdBindPipeline(_cmdbuffer, bind_point, vk_pipeline);
                     auto calc = [](uint disp, uint thd) {
                         return (disp + thd - 1u) / thd;
                     };
-                    auto blk = shader->block_size();
                     if (c->is_indirect()) {
                         LUISA_ERROR("Indirect not implemented.");
                     } else if (c->is_multiple_dispatch()) {
@@ -1660,11 +1689,19 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                             vkCmdPushConstants(
                                 _cmdbuffer,
                                 shader->pipeline_layout(),
-                                VK_SHADER_STAGE_COMPUTE_BIT,
+                                push_stage,
                                 0,
                                 16,
                                 &value);
-                            vkCmdDispatch(_cmdbuffer, calc(disp_size.x, blk.x), calc(disp_size.y, blk.y), calc(disp_size.z, blk.z));
+                            if (is_rt_shader) {
+                                auto rt = static_cast<RayTracingShader const *>(shader);
+                                vkCmdTraceRaysKHR(_cmdbuffer,
+                                    &rt->raygen_region(), &rt->miss_region(),
+                                    &rt->hit_region(), &rt->callable_region(),
+                                    disp_size.x, disp_size.y, disp_size.z);
+                            } else {
+                                vkCmdDispatch(_cmdbuffer, calc(disp_size.x, blk.x), calc(disp_size.y, blk.y), calc(disp_size.z, blk.z));
+                            }
                         }
                     } else {
                         auto disp_size = c->dispatch_size();
@@ -1672,11 +1709,19 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                         vkCmdPushConstants(
                             _cmdbuffer,
                             shader->pipeline_layout(),
-                            VK_SHADER_STAGE_COMPUTE_BIT,
+                            push_stage,
                             0,
                             16,
                             &value);
-                        vkCmdDispatch(_cmdbuffer, calc(disp_size.x, blk.x), calc(disp_size.y, blk.y), calc(disp_size.z, blk.z));
+                        if (is_rt_shader) {
+                            auto rt = static_cast<RayTracingShader const *>(shader);
+                            vkCmdTraceRaysKHR(_cmdbuffer,
+                                &rt->raygen_region(), &rt->miss_region(),
+                                &rt->hit_region(), &rt->callable_region(),
+                                disp_size.x, disp_size.y, disp_size.z);
+                        } else {
+                            vkCmdDispatch(_cmdbuffer, calc(disp_size.x, blk.x), calc(disp_size.y, blk.y), calc(disp_size.z, blk.z));
+                        }
                     }
                     if (logger && !shader->printers().empty()) {
                         resource_barrier->record(
@@ -1920,6 +1965,10 @@ void CommandBuffer::execute(vstd::span<const luisa::unique_ptr<Command>> cmds) {
                     reinterpret_cast<Blas *>(c->handle())->build(*this, c);
                 } break;
                 case Command::Tag::ECurveBuildCommand: {
+                } break;
+                case Command::Tag::EMotionInstanceBuildCommand: {
+                    // Motion instance build (execute): no GPU work needed,
+                    // keyframes were already stored in preprocess pass
                 } break;
                 case Command::Tag::EProceduralPrimitiveBuildCommand: {
                     auto c = static_cast<ProceduralPrimitiveBuildCommand const *>(cmd);

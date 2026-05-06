@@ -60,9 +60,12 @@ public:
         bool enableUnsafeMath,
         bool spirv,
         bool debug) const;
-    /*CompileResult CompileRayTracing(
+    CompileResult compile_raytracing(
         vstd::string_view code,
         bool optimize,
-        uint shaderModel = 63);*/
+        uint shaderModel,
+        bool enableUnsafeMath,
+        bool spirv,
+        bool debug) const;
 };
 }// namespace lc::hlsl

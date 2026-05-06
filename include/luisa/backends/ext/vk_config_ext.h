@@ -43,6 +43,9 @@ public:
     [[nodiscard]] virtual bool enable_surface_feature() const noexcept {
         return true;
     }
+    [[nodiscard]] virtual bool enable_motion_blur() const noexcept {
+        return true;
+    }
     virtual VkCommandBuffer borrow_command_buffer(
         StreamTag stream_tag) noexcept { return nullptr; }
     virtual VulkanLibPath external_vulkan_lib_path() noexcept { return {}; }

@@ -1,6 +1,6 @@
 #pragma once
 #include <volk.h>
-#include "resource.h"
+#include "primitive_base.h"
 #include "default_buffer.h"
 #include <luisa/runtime/rtx/accel.h>
 namespace lc::vk {
@@ -18,7 +18,7 @@ public:
     static MeshHandle *allocate_handle();
     static void destroy_handle(MeshHandle *handle);
 };
-class Blas : public Resource {
+class Blas : public PrimitiveBase {
     friend class Tlas;
 private:
     luisa::spin_mutex _handle_mtx;
@@ -41,6 +41,8 @@ private:
     );
 public:
     [[nodiscard]] auto &accel() const { return _accel; }
+    [[nodiscard]] auto &option() const { return _option; }
+    [[nodiscard]] bool has_motion() const noexcept { return _option.motion.is_enabled(); }
     Blas(Device *device, AccelOption const &option);
     void pre_build(
         CommandBuffer &cmdbuffer,

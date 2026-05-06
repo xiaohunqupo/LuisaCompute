@@ -18,6 +18,8 @@
 #include "bindless_array.h"
 #include "blas.h"
 #include "tlas.h"
+#include "motion_instance.h"
+#include "rt_shader.h"
 #include "swapchain.h"
 #include "sparse_buffer.h"
 #include "pinned_memory_ext.h"
@@ -295,11 +297,24 @@ ResourceCreationInfo Device::create_accel(const AccelOption &option) noexcept {
 void Device::destroy_accel(uint64_t handle) noexcept {
     delete reinterpret_cast<Tlas *>(handle);
 }
+
+ResourceCreationInfo Device::create_motion_instance(const AccelMotionOption &option) noexcept {
+    auto instance = new MotionInstance(this, option);
+    return ResourceCreationInfo{
+        .handle = reinterpret_cast<uint64_t>(instance),
+        .native_handle = nullptr
+    };
+}
+
+void Device::destroy_motion_instance(uint64_t handle) noexcept {
+    delete reinterpret_cast<MotionInstance *>(handle);
+}
 //////////////// Not implemented area
 Device::Device(Context &&ctx_arg, DeviceConfig const *configs)
     : DeviceInterface{std::move(ctx_arg)},
       set_bindless_kernel(BuiltinKernel::load_bindless_set_kernel),
-      set_accel_kernel(BuiltinKernel::load_accel_set_kernel) {
+      set_accel_kernel(BuiltinKernel::load_accel_set_kernel),
+      set_accel_motion_kernel(BuiltinKernel::load_accel_motion_set_kernel) {
     bool headless = false;
     bool use_lmdb = false;
     bool load_dxc = true;
@@ -530,6 +545,7 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
     bool enable_16bit = false;
     bool enable_atomic64_bit = false;
     bool enable_barycentric = false;
+    bool enable_motion_blur = false;
     if (supported_ext.find(VK_KHR_FRAGMENT_SHADER_BARYCENTRIC_EXTENSION_NAME) != supported_ext.end()) {
         _enable_device_exts.emplace_back(VK_KHR_FRAGMENT_SHADER_BARYCENTRIC_EXTENSION_NAME);
         enable_barycentric = true;
@@ -562,6 +578,16 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
             supported_ext.find(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME) != supported_ext.end()) {
             _enable_device_exts.emplace_back(VK_KHR_RAY_QUERY_EXTENSION_NAME);
             _enable_device_exts.emplace_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
+            // Enable motion blur extension if available (NVIDIA only)
+            // VK_NV_ray_tracing_motion_blur requires VK_KHR_ray_tracing_pipeline
+            if (supported_ext.find(VK_NV_RAY_TRACING_MOTION_BLUR_EXTENSION_NAME) != supported_ext.end() &&
+                supported_ext.find(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME) != supported_ext.end()
+            ) {
+                _enable_device_exts.emplace_back(VK_NV_RAY_TRACING_MOTION_BLUR_EXTENSION_NAME);
+                _enable_device_exts.emplace_back(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
+                enable_motion_blur = true;
+                motion_blur_enabled = true;
+            }
         } else {
             raytracing_enabled = false;
         }
@@ -627,8 +653,23 @@ void Device::_init_device(VkPhysicalDevice external_physical_device, VkDevice ex
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
         .pNext = &enable_rayquery_features,
         .accelerationStructure = VK_TRUE};
+    VkPhysicalDeviceRayTracingMotionBlurFeaturesNV motion_blur_features {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_MOTION_BLUR_FEATURES_NV,
+        .pNext = &enabled_acceleration_structure_features,
+        .rayTracingMotionBlur = VK_TRUE,
+        .rayTracingMotionBlurPipelineTraceRaysIndirect = VK_FALSE
+    };
+    VkPhysicalDeviceRayTracingPipelineFeaturesKHR rt_pipeline_features {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR,
+        .pNext = &motion_blur_features,
+        .rayTracingPipeline = VK_TRUE
+    };
     if (raytracing_enabled) {
-        feature_next = &enabled_acceleration_structure_features;
+        if (enable_motion_blur) {
+            feature_next = &rt_pipeline_features;
+        } else {
+            feature_next = &enabled_acceleration_structure_features;
+        }
     }
     VkPhysicalDeviceSynchronization2Features barrier_feature{
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES,
@@ -1037,6 +1078,48 @@ ShaderCreationInfo Device::create_shader(const ShaderOption &option, Function ke
     if (option.enable_debug_info) {
         mask |= 2;
     }
+
+    // Check if this shader uses motion blur trace operations
+    bool requires_motion_blur = kernel.propagated_builtin_callables().uses_raytracing_motion_blur();
+
+    if (requires_motion_blur && !motion_blur_enabled) {
+        LUISA_WARNING("Shader uses motion blur but device does not support it. "
+                      "Falling back to non-motion compute shader.");
+        requires_motion_blur = false;
+    }
+
+    if (requires_motion_blur) {
+        // Use ray tracing pipeline for motion blur shaders
+        auto code = hlsl::CodegenUtility{}.RayTracingCodegen(kernel, option.native_include, mask, true);
+        vstd::MD5 check_md5({reinterpret_cast<uint8_t const *>(code.result.data() + code.immutableHeaderSize), code.result.size() - code.immutableHeaderSize});
+
+        vstd::string_view file_name;
+        vstd::string str_cache;
+        SerdeType serde_type = SerdeType::kCache;
+        if (option.enable_cache) {
+            if (option.name.empty()) {
+                str_cache << check_md5.to_string(false) << "_rt.spv"sv;
+                file_name = str_cache;
+            } else {
+                file_name = option.name;
+                serde_type = SerdeType::kByteCode;
+            }
+        }
+        auto shader = RayTracingShader::compile(
+            _binary_io,
+            this,
+            ShaderSerializer::serialize_saved_args(kernel),
+            [&]() { return std::move(code); },
+            check_md5,
+            hlsl::binding_to_arg(kernel.bound_arguments()),
+            kernel.block_size(),
+            file_name,
+            serde_type,
+            kShaderModel,
+            option.enable_fast_math);
+        info.handle = reinterpret_cast<uint64_t>(shader);
+        info.native_handle = shader->pipeline();
+    } else {
     // Clock clk;
     auto code = hlsl::CodegenUtility{}.Codegen(kernel, option.native_include, mask, true);
     vstd::MD5 check_md5({reinterpret_cast<uint8_t const *>(code.result.data() + code.immutableHeaderSize), code.result.size() - code.immutableHeaderSize});
@@ -1106,6 +1189,7 @@ ShaderCreationInfo Device::create_shader(const ShaderOption &option, Function ke
         info.handle = reinterpret_cast<uint64_t>(shader);
         info.native_handle = shader->pipeline();
     }
+    }// end else (non-motion-blur path)
     info.block_size = kernel.block_size();
     return info;
 }
